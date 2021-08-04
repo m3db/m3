@@ -29,10 +29,10 @@ import (
 	"reflect"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -45,7 +45,7 @@ import (
 
 var (
 	// M3DBUpdateURL is the url for the M3DB namespace update handler.
-	M3DBUpdateURL = path.Join(handler.RoutePrefixV1, M3DBServiceNamespacePathName)
+	M3DBUpdateURL = path.Join(route.Prefix, M3DBServiceNamespacePathName)
 
 	// UpdateHTTPMethod is the HTTP method used with this resource.
 	UpdateHTTPMethod = http.MethodPut
@@ -54,6 +54,7 @@ var (
 	fieldNameRetentionPeriod    = "RetentionPeriodNanos"
 	fieldNameRuntimeOptions     = "RuntimeOptions"
 	fieldNameAggregationOptions = "AggregationOptions"
+	fieldNameExtendedOptions    = "ExtendedOptions"
 
 	errEmptyNamespaceName      = errors.New("must specify namespace name")
 	errEmptyNamespaceOptions   = errors.New("update options cannot be empty")
@@ -63,6 +64,7 @@ var (
 		fieldNameRetentionOptions:   {},
 		fieldNameRuntimeOptions:     {},
 		fieldNameAggregationOptions: {},
+		fieldNameExtendedOptions:    {},
 	}
 )
 

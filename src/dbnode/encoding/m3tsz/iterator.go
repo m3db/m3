@@ -21,19 +21,31 @@
 package m3tsz
 
 import (
-	"io"
+	"errors"
 	"math"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
 )
+
+var errClosed = errors.New("iterator is closed")
+
+// DefaultReaderIteratorAllocFn returns a function for allocating NewReaderIterator.
+func DefaultReaderIteratorAllocFn(
+	opts encoding.Options,
+) func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
+	return func(r xio.Reader64, _ namespace.SchemaDescr) encoding.ReaderIterator {
+		return NewReaderIterator(r, DefaultIntOptimizationEnabled, opts)
+	}
+}
 
 // readerIterator provides an interface for clients to incrementally
 // read datapoints off of an encoded stream.
 type readerIterator struct {
-	is   encoding.IStream
+	is   *encoding.IStream
 	opts encoding.Options
 
 	err        error   // current error
@@ -44,6 +56,7 @@ type readerIterator struct {
 	mult uint8 // current int multiplier
 	sig  uint8 // current number of significant bits for int diff
 
+	curr         ts.Datapoint
 	intOptimized bool // whether encoding scheme is optimized for ints
 	isFloat      bool // whether encoding is in int or float
 
@@ -51,9 +64,13 @@ type readerIterator struct {
 }
 
 // NewReaderIterator returns a new iterator for a given reader
-func NewReaderIterator(reader io.Reader, intOptimized bool, opts encoding.Options) encoding.ReaderIterator {
+func NewReaderIterator(
+	reader xio.Reader64,
+	intOptimized bool,
+	opts encoding.Options,
+) encoding.ReaderIterator {
 	return &readerIterator{
-		is:           encoding.NewIStream(reader, opts.IStreamReaderSizeM3TSZ()),
+		is:           encoding.NewIStream(reader),
 		opts:         opts,
 		tsIterator:   NewTimestampIterator(opts, false),
 		intOptimized: intOptimized,
@@ -72,17 +89,20 @@ func (it *readerIterator) Next() bool {
 		return false
 	}
 
-	it.readValue(first)
+	if !first {
+		it.readNextValue()
+	} else {
+		it.readFirstValue()
+	}
+
+	it.curr.TimestampNanos = it.tsIterator.PrevTime
+	if !it.intOptimized || it.isFloat {
+		it.curr.Value = math.Float64frombits(it.floatIter.PrevFloatBits)
+	} else {
+		it.curr.Value = convertFromIntFloat(it.intVal, it.mult)
+	}
 
 	return it.hasNext()
-}
-
-func (it *readerIterator) readValue(first bool) {
-	if first {
-		it.readFirstValue()
-	} else {
-		it.readNextValue()
-	}
 }
 
 func (it *readerIterator) readFirstValue() {
@@ -137,9 +157,22 @@ func (it *readerIterator) readNextValue() {
 		if err := it.floatIter.readNextFloat(it.is); err != nil {
 			it.err = err
 		}
-	} else {
-		it.readIntValDiff()
+		return
 	}
+
+	// inlined readIntValDiff()
+	if it.sig == 64 {
+		it.readIntValDiffSlow()
+		return
+	}
+	bits := it.readBits(it.sig + 1)
+	sign := -1.0
+	if (bits >> it.sig) == opcodeNegative {
+		sign = 1.0
+		// clear the opcode bit
+		bits ^= uint64(1 << it.sig)
+	}
+	it.intVal += sign * float64(bits)
 }
 
 func (it *readerIterator) readIntSigMult() {
@@ -160,40 +193,41 @@ func (it *readerIterator) readIntSigMult() {
 }
 
 func (it *readerIterator) readIntValDiff() {
+	// check if we can read both sign bit and digits in one read
+	if it.sig == 64 {
+		it.readIntValDiffSlow()
+		return
+	}
+	// read both sign bit and digits in one read
+	bits := it.readBits(it.sig + 1)
+	sign := -1.0
+	if (bits >> it.sig) == opcodeNegative {
+		sign = 1.0
+		// clear the opcode bit
+		bits ^= uint64(1 << it.sig)
+	}
+	it.intVal += sign * float64(bits)
+}
+
+func (it *readerIterator) readIntValDiffSlow() {
 	sign := -1.0
 	if it.readBits(1) == opcodeNegative {
 		sign = 1.0
 	}
 
-	it.intVal += sign * float64(it.readBits(uint(it.sig)))
+	it.intVal += sign * float64(it.readBits(it.sig))
 }
 
-func (it *readerIterator) readBits(numBits uint) uint64 {
-	if !it.hasNext() {
-		return 0
-	}
-	var res uint64
+func (it *readerIterator) readBits(numBits uint8) (res uint64) {
 	res, it.err = it.is.ReadBits(numBits)
-	return res
+	return
 }
 
 // Current returns the value as well as the annotation associated with the current datapoint.
 // Users should not hold on to the returned Annotation object as it may get invalidated when
 // the iterator calls Next().
 func (it *readerIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
-	if !it.intOptimized || it.isFloat {
-		return ts.Datapoint{
-			Timestamp:      it.tsIterator.PrevTime.ToTime(),
-			TimestampNanos: it.tsIterator.PrevTime,
-			Value:          math.Float64frombits(it.floatIter.PrevFloatBits),
-		}, it.tsIterator.TimeUnit, it.tsIterator.PrevAnt
-	}
-
-	return ts.Datapoint{
-		Timestamp:      it.tsIterator.PrevTime.ToTime(),
-		TimestampNanos: it.tsIterator.PrevTime,
-		Value:          convertFromIntFloat(it.intVal, it.mult),
-	}, it.tsIterator.TimeUnit, it.tsIterator.PrevAnt
+	return it.curr, it.tsIterator.TimeUnit, it.tsIterator.PrevAnt
 }
 
 // Err returns the error encountered
@@ -214,11 +248,11 @@ func (it *readerIterator) isClosed() bool {
 }
 
 func (it *readerIterator) hasNext() bool {
-	return !it.hasError() && !it.isDone() && !it.isClosed()
+	return !it.hasError() && !it.isDone()
 }
 
 // Reset resets the ReadIterator for reuse.
-func (it *readerIterator) Reset(reader io.Reader, schema namespace.SchemaDescr) {
+func (it *readerIterator) Reset(reader xio.Reader64, schema namespace.SchemaDescr) {
 	it.is.Reset(reader)
 	it.tsIterator = NewTimestampIterator(it.opts, it.tsIterator.SkipMarkers)
 	it.err = nil
@@ -236,6 +270,7 @@ func (it *readerIterator) Close() {
 	}
 
 	it.closed = true
+	it.err = errClosed
 	pool := it.opts.ReaderIteratorPool()
 	if pool != nil {
 		pool.Put(it)

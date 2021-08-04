@@ -21,12 +21,10 @@
 package prototest
 
 import (
-	"io"
-	"time"
-
-	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/proto"
+	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -37,11 +35,11 @@ var (
 )
 
 type Pools struct {
-	EncodingOpt encoding.Options
-	EncoderPool encoding.EncoderPool
-	ReaderIterPool encoding.ReaderIteratorPool
+	EncodingOpt         encoding.Options
+	EncoderPool         encoding.EncoderPool
+	ReaderIterPool      encoding.ReaderIteratorPool
 	MultiReaderIterPool encoding.MultiReaderIteratorPool
-	BytesPool pool.CheckedBytesPool
+	BytesPool           pool.CheckedBytesPool
 }
 
 func newPools() Pools {
@@ -59,24 +57,23 @@ func newPools() Pools {
 
 	encodingOpts := testEncodingOptions.SetEncoderPool(encoderPool)
 
-	var timeZero time.Time
 	encoderPool.Init(func() encoding.Encoder {
-		return proto.NewEncoder(timeZero, encodingOpts)
+		return proto.NewEncoder(0, encodingOpts)
 	})
-	readerIterPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+	readerIterPool.Init(func(r xio.Reader64, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		return proto.NewIterator(r, descr, encodingOpts)
 	})
-	multiReaderIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+	multiReaderIteratorPool.Init(func(r xio.Reader64, descr namespace.SchemaDescr) encoding.ReaderIterator {
 		i := readerIterPool.Get()
 		i.Reset(r, descr)
 		return i
 	})
 
-	return Pools {
-		EncodingOpt: testEncodingOptions,
-		BytesPool: bytesPool,
-		EncoderPool: encoderPool,
-		ReaderIterPool: readerIterPool,
+	return Pools{
+		EncodingOpt:         testEncodingOptions,
+		BytesPool:           bytesPool,
+		EncoderPool:         encoderPool,
+		ReaderIterPool:      readerIterPool,
 		MultiReaderIterPool: multiReaderIteratorPool,
 	}
 }

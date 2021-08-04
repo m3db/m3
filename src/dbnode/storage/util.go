@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -59,13 +60,14 @@ func DefaultTestOptions() Options {
 			panic(err)
 		}
 
-		plCache, stopReporting, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
+		plCache, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
 			InstrumentOptions: opts.InstrumentOptions(),
 		})
 		if err != nil {
 			panic(err)
 		}
-		defer stopReporting()
+		plStop := plCache.Start()
+		defer plStop()
 
 		indexOpts := opts.IndexOptions().
 			SetPostingsListCache(plCache)
@@ -98,7 +100,7 @@ func DefaultTestOptions() Options {
 // 	- returns 0 if window <= 0 ;
 //  - returns 0 if end is before start;
 //  - returns 1 if end == start
-func numIntervals(startInclusive, endInclusive time.Time, window time.Duration) int {
+func numIntervals(startInclusive, endInclusive xtime.UnixNano, window time.Duration) int {
 	if window <= 0 || endInclusive.Before(startInclusive) {
 		return 0
 	}
@@ -109,12 +111,12 @@ func numIntervals(startInclusive, endInclusive time.Time, window time.Duration) 
 // timesInRange returns the points between [start, end] windowSize apart, starting at `end`, in
 // reverse chronological order.
 // NB: returns empty slice if window <= 0 or end is before start
-func timesInRange(startInclusive, endInclusive time.Time, windowSize time.Duration) []time.Time {
+func timesInRange(startInclusive, endInclusive xtime.UnixNano, windowSize time.Duration) []xtime.UnixNano {
 	ni := numIntervals(startInclusive, endInclusive, windowSize)
 	if ni == 0 {
 		return nil
 	}
-	times := make([]time.Time, 0, ni)
+	times := make([]xtime.UnixNano, 0, ni)
 	for t := endInclusive; !t.Before(startInclusive); t = t.Add(-windowSize) {
 		times = append(times, t)
 	}
@@ -123,8 +125,8 @@ func timesInRange(startInclusive, endInclusive time.Time, windowSize time.Durati
 
 // filterTimes returns the values in the slice `times` which satisfy
 // the provided predicate.
-func filterTimes(times []time.Time, predicate func(t time.Time) bool) []time.Time {
-	filtered := make([]time.Time, 0, len(times))
+func filterTimes(times []xtime.UnixNano, predicate func(t xtime.UnixNano) bool) []xtime.UnixNano {
+	filtered := make([]xtime.UnixNano, 0, len(times))
 	for _, t := range times {
 		if predicate(t) {
 			filtered = append(filtered, t)

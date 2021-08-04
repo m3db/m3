@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,7 +49,7 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 
 	opts := newHostQueueTestOptions()
 	peer := newTestHostQueue(opts)
-	now := time.Now()
+	now := xtime.Now()
 	checksums := []uint32{1, 2, 3}
 	lastRead := now.Add(-100 * time.Millisecond)
 	inputs := []receivedBlockMetadata{
@@ -96,7 +97,7 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 
 	var actual []testHostBlock
 	it := newMetadataIter(inputCh, errCh,
-		testTagDecodingPool.Get(), testIDPool)
+		testTagDecodingPool, testIDPool)
 	for it.Next() {
 		host, curr := it.Current()
 		result := block.NewMetadata(curr.ID, curr.Tags, curr.Start, curr.Size,

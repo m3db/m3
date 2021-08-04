@@ -114,10 +114,22 @@ type FetchOptions struct {
 	Remote bool
 	// SeriesLimit is the maximum number of series to return.
 	SeriesLimit int
+	// InstanceMultiple is how much to increase the per database instance series limit.
+	InstanceMultiple float32
 	// DocsLimit is the maximum number of docs to return.
 	DocsLimit int
+	// RangeLimit is the maximum time range to return.
+	RangeLimit time.Duration
+	// ReturnedSeriesLimit is the maximum number of series to return.
+	ReturnedSeriesLimit int
+	// ReturnedDatapointsLimit is the maximum number of datapoints to return.
+	ReturnedDatapointsLimit int
+	// ReturnedSeriesMetadataLimit is the maximum number of series metadata to return.
+	ReturnedSeriesMetadataLimit int
 	// RequireExhaustive results in an error if the query exceeds the series limit.
 	RequireExhaustive bool
+	// RequireNoWait results in an error if the query execution must wait for permits.
+	RequireNoWait bool
 	// BlockType is the block type that the fetch function returns.
 	BlockType models.FetchedBlockType
 	// FanoutOptions are the options for the fetch namespace fanout.
@@ -214,6 +226,12 @@ type Querier interface {
 		options *FetchOptions,
 	) (block.Result, error)
 
+	FetchCompressed(
+		ctx context.Context,
+		query *FetchQuery,
+		options *FetchOptions,
+	) (consolidators.MultiFetchResult, error)
+
 	// SearchSeries returns series IDs matching the current query.
 	SearchSeries(
 		ctx context.Context,
@@ -227,6 +245,14 @@ type Querier interface {
 		query *CompleteTagsQuery,
 		options *FetchOptions,
 	) (*consolidators.CompleteTagsResult, error)
+
+	// QueryStorageMetadataAttributes returns the storage metadata
+	// attributes for a query.
+	QueryStorageMetadataAttributes(
+		ctx context.Context,
+		queryStart, queryEnd time.Time,
+		opts *FetchOptions,
+	) ([]storagemetadata.Attributes, error)
 }
 
 // WriteQuery represents the input timeseries that is written to the database.
@@ -260,9 +286,9 @@ type CompleteTagsQuery struct {
 	// TagMatchers is the search criteria for the query.
 	TagMatchers models.Matchers
 	// Start is the inclusive start for the query.
-	Start time.Time
+	Start xtime.UnixNano
 	// End is the exclusive end for the query.
-	End time.Time
+	End xtime.UnixNano
 }
 
 // SeriesMatchQuery represents a query that returns a set of series

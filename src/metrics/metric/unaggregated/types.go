@@ -40,8 +40,9 @@ var (
 
 // Counter is a counter containing the counter ID and the counter value.
 type Counter struct {
-	ID    id.RawID
-	Value int64
+	ID         id.RawID
+	Value      int64
+	Annotation []byte
 }
 
 // ToUnion converts the counter to a metric union.
@@ -50,6 +51,7 @@ func (c Counter) ToUnion() MetricUnion {
 		Type:       metric.CounterType,
 		ID:         c.ID,
 		CounterVal: c.Value,
+		Annotation: c.Annotation,
 	}
 }
 
@@ -57,18 +59,21 @@ func (c Counter) ToUnion() MetricUnion {
 func (c Counter) ToProto(pb *metricpb.Counter) {
 	pb.Id = c.ID
 	pb.Value = c.Value
+	pb.Annotation = c.Annotation
 }
 
 // FromProto converts the protobuf message to a counter in place.
 func (c *Counter) FromProto(pb metricpb.Counter) {
 	c.ID = pb.Id
 	c.Value = pb.Value
+	c.Annotation = pb.Annotation
 }
 
 // BatchTimer is a timer containing the timer ID and a list of timer values.
 type BatchTimer struct {
-	ID     id.RawID
-	Values []float64
+	ID         id.RawID
+	Values     []float64
+	Annotation []byte
 }
 
 // ToUnion converts the batch timer to a metric union.
@@ -77,6 +82,7 @@ func (t BatchTimer) ToUnion() MetricUnion {
 		Type:          metric.TimerType,
 		ID:            t.ID,
 		BatchTimerVal: t.Values,
+		Annotation:    t.Annotation,
 	}
 }
 
@@ -84,26 +90,30 @@ func (t BatchTimer) ToUnion() MetricUnion {
 func (t BatchTimer) ToProto(pb *metricpb.BatchTimer) {
 	pb.Id = t.ID
 	pb.Values = t.Values
+	pb.Annotation = t.Annotation
 }
 
 // FromProto converts the protobuf message to a batch timer in place.
 func (t *BatchTimer) FromProto(pb metricpb.BatchTimer) {
 	t.ID = pb.Id
 	t.Values = pb.Values
+	t.Annotation = pb.Annotation
 }
 
 // Gauge is a gauge containing the gauge ID and the value at certain time.
 type Gauge struct {
-	ID    id.RawID
-	Value float64
+	ID         id.RawID
+	Value      float64
+	Annotation []byte
 }
 
 // ToUnion converts the gauge to a metric union.
 func (g Gauge) ToUnion() MetricUnion {
 	return MetricUnion{
-		Type:     metric.GaugeType,
-		ID:       g.ID,
-		GaugeVal: g.Value,
+		Type:       metric.GaugeType,
+		ID:         g.ID,
+		GaugeVal:   g.Value,
+		Annotation: g.Annotation,
 	}
 }
 
@@ -111,12 +121,14 @@ func (g Gauge) ToUnion() MetricUnion {
 func (g Gauge) ToProto(pb *metricpb.Gauge) {
 	pb.Id = g.ID
 	pb.Value = g.Value
+	pb.Annotation = g.Annotation
 }
 
 // FromProto converts the protobuf message to a gauge in place.
 func (g *Gauge) FromProto(pb metricpb.Gauge) {
 	g.ID = pb.Id
 	g.Value = pb.Value
+	g.Annotation = pb.Annotation
 }
 
 // CounterWithPoliciesList is a counter with applicable policies list.
@@ -230,6 +242,7 @@ type MetricUnion struct {
 	BatchTimerVal []float64
 	GaugeVal      float64
 	TimerValPool  pool.FloatsPool
+	Annotation    []byte
 }
 
 var emptyMetricUnion MetricUnion
@@ -255,10 +268,16 @@ func (m *MetricUnion) String() string {
 func (m *MetricUnion) Reset() { *m = emptyMetricUnion }
 
 // Counter returns the counter metric.
-func (m *MetricUnion) Counter() Counter { return Counter{ID: m.ID, Value: m.CounterVal} }
+func (m *MetricUnion) Counter() Counter {
+	return Counter{ID: m.ID, Value: m.CounterVal, Annotation: m.Annotation}
+}
 
 // BatchTimer returns the batch timer metric.
-func (m *MetricUnion) BatchTimer() BatchTimer { return BatchTimer{ID: m.ID, Values: m.BatchTimerVal} }
+func (m *MetricUnion) BatchTimer() BatchTimer {
+	return BatchTimer{ID: m.ID, Values: m.BatchTimerVal, Annotation: m.Annotation}
+}
 
 // Gauge returns the gauge metric.
-func (m *MetricUnion) Gauge() Gauge { return Gauge{ID: m.ID, Value: m.GaugeVal} }
+func (m *MetricUnion) Gauge() Gauge {
+	return Gauge{ID: m.ID, Value: m.GaugeVal, Annotation: m.Annotation}
+}

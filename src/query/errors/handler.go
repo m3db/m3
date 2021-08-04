@@ -21,9 +21,11 @@
 package errors
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
@@ -51,3 +53,36 @@ var (
 	// ErrMultipleResults is returned when there are multiple label values results
 	ErrMultipleResults = xerrors.NewInvalidParamsError(errors.New("can not render label values; multiple results detected"))
 )
+
+// ErrQueryTimeout is returned when a query times out executing.
+type ErrQueryTimeout struct {
+	cause error
+}
+
+// Error returns the error string of the causing error.
+func (e *ErrQueryTimeout) Error() string {
+	return e.cause.Error()
+}
+
+// Code returns an HTTP 504.
+func (e *ErrQueryTimeout) Code() int {
+	return http.StatusGatewayTimeout
+}
+
+// InnerError returns the cause of the query timeout.
+func (e *ErrQueryTimeout) InnerError() error {
+	return e.cause
+}
+
+// NewErrQueryTimeout wraps the provided causing error as an ErrQueryTimeout.
+func NewErrQueryTimeout(err error) *ErrQueryTimeout {
+	if err == nil {
+		return nil
+	}
+	return &ErrQueryTimeout{cause: err}
+}
+
+// IsTimeout returns true if the error was caused by a timeout.
+func IsTimeout(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) || client.IsTimeoutError(err)
+}

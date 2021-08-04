@@ -60,6 +60,9 @@ type contextBase struct {
 	// Source is the query source.
 	Source []byte
 
+	// MaxDataPoints is the max datapoints for the query.
+	MaxDataPoints int64
+
 	parent         *Context
 	reqCtx         ctx.Context
 	storageContext context.Context
@@ -73,11 +76,12 @@ type Context struct {
 
 // ContextOptions provides the options to create the context with
 type ContextOptions struct {
-	Start   time.Time
-	End     time.Time
-	Engine  QueryEngine
-	Timeout time.Duration
-	Limit   int
+	Start         time.Time
+	End           time.Time
+	Engine        QueryEngine
+	Timeout       time.Duration
+	Limit         int
+	MaxDataPoints int64
 }
 
 // TimeRangeAdjustment is an applied time range adjustment.
@@ -100,6 +104,7 @@ func NewContext(options ContextOptions) *Context {
 			storageContext: context.New(),
 			Timeout:        options.Timeout,
 			Limit:          options.Limit,
+			MaxDataPoints:  options.MaxDataPoints,
 		},
 	}
 }
@@ -161,12 +166,8 @@ func (c *Context) NewChildContext(opts ChildContextOptions) *Context {
 		child.TimeRangeAdjustment.OriginalEnd = origEnd
 		child.TimeRangeAdjustment.ShiftStart += opts.adjustment.shiftStart
 		child.TimeRangeAdjustment.ShiftEnd += opts.adjustment.shiftEnd
-		if opts.adjustment.expandStart > child.TimeRangeAdjustment.ExpandStart {
-			child.TimeRangeAdjustment.ExpandStart = opts.adjustment.expandStart
-		}
-		if opts.adjustment.expandEnd > child.TimeRangeAdjustment.ExpandEnd {
-			child.TimeRangeAdjustment.ExpandEnd = opts.adjustment.expandEnd
-		}
+		child.TimeRangeAdjustment.ExpandStart += opts.adjustment.expandStart
+		child.TimeRangeAdjustment.ExpandEnd += opts.adjustment.expandEnd
 
 		child.StartTime = origStart.
 			Add(child.TimeRangeAdjustment.ShiftStart).

@@ -18,10 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package json contains logic for writing JSON.
 package json
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -37,8 +39,10 @@ var (
 	errContainerStillOpen = errors.New("container still open")
 )
 
-type writeState int
-type containerType int
+type (
+	writeState    int
+	containerType int
+)
 
 const (
 	object containerType = iota
@@ -46,7 +50,7 @@ const (
 )
 
 const (
-	writeStart                   writeState = iota
+	writeStart writeState = iota
 	writeBeforeFirstField
 	writeBeforeNthField
 	writeBeforeFieldValue
@@ -55,14 +59,12 @@ const (
 	writeEnd
 )
 
-var (
-	writeValueAllowed = map[writeState]struct{}{
-		writeStart:                   struct{}{},
-		writeBeforeFieldValue:        struct{}{},
-		writeBeforeFirstArrayElement: struct{}{},
-		writeBeforeNthArrayElement:   struct{}{},
-	}
-)
+var writeValueAllowed = map[writeState]struct{}{
+	writeStart:                   {},
+	writeBeforeFieldValue:        {},
+	writeBeforeFirstArrayElement: {},
+	writeBeforeNthArrayElement:   {},
+}
 
 func (s writeState) isValueAllowed() bool {
 	_, allowed := writeValueAllowed[s]
@@ -71,23 +73,42 @@ func (s writeState) isValueAllowed() bool {
 
 // A Writer can be used to directly stream JSON results without going through
 // an intermediate object layer.
-type Writer struct {
+type Writer interface {
+	BeginObject()
+	BeginObjectField(name string)
+	BeginObjectBytesField(name []byte)
+	EndObject()
+	BeginArray()
+	EndArray()
+	WriteBool(b bool)
+	WriteNull()
+	WriteFloat64(n float64)
+	WriteInt(n int)
+	WriteString(s string)
+	WriteBytesString(s []byte)
+	Flush() error
+	Close() error
+}
+
+type writer struct {
 	w          *bufio.Writer
+	buff       *bytes.Reader
 	state      writeState
 	containers []containerType
 	err        error
 }
 
 // NewWriter creates a new JSON token writer
-func NewWriter(w io.Writer) *Writer {
-	return &Writer{
+func NewWriter(w io.Writer) Writer {
+	return &writer{
 		w:          bufio.NewWriter(w),
+		buff:       bytes.NewReader(nil),
 		containers: make([]containerType, 0, 5),
 	}
 }
 
 // BeginObject begins a new object
-func (w *Writer) BeginObject() {
+func (w *writer) BeginObject() {
 	if !w.beginValue() {
 		return
 	}
@@ -98,20 +119,10 @@ func (w *Writer) BeginObject() {
 }
 
 // BeginObjectField begins a new object field with the given name
-func (w *Writer) BeginObjectField(name string) {
+func (w *writer) BeginObjectField(name string) {
+	w.err = w.beginObjectFieldStart()
 	if w.err != nil {
 		return
-	}
-
-	if w.state != writeBeforeFirstField && w.state != writeBeforeNthField {
-		w.err = errFieldNotAllowed
-		return
-	}
-
-	if w.state == writeBeforeNthField {
-		if _, w.err = w.w.WriteRune(','); w.err != nil {
-			return
-		}
 	}
 
 	w.writeString(name)
@@ -119,16 +130,51 @@ func (w *Writer) BeginObjectField(name string) {
 		return
 	}
 
-	_, w.err = w.w.WriteRune(':')
+	w.err = w.beginObjectFieldEnd()
+}
+
+func (w *writer) beginObjectFieldStart() error {
+	if w.err != nil {
+		return w.err
+	}
+
+	if w.state != writeBeforeFirstField && w.state != writeBeforeNthField {
+		return errFieldNotAllowed
+	}
+
+	if w.state == writeBeforeNthField {
+		if _, err := w.w.WriteRune(','); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (w *writer) beginObjectFieldEnd() error {
+	if _, err := w.w.WriteRune(':'); err != nil {
+		return err
+	}
+	w.state = writeBeforeFieldValue
+	return nil
+}
+
+func (w *writer) BeginObjectBytesField(name []byte) {
+	w.err = w.beginObjectFieldStart()
 	if w.err != nil {
 		return
 	}
 
-	w.state = writeBeforeFieldValue
+	w.writeBytesString(name)
+	if w.err != nil {
+		return
+	}
+
+	w.err = w.beginObjectFieldEnd()
 }
 
 // EndObject finishes an open object
-func (w *Writer) EndObject() {
+func (w *writer) EndObject() {
 	if !w.endContainer(object) {
 		return
 	}
@@ -137,7 +183,7 @@ func (w *Writer) EndObject() {
 }
 
 // BeginArray begins a new array value
-func (w *Writer) BeginArray() {
+func (w *writer) BeginArray() {
 	if !w.beginValue() {
 		return
 	}
@@ -148,7 +194,7 @@ func (w *Writer) BeginArray() {
 }
 
 // EndArray finishes an array value
-func (w *Writer) EndArray() {
+func (w *writer) EndArray() {
 	if !w.endContainer(array) {
 		return
 	}
@@ -157,7 +203,7 @@ func (w *Writer) EndArray() {
 }
 
 // endContainer finishes a container of the given type
-func (w *Writer) endContainer(expected containerType) bool {
+func (w *writer) endContainer(expected containerType) bool {
 	if w.err != nil {
 		return false
 	}
@@ -179,7 +225,7 @@ func (w *Writer) endContainer(expected containerType) bool {
 }
 
 // WriteBool writes a boolean value
-func (w *Writer) WriteBool(b bool) {
+func (w *writer) WriteBool(b bool) {
 	if !w.beginValue() {
 		return
 	}
@@ -192,12 +238,12 @@ func (w *Writer) WriteBool(b bool) {
 	w.endValue()
 }
 
-func (w *Writer) writeNull() {
+func (w *writer) writeNull() {
 	_, w.err = w.w.WriteString("null")
 }
 
 // WriteNull writes a null value
-func (w *Writer) WriteNull() {
+func (w *writer) WriteNull() {
 	if !w.beginValue() {
 		return
 	}
@@ -207,7 +253,7 @@ func (w *Writer) WriteNull() {
 }
 
 // WriteFloat64 writes a float value
-func (w *Writer) WriteFloat64(n float64) {
+func (w *writer) WriteFloat64(n float64) {
 	if !w.beginValue() {
 		return
 	}
@@ -223,7 +269,7 @@ func (w *Writer) WriteFloat64(n float64) {
 }
 
 // WriteInt writes an int value
-func (w *Writer) WriteInt(n int) {
+func (w *writer) WriteInt(n int) {
 	if !w.beginValue() {
 		return
 	}
@@ -233,7 +279,7 @@ func (w *Writer) WriteInt(n int) {
 }
 
 // WriteString writes a string value
-func (w *Writer) WriteString(s string) {
+func (w *writer) WriteString(s string) {
 	if !w.beginValue() {
 		return
 	}
@@ -243,7 +289,7 @@ func (w *Writer) WriteString(s string) {
 	w.endValue()
 }
 
-func (w *Writer) writeString(s string) {
+func (w *writer) writeString(s string) {
 	if _, w.err = w.w.WriteRune('"'); w.err != nil {
 		return
 	}
@@ -258,7 +304,40 @@ func (w *Writer) writeString(s string) {
 	_, w.err = w.w.WriteRune('"')
 }
 
-func (w *Writer) writeRune(r rune) {
+func (w *writer) WriteBytesString(s []byte) {
+	if !w.beginValue() {
+		return
+	}
+
+	w.writeBytesString(s)
+
+	w.endValue()
+}
+
+func (w *writer) writeBytesString(s []byte) {
+	if _, w.err = w.w.WriteRune('"'); w.err != nil {
+		return
+	}
+
+	w.buff.Reset(s)
+	defer w.buff.Reset(nil) // Free holding onto byte slice.
+
+	for {
+		c, _, err := w.buff.ReadRune()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			w.err = err
+			return
+		}
+		w.writeRune(c)
+	}
+
+	_, w.err = w.w.WriteRune('"')
+}
+
+func (w *writer) writeRune(r rune) {
 	if r <= 31 || r == '"' || r == '\\' {
 		if _, w.err = w.w.WriteRune('\\'); w.err != nil {
 			return
@@ -301,7 +380,7 @@ func (w *Writer) writeRune(r rune) {
 
 // beginValue begins a new value, confirming that the current position of the
 // writer allows a value
-func (w *Writer) beginValue() bool {
+func (w *writer) beginValue() bool {
 	if w.err != nil {
 		return false
 	}
@@ -321,7 +400,7 @@ func (w *Writer) beginValue() bool {
 }
 
 // endValue marks as value as being complete
-func (w *Writer) endValue() {
+func (w *writer) endValue() {
 	if len(w.containers) == 0 {
 		// End of top level object
 		w.state = writeEnd
@@ -340,7 +419,7 @@ func (w *Writer) endValue() {
 }
 
 // Flush flushes the writer
-func (w *Writer) Flush() error {
+func (w *writer) Flush() error {
 	if w.err != nil {
 		return w.err
 	}
@@ -350,7 +429,7 @@ func (w *Writer) Flush() error {
 }
 
 // Close closes the writer, returning any write errors that have occurred
-func (w *Writer) Close() error {
+func (w *writer) Close() error {
 	if w.err != nil {
 		return w.err
 	}

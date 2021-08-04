@@ -21,19 +21,20 @@
 package storage
 
 import (
-	"time"
-
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/x/clock"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type instrumentationContext struct {
-	start                       time.Time
+	start                       xtime.UnixNano
 	log                         *zap.Logger
 	logFields                   []zapcore.Field
 	bootstrapDuration           tally.Timer
@@ -49,7 +50,7 @@ func newInstrumentationContext(
 	opts Options,
 ) *instrumentationContext {
 	return &instrumentationContext{
-		start:                       nowFn(),
+		start:                       xtime.ToUnixNano(nowFn()),
 		log:                         log,
 		nowFn:                       nowFn,
 		bootstrapDuration:           scope.Timer("bootstrap-duration"),
@@ -64,26 +65,26 @@ func (i *instrumentationContext) bootstrapStarted(shards int) {
 }
 
 func (i *instrumentationContext) bootstrapSucceeded() {
-	bootstrapDuration := i.nowFn().Sub(i.start)
+	bootstrapDuration := xtime.ToUnixNano(i.nowFn()).Sub(i.start)
 	i.bootstrapDuration.Record(bootstrapDuration)
 	i.logFields = append(i.logFields, zap.Duration("bootstrapDuration", bootstrapDuration))
 	i.log.Info("bootstrap succeeded, marking namespaces complete", i.logFields...)
 }
 
 func (i *instrumentationContext) bootstrapFailed(err error) {
-	bootstrapDuration := i.nowFn().Sub(i.start)
+	bootstrapDuration := xtime.ToUnixNano(i.nowFn()).Sub(i.start)
 	i.bootstrapDuration.Record(bootstrapDuration)
 	i.logFields = append(i.logFields, zap.Duration("bootstrapDuration", bootstrapDuration))
 	i.log.Error("bootstrap failed", append(i.logFields, zap.Error(err))...)
 }
 
 func (i *instrumentationContext) bootstrapNamespacesStarted() {
-	i.start = i.nowFn()
+	i.start = xtime.ToUnixNano(i.nowFn())
 	i.log.Info("bootstrap namespaces start", i.logFields...)
 }
 
 func (i *instrumentationContext) bootstrapNamespacesSucceeded() {
-	duration := i.nowFn().Sub(i.start)
+	duration := xtime.ToUnixNano(i.nowFn()).Sub(i.start)
 	i.bootstrapNamespacesDuration.Record(duration)
 	i.logFields = append(i.logFields, zap.Duration("bootstrapNamespacesDuration", duration))
 	i.log.Info("bootstrap namespaces success", i.logFields...)
@@ -99,7 +100,7 @@ func (i *instrumentationContext) bootstrapNamespaceFailed(
 }
 
 func (i *instrumentationContext) bootstrapNamespacesFailed(err error) {
-	duration := i.nowFn().Sub(i.start)
+	duration := xtime.ToUnixNano(i.nowFn()).Sub(i.start)
 	i.bootstrapNamespacesDuration.Record(duration)
 	i.logFields = append(i.logFields, zap.Duration("bootstrapNamespacesDuration", duration))
 	i.log.Info("bootstrap namespaces failed", append(i.logFields, zap.Error(err))...)
@@ -111,6 +112,25 @@ func (i *instrumentationContext) emitAndLogInvariantViolation(err error, msg str
 	})
 }
 
+type bootstrapRetriesMetrics struct {
+	obsoleteRanges tally.Counter
+	other          tally.Counter
+}
+
+func newBootstrapRetriesMetrics(scope tally.Scope) bootstrapRetriesMetrics {
+	const metricName = "bootstrap-retries"
+
+	reason := func(reason string) map[string]string {
+		return map[string]string{
+			"reason": reason,
+		}
+	}
+	return bootstrapRetriesMetrics{
+		obsoleteRanges: scope.Tagged(reason("obsolete-ranges")).Counter(metricName),
+		other:          scope.Tagged(reason("other")).Counter(metricName),
+	}
+}
+
 type bootstrapInstrumentation struct {
 	opts          Options
 	scope         tally.Scope
@@ -118,7 +138,7 @@ type bootstrapInstrumentation struct {
 	nowFn         clock.NowFn
 	status        tally.Gauge
 	durableStatus tally.Gauge
-	numRetries    tally.Counter
+	numRetries    bootstrapRetriesMetrics
 }
 
 func newBootstrapInstrumentation(opts Options) *bootstrapInstrumentation {
@@ -130,7 +150,7 @@ func newBootstrapInstrumentation(opts Options) *bootstrapInstrumentation {
 		nowFn:         opts.ClockOptions().NowFn(),
 		status:        scope.Gauge("bootstrapped"),
 		durableStatus: scope.Gauge("bootstrapped-durable"),
-		numRetries:    scope.Counter("bootstrap-retries"),
+		numRetries:    newBootstrapRetriesMetrics(scope),
 	}
 }
 
@@ -139,8 +159,13 @@ func (i *bootstrapInstrumentation) bootstrapPreparing() *instrumentationContext 
 	return newInstrumentationContext(i.nowFn, i.log, i.scope, i.opts)
 }
 
-func (i *bootstrapInstrumentation) bootstrapFailed(retry int) {
-	i.numRetries.Inc(1)
+func (i *bootstrapInstrumentation) bootstrapFailed(retry int, err error) {
+	numRetries := i.numRetries.other
+	if xerrors.Is(err, bootstrap.ErrFileSetSnapshotTypeRangeAdvanced) {
+		numRetries = i.numRetries.obsoleteRanges
+	}
+	numRetries.Inc(1)
+
 	i.log.Warn("retrying bootstrap after backoff",
 		zap.Duration("backoff", bootstrapRetryInterval),
 		zap.Int("numRetries", retry))
@@ -164,4 +189,10 @@ func (i *bootstrapInstrumentation) setIsBootstrappedAndDurable(isBootstrappedAnd
 		status = 1
 	}
 	i.durableStatus.Update(status)
+}
+
+func (i *bootstrapInstrumentation) emitAndLogInvariantViolation(err error, msg string) {
+	instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l *zap.Logger) {
+		l.Error(msg, zap.Error(err))
+	})
 }

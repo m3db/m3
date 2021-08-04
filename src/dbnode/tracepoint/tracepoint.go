@@ -109,6 +109,20 @@ const (
 	// NSIdxBlockAggregateQuery is the operation name for the nsIndex block aggregate query path.
 	NSIdxBlockAggregateQuery = "storage.nsIndex.blockAggregateQuery"
 
+	// NSIdxBlockQueryAddDocuments is the operation name for adding documents by batch in the block query path.
+	NSIdxBlockQueryAddDocuments = "storage.nsIndex.blockQueryAddDocuments"
+
+	// NSIdxBlockAggregateQueryAddDocuments is the operation name for adding documents by batch in the agg query path.
+	NSIdxBlockAggregateQueryAddDocuments = "storage.nsIndex.blockAggregateQueryAddDocuments"
+
+	// SearchExecutorIndexSearch is the operation name for searching on individual segment,
+	// in practice executed in the block query path.
+	SearchExecutorIndexSearch = "search.executor.IndexSearch"
+
+	// FieldTermsIteratorIndexSearch is the operation name for searching fields,
+	// in practice executed in the aggregate query path.
+	FieldTermsIteratorIndexSearch = "storage.index.fieldTermsIterator.IndexSearch"
+
 	// BlockQuery is the operation name for the index block query path.
 	BlockQuery = "storage/index.block.Query"
 
@@ -132,4 +146,7 @@ const (
 
 	// BootstrapperFilesystemSourceMigrator is the operation for filesystem migrator path.
 	BootstrapperFilesystemSourceMigrator = "bootstrapper.fs.filesystemSource.Migrator"
+
+	// WorkerPoolWait is the operation name for the waiting that occurs for a worker pool.
+	WorkerPoolWait = "x.sync.WorkerPoolWait"
 )

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -36,8 +37,8 @@ func TestWriteBatchForEachUnmarkedBatchByBlockStart(t *testing.T) {
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize)
-	tn := func(n int64) time.Time {
+	now := xtime.Now().Truncate(blockSize)
+	tn := func(n int64) xtime.UnixNano {
 		nDur := time.Duration(n)
 		return now.Add(nDur * blockSize).Add(nDur * time.Minute)
 	}
@@ -59,7 +60,7 @@ func TestWriteBatchForEachUnmarkedBatchByBlockStart(t *testing.T) {
 	numCalls := 0
 	// entries.ForEachBlockStart(func(ts xtime.UnixNano, writes []WriteBatchEntry) {
 	batch.ForEachUnmarkedBatchByBlockStart(func(
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 		batch *WriteBatch,
 	) {
 		require.Equal(t, 1, batch.Len())
@@ -83,8 +84,8 @@ func TestWriteBatchForEachUnmarkedBatchByBlockStartMore(t *testing.T) {
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
-	now := time.Now().Truncate(blockSize)
-	tn := func(n int64) time.Time {
+	now := xtime.Now().Truncate(blockSize)
+	tn := func(n int64) xtime.UnixNano {
 		nDur := time.Duration(n)
 		return now.Add(nDur * blockSize).Add(nDur * time.Minute)
 	}
@@ -114,7 +115,7 @@ func TestWriteBatchForEachUnmarkedBatchByBlockStartMore(t *testing.T) {
 
 	numCalls := 0
 	batch.ForEachUnmarkedBatchByBlockStart(func(
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 		batch *WriteBatch,
 	) {
 		switch numCalls {

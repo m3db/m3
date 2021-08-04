@@ -115,7 +115,7 @@ func TestElemBaseResetSetDataNoRollup(t *testing.T) {
 }
 
 func TestElemBaseForwardedIDWithDefaultPipeline(t *testing.T) {
-	e := newElemBase(NewOptions())
+	e := newElemBase(newTestOptions())
 	_, ok := e.ForwardedID()
 	require.False(t, ok)
 }
@@ -129,7 +129,7 @@ func TestElemBaseForwardedIDWithCustomPipeline(t *testing.T) {
 }
 
 func TestElemBaseForwardedAggregationKeyWithDefaultPipeline(t *testing.T) {
-	e := newElemBase(NewOptions())
+	e := newElemBase(newTestOptions())
 	_, ok := e.ForwardedAggregationKey()
 	require.False(t, ok)
 }
@@ -171,7 +171,7 @@ func TestElemBaseMarkAsTombStoned(t *testing.T) {
 }
 
 func TestCounterElemBase(t *testing.T) {
-	opts := NewOptions()
+	opts := newTestOptions()
 	aggTypesOpts := opts.AggregationTypesOptions()
 	e := counterElemBase{}
 	require.Equal(t, []byte("stats.counts."), e.FullPrefix(opts))
@@ -222,7 +222,7 @@ func TestTimerElemBase(t *testing.T) {
 		maggregation.P95,
 		maggregation.P99,
 	}
-	opts := NewOptions()
+	opts := newTestOptions()
 	aggTypesOpts := opts.AggregationTypesOptions()
 	e := timerElemBase{}
 	require.Equal(t, []byte("stats.timers."), e.FullPrefix(opts))
@@ -233,7 +233,7 @@ func TestTimerElemBase(t *testing.T) {
 
 func TestTimerElemBaseNewAggregation(t *testing.T) {
 	e := timerElemBase{}
-	la := e.NewAggregation(NewOptions(), raggregation.Options{})
+	la := e.NewAggregation(newTestOptions(), raggregation.Options{})
 	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:          metric.TimerType,
 		BatchTimerVal: []float64{100.0, 200.0},
@@ -280,7 +280,7 @@ func TestTimerElemBaseResetSetDataInvalidTypes(t *testing.T) {
 }
 
 func TestGaugeElemBase(t *testing.T) {
-	opts := NewOptions()
+	opts := newTestOptions()
 	aggTypesOpts := opts.AggregationTypesOptions()
 	e := gaugeElemBase{}
 	require.Equal(t, []byte("stats.gauges."), e.FullPrefix(opts))
@@ -584,12 +584,12 @@ func TestAddToRestOption(t *testing.T) {
 			Transformation: pipeline.TransformationOp{Type: transformation.Increase},
 		},
 	})
-	e := newElemBase(NewOptions().SetAddToReset(false))
+	e := newElemBase(newTestOptions().SetAddToReset(false))
 	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, p, 3, WithPrefixWithSuffix)
 	require.Equal(t, transformation.Add, e.parsedPipeline.Transformations[0].Type())
 	require.Equal(t, transformation.Increase, e.parsedPipeline.Transformations[1].Type())
 
-	e = newElemBase(NewOptions().SetAddToReset(true))
+	e = newElemBase(newTestOptions().SetAddToReset(true))
 	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, p, 3, WithPrefixWithSuffix)
 	require.Equal(t, transformation.Reset, e.parsedPipeline.Transformations[0].Type())
 	require.Equal(t, transformation.Increase, e.parsedPipeline.Transformations[1].Type())

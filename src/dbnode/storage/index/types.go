@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
@@ -80,15 +79,19 @@ type Query struct {
 // preferences on query execution.
 type QueryOptions struct {
 	// StartInclusive is the start time for the query.
-	StartInclusive time.Time
+	StartInclusive xtime.UnixNano
 	// EndExclusive	is the exclusive end for the query.
-	EndExclusive time.Time
+	EndExclusive xtime.UnixNano
 	// SeriesLimit is an optional limit for number of series matched.
 	SeriesLimit int
+	// InstanceMultiple is how much to increase the per database instance series limit.
+	InstanceMultiple float32
 	// DocsLimit is an optional limit for number of documents matched.
 	DocsLimit int
 	// RequireExhaustive requires queries to be under given limit sizes.
 	RequireExhaustive bool
+	// RequireNoWait requires queries to abort if execution must wait for permits.
+	RequireNoWait bool
 	// IterationOptions controls additional iteration methods.
 	IterationOptions IterationOptions
 	// Source is an optional query source.
@@ -99,9 +102,9 @@ type QueryOptions struct {
 // preferences on wide query execution.
 type WideQueryOptions struct {
 	// StartInclusive is the start time for the query.
-	StartInclusive time.Time
+	StartInclusive xtime.UnixNano
 	// EndExclusive is the exclusive end for the query.
-	EndExclusive time.Time
+	EndExclusive xtime.UnixNano
 	// BatchSize controls wide query batch size.
 	BatchSize int
 	// ShardsQueried are the shards to query. These must be in ascending order.
@@ -132,6 +135,8 @@ type QueryResult struct {
 	Results QueryResults
 	// Exhaustive indicates that the query was exhaustive.
 	Exhaustive bool
+	// Waited is a count of the times a query has waited for permits.
+	Waited int
 }
 
 // AggregateQueryResult is the collection of results for an aggregate query.
@@ -140,6 +145,8 @@ type AggregateQueryResult struct {
 	Results AggregateResults
 	// Exhaustive indicates that the query was exhaustive.
 	Exhaustive bool
+	// Waited is a count of the times a query has waited for permits.
+	Waited int
 }
 
 // BaseResults is a collection of basic results for a generic query, it is
@@ -154,15 +161,6 @@ type BaseResults interface {
 
 	// TotalDocsCount returns the total number of documents observed.
 	TotalDocsCount() int
-
-	// TotalDuration is the total ResultDurations for the query.
-	TotalDuration() ResultDurations
-
-	// AddBlockProcessingDuration adds the processing duration for a single block to the TotalDuration.
-	AddBlockProcessingDuration(duration time.Duration)
-
-	// AddBlockSearchDuration adds the search duration for a single block to the TotalDuration.
-	AddBlockSearchDuration(duration time.Duration)
 
 	// EnforceLimits returns whether this should enforce and increment limits.
 	EnforceLimits() bool
@@ -403,32 +401,39 @@ type OnIndexSeries interface {
 // index for a period of time defined by [StartTime, EndTime).
 type Block interface {
 	// StartTime returns the start time of the period this Block indexes.
-	StartTime() time.Time
+	StartTime() xtime.UnixNano
 
 	// EndTime returns the end time of the period this Block indexes.
-	EndTime() time.Time
+	EndTime() xtime.UnixNano
 
 	// WriteBatch writes a batch of provided entries.
 	WriteBatch(inserts *WriteBatch) (WriteBatchResult, error)
 
-	// Query resolves the given query into known IDs.
-	Query(
+	// QueryWithIter processes n docs from the iterator into known IDs.
+	QueryWithIter(
 		ctx context.Context,
-		query Query,
 		opts QueryOptions,
+		iter QueryIterator,
 		results DocumentResults,
+		deadline time.Time,
 		logFields []opentracinglog.Field,
-	) (bool, error)
+	) error
 
-	// Aggregate aggregates known tag names/values.
-	// NB(prateek): different from aggregating by means of Query, as we can
-	// avoid going to documents, relying purely on the indexed FSTs.
-	Aggregate(
+	// QueryIter returns a new QueryIterator for the query.
+	QueryIter(ctx context.Context, query Query) (QueryIterator, error)
+
+	// AggregateWithIter aggregates N known tag names/values from the iterator.
+	AggregateWithIter(
 		ctx context.Context,
+		iter AggregateIterator,
 		opts QueryOptions,
 		results AggregateResults,
+		deadline time.Time,
 		logFields []opentracinglog.Field,
-	) (bool, error)
+	) error
+
+	// AggregateIter returns a new AggregatorIterator.
+	AggregateIter(ctx context.Context, aggOpts AggregateResultsOptions) (AggregateIterator, error)
 
 	// AddResults adds bootstrap results to the block.
 	AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error
@@ -652,7 +657,7 @@ func (b *WriteBatch) ForEach(fn ForEachWriteBatchEntryFn) {
 // reference to a restricted set of the write batch for each unique block
 // start.
 type ForEachWriteBatchByBlockStartFn func(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	batch *WriteBatch,
 )
 
@@ -691,14 +696,14 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 			b.entries = allEntries[startIdx:i]
 			b.docs = allDocs[startIdx:i]
 			if len(b.entries) != 0 {
-				fn(lastBlockStart.ToTime(), b)
+				fn(lastBlockStart, b)
 			}
 			return
 		}
 
 		blockStart := allEntries[i].indexBlockStart(blockSize)
 		if !blockStart.Equal(lastBlockStart) {
-			prevLastBlockStart := lastBlockStart.ToTime()
+			prevLastBlockStart := lastBlockStart
 			lastBlockStart = blockStart
 			// We only want to call the the ForEachUnmarkedBatchByBlockStart once we have calculated the entire group,
 			// i.e. once we have gone past the last element for a given blockStart, but the first element
@@ -719,7 +724,7 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 	if startIdx < len(allEntries) {
 		b.entries = allEntries[startIdx:]
 		b.docs = allDocs[startIdx:]
-		fn(lastBlockStart.ToTime(), b)
+		fn(lastBlockStart, b)
 	}
 }
 
@@ -862,7 +867,7 @@ func (b *WriteBatch) Less(i, j int) bool {
 // being inserted.
 type WriteBatchEntry struct {
 	// Timestamp is the timestamp that this entry should be indexed for
-	Timestamp time.Time
+	Timestamp xtime.UnixNano
 	// OnIndexSeries is a listener/callback for when this entry is marked done
 	// it is set to nil when the entry is marked done
 	OnIndexSeries OnIndexSeries
@@ -891,12 +896,54 @@ type WriteBatchEntryResult struct {
 func (e WriteBatchEntry) indexBlockStart(
 	indexBlockSize time.Duration,
 ) xtime.UnixNano {
-	return xtime.ToUnixNano(e.Timestamp.Truncate(indexBlockSize))
+	return e.Timestamp.Truncate(indexBlockSize)
 }
 
 // Result returns the result for this entry.
 func (e WriteBatchEntry) Result() WriteBatchEntryResult {
 	return *e.result
+}
+
+// QueryIterator iterates through the documents for a block.
+type QueryIterator interface {
+	ResultIterator
+
+	// Current returns the current (field, term).
+	Current() doc.Document
+}
+
+// AggregateIterator iterates through the (field,term)s for a block.
+type AggregateIterator interface {
+	ResultIterator
+
+	// Current returns the current (field, term).
+	Current() (field, term []byte)
+
+	fieldsAndTermsIteratorOpts() fieldsAndTermsIteratorOpts
+}
+
+// ResultIterator is a common interface for query and aggregate result iterators.
+type ResultIterator interface {
+	// Done returns true if there are no more elements in the iterator. Allows checking if the query should acquire
+	// a permit, which might block, before calling Next().
+	Done() bool
+
+	// Next processes the next (field,term) available with Current. Returns true if there are more to process.
+	// Callers need to check Err after this returns false to check if an error occurred while iterating.
+	Next(ctx context.Context) bool
+
+	// Err returns an non-nil error if an error occurred calling Next.
+	Err() error
+
+	// Close the iterator.
+	Close() error
+
+	AddSeries(count int)
+
+	AddDocs(count int)
+
+	// Counts returns the number of series and documents processed by the iterator.
+	Counts() (series, docs int)
 }
 
 // fieldsAndTermsIterator iterates over all known fields and terms for a segment.
@@ -913,9 +960,6 @@ type fieldsAndTermsIterator interface {
 
 	// Close releases any resources held by the iterator.
 	Close() error
-
-	// Reset resets the iterator to the start iterating the given segment.
-	Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error
 }
 
 // Options control the Indexing knobs.

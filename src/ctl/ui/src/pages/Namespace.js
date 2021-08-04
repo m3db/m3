@@ -24,10 +24,10 @@ import {Link} from 'react-router-dom';
 import _ from 'lodash';
 import {compose, withProps, withReducer} from 'recompose';
 import {connectR2API, withPromiseStateChangeCallback, withFilter} from '../hocs';
-import MappingRuleEditor from '../components/MappingRuleEditor';
-import MappingRulesTable from '../components/MappingRulesTable';
-import RollupRuleEditor from '../components/RollupRuleEditor';
-import RollupRulesTable from '../components/RollupRulesTable';
+import MappingRuleEditor from '../reference/MappingRuleEditor';
+import MappingRulesTable from '../reference/MappingRulesTable';
+import RollupRuleEditor from '../reference/RollupRuleEditor';
+import RollupRulesTable from '../reference/RollupRulesTable';
 import {getHelpText} from '../utils/helpText';
 
 const TabPane = Tabs.TabPane;

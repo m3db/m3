@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -80,7 +81,7 @@ func TestWarmIndexWriteGap(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.Close()
 
-	t0 := time.Date(2018, time.May, 6, 13, 0, 0, 0, time.UTC)
+	t0 := xtime.ToUnixNano(time.Date(2018, time.May, 6, 13, 0, 0, 0, time.UTC))
 	// Issue writes in the gap between warm index start and start of buffer past.
 	t1 := t0.Truncate(indexBlockSize)
 	t2 := t0.Truncate(dataBlockSize).Add(-bufferPast)
@@ -121,7 +122,7 @@ func TestWarmIndexWriteGap(t *testing.T) {
 
 	// ensure all data is present
 	log.Info("querying period0 results")
-	period0Results, _, err := session.FetchTagged(
+	period0Results, _, err := session.FetchTagged(ContextWithDefaultTimeout(),
 		md.ID(), query, index.QueryOptions{StartInclusive: t1, EndExclusive: t2})
 	require.NoError(t, err)
 	writesPeriod0.MatchesSeriesIters(t, period0Results)

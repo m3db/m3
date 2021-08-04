@@ -38,7 +38,8 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
-	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -47,7 +48,7 @@ import (
 
 const (
 	// KeyValueStoreURL is the url to edit key/value configuration values.
-	KeyValueStoreURL = handler.RoutePrefixV1 + "/kvstore"
+	KeyValueStoreURL = route.Prefix + "/kvstore"
 	// KeyValueStoreHTTPMethod is the HTTP method used with this resource.
 	KeyValueStoreHTTPMethod = http.MethodPost
 )
@@ -77,18 +78,21 @@ type KeyValueUpdateResult struct {
 
 // KeyValueStoreHandler represents a handler for the key/value store endpoint
 type KeyValueStoreHandler struct {
-	client         clusterclient.Client
-	instrumentOpts instrument.Options
+	client             clusterclient.Client
+	instrumentOpts     instrument.Options
+	kvStoreProtoParser options.KVStoreProtoParser
 }
 
 // NewKeyValueStoreHandler returns a new instance of handler
 func NewKeyValueStoreHandler(
 	client clusterclient.Client,
 	instrumentOpts instrument.Options,
+	kvStoreProtoParser options.KVStoreProtoParser,
 ) http.Handler {
 	return &KeyValueStoreHandler{
-		client:         client,
-		instrumentOpts: instrumentOpts,
+		client:             client,
+		instrumentOpts:     instrumentOpts,
+		kvStoreProtoParser: kvStoreProtoParser,
 	}
 }
 
@@ -146,7 +150,7 @@ func (h *KeyValueStoreHandler) update(
 		return nil, err
 	}
 
-	oldProto, err := newKVProtoMessage(update.Key)
+	oldProto, err := h.newKVProtoMessage(update.Key)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +162,7 @@ func (h *KeyValueStoreHandler) update(
 		}
 	}
 
-	newProto, err := newKVProtoMessage(update.Key)
+	newProto, err := h.newKVProtoMessage(update.Key)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +196,14 @@ func (h *KeyValueStoreHandler) update(
 	return &result, nil
 }
 
-func newKVProtoMessage(key string) (protoiface.MessageV1, error) {
+func (h *KeyValueStoreHandler) newKVProtoMessage(key string) (protoiface.MessageV1, error) {
+	if h.kvStoreProtoParser != nil {
+		v, err := h.kvStoreProtoParser(key)
+		if err == nil {
+			return v, nil
+		}
+	}
+
 	switch key {
 	case kvconfig.NamespacesKey:
 		return &nsproto.Registry{}, nil

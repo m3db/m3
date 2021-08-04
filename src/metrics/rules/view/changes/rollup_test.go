@@ -210,6 +210,21 @@ func TestRollupRuleJSONDeserialize(t *testing.T) {
 	err := json.Unmarshal(jsonInput, &ruleChange)
 	require.NoError(t, err)
 
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testRollup",
+		[]string{"tag1", "tag2"},
+		aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"testRollup",
+		[]string{"tag1", "tag2"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	expected := RollupRuleChange{
 		Op:     ChangeOp,
 		RuleID: ptr("validID"),
@@ -229,12 +244,8 @@ func TestRollupRuleJSONDeserialize(t *testing.T) {
 							Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 						},
 						{
-							Type: pipeline.RollupOpType,
-							Rollup: pipeline.RollupOp{
-								NewName:       b("testRollup"),
-								Tags:          bs("tag1", "tag2"),
-								AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
-							},
+							Type:   pipeline.RollupOpType,
+							Rollup: rr1,
 						},
 					}),
 					StoragePolicies: policy.StoragePolicies{
@@ -245,12 +256,8 @@ func TestRollupRuleJSONDeserialize(t *testing.T) {
 				{
 					Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 						{
-							Type: pipeline.RollupOpType,
-							Rollup: pipeline.RollupOp{
-								NewName:       b("testRollup"),
-								Tags:          bs("tag1", "tag2"),
-								AggregationID: aggregation.DefaultID,
-							},
+							Type:   pipeline.RollupOpType,
+							Rollup: rr2,
 						},
 					}),
 					StoragePolicies: policy.StoragePolicies{

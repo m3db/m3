@@ -21,6 +21,7 @@
 package handleroptions
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -37,23 +38,33 @@ import (
 	"github.com/m3db/m3/src/x/headers"
 )
 
+type headerKey string
+
 const (
+	// RequestHeaderKey is the key which headers will be added to in the
+	// request context.
+	RequestHeaderKey headerKey = "RequestHeaderKey"
 	// StepParam is the step parameter.
 	StepParam = "step"
 	// LookbackParam is the lookback parameter.
 	LookbackParam = "lookback"
 	// TimeoutParam is the timeout parameter.
-	TimeoutParam = "timeout"
-	maxInt64     = float64(math.MaxInt64)
-	minInt64     = float64(math.MinInt64)
-	maxTimeout   = 10 * time.Minute
+	TimeoutParam           = "timeout"
+	requireExhaustiveParam = "requireExhaustive"
+	requireNoWaitParam     = "requireNoWait"
+	maxInt64               = float64(math.MaxInt64)
+	minInt64               = float64(math.MinInt64)
+	maxTimeout             = 10 * time.Minute
 )
 
 // FetchOptionsBuilder builds fetch options based on a request and default
 // config.
 type FetchOptionsBuilder interface {
 	// NewFetchOptions parses an http request into fetch options.
-	NewFetchOptions(req *http.Request) (*storage.FetchOptions, error)
+	NewFetchOptions(
+		ctx context.Context,
+		req *http.Request,
+	) (context.Context, *storage.FetchOptions, error)
 }
 
 // FetchOptionsBuilderOptions provides options to use when creating a
@@ -66,15 +77,23 @@ type FetchOptionsBuilderOptions struct {
 
 // Validate validates the fetch options builder options.
 func (o FetchOptionsBuilderOptions) Validate() error {
+	if o.Limits.InstanceMultiple < 0 || (o.Limits.InstanceMultiple > 0 && o.Limits.InstanceMultiple < 1) {
+		return fmt.Errorf("InstanceMultiple must be 0 or >= 1: %v", o.Limits.InstanceMultiple)
+	}
 	return validateTimeout(o.Timeout)
 }
 
 // FetchOptionsBuilderLimitsOptions provides limits options to use when
 // creating a fetch options builder.
 type FetchOptionsBuilderLimitsOptions struct {
-	SeriesLimit       int
-	DocsLimit         int
-	RequireExhaustive bool
+	SeriesLimit                 int
+	InstanceMultiple            float32
+	DocsLimit                   int
+	RangeLimit                  time.Duration
+	ReturnedSeriesLimit         int
+	ReturnedDatapointsLimit     int
+	ReturnedSeriesMetadataLimit int
+	RequireExhaustive           bool
 }
 
 type fetchOptionsBuilder struct {
@@ -116,6 +135,50 @@ func ParseLimit(req *http.Request, header, formValue string, defaultLimit int) (
 	return defaultLimit, nil
 }
 
+// ParseDurationLimit parses request limit from either header or query string.
+func ParseDurationLimit(
+	req *http.Request,
+	header,
+	formValue string,
+	defaultLimit time.Duration,
+) (time.Duration, error) {
+	if str := req.Header.Get(header); str != "" {
+		n, err := time.ParseDuration(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse duration limit: input=%s, err=%w", str, err)
+			return 0, err
+		}
+		return n, nil
+	}
+
+	if str := req.FormValue(formValue); str != "" {
+		n, err := time.ParseDuration(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse duration limit: input=%s, err=%w", str, err)
+			return 0, err
+		}
+		return n, nil
+	}
+
+	return defaultLimit, nil
+}
+
+// ParseInstanceMultiple parses request instance multiple from header.
+func ParseInstanceMultiple(req *http.Request, defaultValue float32) (float32, error) {
+	if str := req.Header.Get(headers.LimitInstanceMultipleHeader); str != "" {
+		v, err := strconv.ParseFloat(str, 32)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse instance multiple: input=%s, err=%w", str, err)
+			return 0, err
+		}
+		return float32(v), nil
+	}
+	return defaultValue, nil
+}
+
 // ParseRequireExhaustive parses request limit require exhaustive from header or
 // query string.
 func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) {
@@ -129,7 +192,7 @@ func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) 
 		return v, nil
 	}
 
-	if str := req.FormValue("requireExhaustive"); str != "" {
+	if str := req.FormValue(requireExhaustiveParam); str != "" {
 		v, err := strconv.ParseBool(str)
 		if err != nil {
 			err = fmt.Errorf(
@@ -142,21 +205,49 @@ func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) 
 	return defaultValue, nil
 }
 
+// ParseRequireNoWait parses the no-wait behavior from header or
+// query string.
+func ParseRequireNoWait(req *http.Request) (bool, error) {
+	if str := req.Header.Get(headers.LimitRequireNoWaitHeader); str != "" {
+		v, err := strconv.ParseBool(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse no-wait: input=%s, err=%w", str, err)
+			return false, err
+		}
+		return v, nil
+	}
+
+	if str := req.FormValue(requireNoWaitParam); str != "" {
+		v, err := strconv.ParseBool(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse no-wait: input=%s, err=%w", str, err)
+			return false, err
+		}
+		return v, nil
+	}
+
+	return false, nil
+}
+
 // NewFetchOptions parses an http request into fetch options.
 func (b fetchOptionsBuilder) NewFetchOptions(
+	ctx context.Context,
 	req *http.Request,
-) (*storage.FetchOptions, error) {
-	fetchOpts, err := b.newFetchOptions(req)
+) (context.Context, *storage.FetchOptions, error) {
+	ctx, fetchOpts, err := b.newFetchOptions(ctx, req)
 	if err != nil {
 		// Always invalid request if parsing fails params.
-		return nil, xerrors.NewInvalidParamsError(err)
+		return nil, nil, xerrors.NewInvalidParamsError(err)
 	}
-	return fetchOpts, nil
+	return ctx, fetchOpts, nil
 }
 
 func (b fetchOptionsBuilder) newFetchOptions(
+	ctx context.Context,
 	req *http.Request,
-) (*storage.FetchOptions, error) {
+) (context.Context, *storage.FetchOptions, error) {
 	fetchOpts := storage.NewFetchOptions()
 
 	if source := req.Header.Get(headers.SourceHeader); len(source) > 0 {
@@ -166,32 +257,76 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	seriesLimit, err := ParseLimit(req, headers.LimitMaxSeriesHeader,
 		"limit", b.opts.Limits.SeriesLimit)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-
 	fetchOpts.SeriesLimit = seriesLimit
+
+	instanceMultiple, err := ParseInstanceMultiple(req, b.opts.Limits.InstanceMultiple)
+	if err != nil {
+		return nil, nil, err
+	}
+	fetchOpts.InstanceMultiple = instanceMultiple
 
 	docsLimit, err := ParseLimit(req, headers.LimitMaxDocsHeader,
 		"docsLimit", b.opts.Limits.DocsLimit)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	fetchOpts.DocsLimit = docsLimit
 
+	rangeLimit, err := ParseDurationLimit(req, headers.LimitMaxRangeHeader,
+		"rangeLimit", b.opts.Limits.RangeLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fetchOpts.RangeLimit = rangeLimit
+
+	returnedSeriesLimit, err := ParseLimit(req, headers.LimitMaxReturnedSeriesHeader,
+		"returnedSeriesLimit", b.opts.Limits.ReturnedSeriesLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fetchOpts.ReturnedSeriesLimit = returnedSeriesLimit
+
+	returnedDatapointsLimit, err := ParseLimit(req, headers.LimitMaxReturnedDatapointsHeader,
+		"returnedDatapointsLimit", b.opts.Limits.ReturnedDatapointsLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fetchOpts.ReturnedDatapointsLimit = returnedDatapointsLimit
+
+	returnedSeriesMetadataLimit, err := ParseLimit(req, headers.LimitMaxReturnedSeriesMetadataHeader,
+		"returnedSeriesMetadataLimit", b.opts.Limits.ReturnedSeriesMetadataLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fetchOpts.ReturnedSeriesMetadataLimit = returnedSeriesMetadataLimit
+
 	requireExhaustive, err := ParseRequireExhaustive(req, b.opts.Limits.RequireExhaustive)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	fetchOpts.RequireExhaustive = requireExhaustive
+
+	requireNoWait, err := ParseRequireNoWait(req)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fetchOpts.RequireNoWait = requireNoWait
 
 	if str := req.Header.Get(headers.MetricsTypeHeader); str != "" {
 		mt, err := storagemetadata.ParseMetricsType(str)
 		if err != nil {
 			err = fmt.Errorf(
 				"could not parse metrics type: input=%s, err=%v", str, err)
-			return nil, err
+			return nil, nil, err
 		}
 
 		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
@@ -205,7 +340,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		if err != nil {
 			err = fmt.Errorf(
 				"could not parse storage policy: input=%s, err=%v", str, err)
-			return nil, err
+			return nil, nil, err
 		}
 
 		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
@@ -218,12 +353,12 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		// Allow header to override any default restrict by tags config.
 		var opts StringTagOptions
 		if err := json.Unmarshal([]byte(str), &opts); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		tagOpts, err := opts.StorageOptions()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
@@ -238,7 +373,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		if err := restrict.Validate(); err != nil {
 			err = fmt.Errorf(
 				"could not validate restrict options: err=%v", err)
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -247,24 +382,26 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	if step, ok, err := ParseStep(req); err != nil {
 		err = fmt.Errorf(
 			"could not parse step: err=%v", err)
-		return nil, err
+		return nil, nil, err
 	} else if ok {
 		fetchOpts.Step = step
 	}
 	if lookback, ok, err := ParseLookbackDuration(req); err != nil {
 		err = fmt.Errorf(
 			"could not parse lookback: err=%v", err)
-		return nil, err
+		return nil, nil, err
 	} else if ok {
 		fetchOpts.LookbackDuration = &lookback
 	}
 
 	fetchOpts.Timeout, err = ParseRequestTimeout(req, b.opts.Timeout)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse timeout: err=%v", err)
+		return nil, nil, fmt.Errorf("could not parse timeout: err=%w", err)
 	}
 
-	return fetchOpts, nil
+	// Set timeout on the returned context.
+	ctx, _ = contextWithRequestAndTimeout(ctx, req, fetchOpts)
+	return ctx, fetchOpts, nil
 }
 
 func newOrExistingRestrictQueryOptions(
@@ -283,6 +420,17 @@ func newOrExistingRestrictQueryOptionsRestrictByType(
 		return v
 	}
 	return &storage.RestrictByType{}
+}
+
+// contextWithRequestAndTimeout sets up a context with the request's context
+// and the configured timeout.
+func contextWithRequestAndTimeout(
+	ctx context.Context,
+	r *http.Request,
+	opts *storage.FetchOptions,
+) (context.Context, context.CancelFunc) {
+	ctx = context.WithValue(ctx, RequestHeaderKey, r.Header)
+	return context.WithTimeout(ctx, opts.Timeout)
 }
 
 // ParseStep parses the step duration for an HTTP request.
@@ -374,6 +522,11 @@ func ParseRequestTimeout(
 	}
 	// Note: Header should take precedence.
 	if v := r.Header.Get(TimeoutParam); v != "" {
+		timeout = v
+	}
+	// Prefer the M3-Timeout header to the incorrect header using the param name. The param name should have never been
+	// allowed as a header, but we continue to support it for backwards compatibility.
+	if v := r.Header.Get(headers.TimeoutHeader); v != "" {
 		timeout = v
 	}
 

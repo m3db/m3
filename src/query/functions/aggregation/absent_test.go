@@ -30,7 +30,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,7 +41,7 @@ import (
 func toArgs(f float64) []interface{} { return []interface{}{f} }
 
 var (
-	start     = time.Now()
+	start     = xtime.Now()
 	testBound = models.Bounds{
 		Start:    start,
 		Duration: time.Hour,
@@ -126,20 +128,20 @@ func TestAbsent(t *testing.T) {
 				tt.vals,
 			)
 
-			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+			c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 			absentOp := NewAbsentOp()
 			op, ok := absentOp.(transform.Params)
 			require.True(t, ok)
 
 			node := op.Node(c, transform.Options{})
-			err := node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+			err := node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 			require.NoError(t, err)
 
 			if tt.expectedVals == nil {
 				require.Equal(t, 0, len(sink.Values))
 			} else {
 				require.Equal(t, 1, len(sink.Values))
-				test.EqualsWithNans(t, tt.expectedVals, sink.Values[0])
+				compare.EqualsWithNans(t, tt.expectedVals, sink.Values[0])
 				assert.True(t, tt.expectedMeta.Equals(sink.Meta))
 			}
 		})

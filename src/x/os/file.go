@@ -20,6 +20,12 @@
 
 package xos
 
+import (
+	"os"
+
+	xerrors "github.com/m3db/m3/src/x/errors"
+)
+
 // File is the interface implemented by *os.File.
 type File interface {
 	// Write bytes to the file descriptor.
@@ -28,4 +34,14 @@ type File interface {
 	Sync() error
 	// Close the file descriptor.
 	Close() error
+}
+
+// WriteFileSync calls fsync() in addition to writing a file to disk.
+func WriteFileSync(name string, data []byte, perm os.FileMode) error {
+	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm) //nolint:gosec
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	return xerrors.FirstError(err, f.Sync(), f.Close())
 }

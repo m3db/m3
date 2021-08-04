@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -51,16 +52,16 @@ func shardsSet(shards ...uint32) map[uint32]struct{} {
 }
 
 type indexWriteTestSetup struct {
-	now            time.Time
+	now            xtime.UnixNano
 	rootDir        string
 	filePathPrefix string
 	blockSize      time.Duration
-	blockStart     time.Time
+	blockStart     xtime.UnixNano
 	fileSetID      FileSetFileIdentifier
 }
 
 func newIndexWriteTestSetup(t *testing.T) indexWriteTestSetup {
-	now := time.Now().UTC()
+	now := xtime.ToUnixNano(time.Now().UTC())
 	dir := createTempDir(t)
 	filePathPrefix := filepath.Join(dir, "")
 	blockSize := 12 * time.Hour

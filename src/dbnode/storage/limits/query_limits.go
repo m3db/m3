@@ -39,12 +39,14 @@ const (
 )
 
 type queryLimits struct {
-	docsLimit      *lookbackLimit
-	bytesReadLimit *lookbackLimit
+	docsLimit           *lookbackLimit
+	bytesReadLimit      *lookbackLimit
+	aggregatedDocsLimit *lookbackLimit
 }
 
 type lookbackLimit struct {
 	name      string
+	started   bool
 	options   LookbackLimitOptions
 	metrics   lookbackLimitMetrics
 	logger    *zap.Logger
@@ -52,6 +54,7 @@ type lookbackLimit struct {
 	stopCh    chan struct{}
 	stoppedCh chan struct{}
 	lock      sync.RWMutex
+	iOpts     instrument.Options
 }
 
 type lookbackLimitMetrics struct {
@@ -79,6 +82,16 @@ func DefaultLookbackLimitOptions() LookbackLimitOptions {
 	}
 }
 
+// DefaultLimitsOptions is the set of default limits options.
+func DefaultLimitsOptions(iOpts instrument.Options) Options {
+	return NewOptions().
+		SetInstrumentOptions(iOpts).
+		SetBytesReadLimitOpts(DefaultLookbackLimitOptions()).
+		SetDocsLimitOpts(DefaultLookbackLimitOptions()).
+		SetAggregateDocsLimitOpts(DefaultLookbackLimitOptions()).
+		SetDiskSeriesReadLimitOpts(DefaultLookbackLimitOptions())
+}
+
 // NewQueryLimits returns a new query limits manager.
 func NewQueryLimits(options Options) (QueryLimits, error) {
 	if err := options.Validate(); err != nil {
@@ -89,72 +102,108 @@ func NewQueryLimits(options Options) (QueryLimits, error) {
 		iOpts               = options.InstrumentOptions()
 		docsLimitOpts       = options.DocsLimitOpts()
 		bytesReadLimitOpts  = options.BytesReadLimitOpts()
+		aggDocsLimitOpts    = options.AggregateDocsLimitOpts()
 		sourceLoggerBuilder = options.SourceLoggerBuilder()
 
-		docsLimit = newLookbackLimit(
-			iOpts, docsLimitOpts, "docs-matched", sourceLoggerBuilder)
-		bytesReadLimit = newLookbackLimit(
-			iOpts, bytesReadLimitOpts, "disk-bytes-read", sourceLoggerBuilder)
+		docsMatched      = "docs-matched"
+		bytesRead        = "disk-bytes-read"
+		aggregateMatched = "aggregate-matched"
+		docsLimit        = newLookbackLimit(limitNames{
+			limitName:  docsMatched,
+			metricName: docsMatched,
+			metricType: "fetch",
+		}, docsLimitOpts, iOpts, sourceLoggerBuilder)
+		bytesReadLimit = newLookbackLimit(limitNames{
+			limitName:  bytesRead,
+			metricName: bytesRead,
+			metricType: "read",
+		}, bytesReadLimitOpts, iOpts, sourceLoggerBuilder)
+		aggregatedDocsLimit = newLookbackLimit(limitNames{
+			limitName:  aggregateMatched,
+			metricName: docsMatched,
+			metricType: "aggregate",
+		}, aggDocsLimitOpts, iOpts, sourceLoggerBuilder)
 	)
 
 	return &queryLimits{
-		docsLimit:      docsLimit,
-		bytesReadLimit: bytesReadLimit,
+		docsLimit:           docsLimit,
+		bytesReadLimit:      bytesReadLimit,
+		aggregatedDocsLimit: aggregatedDocsLimit,
 	}, nil
 }
 
 // NewLookbackLimit returns a new lookback limit.
 func NewLookbackLimit(
-	instrumentOpts instrument.Options,
-	opts LookbackLimitOptions,
 	name string,
+	opts LookbackLimitOptions,
+	instrumentOpts instrument.Options,
 	sourceLoggerBuilder SourceLoggerBuilder,
 ) LookbackLimit {
-	return newLookbackLimit(instrumentOpts, opts, name, sourceLoggerBuilder)
+	return newLookbackLimit(limitNames{
+		limitName:  name,
+		metricName: name,
+		metricType: name,
+	}, opts, instrumentOpts, sourceLoggerBuilder)
+}
+
+type limitNames struct {
+	limitName  string
+	metricName string
+	metricType string
 }
 
 func newLookbackLimit(
-	instrumentOpts instrument.Options,
+	limitNames limitNames,
 	opts LookbackLimitOptions,
-	name string,
+	instrumentOpts instrument.Options,
 	sourceLoggerBuilder SourceLoggerBuilder,
 ) *lookbackLimit {
+	metrics := newLookbackLimitMetrics(
+		limitNames,
+		instrumentOpts,
+		sourceLoggerBuilder,
+	)
+
 	return &lookbackLimit{
-		name:      name,
+		name:      limitNames.limitName,
 		options:   opts,
-		metrics:   newLookbackLimitMetrics(instrumentOpts, name, sourceLoggerBuilder),
+		metrics:   metrics,
 		logger:    instrumentOpts.Logger(),
 		recent:    atomic.NewInt64(0),
 		stopCh:    make(chan struct{}),
 		stoppedCh: make(chan struct{}),
+		iOpts:     instrumentOpts,
 	}
 }
 
 func newLookbackLimitMetrics(
+	limitNames limitNames,
 	instrumentOpts instrument.Options,
-	name string,
 	sourceLoggerBuilder SourceLoggerBuilder,
 ) lookbackLimitMetrics {
-	scope := instrumentOpts.
-		MetricsScope().
-		SubScope("query-limit")
+	metricName := limitNames.metricName
+	loggerScope := instrumentOpts.MetricsScope().Tagged(map[string]string{
+		"type": limitNames.metricType,
+	})
 
-	sourceLogger := sourceLoggerBuilder.NewSourceLogger(name,
-		instrumentOpts.SetMetricsScope(scope))
+	var (
+		loggerOpts  = instrumentOpts.SetMetricsScope(loggerScope)
+		metricScope = loggerScope.SubScope("query-limit")
+	)
 
 	return lookbackLimitMetrics{
-		optionsLimit:    scope.Gauge(fmt.Sprintf("current-limit%s", name)),
-		optionsLookback: scope.Gauge(fmt.Sprintf("current-lookback-%s", name)),
-		recentCount:     scope.Gauge(fmt.Sprintf("recent-count-%s", name)),
-		recentMax:       scope.Gauge(fmt.Sprintf("recent-max-%s", name)),
-		total:           scope.Counter(fmt.Sprintf("total-%s", name)),
-		exceeded:        scope.Tagged(map[string]string{"limit": name}).Counter("exceeded"),
+		optionsLimit:    metricScope.Gauge(fmt.Sprintf("current-limit-%s", metricName)),
+		optionsLookback: metricScope.Gauge(fmt.Sprintf("current-lookback-%s", metricName)),
+		recentCount:     metricScope.Gauge(fmt.Sprintf("recent-count-%s", metricName)),
+		recentMax:       metricScope.Gauge(fmt.Sprintf("recent-max-%s", metricName)),
+		total:           metricScope.Counter(fmt.Sprintf("total-%s", metricName)),
+		exceeded:        metricScope.Tagged(map[string]string{"limit": metricName}).Counter("exceeded"),
 
-		sourceLogger: sourceLogger,
+		sourceLogger: sourceLoggerBuilder.NewSourceLogger(metricName, loggerOpts),
 	}
 }
 
-func (q *queryLimits) DocsLimit() LookbackLimit {
+func (q *queryLimits) FetchDocsLimit() LookbackLimit {
 	return q.docsLimit
 }
 
@@ -162,20 +211,27 @@ func (q *queryLimits) BytesReadLimit() LookbackLimit {
 	return q.bytesReadLimit
 }
 
+func (q *queryLimits) AggregateDocsLimit() LookbackLimit {
+	return q.aggregatedDocsLimit
+}
+
 func (q *queryLimits) Start() {
 	q.docsLimit.Start()
 	q.bytesReadLimit.Start()
+	q.aggregatedDocsLimit.Start()
 }
 
 func (q *queryLimits) Stop() {
 	q.docsLimit.Stop()
 	q.bytesReadLimit.Stop()
+	q.aggregatedDocsLimit.Stop()
 }
 
-func (q *queryLimits) AnyExceeded() error {
+func (q *queryLimits) AnyFetchExceeded() error {
 	if err := q.docsLimit.exceeded(); err != nil {
 		return err
 	}
+
 	return q.bytesReadLimit.exceeded()
 }
 
@@ -228,7 +284,6 @@ func (q *lookbackLimit) Inc(val int, source []byte) error {
 	// Update metrics.
 	q.metrics.recentCount.Update(float64(recent))
 	q.metrics.total.Inc(valI64)
-
 	q.metrics.sourceLogger.LogSourceValue(valI64, source)
 
 	// Enforce limit (if specified).
@@ -246,6 +301,7 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 
 	if currentOpts.ForceExceeded {
 		q.metrics.exceeded.Inc(1)
+
 		return xerrors.NewInvalidParamsError(NewQueryLimitExceededError(fmt.Sprintf(
 			"query aborted due to forced limit: name=%s", q.name)))
 	}
@@ -256,10 +312,12 @@ func (q *lookbackLimit) checkLimit(recent int64) error {
 
 	if recent >= currentOpts.Limit {
 		q.metrics.exceeded.Inc(1)
+
 		return xerrors.NewInvalidParamsError(NewQueryLimitExceededError(fmt.Sprintf(
 			"query aborted due to limit: name=%s, limit=%d, current=%d, within=%s",
 			q.name, q.options.Limit, recent, q.options.Lookback)))
 	}
+
 	return nil
 }
 
@@ -280,6 +338,7 @@ func (q *lookbackLimit) Stop() {
 }
 
 func (q *lookbackLimit) start() {
+	q.started = true
 	ticker := time.NewTicker(q.options.Lookback)
 	go func() {
 		q.logger.Info("query limit interval started", zap.String("name", q.name))
@@ -300,6 +359,16 @@ func (q *lookbackLimit) start() {
 }
 
 func (q *lookbackLimit) stop() {
+	if !q.started {
+		// NB: this lookback limit has not yet been started.
+		instrument.EmitAndLogInvariantViolation(q.iOpts, func(l *zap.Logger) {
+			l.With(
+				zap.Any("limit_name", q.name),
+			).Error("cannot stop non-started lookback limit")
+		})
+		return
+	}
+
 	close(q.stopCh)
 	<-q.stoppedCh
 	q.stopCh = make(chan struct{})
@@ -316,11 +385,10 @@ func (q *lookbackLimit) reset() {
 	// Update peak gauge only on resets so it only tracks
 	// the peak values for each lookback period.
 	recent := q.recent.Load()
-	q.metrics.recentMax.Update(float64(recent))
 
+	q.metrics.recentMax.Update(float64(recent))
 	// Update the standard recent gauge to reflect drop back to zero.
 	q.metrics.recentCount.Update(0)
-
 	q.recent.Store(0)
 }
 
@@ -328,7 +396,8 @@ func (q *lookbackLimit) reset() {
 func (opts LookbackLimitOptions) Equals(other LookbackLimitOptions) bool {
 	return opts.Limit == other.Limit &&
 		opts.Lookback == other.Lookback &&
-		opts.ForceExceeded == other.ForceExceeded
+		opts.ForceExceeded == other.ForceExceeded &&
+		opts.ForceWaited == other.ForceWaited
 }
 
 func (opts LookbackLimitOptions) validate() error {

@@ -90,16 +90,9 @@ type ElectionState int
 
 // A list of supported election states.
 const (
-	// Unknown election state.
 	UnknownState ElectionState = iota
-
-	// Follower state.
 	FollowerState
-
-	// Pending follower state.
 	PendingFollowerState
-
-	// Leader state.
 	LeaderState
 )
 
@@ -516,7 +509,7 @@ func (mgr *electionManager) verifyPendingFollower(watch watch.Watch) {
 				mgr.logError("leader has not changed", errLeaderNotChanged)
 				return errLeaderNotChanged
 			}
-			_, p, err := mgr.placementManager.Placement()
+			p, err := mgr.placementManager.Placement()
 			if err != nil {
 				mgr.metrics.verifyPlacementErrors.Inc(1)
 				mgr.logError("error getting placement", err)
@@ -643,6 +636,12 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 		return false, err
 	}
 
+	if shards.NumShards() == 0 {
+		// Allow the instance with no shards take the leadership.
+		// This is needed for limited duration, during cluster expansion, when adding new instances.
+		return true, nil
+	}
+
 	// NB(xichen): We apply an offset when checking if a shard has been cutoff in order
 	// to detect if the campaign should be stopped before all the shards are cut off.
 	// This is to avoid the situation where the campaign is stopped after the shards
@@ -650,30 +649,33 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 	// causing incomplete data to be flushed.
 	var (
 		nowNanos        = mgr.nowFn().UnixNano()
-		noCutoverShards = true
-		allCutoffShards = true
+		noShardsCutover = true
+		allShardsCutoff = true
 		allShards       = shards.All()
 	)
 	for _, shard := range allShards {
 		hasCutover := nowNanos >= shard.CutoverNanos()
-		hasNotCutoff := nowNanos < shard.CutoffNanos()-int64(mgr.shardCutoffCheckOffset)
-		if hasCutover && hasNotCutoff {
+		hasCutoff := nowNanos >= shard.CutoffNanos()-int64(mgr.shardCutoffCheckOffset)
+
+		if hasCutover && !hasCutoff {
 			mgr.metrics.campaignCheckHasActiveShards.Inc(1)
-			if mgr.ElectionState() == LeaderState {
+			switch mgr.ElectionState() {
+			case LeaderState:
 				mgr.metrics.leadersWithActiveShards.Update(float64(1))
-			}
-			if mgr.ElectionState() == FollowerState {
+			case FollowerState:
 				mgr.metrics.followersWithActiveShards.Update(float64(1))
+			default:
 			}
 			return true, nil
 		}
-		noCutoverShards = noCutoverShards && !hasCutover
-		allCutoffShards = allCutoffShards && !hasNotCutoff
+
+		noShardsCutover = noShardsCutover && !hasCutover
+		allShardsCutoff = allShardsCutoff && hasCutoff
 	}
 
 	// If no shards have been cut over, campaign is disabled to avoid writing
-	// incomplele data before shards are cut over.
-	if noCutoverShards {
+	// incomplete data before shards are cut over.
+	if noShardsCutover {
 		mgr.metrics.campaignCheckNoCutoverShards.Inc(1)
 		mgr.logger.Warn("campaign is not enabled, no cutover shards")
 		return false, nil
@@ -686,7 +688,7 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 	// * There is an instance with the same shard set id replacing the current instance,
 	//   indicating the replacement instance has a copy of this instance's data and as
 	//   such this instance's data are no longer needed.
-	if allCutoffShards {
+	if allShardsCutoff {
 		multiErr := xerrors.NewMultiError()
 
 		// Check flush times persisted in kv.

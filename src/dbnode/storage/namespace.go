@@ -28,6 +28,10 @@ import (
 	"sync"
 	"time"
 
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -37,6 +41,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -51,10 +57,6 @@ import (
 	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 var (
@@ -119,6 +121,7 @@ type dbNamespace struct {
 	snapshotFilesFn    snapshotFilesFn
 	log                *zap.Logger
 	bootstrapState     BootstrapState
+	repairsAny         bool
 
 	// schemaDescr caches the latest schema for the namespace.
 	// schemaDescr is updated whenever schema registry is updated.
@@ -154,27 +157,37 @@ type databaseNamespaceIndexStatsLastTick struct {
 }
 
 type databaseNamespaceMetrics struct {
-	bootstrap             instrument.MethodMetrics
-	flushWarmData         instrument.MethodMetrics
-	flushColdData         instrument.MethodMetrics
-	flushIndex            instrument.MethodMetrics
-	snapshot              instrument.MethodMetrics
-	write                 instrument.MethodMetrics
-	writeTagged           instrument.MethodMetrics
-	aggregateTiles        instrument.MethodMetrics
-	read                  instrument.MethodMetrics
-	fetchBlocks           instrument.MethodMetrics
-	fetchBlocksMetadata   instrument.MethodMetrics
-	queryIDs              instrument.MethodMetrics
-	wideQuery             instrument.MethodMetrics
-	aggregateQuery        instrument.MethodMetrics
-	unfulfilled           tally.Counter
-	bootstrapStart        tally.Counter
-	bootstrapEnd          tally.Counter
-	snapshotSeriesPersist tally.Counter
-	shards                databaseNamespaceShardMetrics
-	tick                  databaseNamespaceTickMetrics
-	status                databaseNamespaceStatusMetrics
+	bootstrap           instrument.MethodMetrics
+	flushWarmData       instrument.MethodMetrics
+	flushColdData       instrument.MethodMetrics
+	flushIndex          instrument.MethodMetrics
+	snapshot            instrument.MethodMetrics
+	write               instrument.MethodMetrics
+	writeTagged         instrument.MethodMetrics
+	aggregateTiles      instrument.MethodMetrics
+	read                instrument.MethodMetrics
+	fetchBlocks         instrument.MethodMetrics
+	fetchBlocksMetadata instrument.MethodMetrics
+	queryIDs            instrument.MethodMetrics
+	wideQuery           instrument.MethodMetrics
+	aggregateQuery      instrument.MethodMetrics
+
+	unfulfilled             tally.Counter
+	bootstrapStart          tally.Counter
+	bootstrapEnd            tally.Counter
+	snapshotSeriesPersist   tally.Counter
+	writesWithoutAnnotation tally.Counter
+
+	shards databaseNamespaceShardMetrics
+	tick   databaseNamespaceTickMetrics
+	status databaseNamespaceStatusMetrics
+
+	repairDifferingPercent tally.Gauge
+	repairComparedBlocks   tally.Counter
+	repairDifferingBlocks  tally.Counter
+	repairMismatchBlocks   tally.Counter
+	repairMissingBlocks    tally.Counter
+	repairExtraBlocks      tally.Counter
 }
 
 type databaseNamespaceShardMetrics struct {
@@ -240,25 +253,29 @@ func newDatabaseNamespaceMetrics(
 	indexStatusScope := statusScope.SubScope("index")
 	bootstrapScope := scope.SubScope("bootstrap")
 	snapshotScope := scope.SubScope("snapshot")
+	repairScope := scope.SubScope("repair")
 	return databaseNamespaceMetrics{
-		bootstrap:             instrument.NewMethodMetrics(scope, "bootstrap", opts),
-		flushWarmData:         instrument.NewMethodMetrics(scope, "flushWarmData", opts),
-		flushColdData:         instrument.NewMethodMetrics(scope, "flushColdData", opts),
-		flushIndex:            instrument.NewMethodMetrics(scope, "flushIndex", opts),
-		snapshot:              instrument.NewMethodMetrics(scope, "snapshot", opts),
-		write:                 instrument.NewMethodMetrics(scope, "write", opts),
-		writeTagged:           instrument.NewMethodMetrics(scope, "write-tagged", opts),
-		aggregateTiles:        instrument.NewMethodMetrics(scope, "aggregate-tiles", opts),
-		read:                  instrument.NewMethodMetrics(scope, "read", opts),
-		fetchBlocks:           instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
-		fetchBlocksMetadata:   instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
-		queryIDs:              instrument.NewMethodMetrics(scope, "queryIDs", opts),
-		wideQuery:             instrument.NewMethodMetrics(scope, "wideQuery", opts),
-		aggregateQuery:        instrument.NewMethodMetrics(scope, "aggregateQuery", opts),
-		unfulfilled:           bootstrapScope.Counter("unfulfilled"),
-		bootstrapStart:        bootstrapScope.Counter("start"),
-		bootstrapEnd:          bootstrapScope.Counter("end"),
-		snapshotSeriesPersist: snapshotScope.Counter("series-persist"),
+		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", opts),
+		flushWarmData:       instrument.NewMethodMetrics(scope, "flushWarmData", opts),
+		flushColdData:       instrument.NewMethodMetrics(scope, "flushColdData", opts),
+		flushIndex:          instrument.NewMethodMetrics(scope, "flushIndex", opts),
+		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", opts),
+		write:               instrument.NewMethodMetrics(scope, "write", opts),
+		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", opts),
+		aggregateTiles:      instrument.NewMethodMetrics(scope, "aggregate-tiles", opts),
+		read:                instrument.NewMethodMetrics(scope, "read", opts),
+		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
+		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
+		queryIDs:            instrument.NewMethodMetrics(scope, "queryIDs", opts),
+		wideQuery:           instrument.NewMethodMetrics(scope, "wideQuery", opts),
+		aggregateQuery:      instrument.NewMethodMetrics(scope, "aggregateQuery", opts),
+
+		unfulfilled:             bootstrapScope.Counter("unfulfilled"),
+		bootstrapStart:          bootstrapScope.Counter("start"),
+		bootstrapEnd:            bootstrapScope.Counter("end"),
+		snapshotSeriesPersist:   snapshotScope.Counter("series-persist"),
+		writesWithoutAnnotation: scope.Counter("writes-without-annotation"),
+
 		shards: databaseNamespaceShardMetrics{
 			add:         shardsScope.Counter("add"),
 			close:       shardsScope.Counter("close"),
@@ -293,6 +310,12 @@ func newDatabaseNamespaceMetrics(
 				numSegments: indexStatusScope.Gauge("num-segments"),
 			},
 		},
+		repairDifferingPercent: repairScope.Gauge("differing-percent"),
+		repairComparedBlocks:   repairScope.Counter("compared-blocks"),
+		repairDifferingBlocks:  repairScope.Counter("differing-blocks"),
+		repairMismatchBlocks:   repairScope.Counter("mismatch-blocks"),
+		repairMissingBlocks:    repairScope.Counter("missing-blocks"),
+		repairExtraBlocks:      repairScope.Counter("extra-blocks"),
 	}
 }
 
@@ -491,9 +514,10 @@ func (n *dbNamespace) assignShardSet(
 	opts assignShardSetOptions,
 ) {
 	var (
-		incoming = make(map[uint32]struct{}, len(shardSet.All()))
-		existing []databaseShard
-		closing  []databaseShard
+		incoming        = make(map[uint32]struct{}, len(shardSet.All()))
+		createdShardIds []uint32
+		existing        []databaseShard
+		closing         []databaseShard
 	)
 	for _, shard := range shardSet.AllIDs() {
 		incoming[shard] = struct{}{}
@@ -525,11 +549,20 @@ func (n *dbNamespace) assignShardSet(
 		n.shards[shard] = newDatabaseShard(metadata, shard, n.blockRetriever,
 			n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
 			opts.needsBootstrap, n.opts, n.seriesOpts)
+		createdShardIds = append(createdShardIds, shard)
 		// NB(bodu): We only record shard add metrics for shards created in non
 		// initial assignments.
 		if !opts.initialAssignment {
 			n.metrics.shards.add.Inc(1)
 		}
+	}
+
+	if len(createdShardIds) > 0 {
+		n.log.Info("created new shards",
+			zap.Stringer("namespace", n.ID()),
+			zap.Uint32s("shards", createdShardIds),
+			zap.Bool("initialAssignment", opts.initialAssignment),
+			zap.Bool("needsBootstrap", opts.needsBootstrap))
 	}
 
 	if idx := n.reverseIndex; idx != nil {
@@ -581,7 +614,7 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 	}
 }
 
-func (n *dbNamespace) Tick(c context.Cancellable, startTime time.Time) error {
+func (n *dbNamespace) Tick(c context.Cancellable, startTime xtime.UnixNano) error {
 	// Allow the reader cache to tick.
 	n.namespaceReaderMgr.tick()
 
@@ -674,27 +707,33 @@ func (n *dbNamespace) Tick(c context.Cancellable, startTime time.Time) error {
 func (n *dbNamespace) Write(
 	ctx context.Context,
 	id ident.ID,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) (SeriesWrite, error) {
+	callStart := n.nowFn()
+
 	if n.ReadOnly() {
+		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
 		return SeriesWrite{}, errNamespaceReadOnly
 	}
 
-	callStart := n.nowFn()
 	shard, nsCtx, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
 		return SeriesWrite{}, err
 	}
+
 	opts := series.WriteOptions{
 		TruncateType: n.opts.TruncateType(),
 		SchemaDesc:   nsCtx.Schema,
 	}
 	seriesWrite, err := shard.Write(ctx, id, timestamp,
 		value, unit, annotation, opts)
+	if err == nil && len(annotation) == 0 {
+		n.metrics.writesWithoutAnnotation.Inc(1)
+	}
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return seriesWrite, err
 }
@@ -702,32 +741,39 @@ func (n *dbNamespace) Write(
 func (n *dbNamespace) WriteTagged(
 	ctx context.Context,
 	id ident.ID,
-	tags ident.TagIterator,
-	timestamp time.Time,
+	tagResolver convert.TagMetadataResolver,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) (SeriesWrite, error) {
+	callStart := n.nowFn()
+
 	if n.ReadOnly() {
+		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return SeriesWrite{}, errNamespaceReadOnly
 	}
 
-	callStart := n.nowFn()
 	if n.reverseIndex == nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return SeriesWrite{}, errNamespaceIndexingDisabled
 	}
+
 	shard, nsCtx, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return SeriesWrite{}, err
 	}
+
 	opts := series.WriteOptions{
 		TruncateType: n.opts.TruncateType(),
 		SchemaDesc:   nsCtx.Schema,
 	}
-	seriesWrite, err := shard.WriteTagged(ctx, id, tags, timestamp,
+	seriesWrite, err := shard.WriteTagged(ctx, id, tagResolver, timestamp,
 		value, unit, annotation, opts)
+	if err == nil && len(annotation) == 0 {
+		n.metrics.writesWithoutAnnotation.Inc(1)
+	}
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return seriesWrite, err
 }
@@ -741,19 +787,19 @@ func (n *dbNamespace) WritePendingIndexInserts(
 	return n.reverseIndex.WritePending(pending)
 }
 
-func (n *dbNamespace) SeriesReadWriteRef(
+func (n *dbNamespace) SeriesRefResolver(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-) (SeriesReadWriteRef, bool, error) {
+) (bootstrap.SeriesRefResolver, bool, error) {
 	n.RLock()
 	shard, owned, err := n.shardAtWithRLock(shardID)
 	n.RUnlock()
 	if err != nil {
-		return SeriesReadWriteRef{}, owned, err
+		return nil, owned, err
 	}
-	res, err := shard.SeriesReadWriteRef(id, tags)
-	return res, true, err
+	resolver, err := shard.SeriesRefResolver(id, tags)
+	return resolver, true, err
 }
 
 func (n *dbNamespace) QueryIDs(
@@ -768,8 +814,8 @@ func (n *dbNamespace) QueryIDs(
 			opentracinglog.String("namespace", n.ID().String()),
 			opentracinglog.Int("seriesLimit", opts.SeriesLimit),
 			opentracinglog.Int("docsLimit", opts.DocsLimit),
-			xopentracing.Time("start", opts.StartInclusive),
-			xopentracing.Time("end", opts.EndExclusive),
+			xopentracing.Time("start", opts.StartInclusive.ToTime()),
+			xopentracing.Time("end", opts.EndExclusive.ToTime()),
 		)
 	}
 	defer sp.Finish()
@@ -811,8 +857,8 @@ func (n *dbNamespace) WideQueryIDs(
 			opentracinglog.String("query", query.String()),
 			opentracinglog.String("namespace", n.ID().String()),
 			opentracinglog.Int("batchSize", opts.BatchSize),
-			xopentracing.Time("start", opts.StartInclusive),
-			xopentracing.Time("end", opts.EndExclusive),
+			xopentracing.Time("start", opts.StartInclusive.ToTime()),
+			xopentracing.Time("end", opts.EndExclusive.ToTime()),
 		)
 	}
 	defer sp.Finish()
@@ -905,7 +951,7 @@ func (n *dbNamespace) PrepareBootstrap(ctx context.Context) ([]databaseShard, er
 func (n *dbNamespace) ReadEncoded(
 	ctx context.Context,
 	id ident.ID,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 ) (series.BlockReaderIter, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.readableShardFor(id)
@@ -921,7 +967,7 @@ func (n *dbNamespace) ReadEncoded(
 func (n *dbNamespace) FetchWideEntry(
 	ctx context.Context,
 	id ident.ID,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	filter schema.WideEntryFilter,
 ) (block.StreamedWideEntry, error) {
 	callStart := n.nowFn()
@@ -942,7 +988,7 @@ func (n *dbNamespace) FetchBlocks(
 	ctx context.Context,
 	shardID uint32,
 	id ident.ID,
-	starts []time.Time,
+	starts []xtime.UnixNano,
 ) ([]block.FetchBlockResult, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.ReadableShardAt(shardID)
@@ -959,7 +1005,7 @@ func (n *dbNamespace) FetchBlocks(
 func (n *dbNamespace) FetchBlocksMetadataV2(
 	ctx context.Context,
 	shardID uint32,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	limit int64,
 	pageToken PageToken,
 	opts block.FetchBlocksMetadataOptions,
@@ -1045,6 +1091,9 @@ func (n *dbNamespace) Bootstrap(
 		}
 		if !bootstrapped {
 			// NB(r): Not bootstrapped in this bootstrap run.
+			n.log.Debug("skipping already bootstrapped shard",
+				zap.Uint32("shard", shardID),
+				zap.Stringer("namespace", n.id))
 			continue
 		}
 
@@ -1058,6 +1107,15 @@ func (n *dbNamespace) Bootstrap(
 			multiErr = multiErr.Add(err)
 			mutex.Unlock()
 			continue
+		}
+
+		// Check if there are unfulfilled ranges
+		if ranges, ok := bootstrapResult.DataResult.Unfulfilled().Get(shardID); ok && !ranges.IsEmpty() {
+			continue
+		} else if n.reverseIndex != nil {
+			if ranges, ok := bootstrapResult.IndexResult.Unfulfilled().Get(shardID); ok && !ranges.IsEmpty() {
+				continue
+			}
 		}
 
 		wg.Add(1)
@@ -1121,7 +1179,7 @@ func (n *dbNamespace) Bootstrap(
 }
 
 func (n *dbNamespace) WarmFlush(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	flushPersist persist.FlushPreparer,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
@@ -1249,11 +1307,12 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 		return errNamespaceNotBootstrapped
 	}
 	nsCtx := n.nsContextWithRLock()
+	repairsAny := n.repairsAny
 	n.RUnlock()
 
-	// If repair is enabled we still need cold flush regardless of whether cold writes is
+	// If repair has run we still need cold flush regardless of whether cold writes is
 	// enabled since repairs are dependent on the cold flushing logic.
-	enabled := n.nopts.ColdWritesEnabled() || n.nopts.RepairEnabled()
+	enabled := n.nopts.ColdWritesEnabled() || repairsAny
 	if n.ReadOnly() || !enabled {
 		n.metrics.flushColdData.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
@@ -1279,7 +1338,8 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 		}
 	}
 
-	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
+	cfOpts := NewColdFlushNsOpts(true)
+	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n, cfOpts)
 	if err != nil {
 		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
 		return err
@@ -1290,6 +1350,12 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	multiErr := xerrors.NewMultiError()
 	shardColdFlushes := make([]ShardColdFlush, 0, len(shards))
 	for _, shard := range shards {
+		if !shard.IsBootstrapped() {
+			n.log.
+				With(zap.Uint32("shard", shard.ID())).
+				Debug("skipping cold flush due to shard not bootstrapped yet")
+			continue
+		}
 		shardColdFlush, err := shard.ColdFlush(flushPersist, resources, nsCtx, onColdFlushNs)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to compact: %v", shard.ID(), err)
@@ -1343,8 +1409,8 @@ func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) error {
 }
 
 func (n *dbNamespace) Snapshot(
-	blockStart,
-	snapshotTime time.Time,
+	blockStart xtime.UnixNano,
+	snapshotTime xtime.UnixNano,
 	snapshotPersist persist.SnapshotPreparer,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
@@ -1375,6 +1441,12 @@ func (n *dbNamespace) Snapshot(
 		multiErr      xerrors.MultiError
 	)
 	for _, shard := range n.OwnedShards() {
+		if !shard.IsBootstrapped() {
+			n.log.
+				With(zap.Uint32("shard", shard.ID())).
+				Debug("skipping snapshot due to shard not bootstrapped yet")
+			continue
+		}
 		result, err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist, nsCtx)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
@@ -1393,8 +1465,8 @@ func (n *dbNamespace) Snapshot(
 }
 
 func (n *dbNamespace) NeedsFlush(
-	alignedInclusiveStart time.Time,
-	alignedInclusiveEnd time.Time,
+	alignedInclusiveStart xtime.UnixNano,
+	alignedInclusiveEnd xtime.UnixNano,
 ) (bool, error) {
 	// NB(r): Essentially if all are success, we don't need to flush, if any
 	// are failed with the minimum num failures less than max retries then
@@ -1406,8 +1478,8 @@ func (n *dbNamespace) NeedsFlush(
 }
 
 func (n *dbNamespace) needsFlushWithLock(
-	alignedInclusiveStart time.Time,
-	alignedInclusiveEnd time.Time,
+	alignedInclusiveStart xtime.UnixNano,
+	alignedInclusiveEnd xtime.UnixNano,
 ) (bool, error) {
 	var (
 		blockSize   = n.nopts.RetentionOptions().BlockSize()
@@ -1463,22 +1535,35 @@ func (n *dbNamespace) Truncate() (int64, error) {
 func (n *dbNamespace) Repair(
 	repairer databaseShardRepairer,
 	tr xtime.Range,
+	opts NamespaceRepairOptions,
 ) error {
-	if !n.nopts.RepairEnabled() {
+	shouldRun := opts.Force || n.nopts.RepairEnabled()
+	if !shouldRun {
 		return nil
 	}
 
+	n.RLock()
+	repairsAny := n.repairsAny
+	n.RUnlock()
+	if !repairsAny {
+		// Only acquire write lock if required.
+		n.Lock()
+		n.repairsAny = true
+		n.Unlock()
+	}
+
 	var (
-		wg                    sync.WaitGroup
-		mutex                 sync.Mutex
-		numShardsRepaired     int
-		numTotalSeries        int64
-		numTotalBlocks        int64
-		numSizeDiffSeries     int64
-		numSizeDiffBlocks     int64
-		numChecksumDiffSeries int64
-		numChecksumDiffBlocks int64
-		throttlePerShard      time.Duration
+		wg                      sync.WaitGroup
+		mutex                   sync.Mutex
+		numShardsRepaired       int
+		numTotalSeries          int64
+		numTotalBlocks          int64
+		numSizeDiffSeries       int64
+		numSizeDiffBlocks       int64
+		numChecksumDiffSeries   int64
+		numChecksumDiffBlocks   int64
+		peerMetadataComparisons repair.PeerMetadataComparisonResults
+		throttlePerShard        time.Duration
 	)
 
 	multiErr := xerrors.NewMultiError()
@@ -1520,6 +1605,7 @@ func (n *dbNamespace) Repair(
 				numSizeDiffBlocks += metadataRes.SizeDifferences.NumBlocks()
 				numChecksumDiffSeries += metadataRes.ChecksumDifferences.NumSeries()
 				numChecksumDiffBlocks += metadataRes.ChecksumDifferences.NumBlocks()
+				peerMetadataComparisons = append(peerMetadataComparisons, metadataRes.PeerMetadataComparisonResults...)
 			}
 			mutex.Unlock()
 
@@ -1531,6 +1617,14 @@ func (n *dbNamespace) Repair(
 
 	wg.Wait()
 
+	aggregatePeerComparison := peerMetadataComparisons.Aggregate()
+	n.metrics.repairDifferingPercent.Update(aggregatePeerComparison.ComparedDifferingPercent)
+	n.metrics.repairComparedBlocks.Inc(aggregatePeerComparison.ComparedBlocks)
+	n.metrics.repairDifferingBlocks.Inc(aggregatePeerComparison.ComparedDifferingBlocks)
+	n.metrics.repairMismatchBlocks.Inc(aggregatePeerComparison.ComparedMismatchBlocks)
+	n.metrics.repairMissingBlocks.Inc(aggregatePeerComparison.ComparedMissingBlocks)
+	n.metrics.repairExtraBlocks.Inc(aggregatePeerComparison.ComparedExtraBlocks)
+
 	n.log.Info("repair result",
 		zap.String("repairTimeRange", tr.String()),
 		zap.Int("numTotalShards", len(shards)),
@@ -1541,6 +1635,12 @@ func (n *dbNamespace) Repair(
 		zap.Int64("numSizeDiffBlocks", numSizeDiffBlocks),
 		zap.Int64("numChecksumDiffSeries", numChecksumDiffSeries),
 		zap.Int64("numChecksumDiffBlocks", numChecksumDiffBlocks),
+		zap.Float64("peerComparisonComparedDifferingPercent", aggregatePeerComparison.ComparedDifferingPercent),
+		zap.Int64("peerComparisonComparedBlocks", aggregatePeerComparison.ComparedBlocks),
+		zap.Int64("peerComparisonComparedDifferingBlocks", aggregatePeerComparison.ComparedDifferingBlocks),
+		zap.Int64("peerComparisonComparedMismatchBlocks", aggregatePeerComparison.ComparedMismatchBlocks),
+		zap.Int64("peerComparisonComparedMissingBlocks", aggregatePeerComparison.ComparedMissingBlocks),
+		zap.Int64("peerComparisonComparedExtraBlocks", aggregatePeerComparison.ComparedExtraBlocks),
 	)
 
 	return multiErr.FinalError()
@@ -1651,6 +1751,12 @@ func (n *dbNamespace) Close() error {
 	n.Unlock()
 	n.namespaceReaderMgr.close()
 	n.closeShards(shards, true)
+	if retriever := n.blockRetriever; retriever != nil {
+		if err := retriever.Close(); err != nil {
+			n.log.Error("error when closing blockRetriever",
+				zap.Error(err), zap.Stringer("namespace", n.id))
+		}
+	}
 	close(n.shutdownCh)
 	if n.reverseIndex != nil {
 		return n.reverseIndex.Close()
@@ -1680,7 +1786,7 @@ func (n *dbNamespace) ShardBootstrapState() ShardBootstrapStates {
 	return shardStates
 }
 
-func (n *dbNamespace) FlushState(shardID uint32, blockStart time.Time) (fileOpState, error) {
+func (n *dbNamespace) FlushState(shardID uint32, blockStart xtime.UnixNano) (fileOpState, error) {
 	n.RLock()
 	defer n.RUnlock()
 	shard, _, err := n.shardAtWithRLock(shardID)
@@ -1734,7 +1840,8 @@ func (n *dbNamespace) aggregateTiles(
 	}
 
 	// Cold flusher builds the reverse index for target (current) ns.
-	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
+	cfOpts := NewColdFlushNsOpts(false)
+	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n, cfOpts)
 	if err != nil {
 		return 0, err
 	}
@@ -1743,6 +1850,7 @@ func (n *dbNamespace) aggregateTiles(
 		processedTileCount int64
 		aggregationSuccess bool
 	)
+
 	defer func() {
 		if aggregationSuccess {
 			return
@@ -1753,7 +1861,15 @@ func (n *dbNamespace) aggregateTiles(
 				zap.Stringer("sourceNs", sourceNs.ID()), zap.Error(err))
 		}
 	}()
+
 	for _, targetShard := range n.OwnedShards() {
+		if !targetShard.IsBootstrapped() {
+			n.log.
+				With(zap.Uint32("shard", targetShard.ID())).
+				Debug("skipping aggregateTiles due to shard not bootstrapped")
+			continue
+		}
+
 		shardProcessedTileCount, err := targetShard.AggregateTiles(
 			ctx, sourceNs, n, targetShard.ID(), onColdFlushNs, opts)
 
@@ -1772,8 +1888,8 @@ func (n *dbNamespace) aggregateTiles(
 
 	n.log.Info("finished large tiles aggregation for namespace",
 		zap.String("sourceNs", sourceNs.ID().String()),
-		zap.Time("targetBlockStart", targetBlockStart),
-		zap.Time("lastSourceBlockEnd", lastSourceBlockEnd),
+		zap.Time("targetBlockStart", targetBlockStart.ToTime()),
+		zap.Time("lastSourceBlockEnd", lastSourceBlockEnd.ToTime()),
 		zap.Duration("step", opts.Step),
 		zap.Int64("processedTiles", processedTileCount),
 		zap.Duration("took", time.Now().Sub(startedAt)))

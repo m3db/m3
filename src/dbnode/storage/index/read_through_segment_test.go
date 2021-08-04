@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -41,16 +42,16 @@ var (
 )
 
 func TestReadThroughSegmentMatchRegexp(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	seg := fst.NewMockSegment(ctrl)
 	reader := segment.NewMockReader(ctrl)
 	seg.EXPECT().Reader().Return(reader, nil)
 
-	cache, stopReporting, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
+	defer cache.Start()()
 
 	field := []byte("some-field")
 	parsedRegex, err := syntax.Parse(".*this-will-be-slow.*", syntax.Simple)
@@ -80,16 +81,16 @@ func TestReadThroughSegmentMatchRegexp(t *testing.T) {
 }
 
 func TestReadThroughSegmentMatchRegexpCacheDisabled(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	seg := fst.NewMockSegment(ctrl)
 	reader := segment.NewMockReader(ctrl)
 	seg.EXPECT().Reader().Return(reader, nil)
 
-	cache, stopReporting, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
+	defer cache.Start()()
 
 	field := []byte("some-field")
 	parsedRegex, err := syntax.Parse(".*this-will-be-slow.*", syntax.Simple)
@@ -123,7 +124,7 @@ func TestReadThroughSegmentMatchRegexpCacheDisabled(t *testing.T) {
 }
 
 func TestReadThroughSegmentMatchRegexpNoCache(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -154,16 +155,16 @@ func TestReadThroughSegmentMatchRegexpNoCache(t *testing.T) {
 }
 
 func TestReadThroughSegmentMatchTerm(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	seg := fst.NewMockSegment(ctrl)
 	reader := segment.NewMockReader(ctrl)
 	seg.EXPECT().Reader().Return(reader, nil)
 
-	cache, stopReporting, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
+	defer cache.Start()()
 
 	var (
 		field = []byte("some-field")
@@ -192,16 +193,16 @@ func TestReadThroughSegmentMatchTerm(t *testing.T) {
 }
 
 func TestReadThroughSegmentMatchTermCacheDisabled(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	seg := fst.NewMockSegment(ctrl)
 	reader := segment.NewMockReader(ctrl)
 	seg.EXPECT().Reader().Return(reader, nil)
 
-	cache, stopReporting, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
+	defer cache.Start()()
 
 	var (
 		field = []byte("some-field")
@@ -234,7 +235,7 @@ func TestReadThroughSegmentMatchTermCacheDisabled(t *testing.T) {
 }
 
 func TestReadThroughSegmentMatchTermNoCache(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -263,13 +264,13 @@ func TestReadThroughSegmentMatchTermNoCache(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	segment := fst.NewMockSegment(ctrl)
-	cache, stopReporting, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
+	defer cache.Start()()
 
 	readThroughSeg := NewReadThroughSegment(
 		segment, cache, defaultReadThroughSegmentOptions)
@@ -295,16 +296,16 @@ func TestClose(t *testing.T) {
 }
 
 func TestReadThroughSegmentMatchField(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	seg := fst.NewMockSegment(ctrl)
 	reader := segment.NewMockReader(ctrl)
 	seg.EXPECT().Reader().Return(reader, nil)
 
-	cache, stopReporting, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
+	defer cache.Start()()
 
 	var (
 		field = []byte("some-field")
@@ -332,16 +333,16 @@ func TestReadThroughSegmentMatchField(t *testing.T) {
 }
 
 func TestReadThroughSegmentMatchFieldCacheDisabled(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	seg := fst.NewMockSegment(ctrl)
 	reader := segment.NewMockReader(ctrl)
 	seg.EXPECT().Reader().Return(reader, nil)
 
-	cache, stopReporting, err := NewPostingsListCache(1, testPostingListCacheOptions)
+	cache, err := NewPostingsListCache(1, testPostingListCacheOptions)
 	require.NoError(t, err)
-	defer stopReporting()
+	defer cache.Start()()
 
 	var (
 		field = []byte("some-field")
@@ -373,7 +374,7 @@ func TestReadThroughSegmentMatchFieldCacheDisabled(t *testing.T) {
 }
 
 func TestReadThroughSegmentMatchFieldNoCache(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -401,7 +402,7 @@ func TestReadThroughSegmentMatchFieldNoCache(t *testing.T) {
 }
 
 func TestCloseNoCache(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	seg := fst.NewMockSegment(ctrl)

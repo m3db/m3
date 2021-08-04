@@ -27,13 +27,18 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/prometheus/prometheus/promql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber/tchannel-go"
 
+	terrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 func TestErrorStatus(t *testing.T) {
+	a := terrors.NewInternalError(tchannel.ErrTimeout)
+
 	tests := []struct {
 		name           string
 		err            error
@@ -59,10 +64,31 @@ func TestErrorStatus(t *testing.T) {
 			err:            context.Canceled,
 			expectedStatus: 499,
 		},
+		{
+			name:           "prom canceled",
+			err:            promql.ErrQueryCanceled("canceled"),
+			expectedStatus: 499,
+		},
+		{
+			name:           "client timeout",
+			err:            terrors.NewTimeoutError(fmt.Errorf("timeout")),
+			expectedStatus: 504,
+		},
+		{
+			name:           "tchannel timeout",
+			err:            tchannel.ErrTimeout,
+			expectedStatus: 504,
+		},
+		{
+			name:           "http error",
+			err:            NewError(errors.New("some error"), 504),
+			expectedStatus: 504,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			assert.Error(t, a)
 			recorder := httptest.NewRecorder()
 			WriteError(recorder, tt.err)
 			assert.Equal(t, tt.expectedStatus, recorder.Code)

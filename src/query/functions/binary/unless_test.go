@@ -29,7 +29,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -207,20 +209,20 @@ var unlessTests = []struct {
 }
 
 func TestUnless(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 	for _, tt := range unlessTests {
 		t.Run(tt.name, func(t *testing.T) {
 			op, err := NewOp(
 				UnlessType,
 				NodeParams{
-					LNode:                parser.NodeID(0),
-					RNode:                parser.NodeID(1),
+					LNode:                parser.NodeID(rune(0)),
+					RNode:                parser.NodeID(rune(1)),
 					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
 
-			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+			c, sink := executor.NewControllerWithSink(parser.NodeID(rune(2)))
 			node := op.(baseOp).Node(c, transform.Options{})
 			bounds := models.Bounds{
 				Start:    now,
@@ -229,7 +231,7 @@ func TestUnless(t *testing.T) {
 			}
 
 			lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), lhs)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), lhs)
 			require.NoError(t, err)
 			bounds = models.Bounds{
 				Start:    now,
@@ -238,14 +240,14 @@ func TestUnless(t *testing.T) {
 			}
 
 			rhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.rhsMeta, tt.rhs)
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(1), rhs)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), rhs)
 			if tt.err != nil {
 				require.EqualError(t, err, tt.err.Error())
 				return
 			}
 
 			require.NoError(t, err)
-			test.EqualsWithNans(t, tt.expected, sink.Values)
+			compare.EqualsWithNans(t, tt.expected, sink.Values)
 			meta := sink.Meta
 			assert.Equal(t, 0, meta.Tags.Len())
 			assert.True(t, meta.Bounds.Equals(bounds))

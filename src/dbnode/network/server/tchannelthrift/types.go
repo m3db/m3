@@ -75,12 +75,6 @@ type Options interface {
 	// TagEncoderPool returns the tag encoder pool.
 	TagEncoderPool() serialize.TagEncoderPool
 
-	// SetTagDecoderPool sets the tag encoder pool.
-	SetTagDecoderPool(value serialize.TagDecoderPool) Options
-
-	// TagDecoderPool returns the tag encoder pool.
-	TagDecoderPool() serialize.TagDecoderPool
-
 	// SetCheckedBytesWrapperPool sets the checked bytes wrapper pool.
 	SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options
 
@@ -114,4 +108,8 @@ type Options interface {
 
 	// SetPermitsOptions sets the permits options.
 	SetPermitsOptions(value permits.Options) Options
+
+	// SetFetchTaggedSeriesBlocksPerBatch sets the series blocks allowed to be read
+	// per permit acquired.
+	SetFetchTaggedSeriesBlocksPerBatch(value int) Options
 }

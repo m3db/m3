@@ -23,29 +23,33 @@ package storage
 import (
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func TestFileSystemManagerShouldRunDuringBootstrap(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	database := newMockdatabase(ctrl)
 	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
 	mgr := fsm.(*fileSystemManager)
 
-	database.EXPECT().IsBootstrapped().Return(false)
+	database.EXPECT().IsBootstrapped().Return(false).Times(2)
 	require.False(t, mgr.shouldRunWithLock())
+	require.False(t, mgr.Run(xtime.Now()))
 
 	database.EXPECT().IsBootstrapped().Return(true)
 	require.True(t, mgr.shouldRunWithLock())
 }
 
 func TestFileSystemManagerShouldRunWhileRunning(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	database := newMockdatabase(ctrl)
 	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
@@ -57,7 +61,7 @@ func TestFileSystemManagerShouldRunWhileRunning(t *testing.T) {
 }
 
 func TestFileSystemManagerShouldRunEnableDisable(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	database := newMockdatabase(ctrl)
 	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
@@ -70,8 +74,8 @@ func TestFileSystemManagerShouldRunEnableDisable(t *testing.T) {
 	require.True(t, mgr.shouldRunWithLock())
 }
 
-func TestFileSystemManagerRun(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestFileSystemManagerRunCleanupPanic(t *testing.T) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	database := newMockdatabase(ctrl)
 	database.EXPECT().IsBootstrapped().Return(true).AnyTimes()
@@ -83,12 +87,34 @@ func TestFileSystemManagerRun(t *testing.T) {
 	mgr.databaseFlushManager = fm
 	mgr.databaseCleanupManager = cm
 
-	ts := time.Now()
+	ts := xtime.Now()
 	gomock.InOrder(
-		cm.EXPECT().WarmFlushCleanup(ts, true).Return(errors.New("foo")),
-		fm.EXPECT().Flush(ts).Return(errors.New("bar")),
+		cm.EXPECT().WarmFlushCleanup(ts).Return(errors.New("foo")),
 	)
 
-	mgr.Run(ts, syncRun, noForce)
-	require.Equal(t, fileOpNotStarted, mgr.status)
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() { mgr.Run(ts) })
+}
+
+func TestFileSystemManagerRunFlushPanic(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+	database := newMockdatabase(ctrl)
+	database.EXPECT().IsBootstrapped().Return(true).AnyTimes()
+
+	fm := NewMockdatabaseFlushManager(ctrl)
+	cm := NewMockdatabaseCleanupManager(ctrl)
+	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
+	mgr := fsm.(*fileSystemManager)
+	mgr.databaseFlushManager = fm
+	mgr.databaseCleanupManager = cm
+
+	ts := xtime.Now()
+	gomock.InOrder(
+		cm.EXPECT().WarmFlushCleanup(ts).Return(nil),
+		fm.EXPECT().Flush(ts).Return(errors.New("flush error")),
+	)
+
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
+	require.Panics(t, func() { mgr.Run(ts) })
 }

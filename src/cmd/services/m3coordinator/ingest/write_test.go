@@ -98,29 +98,29 @@ var (
 
 	testDatapoints1 = []ts.Datapoint{
 		{
-			Timestamp: time.Unix(0, 0),
+			Timestamp: xtime.UnixNano(0),
 			Value:     0,
 		},
 		{
-			Timestamp: time.Unix(0, 1),
+			Timestamp: xtime.UnixNano(1),
 			Value:     1,
 		},
 		{
-			Timestamp: time.Unix(0, 2),
+			Timestamp: xtime.UnixNano(2),
 			Value:     2,
 		},
 	}
 	testDatapoints2 = []ts.Datapoint{
 		{
-			Timestamp: time.Unix(0, 3),
+			Timestamp: xtime.UnixNano(3),
 			Value:     3,
 		},
 		{
-			Timestamp: time.Unix(0, 4),
+			Timestamp: xtime.UnixNano(4),
 			Value:     4,
 		},
 		{
-			Timestamp: time.Unix(0, 5),
+			Timestamp: xtime.UnixNano(5),
 			Value:     5,
 		},
 	}
@@ -354,7 +354,7 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndDropMappingRules(t *testing
 	}
 
 	for _, dp := range testDatapoints1 {
-		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Timestamp, dp.Value, testAnnotation1)
 	}
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
@@ -467,13 +467,13 @@ func TestDownsampleAndWriteBatch(t *testing.T) {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
 	for _, dp := range testDatapoints1 {
-		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Timestamp, dp.Value, testAnnotation1)
 	}
 	for _, tag := range testTags2.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
 	for _, dp := range testDatapoints2 {
-		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Timestamp, dp.Value, testAnnotation2)
 	}
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
@@ -519,7 +519,7 @@ func TestDownsampleAndWriteBatchBadTags(t *testing.T) {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
 	for _, dp := range testDatapoints2 {
-		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Timestamp, dp.Value, testAnnotation2)
 	}
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
@@ -564,23 +564,27 @@ func TestDownsampleAndWriteBatchDifferentTypes(t *testing.T) {
 
 	mockMetricsAppender.
 		EXPECT().
-		SamplesAppender(downsample.SampleAppenderOptions{MetricType: ts.M3MetricTypeCounter}).
-		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).Times(1)
+		SamplesAppender(downsample.SampleAppenderOptions{
+			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeCounter},
+		}).Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).
+		Times(1)
 	mockMetricsAppender.
 		EXPECT().
-		SamplesAppender(downsample.SampleAppenderOptions{MetricType: ts.M3MetricTypeTimer}).
-		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).Times(1)
+		SamplesAppender(downsample.SampleAppenderOptions{
+			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeTimer},
+		}).Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).
+		Times(1)
 	for _, tag := range testTags1.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
 	for _, dp := range testDatapoints1 {
-		mockSamplesAppender.EXPECT().AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
+		mockSamplesAppender.EXPECT().AppendCounterSample(dp.Timestamp, int64(dp.Value), testAnnotation1)
 	}
 	for _, tag := range testTags2.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
 	for _, dp := range testDatapoints2 {
-		mockSamplesAppender.EXPECT().AppendTimerTimedSample(dp.Timestamp, dp.Value)
+		mockSamplesAppender.EXPECT().AppendTimerSample(dp.Timestamp, dp.Value, testAnnotation2)
 	}
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
@@ -624,18 +628,75 @@ func TestDownsampleAndWriteBatchSingleDrop(t *testing.T) {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
 	for _, dp := range testDatapoints1 {
-		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Timestamp, dp.Value, testAnnotation1)
 	}
 	for _, tag := range testTags2.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
 	for _, dp := range testDatapoints2 {
-		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Timestamp, dp.Value, testAnnotation2)
 	}
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
 	mockMetricsAppender.EXPECT().NextMetric().Times(2)
 	mockMetricsAppender.EXPECT().Finalize()
+
+	for _, dp := range testEntries[1].datapoints {
+		session.EXPECT().WriteTagged(
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), testEntries[1].annotation,
+		)
+	}
+
+	iter := newTestIter(testEntries)
+	err := downAndWrite.WriteBatch(context.Background(), iter, WriteOptions{})
+	require.NoError(t, err)
+}
+
+func TestDownsampleAndWriteBatchDropTimestamp(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	downAndWrite, downsampler, session := newTestDownsamplerAndWriter(t, ctrl,
+		testDownsamplerAndWriterOptions{})
+
+	var (
+		mockSamplesAppender = downsample.NewMockSamplesAppender(ctrl)
+		mockMetricsAppender = downsample.NewMockMetricsAppender(ctrl)
+	)
+
+	mockMetricsAppender.
+		EXPECT().
+		SamplesAppender(zeroDownsamplerAppenderOpts).
+		Return(downsample.SamplesAppenderResult{
+			SamplesAppender:     mockSamplesAppender,
+			ShouldDropTimestamp: true,
+		}, nil).Times(1)
+	mockMetricsAppender.
+		EXPECT().
+		SamplesAppender(zeroDownsamplerAppenderOpts).
+		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).Times(1)
+	for _, tag := range testTags1.Tags {
+		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
+	}
+	for _, dp := range testDatapoints1 {
+		mockSamplesAppender.EXPECT().AppendUntimedGaugeSample(dp.Value, testAnnotation1)
+	}
+	for _, tag := range testTags2.Tags {
+		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
+	}
+	for _, dp := range testDatapoints2 {
+		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Timestamp, dp.Value, testAnnotation2)
+	}
+	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
+
+	mockMetricsAppender.EXPECT().NextMetric().Times(2)
+	mockMetricsAppender.EXPECT().Finalize()
+
+	for _, dp := range testEntries[0].datapoints {
+		session.EXPECT().WriteTagged(
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), testEntries[0].annotation,
+		)
+	}
 
 	for _, dp := range testEntries[1].datapoints {
 		session.EXPECT().WriteTagged(
@@ -679,7 +740,7 @@ func TestDownsampleAndWriteBatchOverrideDownsampleRules(t *testing.T) {
 		mockSamplesAppender  = downsample.NewMockSamplesAppender(ctrl)
 		mockMetricsAppender  = downsample.NewMockMetricsAppender(ctrl)
 		overrideMappingRules = []downsample.AutoMappingRule{
-			downsample.AutoMappingRule{
+			{
 				Aggregations: []aggregation.Type{
 					aggregation.Sum,
 				},
@@ -707,7 +768,7 @@ func TestDownsampleAndWriteBatchOverrideDownsampleRules(t *testing.T) {
 		}
 		// We will also get the common gauge tag.
 		for _, dp := range entry.datapoints {
-			mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+			mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Timestamp, dp.Value, testAnnotation1)
 		}
 	}
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
@@ -731,12 +792,12 @@ func TestDownsampleAndWriteBatchOverrideStoragePolicies(t *testing.T) {
 
 	testOpts := testDownsamplerAndWriterOptions{
 		aggregatedNamespaces: []m3.AggregatedClusterNamespaceDefinition{
-			m3.AggregatedClusterNamespaceDefinition{
+			{
 				NamespaceID: ident.StringID("namespace_10m_7d"),
 				Resolution:  10 * time.Minute,
 				Retention:   7 * 24 * time.Hour,
 			},
-			m3.AggregatedClusterNamespaceDefinition{
+			{
 				NamespaceID: ident.StringID("namespace_1h_60d"),
 				Resolution:  time.Hour,
 				Retention:   60 * 24 * time.Hour,
@@ -787,7 +848,7 @@ func expectDefaultDownsampling(
 	}
 
 	for _, dp := range datapoints {
-		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+		mockSamplesAppender.EXPECT().AppendGaugeSample(dp.Timestamp, dp.Value, testAnnotation1)
 	}
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
@@ -830,7 +891,8 @@ func newTestDownsamplerAndWriterWithEnabled(
 	}
 	downsampler := downsample.NewMockDownsampler(ctrl)
 	downsampler.EXPECT().Enabled().Return(enabled)
-	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool, instrument.NewOptions()).(*downsamplerAndWriter), downsampler, session
+	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool,
+		instrument.NewOptions()).(*downsamplerAndWriter), downsampler, session
 }
 
 func newTestDownsamplerAndWriterWithAggregatedNamespace(
@@ -842,7 +904,8 @@ func newTestDownsamplerAndWriterWithAggregatedNamespace(
 		t, ctrl, aggregatedNamespaces)
 	downsampler := downsample.NewMockDownsampler(ctrl)
 	downsampler.EXPECT().Enabled().Return(true)
-	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool, instrument.NewOptions()).(*downsamplerAndWriter), downsampler, session
+	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool,
+		instrument.NewOptions()).(*downsamplerAndWriter), downsampler, session
 }
 
 func init() {

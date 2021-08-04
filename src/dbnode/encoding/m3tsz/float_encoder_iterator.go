@@ -55,7 +55,7 @@ func (eit *FloatEncoderAndIterator) WriteFloat(stream encoding.OStream, val floa
 }
 
 // ReadFloat reads a compressed float from the stream.
-func (eit *FloatEncoderAndIterator) ReadFloat(stream encoding.IStream) error {
+func (eit *FloatEncoderAndIterator) ReadFloat(stream *encoding.IStream) error {
 	if eit.NotFirst {
 		return eit.readNextFloat(stream)
 	}
@@ -102,7 +102,7 @@ func (eit *FloatEncoderAndIterator) writeXOR(stream encoding.OStream, currXOR ui
 	stream.WriteBits(currXOR>>uint(curTrailing), numMeaningfulBits)
 }
 
-func (eit *FloatEncoderAndIterator) readFullFloat(stream encoding.IStream) error {
+func (eit *FloatEncoderAndIterator) readFullFloat(stream *encoding.IStream) error {
 	vb, err := stream.ReadBits(64)
 	if err != nil {
 		return err
@@ -114,7 +114,7 @@ func (eit *FloatEncoderAndIterator) readFullFloat(stream encoding.IStream) error
 	return nil
 }
 
-func (eit *FloatEncoderAndIterator) readNextFloat(stream encoding.IStream) error {
+func (eit *FloatEncoderAndIterator) readNextFloat(stream *encoding.IStream) error {
 	cb, err := stream.ReadBits(1)
 	if err != nil {
 		return err
@@ -122,7 +122,6 @@ func (eit *FloatEncoderAndIterator) readNextFloat(stream encoding.IStream) error
 
 	if cb == opcodeZeroValueXOR {
 		eit.PrevXOR = 0
-		eit.PrevFloatBits ^= eit.PrevXOR
 		return nil
 	}
 
@@ -134,7 +133,7 @@ func (eit *FloatEncoderAndIterator) readNextFloat(stream encoding.IStream) error
 	cb = (cb << 1) | nextCB
 	if cb == opcodeContainedValueXOR {
 		previousLeading, previousTrailing := encoding.LeadingAndTrailingZeros(eit.PrevXOR)
-		numMeaningfulBits := uint(64 - previousLeading - previousTrailing)
+		numMeaningfulBits := uint8(64 - previousLeading - previousTrailing)
 		meaningfulBits, err := stream.ReadBits(numMeaningfulBits)
 		if err != nil {
 			return err
@@ -153,7 +152,7 @@ func (eit *FloatEncoderAndIterator) readNextFloat(stream encoding.IStream) error
 	numLeadingZeros := (numLeadingZeroesAndNumMeaningfulBits & bits12To6Mask) >> 6
 	numMeaningfulBits := (numLeadingZeroesAndNumMeaningfulBits & bits6To0Mask) + 1
 
-	meaningfulBits, err := stream.ReadBits(uint(numMeaningfulBits))
+	meaningfulBits, err := stream.ReadBits(uint8(numMeaningfulBits))
 	if err != nil {
 		return err
 	}

@@ -21,21 +21,16 @@
 package parser
 
 import (
-	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
-
-const sep rune = '!'
-const tagSep rune = '.'
 
 // Data is a set of datapoints.
 type Data []ts.Datapoint
@@ -46,18 +41,16 @@ type IngestSeries struct {
 	Tags       Tags
 }
 
-var iterAlloc = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-	return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-}
+var iterAlloc = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
 
 func buildBlockReader(
 	block Data,
-	start time.Time,
+	start xtime.UnixNano,
 	blockSize time.Duration,
 	opts Options,
 ) ([]xio.BlockReader, error) {
 	encoder := opts.EncoderPool.Get()
-	encoder.Reset(time.Now(), len(block), nil)
+	encoder.Reset(xtime.Now(), len(block), nil)
 	for _, dp := range block {
 		err := encoder.Encode(dp, xtime.Second, nil)
 		if err != nil {
@@ -102,7 +95,7 @@ func buildTagIteratorAndID(
 
 func buildSeriesIterator(
 	series IngestSeries,
-	start time.Time,
+	start xtime.UnixNano,
 	blockSize time.Duration,
 	opts Options,
 ) (encoding.SeriesIterator, error) {
@@ -134,7 +127,7 @@ func buildSeriesIterator(
 	end := start.Add(blockSize)
 	if len(points) > 0 {
 		lastBlock := points[len(points)-1]
-		end = lastBlock[len(lastBlock)-1].Timestamp
+		end = lastBlock[len(lastBlock)-1].TimestampNanos
 	}
 
 	tagIter, id := buildTagIteratorAndID(tags, opts.TagOptions)
@@ -143,8 +136,8 @@ func buildSeriesIterator(
 			ID:             id,
 			Namespace:      ident.StringID("ns"),
 			Tags:           tagIter,
-			StartInclusive: xtime.ToUnixNano(start),
-			EndExclusive:   xtime.ToUnixNano(end),
+			StartInclusive: start,
+			EndExclusive:   end,
 			Replicas: []encoding.MultiReaderIterator{
 				multiReader,
 			},
@@ -154,7 +147,7 @@ func buildSeriesIterator(
 // BuildSeriesIterators builds series iterators from parser data.
 func BuildSeriesIterators(
 	series []IngestSeries,
-	start time.Time,
+	start xtime.UnixNano,
 	blockSize time.Duration,
 	opts Options,
 ) (encoding.SeriesIterators, error) {

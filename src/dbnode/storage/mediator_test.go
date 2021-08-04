@@ -21,10 +21,12 @@
 package storage
 
 import (
+	"sync"
 	"testing"
 	"time"
 
 	xclock "github.com/m3db/m3/src/x/clock"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -32,7 +34,7 @@ import (
 )
 
 func TestDatabaseMediatorOpenClose(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions().SetRepairEnabled(false)
@@ -84,7 +86,7 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 }
 
 func TestDatabaseMediatorDisableFileOpsAndWait(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions().SetRepairEnabled(false)
@@ -115,4 +117,53 @@ func TestDatabaseMediatorDisableFileOpsAndWait(t *testing.T) {
 
 	m.DisableFileOpsAndWait()
 	require.Equal(t, 3, len(slept))
+}
+
+func TestDatabaseMediatorEnqueueMutuallyExclusiveFnAndExecute(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := DefaultTestOptions()
+	opts = opts.
+		SetMediatorTickInterval(time.Millisecond * 100).
+		SetBootstrapProcessProvider(nil)
+
+	db := NewMockdatabase(ctrl)
+	db.EXPECT().Options().Return(opts).AnyTimes()
+	db.EXPECT().IsBootstrapped().Return(true).AnyTimes()
+	db.EXPECT().IsBootstrappedAndDurable().Return(true).AnyTimes()
+
+	med, err := newMediator(db, nil, opts)
+	require.NoError(t, err)
+	m := med.(*mediator)
+
+	tm := NewMockdatabaseTickManager(ctrl)
+	tm.EXPECT().Tick(force, gomock.Any()).Return(nil).AnyTimes()
+	m.databaseTickManager = tm
+	fsm := NewMockdatabaseFileSystemManager(ctrl)
+	fsm.EXPECT().Run(gomock.Any()).Return(true).AnyTimes()
+	fsm.EXPECT().Report().AnyTimes()
+	m.databaseFileSystemManager = fsm
+	cfm := NewMockdatabaseColdFlushManager(ctrl)
+	cfm.EXPECT().Run(gomock.Any()).Return(true).AnyTimes()
+	cfm.EXPECT().Report().AnyTimes()
+	m.databaseColdFlushManager = cfm
+
+	require.NoError(t, med.Open())
+	defer func() {
+		require.NoError(t, med.Close())
+	}()
+
+	fsm.EXPECT().Status().Return(fileOpNotStarted).AnyTimes()
+	cfm.EXPECT().Status().Return(fileOpNotStarted).AnyTimes()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	require.NoError(t, med.EnqueueMutuallyExclusiveFn(func() {
+		defer wg.Done()
+		require.Equal(t, fileOpNotStarted, m.databaseFileSystemManager.Status())
+		require.Equal(t, fileOpNotStarted, m.databaseColdFlushManager.Status())
+	}))
+
+	wg.Wait()
 }

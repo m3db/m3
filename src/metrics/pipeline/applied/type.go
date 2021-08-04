@@ -28,13 +28,17 @@ import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3/src/metrics/pipeline"
+	"github.com/m3db/m3/src/metrics/transformation"
 )
 
 var (
 	// DefaultPipeline is a default pipeline.
 	DefaultPipeline Pipeline
 
-	errNilAppliedRollupOpProto = errors.New("nil applied rollup op proto message")
+	errNilAppliedRollupOpProto  = errors.New("nil applied rollup op proto message")
+	errUnknownOpType            = errors.New("unknown op type")
+	errOperationsLengthMismatch = errors.New("operations list length does not match proto")
+	errNilTransformationOpProto = errors.New("nil transformation op proto message")
 )
 
 // RollupOp captures the rollup metadata after the operation is applied against a metric ID.
@@ -45,7 +49,7 @@ type RollupOp struct {
 	AggregationID aggregation.ID
 }
 
-// Equal determines whether two rollup operations are equal.
+// Equal determines whether two rollup Operations are equal.
 func (op RollupOp) Equal(other RollupOp) bool {
 	return op.AggregationID == other.AggregationID && bytes.Equal(op.ID, other.ID)
 }
@@ -63,9 +67,7 @@ func (op RollupOp) String() string {
 
 // ToProto converts the applied rollup op to a protobuf message in place.
 func (op RollupOp) ToProto(pb *pipelinepb.AppliedRollupOp) error {
-	if err := op.AggregationID.ToProto(&pb.AggregationId); err != nil {
-		return err
-	}
+	op.AggregationID.ToProto(&pb.AggregationId)
 	pb.Id = op.ID
 	return nil
 }
@@ -75,9 +77,7 @@ func (op *RollupOp) FromProto(pb *pipelinepb.AppliedRollupOp) error {
 	if pb == nil {
 		return errNilAppliedRollupOpProto
 	}
-	if err := op.AggregationID.FromProto(pb.AggregationId); err != nil {
-		return err
-	}
+	op.AggregationID.FromProto(pb.AggregationId)
 	op.ID = pb.Id
 	return nil
 }
@@ -143,7 +143,7 @@ func (u OpUnion) ToProto(pb *pipelinepb.AppliedPipelineOp) error {
 		pb.Rollup = &pipelinepb.AppliedRollupOp{}
 		return u.Rollup.ToProto(pb.Rollup)
 	default:
-		return fmt.Errorf("unknown op type: %v", u.Type)
+		return errUnknownOpType
 	}
 }
 
@@ -152,58 +152,62 @@ func (u *OpUnion) Reset() { *u = OpUnion{} }
 
 // FromProto converts the protobuf message to an applied pipeline op in place.
 func (u *OpUnion) FromProto(pb pipelinepb.AppliedPipelineOp) error {
-	u.Reset()
 	switch pb.Type {
 	case pipelinepb.AppliedPipelineOp_TRANSFORMATION:
 		u.Type = pipeline.TransformationOpType
+		if u.Rollup.ID != nil {
+			u.Rollup.ID = u.Rollup.ID[:0]
+		}
+		u.Rollup.AggregationID[0] = aggregation.DefaultID[0]
 		return u.Transformation.FromProto(pb.Transformation)
 	case pipelinepb.AppliedPipelineOp_ROLLUP:
 		u.Type = pipeline.RollupOpType
+		u.Transformation.Type = transformation.UnknownType
 		return u.Rollup.FromProto(pb.Rollup)
 	default:
-		return fmt.Errorf("unknown op type in proto: %v", pb.Type)
+		return errUnknownOpType
 	}
 }
 
 // Pipeline is a pipeline of operations.
 type Pipeline struct {
-	// a list of pipeline operations.
-	operations []OpUnion
+	// a list of pipeline Operations.
+	Operations []OpUnion
 }
 
 // NewPipeline creates a new pipeline.
 func NewPipeline(ops []OpUnion) Pipeline {
-	return Pipeline{operations: ops}
+	return Pipeline{Operations: ops}
 }
 
 // Len returns the number of steps in a pipeline.
-func (p Pipeline) Len() int { return len(p.operations) }
+func (p Pipeline) Len() int { return len(p.Operations) }
 
 // IsEmpty determines whether a pipeline is empty.
-func (p Pipeline) IsEmpty() bool { return len(p.operations) == 0 }
+func (p Pipeline) IsEmpty() bool { return len(p.Operations) == 0 }
 
 // At returns the operation at a given step.
-func (p Pipeline) At(i int) OpUnion { return p.operations[i] }
+func (p Pipeline) At(i int) OpUnion { return p.Operations[i] }
 
 // Equal determines whether two pipelines are equal.
 func (p Pipeline) Equal(other Pipeline) bool {
 	// keep in sync with OpUnion.Equal as go is terrible at inlining anything with a loop
-	if len(p.operations) != len(other.operations) {
+	if len(p.Operations) != len(other.Operations) {
 		return false
 	}
 
-	for i := 0; i < len(p.operations); i++ {
-		if p.operations[i].Type != other.operations[i].Type {
+	for i := 0; i < len(p.Operations); i++ {
+		if p.Operations[i].Type != other.Operations[i].Type {
 			return false
 		}
 		//nolint:exhaustive
-		switch p.operations[i].Type {
+		switch p.Operations[i].Type {
 		case pipeline.RollupOpType:
-			if !p.operations[i].Rollup.Equal(other.operations[i].Rollup) {
+			if !p.Operations[i].Rollup.Equal(other.Operations[i].Rollup) {
 				return false
 			}
 		case pipeline.TransformationOpType:
-			if p.operations[i].Transformation.Type != other.operations[i].Transformation.Type {
+			if p.Operations[i].Transformation.Type != other.Operations[i].Transformation.Type {
 				return false
 			}
 		}
@@ -214,25 +218,25 @@ func (p Pipeline) Equal(other Pipeline) bool {
 
 // Clone clones the pipeline.
 func (p Pipeline) Clone() Pipeline {
-	clone := make([]OpUnion, len(p.operations))
-	for i := range p.operations {
-		clone[i] = p.operations[i].Clone()
+	clone := make([]OpUnion, len(p.Operations))
+	for i := range p.Operations {
+		clone[i] = p.Operations[i].Clone()
 	}
-	return Pipeline{operations: clone}
+	return Pipeline{Operations: clone}
 }
 
-// SubPipeline returns a sub-pipeline containing operations between step `startInclusive`
+// SubPipeline returns a sub-pipeline containing Operations between step `startInclusive`
 // and step `endExclusive` of the current pipeline.
 func (p Pipeline) SubPipeline(startInclusive int, endExclusive int) Pipeline {
-	return Pipeline{operations: p.operations[startInclusive:endExclusive]}
+	return Pipeline{Operations: p.Operations[startInclusive:endExclusive]}
 }
 
 func (p Pipeline) String() string {
 	var b bytes.Buffer
 	b.WriteString("{operations: [")
-	for i, op := range p.operations {
+	for i, op := range p.Operations {
 		b.WriteString(op.String())
-		if i < len(p.operations)-1 {
+		if i < len(p.Operations)-1 {
 			b.WriteString(", ")
 		}
 	}
@@ -242,14 +246,14 @@ func (p Pipeline) String() string {
 
 // ToProto converts the applied pipeline to a protobuf message in place.
 func (p Pipeline) ToProto(pb *pipelinepb.AppliedPipeline) error {
-	numOps := len(p.operations)
+	numOps := len(p.Operations)
 	if cap(pb.Ops) >= numOps {
 		pb.Ops = pb.Ops[:numOps]
 	} else {
 		pb.Ops = make([]pipelinepb.AppliedPipelineOp, numOps)
 	}
 	for i := 0; i < numOps; i++ {
-		if err := p.operations[i].ToProto(&pb.Ops[i]); err != nil {
+		if err := p.Operations[i].ToProto(&pb.Ops[i]); err != nil {
 			return err
 		}
 	}
@@ -259,14 +263,60 @@ func (p Pipeline) ToProto(pb *pipelinepb.AppliedPipeline) error {
 // FromProto converts the protobuf message to an applied pipeline in place.
 func (p *Pipeline) FromProto(pb pipelinepb.AppliedPipeline) error {
 	numOps := len(pb.Ops)
-	if cap(p.operations) >= numOps {
-		p.operations = p.operations[:numOps]
+	if cap(p.Operations) >= numOps {
+		p.Operations = p.Operations[:numOps]
 	} else {
-		p.operations = make([]OpUnion, numOps)
+		p.Operations = make([]OpUnion, numOps)
 	}
 	for i := 0; i < numOps; i++ {
-		if err := p.operations[i].FromProto(pb.Ops[i]); err != nil {
+		if err := p.Operations[i].FromProto(pb.Ops[i]); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// IsMappingRule returns whether this is a mapping rule, determined by
+// if any rollup pipelines are included.
+func (p Pipeline) IsMappingRule() bool {
+	for _, op := range p.Operations {
+		if op.Rollup.ID != nil {
+			return false
+		}
+	}
+	return true
+}
+
+// OperationsFromProto converts a list of protobuf AppliedPipelineOps, used in optimized staged metadata methods.
+func OperationsFromProto(pb []pipelinepb.AppliedPipelineOp, ops []OpUnion) error {
+	numOps := len(pb)
+	if numOps != len(ops) {
+		return errOperationsLengthMismatch
+	}
+	for i := 0; i < numOps; i++ {
+		u := &ops[i]
+		u.Type = pipeline.OpType(pb[i].Type + 1)
+		switch u.Type {
+		case pipeline.TransformationOpType:
+			if u.Rollup.ID != nil {
+				u.Rollup.ID = u.Rollup.ID[:0]
+			}
+			u.Rollup.AggregationID[0] = aggregation.DefaultID[0]
+			if pb[i].Transformation == nil {
+				return errNilTransformationOpProto
+			}
+			if err := u.Transformation.Type.FromProto(pb[i].Transformation.Type); err != nil {
+				return err
+			}
+		case pipeline.RollupOpType:
+			u.Transformation.Type = transformation.UnknownType
+			if pb == nil {
+				return errNilAppliedRollupOpProto
+			}
+			u.Rollup.AggregationID[0] = pb[i].Rollup.AggregationId.Id
+			u.Rollup.ID = pb[i].Rollup.Id
+		default:
+			return errUnknownOpType
 		}
 	}
 	return nil

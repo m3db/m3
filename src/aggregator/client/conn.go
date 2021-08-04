@@ -44,9 +44,11 @@ var (
 	uninitWriter          uninitializedWriter
 )
 
-type sleepFn func(time.Duration)
-type connectWithLockFn func() error
-type writeWithLockFn func([]byte) error
+type (
+	sleepFn           func(time.Duration)
+	connectWithLockFn func() error
+	writeWithLockFn   func([]byte) error
+)
 
 // connection is a persistent connection that retries establishing
 // connection with exponential backoff if the connection goes down.
@@ -102,12 +104,6 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 	}
 	c.connectWithLockFn = c.connectWithLock
 	c.writeWithLockFn = c.writeWithLock
-
-	c.Lock()
-	if err := c.connectWithLockFn(); err != nil {
-		c.numFailures++
-	}
-	c.Unlock()
 
 	return c
 }
@@ -199,9 +195,12 @@ func (c *connection) checkReconnectWithLock() error {
 	// If we haven't accumulated enough failures to warrant another reconnect
 	// and we haven't past the maximum duration since the last time we attempted
 	// to connect then we simply return false without reconnecting.
-	tooManyFailures := c.numFailures >= c.threshold
+	// If we exhausted maximum allowed failures then we will retry only based on
+	// maximum duration since the last attempt.
+	enoughFailuresToRetry := c.numFailures >= c.threshold
+	exhaustedMaxFailures := c.numFailures >= c.maxThreshold
 	sufficientTimePassed := c.nowFn().UnixNano()-c.lastConnectAttemptNanos >= c.maxDuration.Nanoseconds()
-	if !tooManyFailures && !sufficientTimePassed {
+	if !sufficientTimePassed && (exhaustedMaxFailures || !enoughFailuresToRetry) {
 		return errNoActiveConnection
 	}
 	err := c.connectWithLockFn()
@@ -211,7 +210,7 @@ func (c *connection) checkReconnectWithLock() error {
 	}
 
 	// Only raise the threshold when it is crossed, not when the max duration is reached.
-	if tooManyFailures && c.threshold < c.maxThreshold {
+	if enoughFailuresToRetry && c.threshold < c.maxThreshold {
 		newThreshold := c.threshold * c.multiplier
 		if newThreshold > c.maxThreshold {
 			newThreshold = c.maxThreshold

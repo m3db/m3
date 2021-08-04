@@ -30,7 +30,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,7 +62,7 @@ func TestSortAscInstant(t *testing.T) {
 	}
 
 	assert.Equal(t, seriesMetas, sink.Metas)
-	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
+	compare.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
 }
 
 func TestSortDescInstant(t *testing.T) {
@@ -82,7 +84,7 @@ func TestSortDescInstant(t *testing.T) {
 	}
 
 	assert.Equal(t, seriesMetas, sink.Metas)
-	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
+	compare.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
 }
 
 func TestSortNop(t *testing.T) {
@@ -94,7 +96,7 @@ func TestSortNop(t *testing.T) {
 	expected := v
 
 	assert.Equal(t, seriesMetas, sink.Metas)
-	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
+	compare.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
 }
 
 var (
@@ -123,7 +125,7 @@ var (
 	}
 
 	bounds = models.Bounds{
-		Start:    time.Now(),
+		Start:    xtime.Now(),
 		Duration: time.Minute * 5,
 		StepSize: time.Minute,
 	}
@@ -131,11 +133,11 @@ var (
 
 func processSortOp(t *testing.T, op parser.Params, instant bool) *executor.SinkNode {
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	node := op.(sortOp).Node(c, transform.Options{})
 	queryContext := models.NoopQueryContext()
 	queryContext.Options.Instantaneous = instant
-	err := node.Process(queryContext, parser.NodeID(0), bl)
+	err := node.Process(queryContext, parser.NodeID(rune(0)), bl)
 	require.NoError(t, err)
 	return sink
 }

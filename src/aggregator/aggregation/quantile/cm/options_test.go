@@ -41,8 +41,3 @@ func TestOptionsValidateInvalidEps(t *testing.T) {
 	opts = testOpts.SetEps(maxEps + 1)
 	require.Equal(t, errInvalidEps, opts.Validate())
 }
-
-func TestOptionsValidateNoFloatsPool(t *testing.T) {
-	opts := testOpts.SetFloatsPool(nil)
-	require.Equal(t, errNoFloatsPool, opts.Validate())
-}

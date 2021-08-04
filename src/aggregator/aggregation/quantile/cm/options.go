@@ -21,44 +21,26 @@
 package cm
 
 import (
-	"errors"
 	"fmt"
-
-	"github.com/m3db/m3/src/x/pool"
 )
 
 const (
-	minEps          = 0.0
-	maxEps          = 0.5
-	defaultEps      = 1e-3
-	defaultCapacity = 16
-
-	// By default the timer values are inserted and the underlying
-	// streams are compressed every time the value is added.
-	defaultInsertAndCompressEvery = 1
-
-	// By default the stream is not flushed when values are added.
-	defaultFlushEvery = 0
+	minEps                        = 0.0
+	maxEps                        = 0.5
+	defaultEps                    = 1e-3
+	defaultCapacity               = 32
+	defaultInsertAndCompressEvery = 1024
 )
 
 var (
-	defaultBuckets = []pool.Bucket{
-		{Capacity: 16, Count: 4096},
-	}
-
-	errInvalidEps   = fmt.Errorf("epsilon value must be between %f and %f", minEps, maxEps)
-	errNoFloatsPool = errors.New("no floats pool set")
-	errNoStreamPool = errors.New("no stream pool set")
+	errInvalidEps = fmt.Errorf("epsilon value must be between %f and %f", minEps, maxEps)
 )
 
 type options struct {
 	eps                    float64
 	capacity               int
 	insertAndCompressEvery int
-	flushEvery             int
 	streamPool             StreamPool
-	samplePool             SamplePool
-	floatsPool             pool.FloatsPool
 }
 
 // NewOptions creates a new options.
@@ -67,17 +49,14 @@ func NewOptions() Options {
 		eps:                    defaultEps,
 		capacity:               defaultCapacity,
 		insertAndCompressEvery: defaultInsertAndCompressEvery,
-		flushEvery:             defaultFlushEvery,
 	}
-
-	o.initPools()
+	o.streamPool = NewStreamPool(o)
 	return o
 }
 
 func (o *options) SetEps(value float64) Options {
-	opts := *o
-	opts.eps = value
-	return &opts
+	o.eps = value
+	return o
 }
 
 func (o *options) Eps() float64 {
@@ -85,9 +64,8 @@ func (o *options) Eps() float64 {
 }
 
 func (o *options) SetCapacity(value int) Options {
-	opts := *o
-	opts.capacity = value
-	return &opts
+	o.capacity = value
+	return o
 }
 
 func (o *options) Capacity() int {
@@ -95,72 +73,27 @@ func (o *options) Capacity() int {
 }
 
 func (o *options) SetInsertAndCompressEvery(value int) Options {
-	opts := *o
-	opts.insertAndCompressEvery = value
-	return &opts
+	o.insertAndCompressEvery = value
+	return o
 }
 
 func (o *options) InsertAndCompressEvery() int {
 	return o.insertAndCompressEvery
 }
 
-func (o *options) SetFlushEvery(value int) Options {
-	opts := *o
-	opts.flushEvery = value
-	return &opts
-}
-
-func (o *options) FlushEvery() int {
-	return o.flushEvery
-}
-
 func (o *options) SetStreamPool(value StreamPool) Options {
-	opts := *o
-	opts.streamPool = value
-	return &opts
+	o.streamPool = value
+	return o
 }
 
 func (o *options) StreamPool() StreamPool {
 	return o.streamPool
 }
 
-func (o *options) SetSamplePool(value SamplePool) Options {
-	opts := *o
-	opts.samplePool = value
-	return &opts
-}
-
-func (o *options) SamplePool() SamplePool {
-	return o.samplePool
-}
-
-func (o *options) SetFloatsPool(value pool.FloatsPool) Options {
-	opts := *o
-	opts.floatsPool = value
-	return &opts
-}
-
-func (o *options) FloatsPool() pool.FloatsPool {
-	return o.floatsPool
-}
-
 func (o *options) Validate() error {
 	if o.eps <= minEps || o.eps >= maxEps {
 		return errInvalidEps
 	}
-	if o.streamPool == nil {
-		return errNoStreamPool
-	}
-	if o.floatsPool == nil {
-		return errNoFloatsPool
-	}
+
 	return nil
-}
-
-func (o *options) initPools() {
-	o.floatsPool = pool.NewFloatsPool(defaultBuckets, nil)
-	o.floatsPool.Init()
-
-	o.streamPool = NewStreamPool(nil)
-	o.streamPool.Init(func() Stream { return NewStream(nil, o) })
 }

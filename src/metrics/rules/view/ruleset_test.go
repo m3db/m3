@@ -34,6 +34,21 @@ import (
 )
 
 func TestRuleSetSort(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	ruleset := RuleSet{
 		Namespace:     "testNamespace",
 		Version:       1,
@@ -68,12 +83,8 @@ func TestRuleSetSort(t *testing.T) {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("name"),
-									Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -101,12 +112,8 @@ func TestRuleSetSort(t *testing.T) {
 								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 							},
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("name"),
-									Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr2,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -165,12 +172,8 @@ func TestRuleSetSort(t *testing.T) {
 								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 							},
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("name"),
-									Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr1,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -192,12 +195,8 @@ func TestRuleSetSort(t *testing.T) {
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
-								Type: pipeline.RollupOpType,
-								Rollup: pipeline.RollupOp{
-									NewName:       []byte("name"),
-									Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-									AggregationID: aggregation.DefaultID,
-								},
+								Type:   pipeline.RollupOpType,
+								Rollup: rr2,
 							},
 						}),
 						StoragePolicies: policy.StoragePolicies{
@@ -214,6 +213,21 @@ func TestRuleSetSort(t *testing.T) {
 }
 
 func TestRuleSetsSort(t *testing.T) {
+	rr1, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+	rr2, err := pipeline.NewRollupOp(
+		pipeline.GroupByRollupType,
+		"name",
+		[]string{"tag2", "tag1"},
+		aggregation.DefaultID,
+	)
+	require.NoError(t, err)
+
 	rulesets := RuleSets{
 		"ns1": &RuleSet{
 			Namespace:     "ns1",
@@ -262,12 +276,8 @@ func TestRuleSetsSort(t *testing.T) {
 									Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 								},
 								{
-									Type: pipeline.RollupOpType,
-									Rollup: pipeline.RollupOp{
-										NewName:       []byte("name"),
-										Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-										AggregationID: aggregation.DefaultID,
-									},
+									Type:   pipeline.RollupOpType,
+									Rollup: rr1,
 								},
 							}),
 							StoragePolicies: policy.StoragePolicies{
@@ -289,12 +299,8 @@ func TestRuleSetsSort(t *testing.T) {
 						{
 							Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 								{
-									Type: pipeline.RollupOpType,
-									Rollup: pipeline.RollupOp{
-										NewName:       []byte("name"),
-										Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-										AggregationID: aggregation.DefaultID,
-									},
+									Type:   pipeline.RollupOpType,
+									Rollup: rr2,
 								},
 							}),
 							StoragePolicies: policy.StoragePolicies{
@@ -350,12 +356,8 @@ func TestRuleSetsSort(t *testing.T) {
 						{
 							Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 								{
-									Type: pipeline.RollupOpType,
-									Rollup: pipeline.RollupOp{
-										NewName:       []byte("name"),
-										Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-										AggregationID: aggregation.DefaultID,
-									},
+									Type:   pipeline.RollupOpType,
+									Rollup: rr1,
 								},
 							}),
 							StoragePolicies: policy.StoragePolicies{
@@ -383,12 +385,8 @@ func TestRuleSetsSort(t *testing.T) {
 									Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 								},
 								{
-									Type: pipeline.RollupOpType,
-									Rollup: pipeline.RollupOp{
-										NewName:       []byte("name"),
-										Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
-										AggregationID: aggregation.DefaultID,
-									},
+									Type:   pipeline.RollupOpType,
+									Rollup: rr2,
 								},
 							}),
 							StoragePolicies: policy.StoragePolicies{

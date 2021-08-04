@@ -21,81 +21,107 @@
 package executor
 
 import (
-	"time"
-
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/search"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/errors"
 )
 
+// iterator is a wrapper around many doc.Iterators (one per segment) that provides a stream of docs for a index block.
+//
+// all segments are eagerly searched on the first call to Next(). eagerly searching all the segments for a block allows
+// the iterator to yield without holding locks when processing the results set. yielding allows the goroutine to
+// yield the index worker to another goroutine waiting and then can resume the iterator when it acquires a worker again.
+// this prevents large queries with many result docs from starving small queries.
+//
+// for each segment, the searcher gets the postings list. the postings list are lazily processed by the returned
+// doc iterators. for each posting in the list, the encoded document is retrieved.
 type iterator struct {
+	// immutable state
 	searcher search.Searcher
 	readers  index.Readers
+	ctx      context.Context
 
-	idx      int
-	currDoc  doc.Document
-	currIter doc.Iterator
-	totalSearchDuration time.Duration
+	// immutable state after the first call to Next()
+	iters []doc.Iterator
 
-	err    error
-	closed bool
+	// mutable state
+	idx     int
+	currDoc doc.Document
+	nextDoc doc.Document
+	done    bool
+	err     error
 }
 
-func newIterator(s search.Searcher, rs index.Readers) (doc.QueryDocIterator, error) {
-	it := &iterator{
+func newIterator(ctx context.Context, s search.Searcher, rs index.Readers) doc.QueryDocIterator {
+	return &iterator{
+		ctx:      ctx,
 		searcher: s,
 		readers:  rs,
-		idx:      -1,
 	}
-
-	currIter, _, err := it.nextIter()
-	if err != nil {
-		return nil, err
-	}
-
-	it.currIter = currIter
-	return it, nil
 }
 
-func (it *iterator) SearchDuration() time.Duration {
-	return it.totalSearchDuration
+func (it *iterator) Done() bool {
+	return it.err != nil || it.done
 }
 
 func (it *iterator) Next() bool {
-	if it.closed || it.err != nil || it.idx == len(it.readers) {
+	if it.Done() {
 		return false
 	}
-
-	for !it.currIter.Next() {
-		// Check if the current iterator encountered an error.
-		if err := it.currIter.Err(); err != nil {
+	if it.iters == nil {
+		if err := it.initIters(); err != nil {
 			it.err = err
 			return false
 		}
-
-		// Close current iterator now that we are finished with it.
-		err := it.currIter.Close()
-		it.currIter = nil
-		if err != nil {
-			it.err = err
+		if !it.next() {
+			it.done = true
 			return false
 		}
-
-		iter, hasNext, err := it.nextIter()
-		if err != nil {
-			it.err = err
-			return false
-		}
-
-		if !hasNext {
-			return false
-		}
-
-		it.currIter = iter
+		it.nextDoc = it.current()
 	}
 
-	it.currDoc = it.currIter.Current()
+	it.currDoc = it.nextDoc
+	if it.next() {
+		it.nextDoc = it.current()
+	} else {
+		it.done = true
+	}
 	return true
+}
+
+func (it *iterator) next() bool {
+	if it.idx == len(it.iters) {
+		return false
+	}
+	currIter := it.iters[it.idx]
+	for !currIter.Next() {
+		// Check if the current iterator encountered an error.
+		if err := currIter.Err(); err != nil {
+			it.err = err
+			return false
+		}
+		// move to next iterator so we don't try to Close twice.
+		it.idx++
+
+		// Close current iterator now that we are finished with it.
+		if err := currIter.Close(); err != nil {
+			it.err = err
+			return false
+		}
+
+		if it.idx == len(it.iters) {
+			return false
+		}
+		currIter = it.iters[it.idx]
+	}
+	return true
+}
+
+func (it *iterator) current() doc.Document {
+	return it.iters[it.idx].Current()
 }
 
 func (it *iterator) Current() doc.Document {
@@ -107,34 +133,31 @@ func (it *iterator) Err() error {
 }
 
 func (it *iterator) Close() error {
-	var err error
-	if it.currIter != nil {
-		err = it.currIter.Close()
+	if it.iters == nil {
+		return nil
 	}
-	return err
+	var multiErr errors.MultiError
+	// close any iterators that weren't closed in Next.
+	for i := it.idx; i < len(it.iters); i++ {
+		multiErr = multiErr.Add(it.iters[i].Close())
+	}
+	return multiErr.FinalError()
 }
 
-// nextIter gets the next document iterator by getting the next postings list from
-// the it's searcher and then getting the encoded documents for that postings list from
-// the corresponding reader associated with that postings list.
-func (it *iterator) nextIter() (doc.Iterator, bool, error) {
-	it.idx++
-	if it.idx >= len(it.readers) {
-		return nil, false, nil
+func (it *iterator) initIters() error {
+	it.iters = make([]doc.Iterator, len(it.readers))
+	for i, reader := range it.readers {
+		_, sp := it.ctx.StartTraceSpan(tracepoint.SearchExecutorIndexSearch)
+		pl, err := it.searcher.Search(reader)
+		sp.Finish()
+		if err != nil {
+			return err
+		}
+		iter, err := reader.Docs(pl)
+		if err != nil {
+			return err
+		}
+		it.iters[i] = iter
 	}
-
-	reader := it.readers[it.idx]
-	start := time.Now()
-	pl, err := it.searcher.Search(reader)
-	if err != nil {
-		return nil, false, err
-	}
-	it.totalSearchDuration += time.Since(start)
-
-	iter, err := reader.Docs(pl)
-	if err != nil {
-		return nil, false, err
-	}
-
-	return iter, true, nil
+	return nil
 }

@@ -21,6 +21,7 @@
 package m3db
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -67,17 +68,17 @@ func TestAsyncSessionError(t *testing.T) {
 	// Wait for session to be done initializing (which we mock to return an error)
 	<-done
 
-	err := asyncSession.Write(nil, nil, time.Now(), 0, xtime.Second, nil)
+	err := asyncSession.Write(nil, nil, xtime.Now(), 0, xtime.Second, nil)
 	assert.EqualError(t, err, expectedErrStr)
 
-	err = asyncSession.WriteTagged(nil, nil, nil, time.Now(), 0, xtime.Second, nil)
+	err = asyncSession.WriteTagged(nil, nil, nil, xtime.Now(), 0, xtime.Second, nil)
 	assert.EqualError(t, err, expectedErrStr)
 
-	seriesIterator, err := asyncSession.Fetch(nil, nil, time.Now(), time.Now())
+	seriesIterator, err := asyncSession.Fetch(nil, nil, xtime.Now(), xtime.Now())
 	assert.Nil(t, seriesIterator)
 	assert.EqualError(t, err, expectedErrStr)
 
-	seriesIterators, err := asyncSession.FetchIDs(nil, nil, time.Now(), time.Now())
+	seriesIterators, err := asyncSession.FetchIDs(nil, nil, xtime.Now(), xtime.Now())
 	assert.Nil(t, seriesIterators)
 	assert.EqualError(t, err, expectedErrStr)
 
@@ -96,15 +97,18 @@ func TestAsyncSessionUninitialized(t *testing.T) {
 	}, nil)
 	require.NotNil(t, asyncSession)
 
-	results, meta, err := asyncSession.FetchTagged(namespace, index.Query{}, index.QueryOptions{})
+	results, meta, err := asyncSession.FetchTagged(context.Background(),
+		namespace, index.Query{}, index.QueryOptions{})
 	assert.Nil(t, results)
 	assert.False(t, meta.Exhaustive)
 	assert.Equal(t, err, errSessionUninitialized)
 
-	_, _, err = asyncSession.FetchTaggedIDs(namespace, index.Query{}, index.QueryOptions{})
+	_, _, err = asyncSession.FetchTaggedIDs(context.Background(),
+		namespace, index.Query{}, index.QueryOptions{})
 	assert.Equal(t, err, errSessionUninitialized)
 
-	_, _, err = asyncSession.Aggregate(namespace, index.Query{}, index.AggregationOptions{})
+	_, _, err = asyncSession.Aggregate(context.Background(),
+		namespace, index.Query{}, index.AggregationOptions{})
 	assert.Equal(t, err, errSessionUninitialized)
 
 	id, err := asyncSession.ShardID(nil)
@@ -131,32 +135,49 @@ func TestAsyncSessionInitialized(t *testing.T) {
 	// Wait for session to be done initializing
 	<-done
 
-	mockSession.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-	err := asyncSession.Write(nil, nil, time.Now(), 0, xtime.Second, nil)
+	mockSession.EXPECT().
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil)
+	err := asyncSession.Write(nil, nil, xtime.Now(), 0, xtime.Second, nil)
 	assert.NoError(t, err)
 
-	mockSession.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-	err = asyncSession.WriteTagged(nil, nil, nil, time.Now(), 0, xtime.Second, nil)
+	mockSession.EXPECT().
+		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil)
+	err = asyncSession.WriteTagged(nil, nil, nil, xtime.Now(), 0, xtime.Second, nil)
 	assert.NoError(t, err)
 
-	mockSession.EXPECT().Fetch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil)
-	_, err = asyncSession.Fetch(nil, nil, time.Now(), time.Now())
+	mockSession.EXPECT().
+		Fetch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil)
+	_, err = asyncSession.Fetch(nil, nil, xtime.Now(), xtime.Now())
 	assert.NoError(t, err)
 
-	mockSession.EXPECT().FetchIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil)
-	_, err = asyncSession.FetchIDs(nil, nil, time.Now(), time.Now())
+	mockSession.EXPECT().
+		FetchIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil)
+	_, err = asyncSession.FetchIDs(nil, nil, xtime.Now(), xtime.Now())
 	assert.NoError(t, err)
 
-	mockSession.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, client.FetchResponseMetadata{Exhaustive: false}, nil)
-	_, _, err = asyncSession.FetchTagged(namespace, index.Query{}, index.QueryOptions{})
+	mockSession.EXPECT().
+		FetchTagged(context.Background(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, client.FetchResponseMetadata{Exhaustive: false}, nil)
+	_, _, err = asyncSession.FetchTagged(context.Background(),
+		namespace, index.Query{}, index.QueryOptions{})
 	assert.NoError(t, err)
 
-	mockSession.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, client.FetchResponseMetadata{Exhaustive: false}, nil)
-	_, _, err = asyncSession.FetchTaggedIDs(namespace, index.Query{}, index.QueryOptions{})
+	mockSession.EXPECT().
+		FetchTaggedIDs(context.Background(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, client.FetchResponseMetadata{Exhaustive: false}, nil)
+	_, _, err = asyncSession.FetchTaggedIDs(context.Background(),
+		namespace, index.Query{}, index.QueryOptions{})
 	assert.NoError(t, err)
 
-	mockSession.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, client.FetchResponseMetadata{Exhaustive: false}, nil)
-	_, _, err = asyncSession.Aggregate(namespace, index.Query{}, index.AggregationOptions{})
+	mockSession.EXPECT().
+		Aggregate(context.Background(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, client.FetchResponseMetadata{Exhaustive: false}, nil)
+	_, _, err = asyncSession.Aggregate(context.Background(),
+		namespace, index.Query{}, index.AggregationOptions{})
 	assert.NoError(t, err)
 
 	mockSession.EXPECT().ShardID(gomock.Any()).Return(uint32(0), nil)

@@ -21,10 +21,10 @@
 package m3db
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -116,7 +116,7 @@ func (s *AsyncSession) WriteClusterAvailability() (bool, error) {
 }
 
 // Write writes a value to the database for an ID.
-func (s *AsyncSession) Write(namespace, id ident.ID, t time.Time, value float64,
+func (s *AsyncSession) Write(namespace, id ident.ID, t xtime.UnixNano, value float64,
 	unit xtime.Unit, annotation []byte) error {
 	s.RLock()
 	defer s.RUnlock()
@@ -129,7 +129,7 @@ func (s *AsyncSession) Write(namespace, id ident.ID, t time.Time, value float64,
 
 // WriteTagged writes a value to the database for an ID and given tags.
 func (s *AsyncSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator,
-	t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+	t xtime.UnixNano, value float64, unit xtime.Unit, annotation []byte) error {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
@@ -141,7 +141,7 @@ func (s *AsyncSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterato
 
 // Fetch fetches values from the database for an ID.
 func (s *AsyncSession) Fetch(namespace, id ident.ID, startInclusive,
-	endExclusive time.Time) (encoding.SeriesIterator, error) {
+	endExclusive xtime.UnixNano) (encoding.SeriesIterator, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
@@ -153,7 +153,7 @@ func (s *AsyncSession) Fetch(namespace, id ident.ID, startInclusive,
 
 // FetchIDs fetches values from the database for a set of IDs.
 func (s *AsyncSession) FetchIDs(namespace ident.ID, ids ident.Iterator,
-	startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
+	startInclusive, endExclusive xtime.UnixNano) (encoding.SeriesIterators, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
@@ -165,31 +165,40 @@ func (s *AsyncSession) FetchIDs(namespace ident.ID, ids ident.Iterator,
 
 // FetchTagged resolves the provided query to known IDs, and
 // fetches the data for them.
-func (s *AsyncSession) FetchTagged(namespace ident.ID, q index.Query,
-	opts index.QueryOptions) (encoding.SeriesIterators, client.FetchResponseMetadata, error) {
+func (s *AsyncSession) FetchTagged(
+	ctx context.Context,
+	namespace ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
+) (encoding.SeriesIterators, client.FetchResponseMetadata, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
 		return nil, client.FetchResponseMetadata{}, s.err
 	}
 
-	return s.session.FetchTagged(namespace, q, opts)
+	return s.session.FetchTagged(ctx, namespace, q, opts)
 }
 
 // FetchTaggedIDs resolves the provided query to known IDs.
-func (s *AsyncSession) FetchTaggedIDs(namespace ident.ID, q index.Query,
-	opts index.QueryOptions) (client.TaggedIDsIterator, client.FetchResponseMetadata, error) {
+func (s *AsyncSession) FetchTaggedIDs(
+	ctx context.Context,
+	namespace ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
+) (client.TaggedIDsIterator, client.FetchResponseMetadata, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
 		return nil, client.FetchResponseMetadata{}, s.err
 	}
 
-	return s.session.FetchTaggedIDs(namespace, q, opts)
+	return s.session.FetchTaggedIDs(ctx, namespace, q, opts)
 }
 
 // Aggregate aggregates values from the database for the given set of constraints.
 func (s *AsyncSession) Aggregate(
+	ctx context.Context,
 	namespace ident.ID,
 	q index.Query,
 	opts index.AggregationOptions,
@@ -200,7 +209,7 @@ func (s *AsyncSession) Aggregate(
 		return nil, client.FetchResponseMetadata{}, s.err
 	}
 
-	return s.session.Aggregate(namespace, q, opts)
+	return s.session.Aggregate(ctx, namespace, q, opts)
 }
 
 // ShardID returns the given shard for an ID for callers

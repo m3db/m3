@@ -21,6 +21,7 @@
 package sync
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -48,6 +49,36 @@ func TestPooledWorkerPoolGo(t *testing.T) {
 	wg.Wait()
 
 	require.Equal(t, uint32(testWorkerPoolSize*2), count)
+}
+
+func TestPooledWorkerPoolGoWithContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	wp, err := NewPooledWorkerPool(testWorkerPoolSize,
+		NewPooledWorkerPoolOptions().SetGrowOnDemand(false))
+	require.NoError(t, err)
+	wp.Init()
+
+	// Cancel and make sure worker will prefer to return from canceled
+	// work rather than always enqueue.
+	cancel()
+
+	var aborted uint32
+	for i := 0; i < 100; i++ {
+		go func() {
+			result := wp.GoWithContext(ctx, func() {
+				time.Sleep(time.Second)
+			})
+			if !result {
+				atomic.AddUint32(&aborted, 1)
+			}
+		}()
+	}
+
+	n := atomic.LoadUint32(&aborted)
+	require.True(t, n > 0)
+	t.Logf("aborted: %d", n)
 }
 
 func TestPooledWorkerPoolGoWithTimeout(t *testing.T) {
@@ -196,4 +227,21 @@ func TestPooledWorkerPoolGoKillWorker(t *testing.T) {
 func TestPooledWorkerPoolSizeTooSmall(t *testing.T) {
 	_, err := NewPooledWorkerPool(0, NewPooledWorkerPoolOptions())
 	require.Error(t, err)
+}
+
+func TestPooledWorkerFast(t *testing.T) {
+	wp, err := NewPooledWorkerPool(1, NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	wp.Init()
+
+	fast := wp.FastContextCheck(3)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.False(t, fast.GoWithContext(ctx, func() {}))
+	require.True(t, fast.GoWithContext(ctx, func() {}))
+	require.True(t, fast.GoWithContext(ctx, func() {}))
+	require.False(t, fast.GoWithContext(ctx, func() {}))
+	require.True(t, fast.GoWithContext(ctx, func() {}))
 }

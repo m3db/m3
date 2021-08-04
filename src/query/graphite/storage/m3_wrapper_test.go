@@ -32,11 +32,12 @@ import (
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/mock"
 	m3ts "github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +46,7 @@ import (
 
 var (
 	// alloc once so default pools are created just once
-	testM3DBOpts = m3db.NewOptions()
+	testM3DBOpts = m3.NewOptions()
 )
 
 func TestTranslateQuery(t *testing.T) {
@@ -125,7 +126,7 @@ func TestTranslateQueryTrailingDot(t *testing.T) {
 	assert.Nil(t, translated)
 	assert.Error(t, err)
 
-	matchers, err := TranslateQueryToMatchersWithTerminator(query)
+	matchers, _, err := TranslateQueryToMatchersWithTerminator(query)
 	assert.Nil(t, matchers)
 	assert.Error(t, err)
 }
@@ -144,7 +145,7 @@ func buildResult(
 		resos = append(resos, resolution)
 		meta := block.SeriesMeta{Name: []byte(fmt.Sprint("a", i))}
 		metas = append(metas, meta)
-		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), start)
+		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), xtime.ToUnixNano(start))
 		series := block.NewUnconsolidatedSeries(vals.Datapoints(),
 			meta, block.UnconsolidatedSeriesStats{})
 		unconsolidatedSeries = append(unconsolidatedSeries, series)
@@ -215,7 +216,7 @@ func TestFetchByQuery(t *testing.T) {
 	res.Metadata = block.ResultMetadata{
 		Exhaustive:  false,
 		LocalOnly:   true,
-		Warnings:    []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+		Warnings:    []block.Warning{{Name: "foo", Message: "bar"}},
 		Resolutions: []time.Duration{resolution},
 	}
 
@@ -274,8 +275,8 @@ func TestFetchByInvalidQuery(t *testing.T) {
 func TestTruncateBoundsToResolution(t *testing.T) {
 	var (
 		resolution    = 60 * time.Second
-		expectedStart = time.Date(2020, time.October, 8, 30, 51, 00, 0, time.UTC)
-		expectedEnd   = time.Date(2020, time.October, 8, 30, 56, 00, 0, time.UTC)
+		expectedStart = xtime.ToUnixNano(time.Date(2020, time.October, 8, 30, 51, 00, 0, time.UTC))
+		expectedEnd   = xtime.ToUnixNano(time.Date(2020, time.October, 8, 30, 56, 00, 0, time.UTC))
 		opts          = truncateBoundsToResolutionOptions{
 			shiftStepsStartWhenAtResolutionBoundary:    intRefValue(1),
 			shiftStepsEndWhenAtResolutionBoundary:      intRefValue(1),
@@ -448,8 +449,8 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 
 				require.Equal(t, fmt.Sprint("a", i), tt.Name(), "unexpected name")
 				require.Equal(t, ex, tt.SafeValues(), "unexpected values")
-				require.Equal(t, test.expectedStart, tt.StartTime(), "unexpected start time")
-				require.Equal(t, test.expectedEnd, tt.EndTime(), "unexpected end time")
+				require.Equal(t, test.expectedStart, tt.StartTime().UTC(), "unexpected start time")
+				require.Equal(t, test.expectedEnd, tt.EndTime().UTC(), "unexpected end time")
 			}
 		})
 	}

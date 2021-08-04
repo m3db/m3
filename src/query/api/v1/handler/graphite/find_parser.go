@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/errors"
@@ -33,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/json"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // parseFindParamsToQueries parses an incoming request to two find queries,
@@ -95,10 +97,44 @@ func parseFindParamsToQueries(r *http.Request) (
 			xerrors.NewInvalidParamsError(fmt.Errorf("invalid 'until': %s", untilString))
 	}
 
-	matchers, err := graphitestorage.TranslateQueryToMatchersWithTerminator(query)
+	matchers, queryType, err := graphitestorage.TranslateQueryToMatchersWithTerminator(query)
 	if err != nil {
 		return nil, nil, "",
 			xerrors.NewInvalidParamsError(fmt.Errorf("invalid 'query': %s", query))
+	}
+
+	switch queryType {
+	case graphitestorage.StarStarUnterminatedTranslatedQuery:
+		// Translated query for "**" has unterminated search for children
+		// terms, we are only going to do a single search and assume all
+		// results that come back have also children in the graphite path
+		// tree (since it's very expensive to check if each result that comes
+		// back is a child or leaf node and "**" in a find query is typically
+		// only used for template variables rather than searching for metric
+		// results, which is the only use case isLeaf/hasChildren is useful).
+		// Note: Filter to all graphite tags that appears at the last node
+		// or greater than that (we use 100 as an arbitrary upper bound).
+		maxPathIndexes := 100
+		filter := make([][]byte, 0, maxPathIndexes)
+		parts := 1 + strings.Count(query, ".")
+		firstPathIndex := parts - 1
+		for i := firstPathIndex; i < firstPathIndex+maxPathIndexes; i++ {
+			filter = append(filter, graphite.TagName(i))
+		}
+		childQuery := &storage.CompleteTagsQuery{
+			CompleteNameOnly: false,
+			FilterNameTags:   filter,
+			TagMatchers:      matchers,
+			Start:            xtime.ToUnixNano(from),
+			End:              xtime.ToUnixNano(until),
+		}
+		return nil, childQuery, query, nil
+	case graphitestorage.TerminatedTranslatedQuery:
+		// Default type of translated query, explicitly craft queries for
+		// a terminated part of the query and a child part of the query.
+		break
+	default:
+		return nil, nil, "", fmt.Errorf("unknown query type: %v", queryType)
 	}
 
 	// NB: Filter will always be the second last term in the matchers, and the
@@ -114,8 +150,8 @@ func parseFindParamsToQueries(r *http.Request) (
 		CompleteNameOnly: false,
 		FilterNameTags:   filter,
 		TagMatchers:      matchers,
-		Start:            from,
-		End:              until,
+		Start:            xtime.ToUnixNano(from),
+		End:              xtime.ToUnixNano(until),
 	}
 
 	clonedMatchers := make([]models.Matcher, len(matchers))
@@ -127,8 +163,8 @@ func parseFindParamsToQueries(r *http.Request) (
 		CompleteNameOnly: false,
 		FilterNameTags:   filter,
 		TagMatchers:      clonedMatchers,
-		Start:            from,
-		End:              until,
+		Start:            xtime.ToUnixNano(from),
+		End:              xtime.ToUnixNano(until),
 	}
 
 	return terminatedQuery, childQuery, query, nil
@@ -151,7 +187,7 @@ func findResultsJSON(
 }
 
 func writeFindNodeResultJSON(
-	jw *json.Writer,
+	jw json.Writer,
 	prefix string,
 	value string,
 	descriptor nodeDescriptor,
@@ -167,7 +203,7 @@ func writeFindNodeResultJSON(
 }
 
 func writeFindResultJSON(
-	jw *json.Writer,
+	jw json.Writer,
 	id string,
 	value string,
 	hasChildren bool,

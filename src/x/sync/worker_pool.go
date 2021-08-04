@@ -22,8 +22,10 @@
 package sync
 
 import (
-	"context"
 	"time"
+
+	"github.com/m3db/m3/src/dbnode/tracepoint"
+	"github.com/m3db/m3/src/x/context"
 )
 
 type workerPool struct {
@@ -107,23 +109,32 @@ func (p *workerPool) GoWithTimeoutInstrument(work Work, timeout time.Duration) S
 }
 
 func (p *workerPool) GoWithContext(ctx context.Context, work Work) ScheduleResult {
+	stdctx := ctx.GoContext()
 	// Don't give out a token if the ctx has already been canceled.
 	select {
-	case <-ctx.Done():
+	case <-stdctx.Done():
 		return ScheduleResult{Available: false, WaitTime: 0}
 	default:
 	}
 
 	start := time.Now()
+	_, sp := ctx.StartTraceSpan(tracepoint.WorkerPoolWait)
+
 	select {
 	case token := <-p.workCh:
+		sp.Finish()
 		wait := time.Since(start)
 		go func() {
 			work()
 			p.workCh <- token
 		}()
 		return ScheduleResult{Available: true, WaitTime: wait}
-	case <-ctx.Done():
+	case <-stdctx.Done():
+		sp.Finish()
 		return ScheduleResult{Available: false, WaitTime: time.Since(start)}
 	}
+}
+
+func (p *workerPool) FastContextCheck(batchSize int) WorkerPool {
+	return &fastWorkerPool{workerPool: p, batchSize: batchSize}
 }

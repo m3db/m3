@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/assert"
@@ -63,7 +64,7 @@ func TestDayOfMonth(t *testing.T) {
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	timeOp, err := NewDateOp(DayOfMonthType, true)
 	require.NoError(t, err)
 
@@ -71,11 +72,11 @@ func TestDayOfMonth(t *testing.T) {
 	require.True(t, ok)
 
 	node := op.Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[DayOfMonthType])
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestDayOfWeek(t *testing.T) {
@@ -86,7 +87,7 @@ func TestDayOfWeek(t *testing.T) {
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	timeOp, err := NewDateOp(DayOfWeekType, true)
 	require.NoError(t, err)
 
@@ -94,11 +95,11 @@ func TestDayOfWeek(t *testing.T) {
 	require.True(t, ok)
 
 	node := op.Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[DayOfWeekType])
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestDaysInMonth(t *testing.T) {
@@ -109,7 +110,7 @@ func TestDaysInMonth(t *testing.T) {
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	timeOp, err := NewDateOp(DaysInMonthType, true)
 	require.NoError(t, err)
 
@@ -117,11 +118,11 @@ func TestDaysInMonth(t *testing.T) {
 	require.True(t, ok)
 
 	node := op.Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[DaysInMonthType])
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestHour(t *testing.T) {
@@ -132,7 +133,7 @@ func TestHour(t *testing.T) {
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	timeOp, err := NewDateOp(HourType, true)
 	require.NoError(t, err)
 
@@ -140,11 +141,11 @@ func TestHour(t *testing.T) {
 	require.True(t, ok)
 
 	node := op.Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[HourType])
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestMinute(t *testing.T) {
@@ -155,7 +156,7 @@ func TestMinute(t *testing.T) {
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	timeOp, err := NewDateOp(MinuteType, true)
 	require.NoError(t, err)
 
@@ -163,11 +164,11 @@ func TestMinute(t *testing.T) {
 	require.True(t, ok)
 
 	node := op.Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[MinuteType])
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestMonth(t *testing.T) {
@@ -178,7 +179,7 @@ func TestMonth(t *testing.T) {
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	timeOp, err := NewDateOp(MonthType, true)
 	require.NoError(t, err)
 
@@ -186,11 +187,11 @@ func TestMonth(t *testing.T) {
 	require.True(t, ok)
 
 	node := op.Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[MonthType])
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestYear(t *testing.T) {
@@ -201,7 +202,7 @@ func TestYear(t *testing.T) {
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	timeOp, err := NewDateOp(YearType, true)
 	require.NoError(t, err)
 
@@ -209,11 +210,11 @@ func TestYear(t *testing.T) {
 	require.True(t, ok)
 
 	node := op.Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[YearType])
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestNonExistentDateFunc(t *testing.T) {
@@ -228,7 +229,7 @@ func TestWithoutArgs(t *testing.T) {
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(1)))
 	timeOp, err := NewDateOp(YearType, false)
 	require.NoError(t, err)
 
@@ -236,7 +237,7 @@ func TestWithoutArgs(t *testing.T) {
 	require.True(t, ok)
 
 	node := op.Node(c, transform.Options{})
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block)
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(0)), block)
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 1)
 	ex := float64(time.Now().Year())

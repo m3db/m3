@@ -22,6 +22,8 @@ package remote
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -31,11 +33,14 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/headers"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"
@@ -44,7 +49,7 @@ import (
 )
 
 type tagValuesMatcher struct {
-	start, end time.Time
+	start, end xtime.UnixNano
 	filterTag  string
 }
 
@@ -98,9 +103,9 @@ func TestTagValues(t *testing.T) {
 
 	// setup storage and handler
 	store := storage.NewMockStorage(ctrl)
-	now := time.Now()
+	now := xtime.Now()
 	nowFn := func() time.Time {
-		return now
+		return now.ToTime()
 	}
 
 	fb, err := handleroptions.NewFetchOptionsBuilder(
@@ -121,31 +126,29 @@ func TestTagValues(t *testing.T) {
 		{"up"},
 		{"__name__"},
 	}
-	url := fmt.Sprintf("/label/{%s}/values", NameReplace)
 
 	for _, tt := range names {
-		testTagValuesWithMatch(t, now, store, tt.name, url, valueHandler, false)
-		testTagValuesWithMatch(t, now, store, tt.name, url, valueHandler, true)
+		testTagValuesWithMatch(t, now, store, tt.name, valueHandler, false)
+		testTagValuesWithMatch(t, now, store, tt.name, valueHandler, true)
 	}
 }
 
 func testTagValuesWithMatch(
 	t *testing.T,
-	now time.Time,
+	now xtime.UnixNano,
 	store *storage.MockStorage,
 	name string,
-	url string,
 	valueHandler http.Handler,
 	withMatchOverride bool,
 ) {
-	path := fmt.Sprintf("/label/%s/values?start=100", name)
+	path := fmt.Sprintf("%s/label/%s/values?start=100", route.Prefix, name)
 	nameMatcher := models.Matcher{
 		Type: models.MatchField,
 		Name: []byte(name),
 	}
 	matchers := models.Matchers{nameMatcher}
 	if withMatchOverride {
-		path = fmt.Sprintf("/label/%s/values?start=100&match[]=testing", name)
+		path = fmt.Sprintf("%s/label/%s/values?start=100&match[]=testing", route.Prefix, name)
 		matchers = models.Matchers{
 			nameMatcher,
 			{
@@ -157,7 +160,7 @@ func testTagValuesWithMatch(
 	}
 
 	matcher := &storage.CompleteTagsQuery{
-		Start:            time.Unix(100, 0),
+		Start:            xtime.FromSeconds(100),
 		End:              now,
 		CompleteNameOnly: false,
 		FilterNameTags:   [][]byte{[]byte(name)},
@@ -190,7 +193,7 @@ func testTagValuesWithMatch(
 	store.EXPECT().CompleteTags(gomock.Any(), gomock.Eq(matcher), gomock.Any()).
 		Return(storeResult, nil)
 
-	router.HandleFunc(url, valueHandler.ServeHTTP)
+	router.HandleFunc(TagValuesURL, valueHandler.ServeHTTP)
 	router.ServeHTTP(rr, req)
 
 	read, err := ioutil.ReadAll(rr.Body)
@@ -242,4 +245,91 @@ func TestTagValueErrors(t *testing.T) {
 
 	ex := `{"status":"error","error":"invalid path with no name present"}`
 	assert.JSONEq(t, ex, string(read))
+}
+
+//nolint:dupl
+func TestTagValueTimeout(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	req := httptest.NewRequest("GET", TagValuesURL, nil)
+	w := httptest.NewRecorder()
+	h := NewTagValuesHandler(storageSetup(t, ctrl, 1*time.Millisecond, expectTimeout))
+	router := mux.NewRouter()
+	router.HandleFunc(
+		fmt.Sprintf("%s/label/{%s}/values", route.Prefix, NameReplace),
+		h.ServeHTTP,
+	)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, 504, w.Code, "Status code not 504")
+	assert.Contains(t, w.Body.String(), "context deadline exceeded")
+}
+
+//nolint:dupl
+func TestTagValueUseRequestContext(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest("GET", TagValuesURL, nil).WithContext(cancelledCtx)
+	w := httptest.NewRecorder()
+	h := NewTagValuesHandler(storageSetup(t, ctrl, 15*time.Second, expectCancellation))
+	router := mux.NewRouter()
+	router.HandleFunc(
+		fmt.Sprintf("%s/label/{%s}/values", route.Prefix, NameReplace),
+		h.ServeHTTP,
+	)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, 499, w.Code, "Status code not 499")
+	assert.Contains(t, w.Body.String(), "context canceled")
+}
+
+func storageSetup(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	timeout time.Duration,
+	fn completeTagsFn,
+) options.HandlerOptions {
+	// Setup storage
+	store := storage.NewMockStorage(ctrl)
+	store.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(fn)
+
+	fb, err := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{Timeout: timeout})
+	require.NoError(t, err)
+	return options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetFetchOptionsBuilder(fb)
+}
+
+type completeTagsFn func(
+	context.Context,
+	*storage.CompleteTagsQuery,
+	*storage.FetchOptions,
+) (*consolidators.CompleteTagsResult, error)
+
+func expectCancellation(
+	ctx context.Context,
+	_ *storage.CompleteTagsQuery,
+	_ *storage.FetchOptions,
+) (*consolidators.CompleteTagsResult, error) {
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return nil, ctx.Err()
+	}
+	return nil, nil
+}
+
+func expectTimeout(
+	ctx context.Context,
+	_ *storage.CompleteTagsQuery,
+	_ *storage.FetchOptions,
+) (*consolidators.CompleteTagsResult, error) {
+	<-ctx.Done()
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return nil, ctx.Err()
+	}
+	return nil, nil
 }

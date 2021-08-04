@@ -21,6 +21,7 @@
 package m3msg
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
@@ -60,24 +61,26 @@ func NewServer(
 
 func (s *server) Consume(c consumer.Consumer) {
 	var (
-		pb     = &metricpb.MetricWithMetadatas{}
-		union  = &encoding.UnaggregatedMessageUnion{}
-		msgErr error
-		msg    consumer.Message
+		pb    = &metricpb.MetricWithMetadatas{}
+		union = &encoding.UnaggregatedMessageUnion{}
 	)
 	for {
-		msg, msgErr = c.Message()
-		if msgErr != nil {
+		msg, err := c.Message()
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				s.logger.Error("could not read message", zap.Error(err))
+			}
 			break
 		}
 
-		err := s.handleMessage(pb, union, msg)
-		if err != nil {
-			s.logger.Error("could not process message", zap.Error(err))
+		// Reset and reuse the protobuf message for unpacking.
+		protobuf.ReuseMetricWithMetadatasProto(pb)
+		if err = s.handleMessage(pb, union, msg); err != nil {
+			s.logger.Error("could not process message",
+				zap.Error(err),
+				zap.Uint64("shard", msg.ShardID()),
+				zap.String("proto", pb.String()))
 		}
-	}
-	if msgErr != nil && msgErr != io.EOF {
-		s.logger.Error("could not read message", zap.Error(msgErr))
 	}
 	c.Close()
 }
@@ -88,9 +91,6 @@ func (s *server) handleMessage(
 	msg consumer.Message,
 ) error {
 	defer msg.Ack()
-
-	// Reset and reuse the protobuf message for unpacking.
-	protobuf.ReuseMetricWithMetadatasProto(pb)
 
 	// Unmarshal the message.
 	if err := pb.Unmarshal(msg.Bytes()); err != nil {
@@ -103,25 +103,22 @@ func (s *server) handleMessage(
 		if err != nil {
 			return err
 		}
-		return s.aggregator.AddUntimed(
-			union.CounterWithMetadatas.ToUnion(),
-			union.CounterWithMetadatas.StagedMetadatas)
+		u := union.CounterWithMetadatas.ToUnion()
+		return s.aggregator.AddUntimed(u, union.CounterWithMetadatas.StagedMetadatas)
 	case metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS:
 		err := union.BatchTimerWithMetadatas.FromProto(pb.BatchTimerWithMetadatas)
 		if err != nil {
 			return err
 		}
-		return s.aggregator.AddUntimed(
-			union.BatchTimerWithMetadatas.ToUnion(),
-			union.BatchTimerWithMetadatas.StagedMetadatas)
+		u := union.BatchTimerWithMetadatas.ToUnion()
+		return s.aggregator.AddUntimed(u, union.BatchTimerWithMetadatas.StagedMetadatas)
 	case metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS:
 		err := union.GaugeWithMetadatas.FromProto(pb.GaugeWithMetadatas)
 		if err != nil {
 			return err
 		}
-		return s.aggregator.AddUntimed(
-			union.GaugeWithMetadatas.ToUnion(),
-			union.GaugeWithMetadatas.StagedMetadatas)
+		u := union.GaugeWithMetadatas.ToUnion()
+		return s.aggregator.AddUntimed(u, union.GaugeWithMetadatas.StagedMetadatas)
 	case metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA:
 		err := union.ForwardedMetricWithMetadata.FromProto(pb.ForwardedMetricWithMetadata)
 		if err != nil {

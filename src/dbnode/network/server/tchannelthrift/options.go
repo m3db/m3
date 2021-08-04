@@ -46,6 +46,7 @@ type options struct {
 	maxOutstandingReadRequests  int
 	queryLimits                 limits.QueryLimits
 	permitsOptions              permits.Options
+	seriesBlocksPerBatch        int
 }
 
 // NewOptions creates new options.
@@ -70,11 +71,6 @@ func NewOptions() Options {
 		poolOptions)
 	tagEncoderPool.Init()
 
-	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
-		poolOptions)
-	tagDecoderPool.Init()
-
 	bytesWrapperPool := xpool.NewCheckedBytesWrapperPool(poolOptions)
 	bytesWrapperPool.Init()
 
@@ -85,7 +81,6 @@ func NewOptions() Options {
 		blockMetadataV2Pool:      NewBlockMetadataV2Pool(nil),
 		blockMetadataV2SlicePool: NewBlockMetadataV2SlicePool(nil, 0),
 		tagEncoderPool:           tagEncoderPool,
-		tagDecoderPool:           tagDecoderPool,
 		checkedBytesWrapperPool:  bytesWrapperPool,
 		queryLimits:              limits.NoOpQueryLimits(),
 		permitsOptions:           permits.NewOptions(),
@@ -162,16 +157,6 @@ func (o *options) TagEncoderPool() serialize.TagEncoderPool {
 	return o.tagEncoderPool
 }
 
-func (o *options) SetTagDecoderPool(value serialize.TagDecoderPool) Options {
-	opts := *o
-	opts.tagDecoderPool = value
-	return &opts
-}
-
-func (o *options) TagDecoderPool() serialize.TagDecoderPool {
-	return o.tagDecoderPool
-}
-
 func (o *options) SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options {
 	opts := *o
 	opts.checkedBytesWrapperPool = value
@@ -220,4 +205,14 @@ func (o *options) SetPermitsOptions(value permits.Options) Options {
 
 func (o *options) PermitsOptions() permits.Options {
 	return o.permitsOptions
+}
+
+func (o *options) SetFetchTaggedSeriesBlocksPerBatch(value int) Options {
+	opts := *o
+	opts.seriesBlocksPerBatch = value
+	return &opts
+}
+
+func (o *options) FetchTaggedSeriesBlocksPerBatch() int {
+	return o.seriesBlocksPerBatch
 }

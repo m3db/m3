@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -107,9 +108,10 @@ func testPeersBootstrapHighConcurrency(
 			DisablePeersBootstrapper: true,
 		},
 		{
-			DisablePeersBootstrapper:   false,
-			BootstrapBlocksBatchSize:   batchSize,
-			BootstrapBlocksConcurrency: concurrency,
+			DisableCommitLogBootstrapper: true,
+			DisablePeersBootstrapper:     false,
+			BootstrapBlocksBatchSize:     batchSize,
+			BootstrapBlocksConcurrency:   concurrency,
 		},
 	}
 	setups, closeFn := NewDefaultBootstrappableTestSetups(t, opts, setupOpts)
@@ -188,8 +190,8 @@ func testPeersBootstrapHighConcurrency(
 
 	// Match on common tags
 	termQuery := idx.NewTermQuery(commonTags[0].Name.Bytes(), commonTags[0].Value.Bytes())
-	iter, _, err := session.FetchTaggedIDs(namesp.ID(),
-		index.Query{Query: termQuery}, queryOpts)
+	iter, _, err := session.FetchTaggedIDs(ContextWithDefaultTimeout(),
+		namesp.ID(), index.Query{Query: termQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
@@ -204,7 +206,7 @@ type generateTaggedBlockConfig struct {
 	series     int
 	numPoints  int
 	commonTags []ident.Tag
-	blockStart time.Time
+	blockStart xtime.UnixNano
 }
 
 func generateTaggedBlockConfigs(

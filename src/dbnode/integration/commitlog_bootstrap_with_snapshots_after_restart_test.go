@@ -92,7 +92,7 @@ func TestCommitLogBootstrapWithSnapshotsAfterRestart(t *testing.T) {
 	}
 	for _, input := range inputData {
 		testData := generate.Block(input)
-		seriesMaps[xtime.ToUnixNano(input.Start)] = testData
+		seriesMaps[input.Start] = testData
 		require.NoError(t, setup.WriteBatch(testNamespaces[0], testData))
 	}
 

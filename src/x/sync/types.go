@@ -21,9 +21,10 @@
 package sync
 
 import (
-	"context"
+	gocontext "context"
 	"time"
 
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -65,7 +66,26 @@ type PooledWorkerPool interface {
 	// available, returning true if a worker becomes available, or false
 	// otherwise.
 	GoWithTimeout(work Work, timeout time.Duration) bool
+
+	// GoWithContext waits until a worker is available or the provided ctx is
+	// canceled.
+	GoWithContext(ctx gocontext.Context, work Work) bool
+
+	// FastContextCheck returns a wrapper worker pool that only checks the context deadline every batchSize calls.
+	// This is useful for tight looping code that wants to amortize the cost of the ctx deadline check over batchSize
+	// iterations.
+	// This should only be used for code that can guarantee the wait time for a worker is low since if the ctx is not
+	// checked the calling goroutine blocks waiting for a worker.
+	FastContextCheck(batchSize int) PooledWorkerPool
 }
+
+// NewPooledWorkerOptions is a set of new instrument worker pool options.
+type NewPooledWorkerOptions struct {
+	InstrumentOptions instrument.Options
+}
+
+// NewPooledWorkerFn returns a pooled worker pool that Init must be called on.
+type NewPooledWorkerFn func(opts NewPooledWorkerOptions) (PooledWorkerPool, error)
 
 // WorkerPool provides a pool for goroutines.
 type WorkerPool interface {
@@ -92,6 +112,13 @@ type WorkerPool interface {
 
 	// GoWithContext waits until a worker is available or the provided ctx is canceled.
 	GoWithContext(ctx context.Context, work Work) ScheduleResult
+
+	// FastContextCheck returns a wrapper worker pool that only checks the context deadline every batchSize calls.
+	// This is useful for tight looping code that wants to amortize the cost of the ctx deadline check over batchSize
+	// iterations.
+	// This should only be used for code that can guarantee the wait time for a worker is low since if the ctx is not
+	// checked the calling goroutine blocks waiting for a worker.
+	FastContextCheck(batchSize int) WorkerPool
 }
 
 // ScheduleResult is the result of scheduling a goroutine in the worker pool.

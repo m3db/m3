@@ -25,6 +25,7 @@ import (
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func decodeTagNamesOnly(
@@ -103,8 +104,8 @@ func encodeCompleteTagsRequest(
 		Options: &rpc.CompleteTagsRequestOptions{
 			Type:           completionType,
 			FilterNameTags: query.FilterNameTags,
-			Start:          fromTime(query.Start),
-			End:            fromTime(query.End),
+			Start:          int64(query.Start),
+			End:            int64(query.End),
 			Options:        opts,
 		},
 	}, nil
@@ -128,8 +129,8 @@ func decodeCompleteTagsRequest(
 		CompleteNameOnly: completeNameOnly,
 		FilterNameTags:   opts.GetFilterNameTags(),
 		TagMatchers:      tagMatchers,
-		Start:            toTime(opts.GetStart()),
-		End:              toTime(opts.GetEnd()),
+		Start:            xtime.UnixNano(opts.GetStart()),
+		End:              xtime.UnixNano(opts.GetEnd()),
 	}, nil
 }
 

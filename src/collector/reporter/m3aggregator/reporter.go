@@ -51,6 +51,13 @@ type reporterMetrics struct {
 	reportGauge      instrument.MethodMetrics
 	reportPending    tally.Gauge
 	flush            instrument.MethodMetrics
+
+	counterWritesCounter   tally.Counter
+	r2counterWritesCounter tally.Counter
+	timerWritesCounter     tally.Counter
+	r2timerWritesCounter   tally.Counter
+	gaugeWritesCounter     tally.Counter
+	r2gaugeWritesCounter   tally.Counter
 }
 
 func newReporterMetrics(instrumentOpts instrument.Options) reporterMetrics {
@@ -69,6 +76,27 @@ func newReporterMetrics(instrumentOpts instrument.Options) reporterMetrics {
 		reportGauge:      instrument.NewMethodMetrics(scope, "report-gauge", timerOpts),
 		flush:            instrument.NewMethodMetrics(scope, "flush", timerOpts),
 		reportPending:    hostScope.Gauge("report-pending"),
+		counterWritesCounter: scope.Tagged(map[string]string{
+			"metric_type": "counter",
+		}).Counter("writes"),
+		r2counterWritesCounter: scope.Tagged(map[string]string{
+			"metric_type": "counter",
+			"r2":          "true",
+		}).Counter("writes"),
+		timerWritesCounter: scope.Tagged(map[string]string{
+			"metric_type": "timer",
+		}).Counter("writes"),
+		r2timerWritesCounter: scope.Tagged(map[string]string{
+			"metric_type": "timer",
+			"r2":          "true",
+		}).Counter("writes"),
+		gaugeWritesCounter: scope.Tagged(map[string]string{
+			"metric_type": "gauge",
+		}).Counter("writes"),
+		r2gaugeWritesCounter: scope.Tagged(map[string]string{
+			"metric_type": "gauge",
+			"r2":          "true",
+		}).Counter("writes"),
 	}
 }
 
@@ -130,6 +158,9 @@ func (r *reporter) ReportCounter(id id.ID, value int64) error {
 		dropOriginal    = numNewIDs > 0 && (!matchResult.KeepOriginal() || hasDropPolicy)
 	)
 
+	r.metrics.counterWritesCounter.Inc(1)
+	r.metrics.r2counterWritesCounter.Inc(int64(numNewIDs))
+
 	if !dropOriginal {
 		err := r.client.WriteUntimedCounter(counter, stagedMetadatas)
 		if err != nil {
@@ -177,6 +208,9 @@ func (r *reporter) ReportBatchTimer(id id.ID, value []float64) error {
 		dropOriginal    = numNewIDs > 0 && (!matchResult.KeepOriginal() || hasDropPolicy)
 	)
 
+	r.metrics.timerWritesCounter.Inc(1)
+	r.metrics.r2timerWritesCounter.Inc(int64(numNewIDs))
+
 	if !dropOriginal {
 		err := r.client.WriteUntimedBatchTimer(batchTimer, stagedMetadatas)
 		if err != nil {
@@ -222,6 +256,9 @@ func (r *reporter) ReportGauge(id id.ID, value float64) error {
 		hasDropPolicy   = stagedMetadatas.IsDropPolicyApplied()
 		dropOriginal    = numNewIDs > 0 && (!matchResult.KeepOriginal() || hasDropPolicy)
 	)
+
+	r.metrics.gaugeWritesCounter.Inc(1)
+	r.metrics.r2gaugeWritesCounter.Inc(int64(numNewIDs))
 
 	if !dropOriginal {
 		err := r.client.WriteUntimedGauge(gauge, stagedMetadatas)

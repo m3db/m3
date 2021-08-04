@@ -26,77 +26,34 @@ package doc
 
 import (
 	"reflect"
-	"time"
 
 	"github.com/golang/mock/gomock"
 )
 
-// MockMetadataIterator is a mock of MetadataIterator interface
+// MockMetadataIterator is a mock of MetadataIterator interface.
 type MockMetadataIterator struct {
 	ctrl     *gomock.Controller
 	recorder *MockMetadataIteratorMockRecorder
 }
 
-// MockMetadataIteratorMockRecorder is the mock recorder for MockMetadataIterator
+// MockMetadataIteratorMockRecorder is the mock recorder for MockMetadataIterator.
 type MockMetadataIteratorMockRecorder struct {
 	mock *MockMetadataIterator
 }
 
-// NewMockMetadataIterator creates a new mock instance
+// NewMockMetadataIterator creates a new mock instance.
 func NewMockMetadataIterator(ctrl *gomock.Controller) *MockMetadataIterator {
 	mock := &MockMetadataIterator{ctrl: ctrl}
 	mock.recorder = &MockMetadataIteratorMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockMetadataIterator) EXPECT() *MockMetadataIteratorMockRecorder {
 	return m.recorder
 }
 
-// Next mocks base method
-func (m *MockMetadataIterator) Next() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Next")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// Next indicates an expected call of Next
-func (mr *MockMetadataIteratorMockRecorder) Next() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockMetadataIterator)(nil).Next))
-}
-
-// Current mocks base method
-func (m *MockMetadataIterator) Current() Metadata {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Current")
-	ret0, _ := ret[0].(Metadata)
-	return ret0
-}
-
-// Current indicates an expected call of Current
-func (mr *MockMetadataIteratorMockRecorder) Current() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockMetadataIterator)(nil).Current))
-}
-
-// Err mocks base method
-func (m *MockMetadataIterator) Err() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Err")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Err indicates an expected call of Err
-func (mr *MockMetadataIteratorMockRecorder) Err() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockMetadataIterator)(nil).Err))
-}
-
-// Close mocks base method
+// Close mocks base method.
 func (m *MockMetadataIterator) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
@@ -104,78 +61,78 @@ func (m *MockMetadataIterator) Close() error {
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockMetadataIteratorMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockMetadataIterator)(nil).Close))
 }
 
-// MockIterator is a mock of Iterator interface
-type MockIterator struct {
-	ctrl     *gomock.Controller
-	recorder *MockIteratorMockRecorder
-}
-
-// MockIteratorMockRecorder is the mock recorder for MockIterator
-type MockIteratorMockRecorder struct {
-	mock *MockIterator
-}
-
-// NewMockIterator creates a new mock instance
-func NewMockIterator(ctrl *gomock.Controller) *MockIterator {
-	mock := &MockIterator{ctrl: ctrl}
-	mock.recorder = &MockIteratorMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockIterator) EXPECT() *MockIteratorMockRecorder {
-	return m.recorder
-}
-
-// Next mocks base method
-func (m *MockIterator) Next() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Next")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// Next indicates an expected call of Next
-func (mr *MockIteratorMockRecorder) Next() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockIterator)(nil).Next))
-}
-
-// Current mocks base method
-func (m *MockIterator) Current() Document {
+// Current mocks base method.
+func (m *MockMetadataIterator) Current() Metadata {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
-	ret0, _ := ret[0].(Document)
+	ret0, _ := ret[0].(Metadata)
 	return ret0
 }
 
-// Current indicates an expected call of Current
-func (mr *MockIteratorMockRecorder) Current() *gomock.Call {
+// Current indicates an expected call of Current.
+func (mr *MockMetadataIteratorMockRecorder) Current() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockIterator)(nil).Current))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockMetadataIterator)(nil).Current))
 }
 
-// Err mocks base method
-func (m *MockIterator) Err() error {
+// Err mocks base method.
+func (m *MockMetadataIterator) Err() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Err")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Err indicates an expected call of Err
-func (mr *MockIteratorMockRecorder) Err() *gomock.Call {
+// Err indicates an expected call of Err.
+func (mr *MockMetadataIteratorMockRecorder) Err() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockIterator)(nil).Err))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockMetadataIterator)(nil).Err))
 }
 
-// Close mocks base method
+// Next mocks base method.
+func (m *MockMetadataIterator) Next() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Next")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Next indicates an expected call of Next.
+func (mr *MockMetadataIteratorMockRecorder) Next() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockMetadataIterator)(nil).Next))
+}
+
+// MockIterator is a mock of Iterator interface.
+type MockIterator struct {
+	ctrl     *gomock.Controller
+	recorder *MockIteratorMockRecorder
+}
+
+// MockIteratorMockRecorder is the mock recorder for MockIterator.
+type MockIteratorMockRecorder struct {
+	mock *MockIterator
+}
+
+// NewMockIterator creates a new mock instance.
+func NewMockIterator(ctrl *gomock.Controller) *MockIterator {
+	mock := &MockIterator{ctrl: ctrl}
+	mock.recorder = &MockIteratorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockIterator) EXPECT() *MockIteratorMockRecorder {
+	return m.recorder
+}
+
+// Close mocks base method.
 func (m *MockIterator) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
@@ -183,78 +140,78 @@ func (m *MockIterator) Close() error {
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockIteratorMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockIterator)(nil).Close))
 }
 
-// MockQueryDocIterator is a mock of QueryDocIterator interface
-type MockQueryDocIterator struct {
-	ctrl     *gomock.Controller
-	recorder *MockQueryDocIteratorMockRecorder
-}
-
-// MockQueryDocIteratorMockRecorder is the mock recorder for MockQueryDocIterator
-type MockQueryDocIteratorMockRecorder struct {
-	mock *MockQueryDocIterator
-}
-
-// NewMockQueryDocIterator creates a new mock instance
-func NewMockQueryDocIterator(ctrl *gomock.Controller) *MockQueryDocIterator {
-	mock := &MockQueryDocIterator{ctrl: ctrl}
-	mock.recorder = &MockQueryDocIteratorMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockQueryDocIterator) EXPECT() *MockQueryDocIteratorMockRecorder {
-	return m.recorder
-}
-
-// Next mocks base method
-func (m *MockQueryDocIterator) Next() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Next")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// Next indicates an expected call of Next
-func (mr *MockQueryDocIteratorMockRecorder) Next() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockQueryDocIterator)(nil).Next))
-}
-
-// Current mocks base method
-func (m *MockQueryDocIterator) Current() Document {
+// Current mocks base method.
+func (m *MockIterator) Current() Document {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
 	ret0, _ := ret[0].(Document)
 	return ret0
 }
 
-// Current indicates an expected call of Current
-func (mr *MockQueryDocIteratorMockRecorder) Current() *gomock.Call {
+// Current indicates an expected call of Current.
+func (mr *MockIteratorMockRecorder) Current() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockQueryDocIterator)(nil).Current))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockIterator)(nil).Current))
 }
 
-// Err mocks base method
-func (m *MockQueryDocIterator) Err() error {
+// Err mocks base method.
+func (m *MockIterator) Err() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Err")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Err indicates an expected call of Err
-func (mr *MockQueryDocIteratorMockRecorder) Err() *gomock.Call {
+// Err indicates an expected call of Err.
+func (mr *MockIteratorMockRecorder) Err() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockQueryDocIterator)(nil).Err))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockIterator)(nil).Err))
 }
 
-// Close mocks base method
+// Next mocks base method.
+func (m *MockIterator) Next() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Next")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Next indicates an expected call of Next.
+func (mr *MockIteratorMockRecorder) Next() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockIterator)(nil).Next))
+}
+
+// MockQueryDocIterator is a mock of QueryDocIterator interface.
+type MockQueryDocIterator struct {
+	ctrl     *gomock.Controller
+	recorder *MockQueryDocIteratorMockRecorder
+}
+
+// MockQueryDocIteratorMockRecorder is the mock recorder for MockQueryDocIterator.
+type MockQueryDocIteratorMockRecorder struct {
+	mock *MockQueryDocIterator
+}
+
+// NewMockQueryDocIterator creates a new mock instance.
+func NewMockQueryDocIterator(ctrl *gomock.Controller) *MockQueryDocIterator {
+	mock := &MockQueryDocIterator{ctrl: ctrl}
+	mock.recorder = &MockQueryDocIteratorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockQueryDocIterator) EXPECT() *MockQueryDocIteratorMockRecorder {
+	return m.recorder
+}
+
+// Close mocks base method.
 func (m *MockQueryDocIterator) Close() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
@@ -262,22 +219,64 @@ func (m *MockQueryDocIterator) Close() error {
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockQueryDocIteratorMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockQueryDocIterator)(nil).Close))
 }
 
-// SearchDuration mocks base method
-func (m *MockQueryDocIterator) SearchDuration() time.Duration {
+// Current mocks base method.
+func (m *MockQueryDocIterator) Current() Document {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SearchDuration")
-	ret0, _ := ret[0].(time.Duration)
+	ret := m.ctrl.Call(m, "Current")
+	ret0, _ := ret[0].(Document)
 	return ret0
 }
 
-// SearchDuration indicates an expected call of SearchDuration
-func (mr *MockQueryDocIteratorMockRecorder) SearchDuration() *gomock.Call {
+// Current indicates an expected call of Current.
+func (mr *MockQueryDocIteratorMockRecorder) Current() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchDuration", reflect.TypeOf((*MockQueryDocIterator)(nil).SearchDuration))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockQueryDocIterator)(nil).Current))
+}
+
+// Done mocks base method.
+func (m *MockQueryDocIterator) Done() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Done")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Done indicates an expected call of Done.
+func (mr *MockQueryDocIteratorMockRecorder) Done() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Done", reflect.TypeOf((*MockQueryDocIterator)(nil).Done))
+}
+
+// Err mocks base method.
+func (m *MockQueryDocIterator) Err() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Err indicates an expected call of Err.
+func (mr *MockQueryDocIteratorMockRecorder) Err() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockQueryDocIterator)(nil).Err))
+}
+
+// Next mocks base method.
+func (m *MockQueryDocIterator) Next() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Next")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Next indicates an expected call of Next.
+func (mr *MockQueryDocIteratorMockRecorder) Next() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockQueryDocIterator)(nil).Next))
 }

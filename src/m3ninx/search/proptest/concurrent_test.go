@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
+	"github.com/m3db/m3/src/x/context"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"
@@ -38,6 +39,7 @@ import (
 )
 
 func TestConcurrentQueries(t *testing.T) {
+	ctx := context.NewBackground()
 	parameters := gopter.DefaultTestParameters()
 	seed := time.Now().UnixNano()
 	parameters.MinSuccessfulTests = 100
@@ -57,7 +59,7 @@ func TestConcurrentQueries(t *testing.T) {
 
 	properties.Property("Any concurrent queries segments does not affect fst segments", prop.ForAll(
 		func(q search.Query) (bool, error) {
-			dOrg, err := simpleExec.Execute(q)
+			dOrg, err := simpleExec.Execute(ctx, q)
 			require.NoError(t, err)
 			matchedDocs, err := collectDocs(dOrg)
 			require.NoError(t, err)
@@ -75,7 +77,7 @@ func TestConcurrentQueries(t *testing.T) {
 			for i := 0; i < numConcurrentWorkers; i++ {
 				go func() {
 					defer wg.Done()
-					fstDocs, err := fstExec.Execute(q)
+					fstDocs, err := fstExec.Execute(ctx, q)
 					require.NoError(t, err)
 					if err := docMatcher.Matches(fstDocs); err != nil {
 						errLock.Lock()

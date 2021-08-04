@@ -21,6 +21,7 @@
 package downsample
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"runtime"
@@ -91,8 +92,11 @@ const (
 )
 
 var (
-	numShards           = runtime.NumCPU()
-	defaultNamespaceTag = metric.M3MetricsPrefixString + "_namespace__"
+	numShards                   = runtime.NumCPU()
+	defaultNamespaceTag         = metric.M3MetricsPrefixString + "_namespace__"
+	defaultFilterOutTagPrefixes = [][]byte{
+		metric.M3MetricsPrefix,
+	}
 
 	errNoStorage                    = errors.New("downsampling enabled with storage not set")
 	errNoClusterClient              = errors.New("downsampling enabled with cluster client not set")
@@ -230,9 +234,10 @@ type agg struct {
 	aggregator   aggregator.Aggregator
 	clientRemote client.Client
 
-	clockOpts clock.Options
-	matcher   matcher.Matcher
-	pools     aggPools
+	clockOpts      clock.Options
+	matcher        matcher.Matcher
+	pools          aggPools
+	untimedRollups bool
 }
 
 // Configuration configurates a downsampler.
@@ -264,8 +269,12 @@ type Configuration struct {
 	// BufferPastLimits specifies the buffer past limits.
 	BufferPastLimits []BufferPastLimitConfiguration `yaml:"bufferPastLimits"`
 
-	// EntryTTL determines how long an entry remains alive before it may be expired due to inactivity.
+	// EntryTTL determines how long an entry remains alive before it may be
+	// expired due to inactivity.
 	EntryTTL time.Duration `yaml:"entryTTL"`
+
+	// UntimedRollups indicates rollup rules should be untimed.
+	UntimedRollups bool `yaml:"untimedRollups"`
 }
 
 // MatcherConfiguration is the configuration for the rule matcher.
@@ -275,6 +284,9 @@ type MatcherConfiguration struct {
 	// NamespaceTag defines the namespace tag to use to select rules
 	// namespace to evaluate against. Default is "__m3_namespace__".
 	NamespaceTag string `yaml:"namespaceTag"`
+	// RequireNamespaceWatchOnInit returns the flag to ensure matcher is initialized with a loaded namespace watch.
+	// This only makes sense to use if the corresponding namespace / ruleset values are properly seeded.
+	RequireNamespaceWatchOnInit bool `yaml:"requireNamespaceWatchOnInit"`
 }
 
 // MatcherCacheConfiguration is the configuration for the rule matcher cache.
@@ -343,6 +355,10 @@ type MappingRuleConfiguration struct {
 	// aggregation tag which is required for graphite. If a metric is of the
 	// form {__g0__:stats __g1__:metric __g2__:timer} and we have configured
 	// a P95 aggregation, this option will add __g3__:P95 to the metric.
+	// __m3_graphite_prefix__ as a tag will add the provided value as a prefix
+	// to graphite metrics.
+	// __m3_drop_timestamp__ as a tag will drop the timestamp from while
+	// writing the metric out. So effectively treat it as an untimed metric.
 	Tags []Tag `yaml:"tags"`
 
 	// Optional fields follow.
@@ -451,6 +467,10 @@ type RollupRuleConfiguration struct {
 
 	// Name is optional.
 	Name string `yaml:"name"`
+
+	// Tags are the tags to be added to the metric while applying the rollup
+	// rule. Users are free to add name/value combinations to the metric.
+	Tags []Tag `yaml:"tags"`
 }
 
 // Rule returns the rollup rule for the rollup rule configuration.
@@ -474,15 +494,30 @@ func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
 		switch {
 		case elem.Rollup != nil:
 			cfg := elem.Rollup
+			if len(cfg.GroupBy) > 0 && len(cfg.ExcludeBy) > 0 {
+				return view.RollupRule{}, fmt.Errorf(
+					"must specify group by or exclude by tags for rollup operation not both: "+
+						"groupBy=%d, excludeBy=%d", len(cfg.GroupBy), len(cfg.ExcludeBy))
+			}
+
+			rollupType := pipelinepb.RollupOp_GROUP_BY
+			tags := cfg.GroupBy
+			if len(cfg.ExcludeBy) > 0 {
+				rollupType = pipelinepb.RollupOp_EXCLUDE_BY
+				tags = cfg.ExcludeBy
+			}
+
 			aggregationTypes, err := AggregationTypes(cfg.Aggregations).Proto()
 			if err != nil {
 				return view.RollupRule{}, err
 			}
+
 			op, err := pipeline.NewOpUnionFromProto(pipelinepb.PipelineOp{
 				Type: pipelinepb.PipelineOp_ROLLUP,
 				Rollup: &pipelinepb.RollupOp{
+					Type:             rollupType,
 					NewName:          cfg.MetricName,
-					Tags:             cfg.GroupBy,
+					Tags:             tags,
 					AggregationTypes: aggregationTypes,
 				},
 			})
@@ -539,11 +574,20 @@ func (r RollupRuleConfiguration) Rule() (view.RollupRule, error) {
 		},
 	}
 
+	tags := make([]models.Tag, 0, len(r.Tags))
+	for _, tag := range r.Tags {
+		tags = append(tags, models.Tag{
+			Name:  []byte(tag.Name),
+			Value: []byte(tag.Value),
+		})
+	}
+
 	return view.RollupRule{
 		ID:      id,
 		Name:    name,
 		Filter:  filter,
 		Targets: targets,
+		Tags:    tags,
 	}, nil
 }
 
@@ -563,7 +607,15 @@ type RollupOperationConfiguration struct {
 
 	// GroupBy is a set of labels to group by, only these remain on the
 	// new metric name produced by the rollup operation.
+	// Note: Can only use either groupBy or excludeBy, not both, use the
+	// rollup operation "type" to specify which is used.
 	GroupBy []string `yaml:"groupBy"`
+
+	// ExcludeBy is a set of labels to exclude by, only these tags are removed
+	// from the resulting rolled up metric.
+	// Note: Can only use either groupBy or excludeBy, not both, use the
+	// rollup operation "type" to specify which is used.
+	ExcludeBy []string `yaml:"excludeBy"`
 
 	// Aggregations is a set of aggregate operations to perform.
 	Aggregations []aggregation.Type `yaml:"aggregations"`
@@ -674,7 +726,8 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetInstrumentOptions(instrumentOpts).
 		SetRuleSetOptions(ruleSetOpts).
 		SetKVStore(o.RulesKVStore).
-		SetNamespaceTag([]byte(namespaceTag))
+		SetNamespaceTag([]byte(namespaceTag)).
+		SetRequireNamespaceWatchOnInit(cfg.Matcher.RequireNamespaceWatchOnInit)
 
 	// NB(r): If rules are being explicitly set in config then we are
 	// going to use an in memory KV store for rules and explicitly set them up.
@@ -777,9 +830,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}
 
 		return agg{
-			clientRemote: client,
-			matcher:      matcher,
-			pools:        pools,
+			clientRemote:   client,
+			matcher:        matcher,
+			pools:          pools,
+			untimedRollups: cfg.UntimedRollups,
 		}, nil
 	}
 
@@ -800,13 +854,13 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 			SetFlushTimesStore(localKVStore))
 
 	electionManager, err := o.newAggregatorElectionManager(serviceID,
-		placementManager, flushTimesManager)
+		placementManager, flushTimesManager, clockOpts)
 	if err != nil {
 		return agg{}, err
 	}
 
-	flushManager, flushHandler := o.newAggregatorFlushManagerAndHandler(serviceID,
-		placementManager, flushTimesManager, electionManager, instrumentOpts,
+	flushManager, flushHandler := o.newAggregatorFlushManagerAndHandler(
+		placementManager, flushTimesManager, electionManager, o.ClockOptions, instrumentOpts,
 		storageFlushConcurrency, pools)
 
 	bufferPastLimits := defaultBufferPastLimits
@@ -830,8 +884,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	// Finally construct all options.
-	aggregatorOpts := aggregator.NewOptions().
-		SetClockOptions(clockOpts).
+	aggregatorOpts := aggregator.NewOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
 		SetDefaultStoragePolicies(nil).
 		SetMetricPrefix(nil).
@@ -941,9 +994,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	return agg{
-		aggregator: aggregatorInstance,
-		matcher:    matcher,
-		pools:      pools,
+		aggregator:     aggregatorInstance,
+		matcher:        matcher,
+		pools:          pools,
+		untimedRollups: cfg.UntimedRollups,
 	}, nil
 }
 
@@ -1012,8 +1066,23 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 	newRollupIDProviderPool.Init()
 
 	newRollupIDFn := func(newName []byte, tagPairs []id.TagPair) []byte {
+		// First filter out any tags that have a prefix that
+		// are not included in output metric IDs (such as metric
+		// type tags that are just used for filtering like __m3_type__).
+		filtered := tagPairs[:0]
+	TagPairsFilterLoop:
+		for i := range tagPairs {
+			for _, filter := range defaultFilterOutTagPrefixes {
+				if bytes.HasPrefix(tagPairs[i].Name, filter) {
+					continue TagPairsFilterLoop
+				}
+			}
+			filtered = append(filtered, tagPairs[i])
+		}
+
+		// Create the rollup using filtered tag pairs.
 		rollupIDProvider := newRollupIDProviderPool.Get()
-		id, err := rollupIDProvider.provide(newName, tagPairs)
+		id, err := rollupIDProvider.provide(newName, filtered)
 		if err != nil {
 			panic(err) // Encoding should never fail
 		}
@@ -1069,13 +1138,12 @@ func (o DownsamplerOptions) newAggregatorPlacementManager(
 		return nil, err
 	}
 
-	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
+	placementWatcherOpts := placement.NewWatcherOptions().
 		SetStagedPlacementKey(placementKVKey).
 		SetStagedPlacementStore(localKVStore)
-	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
 		SetInstanceID(instanceID).
-		SetStagedPlacementWatcher(placementWatcher)
+		SetWatcherOptions(placementWatcherOpts)
 
 	return aggregator.NewPlacementManager(placementManagerOpts), nil
 }
@@ -1084,6 +1152,7 @@ func (o DownsamplerOptions) newAggregatorElectionManager(
 	serviceID services.ServiceID,
 	placementManager aggregator.PlacementManager,
 	flushTimesManager aggregator.FlushTimesManager,
+	clockOpts clock.Options,
 ) (aggregator.ElectionManager, error) {
 	leaderValue := instanceID
 	campaignOpts, err := services.NewCampaignOptions()
@@ -1096,6 +1165,7 @@ func (o DownsamplerOptions) newAggregatorElectionManager(
 	leaderService := newLocalLeaderService(serviceID)
 
 	electionManagerOpts := aggregator.NewElectionManagerOptions().
+		SetClockOptions(clockOpts).
 		SetCampaignOptions(campaignOpts).
 		SetLeaderService(leaderService).
 		SetPlacementManager(placementManager).
@@ -1105,15 +1175,16 @@ func (o DownsamplerOptions) newAggregatorElectionManager(
 }
 
 func (o DownsamplerOptions) newAggregatorFlushManagerAndHandler(
-	serviceID services.ServiceID,
 	placementManager aggregator.PlacementManager,
 	flushTimesManager aggregator.FlushTimesManager,
 	electionManager aggregator.ElectionManager,
+	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 	storageFlushConcurrency int,
 	pools aggPools,
 ) (aggregator.FlushManager, handler.Handler) {
 	flushManagerOpts := aggregator.NewFlushManagerOptions().
+		SetClockOptions(clockOpts).
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionManager).
@@ -1219,14 +1290,12 @@ type bufferPastLimit struct {
 	bufferPast time.Duration
 }
 
-var (
-	defaultBufferPastLimits = []bufferPastLimit{
-		{upperBound: 0, bufferPast: 15 * time.Second},
-		{upperBound: 30 * time.Second, bufferPast: 30 * time.Second},
-		{upperBound: time.Minute, bufferPast: time.Minute},
-		{upperBound: 2 * time.Minute, bufferPast: 2 * time.Minute},
-	}
-)
+var defaultBufferPastLimits = []bufferPastLimit{
+	{upperBound: 0, bufferPast: 15 * time.Second},
+	{upperBound: 30 * time.Second, bufferPast: 30 * time.Second},
+	{upperBound: time.Minute, bufferPast: time.Minute},
+	{upperBound: 2 * time.Minute, bufferPast: 2 * time.Minute},
+}
 
 func bufferForPastTimedMetric(
 	limits []bufferPastLimit,

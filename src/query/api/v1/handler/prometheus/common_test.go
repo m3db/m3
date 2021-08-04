@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -91,57 +90,6 @@ func toTags(name string, tags ...tag) models.Metric {
 	return models.Metric{Tags: ts}
 }
 
-func TestRenderSeriesMatchResultsNoTags(t *testing.T) {
-	w := &writer{value: ""}
-	tests := []struct {
-		dropRole   bool
-		additional string
-	}{
-		{
-			dropRole:   true,
-			additional: "",
-		},
-		{
-			dropRole:   false,
-			additional: `,"role":"appears"`,
-		},
-	}
-
-	seriesMatchResult := []models.Metrics{
-		{
-			toTags("name", tag{name: "a", value: "b"}, tag{name: "role", value: "appears"}),
-			toTags("name2", tag{name: "c", value: "d"}, tag{name: "e", value: "f"}),
-		},
-	}
-
-	for _, tt := range tests {
-		expectedWhitespace := fmt.Sprintf(`{
-		"status":"success",
-		"data":[
-			{
-				"__name__":"name",
-				"a":"b"%s
-			},
-			{
-				"__name__":"name2",
-				"c":"d",
-				"e":"f"
-			}
-		]
-	}`, tt.additional)
-
-		err := RenderSeriesMatchResultsJSON(w, seriesMatchResult, tt.dropRole)
-		assert.NoError(t, err)
-		fields := strings.Fields(expectedWhitespace)
-		expected := ""
-		for _, field := range fields {
-			expected = expected + field
-		}
-
-		assert.Equal(t, expected, w.value)
-	}
-}
-
 func TestParseStartAndEnd(t *testing.T) {
 	endTime := time.Now().Truncate(time.Hour)
 	opts := promql.NewParseOptions().SetNowFn(func() time.Time { return endTime })
@@ -189,6 +137,36 @@ func TestParseStartAndEnd(t *testing.T) {
 			} else {
 				assert.Equal(t, tt.exStart, start)
 				assert.Equal(t, tt.exEnd, end)
+			}
+		})
+	}
+}
+
+func TestParseRequireStartEnd(t *testing.T) {
+	opts := promql.NewParseOptions()
+
+	tests := []struct {
+		exStart         time.Time
+		querystring     string
+		requireStartEnd bool
+		exErr           bool
+	}{
+		{querystring: "start=100", requireStartEnd: true, exStart: time.Unix(100, 0)},
+		{querystring: "", requireStartEnd: true, exErr: true},
+		{querystring: "start=100", requireStartEnd: false, exStart: time.Unix(100, 0)},
+		{querystring: "", requireStartEnd: false, exStart: time.Unix(0, 0)},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("GET_%s", tt.querystring), func(t *testing.T) {
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
+				fmt.Sprintf("/?%s", tt.querystring), nil)
+			require.NoError(t, err)
+
+			start, _, err := ParseStartAndEnd(req, opts.SetRequireStartEndTime(tt.requireStartEnd))
+			if tt.exErr {
+				require.Error(t, err)
+			} else {
+				assert.Equal(t, tt.exStart, start)
 			}
 		})
 	}

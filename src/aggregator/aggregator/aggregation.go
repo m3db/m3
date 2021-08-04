@@ -36,12 +36,12 @@ func newCounterAggregation(c aggregation.Counter) counterAggregation {
 	return counterAggregation{Counter: c}
 }
 
-func (a *counterAggregation) Add(t time.Time, value float64) {
-	a.Counter.Update(t, int64(value))
+func (a *counterAggregation) Add(t time.Time, value float64, annotation []byte) {
+	a.Counter.Update(t, int64(value), annotation)
 }
 
 func (a *counterAggregation) AddUnion(t time.Time, mu unaggregated.MetricUnion) {
-	a.Counter.Update(t, mu.CounterVal)
+	a.Counter.Update(t, mu.CounterVal, mu.Annotation)
 }
 
 // timerAggregation is a timer aggregation.
@@ -53,12 +53,12 @@ func newTimerAggregation(t aggregation.Timer) timerAggregation {
 	return timerAggregation{Timer: t}
 }
 
-func (a *timerAggregation) Add(timestamp time.Time, value float64) {
-	a.Timer.Add(timestamp, value)
+func (a *timerAggregation) Add(timestamp time.Time, value float64, annotation []byte) {
+	a.Timer.Add(timestamp, value, annotation)
 }
 
 func (a *timerAggregation) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) {
-	a.Timer.AddBatch(timestamp, mu.BatchTimerVal)
+	a.Timer.AddBatch(timestamp, mu.BatchTimerVal, mu.Annotation)
 }
 
 // gaugeAggregation is a gauge aggregation.
@@ -70,10 +70,10 @@ func newGaugeAggregation(g aggregation.Gauge) gaugeAggregation {
 	return gaugeAggregation{Gauge: g}
 }
 
-func (a *gaugeAggregation) Add(t time.Time, value float64) {
-	a.Gauge.Update(t, value)
+func (a *gaugeAggregation) Add(t time.Time, value float64, annotation []byte) {
+	a.Gauge.Update(t, value, annotation)
 }
 
 func (a *gaugeAggregation) AddUnion(t time.Time, mu unaggregated.MetricUnion) {
-	a.Gauge.Update(t, mu.GaugeVal)
+	a.Gauge.Update(t, mu.GaugeVal, mu.Annotation)
 }

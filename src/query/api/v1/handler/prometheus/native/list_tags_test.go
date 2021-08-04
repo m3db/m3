@@ -21,12 +21,17 @@
 package native
 
 import (
+	"context"
 	"errors"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -35,14 +40,12 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/headers"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type listTagsMatcher struct {
-	start, end time.Time
+	start, end xtime.UnixNano
 }
 
 func (m *listTagsMatcher) String() string { return "list tags query" }
@@ -105,9 +108,9 @@ func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 		Metadata: meta,
 	}
 
-	now := time.Now()
+	now := xtime.Now()
 	nowFn := func() time.Time {
-		return now
+		return now.ToTime()
 	}
 
 	fb, err := handleroptions.NewFetchOptionsBuilder(
@@ -127,7 +130,7 @@ func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 
 func testListTagsWithMatch(
 	t *testing.T,
-	now time.Time,
+	now xtime.UnixNano,
 	store *storage.MockStorage,
 	storeResult *consolidators.CompleteTagsResult,
 	method string,
@@ -149,7 +152,7 @@ func testListTagsWithMatch(
 	matcher := &storage.CompleteTagsQuery{
 		CompleteNameOnly: true,
 		TagMatchers:      tagMatcher,
-		Start:            time.Unix(0, 0),
+		Start:            0,
 		End:              now,
 	}
 	store.EXPECT().CompleteTags(gomock.Any(), gomock.Eq(matcher), gomock.Any()).
@@ -189,7 +192,10 @@ func TestListErrorTags(t *testing.T) {
 		SetFetchOptionsBuilder(fb)
 	handler := NewListTagsHandler(opts)
 	for _, method := range []string{"GET", "POST"} {
-		matcher := &listTagsMatcher{start: time.Unix(100, 0), end: time.Unix(1000, 0)}
+		matcher := &listTagsMatcher{
+			start: xtime.FromSeconds(100),
+			end:   xtime.FromSeconds(1000),
+		}
 		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).
 			Return(nil, errors.New("err"))
 
@@ -205,4 +211,34 @@ func TestListErrorTags(t *testing.T) {
 
 		require.JSONEq(t, `{"status":"error","error":"err"}`, string(r))
 	}
+}
+
+//nolint:dupl
+func TestListTagsTimeout(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	req := httptest.NewRequest("GET", "/labels", nil)
+	w := httptest.NewRecorder()
+	h := NewListTagsHandler(storageSetup(t, ctrl, 1*time.Millisecond, expectTimeout))
+	h.ServeHTTP(w, req)
+
+	assert.Equal(t, 504, w.Code, "Status code not 504")
+	assert.Contains(t, w.Body.String(), "context deadline exceeded")
+}
+
+//nolint:dupl
+func TestListTagsUseRequestContext(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest("GET", "/labels", nil).WithContext(cancelledCtx)
+	w := httptest.NewRecorder()
+	h := NewListTagsHandler(storageSetup(t, ctrl, 15*time.Second, expectCancellation))
+	h.ServeHTTP(w, req)
+
+	assert.Equal(t, 499, w.Code, "Status code not 499")
+	assert.Contains(t, w.Body.String(), "context canceled")
 }

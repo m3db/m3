@@ -84,7 +84,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 	filePathPrefix := setup.StorageOpts().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// setting time to 2017/02/13 15:30:10
-	fakeStart := time.Date(2017, time.February, 13, 15, 30, 10, 0, time.Local)
+	fakeStart := xtime.ToUnixNano(time.Date(2017, time.February, 13, 15, 30, 10, 0, time.Local))
 	blkStart15 := fakeStart.Truncate(ns1BlockSize)
 	blkStart16 := blkStart15.Add(ns1BlockSize)
 	blkStart17 := blkStart16.Add(ns1BlockSize)
@@ -131,7 +131,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 	// current time is 18:50, so we expect data for block starts [15, 18) to be written out
 	// to fileset files, and flushed.
 	expectedFlushedData := datapoints.toSeriesMap(ns1BlockSize)
-	delete(expectedFlushedData, xtime.ToUnixNano(blkStart18))
+	delete(expectedFlushedData, blkStart18)
 	waitTimeout := 5 * time.Minute
 
 	log.Info("waiting till expected fileset files have been written")
@@ -172,7 +172,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 
 	// verify in-memory data matches what we expect
 	// should contain data from 16:00 - 17:59 on disk and 18:00 - 18:50 in mem
-	delete(expectedSeriesMap, xtime.ToUnixNano(blkStart15))
+	delete(expectedSeriesMap, blkStart15)
 	log.Info("verifying data in database equals expected data")
 	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
 	log.Info("verified data in database equals expected data")
@@ -192,7 +192,7 @@ func startServerWithNewInspection(
 func waitUntilFileSetFilesCleanedUp(
 	setup TestSetup,
 	namespace ident.ID,
-	toDelete time.Time,
+	toDelete xtime.UnixNano,
 	timeout time.Duration,
 ) error {
 	var (
@@ -207,7 +207,7 @@ func waitUntilFileSetFilesCleanedUp(
 			filePathPrefix: setup.FilePathPrefix(),
 			namespace:      namespace,
 			shard:          id,
-			times:          []time.Time{toDelete},
+			times:          []xtime.UnixNano{toDelete},
 		})
 	}
 	return waitUntilDataCleanedUpExtended(filesetFiles, commitLogFiles, timeout)
@@ -242,7 +242,9 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts TestOptions, setup
 	return setup
 }
 
-func generateDatapoints(start time.Time, numPoints int, ig *idGen, annGen annotationGenerator) dataPointsInTimeOrder {
+func generateDatapoints(
+	start xtime.UnixNano, numPoints int, ig *idGen, annGen annotationGenerator,
+) dataPointsInTimeOrder {
 	var points dataPointsInTimeOrder
 	for i := 0; i < numPoints; i++ {
 		t := start.Add(time.Duration(i) * time.Minute)
@@ -282,7 +284,7 @@ type dataPointsInTimeOrder []seriesDatapoint
 
 type seriesDatapoint struct {
 	series ident.ID
-	time   time.Time
+	time   xtime.UnixNano
 	value  float64
 	ann    []byte
 }
@@ -292,7 +294,7 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 	for _, point := range d {
 		t := point.time
 		trunc := t.Truncate(blockSize)
-		seriesBlock, ok := blockStartToSeriesMap[xtime.ToUnixNano(trunc)]
+		seriesBlock, ok := blockStartToSeriesMap[trunc]
 		if !ok {
 			seriesBlock = make(map[string]generate.Series)
 		}
@@ -302,12 +304,11 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 			dp = generate.Series{ID: point.series}
 		}
 		dp.Data = append(dp.Data, generate.TestValue{Datapoint: ts.Datapoint{
-			Timestamp:      t,
-			TimestampNanos: xtime.ToUnixNano(t),
+			TimestampNanos: t,
 			Value:          point.value,
 		}, Annotation: point.ann})
 		seriesBlock[idString] = dp
-		blockStartToSeriesMap[xtime.ToUnixNano(trunc)] = seriesBlock
+		blockStartToSeriesMap[trunc] = seriesBlock
 	}
 
 	seriesMap := make(generate.SeriesBlocksByStart, len(blockStartToSeriesMap))
@@ -323,7 +324,7 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 
 // before returns a slice of the dataPointsInTimeOrder that are before the
 // specified time t.
-func (d dataPointsInTimeOrder) before(t time.Time) dataPointsInTimeOrder {
+func (d dataPointsInTimeOrder) before(t xtime.UnixNano) dataPointsInTimeOrder {
 	var i int
 	for i = range d {
 		if !d[i].time.Before(t) {

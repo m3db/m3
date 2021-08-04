@@ -100,7 +100,7 @@ func testAggregatedSeries(
 	}
 
 	// nil input -> nil output
-	for _, in := range [][]*ts.Series{nil, []*ts.Series{}} {
+	for _, in := range [][]*ts.Series{nil, {}} {
 		series, err := f(ctx, multiplePathSpecs(ts.SeriesList{
 			Values: in,
 		}))
@@ -287,7 +287,7 @@ func TestVariadicSumSeries(t *testing.T) {
 			}, block.ResultMetadata{
 				Exhaustive: false,
 				LocalOnly:  false,
-				Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+				Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
 			}), nil
 		}
 		return nil, fmt.Errorf("unexpected query: %s", query)
@@ -443,20 +443,70 @@ func TestDivideSeriesLists(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestDivideSeriesListsWithUnsortedSeriesInput ensures that if input into
+// the function wasn't sorted as input that it becomes sorted before dividing
+// two series lists (to ensure deterministic results).
+func TestDivideSeriesListsWithUnsortedSeriesInput(t *testing.T) {
+	start := time.Now().Truncate(time.Minute).Add(-10 * time.Minute)
+	end := start.Add(5 * time.Minute)
+	ctx := common.NewContext(common.ContextOptions{Start: start, End: end})
+
+	dividend := []*ts.Series{
+		ts.NewSeries(ctx, "a", start,
+			ts.NewConstantValues(ctx, 1, 5, 60000)),
+		ts.NewSeries(ctx, "c", start,
+			ts.NewConstantValues(ctx, 3, 5, 60000)),
+		ts.NewSeries(ctx, "b", start,
+			ts.NewConstantValues(ctx, 2, 5, 60000)),
+	}
+
+	divisor := []*ts.Series{
+		ts.NewSeries(ctx, "b", start,
+			ts.NewConstantValues(ctx, 2, 5, 60000)),
+		ts.NewSeries(ctx, "a", start,
+			ts.NewConstantValues(ctx, 1, 5, 60000)),
+		ts.NewSeries(ctx, "d", start,
+			ts.NewConstantValues(ctx, 3, 5, 60000)),
+	}
+
+	actual, err := divideSeriesLists(ctx, singlePathSpec{
+		Values: dividend,
+	}, singlePathSpec{
+		Values: divisor,
+	})
+	require.Nil(t, err)
+	expected := []common.TestSeries{
+		{
+			Name: "divideSeries(a,a)",
+			Data: []float64{1, 1, 1, 1, 1},
+		},
+		{
+			Name: "divideSeries(b,b)",
+			Data: []float64{1, 1, 1, 1, 1},
+		},
+		{
+			Name: "divideSeries(c,d)",
+			Data: []float64{1, 1, 1, 1, 1},
+		},
+	}
+
+	common.CompareOutputsAndExpected(t, 60000, start, expected, actual.Values)
+}
+
 //nolint:govet
 func TestAverageSeriesWithWildcards(t *testing.T) {
 	ctx, _ := newConsolidationTestSeries()
 	defer ctx.Close()
 
 	input := []common.TestSeries{
-		common.TestSeries{"web.host-1.avg-response.value", []float64{70.0, 20.0, 30.0, 40.0, 50.0}},
-		common.TestSeries{"web.host-2.avg-response.value", []float64{20.0, 30.0, 40.0, 50.0, 60.0}},
-		common.TestSeries{"web.host-3.avg-response.value", []float64{30.0, 40.0, 80.0, 60.0, 70.0}},
-		common.TestSeries{"web.host-4.num-requests.value", []float64{10.0, 10.0, 15.0, 10.0, 15.0}},
+		{"web.host-1.avg-response.value", []float64{70.0, 20.0, 30.0, 40.0, 50.0}},
+		{"web.host-2.avg-response.value", []float64{20.0, 30.0, 40.0, 50.0, 60.0}},
+		{"web.host-3.avg-response.value", []float64{30.0, 40.0, 80.0, 60.0, 70.0}},
+		{"web.host-4.num-requests.value", []float64{10.0, 10.0, 15.0, 10.0, 15.0}},
 	}
 	expected := []common.TestSeries{
-		common.TestSeries{"web.avg-response", []float64{40.0, 30.0, 50.0, 50.0, 60.0}},
-		common.TestSeries{"web.num-requests", []float64{10.0, 10.0, 15.0, 10.0, 15.0}},
+		{"web.avg-response", []float64{40.0, 30.0, 50.0, 50.0, 60.0}},
+		{"web.num-requests", []float64{10.0, 10.0, 15.0, 10.0, 15.0}},
 	}
 
 	start := consolidationStartTime
@@ -503,7 +553,7 @@ func TestSumSeriesWithWildcards(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, len(outSeries.Values))
 
-	outSeries, _ = sortByName(ctx, singlePathSpec(outSeries))
+	outSeries, _ = sortByName(ctx, singlePathSpec(outSeries), false, false)
 
 	expectedOutputs := []struct {
 		name      string
@@ -619,7 +669,7 @@ func TestApplyByNode(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, len(test.expectedResults), len(outSeries.Values))
 
-		outSeries, _ = sortByName(ctx, singlePathSpec(outSeries))
+		outSeries, _ = sortByName(ctx, singlePathSpec(outSeries), false, false)
 		common.CompareOutputsAndExpected(t, 60000, start, test.expectedResults, outSeries.Values)
 	}
 }
@@ -651,26 +701,50 @@ func TestAggregateWithWildcards(t *testing.T) {
 	)
 	defer ctx.Close()
 
-	outSeries, err := aggregateWithWildcards(ctx, singlePathSpec{
-		Values: inputs,
-	}, "sum", 1, 2)
-	require.NoError(t, err)
-	require.Equal(t, 2, len(outSeries.Values))
-
-	outSeries, _ = sortByName(ctx, singlePathSpec(outSeries))
-
-	expectedOutputs := []struct {
+	type result struct {
 		name      string
 		sumOfVals float64
-	}{
-		{"servers.status.400", 90 * 12},
-		{"servers.status.500", 30 * 12},
 	}
 
-	for i, expected := range expectedOutputs {
-		series := outSeries.Values[i]
-		assert.Equal(t, expected.name, series.Name())
-		assert.Equal(t, expected.sumOfVals, series.SafeSum())
+	tests := []struct {
+		fname           string
+		nodes           []int
+		expectedResults []result
+	}{
+		{"avg", []int{1, 2}, []result{
+			{"servers.status.400", ((20 + 30 + 40) / 3) * 12},
+			{"servers.status.500", ((2 + 4 + 6 + 8 + 10) / 5) * 12},
+		}},
+		{"max", []int{2, 4}, []result{
+			{"servers.status.400", 40 * 12},
+			{"servers.status.500", 10 * 12},
+		}},
+		{"min", []int{2, -1}, []result{
+			{"servers.status.400", 20 * 12},
+			{"servers.status.500", 2 * 12},
+		}},
+		{"median", []int{1, 2}, []result{
+			{"servers.status.400", 30 * 12},
+			{"servers.status.500", 6 * 12},
+		}},
+	}
+
+	for _, test := range tests {
+		outSeries, err := aggregateWithWildcards(ctx, singlePathSpec{
+			Values: inputs,
+		}, test.fname, 1, 2)
+		require.NoError(t, err)
+		require.Equal(t, 2, len(outSeries.Values))
+
+		outSeries, _ = sortByName(ctx, singlePathSpec(outSeries), false, false)
+
+		for i, expected := range test.expectedResults {
+			series := outSeries.Values[i]
+			assert.Equal(t, expected.name, series.Name(), "wrong name for %v %s (%d)", test.nodes, test.fname, i)
+
+			assert.Equal(t, expected.sumOfVals, series.SafeSum(),
+				"wrong result for %v %s (%d)", test.nodes, test.fname, i)
+		}
 	}
 }
 
@@ -732,7 +806,7 @@ func TestGroupByNode(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, len(test.expectedResults), len(outSeries.Values))
 
-		outSeries, _ = sortByName(ctx, singlePathSpec(outSeries))
+		outSeries, _ = sortByName(ctx, singlePathSpec(outSeries), false, false)
 
 		for i, expected := range test.expectedResults {
 			series := outSeries.Values[i]
@@ -752,7 +826,7 @@ func TestGroupByNodes(t *testing.T) {
 		inputs   = []*ts.Series{
 			ts.NewSeries(ctx, "transformNull(servers.foo-1.pod1.status.500)", start,
 				ts.NewConstantValues(ctx, 2, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-2.pod1.status.500", start,
+			ts.NewSeries(ctx, "scaleToSeconds(servers.foo-2.pod1.status.500,1)", start,
 				ts.NewConstantValues(ctx, 4, 12, 10000)),
 			ts.NewSeries(ctx, "servers.foo-3.pod1.status.500", start,
 				ts.NewConstantValues(ctx, 6, 12, 10000)),
@@ -793,6 +867,12 @@ func TestGroupByNodes(t *testing.T) {
 			{"pod2.400", 40 * 12},
 			{"pod2.500", 10 * 12},
 		}},
+		{"median", []int{2, 4}, []result{ // test with different function
+			{"pod1.400", ((20 + 30) / 2) * 12},
+			{"pod1.500", 4 * 12},
+			{"pod2.400", 40 * 12},
+			{"pod2.500", ((8 + 10) / 2) * 12},
+		}},
 		{"max", []int{2, 4, 100}, []result{ // test with a node number that exceeds num parts
 			{"pod1.400.", 30 * 12},
 			{"pod1.500.", 6 * 12},
@@ -806,7 +886,14 @@ func TestGroupByNodes(t *testing.T) {
 			{"pod2.500", 8 * 12},
 		}},
 		{"sum", []int{}, []result{ // test empty slice handing.
-			{"sumSeries(transformNull(servers.foo-1.pod1.status.500),servers.foo-2.pod1.status.500,servers.foo-3.pod1.status.500,servers.foo-1.pod2.status.500,servers.foo-2.pod2.status.500,servers.foo-1.pod1.status.400,servers.foo-2.pod1.status.400,servers.foo-3.pod2.status.400)", (2 + 4 + 6 + 8 + 10 + 20 + 30 + 40) * 12},
+			{
+				"sumSeries(transformNull(servers.foo-1.pod1.status.500)," +
+					"scaleToSeconds(servers.foo-2.pod1.status.500,1)," +
+					"servers.foo-3.pod1.status.500,servers.foo-1.pod2.status.500," +
+					"servers.foo-2.pod2.status.500,servers.foo-1.pod1.status.400," +
+					"servers.foo-2.pod1.status.400,servers.foo-3.pod2.status.400)",
+				(2 + 4 + 6 + 8 + 10 + 20 + 30 + 40) * 12,
+			},
 		}},
 		{"sum", []int{100}, []result{ // test all nodes out of bounds
 			{"", (2 + 4 + 6 + 8 + 10 + 20 + 30 + 40) * 12},
@@ -820,7 +907,7 @@ func TestGroupByNodes(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, len(test.expectedResults), len(outSeries.Values))
 
-		outSeries, _ = sortByName(ctx, singlePathSpec(outSeries))
+		outSeries, _ = sortByName(ctx, singlePathSpec(outSeries), false, false)
 
 		for i, expected := range test.expectedResults {
 			series := outSeries.Values[i]
@@ -837,17 +924,17 @@ func TestWeightedAverage(t *testing.T) {
 	defer ctx.Close()
 
 	means := []common.TestSeries{
-		common.TestSeries{"web.host-1.avg-response.mean", []float64{70.0, 20.0, 30.0, 0.0, 50.0}},
-		common.TestSeries{"web.host-2.avg-response.mean", []float64{20.0, 30.0, 40.0, 50.0, 60.0}},
-		common.TestSeries{"web.host-3.avg-response.mean", []float64{20.0, 30.0, 40.0, 50.0, 60.0}}, // no match
+		{Name: "web.host-1.avg-response.mean", Data: []float64{70.0, 20.0, 30.0, 0.0, 50.0}},
+		{Name: "web.host-2.avg-response.mean", Data: []float64{20.0, 30.0, 40.0, 50.0, 60.0}},
+		{Name: "web.host-3.avg-response.mean", Data: []float64{20.0, 30.0, 40.0, 50.0, 60.0}}, // no match
 	}
 	counts := []common.TestSeries{
-		common.TestSeries{"web.host-1.avg-response.count", []float64{1, 2, 3, 4, 5}},
-		common.TestSeries{"web.host-2.avg-response.count", []float64{10, 20, 30, 40, 50}},
-		common.TestSeries{"web.host-4.avg-response.count", []float64{10, 20, 30, 40, 50}}, // no match
+		{Name: "web.host-1.avg-response.count", Data: []float64{1, 2, 3, 4, 5}},
+		{Name: "web.host-2.avg-response.count", Data: []float64{10, 20, 30, 40, 50}},
+		{Name: "web.host-4.avg-response.count", Data: []float64{10, 20, 30, 40, 50}}, // no match
 	}
 	expected := []common.TestSeries{
-		common.TestSeries{"weightedAverage", []float64{24.5454, 29.0909, 39.0909, 45.4545, 59.0909}},
+		{Name: "weightedAverage", Data: []float64{24.5454, 29.0909, 39.0909, 45.4545, 59.0909}},
 	}
 
 	// normal series
@@ -866,7 +953,7 @@ func TestWeightedAverage(t *testing.T) {
 	output, err = weightedAverage(ctx, singlePathSpec(values), singlePathSpec(weights), 1)
 	require.NoError(t, err)
 	common.CompareOutputsAndExpected(t, step, start,
-		[]common.TestSeries{{"weightedAverage", means[0].Data}}, output.Values)
+		[]common.TestSeries{{Name: "weightedAverage", Data: means[0].Data}}, output.Values)
 
 	// different steps should lead to error -- not supported yet
 	values = ts.SeriesList{Values: generateSeriesList(ctx, start, means, step)}

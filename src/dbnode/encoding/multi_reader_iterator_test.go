@@ -22,7 +22,6 @@ package encoding
 
 import (
 	"fmt"
-	"io"
 	"testing"
 	"time"
 
@@ -51,7 +50,7 @@ type testMultiReaderError struct {
 }
 
 func TestMultiReaderIteratorMergesMulti(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 
 	values := [][]testValue{
 		[]testValue{
@@ -103,7 +102,7 @@ func TestMultiReaderIteratorMergesEmpty(t *testing.T) {
 }
 
 func TestMultiReaderIteratorReadsSlicesInOrder(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 
 	values := [][]testValue{
 		[]testValue{
@@ -130,7 +129,7 @@ func TestMultiReaderIteratorReadsSlicesInOrder(t *testing.T) {
 }
 
 func TestMultiReaderIteratorReadsSlicesWithNoEntries(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 
 	values := [][]testValue{
 		[]testValue{
@@ -158,7 +157,7 @@ func TestMultiReaderIteratorReadsSlicesWithNoEntries(t *testing.T) {
 }
 
 func TestMultiReaderIteratorReadsSlicesWithEmptyEntries(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 
 	values := [][]testValue{
 		[]testValue{
@@ -187,7 +186,7 @@ func TestMultiReaderIteratorReadsSlicesWithEmptyEntries(t *testing.T) {
 }
 
 func TestMultiReaderIteratorDeduplicatesSingle(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 
 	values := []testValue{
 		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
@@ -206,7 +205,7 @@ func TestMultiReaderIteratorDeduplicatesSingle(t *testing.T) {
 }
 
 func TestMultiReaderIteratorDeduplicatesMulti(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 
 	values := []testValue{
 		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
@@ -229,7 +228,7 @@ func TestMultiReaderIteratorDeduplicatesMulti(t *testing.T) {
 }
 
 func TestMultiReaderIteratorErrorOnOutOfOrder(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 
 	values := []testValue{
 		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
@@ -252,7 +251,7 @@ func TestMultiReaderIteratorErrorOnOutOfOrder(t *testing.T) {
 }
 
 func TestMultiReaderIteratorErrorOnInnerIteratorError(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 
 	values := []testValue{
 		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
@@ -287,7 +286,7 @@ func assertTestMultiReaderIterator(
 	test testMultiReader,
 ) {
 	type readerEntries struct {
-		reader  io.Reader
+		reader  xio.Reader64
 		entries *testMultiReaderEntries
 	}
 
@@ -315,8 +314,8 @@ func assertTestMultiReaderIterator(
 	}
 
 	var testIterators []*testIterator
-	var iteratorAlloc func(reader io.Reader, descr namespace.SchemaDescr) ReaderIterator
-	iteratorAlloc = func(reader io.Reader, descr namespace.SchemaDescr) ReaderIterator {
+	var iteratorAlloc func(xio.Reader64, namespace.SchemaDescr) ReaderIterator
+	iteratorAlloc = func(reader xio.Reader64, _ namespace.SchemaDescr) ReaderIterator {
 		for i := range entriesByReader {
 			if reader != entriesByReader[i].reader {
 				continue
@@ -331,7 +330,7 @@ func assertTestMultiReaderIterator(
 					}
 				}
 			}
-			it.onReset = func(r io.Reader, descr namespace.SchemaDescr) {
+			it.onReset = func(r xio.Reader64, descr namespace.SchemaDescr) {
 				newIt := iteratorAlloc(r, descr).(*testIterator)
 				*it = *newIt
 				// We close this here as we never actually use this iterator
@@ -360,7 +359,7 @@ func assertTestMultiReaderIterator(
 		dp, unit, annotation := iter.Current()
 		expected := test.expected[i]
 		require.Equal(t, expected.value, dp.Value, fmt.Sprintf("mismatch for idx %d", i))
-		require.Equal(t, expected.t, dp.Timestamp, fmt.Sprintf("mismatch for idx %d", i))
+		require.Equal(t, expected.t, dp.TimestampNanos, fmt.Sprintf("mismatch for idx %d", i))
 		require.Equal(t, expected.unit, unit, fmt.Sprintf("mismatch for idx %d", i))
 		require.Equal(t, expected.annotation, []byte(annotation), fmt.Sprintf("mismatch for idx %d", i))
 	}

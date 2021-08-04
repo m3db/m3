@@ -40,6 +40,14 @@
   from="/docs/quickstart/kubernetes"
   to="/docs/cluster/kubernetes_cluster"
 
+[[redirects]]
+  from="/docs/how_to/aggregator"
+  to="/docs/m3aggregator/setup"
+
+[[redirects]]
+  from="/docs/how_to/query"
+  to="/docs/m3query/setup"
+
 # TODO: Fix this with new content type
 [[redirects]]
   from = "/talks"
