@@ -76,11 +76,8 @@ type Context interface {
 	// will not be returned to a pool.
 	BlockingCloseReset()
 
-	// GoContext returns the Go std context.
-	GoContext() (stdctx.Context, bool)
-
-	// MustGoContext returns the std go context, or panics if not set.
-	MustGoContext() stdctx.Context
+	// GoContext returns the std go context.
+	GoContext() stdctx.Context
 
 	// SetGoContext sets the Go std context.
 	SetGoContext(stdctx.Context)
@@ -92,6 +89,9 @@ type Context interface {
 	// and a bool if the span is being sampled. This is used over StartTraceSpan()
 	// for hot paths where performance is crucial.
 	StartSampledTraceSpan(string) (Context, opentracing.Span, bool)
+
+	// DistanceFromRootContext returns the distance from root context (root context tree)
+	DistanceFromRootContext() uint16
 }
 
 // Pool provides a pool for contexts.

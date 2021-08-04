@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	at               = time.Now()
+	at               = xtime.Now()
 	commonTestValues = [][]testValue{
 		[]testValue{
 			{t: at, value: 2.0, unit: xtime.Second},
@@ -145,7 +145,7 @@ func assertIteratorsValues(
 		require.True(t, ok)
 
 		dp, unit, annotation := iters.current()
-		require.True(t, expectedValue.t.Equal(dp.Timestamp))
+		require.Equal(t, expectedValue.t, dp.TimestampNanos)
 		require.Equal(t, dp.Value, expectedValue.value)
 		require.Equal(t, unit, expectedValue.unit)
 		require.Equal(t, []byte(annotation), expectedValue.annotation)

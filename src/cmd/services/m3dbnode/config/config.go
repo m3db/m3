@@ -29,21 +29,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3dbx/vellum/regexp"
+	"go.etcd.io/etcd/embed"
+	"go.etcd.io/etcd/pkg/transport"
+	"go.etcd.io/etcd/pkg/types"
+
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/discovery"
 	"github.com/m3db/m3/src/dbnode/environment"
+	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/config/hostid"
 	"github.com/m3db/m3/src/x/debug/config"
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/opentracing"
-
-	"github.com/m3dbx/vellum/regexp"
-	"go.etcd.io/etcd/embed"
-	"go.etcd.io/etcd/pkg/transport"
-	"go.etcd.io/etcd/pkg/types"
 )
 
 const (
@@ -384,6 +385,13 @@ type IndexConfiguration struct {
 	// as they are very CPU-intensive (regex and FST matching).
 	MaxQueryIDsConcurrency int `yaml:"maxQueryIDsConcurrency" validate:"min=0"`
 
+	// MaxWorkerTime is the maximum time a query can hold an index worker at once. If a query does not finish in this
+	// time it yields the worker and must wait again for another worker to resume. The number of workers available to
+	// all queries is defined by MaxQueryIDsConcurrency.
+	// Capping the maximum time per worker ensures a few large queries don't hold all the concurrent workers and lock
+	// out many small queries from running.
+	MaxWorkerTime time.Duration `yaml:"maxWorkerTime"`
+
 	// RegexpDFALimit is the limit on the max number of states used by a
 	// regexp deterministic finite automaton. Default is 10,000 states.
 	RegexpDFALimit *int `yaml:"regexpDFALimit"`
@@ -521,16 +529,31 @@ type CommitLogQueuePolicy struct {
 	Size int `yaml:"size" validate:"nonzero"`
 }
 
+// RepairPolicyMode is the repair policy mode.
+type RepairPolicyMode uint
+
 // RepairPolicy is the repair policy.
 type RepairPolicy struct {
 	// Enabled or disabled.
 	Enabled bool `yaml:"enabled"`
+
+	// Type is the type of repair to run.
+	Type repair.Type `yaml:"type"`
+
+	// Strategy is the type of repair strategy to use.
+	Strategy repair.Strategy `yaml:"strategy"`
+
+	// Force the repair to run regardless of whether namespaces have repair enabled or not.
+	Force bool `yaml:"force"`
 
 	// The repair throttle.
 	Throttle time.Duration `yaml:"throttle"`
 
 	// The repair check interval.
 	CheckInterval time.Duration `yaml:"checkInterval"`
+
+	// Concurrency sets the repair shard concurrency if set.
+	Concurrency int `yaml:"concurrency"`
 
 	// Whether debug shadow comparisons are enabled.
 	DebugShadowComparisonsEnabled bool `yaml:"debugShadowComparisonsEnabled"`

@@ -303,6 +303,25 @@ func (a mirroredAlgorithm) MarkAllShardsAvailable(
 	return a.shardedAlgo.MarkAllShardsAvailable(p)
 }
 
+func (a mirroredAlgorithm) BalanceShards(
+	p placement.Placement,
+) (placement.Placement, error) {
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, err
+	}
+
+	mirrorPlacement, err := mirrorFromPlacement(p)
+	if err != nil {
+		return nil, err
+	}
+
+	if mirrorPlacement, err = a.shardedAlgo.BalanceShards(mirrorPlacement); err != nil {
+		return nil, err
+	}
+
+	return placementFromMirror(mirrorPlacement, p.Instances(), p.ReplicaFactor())
+}
+
 // returnInitializingShards tries to return initializing shards on the given instances
 // and retries until no more initializing shards could be returned.
 func (a mirroredAlgorithm) returnInitializingShards(

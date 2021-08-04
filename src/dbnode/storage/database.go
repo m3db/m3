@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
@@ -335,7 +336,6 @@ func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []
 	for _, entry := range existing.Iter() {
 		ns := entry.Value()
 		newMd, err := newNamespaces.Get(ns.ID())
-
 		// if a namespace doesn't exist in newNamespaces, mark for removal
 		if err != nil {
 			removes = append(removes, ns.ID())
@@ -454,14 +454,38 @@ func (d *db) Options() Options {
 
 func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	d.Lock()
-	defer d.Unlock()
-
 	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
-
-	d.shardSet = shardSet
 	if receivedNewShards {
 		d.lastReceivedNewShards = d.nowFn()
 	}
+	d.Unlock()
+
+	if !d.mediator.IsOpen() {
+		d.assignShardSet(shardSet)
+		return
+	}
+
+	if err := d.mediator.EnqueueMutuallyExclusiveFn(func() {
+		d.assignShardSet(shardSet)
+	}); err != nil {
+		// should not happen.
+		instrument.EmitAndLogInvariantViolation(d.opts.InstrumentOptions(),
+			func(l *zap.Logger) {
+				l.Error("failed to enqueue assignShardSet fn",
+					zap.Error(err),
+					zap.Uint32s("shards", shardSet.AllIDs()))
+			})
+	}
+}
+
+func (d *db) assignShardSet(shardSet sharding.ShardSet) {
+	d.Lock()
+	defer d.Unlock()
+
+	d.log.Info("assigning shards", zap.Uint32s("shards", shardSet.AllIDs()))
+
+	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
+	d.shardSet = shardSet
 
 	for _, elem := range d.namespaces.Iter() {
 		ns := elem.Value()
@@ -517,14 +541,10 @@ func (d *db) queueBootstrapWithLock() {
 	// the non-clustered database bootstrapped by assigning it shardsets which will trigger new
 	// bootstraps since d.bootstraps > 0 will be true.
 	if d.bootstraps > 0 {
-		// NB(r): Trigger another bootstrap, if already bootstrapping this will
-		// enqueue a new bootstrap to execute before the current bootstrap
-		// completes.
-		go func() {
-			if result, err := d.mediator.Bootstrap(); err != nil && !result.AlreadyBootstrapping {
-				d.log.Error("error bootstrapping", zap.Error(err))
-			}
-		}()
+		bootstrapAsyncResult := d.mediator.BootstrapEnqueue()
+		// NB(linasn): We need to wait for the bootstrap to start and set it's state to Bootstrapping in order
+		// to safely run fileOps in mediator later.
+		bootstrapAsyncResult.WaitForStart()
 	}
 }
 
@@ -645,7 +665,7 @@ func (d *db) Write(
 	ctx context.Context,
 	namespace ident.ID,
 	id ident.ID,
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -666,8 +686,7 @@ func (d *db) Write(
 	}
 
 	dp := ts.Datapoint{
-		Timestamp:      timestamp,
-		TimestampNanos: xtime.ToUnixNano(timestamp),
+		TimestampNanos: timestamp,
 		Value:          value,
 	}
 
@@ -678,8 +697,8 @@ func (d *db) WriteTagged(
 	ctx context.Context,
 	namespace ident.ID,
 	id ident.ID,
-	tags ident.TagIterator,
-	timestamp time.Time,
+	tagResolver convert.TagMetadataResolver,
+	timestamp xtime.UnixNano,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -690,7 +709,7 @@ func (d *db) WriteTagged(
 		return err
 	}
 
-	seriesWrite, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	seriesWrite, err := n.WriteTagged(ctx, id, tagResolver, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
@@ -700,8 +719,7 @@ func (d *db) WriteTagged(
 	}
 
 	dp := ts.Datapoint{
-		Timestamp:      timestamp,
-		TimestampNanos: xtime.ToUnixNano(timestamp),
+		TimestampNanos: timestamp,
 		Value:          value,
 	}
 
@@ -783,8 +801,8 @@ func (d *db) writeBatch(
 			seriesWrite, err = n.WriteTagged(
 				ctx,
 				write.Write.Series.ID,
-				write.TagIter,
-				write.Write.Datapoint.Timestamp,
+				convert.NewEncodedTagsMetadataResolver(write.EncodedTags),
+				write.Write.Datapoint.TimestampNanos,
 				write.Write.Datapoint.Value,
 				write.Write.Unit,
 				write.Write.Annotation,
@@ -793,7 +811,7 @@ func (d *db) writeBatch(
 			seriesWrite, err = n.Write(
 				ctx,
 				write.Write.Series.ID,
-				write.Write.Datapoint.Timestamp,
+				write.Write.Datapoint.TimestampNanos,
 				write.Write.Datapoint.Value,
 				write.Write.Unit,
 				write.Write.Annotation,
@@ -866,15 +884,15 @@ func (d *db) QueryIDs(
 			opentracinglog.String("namespace", namespace.String()),
 			opentracinglog.Int("seriesLimit", opts.SeriesLimit),
 			opentracinglog.Int("docsLimit", opts.DocsLimit),
-			xopentracing.Time("start", opts.StartInclusive),
-			xopentracing.Time("end", opts.EndExclusive),
+			xopentracing.Time("start", opts.StartInclusive.ToTime()),
+			xopentracing.Time("end", opts.EndExclusive.ToTime()),
 		)
 	}
 	defer sp.Finish()
 
 	// Check if exceeding query limits at very beginning of
 	// query path to abandon as early as possible.
-	if err := d.queryLimits.AnyExceeded(); err != nil {
+	if err := d.queryLimits.AnyFetchExceeded(); err != nil {
 		return index.QueryResult{}, err
 	}
 
@@ -907,8 +925,8 @@ func (d *db) AggregateQuery(
 			opentracinglog.String("namespace", namespace.String()),
 			opentracinglog.Int("seriesLimit", aggResultOpts.QueryOptions.SeriesLimit),
 			opentracinglog.Int("docsLimit", aggResultOpts.QueryOptions.DocsLimit),
-			xopentracing.Time("start", aggResultOpts.QueryOptions.StartInclusive),
-			xopentracing.Time("end", aggResultOpts.QueryOptions.EndExclusive),
+			xopentracing.Time("start", aggResultOpts.QueryOptions.StartInclusive.ToTime()),
+			xopentracing.Time("end", aggResultOpts.QueryOptions.EndExclusive.ToTime()),
 		)
 	}
 
@@ -920,7 +938,7 @@ func (d *db) ReadEncoded(
 	ctx context.Context,
 	namespace ident.ID,
 	id ident.ID,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 ) (series.BlockReaderIter, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
@@ -977,10 +995,10 @@ func (d *db) WideQuery(
 	ctx context.Context,
 	namespace ident.ID,
 	query index.Query,
-	queryStart time.Time,
+	queryStart xtime.UnixNano,
 	shards []uint32,
 	iterOpts index.IterationOptions,
-) ([]xio.WideEntry, error) { // nolint FIXME: change when exact type known.
+) ([]xio.WideEntry, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
@@ -1006,8 +1024,8 @@ func (d *db) WideQuery(
 			opentracinglog.String("wideQuery", query.String()),
 			opentracinglog.String("namespace", namespace.String()),
 			opentracinglog.Int("batchSize", batchSize),
-			xopentracing.Time("start", start),
-			xopentracing.Time("end", end),
+			xopentracing.Time("start", start.ToTime()),
+			xopentracing.Time("end", end.ToTime()),
 		)
 	}
 
@@ -1051,7 +1069,7 @@ func (d *db) FetchBlocks(
 	namespace ident.ID,
 	shardID uint32,
 	id ident.ID,
-	starts []time.Time,
+	starts []xtime.UnixNano,
 ) ([]block.FetchBlockResult, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
@@ -1076,7 +1094,7 @@ func (d *db) FetchBlocksMetadataV2(
 	ctx context.Context,
 	namespace ident.ID,
 	shardID uint32,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	limit int64,
 	pageToken PageToken,
 	opts block.FetchBlocksMetadataOptions,
@@ -1092,8 +1110,8 @@ func (d *db) FetchBlocksMetadataV2(
 		sp.LogFields(
 			opentracinglog.String("namespace", namespace.String()),
 			opentracinglog.Uint32("shardID", shardID),
-			xopentracing.Time("start", start),
-			xopentracing.Time("end", end),
+			xopentracing.Time("start", start.ToTime()),
+			xopentracing.Time("end", end.ToTime()),
 			opentracinglog.Int64("limit", limit),
 		)
 	}
@@ -1205,7 +1223,7 @@ func (d *db) BootstrapState() DatabaseBootstrapState {
 func (d *db) FlushState(
 	namespace ident.ID,
 	shardID uint32,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 ) (fileOpState, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
@@ -1261,8 +1279,8 @@ func (d *db) AggregateTiles(
 		sp.LogFields(
 			opentracinglog.String("sourceNamespace", sourceNsID.String()),
 			opentracinglog.String("targetNamespace", targetNsID.String()),
-			xopentracing.Time("start", opts.Start),
-			xopentracing.Time("end", opts.End),
+			xopentracing.Time("start", opts.Start.ToTime()),
+			xopentracing.Time("end", opts.End.ToTime()),
 			xopentracing.Duration("step", opts.Step),
 		)
 	}
@@ -1340,7 +1358,7 @@ func (m metadatas) String() (string, error) {
 
 // NewAggregateTilesOptions creates new AggregateTilesOptions.
 func NewAggregateTilesOptions(
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	step time.Duration,
 	targetNsID ident.ID,
 	insOpts instrument.Options,

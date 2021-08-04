@@ -27,6 +27,9 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/prometheus/prometheus/promql"
+
+	"github.com/m3db/m3/src/dbnode/client"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
@@ -138,8 +141,11 @@ func getStatusCode(err error) int {
 			// This status code was coined by Nginx for exactly the same use case.
 			// https://httpstatuses.com/499
 			return 499
-		} else if errors.Is(err, context.DeadlineExceeded) {
+		} else if errors.Is(err, context.DeadlineExceeded) || client.IsTimeoutError(err) {
 			return http.StatusGatewayTimeout
+			// Also check for prom errors, which can be either a cancellation or a timeout.
+		} else if _, ok := err.(promql.ErrQueryCanceled); ok { // nolint:errorlint
+			return 499
 		}
 	}
 	return http.StatusInternalServerError

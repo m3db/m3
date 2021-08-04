@@ -23,13 +23,13 @@ package namespace
 import (
 	"time"
 
+	protobuftypes "github.com/gogo/protobuf/types"
+
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xresource "github.com/m3db/m3/src/x/resource"
-
-	"github.com/gogo/protobuf/proto"
 )
 
 // Options controls namespace behavior.
@@ -323,7 +323,7 @@ type NamespaceUpdater func(Map) error
 // ExtendedOptions is the type for dynamically typed options.
 type ExtendedOptions interface {
 	// ToProto converts ExtendedOptions to the corresponding protobuf message.
-	ToProto() (msg proto.Message, typeURLPrefix string)
+	ToProto() (string, *protobuftypes.Struct)
 
 	// Validate validates the ExtendedOptions.
 	Validate() error

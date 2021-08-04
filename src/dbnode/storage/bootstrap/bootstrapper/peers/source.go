@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -54,6 +55,10 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 )
+
+var errNamespaceNotFound = errors.New("namespace not found")
+
+const readSeriesBlocksWorkerChannelSize = 512
 
 type peersSource struct {
 	opts              Options
@@ -180,14 +185,31 @@ func (s *peersSource) Read(
 			continue
 		}
 
-		r, err := s.readIndex(md,
-			namespace.IndexRunOptions.ShardTimeRanges,
-			instrCtx.span,
-			cache,
-			namespace.IndexRunOptions.RunOptions,
+		var (
+			opts = namespace.IndexRunOptions.RunOptions
+			r    result.IndexBootstrapResult
+			err  error
 		)
-		if err != nil {
-			return bootstrap.NamespaceResults{}, err
+		if s.shouldPersist(opts) {
+			// Only attempt to bootstrap index if we've persisted tsdb data.
+			r, err = s.readIndex(md,
+				namespace.IndexRunOptions.ShardTimeRanges,
+				instrCtx.span,
+				cache,
+				opts,
+			)
+			if err != nil {
+				return bootstrap.NamespaceResults{}, err
+			}
+		} else {
+			// Copy data unfulfilled ranges over to index results
+			// we did not persist any tsdb data (e.g. snapshot data).
+			dataNsResult, ok := results.Results.Get(md.ID())
+			if !ok {
+				return bootstrap.NamespaceResults{}, errNamespaceNotFound
+			}
+			r = result.NewIndexBootstrapResult()
+			r.SetUnfulfilled(dataNsResult.DataResult.Unfulfilled().Copy())
 		}
 
 		result, ok := results.Results.Get(md.ID())
@@ -220,19 +242,7 @@ func (s *peersSource) readData(
 		return result.NewDataBootstrapResult(), nil
 	}
 
-	var (
-		shouldPersist = false
-		// TODO(bodu): We should migrate to series.CacheLRU only.
-		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
-		persistConfig     = opts.PersistConfig()
-	)
-
-	if persistConfig.Enabled &&
-		seriesCachePolicy != series.CacheAll &&
-		persistConfig.FileSetType == persist.FileSetFlushType {
-		shouldPersist = true
-	}
-
+	shouldPersist := s.shouldPersist(opts)
 	result := result.NewDataBootstrapResult()
 	session, err := s.opts.AdminClient().DefaultAdminSession()
 	if err != nil {
@@ -374,6 +384,11 @@ func (s *peersSource) runPersistenceQueueWorkerLoop(
 	}
 }
 
+type seriesBlocks struct {
+	resolver bootstrap.SeriesRefResolver
+	blocks   block.DatabaseSeriesBlocks
+}
+
 // fetchBootstrapBlocksFromPeers loops through all the provided ranges for a given shard and
 // fetches all the bootstrap blocks from the appropriate peers.
 // 		Persistence enabled case: Immediately add the results to the bootstrap result
@@ -426,32 +441,49 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 				continue
 			}
 
-			// If not waiting to flush, add straight away to bootstrap result.
-			for _, elem := range shardResult.AllSeries().Iter() {
-				entry := elem.Value()
-				tagsIter.Reset(entry.Tags)
-				ref, owned, err := accumulator.CheckoutSeriesWithLock(shard, entry.ID, tagsIter)
-				if err != nil {
-					if !owned {
-						// Only if we own this shard do we care consider this an
-						// error in bootstrapping.
+			dataCh := make(chan seriesBlocks, readSeriesBlocksWorkerChannelSize)
+			go func() {
+				defer close(dataCh)
+				for _, elem := range shardResult.AllSeries().Iter() {
+					entry := elem.Value()
+					tagsIter.Reset(entry.Tags)
+					ref, owned, err := accumulator.CheckoutSeriesWithLock(shard, entry.ID, tagsIter)
+					if err != nil {
+						if !owned {
+							// Only if we own this shard do we care consider this an
+							// error in bootstrapping.
+							continue
+						}
+						unfulfill(currRange)
+						s.log.Error("could not checkout series", zap.Error(err))
 						continue
 					}
+
+					dataCh <- seriesBlocks{
+						resolver: ref.Resolver,
+						blocks:   entry.Blocks,
+					}
+
+					// Safe to finalize these IDs and Tags, shard result no longer used.
+					entry.ID.Finalize()
+					entry.Tags.Finalize()
+				}
+			}()
+
+			for seriesBlocks := range dataCh {
+				seriesRef, err := seriesBlocks.resolver.SeriesRef()
+				if err != nil {
+					s.log.Error("could not resolve seriesRef", zap.Error(err))
 					unfulfill(currRange)
-					s.log.Error("could not checkout series", zap.Error(err))
 					continue
 				}
 
-				for _, block := range entry.Blocks.AllBlocks() {
-					if err := ref.Series.LoadBlock(block, series.WarmWrite); err != nil {
+				for _, bl := range seriesBlocks.blocks.AllBlocks() {
+					if err := seriesRef.LoadBlock(bl, series.WarmWrite); err != nil {
 						unfulfill(currRange)
 						s.log.Error("could not load series block", zap.Error(err))
 					}
 				}
-
-				// Safe to finalize these IDs and Tags, shard result no longer used.
-				entry.ID.Finalize()
-				entry.Tags.Finalize()
 			}
 		}
 	}
@@ -650,8 +682,8 @@ func (s *peersSource) flush(
 			iOpts := s.opts.ResultOptions().InstrumentOptions()
 			instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
 				l.With(
-					zap.Int64("start", tr.Start.Unix()),
-					zap.Int64("end", tr.End.Unix()),
+					zap.Int64("start", tr.Start.Seconds()),
+					zap.Int64("end", tr.End.Seconds()),
 					zap.Int("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
 				).Error("error tried to remove series that still has blocks")
 			})
@@ -806,11 +838,11 @@ func (s *peersSource) processReaders(
 	persistManager *bootstrapper.SharedPersistManager,
 	compactor *bootstrapper.SharedCompactor,
 	resultLock *sync.Mutex,
-) (result.ShardTimeRanges, []time.Time) {
+) (result.ShardTimeRanges, []xtime.UnixNano) {
 	var (
 		metadataPool    = s.opts.IndexOptions().MetadataArrayPool()
 		batch           = metadataPool.Get()
-		timesWithErrors []time.Time
+		timesWithErrors []xtime.UnixNano
 		totalEntries    int
 	)
 
@@ -878,7 +910,7 @@ func (s *peersSource) processReaders(
 				))
 			} else {
 				s.log.Error("error processing readers", zap.Error(err),
-					zap.Time("timeRange.start", start))
+					zap.Time("timeRange.start", start.ToTime()))
 				timesWithErrors = append(timesWithErrors, timeRange.Start)
 			}
 		}
@@ -903,12 +935,13 @@ func (s *peersSource) processReaders(
 
 	// NB(bodu): Assume if we're bootstrapping data from disk that it is the "default" index volume type.
 	resultLock.Lock()
-	existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(r.IndexResults(), blockStart)
+	existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(
+		r.IndexResults(), blockStart)
 	resultLock.Unlock()
 
 	if !ok {
 		err := fmt.Errorf("could not find index block in results: time=%s, ts=%d",
-			blockStart.String(), blockStart.UnixNano())
+			blockStart.String(), blockStart)
 		instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 			l.Error("peers bootstrap failed",
 				zap.Error(err),
@@ -989,7 +1022,8 @@ func (s *peersSource) processReaders(
 
 	// Replace index block for default index volume type.
 	resultLock.Lock()
-	r.IndexResults()[xtime.ToUnixNano(blockStart)].SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
+	r.IndexResults()[blockStart].
+		SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
 	resultLock.Unlock()
 
 	return remainingRanges, timesWithErrors
@@ -1029,7 +1063,7 @@ func (s *peersSource) markRunResultErrorsAndUnfulfilled(
 	results result.IndexBootstrapResult,
 	requestedRanges result.ShardTimeRanges,
 	remainingRanges result.ShardTimeRanges,
-	timesWithErrors []time.Time,
+	timesWithErrors []xtime.UnixNano,
 ) {
 	// NB(xichen): this is the exceptional case where we encountered errors due to files
 	// being corrupted, which should be fairly rare so we can live with the overhead. We
@@ -1159,4 +1193,13 @@ func (s *peersSource) validateRunOpts(runOpts bootstrap.RunOptions) error {
 	}
 
 	return nil
+}
+
+func (s *peersSource) shouldPersist(runOpts bootstrap.RunOptions) bool {
+	persistConfig := runOpts.PersistConfig()
+
+	return persistConfig.Enabled &&
+		persistConfig.FileSetType == persist.FileSetFlushType &&
+		// TODO(bodu): We should migrate to series.CacheLRU only.
+		s.opts.ResultOptions().SeriesCachePolicy() != series.CacheAll
 }

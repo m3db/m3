@@ -26,21 +26,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
@@ -50,10 +57,7 @@ import (
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/instrument"
 	xretry "github.com/m3db/m3/src/x/retry"
-
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -118,16 +122,19 @@ func newMultiAddrAdminClient(
 
 // BootstrappableTestSetupOptions defines options for test setups.
 type BootstrappableTestSetupOptions struct {
-	FinalBootstrapper           string
-	BootstrapBlocksBatchSize    int
-	BootstrapBlocksConcurrency  int
-	BootstrapConsistencyLevel   topology.ReadConsistencyLevel
-	TopologyInitializer         topology.Initializer
-	TestStatsReporter           xmetrics.TestStatsReporter
-	DisablePeersBootstrapper    bool
-	UseTChannelClientForWriting bool
-	EnableRepairs               bool
-	AdminClientCustomOpts       []client.CustomAdminOption
+	FinalBootstrapper            string
+	BootstrapBlocksBatchSize     int
+	BootstrapBlocksConcurrency   int
+	BootstrapConsistencyLevel    topology.ReadConsistencyLevel
+	TopologyInitializer          topology.Initializer
+	TestStatsReporter            xmetrics.TestStatsReporter
+	DisableCommitLogBootstrapper bool
+	DisablePeersBootstrapper     bool
+	UseTChannelClientForWriting  bool
+	EnableRepairs                bool
+	ForceRepairs                 bool
+	RepairType                   repair.Type
+	AdminClientCustomOpts        []client.CustomAdminOption
 }
 
 type closeFn func()
@@ -161,11 +168,12 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 		}
 	)
 
-	shardSet, err := newTestShardSet(opts.NumShards())
+	shardSet, err := newTestShardSet(opts.NumShards(), opts.ShardSetOptions())
 	require.NoError(t, err)
 	for i := 0; i < replicas; i++ {
 		var (
 			instance                    = i
+			usingCommitLogBootstrapper  = !setupOpts[i].DisableCommitLogBootstrapper
 			usingPeersBootstrapper      = !setupOpts[i].DisablePeersBootstrapper
 			finalBootstrapperToUse      = setupOpts[i].FinalBootstrapper
 			useTChannelClientForWriting = setupOpts[i].UseTChannelClientForWriting
@@ -175,13 +183,15 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			topologyInitializer         = setupOpts[i].TopologyInitializer
 			testStatsReporter           = setupOpts[i].TestStatsReporter
 			enableRepairs               = setupOpts[i].EnableRepairs
+			forceRepairs                = setupOpts[i].ForceRepairs
+			repairType                  = setupOpts[i].RepairType
 			origin                      topology.Host
 			instanceOpts                = newMultiAddrTestOptions(opts, instance)
 			adminClientCustomOpts       = setupOpts[i].AdminClientCustomOpts
 		)
 
 		if finalBootstrapperToUse == "" {
-			finalBootstrapperToUse = bootstrapper.NoOpAllBootstrapperName
+			finalBootstrapperToUse = bootstrapper.NoOpNoneBootstrapperName
 		}
 
 		if topologyInitializer == nil {
@@ -198,8 +208,6 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 				if i == instance {
 					origin = host
 				}
-				shardSet, err := newTestShardSet(opts.NumShards())
-				require.NoError(t, err)
 				hostShardSet := topology.NewHostShardSet(host, shardSet)
 				hostShardSets = append(hostShardSets, hostShardSet)
 			}
@@ -253,8 +261,10 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 		switch finalBootstrapperToUse {
 		case bootstrapper.NoOpAllBootstrapperName:
 			finalBootstrapper = bootstrapper.NewNoOpAllBootstrapperProvider()
+		case bootstrapper.NoOpNoneBootstrapperName:
+			finalBootstrapper = bootstrapper.NewNoOpNoneBootstrapperProvider()
 		case uninitialized.UninitializedTopologyBootstrapperName:
-			uninitialized.NewUninitializedTopologyBootstrapperProvider(
+			finalBootstrapper = uninitialized.NewUninitializedTopologyBootstrapperProvider(
 				uninitialized.NewOptions().
 					SetInstrumentOptions(instrumentOpts), nil)
 		default:
@@ -301,6 +311,17 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			require.NoError(t, err)
 		}
 
+		if usingCommitLogBootstrapper {
+			bootstrapCommitlogOpts := commitlog.NewOptions().
+				SetResultOptions(bsOpts).
+				SetCommitLogOptions(setup.StorageOpts().CommitLogOptions()).
+				SetRuntimeOptionsManager(runtime.NewOptionsManager())
+
+			finalBootstrapper, err = commitlog.NewCommitLogBootstrapperProvider(bootstrapCommitlogOpts,
+				mustInspectFilesystem(fsOpts), finalBootstrapper)
+			require.NoError(t, err)
+		}
+
 		persistMgr, err := persistfs.NewPersistManager(fsOpts)
 		require.NoError(t, err)
 
@@ -328,6 +349,8 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 				SetRepairEnabled(true).
 				SetRepairOptions(
 					setup.StorageOpts().RepairOptions().
+						SetType(repairType).
+						SetForce(forceRepairs).
 						SetRepairThrottle(time.Millisecond).
 						SetRepairCheckInterval(time.Millisecond).
 						SetAdminClients([]client.AdminClient{adminClient}).
@@ -356,9 +379,14 @@ func writeTestDataToDisk(
 	setup TestSetup,
 	seriesMaps generate.SeriesBlocksByStart,
 	volume int,
+	generatorOptionsFns ...func(generate.Options) generate.Options,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
-	writer := generate.NewWriter(setup.GeneratorOptions(ropts))
+	gOpts := setup.GeneratorOptions(ropts)
+	for _, fn := range generatorOptionsFns {
+		gOpts = fn(gOpts)
+	}
+	writer := generate.NewWriter(gOpts)
 	return writer.WriteData(namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, volume)
 }
 
@@ -460,7 +488,7 @@ func writeTestIndexDataToDisk(
 	md namespace.Metadata,
 	storageOpts storage.Options,
 	indexVolumeType idxpersist.IndexVolumeType,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	shards []uint32,
 	docs []doc.Metadata,
 ) error {

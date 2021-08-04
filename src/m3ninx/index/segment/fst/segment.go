@@ -753,7 +753,7 @@ func (r *fsSegment) retrieveTermsBytesWithRLock(base []byte, offset uint64) (pro
 	const sizeofUint64 = 8
 	var (
 		magicNumberEnd   = int64(offset) // to prevent underflows
-		magicNumberStart = offset - sizeofUint64
+		magicNumberStart = magicNumberEnd - sizeofUint64
 	)
 	if magicNumberEnd > int64(len(base)) || magicNumberStart < 0 {
 		return nil, nil, fmt.Errorf("base bytes too small, length: %d, base-offset: %d", len(base), magicNumberEnd)
@@ -784,7 +784,7 @@ func (r *fsSegment) retrieveTermsBytesWithRLock(base []byte, offset uint64) (pro
 
 	var (
 		payloadEnd   = sizeStart
-		payloadStart = payloadEnd - size
+		payloadStart = payloadEnd - int64(size)
 	)
 	if payloadStart < 0 {
 		return nil, nil, fmt.Errorf("base bytes too small, length: %d, payload-start: %d, payload-size: %d",
@@ -809,7 +809,7 @@ func (r *fsSegment) retrieveTermsBytesWithRLock(base []byte, offset uint64) (pro
 
 	var (
 		protoEnd   = protoSizeStart
-		protoStart = protoEnd - protoSize
+		protoStart = protoEnd - int64(protoSize)
 	)
 	if protoStart < 0 {
 		return nil, nil, fmt.Errorf("base bytes too small, length: %d, proto-start: %d", len(base), protoStart)

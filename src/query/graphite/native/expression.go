@@ -21,18 +21,20 @@
 package native
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
 
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (
-	errTopLevelFunctionMustReturnTimeSeries = errors.NewInvalidParamsError(errors.New("top-level functions must return timeseries data"))
+	errTopLevelFunctionMustReturnTimeSeries = xerrors.NewInvalidParamsError(
+		errors.New("top-level functions must return timeseries data"))
 )
 
 // An Expression is a metric query expression
@@ -47,12 +49,19 @@ type CallASTNode interface {
 	// Name returns the name of the call.
 	Name() string
 	// Arguments describe each argument that the call has, some
-	// arguments can be casted to an Call themselves.
-	Arguments() []ArgumentASTNode
+	// arguments that can either be a call or path expression.
+	Arguments() []ASTNode
 }
 
-// ArgumentASTNode is an interface to help with printing the AST.
-type ArgumentASTNode interface {
+// ASTNode is an interface to help with printing the AST.
+type ASTNode interface {
+	// PathExpression returns the path expression and true if argument
+	// is a path.
+	PathExpression() (string, bool)
+	// CallExpression returns the call expression and true if argument
+	// is a call.
+	CallExpression() (CallASTNode, bool)
+	// String is the pretty printed format.
 	String() string
 }
 
@@ -64,6 +73,14 @@ type fetchExpression struct {
 
 type fetchExpressionPathArg struct {
 	path string
+}
+
+func (a fetchExpressionPathArg) PathExpression() (string, bool) {
+	return a.path, true
+}
+
+func (a fetchExpressionPathArg) CallExpression() (CallASTNode, bool) {
+	return nil, false
 }
 
 func (a fetchExpressionPathArg) String() string {
@@ -79,8 +96,16 @@ func (f *fetchExpression) Name() string {
 	return "fetch"
 }
 
-func (f *fetchExpression) Arguments() []ArgumentASTNode {
-	return []ArgumentASTNode{f.pathArg}
+func (f *fetchExpression) Arguments() []ASTNode {
+	return []ASTNode{f.pathArg}
+}
+
+func (f *fetchExpression) PathExpression() (string, bool) {
+	return "", false
+}
+
+func (f *fetchExpression) CallExpression() (CallASTNode, bool) {
+	return f, true
 }
 
 // Execute fetches results from storage
@@ -131,6 +156,10 @@ func (f *fetchExpression) Evaluate(ctx *common.Context) (reflect.Value, error) {
 	return reflect.ValueOf(timeseries), nil
 }
 
+func (f *fetchExpression) Type() reflect.Type {
+	return reflect.ValueOf(f).Type()
+}
+
 // CompatibleWith returns true if the reflected type is a time series or a generic interface.
 func (f *fetchExpression) CompatibleWith(reflectType reflect.Type) bool {
 	return reflectType == singlePathSpecType || reflectType == multiplePathSpecsType || reflectType == interfaceType
@@ -147,7 +176,7 @@ type funcExpression struct {
 
 // newFuncExpression creates a new expressioon based on the given function call
 func newFuncExpression(call *functionCall) (Expression, error) {
-	if !(call.f.out == seriesListType || call.f.out == unaryContextShifterPtrType || call.f.out == binaryContextShifterPtrType) {
+	if !(call.f.out == seriesListType || call.f.out == unaryContextShifterPtrType) {
 		return nil, errTopLevelFunctionMustReturnTimeSeries
 	}
 
@@ -158,7 +187,7 @@ func (f *funcExpression) Name() string {
 	return f.call.Name()
 }
 
-func (f *funcExpression) Arguments() []ArgumentASTNode {
+func (f *funcExpression) Arguments() []ASTNode {
 	return f.call.Arguments()
 }
 
@@ -174,6 +203,8 @@ func (f *funcExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 
 func (f *funcExpression) String() string { return f.call.String() }
 
+var _ ASTNode = noopExpression{}
+
 // A noopExpression is an empty expression that returns nothing
 type noopExpression struct{}
 
@@ -186,10 +217,46 @@ func (noop noopExpression) Name() string {
 	return "noop"
 }
 
-func (noop noopExpression) Arguments() []ArgumentASTNode {
+func (noop noopExpression) Arguments() []ASTNode {
 	return nil
 }
 
 func (noop noopExpression) String() string {
 	return noop.Name()
+}
+
+func (noop noopExpression) PathExpression() (string, bool) {
+	return "", false
+}
+
+func (noop noopExpression) CallExpression() (CallASTNode, bool) {
+	return noop, true
+}
+
+var _ ASTNode = rootASTNode{}
+
+// A rootASTNode is the root AST node which returns child nodes
+// when parsing the grammar.
+type rootASTNode struct {
+	expr Expression
+}
+
+func (r rootASTNode) Name() string {
+	return r.expr.Name()
+}
+
+func (r rootASTNode) Arguments() []ASTNode {
+	return r.expr.Arguments()
+}
+
+func (r rootASTNode) String() string {
+	return r.expr.(ASTNode).String()
+}
+
+func (r rootASTNode) PathExpression() (string, bool) {
+	return "", false
+}
+
+func (r rootASTNode) CallExpression() (CallASTNode, bool) {
+	return r.expr, true
 }

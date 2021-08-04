@@ -39,6 +39,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
@@ -105,6 +106,11 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 			metricTagsIteratorPool: metricTagsIteratorPool,
 			matcher:                matcher,
 			agg:                    agg,
+			metrics: metricsAppenderMetrics{
+				processedCountNonRollup: tally.NoopScope.Counter("test-counter-non-rollup"),
+				processedCountRollup:    tally.NoopScope.Counter("test-counter-rollup"),
+				operationsCount:         tally.NoopScope.Counter("test-counter-operations"),
+			},
 		})
 		name := []byte(fmt.Sprint("foo", i))
 		value := []byte(fmt.Sprint("bar", i))
@@ -121,7 +127,7 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 				// NB: expected ID is generated into human-readable form
 				// from tags in ForwardMatch mock above. Also include the m3 type, which is included when matching.
 				// nolint:scopelint
-				expected := fmt.Sprintf("__m3_type__-gauge,foo%d-bar%d", i, i)
+				expected := fmt.Sprintf("__m3_prom_type__-unknown,__m3_type__-gauge,foo%d-bar%d", i, i)
 				if expected != u.ID.String() {
 					// NB: if this fails, appender is holding state after Finalize.
 					return fmt.Errorf("expected ID %s, got %s", expected, u.ID.String())
@@ -131,7 +137,7 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 			},
 		)
 
-		require.NoError(t, a.SamplesAppender.AppendCounterSample(int64(i)))
+		require.NoError(t, a.SamplesAppender.AppendUntimedCounterSample(int64(i), nil))
 
 		assert.False(t, a.IsDropPolicyApplied)
 		appender.Finalize()

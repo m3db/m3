@@ -259,6 +259,10 @@ func (m *message) reset(c *consumer) {
 	resetProto(&m.Message)
 }
 
+func (m *message) ShardID() uint64 {
+	return m.Metadata.Shard
+}
+
 func resetProto(m *msgpb.Message) {
 	m.Metadata.Id = 0
 	m.Metadata.Shard = 0

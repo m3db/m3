@@ -48,7 +48,8 @@ func TestFollowerFlushManagerOpen(t *testing.T) {
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	mgr.Open()
 
-	watchable.Update(testFlushTimes)
+	require.NoError(t, watchable.Update(testFlushTimes))
+
 	for {
 		mgr.RLock()
 		state := mgr.flushTimesState
@@ -139,12 +140,12 @@ func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
 	window1m := time.Minute
 	testFlushTimes := &schema.ShardSetFlushTimes{
 		ByShard: map[uint32]*schema.ShardFlushTimes{
-			123: &schema.ShardFlushTimes{
+			123: {
 				StandardByResolution: map[int64]int64{
 					window10m.Nanoseconds(): 0,
 				},
 				ForwardedByResolution: map[int64]*schema.ForwardedFlushTimesForResolution{
-					window10m.Nanoseconds(): &schema.ForwardedFlushTimesForResolution{
+					window10m.Nanoseconds(): {
 						ByNumForwardedTimes: map[int32]int64{
 							1: 0,
 						},
@@ -154,53 +155,25 @@ func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
 		},
 	}
 
-	runTestFn := func(
-		t *testing.T,
-		flushTimes *schema.ShardSetFlushTimes,
-		followerOpenedAt time.Time,
-		expectedCanLead bool,
-	) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		doneCh := make(chan struct{})
-		electionManager := NewMockElectionManager(ctrl)
-		electionManager.EXPECT().IsCampaigning().Return(true).AnyTimes()
-		clockOpts := clock.NewOptions().SetNowFn(func() time.Time {
-			return now
-		})
-		opts := NewFlushManagerOptions().
-			SetElectionManager(electionManager).
-			SetClockOptions(clockOpts)
-		mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
-
-		mgr.processed = flushTimes
-		mgr.openedAt = followerOpenedAt
-		require.Equal(t, expectedCanLead, mgr.CanLead())
-	}
-
 	t.Run("opened_on_the_window_start", func(t *testing.T) {
 		followerOpenedAt := now.Truncate(window10m)
-		expectedCanLead := false
-		runTestFn(t, testFlushTimes, followerOpenedAt, expectedCanLead)
+		testCanLeadNotFlushed(t, testFlushTimes, now, followerOpenedAt, 0, false)
 	})
 
 	t.Run("opened_after_the_window_start", func(t *testing.T) {
 		followerOpenedAt := now.Truncate(window10m).Add(1 * time.Second)
-		expectedCanLead := false
-		runTestFn(t, testFlushTimes, followerOpenedAt, expectedCanLead)
+		testCanLeadNotFlushed(t, testFlushTimes, now, followerOpenedAt, 0, false)
 	})
 
 	t.Run("opened_before_the_window_start", func(t *testing.T) {
 		followerOpenedAt := now.Truncate(window10m).Add(-1 * time.Second)
-		expectedCanLead := true
-		runTestFn(t, testFlushTimes, followerOpenedAt, expectedCanLead)
+		testCanLeadNotFlushed(t, testFlushTimes, now, followerOpenedAt, 0, true)
 	})
 
 	t.Run("standard_flushed_ok_and_unflushed_bad", func(t *testing.T) {
 		flushedAndUnflushedTimes := &schema.ShardSetFlushTimes{
 			ByShard: map[uint32]*schema.ShardFlushTimes{
-				123: &schema.ShardFlushTimes{
+				123: {
 					StandardByResolution: map[int64]int64{
 						window1m.Nanoseconds():  now.Add(1 * time.Second).UnixNano(),
 						window10m.Nanoseconds(): 0,
@@ -210,21 +183,20 @@ func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
 		}
 
 		followerOpenedAt := now
-		expectedCanLead := false
-		runTestFn(t, flushedAndUnflushedTimes, followerOpenedAt, expectedCanLead)
+		testCanLeadNotFlushed(t, flushedAndUnflushedTimes, now, followerOpenedAt, 0, false)
 	})
 
 	t.Run("forwarded_flushed_ok_and_unflushed_bad", func(t *testing.T) {
 		flushedAndUnflushedTimes := &schema.ShardSetFlushTimes{
 			ByShard: map[uint32]*schema.ShardFlushTimes{
-				123: &schema.ShardFlushTimes{
+				123: {
 					ForwardedByResolution: map[int64]*schema.ForwardedFlushTimesForResolution{
-						window1m.Nanoseconds(): &schema.ForwardedFlushTimesForResolution{
+						window1m.Nanoseconds(): {
 							ByNumForwardedTimes: map[int32]int64{
 								1: now.Truncate(window1m).Add(1 * time.Second).UnixNano(),
 							},
 						},
-						window10m.Nanoseconds(): &schema.ForwardedFlushTimesForResolution{
+						window10m.Nanoseconds(): {
 							ByNumForwardedTimes: map[int32]int64{
 								1: 0,
 							},
@@ -235,9 +207,75 @@ func TestFollowerFlushManagerCanLeadNotFlushed(t *testing.T) {
 		}
 
 		followerOpenedAt := now
-		expectedCanLead := false
-		runTestFn(t, flushedAndUnflushedTimes, followerOpenedAt, expectedCanLead)
+		testCanLeadNotFlushed(t, flushedAndUnflushedTimes, now, followerOpenedAt, 0, false)
 	})
+}
+
+func TestFollowerFlushManagerCanLeadTimedNotFlushed(t *testing.T) {
+	var (
+		now        = time.Unix(24*60*60, 0)
+		window10m  = 10 * time.Minute
+		bufferPast = 3 * time.Minute
+	)
+
+	flushTimes := &schema.ShardSetFlushTimes{
+		ByShard: map[uint32]*schema.ShardFlushTimes{
+			123: {
+				TimedByResolution: map[int64]int64{
+					window10m.Nanoseconds(): 0,
+				},
+			},
+		},
+	}
+
+	t.Run("opened_on_the_window_start", func(t *testing.T) {
+		followerOpenedAt := now.Add(-bufferPast).Truncate(window10m)
+		testCanLeadNotFlushed(t, flushTimes, now, followerOpenedAt, bufferPast, false)
+	})
+
+	t.Run("opened_after_the_window_start", func(t *testing.T) {
+		followerOpenedAt := now.Add(-bufferPast).Truncate(window10m).Add(time.Second)
+		testCanLeadNotFlushed(t, flushTimes, now, followerOpenedAt, bufferPast, false)
+	})
+
+	t.Run("opened_before_the_window_start", func(t *testing.T) {
+		followerOpenedAt := now.Add(-bufferPast).Truncate(window10m).Add(-time.Second)
+		testCanLeadNotFlushed(t, flushTimes, now, followerOpenedAt, bufferPast, true)
+	})
+}
+
+func testCanLeadNotFlushed(
+	t *testing.T,
+	flushTimes *schema.ShardSetFlushTimes,
+	now time.Time,
+	followerOpenedAt time.Time,
+	bufferPast time.Duration,
+	expectedCanLead bool,
+) {
+	t.Helper()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	doneCh := make(chan struct{})
+	electionManager := NewMockElectionManager(ctrl)
+	electionManager.EXPECT().IsCampaigning().Return(true).AnyTimes()
+	clockOpts := clock.NewOptions().SetNowFn(func() time.Time {
+		return now
+	})
+	opts := NewFlushManagerOptions().
+		SetElectionManager(electionManager).
+		SetClockOptions(clockOpts)
+
+	if bufferPast > 0 {
+		opts = opts.SetBufferForPastTimedMetric(bufferPast)
+	}
+
+	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
+
+	mgr.processed = flushTimes
+	mgr.openedAt = followerOpenedAt
+	require.Equal(t, expectedCanLead, mgr.CanLead())
 }
 
 func TestFollowerFlushManagerCanLeadNoTombstonedShards(t *testing.T) {
@@ -344,14 +382,23 @@ func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
 			},
 		},
 		{
-			interval: time.Second,
+			interval: time.Minute,
 			flushers: []flusherWithTime{
 				{
 					flusher:          buckets[3].flushers[0],
+					flushBeforeNanos: 3658000000001,
+				},
+			},
+		},
+		{
+			interval: time.Second,
+			flushers: []flusherWithTime{
+				{
+					flusher:          buckets[4].flushers[0],
 					flushBeforeNanos: 3663000000000,
 				},
 				{
-					flusher:          buckets[3].flushers[1],
+					flusher:          buckets[4].flushers[1],
 					flushBeforeNanos: 3658000000000,
 				},
 			},
@@ -360,7 +407,7 @@ func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
 			interval: time.Minute,
 			flushers: []flusherWithTime{
 				{
-					flusher:          buckets[4].flushers[0],
+					flusher:          buckets[5].flushers[0],
 					flushBeforeNanos: 3660000000000,
 				},
 			},
@@ -369,7 +416,7 @@ func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
 			interval: time.Minute,
 			flushers: []flusherWithTime{
 				{
-					flusher:          buckets[5].flushers[0],
+					flusher:          buckets[6].flushers[0],
 					flushBeforeNanos: 3600000000000,
 				},
 			},
@@ -444,23 +491,23 @@ func TestFollowerFlushManagerPrepareMaxBufferSizeExceeded(t *testing.T) {
 			},
 		},
 		{
-			interval: time.Second,
+			interval: time.Minute,
 			flushers: []flusherWithTime{
 				{
 					flusher:          buckets[3].flushers[0],
 					flushBeforeNanos: 1244000000000,
 				},
-				{
-					flusher:          buckets[3].flushers[1],
-					flushBeforeNanos: 1244000000000,
-				},
 			},
 		},
 		{
-			interval: time.Minute,
+			interval: time.Second,
 			flushers: []flusherWithTime{
 				{
 					flusher:          buckets[4].flushers[0],
+					flushBeforeNanos: 1244000000000,
+				},
+				{
+					flusher:          buckets[4].flushers[1],
 					flushBeforeNanos: 1244000000000,
 				},
 			},
@@ -470,6 +517,15 @@ func TestFollowerFlushManagerPrepareMaxBufferSizeExceeded(t *testing.T) {
 			flushers: []flusherWithTime{
 				{
 					flusher:          buckets[5].flushers[0],
+					flushBeforeNanos: 1244000000000,
+				},
+			},
+		},
+		{
+			interval: time.Minute,
+			flushers: []flusherWithTime{
+				{
+					flusher:          buckets[6].flushers[0],
 					flushBeforeNanos: 1244000000000,
 				},
 			},

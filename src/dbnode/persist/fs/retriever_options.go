@@ -52,7 +52,7 @@ type blockRetrieverOptions struct {
 // NewBlockRetrieverOptions creates a new set of block retriever options
 func NewBlockRetrieverOptions() BlockRetrieverOptions {
 	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{
-		pool.Bucket{Count: 4096, Capacity: 128},
+		{Count: 4096, Capacity: 128},
 	}, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})

@@ -83,7 +83,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	var (
 		currBlock                         = testSetup.NowFn()().Truncate(blockSize)
 		now                               = currBlock.Add(11 * time.Minute)
-		assertTimeAllowsWritesToAllBlocks = func(ti time.Time) {
+		assertTimeAllowsWritesToAllBlocks = func(ti xtime.UnixNano) {
 			// Make sure now is within bufferPast of the previous block
 			require.True(t, ti.Before(ti.Truncate(blockSize).Add(bufferPast)))
 			// Make sure now is within bufferFuture of the next block
@@ -107,7 +107,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	)
 	for _, input := range inputData {
 		testData := generate.Block(input)
-		seriesMaps[xtime.ToUnixNano(input.Start.Truncate(blockSize))] = testData
+		seriesMaps[input.Start.Truncate(blockSize)] = testData
 		for _, ns := range testSetup.Namespaces() {
 			require.NoError(t, testSetup.WriteBatch(ns.ID(), testData))
 		}
@@ -176,7 +176,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 		log.Info("waiting for old snapshot files to be deleted",
 			zap.Any("ns", ns.ID()))
 		// These should be flushed to disk and snapshots should have been cleaned up.
-		flushedBlockStarts := []time.Time{
+		flushedBlockStarts := []xtime.UnixNano{
 			currBlock.Add(-blockSize),
 			currBlock,
 		}

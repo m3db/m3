@@ -34,50 +34,101 @@ func (h minHeap) Min() float64 { return h[0] }
 
 // Push pushes a value onto the heap.
 func (h *minHeap) Push(value float64) {
-	*h = append(*h, value)
-	h.shiftUp(h.Len() - 1)
+	if len(*h) == cap(*h) {
+		h.ensureSize()
+	}
+	// append
+	(*h) = append(*h, value)
+	// then, shift up if necessary to fix heap structure. manually inlined.
+	heap := *h
+	n := len(heap)
+	i := n - 1
+	for i < n && i >= 0 {
+		parent := (i - 1) / 2
+		if parent == i || parent >= n || parent < 0 || heap[parent] <= heap[i] {
+			break
+		}
+		heap[parent], heap[i] = heap[i], heap[parent]
+		i = parent
+	}
+}
+
+func (h *minHeap) Reset() {
+	if heap := *h; cap(heap) >= _initialHeapBucketSize {
+		sharedHeapPool.Put(heap)
+	}
+	(*h) = nil
 }
 
 // Pop pops the minimum value from the heap.
 func (h *minHeap) Pop() float64 {
 	var (
 		old = *h
-		n   = old.Len()
+		n   = len(old) - 1
 		val = old[0]
+		i   int
 	)
-
-	old[0], old[n-1] = old[n-1], old[0]
-	h.heapify(0, n-1)
-	*h = (*h)[0 : n-1]
-	return val
-}
-
-func (h minHeap) shiftUp(i int) {
-	for {
-		parent := (i - 1) / 2
-		if parent == i || h[parent] <= h[i] {
-			break
-		}
-		h[parent], h[i] = h[i], h[parent]
-		i = parent
-	}
-}
-
-func (h minHeap) heapify(i, n int) {
-	for {
-		left := i*2 + 1
+	old[0], old[n] = old[n], old[0]
+	smallest := i
+	for smallest >= 0 && smallest <= n { // bounds-check elimination hint
+		left := smallest*2 + 1
 		right := left + 1
-		smallest := i
-		if left < n && h[left] < h[smallest] {
+		if left < n && left >= 0 && old[left] < old[smallest] {
 			smallest = left
 		}
-		if right < n && h[right] < h[smallest] {
+		if right < n && right >= 0 && old[right] < old[smallest] {
 			smallest = right
 		}
 		if smallest == i {
-			return
+			break
 		}
-		h[i], h[smallest] = h[smallest], h[i]
+		old[i], old[smallest] = old[smallest], old[i]
 		i = smallest
 	}
+	*h = old[0:n]
+	return val
+}
+
+func (h minHeap) SortDesc() {
+	heap := h
+	// this is equivalent to Pop() in a loop (heapsort)
+	// all the redundant-looking conditions are there to eliminate bounds-checks
+	for n := len(heap) - 1; n > 0 && n < len(heap); n = len(heap) - 1 {
+		var (
+			i        int
+			smallest int
+		)
+		heap[0], heap[n] = heap[n], heap[0]
+		for smallest >= 0 && smallest <= n {
+			var (
+				left  = smallest*2 + 1
+				right = left + 1
+			)
+			if left < n && left >= 0 && heap[left] < heap[smallest] {
+				smallest = left
+			}
+			if right < n && right >= 0 && heap[right] < heap[smallest] {
+				smallest = right
+			}
+			if smallest == i {
+				break
+			}
+			heap[i], heap[smallest] = heap[smallest], heap[i]
+			i = smallest
+		}
+		heap = heap[0:n]
+	}
+}
+
+func (h *minHeap) ensureSize() {
+	var (
+		heap      = *h
+		targetCap = cap(heap) * 2
+		newHeap   = sharedHeapPool.Get(targetCap)
+	)
+	(*newHeap) = append(*newHeap, heap...)
+	if cap(heap) >= _initialHeapBucketSize {
+		sharedHeapPool.Put(heap)
+	}
+	(*h) = *newHeap
 }

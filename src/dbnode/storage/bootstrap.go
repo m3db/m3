@@ -116,7 +116,22 @@ func (m *bootstrapManager) LastBootstrapCompletionTime() (xtime.UnixNano, bool) 
 	return bsTime, bsTime > 0
 }
 
+func (m *bootstrapManager) BootstrapEnqueue() *BootstrapAsyncResult {
+	bootstrapAsyncResult := newBootstrapAsyncResult()
+	go func(r *BootstrapAsyncResult) {
+		if result, err := m.startBootstrap(r); err != nil && !result.AlreadyBootstrapping {
+			m.instrumentation.emitAndLogInvariantViolation(err, "error bootstrapping")
+		}
+	}(bootstrapAsyncResult)
+	return bootstrapAsyncResult
+}
+
 func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
+	bootstrapAsyncResult := newBootstrapAsyncResult()
+	return m.startBootstrap(bootstrapAsyncResult)
+}
+
+func (m *bootstrapManager) startBootstrap(asyncResult *BootstrapAsyncResult) (BootstrapResult, error) {
 	m.Lock()
 	switch m.state {
 	case Bootstrapping:
@@ -128,7 +143,11 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 		// reshard occurs and we need to bootstrap more shards.
 		m.hasPending = true
 		m.Unlock()
-		return BootstrapResult{AlreadyBootstrapping: true}, errBootstrapEnqueued
+		result := BootstrapResult{AlreadyBootstrapping: true}
+		asyncResult.bootstrapResult = result
+		asyncResult.bootstrapStarted.Done()
+		asyncResult.bootstrapCompleted.Done()
+		return result, errBootstrapEnqueued
 	default:
 		m.state = Bootstrapping
 	}
@@ -138,8 +157,14 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 	m.mediator.DisableFileOpsAndWait()
 	defer m.mediator.EnableFileOps()
 
-	// Keep performing bootstraps until none pending and no error returned.
 	var result BootstrapResult
+	asyncResult.bootstrapStarted.Done()
+	defer func() {
+		asyncResult.bootstrapResult = result
+		asyncResult.bootstrapCompleted.Done()
+	}()
+
+	// Keep performing bootstraps until none pending and no error returned.
 	for i := 0; true; i++ {
 		// NB(r): Decouple implementation of bootstrap so can override in tests.
 		bootstrapErr := m.bootstrapFn()
@@ -164,7 +189,7 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 			// NB(r): Last bootstrap failed, since this could be due to transient
 			// failure we retry the bootstrap again. This is to avoid operators
 			// needing to manually intervene for cases where failures are transient.
-			m.instrumentation.bootstrapFailed(i + 1)
+			m.instrumentation.bootstrapFailed(i+1, bootstrapErr)
 			m.sleepFn(bootstrapRetryInterval)
 			continue
 		}
@@ -194,7 +219,7 @@ func (m *bootstrapManager) Report() {
 }
 
 func (m *bootstrapManager) bootstrap() error {
-	ctx := context.NewContext()
+	ctx := context.NewBackground()
 	defer ctx.Close()
 
 	// NB(r): construct new instance of the bootstrap process to avoid

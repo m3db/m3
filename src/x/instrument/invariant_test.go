@@ -22,7 +22,6 @@ package instrument_test
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/m3db/m3/src/x/instrument"
@@ -33,6 +32,7 @@ import (
 )
 
 func ExampleInvariantViolatedMetricInvocation() {
+	defer instrument.SetShouldPanicEnvironmentVariable(false)()
 	testScope := tally.NewTestScope("", nil)
 	opts := instrument.NewOptions().SetMetricsScope(testScope)
 
@@ -44,6 +44,7 @@ func ExampleInvariantViolatedMetricInvocation() {
 }
 
 func TestEmitInvariantViolationDoesNotPanicIfEnvNotSet(t *testing.T) {
+	defer instrument.SetShouldPanicEnvironmentVariable(false)()
 	opts := instrument.NewOptions()
 	require.NotPanics(t, func() {
 		instrument.EmitInvariantViolation(opts)
@@ -51,6 +52,7 @@ func TestEmitInvariantViolationDoesNotPanicIfEnvNotSet(t *testing.T) {
 }
 
 func TestEmitAndLogInvariantViolationDoesNotPanicIfEnvNotSet(t *testing.T) {
+	defer instrument.SetShouldPanicEnvironmentVariable(false)()
 	opts := instrument.NewOptions()
 	require.NotPanics(t, func() {
 		instrument.EmitAndLogInvariantViolation(opts, func(l *zap.Logger) {
@@ -60,6 +62,7 @@ func TestEmitAndLogInvariantViolationDoesNotPanicIfEnvNotSet(t *testing.T) {
 }
 
 func TestErrorfDoesNotPanicIfEnvNotSet(t *testing.T) {
+	defer instrument.SetShouldPanicEnvironmentVariable(false)()
 	var (
 		format      = "some error format: %s"
 		err_msg     = "error message"
@@ -72,7 +75,7 @@ func TestErrorfDoesNotPanicIfEnvNotSet(t *testing.T) {
 }
 
 func TestEmitInvariantViolationPanicsIfEnvSet(t *testing.T) {
-	defer setShouldPanicEnvironmentVariable()()
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
 
 	opts := instrument.NewOptions()
 	require.Panics(t, func() {
@@ -81,7 +84,7 @@ func TestEmitInvariantViolationPanicsIfEnvSet(t *testing.T) {
 }
 
 func TestEmitAndLogInvariantViolationPanicsIfEnvSet(t *testing.T) {
-	defer setShouldPanicEnvironmentVariable()()
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
 
 	opts := instrument.NewOptions()
 	require.Panics(t, func() {
@@ -92,18 +95,8 @@ func TestEmitAndLogInvariantViolationPanicsIfEnvSet(t *testing.T) {
 }
 
 func TestErrorfPanicsIfEnvSet(t *testing.T) {
-	defer setShouldPanicEnvironmentVariable()()
+	defer instrument.SetShouldPanicEnvironmentVariable(true)()
 	require.Panics(t, func() {
 		instrument.InvariantErrorf("some_error")
-	})
-}
-
-type cleanupFn func()
-
-func setShouldPanicEnvironmentVariable() cleanupFn {
-	restoreValue := os.Getenv(instrument.ShouldPanicEnvironmentVariableName)
-	os.Setenv(instrument.ShouldPanicEnvironmentVariableName, "true")
-	return cleanupFn(func() {
-		os.Setenv(instrument.ShouldPanicEnvironmentVariableName, restoreValue)
 	})
 }

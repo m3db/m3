@@ -125,6 +125,15 @@ func (o *options) Validate() error {
 	if n := o.indexSegmentConcurrency; n <= 0 {
 		return fmt.Errorf("index segment concurrency not >= 1: actual=%d", n)
 	}
+	if n := o.shardPersistenceConcurrency; n <= 0 {
+		return fmt.Errorf("shard persistence concurrency not >= 1: actual=%d", n)
+	}
+	if n := o.shardPersistenceFlushConcurrency; n <= 0 {
+		return fmt.Errorf("shard persistence flush concurrency not >= 1: actual=%d", n)
+	}
+	if n := o.defaultShardConcurrency; n <= 0 {
+		return fmt.Errorf("default shard concurrency not >= 1: actual=%d", n)
+	}
 	return nil
 }
 

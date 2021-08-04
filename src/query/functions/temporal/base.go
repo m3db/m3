@@ -127,7 +127,7 @@ func (c *baseNode) Process(
 	}
 
 	m := blockMeta{
-		end:         xtime.ToUnixNano(bounds.Start),
+		end:         bounds.Start,
 		queryCtx:    queryCtx,
 		aggDuration: xtime.UnixNano(c.op.duration),
 		stepSize:    xtime.UnixNano(bounds.StepSize),
@@ -431,7 +431,7 @@ func getIndices(
 	)
 
 	for i, dp := range dps[init:] {
-		ts := xtime.ToUnixNano(dp.Timestamp)
+		ts := dp.Timestamp
 		if !leftBound {
 			// Trying to set left bound.
 			if ts < lBound {

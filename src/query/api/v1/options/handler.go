@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package options configures query http handlers.
 package options
 
 import (
@@ -26,12 +27,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/prometheus/promql"
+	"google.golang.org/protobuf/runtime/protoiface"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	placementhandleroptions "github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	dbnamespace "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/middleware"
 	"github.com/m3db/m3/src/query/api/v1/validators"
 	"github.com/m3db/m3/src/query/executor"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
@@ -39,11 +45,8 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/prometheus/prometheus/promql"
 )
 
 // QueryEngine is a type of query engine.
@@ -75,6 +78,10 @@ type CustomHandler interface {
 	// prev is optional argument for getting already registered handler for the same route.
 	// If there is nothing to override, prev will be nil.
 	Handler(handlerOptions HandlerOptions, prev http.Handler) (http.Handler, error)
+	// MiddlewareOverride is a function to override the global middleware configuration for the route.
+	// If this CustomHandler is overriding an existing handler, the MiddlewareOverride for the existing handler is first
+	// applied before applying this function.
+	MiddlewareOverride() middleware.OverrideOptions
 }
 
 // QueryRouter is responsible for routing queries between promql and m3query.
@@ -134,10 +141,10 @@ type HandlerOptions interface {
 	// SetConfig sets the config.
 	SetConfig(c config.Configuration) HandlerOptions
 
-	// EmbeddedDbCfg returns the embedded db config.
-	EmbeddedDbCfg() *dbconfig.DBConfiguration
-	// SetEmbeddedDbCfg sets the embedded db config.
-	SetEmbeddedDbCfg(c *dbconfig.DBConfiguration) HandlerOptions
+	// EmbeddedDBCfg returns the embedded db config.
+	EmbeddedDBCfg() *dbconfig.DBConfiguration
+	// SetEmbeddedDBCfg sets the embedded db config.
+	SetEmbeddedDBCfg(c *dbconfig.DBConfiguration) HandlerOptions
 
 	// TagOptions returns the tag options.
 	TagOptions() models.TagOptions
@@ -165,9 +172,9 @@ type HandlerOptions interface {
 	SetPlacementServiceNames(n []string) HandlerOptions
 
 	// ServiceOptionDefaults returns the service option defaults.
-	ServiceOptionDefaults() []handleroptions.ServiceOptionsDefault
+	ServiceOptionDefaults() []placementhandleroptions.ServiceOptionsDefault
 	// SetServiceOptionDefaults sets the service option defaults.
-	SetServiceOptionDefaults(s []handleroptions.ServiceOptionsDefault) HandlerOptions
+	SetServiceOptionDefaults(s []placementhandleroptions.ServiceOptionsDefault) HandlerOptions
 
 	// NowFn returns the now function.
 	NowFn() clock.NowFn
@@ -201,10 +208,20 @@ type HandlerOptions interface {
 	// SetGraphiteStorageOptions sets the Graphite storage options.
 	SetGraphiteStorageOptions(value graphite.M3WrappedStorageOptions) HandlerOptions
 
+	// GraphiteFindFetchOptionsBuilder returns the Graphite find fetch options builder.
+	GraphiteFindFetchOptionsBuilder() handleroptions.FetchOptionsBuilder
+	// SetGraphiteFindFetchOptionsBuilder sets the Graphite find fetch options builder.
+	SetGraphiteFindFetchOptionsBuilder(value handleroptions.FetchOptionsBuilder) HandlerOptions
+
+	// GraphiteRenderFetchOptionsBuilder returns the Graphite render fetch options builder.
+	GraphiteRenderFetchOptionsBuilder() handleroptions.FetchOptionsBuilder
+	// SetGraphiteRenderFetchOptionsBuilder sets the Graphite render fetch options builder.
+	SetGraphiteRenderFetchOptionsBuilder(value handleroptions.FetchOptionsBuilder) HandlerOptions
+
 	// SetM3DBOptions sets the M3DB options.
-	SetM3DBOptions(value m3db.Options) HandlerOptions
+	SetM3DBOptions(value m3.Options) HandlerOptions
 	// M3DBOptions returns the M3DB options.
-	M3DBOptions() m3db.Options
+	M3DBOptions() m3.Options
 
 	// SetStoreMetricsType enables/disables storing of metrics type.
 	SetStoreMetricsType(value bool) HandlerOptions
@@ -215,34 +232,48 @@ type HandlerOptions interface {
 	SetNamespaceValidator(NamespaceValidator) HandlerOptions
 	// NamespaceValidator returns the NamespaceValidator.
 	NamespaceValidator() NamespaceValidator
+
+	// KVStoreProtoParser sets the KVStoreProtoParser.
+	SetKVStoreProtoParser(KVStoreProtoParser) HandlerOptions
+	// KVStoreProtoHandler returns the KVStoreProtoParser.
+	KVStoreProtoParser() KVStoreProtoParser
+
+	// SetRegisterMiddleware sets the function to construct the set of Middleware functions to run.
+	SetRegisterMiddleware(value middleware.Register) HandlerOptions
+	// RegisterMiddleware returns the function to construct the set of Middleware functions to run.
+	RegisterMiddleware() middleware.Register
 }
 
 // HandlerOptions represents handler options.
 type handlerOptions struct {
-	storage               storage.Storage
-	downsamplerAndWriter  ingest.DownsamplerAndWriter
-	engine                executor.Engine
-	prometheusEngine      *promql.Engine
-	defaultEngine         QueryEngine
-	clusters              m3.Clusters
-	clusterClient         clusterclient.Client
-	config                config.Configuration
-	embeddedDbCfg         *dbconfig.DBConfiguration
-	createdAt             time.Time
-	tagOptions            models.TagOptions
-	fetchOptionsBuilder   handleroptions.FetchOptionsBuilder
-	queryContextOptions   models.QueryContextOptions
-	instrumentOpts        instrument.Options
-	cpuProfileDuration    time.Duration
-	placementServiceNames []string
-	serviceOptionDefaults []handleroptions.ServiceOptionsDefault
-	nowFn                 clock.NowFn
-	queryRouter           QueryRouter
-	instantQueryRouter    QueryRouter
-	graphiteStorageOpts   graphite.M3WrappedStorageOptions
-	m3dbOpts              m3db.Options
-	namespaceValidator    NamespaceValidator
-	storeMetricsType      bool
+	storage                           storage.Storage
+	downsamplerAndWriter              ingest.DownsamplerAndWriter
+	engine                            executor.Engine
+	prometheusEngine                  *promql.Engine
+	defaultEngine                     QueryEngine
+	clusters                          m3.Clusters
+	clusterClient                     clusterclient.Client
+	config                            config.Configuration
+	embeddedDBCfg                     *dbconfig.DBConfiguration
+	createdAt                         time.Time
+	tagOptions                        models.TagOptions
+	fetchOptionsBuilder               handleroptions.FetchOptionsBuilder
+	queryContextOptions               models.QueryContextOptions
+	instrumentOpts                    instrument.Options
+	cpuProfileDuration                time.Duration
+	placementServiceNames             []string
+	serviceOptionDefaults             []placementhandleroptions.ServiceOptionsDefault
+	nowFn                             clock.NowFn
+	queryRouter                       QueryRouter
+	instantQueryRouter                QueryRouter
+	graphiteStorageOpts               graphite.M3WrappedStorageOptions
+	graphiteFindFetchOptionsBuilder   handleroptions.FetchOptionsBuilder
+	graphiteRenderFetchOptionsBuilder handleroptions.FetchOptionsBuilder
+	m3dbOpts                          m3.Options
+	namespaceValidator                NamespaceValidator
+	storeMetricsType                  bool
+	kvStoreProtoParser                KVStoreProtoParser
+	registerMiddleware                middleware.Register
 }
 
 // EmptyHandlerOptions returns  default handler options.
@@ -250,7 +281,7 @@ func EmptyHandlerOptions() HandlerOptions {
 	return &handlerOptions{
 		instrumentOpts: instrument.NewOptions(),
 		nowFn:          time.Now,
-		m3dbOpts:       m3db.NewOptions(),
+		m3dbOpts:       m3.NewOptions(),
 	}
 }
 
@@ -263,48 +294,52 @@ func NewHandlerOptions(
 	m3dbClusters m3.Clusters,
 	clusterClient clusterclient.Client,
 	cfg config.Configuration,
-	embeddedDbCfg *dbconfig.DBConfiguration,
+	embeddedDBCfg *dbconfig.DBConfiguration,
 	fetchOptionsBuilder handleroptions.FetchOptionsBuilder,
+	graphiteFindFetchOptionsBuilder handleroptions.FetchOptionsBuilder,
+	graphiteRenderFetchOptionsBuilder handleroptions.FetchOptionsBuilder,
 	queryContextOptions models.QueryContextOptions,
 	instrumentOpts instrument.Options,
 	cpuProfileDuration time.Duration,
 	placementServiceNames []string,
-	serviceOptionDefaults []handleroptions.ServiceOptionsDefault,
+	serviceOptionDefaults []placementhandleroptions.ServiceOptionsDefault,
 	queryRouter QueryRouter,
 	instantQueryRouter QueryRouter,
 	graphiteStorageOpts graphite.M3WrappedStorageOptions,
-	m3dbOpts m3db.Options,
+	m3dbOpts m3.Options,
 ) (HandlerOptions, error) {
 	storeMetricsType := false
 	if cfg.StoreMetricsType != nil {
 		storeMetricsType = *cfg.StoreMetricsType
 	}
-
 	return &handlerOptions{
-		storage:               downsamplerAndWriter.Storage(),
-		downsamplerAndWriter:  downsamplerAndWriter,
-		engine:                engine,
-		prometheusEngine:      prometheusEngine,
-		defaultEngine:         getDefaultQueryEngine(cfg.Query.DefaultEngine),
-		clusters:              m3dbClusters,
-		clusterClient:         clusterClient,
-		config:                cfg,
-		embeddedDbCfg:         embeddedDbCfg,
-		createdAt:             time.Now(),
-		tagOptions:            tagOptions,
-		fetchOptionsBuilder:   fetchOptionsBuilder,
-		queryContextOptions:   queryContextOptions,
-		instrumentOpts:        instrumentOpts,
-		cpuProfileDuration:    cpuProfileDuration,
-		placementServiceNames: placementServiceNames,
-		serviceOptionDefaults: serviceOptionDefaults,
-		nowFn:                 time.Now,
-		queryRouter:           queryRouter,
-		instantQueryRouter:    instantQueryRouter,
-		graphiteStorageOpts:   graphiteStorageOpts,
-		m3dbOpts:              m3dbOpts,
-		storeMetricsType:      storeMetricsType,
-		namespaceValidator:    validators.NamespaceValidator,
+		storage:                           downsamplerAndWriter.Storage(),
+		downsamplerAndWriter:              downsamplerAndWriter,
+		engine:                            engine,
+		prometheusEngine:                  prometheusEngine,
+		defaultEngine:                     getDefaultQueryEngine(cfg.Query.DefaultEngine),
+		clusters:                          m3dbClusters,
+		clusterClient:                     clusterClient,
+		config:                            cfg,
+		embeddedDBCfg:                     embeddedDBCfg,
+		createdAt:                         time.Now(),
+		tagOptions:                        tagOptions,
+		fetchOptionsBuilder:               fetchOptionsBuilder,
+		graphiteFindFetchOptionsBuilder:   graphiteFindFetchOptionsBuilder,
+		graphiteRenderFetchOptionsBuilder: graphiteRenderFetchOptionsBuilder,
+		queryContextOptions:               queryContextOptions,
+		instrumentOpts:                    instrumentOpts,
+		cpuProfileDuration:                cpuProfileDuration,
+		placementServiceNames:             placementServiceNames,
+		serviceOptionDefaults:             serviceOptionDefaults,
+		nowFn:                             time.Now,
+		queryRouter:                       queryRouter,
+		instantQueryRouter:                instantQueryRouter,
+		graphiteStorageOpts:               graphiteStorageOpts,
+		m3dbOpts:                          m3dbOpts,
+		storeMetricsType:                  storeMetricsType,
+		namespaceValidator:                validators.NamespaceValidator,
+		registerMiddleware:                middleware.Default,
 	}, nil
 }
 
@@ -384,14 +419,14 @@ func (o *handlerOptions) SetConfig(c config.Configuration) HandlerOptions {
 	return &opts
 }
 
-func (o *handlerOptions) EmbeddedDbCfg() *dbconfig.DBConfiguration {
-	return o.embeddedDbCfg
+func (o *handlerOptions) EmbeddedDBCfg() *dbconfig.DBConfiguration {
+	return o.embeddedDBCfg
 }
 
-func (o *handlerOptions) SetEmbeddedDbCfg(
+func (o *handlerOptions) SetEmbeddedDBCfg(
 	c *dbconfig.DBConfiguration) HandlerOptions {
 	opts := *o
-	opts.embeddedDbCfg = c
+	opts.embeddedDBCfg = c
 	return &opts
 }
 
@@ -449,12 +484,12 @@ func (o *handlerOptions) SetPlacementServiceNames(
 	return &opts
 }
 
-func (o *handlerOptions) ServiceOptionDefaults() []handleroptions.ServiceOptionsDefault {
+func (o *handlerOptions) ServiceOptionDefaults() []placementhandleroptions.ServiceOptionsDefault {
 	return o.serviceOptionDefaults
 }
 
 func (o *handlerOptions) SetServiceOptionDefaults(
-	s []handleroptions.ServiceOptionsDefault) HandlerOptions {
+	s []placementhandleroptions.ServiceOptionsDefault) HandlerOptions {
 	opts := *o
 	opts.serviceOptionDefaults = s
 	return &opts
@@ -537,13 +572,33 @@ func (o *handlerOptions) SetGraphiteStorageOptions(value graphite.M3WrappedStora
 	return &opts
 }
 
-func (o *handlerOptions) SetM3DBOptions(value m3db.Options) HandlerOptions {
+func (o *handlerOptions) GraphiteFindFetchOptionsBuilder() handleroptions.FetchOptionsBuilder {
+	return o.graphiteFindFetchOptionsBuilder
+}
+
+func (o *handlerOptions) SetGraphiteFindFetchOptionsBuilder(value handleroptions.FetchOptionsBuilder) HandlerOptions {
+	opts := *o
+	opts.graphiteFindFetchOptionsBuilder = value
+	return &opts
+}
+
+func (o *handlerOptions) GraphiteRenderFetchOptionsBuilder() handleroptions.FetchOptionsBuilder {
+	return o.graphiteRenderFetchOptionsBuilder
+}
+
+func (o *handlerOptions) SetGraphiteRenderFetchOptionsBuilder(value handleroptions.FetchOptionsBuilder) HandlerOptions {
+	opts := *o
+	opts.graphiteRenderFetchOptionsBuilder = value
+	return &opts
+}
+
+func (o *handlerOptions) SetM3DBOptions(value m3.Options) HandlerOptions {
 	opts := *o
 	opts.m3dbOpts = value
 	return &opts
 }
 
-func (o *handlerOptions) M3DBOptions() m3db.Options {
+func (o *handlerOptions) M3DBOptions() m3.Options {
 	return o.m3dbOpts
 }
 
@@ -572,3 +627,26 @@ type NamespaceValidator interface {
 	// ValidateNewNamespace gets invoked when creating a new namespace.
 	ValidateNewNamespace(newNs dbnamespace.Metadata, existing []dbnamespace.Metadata) error
 }
+
+func (o *handlerOptions) SetKVStoreProtoParser(value KVStoreProtoParser) HandlerOptions {
+	opts := *o
+	opts.kvStoreProtoParser = value
+	return &opts
+}
+
+func (o *handlerOptions) KVStoreProtoParser() KVStoreProtoParser {
+	return o.kvStoreProtoParser
+}
+
+func (o *handlerOptions) RegisterMiddleware() middleware.Register {
+	return o.registerMiddleware
+}
+
+func (o *handlerOptions) SetRegisterMiddleware(value middleware.Register) HandlerOptions {
+	opts := *o
+	opts.registerMiddleware = value
+	return &opts
+}
+
+// KVStoreProtoParser parses protobuf messages based off specific keys.
+type KVStoreProtoParser func(key string) (protoiface.MessageV1, error)

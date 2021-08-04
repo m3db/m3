@@ -25,12 +25,13 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func generateDatapoints(t time.Time, times []int) Datapoints {
+func generateDatapoints(t xtime.UnixNano, times []int) Datapoints {
 	num := len(times)
 	dps := make(Datapoints, len(times))
 	for i := 0; i < num; i++ {
@@ -42,82 +43,84 @@ func generateDatapoints(t time.Time, times []int) Datapoints {
 	return dps
 }
 
-var now = time.Now()
-var samples = []struct {
-	input                  Datapoints
-	expected               [][]float64
-	expectedNoWriteForward [][]float64
-	bounds                 models.Bounds
-	description            string
-}{
-	{
-		input:                  generateDatapoints(now, []int{-1, 0, 10, 18, 28, 38}),
-		expected:               [][]float64{{0, 1}, {2}, {3}, {4}},
-		expectedNoWriteForward: [][]float64{{0, 1}, {2}, {3}, {4}},
-		bounds: models.Bounds{
-			Start:    now,
-			Duration: 40 * time.Second,
-			StepSize: 10 * time.Second,
+var (
+	now     = xtime.Now()
+	samples = []struct {
+		input                  Datapoints
+		expected               [][]float64
+		expectedNoWriteForward [][]float64
+		bounds                 models.Bounds
+		description            string
+	}{
+		{
+			input:                  generateDatapoints(now, []int{-1, 0, 10, 18, 28, 38}),
+			expected:               [][]float64{{0, 1}, {2}, {3}, {4}},
+			expectedNoWriteForward: [][]float64{{0, 1}, {2}, {3}, {4}},
+			bounds: models.Bounds{
+				Start:    now,
+				Duration: 40 * time.Second,
+				StepSize: 10 * time.Second,
+			},
+			description: "some points line up and others before",
 		},
-		description: "some points line up and others before",
-	},
-	{
-		input:                  generateDatapoints(now, []int{1, 10, 18, 28}),
-		expected:               [][]float64{{}, {0, 1}, {2}, {3}},
-		expectedNoWriteForward: [][]float64{{}, {0, 1}, {2}, {3}},
-		bounds: models.Bounds{
-			Start:    now,
-			Duration: 40 * time.Second,
-			StepSize: 10 * time.Second,
+		{
+			input:                  generateDatapoints(now, []int{1, 10, 18, 28}),
+			expected:               [][]float64{{}, {0, 1}, {2}, {3}},
+			expectedNoWriteForward: [][]float64{{}, {0, 1}, {2}, {3}},
+			bounds: models.Bounds{
+				Start:    now,
+				Duration: 40 * time.Second,
+				StepSize: 10 * time.Second,
+			},
+			description: "only points after start",
 		},
-		description: "only points after start",
-	},
-	{
-		input:                  generateDatapoints(now, []int{0, 10, 18, 28}),
-		expected:               [][]float64{{0}, {0}, {1}, {1}, {2}, {2}, {3}, {3}},
-		expectedNoWriteForward: [][]float64{{0}, {}, {1}, {}, {2}, {}, {3}, {}},
-		bounds: models.Bounds{
-			Start:    now,
-			Duration: 40 * time.Second,
-			StepSize: 5 * time.Second,
+		{
+			input:                  generateDatapoints(now, []int{0, 10, 18, 28}),
+			expected:               [][]float64{{0}, {0}, {1}, {1}, {2}, {2}, {3}, {3}},
+			expectedNoWriteForward: [][]float64{{0}, {}, {1}, {}, {2}, {}, {3}, {}},
+			bounds: models.Bounds{
+				Start:    now,
+				Duration: 40 * time.Second,
+				StepSize: 5 * time.Second,
+			},
+			description: "half resolution so datapoints repeated",
 		},
-		description: "half resolution so datapoints repeated",
-	},
-	{
-		input:                  generateDatapoints(now, []int{0, 10, 18, 28}),
-		expected:               [][]float64{{0}, {1, 2}},
-		expectedNoWriteForward: [][]float64{{0}, {1, 2}},
-		bounds: models.Bounds{
-			Start:    now,
-			Duration: 40 * time.Second,
-			StepSize: 20 * time.Second,
+		{
+			input:                  generateDatapoints(now, []int{0, 10, 18, 28}),
+			expected:               [][]float64{{0}, {1, 2}},
+			expectedNoWriteForward: [][]float64{{0}, {1, 2}},
+			bounds: models.Bounds{
+				Start:    now,
+				Duration: 40 * time.Second,
+				StepSize: 20 * time.Second,
+			},
+			description: "double resolution so multiple dps in the same interval",
 		},
-		description: "double resolution so multiple dps in the same interval",
-	},
-	{
-		input:                  generateDatapoints(now, []int{0, 4, 5, 14}),
-		expected:               [][]float64{{0}, {1, 2}, {2}, {3}},
-		expectedNoWriteForward: [][]float64{{0}, {1, 2}, {}, {3}},
-		bounds: models.Bounds{
-			Start:    now,
-			Duration: 20 * time.Second,
-			StepSize: 5 * time.Second,
+		{
+			input:                  generateDatapoints(now, []int{0, 4, 5, 14}),
+			expected:               [][]float64{{0}, {1, 2}, {2}, {3}},
+			expectedNoWriteForward: [][]float64{{0}, {1, 2}, {}, {3}},
+			bounds: models.Bounds{
+				Start:    now,
+				Duration: 20 * time.Second,
+				StepSize: 5 * time.Second,
+			},
+			description: "third interval has repeated datapoint",
 		},
-		description: "third interval has repeated datapoint",
-	},
-	{
-		input: generateDatapoints(now.Add(-10*time.Minute),
-			[]int{-1, 0, 10, 18, 28, 38}),
-		expected:               [][]float64{{}, {}, {}, {}},
-		expectedNoWriteForward: [][]float64{{}, {}, {}, {}},
-		bounds: models.Bounds{
-			Start:    now,
-			Duration: 40 * time.Second,
-			StepSize: 10 * time.Second,
+		{
+			input: generateDatapoints(now.Add(-10*time.Minute),
+				[]int{-1, 0, 10, 18, 28, 38}),
+			expected:               [][]float64{{}, {}, {}, {}},
+			expectedNoWriteForward: [][]float64{{}, {}, {}, {}},
+			bounds: models.Bounds{
+				Start:    now,
+				Duration: 40 * time.Second,
+				StepSize: 10 * time.Second,
+			},
+			description: "skip really old datapoints",
 		},
-		description: "skip really old datapoints",
-	},
-}
+	}
+)
 
 func TestDPAlign(t *testing.T) {
 	for _, sample := range samples {

@@ -21,7 +21,7 @@
 package repair
 
 import (
-	"time"
+	"math"
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -71,16 +71,16 @@ func (s *replicaMetadataSlice) Close() {
 }
 
 type replicaBlockMetadata struct {
-	start    time.Time
+	start    xtime.UnixNano
 	metadata ReplicaMetadataSlice
 }
 
 // NewReplicaBlockMetadata creates a new replica block metadata
-func NewReplicaBlockMetadata(start time.Time, p ReplicaMetadataSlice) ReplicaBlockMetadata {
+func NewReplicaBlockMetadata(start xtime.UnixNano, p ReplicaMetadataSlice) ReplicaBlockMetadata {
 	return replicaBlockMetadata{start: start, metadata: p}
 }
 
-func (m replicaBlockMetadata) Start() time.Time                   { return m.start }
+func (m replicaBlockMetadata) Start() xtime.UnixNano              { return m.start }
 func (m replicaBlockMetadata) Metadata() []block.ReplicaMetadata  { return m.metadata.Metadata() }
 func (m replicaBlockMetadata) Add(metadata block.ReplicaMetadata) { m.metadata.Add(metadata) }
 func (m replicaBlockMetadata) Close()                             { m.metadata.Close() }
@@ -95,17 +95,16 @@ func NewReplicaBlocksMetadata() ReplicaBlocksMetadata {
 func (m replicaBlocksMetadata) NumBlocks() int64                                { return int64(len(m)) }
 func (m replicaBlocksMetadata) Blocks() map[xtime.UnixNano]ReplicaBlockMetadata { return m }
 func (m replicaBlocksMetadata) Add(block ReplicaBlockMetadata) {
-	m[xtime.ToUnixNano(block.Start())] = block
+	m[block.Start()] = block
 }
 
-func (m replicaBlocksMetadata) GetOrAdd(start time.Time, p ReplicaMetadataSlicePool) ReplicaBlockMetadata {
-	startNano := xtime.ToUnixNano(start)
-	block, exists := m[startNano]
+func (m replicaBlocksMetadata) GetOrAdd(start xtime.UnixNano, p ReplicaMetadataSlicePool) ReplicaBlockMetadata {
+	block, exists := m[start]
 	if exists {
 		return block
 	}
 	block = NewReplicaBlockMetadata(start, p.Get())
-	m[startNano] = block
+	m[start] = block
 	return block
 }
 
@@ -163,6 +162,7 @@ type replicaMetadataComparer struct {
 	origin                   topology.Host
 	metadata                 ReplicaSeriesMetadata
 	replicaMetadataSlicePool ReplicaMetadataSlicePool
+	peers                    map[string]topology.Host
 }
 
 // NewReplicaMetadataComparer creates a new replica metadata comparer
@@ -171,6 +171,7 @@ func NewReplicaMetadataComparer(origin topology.Host, opts Options) ReplicaMetad
 		origin:                   origin,
 		metadata:                 NewReplicaSeriesMetadata(),
 		replicaMetadataSlicePool: opts.ReplicaMetadataSlicePool(),
+		peers:                    make(map[string]topology.Host),
 	}
 }
 
@@ -195,15 +196,71 @@ func (m replicaMetadataComparer) AddPeerMetadata(peerIter client.PeerBlockMetada
 			Host:     peer,
 			Metadata: peerBlock,
 		})
+
+		// Add to peers list.
+		if _, ok := m.peers[peer.ID()]; !ok {
+			m.peers[peer.ID()] = peer
+		}
 	}
 
 	return peerIter.Err()
 }
 
+type peerMetadataComparison struct {
+	comparedBlocks         int64
+	comparedMissingBlocks  int64
+	comparedExtraBlocks    int64
+	comparedMismatchBlocks int64
+}
+
+func (c peerMetadataComparison) comparedDiffering() int64 {
+	return c.comparedMissingBlocks +
+		c.comparedExtraBlocks +
+		c.comparedMismatchBlocks
+}
+
+type peerMetadataComparisonMap map[string]*peerMetadataComparison
+
+type peerBlockMetadataComparison struct {
+	hasBlock                     bool
+	sizeDiffersVsOriginValue     bool
+	checksumDiffersVsOriginValue bool
+}
+
+func (m *peerBlockMetadataComparison) Reset() {
+	*m = peerBlockMetadataComparison{}
+}
+
+type peerBlockMetadataComparisonMap map[string]*peerBlockMetadataComparison
+
+func (m peerBlockMetadataComparisonMap) Reset() {
+	for _, elem := range m {
+		elem.Reset()
+	}
+}
+
+func (m replicaMetadataComparer) newPeersMetadataComparisonMap() peerMetadataComparisonMap {
+	result := make(peerMetadataComparisonMap, len(m.peers))
+	for _, peer := range m.peers {
+		result[peer.ID()] = &peerMetadataComparison{}
+	}
+	return result
+}
+
+func (m replicaMetadataComparer) newPeersBlockMetadataComparisonMap() peerBlockMetadataComparisonMap {
+	result := make(peerBlockMetadataComparisonMap, len(m.peers))
+	for _, peer := range m.peers {
+		result[peer.ID()] = &peerBlockMetadataComparison{}
+	}
+	return result
+}
+
 func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 	var (
-		sizeDiff     = NewReplicaSeriesMetadata()
-		checkSumDiff = NewReplicaSeriesMetadata()
+		sizeDiff             = NewReplicaSeriesMetadata()
+		checkSumDiff         = NewReplicaSeriesMetadata()
+		peersComparison      = m.newPeersMetadataComparisonMap()
+		peersBlockComparison = m.newPeersBlockMetadataComparisonMap()
 	)
 
 	for _, entry := range m.metadata.Series().Iter() {
@@ -213,6 +270,8 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 
 			var (
 				originContainsBlock = false
+				originSizeVal       = int64(math.MaxInt64)
+				originChecksumVal   = uint32(math.MaxUint32)
 				sizeVal             int64
 				sameSize            = true
 				firstSize           = true
@@ -221,12 +280,31 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 				firstChecksum       = true
 			)
 
+			// Reset block comparisons.
+			peersBlockComparison.Reset()
+
+			// First check if origin contains the block to work out if peers
+			// have missing or extra (assumed missing if not checked after a
+			// block comparison reset).
 			for _, hm := range bm {
-				if !originContainsBlock {
-					if hm.Host.ID() == m.origin.ID() {
-						originContainsBlock = true
-					}
+				isOrigin := hm.Host.ID() == m.origin.ID()
+				if !isOrigin {
+					continue
 				}
+
+				originContainsBlock = true
+				originSizeVal = hm.Metadata.Size
+				if hm.Metadata.Checksum != nil {
+					originChecksumVal = *hm.Metadata.Checksum
+				}
+			}
+
+			// Now check peers.
+			for _, hm := range bm {
+				var (
+					hostID                      = hm.Host.ID()
+					peerCompare, hasPeerCompare = peersBlockComparison[hostID]
+				)
 
 				if hm.Metadata.Checksum == nil {
 					// Skip metadata that doesn't have a checksum. This usually means that the
@@ -242,6 +320,10 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 					continue
 				}
 
+				if hasPeerCompare {
+					peerCompare.hasBlock = true
+				}
+
 				// Check size.
 				if firstSize {
 					sizeVal = hm.Metadata.Size
@@ -250,21 +332,22 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 					sameSize = false
 				}
 
-				// If a previous metadata had a checksum and this one does not
-				// then assume the checksums mismatch.
-				if hm.Metadata.Checksum == nil && !firstChecksum {
-					sameChecksum = false
-					continue
+				// Track if size differs relative to the origin.
+				if hasPeerCompare && hm.Metadata.Size != originSizeVal {
+					peerCompare.sizeDiffersVsOriginValue = true
 				}
 
 				// Check checksum.
-				if hm.Metadata.Checksum != nil {
-					if firstChecksum {
-						checksumVal = *hm.Metadata.Checksum
-						firstChecksum = false
-					} else if *hm.Metadata.Checksum != checksumVal {
-						sameChecksum = false
-					}
+				if firstChecksum {
+					checksumVal = *hm.Metadata.Checksum
+					firstChecksum = false
+				} else if *hm.Metadata.Checksum != checksumVal {
+					sameChecksum = false
+				}
+
+				// Track if checksum differs relative to the origin.
+				if hasPeerCompare && *hm.Metadata.Checksum != originChecksumVal {
+					peerCompare.checksumDiffersVsOriginValue = true
 				}
 			}
 
@@ -279,14 +362,71 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 			if !originContainsBlock || !sameChecksum {
 				checkSumDiff.GetOrAdd(series.ID).Add(b)
 			}
+
+			// Record the totals.
+			for peerID, peerComparison := range peersComparison {
+				peerBlockComparison, ok := peersBlockComparison[peerID]
+				if !ok || (!originContainsBlock && !peerBlockComparison.hasBlock) {
+					// CHECK: !exists(origin) && !exists(peer)
+					// If both origin and the peer are missing then we
+					// technically (for this pair of origin vs peer) didn't
+					// compare the origin to the peer block here since neither
+					// of them had it.
+					continue
+				}
+
+				// Track total comparisons made.
+				peerComparison.comparedBlocks++
+
+				if !originContainsBlock && peerBlockComparison.hasBlock {
+					// CHECK: !exists(origin) && exists(peer)
+					// This block (regardless of mismatch) was extra relative
+					// to the origin.
+					peerComparison.comparedExtraBlocks++
+					continue
+				}
+
+				if originContainsBlock && !peerBlockComparison.hasBlock {
+					// CHECK: exists(origin) && !exists(peer)
+					// This block (regardless of mismatch) was missing relative
+					// to the origin.
+					peerComparison.comparedMissingBlocks++
+					continue
+				}
+
+				// CHECK: exists(origin) && exists(peer)
+				// Both exist, now see if they differ relative to origin.
+				differs := peerBlockComparison.sizeDiffersVsOriginValue ||
+					peerBlockComparison.checksumDiffersVsOriginValue
+				if differs {
+					// Only if they mismatch on an attribute to we count as mismatch.
+					peerComparison.comparedMismatchBlocks++
+				}
+			}
 		}
 	}
 
+	// Construct the peer comparison results.
+	n := len(peersComparison)
+	peerMetadataComparisonResults := make([]PeerMetadataComparisonResult, 0, n)
+	for peerID, peerComparison := range peersComparison {
+		r := PeerMetadataComparisonResult{
+			ID:                      peerID,
+			ComparedBlocks:          peerComparison.comparedBlocks,
+			ComparedDifferingBlocks: peerComparison.comparedDiffering(),
+			ComparedMismatchBlocks:  peerComparison.comparedMismatchBlocks,
+			ComparedMissingBlocks:   peerComparison.comparedMissingBlocks,
+			ComparedExtraBlocks:     peerComparison.comparedExtraBlocks,
+		}
+		peerMetadataComparisonResults = append(peerMetadataComparisonResults, r)
+	}
+
 	return MetadataComparisonResult{
-		NumSeries:           m.metadata.NumSeries(),
-		NumBlocks:           m.metadata.NumBlocks(),
-		SizeDifferences:     sizeDiff,
-		ChecksumDifferences: checkSumDiff,
+		NumSeries:                     m.metadata.NumSeries(),
+		NumBlocks:                     m.metadata.NumBlocks(),
+		SizeDifferences:               sizeDiff,
+		ChecksumDifferences:           checkSumDiff,
+		PeerMetadataComparisonResults: peerMetadataComparisonResults,
 	}
 }
 

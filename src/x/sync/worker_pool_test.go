@@ -21,13 +21,15 @@
 package sync
 
 import (
-	"context"
+	stdctx "context"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/x/context"
 )
 
 const testWorkerPoolSize = 5
@@ -123,17 +125,36 @@ func TestGoWithTimeout(t *testing.T) {
 	require.Equal(t, uint32(testWorkerPoolSize+1), count)
 }
 
-func TestGoWithCtx(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+func TestGoWithContext(t *testing.T) {
+	sleep := time.Second
+	goctx, cancel := stdctx.WithTimeout(stdctx.Background(), sleep)
 	defer cancel()
+	ctx := context.NewWithGoContext(goctx)
 	wp := NewWorkerPool(1)
 	wp.Init()
 
 	result := wp.GoWithContext(ctx, func() {
-		time.Sleep(time.Minute)
+		time.Sleep(5 * sleep)
 	})
 	require.True(t, result.Available)
 
 	result = wp.GoWithContext(ctx, func() {})
 	require.False(t, result.Available)
+}
+
+func TestFast(t *testing.T) {
+	wp := NewWorkerPool(1)
+	wp.Init()
+
+	fast := wp.FastContextCheck(3)
+
+	goctx, cancel := stdctx.WithCancel(stdctx.Background())
+	cancel()
+	ctx := context.NewWithGoContext(goctx)
+
+	require.False(t, fast.GoWithContext(ctx, func() {}).Available)
+	require.True(t, fast.GoWithContext(ctx, func() {}).Available)
+	require.True(t, fast.GoWithContext(ctx, func() {}).Available)
+	require.False(t, fast.GoWithContext(ctx, func() {}).Available)
+	require.True(t, fast.GoWithContext(ctx, func() {}).Available)
 }

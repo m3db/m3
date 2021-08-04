@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -56,7 +57,7 @@ func newEngine(
 func TestExecute(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	store, session := m3.NewStorageAndSession(t, ctrl)
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(),
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(),
 		gomock.Any()).Return(nil, client.FetchResponseMetadata{Exhaustive: false}, fmt.Errorf("dummy"))
 	session.EXPECT().IteratorPools().Return(nil, nil)
 
@@ -84,8 +85,8 @@ func TestExecuteExpr(t *testing.T) {
 		instrument.NewOptions())
 	_, err = engine.ExecuteExpr(context.TODO(), parser,
 		&QueryOptions{}, storage.NewFetchOptions(), models.RequestParams{
-			Start: time.Now().Add(-2 * time.Second),
-			End:   time.Now(),
+			Start: xtime.Now().Add(-2 * time.Second),
+			End:   xtime.Now(),
 			Step:  time.Second,
 		})
 

@@ -38,7 +38,7 @@ import (
 
 func TestTime(t *testing.T) {
 	_, bounds := test.GenerateValuesAndBounds(nil, nil)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(0))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(rune(0)))
 	op, err := NewTimeOp(models.NewTagOptions())
 	require.NoError(t, err)
 
@@ -60,7 +60,7 @@ func TestTime(t *testing.T) {
 	assert.Equal(t, block.BlockTime, sink.Info.Type())
 
 	for i, vals := range sink.Values {
-		assert.Equal(t, float64(start.Add(time.Duration(i)*step).Unix()), vals[0])
+		assert.Equal(t, float64(start.Add(time.Duration(i)*step).Seconds()), vals[0])
 	}
 
 	resultMeta := sink.Meta.ResultMetadata

@@ -39,8 +39,9 @@ var (
 	// EmptyStoragePolicy represents an empty storage policy.
 	EmptyStoragePolicy StoragePolicy
 
-	errNilStoragePolicyProto      = errors.New("nil storage policy proto")
-	errInvalidStoragePolicyString = errors.New("invalid storage policy string")
+	errNilStoragePolicyProto       = errors.New("nil storage policy proto")
+	errInvalidStoragePolicyString  = errors.New("invalid storage policy string")
+	errStoragePolicyLengthMismatch = errors.New("storage policy list length does not match proto")
 )
 
 // StoragePolicy represents the resolution and retention period metric datapoints
@@ -264,4 +265,23 @@ func (sp ByRetentionAscResolutionAsc) Less(i, j int) bool {
 		return rw1 < rw2
 	}
 	return sp[i].Resolution().Precision < sp[j].Resolution().Precision
+}
+
+// StoragePoliciesFromProto converts a list of protobuf storage policies to a storage policy in place.
+func StoragePoliciesFromProto(src []policypb.StoragePolicy, dst []StoragePolicy) error {
+	if len(src) != len(dst) {
+		return errStoragePolicyLengthMismatch
+	}
+	for i := 0; i < len(src); i++ {
+		d := &dst[i]
+		if err := d.resolution.FromProto(src[i].Resolution); err != nil {
+			return err
+		}
+
+		if err := d.retention.FromProto(src[i].Retention); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

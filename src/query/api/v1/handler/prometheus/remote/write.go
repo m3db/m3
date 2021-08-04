@@ -34,10 +34,10 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -60,7 +60,7 @@ import (
 
 const (
 	// PromWriteURL is the url for the prom write handler
-	PromWriteURL = handler.RoutePrefixV1 + "/prom/remote/write"
+	PromWriteURL = route.Prefix + "/prom/remote/write"
 
 	// PromWriteHTTPMethod is the HTTP method used with this resource.
 	PromWriteHTTPMethod = http.MethodPost
@@ -92,6 +92,16 @@ var (
 		Tags:       models.EmptyTags(),
 		Attributes: ts.DefaultSeriesAttributes(),
 		Metadata:   ts.Metadata{},
+	}
+
+	headerToMetricType = map[string]prompb.MetricType{
+		"counter":         prompb.MetricType_COUNTER,
+		"gauge":           prompb.MetricType_GAUGE,
+		"gauge_histogram": prompb.MetricType_GAUGE_HISTOGRAM,
+		"histogram":       prompb.MetricType_HISTOGRAM,
+		"info":            prompb.MetricType_INFO,
+		"stateset":        prompb.MetricType_STATESET,
+		"summary":         prompb.MetricType_SUMMARY,
 	}
 )
 
@@ -458,6 +468,16 @@ func (h *PromWriteHandler) parseRequest(
 
 		if err := mapTags(&req, opts); err != nil {
 			return parseRequestResult{}, err
+		}
+	}
+
+	if promType := r.Header.Get(headers.PromTypeHeader); promType != "" {
+		tp, ok := headerToMetricType[strings.ToLower(promType)]
+		if !ok {
+			return parseRequestResult{}, fmt.Errorf("unknown prom metric type %s", promType)
+		}
+		for i := range req.Timeseries {
+			req.Timeseries[i].Type = tp
 		}
 	}
 

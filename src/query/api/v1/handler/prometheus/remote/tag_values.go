@@ -22,14 +22,14 @@ package remote
 
 import (
 	"bytes"
-	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
@@ -39,6 +39,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
@@ -49,8 +50,7 @@ const (
 	NameReplace = "name"
 
 	// TagValuesURL is the url for tag values.
-	TagValuesURL = handler.RoutePrefixV1 +
-		"/label/{" + NameReplace + "}/values"
+	TagValuesURL = route.Prefix + "/label/{" + NameReplace + "}/values"
 
 	// TagValuesHTTPMethod is the HTTP method used with this resource.
 	TagValuesHTTPMethod = http.MethodGet
@@ -75,16 +75,24 @@ func NewTagValuesHandler(opts options.HandlerOptions) http.Handler {
 	return &TagValuesHandler{
 		storage:             opts.Storage(),
 		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
-		parseOpts:           promql.NewParseOptions().SetNowFn(opts.NowFn()),
-		instrumentOpts:      opts.InstrumentOpts(),
-		tagOpts:             opts.TagOptions(),
+		parseOpts: promql.NewParseOptions().
+			SetRequireStartEndTime(opts.Config().Query.RequireLabelsEndpointStartEndTime).
+			SetNowFn(opts.NowFn()),
+		instrumentOpts: opts.InstrumentOpts(),
+		tagOpts:        opts.TagOptions(),
 	}
 }
 
 func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx, h.instrumentOpts)
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
+
+	ctx, opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r.Context(), r)
+	if rErr != nil {
+		xhttp.WriteError(w, rErr)
+		return
+	}
+
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	query, err := h.parseTagValuesToQuery(r)
 	if err != nil {
@@ -93,25 +101,53 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
-	if rErr != nil {
-		xhttp.WriteError(w, rErr)
-		return
-	}
-
 	result, err := h.storage.CompleteTags(ctx, query, opts)
 	if err != nil {
 		logger.Error("unable to get tag values", zap.Error(err))
+		if errors.IsTimeout(err) {
+			err = errors.NewErrQueryTimeout(err)
+		}
 		xhttp.WriteError(w, err)
 		return
 	}
 
-	handleroptions.AddResponseHeaders(w, result.Metadata, opts)
+	err = handleroptions.AddDBResultResponseHeaders(w, result.Metadata, opts)
+	if err != nil {
+		logger.Error("error writing database limit headers", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	// First write out results to zero output to check if will limit
+	// results and if so then write the header about truncation if occurred.
+	var (
+		noopWriter = ioutil.Discard
+		renderOpts = prometheus.RenderSeriesMetadataOptions{
+			ReturnedSeriesMetadataLimit: opts.ReturnedSeriesMetadataLimit,
+		}
+	)
+	renderResult, err := prometheus.RenderTagValuesResultsJSON(noopWriter, result, renderOpts)
+	if err != nil {
+		logger.Error("unable to render tag values results", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	limited := &handleroptions.ReturnedMetadataLimited{
+		Results:      renderResult.Results,
+		TotalResults: renderResult.TotalResults,
+		Limited:      renderResult.LimitedMaxReturnedData,
+	}
+	if err := handleroptions.AddReturnedLimitResponseHeaders(w, nil, limited); err != nil {
+		logger.Error("unable to add returned data headers", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
 	// TODO: Support multiple result types
-	err = prometheus.RenderTagValuesResultsJSON(w, result)
+	_, err = prometheus.RenderTagValuesResultsJSON(w, result, renderOpts)
 	if err != nil {
 		logger.Error("unable to render tag values", zap.Error(err))
-		xhttp.WriteError(w, err)
 	}
 }
 
@@ -159,8 +195,8 @@ func (h *TagValuesHandler) parseTagValuesToQuery(
 	}
 
 	return &storage.CompleteTagsQuery{
-		Start:            start,
-		End:              end,
+		Start:            xtime.ToUnixNano(start),
+		End:              xtime.ToUnixNano(end),
 		CompleteNameOnly: false,
 		FilterNameTags:   [][]byte{nameBytes},
 		TagMatchers:      tagMatchers,

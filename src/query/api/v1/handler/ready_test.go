@@ -211,3 +211,28 @@ func TestReadyHandler(t *testing.T) {
 		})
 	}
 }
+
+func TestReadyHandlerNoClusters(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := options.EmptyHandlerOptions()
+	readyHandler := NewReadyHandler(opts)
+
+	w := httptest.NewRecorder()
+	url := ReadyURL
+	req := httptest.NewRequest(ReadyHTTPMethod, url, nil)
+
+	readyHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	expected := "{}"
+	actual := xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
+}

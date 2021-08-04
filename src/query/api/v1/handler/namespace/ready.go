@@ -21,19 +21,23 @@
 package namespace
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"path"
+	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"go.uber.org/zap"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/dbnode/client"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -41,12 +45,15 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-	"go.uber.org/zap"
+)
+
+const (
+	defaultReadyContextTimeout = 10 * time.Second
 )
 
 var (
 	// M3DBReadyURL is the url for the M3DB namespace mark_ready handler.
-	M3DBReadyURL = path.Join(handler.RoutePrefixV1, M3DBServiceNamespacePathName, "ready")
+	M3DBReadyURL = path.Join(route.Prefix, M3DBServiceNamespacePathName, "ready")
 
 	// ReadyHTTPMethod is the HTTP method used with this resource.
 	ReadyHTTPMethod = http.MethodPost
@@ -74,6 +81,12 @@ func (h *ReadyHandler) ServeHTTP(
 	r *http.Request,
 ) {
 	ctx := r.Context()
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, defaultReadyContextTimeout)
+		defer cancel()
+	}
+
 	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	req, rErr := h.parseRequest(r)
@@ -84,7 +97,7 @@ func (h *ReadyHandler) ServeHTTP(
 	}
 
 	opts := handleroptions.NewServiceOptions(svc, r.Header, nil)
-	ready, err := h.Ready(req, opts)
+	ready, err := h.ready(ctx, req, opts)
 	if err != nil {
 		logger.Error("unable to mark namespace as ready", zap.Error(err))
 		xhttp.WriteError(w, err)
@@ -109,7 +122,21 @@ func (h *ReadyHandler) parseRequest(r *http.Request) (*admin.NamespaceReadyReque
 	return req, nil
 }
 
-func (h *ReadyHandler) Ready(req *admin.NamespaceReadyRequest, opts handleroptions.ServiceOptions) (bool, error) {
+func (h *ReadyHandler) ready(
+	ctx context.Context,
+	req *admin.NamespaceReadyRequest,
+	opts handleroptions.ServiceOptions,
+) (bool, error) {
+	// NB(nate): Readying a namespace only applies to namespaces created dynamically. As such,
+	// ensure that any calls to the ready endpoint simply return true when using static configuration
+	// as namespaces are ready by default in this case.
+	if h.clusters != nil && h.clusters.ConfigType() == m3.ClusterConfigTypeStatic {
+		h.instrumentOpts.Logger().Debug(
+			"/namespace/ready endpoint not supported for statically configured namespaces.",
+		)
+		return true, nil
+	}
+
 	// Fetch existing namespace metadata.
 	store, err := h.client.Store(opts.KVOverrideOptions())
 	if err != nil {
@@ -140,7 +167,7 @@ func (h *ReadyHandler) Ready(req *admin.NamespaceReadyRequest, opts handleroptio
 
 	// If we're not forcing the staging state, check db nodes to see if namespace is ready.
 	if !req.Force {
-		if err := h.checkDBNodes(req.Name); err != nil {
+		if err := h.checkDBNodes(ctx, req.Name); err != nil {
 			return false, err
 		}
 	}
@@ -180,7 +207,7 @@ func (h *ReadyHandler) Ready(req *admin.NamespaceReadyRequest, opts handleroptio
 	return true, nil
 }
 
-func (h *ReadyHandler) checkDBNodes(namespace string) error {
+func (h *ReadyHandler) checkDBNodes(ctx context.Context, namespace string) error {
 	if h.clusters == nil {
 		err := fmt.Errorf("coordinator is not connected to dbnodes. cannot check namespace %v"+
 			" for readiness. set force = true to make namespaces ready without checking dbnodes", namespace)
@@ -204,7 +231,7 @@ func (h *ReadyHandler) checkDBNodes(namespace string) error {
 	}
 
 	// Do a simple quorum read. A non-error indicates most dbnodes have the namespace.
-	_, _, err := session.FetchTaggedIDs(id,
+	_, _, err := session.FetchTaggedIDs(ctx, id,
 		index.Query{Query: idx.NewAllQuery()},
 		index.QueryOptions{SeriesLimit: 1, DocsLimit: 1})
 	// We treat any error here as a proxy for namespace readiness.

@@ -89,11 +89,11 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 	setup.SetNowFn(now)
 	startTime := now
 	commitlogWrite := ts.Datapoint{
-		Timestamp: startTime.Add(time.Second),
-		Value:     1,
+		TimestampNanos: startTime.Add(time.Second),
+		Value:          1,
 	}
 	seriesMaps := map[xtime.UnixNano]generate.SeriesBlock{
-		xtime.ToUnixNano(startTime): generate.SeriesBlock{
+		startTime: {
 			generate.Series{
 				ID:   testID,
 				Data: []generate.TestValue{{Datapoint: commitlogWrite}},
@@ -158,8 +158,8 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 		now = now.Add(blockSize)
 		setup.SetNowFn(now)
 		memoryWrite = ts.Datapoint{
-			Timestamp: now.Add(-10 * time.Second),
-			Value:     2,
+			TimestampNanos: now.Add(-10 * time.Second),
+			Value:          2,
 		}
 
 		// Issue the write (still in the same block as the commitlog write).
@@ -178,10 +178,8 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 		setup.SetNowFn(now)
 		setup.SleepFor10xTickMinimumInterval()
 
-		// Twice because the test bootstrapper will need to run two times, once to fulfill
-		// all historical blocks and once to fulfill the active block.
-		signalCh <- struct{}{}
-		signalCh <- struct{}{}
+		// Close signalCh to unblock bootstrapper and run the bootstrap till the end
+		close(signalCh)
 	}()
 	require.NoError(t, setup.StartServer()) // Blocks until bootstrap is complete
 
@@ -192,7 +190,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 	// Verify in-memory data match what we expect - both commitlog and memory write
 	// should be present.
 	expectedSeriesMaps := map[xtime.UnixNano]generate.SeriesBlock{
-		xtime.ToUnixNano(commitlogWrite.Timestamp.Truncate(blockSize)): generate.SeriesBlock{
+		commitlogWrite.TimestampNanos.Truncate(blockSize): {
 			generate.Series{
 				ID:   testID,
 				Data: []generate.TestValue{{Datapoint: commitlogWrite}, {Datapoint: memoryWrite}},

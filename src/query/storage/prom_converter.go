@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"context"
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -42,7 +43,7 @@ func iteratorToPromResult(
 	for iter.Next() {
 		dp, _, _ := iter.Current()
 		samples = append(samples, prompb.Sample{
-			Timestamp: TimeToPromTimestamp(dp.Timestamp),
+			Timestamp: TimeToPromTimestamp(dp.TimestampNanos),
 			Value:     dp.Value,
 		})
 	}
@@ -88,6 +89,7 @@ func toPromSequentially(
 }
 
 func toPromConcurrently(
+	ctx context.Context,
 	fetchResult consolidators.SeriesFetchResult,
 	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
@@ -101,6 +103,7 @@ func toPromConcurrently(
 		mu       sync.Mutex
 	)
 
+	fastWorkerPool := readWorkerPool.FastContextCheck(100)
 	for i := 0; i < count; i++ {
 		i := i
 		iter, tags, err := fetchResult.IterTagsAtIndex(i, tagOptions)
@@ -109,7 +112,7 @@ func toPromConcurrently(
 		}
 
 		wg.Add(1)
-		readWorkerPool.Go(func() {
+		available := fastWorkerPool.GoWithContext(ctx, func() {
 			defer wg.Done()
 			series, err := iteratorToPromResult(iter, tags, tagOptions)
 			if err != nil {
@@ -120,6 +123,13 @@ func toPromConcurrently(
 
 			seriesList[i] = series
 		})
+		if !available {
+			wg.Done()
+			mu.Lock()
+			multiErr = multiErr.Add(ctx.Err())
+			mu.Unlock()
+			break
+		}
 	}
 
 	wg.Wait()
@@ -143,6 +153,7 @@ func toPromConcurrently(
 }
 
 func seriesIteratorsToPromResult(
+	ctx context.Context,
 	fetchResult consolidators.SeriesFetchResult,
 	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
@@ -151,12 +162,13 @@ func seriesIteratorsToPromResult(
 		return toPromSequentially(fetchResult, tagOptions)
 	}
 
-	return toPromConcurrently(fetchResult, readWorkerPool, tagOptions)
+	return toPromConcurrently(ctx, fetchResult, readWorkerPool, tagOptions)
 }
 
 // SeriesIteratorsToPromResult converts raw series iterators directly to a
 // Prometheus-compatible result.
 func SeriesIteratorsToPromResult(
+	ctx context.Context,
 	fetchResult consolidators.SeriesFetchResult,
 	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
@@ -166,7 +178,7 @@ func SeriesIteratorsToPromResult(
 		return PromResult{}, err
 	}
 
-	promResult, err := seriesIteratorsToPromResult(fetchResult,
+	promResult, err := seriesIteratorsToPromResult(ctx, fetchResult,
 		readWorkerPool, tagOptions)
 	promResult.Metadata = fetchResult.Metadata
 	return promResult, err

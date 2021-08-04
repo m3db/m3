@@ -25,13 +25,10 @@ import (
 )
 
 const (
-	// defaultInitialiBatchSize determines the initial batch size that will be used when filling up the
-	// pool.
-	defaultInitialBatchSize = 1024
 	// defaultWritePoolMaxBatchSize is the default maximum size for a writeBatch that the pool
 	// will allow to remain in the pool. Any batches larger than that will be discarded to prevent
 	// excessive memory use forever in the case of an exceptionally large batch write.
-	defaultMaxBatchSize = 100000
+	defaultMaxBatchSize = 10240
 )
 
 // WriteBatchPool is a pool of WriteBatch.
@@ -44,14 +41,9 @@ type WriteBatchPool struct {
 // NewWriteBatchPool constructs a new WriteBatchPool.
 func NewWriteBatchPool(
 	opts pool.ObjectPoolOptions,
-	initialBatchSizeOverride,
+	initialBatchSize int,
 	maxBatchSizeOverride *int,
 ) *WriteBatchPool {
-	initialBatchSize := defaultInitialBatchSize
-	if initialBatchSizeOverride != nil {
-		initialBatchSize = *initialBatchSizeOverride
-	}
-
 	maxBatchSize := defaultMaxBatchSize
 	if maxBatchSizeOverride != nil {
 		maxBatchSize = *maxBatchSizeOverride

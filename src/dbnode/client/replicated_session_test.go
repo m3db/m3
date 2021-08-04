@@ -26,13 +26,14 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/suite"
+
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/stretchr/testify/suite"
 )
 
 type replicatedSessionTestSuite struct {
@@ -59,7 +60,11 @@ func optionsWithAsyncSessions(hasSync bool, asyncCount int) Options {
 	options := NewAdminOptions().
 		SetAsyncTopologyInitializers(topoInits)
 	if asyncCount > 0 {
-		workerPool := xsync.NewWorkerPool(10)
+		workerPool, err := xsync.NewPooledWorkerPool(10,
+			xsync.NewPooledWorkerPoolOptions())
+		if err != nil {
+			panic(err)
+		}
 		workerPool.Init()
 		options = options.SetAsyncWriteWorkerPool(workerPool)
 	}
@@ -170,7 +175,7 @@ func (s *replicatedSessionTestSuite) TestReplicate() {
 	asyncCount := 2
 	namespace := ident.StringID("foo")
 	id := ident.StringID("bar")
-	now := time.Now()
+	now := xtime.Now()
 	value := float64(123)
 	unit := xtime.Nanosecond
 	annotation := []byte{}

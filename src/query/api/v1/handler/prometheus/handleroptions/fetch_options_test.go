@@ -22,6 +22,7 @@ package handleroptions
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"math"
 	"mime/multipart"
@@ -52,10 +53,12 @@ func TestFetchOptionsBuilder(t *testing.T) {
 	tests := []struct {
 		name                 string
 		defaultLimit         int
+		defaultRangeLimit    time.Duration
 		defaultRestrictByTag *storage.RestrictByTag
 		headers              map[string]string
 		query                string
 		expectedLimit        int
+		expectedRangeLimit   time.Duration
 		expectedRestrict     *storage.RestrictQueryOptions
 		expectedLookback     *expectedLookback
 		expectedErr          bool
@@ -75,10 +78,33 @@ func TestFetchOptionsBuilder(t *testing.T) {
 			expectedLimit: 4242,
 		},
 		{
-			name:         "bad header",
+			name:         "bad limit header",
 			defaultLimit: 42,
 			headers: map[string]string{
 				headers.LimitMaxSeriesHeader: "not_a_number",
+			},
+			expectedErr: true,
+		},
+		{
+			name:               "default range limit with no headers",
+			defaultRangeLimit:  42 * time.Hour,
+			headers:            map[string]string{},
+			expectedRangeLimit: 42 * time.Hour,
+		},
+		{
+			name:              "range limit with header",
+			defaultRangeLimit: 42 * time.Hour,
+			headers: map[string]string{
+				headers.LimitMaxRangeHeader: "84h",
+			},
+			expectedRangeLimit: 84 * time.Hour,
+		},
+		{
+			name:              "bad range limit header",
+			defaultRangeLimit: 42 * time.Hour,
+			headers: map[string]string{
+				// Not a parseable time range string.
+				headers.LimitMaxRangeHeader: "4242",
 			},
 			expectedErr: true,
 		},
@@ -236,7 +262,7 @@ func TestFetchOptionsBuilder(t *testing.T) {
 				req.Header.Add(k, v)
 			}
 
-			opts, err := builder.NewFetchOptions(req)
+			ctx, opts, err := builder.NewFetchOptions(context.Background(), req)
 			if !test.expectedErr {
 				require.NoError(t, err)
 				require.Equal(t, test.expectedLimit, opts.SeriesLimit)
@@ -253,6 +279,14 @@ func TestFetchOptionsBuilder(t *testing.T) {
 					require.Equal(t, test.expectedLookback.value, *opts.LookbackDuration)
 				}
 				require.Equal(t, 10*time.Second, opts.Timeout)
+				// Check context has deadline and headers from
+				// the request.
+				_, ok := ctx.Deadline()
+				require.True(t, ok)
+				headers := ctx.Value(RequestHeaderKey)
+				require.NotNil(t, headers)
+				_, ok = headers.(http.Header)
+				require.True(t, ok)
 			} else {
 				require.Error(t, err)
 			}
@@ -379,7 +413,7 @@ func TestFetchOptionsWithHeader(t *testing.T) {
 		req.Header.Add(k, v)
 	}
 
-	opts, err := builder.NewFetchOptions(req)
+	_, opts, err := builder.NewFetchOptions(context.Background(), req)
 	require.NoError(t, err)
 	require.NotNil(t, opts.RestrictQueryOptions)
 	ex := &storage.RestrictQueryOptions{
@@ -422,7 +456,13 @@ func TestTimeoutParseWithHeader(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, timeout, time.Millisecond)
 
+	req.Header.Add(headers.TimeoutHeader, "1s")
+	timeout, err = ParseRequestTimeout(req, time.Second)
+	assert.NoError(t, err)
+	assert.Equal(t, timeout, time.Second)
+
 	req.Header.Del("timeout")
+	req.Header.Del(headers.TimeoutHeader)
 	timeout, err = ParseRequestTimeout(req, 2*time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, timeout, 2*time.Minute)
@@ -459,4 +499,21 @@ func TestTimeoutParseWithGetRequestParam(t *testing.T) {
 	timeout, err := ParseRequestTimeout(req, time.Second)
 	assert.NoError(t, err)
 	assert.Equal(t, timeout, time.Millisecond)
+}
+
+func TestInstanceMultiple(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	m, err := ParseInstanceMultiple(req, 2.0)
+	require.NoError(t, err)
+	require.Equal(t, float32(2.0), m)
+
+	req.Header.Set(headers.LimitInstanceMultipleHeader, "3.0")
+	m, err = ParseInstanceMultiple(req, 2.0)
+	require.NoError(t, err)
+	require.Equal(t, float32(3.0), m)
+
+	req.Header.Set(headers.LimitInstanceMultipleHeader, "blah")
+	_, err = ParseInstanceMultiple(req, 2.0)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "could not parse instance multiple")
 }

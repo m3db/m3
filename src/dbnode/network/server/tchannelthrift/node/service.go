@@ -100,9 +100,6 @@ var (
 	// errDatabaseHasAlreadyBeenSet is raised when SetDatabase() is called more than one time.
 	errDatabaseHasAlreadyBeenSet = errors.New("database has already been set")
 
-	// errNotImplemented raised when attempting to execute an un-implemented method
-	errNotImplemented = errors.New("method is not implemented")
-
 	// errHealthNotSet is raised when server health data structure is not set.
 	errHealthNotSet = errors.New("server health not set")
 )
@@ -124,15 +121,10 @@ type serviceMetrics struct {
 	writeTaggedBatchRawRPCs tally.Counter
 	writeTaggedBatchRaw     instrument.BatchMethodMetrics
 	overloadRejected        tally.Counter
-
-	// the total time to call FetchTagged, both querying the index and reading data results (if requested).
-	queryTimingFetchTagged index.QueryMetrics
-	// the total time to read data blocks.
-	queryTimingDataRead index.QueryMetrics
-	// the total time to call Aggregate.
-	queryTimingAggregate index.QueryMetrics
-	// the total time to call AggregateRaw.
-	queryTimingAggregateRaw index.QueryMetrics
+	rpcTotalRead            tally.Counter
+	rpcStatusCanceledRead   tally.Counter
+	// the series blocks read during a call to fetchTagged
+	fetchTaggedSeriesBlocks tally.Histogram
 }
 
 func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceMetrics {
@@ -153,11 +145,13 @@ func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceM
 		writeTaggedBatchRawRPCs: scope.Counter("writeTaggedBatchRaw-rpcs"),
 		writeTaggedBatchRaw:     instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", opts),
 		overloadRejected:        scope.Counter("overload-rejected"),
-
-		queryTimingFetchTagged:  index.NewQueryMetrics("fetch_tagged", scope),
-		queryTimingAggregate:    index.NewQueryMetrics("aggregate", scope),
-		queryTimingAggregateRaw: index.NewQueryMetrics("aggregate_raw", scope),
-		queryTimingDataRead:     index.NewQueryMetrics("data_read", scope),
+		rpcTotalRead: scope.Tagged(map[string]string{
+			"rpc_type": "read",
+		}).Counter("rpc_total"),
+		rpcStatusCanceledRead: scope.Tagged(map[string]string{
+			"rpc_status": "canceled",
+			"rpc_type":   "read",
+		}).Counter("rpc_status"),
 	}
 }
 
@@ -252,7 +246,6 @@ func (s *serviceState) DecNumOutstandingReadRPCs() {
 type pools struct {
 	id                      ident.Pool
 	tagEncoder              serialize.TagEncoderPool
-	tagDecoder              serialize.TagDecoderPool
 	checkedBytesWrapper     xpool.CheckedBytesWrapperPool
 	segmentsArray           segmentsArrayPool
 	writeBatchPooledReqPool *writeBatchPooledReqPool
@@ -274,7 +267,7 @@ type Service interface {
 	// It is the responsibility of the caller to close the returned iterator.
 	FetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedRequest) (FetchTaggedResultsIter, error)
 
-	// Only safe to be called one time once the service has started.
+	// SetDatabase only safe to be called one time once the service has started.
 	SetDatabase(db storage.Database) error
 
 	// Database returns the current database.
@@ -324,7 +317,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 		writeBatchPoolSize = maxWriteReqs
 	}
 	writeBatchPooledReqPool := newWriteBatchPooledReqPool(writeBatchPoolSize, iopts)
-	writeBatchPooledReqPool.Init(opts.TagDecoderPool())
+	writeBatchPooledReqPool.Init()
 
 	return &service{
 		state: serviceState{
@@ -346,7 +339,6 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 			id:                      opts.IdentifierPool(),
 			checkedBytesWrapper:     opts.CheckedBytesWrapperPool(),
 			tagEncoder:              opts.TagEncoderPool(),
-			tagDecoder:              opts.TagDecoderPool(),
 			segmentsArray:           segmentPool,
 			writeBatchPooledReqPool: writeBatchPooledReqPool,
 			blockMetadataV2:         opts.BlockMetadataV2Pool(),
@@ -482,7 +474,7 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	ctx := addSourceToContext(tctx, req.Source)
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.Query)
@@ -654,7 +646,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	var (
 		callStart = s.nowFn()
@@ -688,7 +680,7 @@ func (s *service) readDatapoints(
 	ctx context.Context,
 	db storage.Database,
 	nsID, tsID ident.ID,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	timeType rpc.TimeType,
 ) ([]*rpc.Datapoint, error) {
 	iter, err := db.ReadEncoded(ctx, nsID, tsID, start, end)
@@ -719,7 +711,7 @@ func (s *service) readDatapoints(
 	for multiIt.Next() {
 		dp, _, annotation := multiIt.Current()
 
-		timestamp, timestampErr := convert.ToValue(dp.Timestamp, timeType)
+		timestamp, timestampErr := convert.ToValue(dp.TimestampNanos, timeType)
 		if timestampErr != nil {
 			return nil, xerrors.NewInvalidParamsError(timestampErr)
 		}
@@ -743,15 +735,19 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	ctx := tchannelthrift.Context(tctx)
 	iter, err := s.FetchTaggedIter(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, convert.ToRPCError(err)
 	}
-	result, err := s.buildFetchTaggedResult(ctx, iter)
-	iter.Close(err)
 
-	return result, err
+	result, err := s.fetchTaggedResult(ctx, iter)
+	iter.Close(err)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+
+	return result, nil
 }
 
-func (s *service) buildFetchTaggedResult(ctx context.Context,
+func (s *service) fetchTaggedResult(ctx context.Context,
 	iter FetchTaggedResultsIter,
 ) (*rpc.FetchTaggedResult_, error) {
 	response := &rpc.FetchTaggedResult_{
@@ -765,7 +761,7 @@ func (s *service) buildFetchTaggedResult(ctx context.Context,
 		if err != nil {
 			return nil, err
 		}
-		segments, err := cur.WriteSegments(nil)
+		segments, err := cur.WriteSegments(ctx, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -778,6 +774,13 @@ func (s *service) buildFetchTaggedResult(ctx context.Context,
 	}
 	if iter.Err() != nil {
 		return nil, iter.Err()
+	}
+
+	if v := int64(iter.WaitedIndex()); v > 0 {
+		response.WaitedIndex = &v
+	}
+	if v := int64(iter.WaitedSeriesRead()); v > 0 {
+		response.WaitedSeriesRead = &v
 	}
 
 	return response, nil
@@ -811,23 +814,30 @@ func (s *service) FetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 	return iter, err
 }
 
-func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedRequest, instrumentClose func(error)) (
-	FetchTaggedResultsIter, error) {
+func (s *service) fetchTaggedIter(
+	ctx context.Context,
+	req *rpc.FetchTaggedRequest,
+	instrumentClose func(error),
+) (FetchTaggedResultsIter, error) {
 	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
 	ctx.RegisterCloser(xresource.SimpleCloserFn(func() {
-		s.readRPCCompleted()
+		s.readRPCCompleted(ctx.GoContext())
 	}))
 
-	startTime := s.nowFn()
 	ns, query, opts, fetchData, err := convert.FromRPCFetchTaggedRequest(req, s.pools)
 	if err != nil {
 		return nil, tterrors.NewBadRequestError(err)
 	}
 
 	queryResult, err := db.QueryIDs(ctx, ns, query, opts)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+
+	permits, err := s.seriesReadPermits.NewPermits(ctx)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}
@@ -845,12 +855,9 @@ func (s *service) fetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedReque
 		tagEncoder:      tagEncoder,
 		iOpts:           s.opts.InstrumentOptions(),
 		instrumentClose: instrumentClose,
-		blockPermits:    s.seriesReadPermits.NewPermits(ctx),
-		totalDocsCount:  queryResult.Results.TotalDocsCount(),
-		nowFn:           s.nowFn,
-		fetchStart:      startTime,
-		dataReadMetrics: s.metrics.queryTimingDataRead,
-		totalMetrics:    s.metrics.queryTimingFetchTagged,
+		blockPermits:    permits,
+		requireNoWait:   req.RequireNoWait,
+		indexWaited:     queryResult.Waited,
 	}), nil
 }
 
@@ -862,6 +869,12 @@ type FetchTaggedResultsIter interface {
 
 	// Exhaustive returns true if NumIDs is all IDs that the query could have returned.
 	Exhaustive() bool
+
+	// WaitedIndex counts how many times index querying had to wait for permits.
+	WaitedIndex() int
+
+	// WaitedSeriesRead counts how many times series being read had to wait for permits.
+	WaitedSeriesRead() int
 
 	// Namespace is the namespace.
 	Namespace() ident.ID
@@ -885,14 +898,15 @@ type FetchTaggedResultsIter interface {
 
 type fetchTaggedResultsIter struct {
 	fetchTaggedResultsIterOpts
-	idResults       []idResult
-	idx             int
-	blockReadIdx    int
-	cur             IDResult
-	err             error
-	batchesAcquired int
-	blocksAvailable int
-	dataReadStart   time.Time
+	idResults        []idResult
+	idx              int
+	blockReadIdx     int
+	cur              IDResult
+	err              error
+	permits          []permits.Permit
+	unreleasedQuota  int64
+	indexWaited      int
+	seriesReadWaited int
 }
 
 type fetchTaggedResultsIterOpts struct {
@@ -906,20 +920,15 @@ type fetchTaggedResultsIterOpts struct {
 	iOpts           instrument.Options
 	instrumentClose func(error)
 	blockPermits    permits.Permits
-	blocksPerBatch  int
-	nowFn           clock.NowFn
-	fetchStart      time.Time
-	totalDocsCount  int
-	dataReadMetrics index.QueryMetrics
-	totalMetrics    index.QueryMetrics
-	blocksReadLimit limits.LookbackLimit
+	requireNoWait   bool
+	indexWaited     int
 }
 
 func newFetchTaggedResultsIter(opts fetchTaggedResultsIterOpts) FetchTaggedResultsIter { //nolint: gocritic
 	return &fetchTaggedResultsIter{
 		fetchTaggedResultsIterOpts: opts,
 		idResults:                  make([]idResult, 0, opts.queryResult.Results.Map().Len()),
-		dataReadStart:              opts.nowFn(),
+		permits:                    make([]permits.Permit, 0),
 	}
 }
 
@@ -929,6 +938,14 @@ func (i *fetchTaggedResultsIter) NumIDs() int {
 
 func (i *fetchTaggedResultsIter) Exhaustive() bool {
 	return i.queryResult.Exhaustive
+}
+
+func (i *fetchTaggedResultsIter) WaitedIndex() int {
+	return i.indexWaited
+}
+
+func (i *fetchTaggedResultsIter) WaitedSeriesRead() int {
+	return i.seriesReadWaited
 }
 
 func (i *fetchTaggedResultsIter) Namespace() ident.ID {
@@ -963,7 +980,7 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 		}
 	} else {
 		// release the permits and memory from the previous block readers.
-		i.releaseAll(i.idx - 1)
+		i.releaseQuotaUsed(i.idx - 1)
 		i.idResults[i.idx-1].blockReaders = nil
 	}
 
@@ -1007,37 +1024,61 @@ func (i *fetchTaggedResultsIter) Next(ctx context.Context) bool {
 
 // acquire a block permit for a series ID. returns true if a permit is available.
 func (i *fetchTaggedResultsIter) acquire(ctx context.Context, idx int) (bool, error) {
-	if i.blocksAvailable > 0 {
-		i.blocksAvailable--
-	} else {
+	var curPermit permits.Permit
+	if len(i.permits) > 0 {
+		curPermit = i.permits[len(i.permits)-1]
+	}
+	if curPermit == nil || curPermit.QuotaRemaining() <= 0 {
 		if i.idx == idx {
 			// block acquiring if we need the block readers to fulfill the current fetch.
-			if err := i.blockPermits.Acquire(ctx); err != nil {
-				return false, err
+			acquireResult, err := i.blockPermits.Acquire(ctx)
+			var success bool
+			defer func() {
+				// Note: ALWAYS release if we do not successfully return back
+				// the permit and we checked one out.
+				if !success && acquireResult.Permit != nil {
+					i.blockPermits.Release(acquireResult.Permit)
+				}
+			}()
+			if acquireResult.Waited {
+				i.seriesReadWaited++
+				if err == nil && i.requireNoWait {
+					// Fail iteration if request requires no waiting.
+					return false, permits.ErrOperationWaitedOnRequireNoWait
+				}
 			}
-		} else {
-			// don't block if we are prefetching for a future seriesID.
-			acquired, err := i.blockPermits.TryAcquire(ctx)
 			if err != nil {
 				return false, err
 			}
-			if !acquired {
+			success = true
+			i.permits = append(i.permits, acquireResult.Permit)
+			curPermit = acquireResult.Permit
+		} else {
+			// don't block if we are prefetching for a future seriesID.
+			permit, err := i.blockPermits.TryAcquire(ctx)
+			if err != nil {
+				return false, err
+			}
+			if permit == nil {
 				return false, nil
 			}
+			i.permits = append(i.permits, permit)
+			curPermit = permit
 		}
-		i.batchesAcquired++
-		i.blocksAvailable = i.blocksPerBatch - 1
 	}
-	i.idResults[idx].blocksAcquired++
+	curPermit.Use(1)
+	i.idResults[idx].quotaUsed++
 	return true, nil
 }
 
 // release all the block permits acquired by a series ID that has been processed.
-func (i *fetchTaggedResultsIter) releaseAll(idx int) {
-	// Note: the actual batch permits are not released until the query completely finishes and the iterator
-	// closes.
-	for n := 0; n < i.idResults[idx].blocksAcquired; n++ {
-		i.blocksAvailable++
+func (i *fetchTaggedResultsIter) releaseQuotaUsed(idx int) {
+	i.unreleasedQuota += i.idResults[idx].quotaUsed
+	for i.unreleasedQuota > 0 && i.unreleasedQuota >= i.permits[0].AllowedQuota() {
+		p := i.permits[0]
+		i.blockPermits.Release(p)
+		i.unreleasedQuota -= p.AllowedQuota()
+		i.permits = i.permits[1:]
 	}
 }
 
@@ -1051,19 +1092,8 @@ func (i *fetchTaggedResultsIter) Current() IDResult {
 
 func (i *fetchTaggedResultsIter) Close(err error) {
 	i.instrumentClose(err)
-
-	queryRange := i.queryOpts.EndExclusive.Sub(i.queryOpts.StartInclusive)
-	now := i.nowFn()
-	dataReadTime := now.Sub(i.dataReadStart)
-	i.dataReadMetrics.ByRange.Record(queryRange, dataReadTime)
-	i.dataReadMetrics.ByDocs.Record(i.totalDocsCount, dataReadTime)
-
-	totalFetchTime := now.Sub(i.fetchStart)
-	i.totalMetrics.ByRange.Record(queryRange, totalFetchTime)
-	i.totalMetrics.ByDocs.Record(i.totalDocsCount, totalFetchTime)
-
-	for n := 0; n < i.batchesAcquired; n++ {
-		i.blockPermits.Release()
+	for _, p := range i.permits {
+		i.blockPermits.Release(p)
 	}
 }
 
@@ -1078,7 +1108,8 @@ type IDResult interface {
 
 	// WriteSegments writes the Segments to the provided slice. Callers must use the returned reference in case the slice
 	// needs to grow, just like append().
-	WriteSegments(dst []*rpc.Segments) ([]*rpc.Segments, error)
+	// This method blocks until segment data is available or the context deadline expires.
+	WriteSegments(ctx context.Context, dst []*rpc.Segments) ([]*rpc.Segments, error)
 }
 
 type idResult struct {
@@ -1087,7 +1118,7 @@ type idResult struct {
 	tagEncoder       serialize.TagEncoder
 	blockReadersIter series.BlockReaderIter
 	blockReaders     [][]xio.BlockReader
-	blocksAcquired   int
+	quotaUsed        int64
 	iOpts            instrument.Options
 }
 
@@ -1110,10 +1141,10 @@ func (i *idResult) WriteTags(dst []byte) ([]byte, error) {
 	return dst, nil
 }
 
-func (i *idResult) WriteSegments(dst []*rpc.Segments) ([]*rpc.Segments, error) {
+func (i *idResult) WriteSegments(ctx context.Context, dst []*rpc.Segments) ([]*rpc.Segments, error) {
 	dst = dst[:0]
 	for _, blockReaders := range i.blockReaders {
-		segments, err := readEncodedResultSegment(blockReaders)
+		segments, err := readEncodedResultSegment(ctx, blockReaders)
 		if err != nil {
 			return nil, err
 		}
@@ -1129,7 +1160,7 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -1150,9 +1181,7 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 		Exhaustive: queryResult.Exhaustive,
 	}
 	results := queryResult.Results
-	size := 0
 	for _, entry := range results.Map().Iter() {
-		size++
 		responseElem := &rpc.AggregateQueryResultTagNameElement{
 			TagName: entry.Key().String(),
 		}
@@ -1160,7 +1189,6 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 		tagValuesMap := tagValues.Map()
 		responseElem.TagValues = make([]*rpc.AggregateQueryResultTagValueElement, 0, tagValuesMap.Len())
 		for _, entry := range tagValuesMap.Iter() {
-			size++
 			responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryResultTagValueElement{
 				TagValue: entry.Key().String(),
 			})
@@ -1168,13 +1196,6 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 		response.Results = append(response.Results, responseElem)
 	}
 	s.metrics.aggregate.ReportSuccess(s.nowFn().Sub(callStart))
-
-	duration := s.nowFn().Sub(callStart)
-	queryTiming := s.metrics.queryTimingAggregate
-	rng := time.Duration(req.RangeEnd - req.RangeStart)
-	queryTiming.ByRange.Record(rng, duration)
-	queryTiming.ByDocs.Record(size, duration)
-
 	return response, nil
 }
 
@@ -1183,7 +1204,7 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	callStart := s.nowFn()
 	ctx := addSourceToContext(tctx, req.Source)
@@ -1200,13 +1221,17 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 		return nil, convert.ToRPCError(err)
 	}
 
+	var WaitedIndex *int64
+	if v := int64(queryResult.Waited); v > 0 {
+		WaitedIndex = &v
+	}
+
 	response := &rpc.AggregateQueryRawResult_{
-		Exhaustive: queryResult.Exhaustive,
+		Exhaustive:  queryResult.Exhaustive,
+		WaitedIndex: WaitedIndex,
 	}
 	results := queryResult.Results
-	size := 0
 	for _, entry := range results.Map().Iter() {
-		size++
 		responseElem := &rpc.AggregateQueryRawResultTagNameElement{
 			TagName: entry.Key().Bytes(),
 		}
@@ -1215,7 +1240,6 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 			tagValuesMap := tagValues.Map()
 			responseElem.TagValues = make([]*rpc.AggregateQueryRawResultTagValueElement, 0, tagValuesMap.Len())
 			for _, entry := range tagValuesMap.Iter() {
-				size++
 				responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryRawResultTagValueElement{
 					TagValue: entry.Key().Bytes(),
 				})
@@ -1223,12 +1247,6 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 		}
 		response.Results = append(response.Results, responseElem)
 	}
-
-	duration := s.nowFn().Sub(callStart)
-	queryTiming := s.metrics.queryTimingAggregateRaw
-	rng := time.Duration(req.RangeEnd - req.RangeStart)
-	queryTiming.ByRange.Record(rng, duration)
-	queryTiming.ByDocs.Record(size, duration)
 
 	s.metrics.aggregate.ReportSuccess(s.nowFn().Sub(callStart))
 	return response, nil
@@ -1264,7 +1282,7 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	callStart := s.nowFn()
 	ctx := addSourceToContext(tctx, req.Source)
@@ -1348,7 +1366,7 @@ func (s *service) FetchBatchRawV2(tctx thrift.Context, req *rpc.FetchBatchRawV2R
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	var (
 		callStart          = s.nowFn()
@@ -1434,7 +1452,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	var (
 		callStart = s.nowFn()
@@ -1453,14 +1471,14 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	// Preallocate starts to maximum size since at least one element will likely
 	// be fetching most blocks for peer bootstrapping
 	ropts := nsMetadata.Options().RetentionOptions()
-	blockStarts := make([]time.Time, 0,
+	blockStarts := make([]xtime.UnixNano, 0,
 		(ropts.RetentionPeriod()+ropts.FutureRetentionPeriod())/ropts.BlockSize())
 
 	for i, request := range req.Elements {
 		blockStarts = blockStarts[:0]
 
 		for _, start := range request.Starts {
-			blockStarts = append(blockStarts, xtime.FromNanoseconds(start))
+			blockStarts = append(blockStarts, xtime.UnixNano(start))
 		}
 
 		tsID := s.newID(ctx, request.ID)
@@ -1477,12 +1495,12 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 
 		for _, fetchedBlock := range fetched {
 			block := rpc.NewBlock()
-			block.Start = fetchedBlock.Start.UnixNano()
+			block.Start = int64(fetchedBlock.Start)
 			if err := fetchedBlock.Err; err != nil {
 				block.Err = convert.ToRPCError(err)
 			} else {
 				var converted convert.ToSegmentsResult
-				converted, err = convert.ToSegments(fetchedBlock.Blocks)
+				converted, err = convert.ToSegments(ctx, fetchedBlock.Blocks)
 				if err != nil {
 					block.Err = convert.ToRPCError(err)
 				}
@@ -1510,7 +1528,7 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.readRPCCompleted(tctx)
 
 	callStart := s.nowFn()
 	defer func() {
@@ -1536,8 +1554,8 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 
 	var (
 		nsID  = s.newID(ctx, req.NameSpace)
-		start = time.Unix(0, req.RangeStart)
-		end   = time.Unix(0, req.RangeEnd)
+		start = xtime.UnixNano(req.RangeStart)
+		end   = xtime.UnixNano(req.RangeEnd)
 	)
 	fetchedMetadata, nextPageToken, err := db.FetchBlocksMetadataV2(
 		ctx, nsID, uint32(req.Shard), start, end, req.Limit, req.PageToken, opts)
@@ -1601,7 +1619,7 @@ func (s *service) getBlocksMetadataV2FromResult(
 			blockMetadata := s.pools.blockMetadataV2.Get()
 			blockMetadata.ID = id
 			blockMetadata.EncodedTags = encodedTags
-			blockMetadata.Start = fetchedMetadataBlock.Start.UnixNano()
+			blockMetadata.Start = int64(fetchedMetadataBlock.Start)
 
 			if opts.IncludeSizes {
 				size := fetchedMetadataBlock.Size
@@ -1619,7 +1637,7 @@ func (s *service) getBlocksMetadataV2FromResult(
 			}
 
 			if opts.IncludeLastRead {
-				lastRead := fetchedMetadataBlock.LastRead.UnixNano()
+				lastRead := int64(fetchedMetadataBlock.LastRead)
 				blockMetadata.LastRead = &lastRead
 				blockMetadata.LastReadTimeType = rpc.TimeType_UNIX_NANOSECONDS
 			} else {
@@ -1730,7 +1748,8 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 	if err = db.WriteTagged(ctx,
 		s.pools.id.GetStringID(ctx, req.NameSpace),
 		s.pools.id.GetStringID(ctx, req.ID),
-		iter, xtime.FromNormalizedTime(dp.Timestamp, d),
+		idxconvert.NewTagsIterMetadataResolver(iter),
+		xtime.UnixNano(dp.Timestamp).FromNormalizedTime(d),
 		dp.Value, unit, dp.Annotation); err != nil {
 		s.metrics.writeTagged.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)
@@ -1756,7 +1775,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	// to the thrift bytes pool and to return ident.ID wrappers to a pool for
 	// reuse. We also reduce contention on pools by getting one per batch request
 	// rather than one per ID.
-	pooledReq := s.pools.writeBatchPooledReqPool.Get()
+	pooledReq := s.pools.writeBatchPooledReqPool.Get(len(req.Elements))
 	pooledReq.writeReq = req
 	ctx.RegisterFinalizer(pooledReq)
 
@@ -1855,7 +1874,7 @@ func (s *service) WriteBatchRawV2(tctx thrift.Context, req *rpc.WriteBatchRawV2R
 	// to the thrift bytes pool and to return ident.ID wrappers to a pool for
 	// reuse. We also reduce contention on pools by getting one per batch request
 	// rather than one per ID.
-	pooledReq := s.pools.writeBatchPooledReqPool.Get()
+	pooledReq := s.pools.writeBatchPooledReqPool.Get(len(req.Elements))
 	pooledReq.writeV2Req = req
 	ctx.RegisterFinalizer(pooledReq)
 
@@ -1957,7 +1976,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	// to the thrift bytes pool and to return ident.ID wrappers to a pool for
 	// reuse. We also reduce contention on pools by getting one per batch request
 	// rather than one per ID.
-	pooledReq := s.pools.writeBatchPooledReqPool.Get()
+	pooledReq := s.pools.writeBatchPooledReqPool.Get(len(req.Elements))
 	pooledReq.writeTaggedReq = req
 	ctx.RegisterFinalizer(pooledReq)
 
@@ -1994,18 +2013,11 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			continue
 		}
 
-		dec, err := s.newPooledTagsDecoder(ctx, elem.EncodedTags, pooledReq)
-		if err != nil {
-			nonRetryableErrors++
-			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, err))
-			continue
-		}
-
 		seriesID := s.newPooledID(ctx, elem.ID, pooledReq)
+
 		batchWriter.AddTagged(
 			i,
 			seriesID,
-			dec,
 			elem.EncodedTags,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value,
@@ -2065,7 +2077,7 @@ func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTagge
 	// to the thrift bytes pool and to return ident.ID wrappers to a pool for
 	// reuse. We also reduce contention on pools by getting one per batch request
 	// rather than one per ID.
-	pooledReq := s.pools.writeBatchPooledReqPool.Get()
+	pooledReq := s.pools.writeBatchPooledReqPool.Get(len(req.Elements))
 	pooledReq.writeTaggedV2Req = req
 	ctx.RegisterFinalizer(pooledReq)
 
@@ -2115,18 +2127,11 @@ func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTagge
 			continue
 		}
 
-		dec, err := s.newPooledTagsDecoder(ctx, elem.EncodedTags, pooledReq)
-		if err != nil {
-			nonRetryableErrors++
-			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, err))
-			continue
-		}
-
 		seriesID := s.newPooledID(ctx, elem.ID, pooledReq)
+
 		batchWriter.AddTagged(
 			i,
 			seriesID,
-			dec,
 			elem.EncodedTags,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value,
@@ -2572,7 +2577,14 @@ func (s *service) startReadRPCWithDB() (storage.Database, error) {
 	return db, nil
 }
 
-func (s *service) readRPCCompleted() {
+func (s *service) readRPCCompleted(ctx goctx.Context) {
+	s.metrics.rpcTotalRead.Inc(1)
+	select {
+	case <-ctx.Done():
+		s.metrics.rpcStatusCanceledRead.Inc(1)
+	default:
+	}
+
 	if s.state.maxOutstandingReadRPCs == 0 {
 		// Nothing to do since we're not tracking the number outstanding RPCs.
 		return
@@ -2623,7 +2635,7 @@ func (s *service) readEncodedResult(
 	}))
 
 	for _, readers := range encoded {
-		segment, err := readEncodedResultSegment(readers)
+		segment, err := readEncodedResultSegment(ctx, readers)
 		if err != nil {
 			return nil, err
 		}
@@ -2637,9 +2649,10 @@ func (s *service) readEncodedResult(
 }
 
 func readEncodedResultSegment(
+	ctx context.Context,
 	readers []xio.BlockReader,
 ) (*rpc.Segments, *rpc.Error) {
-	converted, err := convert.ToSegments(readers)
+	converted, err := convert.ToSegments(ctx, readers)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}
@@ -2648,31 +2661,6 @@ func readEncodedResultSegment(
 	}
 
 	return converted.Segments, nil
-}
-
-func (s *service) newTagsDecoder(ctx context.Context, encodedTags []byte) (serialize.TagDecoder, error) {
-	checkedBytes := s.pools.checkedBytesWrapper.Get(encodedTags)
-	dec := s.pools.tagDecoder.Get()
-	ctx.RegisterCloser(dec)
-	dec.Reset(checkedBytes)
-	if err := dec.Err(); err != nil {
-		return nil, err
-	}
-	return dec, nil
-}
-
-func (s *service) newPooledTagsDecoder(
-	ctx context.Context,
-	encodedTags []byte,
-	p *writeBatchPooledReq,
-) (serialize.TagDecoder, error) {
-	if decoder, ok := p.nextPooledTagDecoder(encodedTags); ok {
-		if err := decoder.Err(); err != nil {
-			return nil, err
-		}
-		return decoder, nil
-	}
-	return s.newTagsDecoder(ctx, encodedTags)
 }
 
 func (s *service) newCloseableMetadataV2Result(
@@ -2728,23 +2716,6 @@ func (r *writeBatchPooledReq) nextPooledID(idBytes []byte) (ident.ID, bool) {
 	r.pooledIDsUsed++
 
 	return id, true
-}
-
-func (r *writeBatchPooledReq) nextPooledTagDecoder(encodedTags []byte) (serialize.TagDecoder, bool) {
-	if r.pooledIDsUsed >= len(r.pooledIDs) {
-		return nil, false
-	}
-
-	bytes := r.pooledIDs[r.pooledIDsUsed].bytes
-	bytes.IncRef()
-	bytes.Reset(encodedTags)
-
-	decoder := r.pooledIDs[r.pooledIDsUsed].tagDecoder
-	decoder.Reset(bytes)
-
-	r.pooledIDsUsed++
-
-	return decoder, true
 }
 
 func (r *writeBatchPooledReq) Finalize() {
@@ -2850,9 +2821,8 @@ func (r *writeBatchPooledReq) numNonRetryableErrors() int {
 }
 
 type writeBatchPooledReqID struct {
-	bytes      checked.Bytes
-	id         ident.ID
-	tagDecoder serialize.TagDecoder
+	bytes checked.Bytes
+	id    ident.ID
 }
 
 type writeBatchPooledReqPool struct {
@@ -2870,34 +2840,39 @@ func newWriteBatchPooledReqPool(
 	return &writeBatchPooledReqPool{pool: pool}
 }
 
-func (p *writeBatchPooledReqPool) Init(
-	tagDecoderPool serialize.TagDecoderPool,
-) {
+func (p *writeBatchPooledReqPool) Init() {
 	p.pool.Init(func() interface{} {
-		// NB(r): Make pooled IDs 2x the default write batch size to account for
-		// write tagged which also has encoded tags, plus an extra one for the
-		// namespace
-		pooledIDs := make([]writeBatchPooledReqID, 1+(2*client.DefaultWriteBatchSize))
-		for i := range pooledIDs {
-			pooledIDs[i].bytes = checked.NewBytes(nil, nil)
-			pooledIDs[i].id = ident.BinaryID(pooledIDs[i].bytes)
+		return &writeBatchPooledReq{pool: p}
+	})
+}
+
+func (p *writeBatchPooledReqPool) Get(size int) *writeBatchPooledReq {
+	cappedSize := size
+	if cappedSize > client.DefaultWriteBatchSize {
+		cappedSize = client.DefaultWriteBatchSize
+	}
+	// NB(r): Make pooled IDs plus an extra one for the namespace
+	cappedSize++
+
+	pooledReq := p.pool.Get().(*writeBatchPooledReq)
+	if cappedSize > len(pooledReq.pooledIDs) {
+		newPooledIDs := make([]writeBatchPooledReqID, 0, cappedSize)
+		newPooledIDs = append(newPooledIDs, pooledReq.pooledIDs...)
+
+		for i := len(pooledReq.pooledIDs); i < len(newPooledIDs); i++ {
+			newPooledIDs[i].bytes = checked.NewBytes(nil, nil)
+			newPooledIDs[i].id = ident.BinaryID(newPooledIDs[i].bytes)
 			// BinaryID(..) incs the ref, we however don't want to pretend
 			// the bytes is owned at this point since its not being used, so we
 			// immediately dec a ref here to avoid calling get on this ID
 			// being a valid call
-			pooledIDs[i].bytes.DecRef()
-			// Also ready a tag decoder
-			pooledIDs[i].tagDecoder = tagDecoderPool.Get()
+			newPooledIDs[i].bytes.DecRef()
 		}
-		return &writeBatchPooledReq{
-			pooledIDs: pooledIDs,
-			pool:      p,
-		}
-	})
-}
 
-func (p *writeBatchPooledReqPool) Get() *writeBatchPooledReq {
-	return p.pool.Get().(*writeBatchPooledReq)
+		pooledReq.pooledIDs = newPooledIDs
+	}
+
+	return pooledReq
 }
 
 func (p *writeBatchPooledReqPool) Put(v *writeBatchPooledReq) {
@@ -2924,12 +2899,7 @@ func addSourceToContext(tctx thrift.Context, source []byte) context.Context {
 
 func addSourceToM3Context(ctx context.Context, source []byte) context.Context {
 	if len(source) > 0 {
-		if base, ok := ctx.GoContext(); ok {
-			ctx.SetGoContext(goctx.WithValue(base, limits.SourceContextKey, source))
-		} else {
-			ctx.SetGoContext(goctx.WithValue(goctx.Background(), limits.SourceContextKey, source))
-		}
+		ctx.SetGoContext(goctx.WithValue(ctx.GoContext(), limits.SourceContextKey, source))
 	}
-
 	return ctx
 }

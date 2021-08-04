@@ -316,8 +316,8 @@ func (b baseBootstrapper) logShardTimeRanges(
 	)
 	if dataRange > 0 {
 		logFields = append(logFields,
-			zap.Time("dataFrom", dataMin),
-			zap.Time("dataTo", dataMax),
+			zap.Time("dataFrom", dataMin.ToTime()),
+			zap.Time("dataTo", dataMax.ToTime()),
 		)
 	}
 	if currNamespace.Metadata.Options().IndexOptions().Enabled() {
@@ -328,8 +328,8 @@ func (b baseBootstrapper) logShardTimeRanges(
 		)
 		if indexRange > 0 {
 			logFields = append(logFields,
-				zap.Time("indexFrom", indexMin),
-				zap.Time("indexTo", indexMax),
+				zap.Time("indexFrom", indexMin.ToTime()),
+				zap.Time("indexTo", indexMax.ToTime()),
 			)
 		}
 	}

@@ -23,14 +23,11 @@
 package integration
 
 import (
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/metric"
-	"github.com/m3db/m3/src/x/clock"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,21 +49,8 @@ func testSameIDMultiType(t *testing.T, metadataFn metadataFn) {
 	serverOpts := newTestServerOptions()
 
 	// Clock setup.
-	var lock sync.RWMutex
-	now := time.Now().Truncate(time.Hour)
-	getNowFn := func() time.Time {
-		lock.RLock()
-		t := now
-		lock.RUnlock()
-		return t
-	}
-	setNowFn := func(t time.Time) {
-		lock.Lock()
-		now = t
-		lock.Unlock()
-	}
-	clockOpts := clock.NewOptions().SetNowFn(getNowFn)
-	serverOpts = serverOpts.SetClockOptions(clockOpts)
+	clock := newTestClock(time.Now().Truncate(time.Hour))
+	serverOpts = serverOpts.SetClockOptions(clock.Options())
 
 	// Placement setup.
 	numShards := 1024
@@ -97,7 +81,7 @@ func testSameIDMultiType(t *testing.T, metadataFn metadataFn) {
 	var (
 		idPrefix = "foo"
 		numIDs   = 100
-		start    = getNowFn()
+		start    = clock.Now()
 		mid      = start.Add(4 * time.Second)
 		stop     = start.Add(10 * time.Second)
 		interval = time.Second
@@ -139,7 +123,7 @@ func testSameIDMultiType(t *testing.T, metadataFn metadataFn) {
 		metadataFn:   metadataFn,
 	})
 	for _, data := range dataset {
-		setNowFn(data.timestamp)
+		clock.SetNow(data.timestamp)
 		for _, mm := range data.metricWithMetadatas {
 			require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 		}
@@ -152,7 +136,7 @@ func testSameIDMultiType(t *testing.T, metadataFn metadataFn) {
 	// Move time forward and wait for ticking to happen. The sleep time
 	// must be the longer than the lowest resolution across all policies.
 	finalTime := stop.Add(time.Second)
-	setNowFn(finalTime)
+	clock.SetNow(finalTime)
 	time.Sleep(4 * time.Second)
 
 	// Stop the server.

@@ -28,26 +28,25 @@ import (
 	"testing"
 	"time"
 
+	handleroptions3 "github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
+	"github.com/m3db/m3/src/query/api/v1/middleware"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/executor"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	m3storage "github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/test/m3"
-	"github.com/m3db/m3/src/query/ts/m3db"
-	"github.com/m3db/m3/src/query/util/queryhttp"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/golang/mock/gomock"
-	"github.com/gorilla/mux"
-	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,12 +55,12 @@ import (
 var (
 	// Created by init().
 	testWorkerPool            xsync.PooledWorkerPool
-	testM3DBOpts              = m3db.NewOptions()
+	testM3DBOpts              = m3storage.NewOptions()
 	defaultLookbackDuration   = time.Minute
 	defaultCPUProfileduration = 5 * time.Second
 	defaultPlacementServices  = []string{"m3db"}
-	svcDefaultOptions         = []handleroptions.ServiceOptionsDefault{
-		func(o handleroptions.ServiceOptions) handleroptions.ServiceOptions {
+	svcDefaultOptions         = []handleroptions3.ServiceOptionsDefault{
+		func(o handleroptions3.ServiceOptions) handleroptions3.ServiceOptions {
 			return o
 		},
 	}
@@ -108,6 +107,8 @@ func setupHandler(
 		config.Configuration{LookbackDuration: &defaultLookbackDuration},
 		nil,
 		fetchOptsBuilder,
+		fetchOptsBuilder,
+		fetchOptsBuilder,
 		models.QueryContextOptions{},
 		instrumentOpts,
 		defaultCPUProfileduration,
@@ -122,14 +123,21 @@ func setupHandler(
 		return nil, err
 	}
 
-	return NewHandler(opts, customHandlers...), nil
+	return NewHandler(opts, config.MiddlewareConfiguration{}, customHandlers...), nil
 }
 
 func newPromEngine() *promql.Engine {
 	return promql.NewEngine(promql.EngineOpts{
-		MaxSamples:         10000,
-		Timeout:            100 * time.Second,
+		MaxSamples: 10000,
+		Timeout:    100 * time.Second,
+		NoStepSubqueryIntervalFn: func(rangeMillis int64) int64 {
+			return durationMilliseconds(1 * time.Minute)
+		},
 	})
+}
+
+func durationMilliseconds(d time.Duration) int64 {
+	return int64(d / (time.Millisecond / time.Nanosecond))
 }
 
 func TestPromRemoteReadGet(t *testing.T) {
@@ -282,74 +290,6 @@ func TestHealthGet(t *testing.T) {
 	assert.True(t, result > 0)
 }
 
-func TestCORSMiddleware(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	s, _ := m3.NewStorageAndSession(t, ctrl)
-	h, err := setupHandler(s)
-	require.NoError(t, err, "unable to setup handler")
-
-	setupTestRouteRegistry(h.registry)
-	res := doTestRequest(h.Router())
-
-	assert.Equal(t, "hello!", res.Body.String())
-	assert.Equal(t, "*", res.Header().Get("Access-Control-Allow-Origin"))
-}
-
-func doTestRequest(handler http.Handler) *httptest.ResponseRecorder {
-	req := httptest.NewRequest("GET", testRoute, nil)
-	res := httptest.NewRecorder()
-	handler.ServeHTTP(res, req)
-	return res
-}
-
-func TestTracingMiddleware(t *testing.T) {
-	mtr := mocktracer.New()
-	router := mux.NewRouter()
-	setupTestRouteRouter(router)
-
-	handler := applyMiddleware(router, mtr)
-	doTestRequest(handler)
-
-	assert.NotEmpty(t, mtr.FinishedSpans())
-}
-
-func TestCompressionMiddleware(t *testing.T) {
-	mtr := mocktracer.New()
-	router := mux.NewRouter()
-	setupTestRouteRouter(router)
-
-	handler := applyMiddleware(router, mtr)
-	req := httptest.NewRequest("GET", testRoute, nil)
-	req.Header.Add("Accept-Encoding", "gzip")
-	res := httptest.NewRecorder()
-	handler.ServeHTTP(res, req)
-
-	enc, found := res.HeaderMap["Content-Encoding"]
-	require.True(t, found)
-	require.Equal(t, 1, len(enc))
-	assert.Equal(t, "gzip", enc[0])
-}
-
-const testRoute = "/foobar"
-
-func setupTestRouteRegistry(r *queryhttp.EndpointRegistry) {
-	r.Register(queryhttp.RegisterOptions{
-		Path: testRoute,
-		Handler: http.HandlerFunc(func(writer http.ResponseWriter, r *http.Request) {
-			writer.WriteHeader(http.StatusOK)
-			writer.Write([]byte("hello!"))
-		}),
-		Methods: methods(http.MethodGet),
-	})
-}
-
-func setupTestRouteRouter(r *mux.Router) {
-	r.HandleFunc(testRoute, func(writer http.ResponseWriter, r *http.Request) {
-		writer.WriteHeader(http.StatusOK)
-		writer.Write([]byte("hello!"))
-	})
-}
-
 func init() {
 	var err error
 	testWorkerPool, err = xsync.NewPooledWorkerPool(
@@ -368,10 +308,11 @@ func init() {
 type assertFn func(t *testing.T, prev http.Handler, r *http.Request)
 
 type customHandler struct {
-	t         *testing.T
-	routeName string
-	methods   []string
-	assertFn  assertFn
+	t          *testing.T
+	routeName  string
+	methods    []string
+	assertFn   assertFn
+	middleware middleware.OverrideOptions
 }
 
 func (h *customHandler) Route() string     { return h.routeName }
@@ -389,6 +330,9 @@ func (h *customHandler) Handler(
 
 	return http.HandlerFunc(fn), nil
 }
+func (h *customHandler) MiddlewareOverride() middleware.OverrideOptions {
+	return h.middleware
+}
 
 func TestCustomRoutes(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -405,7 +349,8 @@ func TestCustomRoutes(t *testing.T) {
 		downsamplerAndWriter, makeTagOptions().SetMetricName([]byte("z")),
 		engine, newPromEngine(), nil, nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil,
-		fetchOptsBuilder, models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,
+		fetchOptsBuilder, fetchOptsBuilder, fetchOptsBuilder,
+		models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,
 		defaultPlacementServices, svcDefaultOptions, NewQueryRouter(), NewQueryRouter(),
 		graphite.M3WrappedStorageOptions{}, testM3DBOpts)
 	require.NoError(t, err)
@@ -441,7 +386,8 @@ func TestCustomRoutes(t *testing.T) {
 			assert.Nil(t, prev, "Should not shadow already existing handler")
 		},
 	}
-	handler := NewHandler(opts, custom, customShadowGet, customShadowHead, customNew)
+	handler := NewHandler(opts, config.MiddlewareConfiguration{},
+		custom, customShadowGet, customShadowHead, customNew)
 	require.NoError(t, err, "unable to setup handler")
 	err = handler.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")

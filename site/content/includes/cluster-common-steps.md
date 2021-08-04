@@ -1,6 +1,6 @@
 ### Ready a Namespace
-<!-- TODO: Why?> -->
-Once a namespace has finished bootstrapping, you must mark it as ready before receiving traffic by using the _{{% apiendpoint %}}namespace/ready_.
+
+Once a namespace has finished bootstrapping, you must mark it as ready before receiving traffic by using the _{{% apiendpoint %}}services/m3db/namespace/ready_.
 
 {{< tabs name="ready_namespaces" >}}
 {{% tab name="Command" %}}
@@ -13,6 +13,60 @@ Once a namespace has finished bootstrapping, you must mark it as ready before re
 ```json
 {
   "ready": true
+}
+```
+
+{{% /tab %}}
+{{< /tabs >}}
+
+### View Details of a Namespace
+
+You can also view the attributes of all namespaces by calling the _{{% apiendpoint %}}services/m3db/namespace_ endpoint
+
+{{< tabs name="check_namespaces" >}}
+{{% tab name="Command" %}}
+
+```shell
+curl {{% apiendpoint %}}services/m3db/namespace | jq .
+```
+
+{{% notice tip %}}
+Add `?debug=1` to the request to convert nano units in the output into standard units.
+{{% /notice %}}
+
+{{% /tab %}}
+{{% tab name="Output" %}}
+
+```json
+{
+  "registry": {
+    "namespaces": {
+      "default": {
+        "bootstrapEnabled": true,
+        "flushEnabled": true,
+        "writesToCommitLog": true,
+        "cleanupEnabled": true,
+        "repairEnabled": false,
+        "retentionOptions": {
+          "retentionPeriodNanos": "43200000000000",
+          "blockSizeNanos": "1800000000000",
+          "bufferFutureNanos": "120000000000",
+          "bufferPastNanos": "600000000000",
+          "blockDataExpiry": true,
+          "blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+          "futureRetentionPeriodNanos": "0"
+        },
+        "snapshotEnabled": true,
+        "indexOptions": {
+          "enabled": true,
+          "blockSizeNanos": "1800000000000"
+        },
+        "schemaOptions": null,
+        "coldWritesEnabled": false,
+        "runtimeOptions": null
+      }
+    }
+  }
 }
 ```
 
@@ -37,7 +91,7 @@ This quickstart focuses on Prometheus metrics which consist of a value, a timest
 
 You can write metrics using one of two endpoints:
 
--   _[{{% apiendpoint %}}prom/remote/write](/docs/m3coordinator/api/remote/)_ - Write a Prometheus remote write query to M3DB with a binary snappy compressed Prometheus WriteRequest protobuf message.
+-   _[{{% apiendpoint %}}prom/remote/write](/docs/reference/m3coordinator/api/remote/)_ - Write a Prometheus remote write query to M3DB with a binary snappy compressed Prometheus WriteRequest protobuf message.
 -   _{{% apiendpoint %}}json/write_ - Write a JSON payload of metrics data. This endpoint is quick for testing purposes but is not as performant for production usage.
 
 For this quickstart, use the _{{% apiendpoint %}}json/write_ endpoint to write a tagged metric to M3 with the following data in the request body, all fields are required:

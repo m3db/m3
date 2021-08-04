@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -39,7 +40,8 @@ type (
 )
 
 const (
-	fileOpCheckInterval = time.Second
+	fileOpCheckInterval        = time.Second
+	defaultExternalChannelSize = 8
 
 	mediatorNotOpen mediatorState = iota
 	mediatorOpen
@@ -85,6 +87,7 @@ type mediator struct {
 	mediatorTimeBarrier mediatorTimeBarrier
 	closedCh            chan struct{}
 	tickInterval        time.Duration
+	fileOpsProcesses    []FileOpsProcess
 	backgroundProcesses []BackgroundProcess
 }
 
@@ -97,19 +100,22 @@ func newMediator(database database, commitlog commitlog.CommitLog, opts Options)
 		nowFn = opts.ClockOptions().NowFn()
 	)
 	d := &mediator{
-		database:            database,
-		opts:                opts,
-		nowFn:               opts.ClockOptions().NowFn(),
-		sleepFn:             time.Sleep,
-		metrics:             newMediatorMetrics(scope),
-		state:               mediatorNotOpen,
-		mediatorTimeBarrier: newMediatorTimeBarrier(nowFn, iOpts),
-		closedCh:            make(chan struct{}),
-		tickInterval:        opts.MediatorTickInterval(),
+		database:     database,
+		opts:         opts,
+		nowFn:        opts.ClockOptions().NowFn(),
+		sleepFn:      time.Sleep,
+		metrics:      newMediatorMetrics(scope),
+		state:        mediatorNotOpen,
+		closedCh:     make(chan struct{}),
+		tickInterval: opts.MediatorTickInterval(),
 	}
-
 	fsm := newFileSystemManager(database, commitlog, opts)
 	d.databaseFileSystemManager = fsm
+	d.fileOpsProcesses = []FileOpsProcess{
+		FileOpsProcessFn(d.ongoingFileSystemProcesses),
+		FileOpsProcessFn(d.ongoingColdFlushProcesses),
+	}
+	d.mediatorTimeBarrier = newMediatorTimeBarrier(nowFn, iOpts, len(d.fileOpsProcesses))
 
 	// NB(bodu): Cold flush needs its own persist manager now
 	// that its running in its own thread.
@@ -138,6 +144,18 @@ func (m *mediator) RegisterBackgroundProcess(process BackgroundProcess) error {
 	return nil
 }
 
+func (m *mediator) EnqueueMutuallyExclusiveFn(fn func()) error {
+	m.RLock()
+	if m.state != mediatorOpen {
+		m.RUnlock()
+		return errMediatorNotOpen
+	}
+	m.RUnlock()
+
+	m.mediatorTimeBarrier.externalFnCh <- fn
+	return nil
+}
+
 func (m *mediator) Open() error {
 	m.Lock()
 	defer m.Unlock()
@@ -147,8 +165,9 @@ func (m *mediator) Open() error {
 	m.state = mediatorOpen
 
 	go m.reportLoop()
-	go m.ongoingFileSystemProcesses()
-	go m.ongoingColdFlushProcesses()
+	for _, fileOpsProcess := range m.fileOpsProcesses {
+		go fileOpsProcess.Start()
+	}
 	go m.ongoingTick()
 
 	for _, process := range m.backgroundProcesses {
@@ -232,7 +251,7 @@ func (m *mediator) ongoingFileSystemProcesses() {
 			m.sleepFn(m.tickInterval)
 
 			// Check if the mediator is already closed.
-			if !m.isOpen() {
+			if !m.IsOpen() {
 				return
 			}
 
@@ -253,7 +272,7 @@ func (m *mediator) ongoingColdFlushProcesses() {
 			m.sleepFn(m.tickInterval)
 
 			// Check if the mediator is already closed.
-			if !m.isOpen() {
+			if !m.IsOpen() {
 				return
 			}
 
@@ -275,7 +294,7 @@ func (m *mediator) ongoingTick() {
 			m.sleepFn(m.tickInterval)
 
 			// Check if the mediator is already closed.
-			if !m.isOpen() {
+			if !m.IsOpen() {
 				return
 			}
 
@@ -298,25 +317,13 @@ func (m *mediator) ongoingTick() {
 
 func (m *mediator) runFileSystemProcesses() {
 	// See comment over mediatorTimeBarrier for an explanation of this logic.
-	log := m.opts.InstrumentOptions().Logger()
-	mediatorTime, err := m.mediatorTimeBarrier.fsProcessesWait()
-	if err != nil {
-		log.Error("error within ongoingFileSystemProcesses waiting for next mediatorTime", zap.Error(err))
-		return
-	}
-
-	m.databaseFileSystemManager.Run(mediatorTime, syncRun, noForce)
+	mediatorTime := m.mediatorTimeBarrier.fsProcessesWait()
+	m.databaseFileSystemManager.Run(mediatorTime)
 }
 
 func (m *mediator) runColdFlushProcesses() {
 	// See comment over mediatorTimeBarrier for an explanation of this logic.
-	log := m.opts.InstrumentOptions().Logger()
-	mediatorTime, err := m.mediatorTimeBarrier.fsProcessesWait()
-	if err != nil {
-		log.Error("error within ongoingColdFlushProcesses waiting for next mediatorTime", zap.Error(err))
-		return
-	}
-
+	mediatorTime := m.mediatorTimeBarrier.fsProcessesWait()
 	m.databaseColdFlushManager.Run(mediatorTime)
 }
 
@@ -335,7 +342,7 @@ func (m *mediator) reportLoop() {
 	}
 }
 
-func (m *mediator) isOpen() bool {
+func (m *mediator) IsOpen() bool {
 	m.RLock()
 	defer m.RUnlock()
 	return m.state == mediatorOpen
@@ -411,24 +418,26 @@ type mediatorTimeBarrier struct {
 	sync.Mutex
 	// Both mediatorTime and numFsProcessesWaiting are protected
 	// by the mutex.
-	mediatorTime          time.Time
+	mediatorTime          xtime.UnixNano
 	numFsProcessesWaiting int
+	numMaxWaiters         int
 
-	nowFn     func() time.Time
-	iOpts     instrument.Options
-	releaseCh chan time.Time
+	nowFn        func() time.Time
+	iOpts        instrument.Options
+	releaseCh    chan xtime.UnixNano
+	externalFnCh chan func()
 }
 
 // initialMediatorTime should only be used to obtain the initial time for
 // the ongoing tick loop. All subsequent updates should come from the
 // release method.
-func (b *mediatorTimeBarrier) initialMediatorTime() time.Time {
+func (b *mediatorTimeBarrier) initialMediatorTime() xtime.UnixNano {
 	b.Lock()
 	defer b.Unlock()
 	return b.mediatorTime
 }
 
-func (b *mediatorTimeBarrier) fsProcessesWait() (time.Time, error) {
+func (b *mediatorTimeBarrier) fsProcessesWait() xtime.UnixNano {
 	b.Lock()
 	b.numFsProcessesWaiting++
 	b.Unlock()
@@ -438,10 +447,10 @@ func (b *mediatorTimeBarrier) fsProcessesWait() (time.Time, error) {
 	b.Lock()
 	b.numFsProcessesWaiting--
 	b.Unlock()
-	return t, nil
+	return t
 }
 
-func (b *mediatorTimeBarrier) maybeRelease() (time.Time, error) {
+func (b *mediatorTimeBarrier) maybeRelease() (xtime.UnixNano, error) {
 	b.Lock()
 	numWaiters := b.numFsProcessesWaiting
 	mediatorTime := b.mediatorTime
@@ -457,28 +466,46 @@ func (b *mediatorTimeBarrier) maybeRelease() (time.Time, error) {
 
 	// If the filesystem processes are waiting then update the time and allow
 	// both the filesystem processes and the tick to proceed with the new time.
-	newMediatorTime := b.nowFn()
+	newMediatorTime := xtime.ToUnixNano(b.nowFn())
 	if newMediatorTime.Before(b.mediatorTime) {
 		instrument.EmitAndLogInvariantViolation(b.iOpts, func(l *zap.Logger) {
 			l.Error(
 				"mediator time attempted to move backwards in time",
-				zap.Time("prevTime", b.mediatorTime), zap.Time("newTime", newMediatorTime))
+				zap.Time("prevTime", b.mediatorTime.ToTime()),
+				zap.Time("newTime", newMediatorTime.ToTime()))
 		})
-		return time.Time{}, errMediatorTimeTriedToProgressBackwards
+		return 0, errMediatorTimeTriedToProgressBackwards
 	}
 
 	b.mediatorTime = newMediatorTime
+
+	// If all waiters are waiting, we can safely call mutually exclusive external functions.
+	if numWaiters == b.numMaxWaiters {
+		// Drain the channel.
+	Loop:
+		for {
+			select {
+			case fn := <-b.externalFnCh:
+				fn()
+			default:
+				break Loop
+			}
+		}
+	}
+
 	for i := 0; i < numWaiters; i++ {
 		b.releaseCh <- b.mediatorTime
 	}
 	return b.mediatorTime, nil
 }
 
-func newMediatorTimeBarrier(nowFn func() time.Time, iOpts instrument.Options) mediatorTimeBarrier {
+func newMediatorTimeBarrier(nowFn func() time.Time, iOpts instrument.Options, maxWaiters int) mediatorTimeBarrier {
 	return mediatorTimeBarrier{
-		mediatorTime: nowFn(),
-		nowFn:        nowFn,
-		iOpts:        iOpts,
-		releaseCh:    make(chan time.Time, 0),
+		mediatorTime:  xtime.ToUnixNano(nowFn()),
+		nowFn:         nowFn,
+		iOpts:         iOpts,
+		numMaxWaiters: maxWaiters,
+		releaseCh:     make(chan xtime.UnixNano),
+		externalFnCh:  make(chan func(), defaultExternalChannelSize),
 	}
 }

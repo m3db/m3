@@ -62,11 +62,6 @@ func TestHostQueueDrainOnCloseAggregate(t *testing.T) {
 
 	// Prepare aggregates
 	aggregate := testAggregateOp("testNs", callback)
-	wg.Add(1)
-	assert.NoError(t, queue.Enqueue(aggregate))
-	assert.Equal(t, 1, queue.Len())
-	// Sleep some so that we can ensure flushing is not happening until queue is full
-	time.Sleep(20 * time.Millisecond)
 
 	mockClient := rpc.NewMockTChanNode(ctrl)
 	aggregateExec := func(ctx thrift.Context, req *rpc.AggregateQueryRawRequest) {
@@ -75,6 +70,10 @@ func TestHostQueueDrainOnCloseAggregate(t *testing.T) {
 	mockClient.EXPECT().AggregateRaw(gomock.Any(), gomock.Any()).Do(aggregateExec).Return(nil, nil)
 	mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
 	mockConnPool.EXPECT().Close().AnyTimes()
+
+	// Execute aggregate
+	wg.Add(1)
+	assert.NoError(t, queue.Enqueue(aggregate))
 
 	// Close the queue should cause all writes to be flushed
 	queue.Close()
@@ -102,14 +101,14 @@ func TestHostQueueAggregate(t *testing.T) {
 	namespace := "testNs"
 	res := &rpc.AggregateQueryRawResult_{
 		Results: []*rpc.AggregateQueryRawResultTagNameElement{
-			&rpc.AggregateQueryRawResultTagNameElement{
+			{
 				TagName: []byte("tagName"),
 			},
 		},
 		Exhaustive: true,
 	}
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: aggregateResultAccumulatorOpts{
 				response: res,
 				host:     h,
@@ -125,7 +124,7 @@ func TestHostQueueAggregateErrorOnNextClientUnavailable(t *testing.T) {
 	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: aggregateResultAccumulatorOpts{
 				host: h,
 			},
@@ -144,7 +143,7 @@ func TestHostQueueAggregateErrorOnAggregateError(t *testing.T) {
 	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
-		hostQueueResult{
+		{
 			result: aggregateResultAccumulatorOpts{host: h},
 			err:    expectedErr,
 		},
@@ -252,6 +251,7 @@ func testAggregateOp(
 ) *aggregateOp {
 	f := newAggregateOp(nil)
 	f.incRef()
+	f.context = testContext()
 	f.request = rpc.AggregateQueryRawRequest{
 		NameSpace: []byte(namespace),
 	}

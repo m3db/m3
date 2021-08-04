@@ -371,14 +371,15 @@ func (v *validator) validateRollupOp(
 	types []metric.Type,
 	previousRollupTags map[string]struct{},
 ) error {
+	newName := rollupOp.NewName([]byte(""))
 	// Validate that the rollup metric name is valid.
-	if err := v.validateRollupMetricName(rollupOp.NewName); err != nil {
-		return fmt.Errorf("invalid rollup metric name '%s': %v", rollupOp.NewName, err)
+	if err := v.validateRollupMetricName(newName); err != nil {
+		return fmt.Errorf("invalid rollup metric name '%s': %w", newName, err)
 	}
 
 	// Validate that the rollup tags are valid.
 	if err := v.validateRollupTags(rollupOp.Tags, previousRollupTags); err != nil {
-		return fmt.Errorf("invalid rollup tags %v: %v", rollupOp.Tags, err)
+		return fmt.Errorf("invalid rollup tags %v: %w", rollupOp.Tags, err)
 	}
 
 	// Validate that the aggregation ID is valid.
@@ -387,7 +388,7 @@ func (v *validator) validateRollupOp(
 		aggType = nonFirstLevelAggregationType
 	}
 	if err := v.validateAggregationID(rollupOp.AggregationID, aggType, types); err != nil {
-		return fmt.Errorf("invalid aggregation ID %v: %v", rollupOp.AggregationID, err)
+		return fmt.Errorf("invalid aggregation ID %v: %w", rollupOp.AggregationID, err)
 	}
 
 	return nil
@@ -466,7 +467,11 @@ func validateNoDuplicateRollupIDIn(pipelines []mpipeline.Pipeline) error {
 			rollupOp := pipelineOp.Rollup
 			for _, existing := range rollupOps {
 				if rollupOp.SameTransform(existing) {
-					return merrors.NewInvalidInputError(fmt.Sprintf("more than one rollup operations with name '%s' and tags '%s' exist", rollupOp.NewName, rollupOp.Tags))
+					return merrors.NewInvalidInputError(fmt.Sprintf(
+						"more than one rollup operations with name '%s' and tags '%s' exist",
+						rollupOp.NewName([]byte("")),
+						rollupOp.Tags,
+					))
 				}
 			}
 			rollupOps = append(rollupOps, rollupOp)

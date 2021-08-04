@@ -49,7 +49,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func generateOptionsNowAndBlockSize() (Options, time.Time, time.Duration) {
+func generateOptionsNowAndBlockSize() (Options, xtime.UnixNano, time.Duration) {
 	idxOpts := testNamespaceIndexOptions().
 		SetInsertMode(index.InsertSync).
 		SetForwardIndexProbability(1).
@@ -63,12 +63,12 @@ func generateOptionsNowAndBlockSize() (Options, time.Time, time.Duration) {
 		blockSize      = retOpts.BlockSize()
 		bufferFuture   = retOpts.BufferFuture()
 		bufferFragment = blockSize - time.Duration(float64(bufferFuture)*0.5)
-		now            = time.Now().Truncate(blockSize).Add(bufferFragment)
+		now            = xtime.Now().Truncate(blockSize).Add(bufferFragment)
 
 		clockOptions = opts.ClockOptions()
 	)
 
-	clockOptions = clockOptions.SetNowFn(func() time.Time { return now })
+	clockOptions = clockOptions.SetNowFn(func() time.Time { return now.ToTime() })
 	opts = opts.SetClockOptions(clockOptions)
 
 	return opts, now, blockSize
@@ -77,7 +77,7 @@ func generateOptionsNowAndBlockSize() (Options, time.Time, time.Duration) {
 func setupForwardIndex(
 	t *testing.T,
 	ctrl *gomock.Controller,
-) (NamespaceIndex, time.Time, time.Duration) {
+) (NamespaceIndex, xtime.UnixNano, time.Duration) {
 	newFn := func(
 		fn nsIndexInsertBatchFn,
 		md namespace.Metadata,
@@ -110,14 +110,14 @@ func setupForwardIndex(
 	)
 
 	gomock.InOrder(
-		lifecycle.EXPECT().NeedsIndexUpdate(xtime.ToUnixNano(next)).Return(true),
+		lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true),
 		lifecycle.EXPECT().OnIndexPrepare(),
 
-		lifecycle.EXPECT().OnIndexSuccess(xtime.ToUnixNano(ts)),
-		lifecycle.EXPECT().OnIndexFinalize(xtime.ToUnixNano(ts)),
+		lifecycle.EXPECT().OnIndexSuccess(ts),
+		lifecycle.EXPECT().OnIndexFinalize(ts),
 
-		lifecycle.EXPECT().OnIndexSuccess(xtime.ToUnixNano(nextTs)),
-		lifecycle.EXPECT().OnIndexFinalize(xtime.ToUnixNano(nextTs)),
+		lifecycle.EXPECT().OnIndexSuccess(nextTs),
+		lifecycle.EXPECT().OnIndexFinalize(nextTs),
 	)
 
 	entry, doc := testWriteBatchEntry(id, tags, now, lifecycle)
@@ -128,7 +128,7 @@ func setupForwardIndex(
 }
 
 func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
@@ -144,7 +144,7 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 	// NB: query both the current and the next index block to ensure that the
 	// write was correctly indexed to both.
 	nextBlockTime := now.Add(blockSize)
-	queryTimes := []time.Time{now, nextBlockTime}
+	queryTimes := []xtime.UnixNano{now, nextBlockTime}
 	reader := docs.NewEncodedDocumentReader()
 	for _, ts := range queryTimes {
 		res, err := idx.Query(ctx, index.Query{Query: reQuery}, index.QueryOptions{
@@ -170,7 +170,7 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 }
 
 func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
@@ -186,7 +186,7 @@ func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
 	// NB: query both the current and the next index block to ensure that the
 	// write was correctly indexed to both.
 	nextBlockTime := now.Add(blockSize)
-	queryTimes := []time.Time{now, nextBlockTime}
+	queryTimes := []xtime.UnixNano{now, nextBlockTime}
 	for _, ts := range queryTimes {
 		res, err := idx.AggregateQuery(ctx, index.Query{Query: reQuery},
 			index.AggregationOptions{
@@ -230,7 +230,7 @@ func TestNamespaceForwardIndexWideQuery(t *testing.T) {
 	// NB: query both the current and the next index block to ensure that the
 	// write was correctly indexed to both.
 	nextBlockTime := now.Add(blockSize)
-	queryTimes := []time.Time{
+	queryTimes := []xtime.UnixNano{
 		now.Truncate(blockSize),
 		nextBlockTime.Truncate(blockSize),
 	}
@@ -271,7 +271,7 @@ func TestNamespaceForwardIndexWideQuery(t *testing.T) {
 func setupMockBlock(
 	t *testing.T,
 	bl *index.MockBlock,
-	ts time.Time,
+	ts xtime.UnixNano,
 	id ident.ID,
 	tag ident.Tag,
 	lifecycle index.OnIndexSeries,
@@ -295,8 +295,8 @@ func setupMockBlock(
 
 func createMockBlocks(
 	ctrl *gomock.Controller,
-	blockStart time.Time,
-	nextBlockStart time.Time,
+	blockStart xtime.UnixNano,
+	nextBlockStart xtime.UnixNano,
 ) (*index.MockBlock, *index.MockBlock, index.NewBlockFn) {
 	mockBlock := index.NewMockBlock(ctrl)
 	mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
@@ -310,7 +310,7 @@ func createMockBlocks(
 
 	var madeBlock, madeFuture bool
 	newBlockFn := func(
-		ts time.Time,
+		ts xtime.UnixNano,
 		md namespace.Metadata,
 		_ index.BlockOptions,
 		_ namespace.RuntimeOptionsManager,
@@ -329,7 +329,7 @@ func createMockBlocks(
 			madeFuture = true
 			return futureBlock, nil
 		}
-		return nil, fmt.Errorf("no block starting at %s; must start at %s or %s",
+		return nil, fmt.Errorf("no block starting at %s; mus	t start at %s or %s",
 			ts, blockStart, nextBlockStart)
 	}
 
@@ -337,7 +337,7 @@ func createMockBlocks(
 }
 
 func TestNamespaceIndexForwardWrite(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts, now, blockSize := generateOptionsNowAndBlockSize()
@@ -365,7 +365,7 @@ func TestNamespaceIndexForwardWrite(t *testing.T) {
 		next = ts.Truncate(blockSize).Add(blockSize)
 	)
 
-	lifecycle.EXPECT().NeedsIndexUpdate(xtime.ToUnixNano(next)).Return(true)
+	lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true)
 	lifecycle.EXPECT().OnIndexPrepare()
 
 	setupMockBlock(t, mockBlock, now, id, tag, lifecycle)
@@ -379,7 +379,7 @@ func TestNamespaceIndexForwardWrite(t *testing.T) {
 }
 
 func TestNamespaceIndexForwardWriteCreatesBlock(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts, now, blockSize := generateOptionsNowAndBlockSize()
@@ -407,7 +407,7 @@ func TestNamespaceIndexForwardWriteCreatesBlock(t *testing.T) {
 		next = ts.Truncate(blockSize).Add(blockSize)
 	)
 
-	lifecycle.EXPECT().NeedsIndexUpdate(xtime.ToUnixNano(next)).Return(true)
+	lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true)
 	lifecycle.EXPECT().OnIndexPrepare()
 
 	setupMockBlock(t, mockBlock, now, id, tag, lifecycle)
@@ -470,14 +470,15 @@ func writeToShard(
 	t *testing.T,
 	shard *dbShard,
 	idx NamespaceIndex,
-	now time.Time,
+	now xtime.UnixNano,
 	id string,
 	shouldWrite bool,
 ) {
 	tag := ident.Tag{Name: ident.StringID(id), Value: ident.StringID("")}
 	idTags := ident.NewTags(tag)
 	iter := ident.NewTagsIterator(idTags)
-	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID(id), iter, now,
+	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID(id),
+		idxconvert.NewTagsIterMetadataResolver(iter), now,
 		1.0, xtime.Second, nil, series.WriteOptions{
 			TruncateType: series.TypeBlock,
 			TransformOptions: series.WriteTransformOptions{
@@ -499,8 +500,8 @@ func verifyShard(
 	ctx context.Context,
 	t *testing.T,
 	idx NamespaceIndex,
-	now time.Time,
-	next time.Time,
+	now xtime.UnixNano,
+	next xtime.UnixNano,
 	id string,
 ) {
 	allQueriesSuccess := clock.WaitUntil(func() bool {
@@ -545,8 +546,8 @@ func writeToShardAndVerify(
 	t *testing.T,
 	shard *dbShard,
 	idx NamespaceIndex,
-	now time.Time,
-	next time.Time,
+	now xtime.UnixNano,
+	next xtime.UnixNano,
 	id string,
 	shouldWrite bool,
 ) {
@@ -556,8 +557,8 @@ func writeToShardAndVerify(
 
 func testShardForwardWriteTaggedSyncRefCount(
 	t *testing.T,
-	now time.Time,
-	next time.Time,
+	now xtime.UnixNano,
+	next xtime.UnixNano,
 	idx NamespaceIndex,
 	opts Options,
 ) {
@@ -601,8 +602,8 @@ func testShardForwardWriteTaggedSyncRefCount(
 
 func testShardForwardWriteTaggedAsyncRefCount(
 	t *testing.T,
-	now time.Time,
-	next time.Time,
+	now xtime.UnixNano,
+	next xtime.UnixNano,
 	idx NamespaceIndex,
 	opts Options,
 ) {

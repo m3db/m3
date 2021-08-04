@@ -57,7 +57,7 @@ type Retrier interface {
 	// Attempt will attempt to perform a function with retries.
 	Attempt(fn Fn) error
 
-	// Attempt will attempt to perform a function with retries.
+	// AttemptWhile will attempt to perform a function with retries.
 	AttemptWhile(continueFn ContinueFn, fn Fn) error
 }
 

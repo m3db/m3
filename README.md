@@ -1,10 +1,10 @@
 # M3
 
-[![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status][fossa-img]][fossa]
+[![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![FOSSA Status][fossa-img]][fossa]
 
 <p align="center"><img src="site/static/images/logo-square.png" alt="M3 Logo" width="256" height="270"></p>
 
-[Distributed TSDB](https://m3db.io/docs/m3db/) and [Query Engine](https://m3db.io/docs/how_to/query/), [Prometheus Sidecar](https://m3db.io/docs/integrations/prometheus/), [Metrics Aggregator](https://m3db.io/docs/overview/components/#m3-aggregator), and more such as [Graphite storage and query engine](https://m3db.io/docs/integrations/graphite/).
+[Distributed TSDB](https://m3db.io/docs/reference/m3db/) and [Query Engine](https://m3db.io/docs/how_to/query/), [Prometheus Sidecar](https://m3db.io/docs/integrations/prometheus/), [Metrics Aggregator](https://m3db.io/docs/overview/reference/#m3-aggregator), and more such as [Graphite storage and query engine](https://m3db.io/docs/integrations/graphite/).
 
 ## Table of Contents
 
@@ -19,20 +19,19 @@
 ## More Information
 
 -   [Documentation](https://m3db.io/docs)
--   [Developer Guide: Getting Started](https://github.com/m3db/m3/blob/master/DEVELOPMENT.md)
+-   [Contributing](CONTRIBUTING.md)
 -   [Slack](http://bit.ly/m3slack)
 -   [Forum (Google Group)](https://groups.google.com/forum/#!forum/m3db)
 
 ### Community Meetings
 
-M3 contributors and maintainers have regular meetings. Join our M3 meetup group to receive notifications on upcoming meetings: 
-<https://www.meetup.com/M3-Community/>.
+M3 contributors and maintainers have regular meetings. Join our M3 meetup group to receive notifications on upcoming meetings: <https://www.meetup.com/M3-Community/>.
 
 You can find recordings of past meetups here: <https://vimeo.com/user/120001164/folder/2290331>.
 
 ### Office Hours
 
-Members of the M3 team hold office hours on the third Thursday of every month from 11-1pm EST. To join, make sure to sign up for a slot here: <https://calendly.com/chronosphere-intro/m3-community-office-hours>.
+Members of the M3 team hold office hours on the third Thursday of every month from 11AM to 1PM Eastern Standard Time (EST). To join, make sure to sign up for a slot here: <https://calendly.com/chronosphere-intro/m3-community-office-hours>.
 
 ## Install
 
@@ -117,7 +116,7 @@ You can ask questions and give feedback in the following ways:
 -   [In the public M3 Slack](http://bit.ly/m3slack)
 -   [In the M3 forum (Google Group)](https://groups.google.com/forum/#!forum/m3db)
 
-M3 welcomes pull requests, read [the development guide](DEVELOPMENT.md) to help you get setup for building and contributing to M3.
+M3 welcomes pull requests, read [contributing guide](CONTRIBUTING.md) to help you get setup for building and contributing to M3.
 
 <hr>
 

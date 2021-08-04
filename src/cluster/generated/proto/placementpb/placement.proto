@@ -21,6 +21,8 @@ syntax = "proto3";
 
 package placementpb;
 
+import "google/protobuf/wrappers.proto";
+
 message Placement {
   map<string, Instance> instances = 1;
   uint32 replica_factor = 2;
@@ -68,6 +70,10 @@ message Shard {
   // they are ready to cut over or after they are ready to cut off (e.g., for warmup purposes).
   int64 cutover_nanos = 4;
   int64 cutoff_nanos = 5;
+
+  // redirect_to_shard_id is used during resharding process.
+  // If set, all the incoming writes will be redirected to the specified shard.
+  google.protobuf.UInt32Value redirect_to_shard_id = 6;
 }
 
 enum ShardState {
@@ -76,6 +82,14 @@ enum ShardState {
   LEAVING = 2;
 }
 
+enum CompressMode {
+  NONE = 0;
+  ZSTD = 1;
+}
+
 message PlacementSnapshots {
-  repeated Placement snapshots = 1;
+  // snapshots field is used only when compress_mode == NONE.
+  repeated Placement snapshots = 1 [deprecated = true];
+  CompressMode compress_mode = 2;
+  bytes compressed_placement = 3;
 }

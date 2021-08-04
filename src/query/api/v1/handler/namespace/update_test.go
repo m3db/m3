@@ -62,6 +62,12 @@ const (
 						}
 					}
 				]
+			},
+			"extendedOptions": {
+				"type": "testExtendedOptions",
+				"options": {
+					"value": "bar"
+				}
 			}
 		}
 }
@@ -114,8 +120,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 	req = httptest.NewRequest("PUT", "/namespace", strings.NewReader(testUpdateJSON))
 	require.NotNil(t, req)
 
-	extendedOpts, err := xtest.NewExtendedOptionsProto("foo")
-	require.NoError(t, err)
+	extendedOpts := xtest.NewTestExtendedOptionsProto("foo")
 
 	registry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
@@ -197,7 +202,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 						"schemaOptions":     nil,
 						"stagingState":      xjson.Map{"status": "UNKNOWN"},
 						"coldWritesEnabled": false,
-						"extendedOptions":   xtest.NewExtendedOptionsJson("foo"),
+						"extendedOptions":   xtest.NewTestExtendedOptionsJSON("bar"),
 					},
 				},
 			},
@@ -255,7 +260,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 						"schemaOptions":     nil,
 						"stagingState":      xjson.Map{"status": "UNKNOWN"},
 						"coldWritesEnabled": false,
-						"extendedOptions":   xtest.NewExtendedOptionsJson("foo"),
+						"extendedOptions":   xtest.NewTestExtendedOptionsJSON("foo"),
 					},
 				},
 			},

@@ -21,21 +21,22 @@
 package encoding
 
 import (
-	"bytes"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/x/xio"
 )
 
-func TestReadBits(t *testing.T) {
+func TestIStreamReadBits(t *testing.T) {
 	byteStream := []byte{
 		0xca, 0xfe, 0xfd, 0x89, 0x1a, 0x2b, 0x3c, 0x48, 0x55, 0xe6, 0xf7,
 		0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x80,
 	}
 
-	o := NewIStream(bytes.NewReader(byteStream), 16)
-	is := o.(*istream)
-	numBits := []uint{1, 3, 4, 8, 7, 2, 64, 64}
+	is := NewIStream(xio.NewBytesReader64(byteStream))
+	numBits := []byte{1, 3, 4, 8, 7, 2, 64, 64}
 	var res []uint64
 	for _, v := range numBits {
 		read, err := is.ReadBits(v)
@@ -46,15 +47,35 @@ func TestReadBits(t *testing.T) {
 	require.Equal(t, expected, res)
 
 	_, err := is.ReadBits(8)
-	require.Error(t, err)
+	require.EqualError(t, err, io.EOF.Error())
 }
 
-func TestPeekBitsSuccess(t *testing.T) {
+func TestIStreamReadByte(t *testing.T) {
+	var (
+		byteStream = []uint8{
+			0xca, 0xfe, 0xfd, 0x89, 0x1a, 0x2b, 0x3c, 0x48, 0x55, 0xe6, 0xf7,
+			0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x80,
+		}
+		is  = NewIStream(xio.NewBytesReader64(byteStream))
+		res = make([]byte, 0, len(byteStream))
+	)
+
+	for range byteStream {
+		read, err := is.ReadByte()
+		require.NoError(t, err)
+		res = append(res, read)
+	}
+	require.Equal(t, byteStream, res)
+
+	_, err := is.ReadByte()
+	require.EqualError(t, err, io.EOF.Error())
+}
+
+func TestIStreamPeekBitsSuccess(t *testing.T) {
 	byteStream := []byte{0xa9, 0xfe, 0xfe, 0xdf, 0x9b, 0x57, 0x21, 0xf1}
-	o := NewIStream(bytes.NewReader(byteStream), 16)
-	is := o.(*istream)
+	is := NewIStream(xio.NewBytesReader64(byteStream))
 	inputs := []struct {
-		numBits  uint
+		numBits  uint8
 		expected uint64
 	}{
 		{0, 0},
@@ -71,31 +92,29 @@ func TestPeekBitsSuccess(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, input.expected, res)
 	}
-	require.Equal(t, byte(0), is.current)
+	require.Equal(t, uint64(0), is.current)
 	require.Equal(t, 0, int(is.remaining))
 }
 
-func TestPeekBitsError(t *testing.T) {
+func TestIStreamPeekBitsError(t *testing.T) {
 	byteStream := []byte{0x1, 0x2}
-	o := NewIStream(bytes.NewReader(byteStream), 16)
-	is := o.(*istream)
+	is := NewIStream(xio.NewBytesReader64(byteStream))
 	res, err := is.PeekBits(20)
-	require.Error(t, err)
+	require.EqualError(t, err, io.EOF.Error())
 	require.Equal(t, uint64(0), res)
 }
 
-func TestReadAfterPeekBits(t *testing.T) {
+func TestIStreamReadAfterPeekBits(t *testing.T) {
 	byteStream := []byte{0xab, 0xcd}
-	o := NewIStream(bytes.NewReader(byteStream), 16)
-	is := o.(*istream)
+	is := NewIStream(xio.NewBytesReader64(byteStream))
 	res, err := is.PeekBits(10)
 	require.NoError(t, err)
 	require.Equal(t, uint64(0x2af), res)
 	_, err = is.PeekBits(20)
-	require.Error(t, err)
+	require.EqualError(t, err, io.EOF.Error())
 
 	inputs := []struct {
-		numBits  uint
+		numBits  uint8
 		expected uint64
 	}{
 		{2, 0x2},
@@ -107,14 +126,61 @@ func TestReadAfterPeekBits(t *testing.T) {
 		require.Equal(t, input.expected, res)
 	}
 	_, err = is.ReadBits(8)
-	require.Error(t, err)
+	require.EqualError(t, err, io.EOF.Error())
 }
 
-func TestResetIStream(t *testing.T) {
-	o := NewIStream(bytes.NewReader(nil), 16)
-	is := o.(*istream)
-	is.ReadBits(1)
-	is.Reset(bytes.NewReader(nil))
-	require.Equal(t, byte(0), is.current)
-	require.Equal(t, 0, int(is.remaining))
+func TestIStreamPeekAfterReadBits(t *testing.T) {
+	byteStream := []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xA}
+	is := NewIStream(xio.NewBytesReader64(byteStream))
+
+	res, err := is.ReadBits(16)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0x102), res)
+
+	res, err = is.PeekBits(63)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0x30405060708090A)>>1, res)
+
+	res, err = is.PeekBits(64)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0x30405060708090A), res)
+
+	res, err = is.ReadBits(1)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), res)
+
+	res, err = is.PeekBits(63)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0x30405060708090A), res)
+
+	_, err = is.PeekBits(64)
+	require.EqualError(t, err, io.EOF.Error())
+}
+
+func TestIStreamRemainingBitsInCurrentByte(t *testing.T) {
+	byteStream := []byte{0xff, 0, 0x42}
+	is := NewIStream(xio.NewBytesReader64(byteStream))
+	for _, b := range byteStream {
+		for i := 0; i < 8; i++ {
+			var expected uint
+			if i > 0 {
+				expected = uint(8 - i)
+			}
+			require.Equal(t, expected, is.RemainingBitsInCurrentByte())
+			bit, err := is.ReadBit()
+			require.NoError(t, err)
+			expectedBit := Bit(b>>i) & 1
+			require.Equal(t, expectedBit, bit)
+		}
+	}
+}
+
+func TestIStreamReset(t *testing.T) {
+	is := NewIStream(xio.NewBytesReader64([]byte{0xff}))
+	_, _ = is.ReadBits(8)
+	_, _ = is.ReadBits(1)
+	is.Reset(xio.NewBytesReader64(nil))
+	require.Equal(t, uint64(0), is.current)
+	require.Equal(t, uint8(0), is.remaining)
+	require.Equal(t, 0, is.index)
 }

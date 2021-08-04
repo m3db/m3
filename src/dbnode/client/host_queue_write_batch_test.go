@@ -334,7 +334,7 @@ func TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
 			// Prepare mocks for flush
 			mockClient := rpc.NewMockTChanNode(ctrl)
 			batchErrs := &rpc.WriteBatchRawErrors{Errors: []*rpc.WriteBatchRawError{
-				&rpc.WriteBatchRawError{Index: 0, Err: &rpc.Error{
+				{Index: 0, Err: &rpc.Error{
 					Type:    rpc.ErrorType_INTERNAL_ERROR,
 					Message: writeErr,
 				}},

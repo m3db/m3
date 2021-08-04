@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -80,7 +81,7 @@ func TestIndexMultipleBlockQuery(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.Close()
 
-	t0 := time.Date(2018, time.May, 6, 12, 50, 0, 0, time.UTC)
+	t0 := xtime.ToUnixNano(time.Date(2018, time.May, 6, 12, 50, 0, 0, time.UTC))
 	t1 := t0.Add(10 * time.Minute)
 	t2 := t1.Add(5 * time.Minute)
 	testSetup.SetNowFn(t1)
@@ -123,21 +124,21 @@ func TestIndexMultipleBlockQuery(t *testing.T) {
 		Query: idx.NewTermQuery([]byte("shared"), []byte("shared"))}
 
 	log.Info("querying period0 results")
-	period0Results, _, err := session.FetchTagged(
+	period0Results, _, err := session.FetchTagged(ContextWithDefaultTimeout(),
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 	require.NoError(t, err)
 	writesPeriod0.MatchesSeriesIters(t, period0Results)
 	log.Info("found period0 results")
 
 	log.Info("querying period1 results")
-	period1Results, _, err := session.FetchTagged(
+	period1Results, _, err := session.FetchTagged(ContextWithDefaultTimeout(),
 		md.ID(), query, index.QueryOptions{StartInclusive: t1, EndExclusive: t2})
 	require.NoError(t, err)
 	writesPeriod1.MatchesSeriesIters(t, period1Results)
 	log.Info("found period1 results")
 
 	log.Info("querying period 0+1 results")
-	period01Results, _, err := session.FetchTagged(
+	period01Results, _, err := session.FetchTagged(ContextWithDefaultTimeout(),
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t2})
 	require.NoError(t, err)
 	writes := append(writesPeriod0, writesPeriod1...)

@@ -13,7 +13,11 @@ run:
   tests: true
 
   # list of build tags, all linters use it. Default is empty list.
-  build-tags: []
+  build-tags:
+    - big
+    - compatibility
+    - dtest
+    - integration
 
   # which dirs to skip: they won't be analyzed;
   # can use regexp here: generated.*, regexp is applied on full path;
@@ -70,9 +74,6 @@ linters-settings:
     # put imports beginning with prefix after 3rd-party packages;
     # it's a comma-separated list of prefixes
     local-prefixes: github.com/m3db/m3
-  gocyclo:
-    # minimal code complexity to report, 30 by default (but we recommend 10-20)
-    min-complexity: 10
   maligned:
     # print struct with more effective memory layout or not, false by default
     suggest-new: true
@@ -151,13 +152,19 @@ linters-settings:
     # Empty list by default. See https://github.com/go-critic/go-critic#usage -> section "Tags".
     enabled-tags:
       - performance
+    disabled-checks:
+      # These both suggest using pointers for large value structs
+      # but cause significant heap allocations in place which causes
+      # fairly heap allocations. Better to pay fast memcpy and rely
+      # on the stack being cheap to allocate than use heap allocations
+      # as a general rule of thumb.
+      - hugeParam
+      - rangeValCopy
     enabled-checks:
       - ruleguard
     settings: # settings passed to gocritic
       captLocal: # must be valid enabled check name
         paramsOnly: true
-      rangeValCopy:
-        sizeThreshold: 32
       ruleguard:
         rules: "src/cmd/tools/linter/gorules/rules.go"
   gci:
@@ -167,14 +174,12 @@ linters-settings:
 linters:
   enable:
     - deadcode
-    - dogsled
     - dupl
     - errcheck
     - exhaustive
     - gci
     - goconst
     - gocritic
-    - gocyclo
     - goimports
     - golint
     - gosimple
@@ -226,6 +231,12 @@ linters:
     - nlreturn
     # Opinionated and sometimes wrong.
     - paralleltest
+    # Disabled dogsled as using _, _, _ is useful in tests.
+    - dogsled
+    # There are functions with complexity required.
+    - gocyclo
+    # Doesn't buy us much being super opinionated on how to name test functions.
+    - thelper
   disable-all: false
   presets:
     # bodyclose, errcheck, gosec, govet, scopelint, staticcheck, typecheck
@@ -298,4 +309,4 @@ issues:
   max-same-issues: 0
 
   # Show only new issues created after git revision `REV`
-  new-from-rev: origin/master
+  new-from-rev: 30e1c10d456af9d3778288cfb7c247ecd06a4339

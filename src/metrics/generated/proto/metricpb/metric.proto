@@ -34,16 +34,19 @@ enum MetricType {
 message Counter {
   bytes id = 1;
   int64 value = 2;
+  bytes annotation = 3;
 }
 
 message BatchTimer {
   bytes id = 1;
   repeated double values = 2;
+  bytes annotation = 3;
 }
 
 message Gauge {
   bytes id = 1;
   double value = 2;
+  bytes annotation = 3;
 }
 
 message TimedMetric {
@@ -51,6 +54,7 @@ message TimedMetric {
   bytes id = 2;
   int64 time_nanos = 3;
   double value = 4;
+  bytes annotation = 5;
 }
 
 message ForwardedMetric {
@@ -58,6 +62,7 @@ message ForwardedMetric {
   bytes id = 2;
   int64 time_nanos = 3;
   repeated double values = 4;
+  bytes annotation = 5;
 }
 
 message Tag {

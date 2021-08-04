@@ -26,7 +26,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -223,7 +223,7 @@ func TestNegativeCapacityHeap(t *testing.T) {
 func equalPairs(t *testing.T, expected, actual []ValueIndexPair) {
 	assert.Equal(t, len(expected), len(actual))
 	for i, e := range expected {
-		test.EqualsWithNans(t, e.Val, actual[i].Val)
+		compare.EqualsWithNans(t, e.Val, actual[i].Val)
 		assert.Equal(t, e.Index, actual[i].Index)
 	}
 }
@@ -338,7 +338,7 @@ func TestSortLesserWithNaNs(t *testing.T) {
 		return LesserWithNaNs(actual[i], actual[j])
 	})
 
-	test.EqualsWithNans(t, expected, actual)
+	compare.EqualsWithNans(t, expected, actual)
 }
 
 func TestSortGreaterWithNaNs(t *testing.T) {
@@ -349,5 +349,5 @@ func TestSortGreaterWithNaNs(t *testing.T) {
 		return GreaterWithNaNs(actual[i], actual[j])
 	})
 
-	test.EqualsWithNans(t, expected, actual)
+	compare.EqualsWithNans(t, expected, actual)
 }

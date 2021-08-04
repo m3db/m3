@@ -21,20 +21,29 @@
 package client
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/sharding"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/m3ninx/idx"
+	xerror "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -61,13 +70,17 @@ var (
 		SetCheckedBytesWrapperPoolSize(1).
 		SetFetchBatchOpPoolSize(1).
 		SetHostQueueOpsArrayPoolSize(1).
-		SetSeriesIteratorPoolSize(1).
-		SetTagDecoderPoolSize(1).
 		SetTagEncoderPoolSize(1).
 		SetWriteOpPoolSize(1).
 		SetWriteTaggedOpPoolSize(1).
 		SetSeriesIteratorPoolSize(1)
 )
+
+func testContext() context.Context {
+	// nolint: govet
+	ctx, _ := context.WithTimeout(context.Background(), time.Minute) //nolint
+	return ctx
+}
 
 func newSessionTestOptions() Options {
 	return applySessionTestOptions(_testSessionOpts)
@@ -267,6 +280,128 @@ func TestIteratorPools(t *testing.T) {
 	assert.Equal(t, idPool, itPool.ID())
 }
 
+//nolint:dupl
+func TestSeriesLimit_FetchTagged(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// mock the host queue to return a result with a single series, this results in 3 series total, one per shard.
+	sess := setupMultipleInstanceCluster(t, ctrl, func(op op, host topology.Host) {
+		fOp := op.(*fetchTaggedOp)
+		assert.Equal(t, int64(2), *fOp.request.SeriesLimit)
+		shardID := strings.Split(host.ID(), "-")[2]
+		op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+			host: host,
+			response: &rpc.FetchTaggedResult_{
+				Exhaustive: true,
+				Elements: []*rpc.FetchTaggedIDResult_{
+					{
+						// use shard id for the metric id so it's stable across replicas.
+						ID: []byte(shardID),
+					},
+				},
+			},
+		}, nil)
+	})
+
+	iters, meta, err := sess.fetchTaggedAttempt(context.TODO(), ident.StringID("ns"),
+		index.Query{Query: idx.NewAllQuery()},
+		index.QueryOptions{
+			// set to 6 so we can test the instance series limit is 2 (6 /3 instances per replica * InstanceMultiple)
+			SeriesLimit:      6,
+			InstanceMultiple: 1,
+		})
+	require.NoError(t, err)
+	require.NotNil(t, iters)
+	// expect a series per shard.
+	require.Equal(t, 3, iters.Len())
+	require.True(t, meta.Exhaustive)
+	require.NoError(t, sess.Close())
+}
+
+//nolint:dupl
+func TestSeriesLimit_FetchTaggedIDs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// mock the host queue to return a result with a single series, this results in 3 series total, one per shard.
+	sess := setupMultipleInstanceCluster(t, ctrl, func(op op, host topology.Host) {
+		fOp := op.(*fetchTaggedOp)
+		assert.Equal(t, int64(2), *fOp.request.SeriesLimit)
+		shardID := strings.Split(host.ID(), "-")[2]
+		op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+			host: host,
+			response: &rpc.FetchTaggedResult_{
+				Exhaustive: true,
+				Elements: []*rpc.FetchTaggedIDResult_{
+					{
+						// use shard id for the metric id so it's stable across replicas.
+						ID: []byte(shardID),
+					},
+				},
+			},
+		}, nil)
+	})
+
+	iter, meta, err := sess.fetchTaggedIDsAttempt(context.TODO(), ident.StringID("ns"),
+		index.Query{Query: idx.NewAllQuery()},
+		index.QueryOptions{
+			// set to 6 so we can test the instance series limit is 2 (6 /3 instances per replica * InstanceMultiple)
+			SeriesLimit:      6,
+			InstanceMultiple: 1,
+		})
+	require.NoError(t, err)
+	require.NotNil(t, iter)
+	// expect a series per shard.
+	require.Equal(t, 3, iter.Remaining())
+	require.True(t, meta.Exhaustive)
+	require.NoError(t, sess.Close())
+}
+
+//nolint:dupl
+func TestSeriesLimit_Aggregate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// mock the host queue to return a result with a single series, this results in 3 series total, one per shard.
+	sess := setupMultipleInstanceCluster(t, ctrl, func(op op, host topology.Host) {
+		aOp := op.(*aggregateOp)
+		assert.Equal(t, int64(2), *aOp.request.SeriesLimit)
+		shardID := strings.Split(host.ID(), "-")[2]
+		op.CompletionFn()(aggregateResultAccumulatorOpts{
+			host: host,
+			response: &rpc.AggregateQueryRawResult_{
+				Exhaustive: true,
+				Results: []*rpc.AggregateQueryRawResultTagNameElement{
+					{
+						// use shard id for the tag value so it's stable across replicas.
+						TagName: []byte(shardID),
+						TagValues: []*rpc.AggregateQueryRawResultTagValueElement{
+							{
+								TagValue: []byte("value"),
+							},
+						},
+					},
+				},
+			},
+		}, nil)
+	})
+	iter, meta, err := sess.aggregateAttempt(context.TODO(), ident.StringID("ns"),
+		index.Query{Query: idx.NewAllQuery()},
+		index.AggregationOptions{
+			QueryOptions: index.QueryOptions{
+				// set to 6 so we can test the instance series limit is 2 (6 /3 instances per replica * InstanceMultiple)
+				SeriesLimit:      6,
+				InstanceMultiple: 1,
+			},
+		})
+	require.NoError(t, err)
+	require.NotNil(t, iter)
+	require.Equal(t, 3, iter.Remaining())
+	require.True(t, meta.Exhaustive)
+	require.NoError(t, sess.Close())
+}
+
 func TestSessionClusterConnectConsistencyLevelAny(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -275,6 +410,55 @@ func TestSessionClusterConnectConsistencyLevelAny(t *testing.T) {
 	for i := 0; i <= 3; i++ {
 		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
 	}
+}
+
+func TestDedicatedConnection(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		shardID = uint32(32)
+
+		topoMap = topology.NewMockMap(ctrl)
+
+		local   = mockHost(ctrl, "h0", "local")
+		remote1 = mockHost(ctrl, "h1", "remote1")
+		remote2 = mockHost(ctrl, "h2", "remote2")
+
+		availableShard    = shard.NewShard(shardID).SetState(shard.Available)
+		initializingShard = shard.NewShard(shardID).SetState(shard.Initializing)
+	)
+
+	topoMap.EXPECT().RouteShardForEach(shardID, gomock.Any()).DoAndReturn(
+		func(shardID uint32, callback func(int, shard.Shard, topology.Host)) error {
+			callback(0, availableShard, local)
+			callback(1, initializingShard, remote1)
+			callback(2, availableShard, remote2)
+			return nil
+		}).Times(3)
+
+	s := session{origin: local}
+	s.opts = NewOptions().SetNewConnectionFn(noopNewConnection)
+	s.healthCheckNewConnFn = testHealthCheck(nil)
+	s.state.status = statusOpen
+	s.state.topoMap = topoMap
+
+	_, ch, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, &noopPooledChannel{"remote1"}, ch)
+
+	_, ch2, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{ShardStateFilter: shard.Available})
+	require.NoError(t, err)
+	assert.Equal(t, &noopPooledChannel{"remote2"}, ch2)
+
+	healthErr := errors.New("unhealthy")
+	s.healthCheckNewConnFn = testHealthCheck(healthErr)
+
+	_, _, err = s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
+	require.NotNil(t, err)
+	multiErr, ok := err.(xerror.MultiError) // nolint: errorlint
+	assert.True(t, ok, "expecting MultiError")
+	assert.True(t, multiErr.Contains(healthErr))
 }
 
 func testSessionClusterConnectConsistencyLevel(
@@ -317,6 +501,53 @@ func testSessionClusterConnectConsistencyLevel(
 		assert.Error(t, err)
 		assert.Equal(t, ErrClusterConnectTimeout, err)
 	}
+}
+
+// setupMultipleInstanceCluster sets up a db cluster with 3 shards and 3 replicas. The 3 shards are distributed across
+// 9 hosts, so each host has 1 replica of 1 shard.
+// the function passed is executed when an operation is enqueued. the provided fn is dispatched in a separate goroutine
+// to simulate the queue processing. this also allows the function to access the state locks.
+func setupMultipleInstanceCluster(t *testing.T, ctrl *gomock.Controller, fn func(op op, host topology.Host)) *session {
+	opts := newSessionTestOptions()
+	shardSet := sessionTestShardSet()
+	var hostShardSets []topology.HostShardSet
+	// setup 9 hosts so there are 3 instances per replica. Each instance has a single shard.
+	for i := 0; i < sessionTestReplicas; i++ {
+		for j := 0; j < sessionTestShards; j++ {
+			id := fmt.Sprintf("testhost-%d-%d", i, j)
+			host := topology.NewHost(id, fmt.Sprintf("%s:9000", id))
+			hostShard, _ := sharding.NewShardSet([]shard.Shard{shardSet.All()[j]}, shardSet.HashFn())
+			hostShardSet := topology.NewHostShardSet(host, hostShard)
+			hostShardSets = append(hostShardSets, hostShardSet)
+		}
+	}
+
+	opts = opts.SetTopologyInitializer(topology.NewStaticInitializer(
+		topology.NewStaticOptions().
+			SetReplicas(sessionTestReplicas).
+			SetShardSet(shardSet).
+			SetHostShardSets(hostShardSets)))
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	sess := s.(*session)
+
+	sess.newHostQueueFn = func(host topology.Host, hostQueueOpts hostQueueOpts) (hostQueue, error) {
+		q := NewMockhostQueue(ctrl)
+		q.EXPECT().Open()
+		q.EXPECT().ConnectionCount().Return(hostQueueOpts.opts.MinConnectionCount()).AnyTimes()
+		q.EXPECT().Host().Return(host).AnyTimes()
+		q.EXPECT().Enqueue(gomock.Any()).Do(func(op op) error {
+			go func() {
+				fn(op, host)
+			}()
+			return nil
+		}).Return(nil)
+		q.EXPECT().Close()
+		return q, nil
+	}
+
+	require.NoError(t, sess.Open())
+	return sess
 }
 
 func mockHostQueues(
@@ -365,4 +596,25 @@ func mockHostQueues(
 		return hostQueue, nil
 	}
 	return &enqueueWg
+}
+
+func mockHost(ctrl *gomock.Controller, id, address string) topology.Host {
+	host := topology.NewMockHost(ctrl)
+	host.EXPECT().ID().Return(id).AnyTimes()
+	host.EXPECT().Address().Return(address).AnyTimes()
+	return host
+}
+
+func testHealthCheck(err error) func(rpc.TChanNode, Options) error {
+	return func(rpc.TChanNode, Options) error {
+		return err
+	}
+}
+
+func noopNewConnection(
+	channelName string,
+	addr string,
+	opts Options,
+) (Channel, rpc.TChanNode, error) {
+	return &noopPooledChannel{addr}, nil, nil
 }

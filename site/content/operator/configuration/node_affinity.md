@@ -98,6 +98,46 @@ spec:
     effect: NoSchedule
     operator: Exists
 ```
+## Pod Anti-Affinity
+
+Kubernetes provides another way to repel pods by using pod
+[anti-affinity][k8s-anti-affinity] to prevent multiple pods from scheduling on
+the same node. IsolationGroups can be configured in such a way that the pods
+created in the group will not be scheduled on a Kubernetes node with each
+other, potentially causing resource contention and reducing high durability.
+
+```yaml
+apiVersion: operator.m3db.io/v1alpha1
+kind: M3DBCluster
+...
+spec:
+  replicationFactor: 3
+  isolationGroups:
+  - name: group1
+    numInstances: 3
+    nodeAffinityTerms:
+    - key: failure-domain.beta.kubernetes.io/zone
+      values:
+      - us-east1-b
+    usePodAntiAffinity: true
+    podAffinityToplogyKey: failure-domain.beta.kubernetes.io/zone
+  - name: group2
+    numInstances: 3
+    nodeAffinityTerms:
+    - key: failure-domain.beta.kubernetes.io/zone
+      values:
+      - us-east1-c
+    usePodAntiAffinity: true
+    podAffinityToplogyKey: failure-domain.beta.kubernetes.io/zone
+  - name: group3
+    numInstances: 3
+    nodeAffinityTerms:
+    - key: failure-domain.beta.kubernetes.io/zone
+      values:
+      - us-east1-d
+    usePodAntiAffinity: true
+    podAffinityToplogyKey: failure-domain.beta.kubernetes.io/zone
+```
 
 ## Example Affinity Configurations
 
@@ -191,6 +231,7 @@ spec:
 
 [k8s-node-affinity]: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 [k8s-taints]: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+[k8s-anti-affinity]: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
 [m3db-deployment]: https://docs.m3db.io/operational_guide/replication_and_deployment_in_zones/
 [m3db-isogroups]: https://docs.m3db.io/operational_guide/placement_configuration/#isolation-group
 [m3db-placement]: https://docs.m3db.io/operational_guide/placement/

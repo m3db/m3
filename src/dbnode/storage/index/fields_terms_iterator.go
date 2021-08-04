@@ -25,15 +25,15 @@ import (
 
 	pilosaroaring "github.com/m3dbx/pilosa/roaring"
 
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
+	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
-var (
-	errUnpackBitmapFromPostingsList = errors.New("unable to unpack bitmap from postings list")
-)
+var errUnpackBitmapFromPostingsList = errors.New("unable to unpack bitmap from postings list")
 
 // fieldsAndTermsIteratorOpts configures the fieldsAndTermsIterator.
 type fieldsAndTermsIteratorOpts struct {
@@ -78,65 +78,57 @@ type fieldsAndTermsIter struct {
 	restrictByPostings *pilosaroaring.Bitmap
 }
 
-var (
-	fieldsAndTermsIterZeroed fieldsAndTermsIter
-)
+var fieldsAndTermsIterZeroed fieldsAndTermsIter
 
 var _ fieldsAndTermsIterator = &fieldsAndTermsIter{}
 
 // newFieldsAndTermsIteratorFn is the lambda definition of the ctor for fieldsAndTermsIterator.
 type newFieldsAndTermsIteratorFn func(
-	r segment.Reader, opts fieldsAndTermsIteratorOpts,
+	ctx context.Context, r segment.Reader, opts fieldsAndTermsIteratorOpts,
 ) (fieldsAndTermsIterator, error)
 
-func newFieldsAndTermsIterator(reader segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
-	iter := &fieldsAndTermsIter{}
-	err := iter.Reset(reader, opts)
+func newFieldsAndTermsIterator(
+	ctx context.Context,
+	reader segment.Reader,
+	opts fieldsAndTermsIteratorOpts,
+) (fieldsAndTermsIterator, error) {
+	iter := &fieldsAndTermsIter{
+		reader: reader,
+		opts:   opts,
+	}
+
+	fiter, err := iter.opts.newFieldIter(reader)
 	if err != nil {
 		return nil, err
 	}
-	return iter, nil
-}
-
-func (fti *fieldsAndTermsIter) Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error {
-	*fti = fieldsAndTermsIterZeroed
-	fti.reader = reader
-	fti.opts = opts
-	if reader == nil {
-		return nil
-	}
-
-	fiter, err := fti.opts.newFieldIter(reader)
-	if err != nil {
-		return err
-	}
-	fti.fieldIter = fiter
+	iter.fieldIter = fiter
 
 	if opts.restrictByQuery == nil {
 		// No need to restrict results by query.
-		return nil
+		return iter, nil
 	}
 
 	// If need to restrict by query, run the query on the segment first.
 	searcher, err := opts.restrictByQuery.SearchQuery().Searcher()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	pl, err := searcher.Search(fti.reader)
+	_, sp := ctx.StartTraceSpan(tracepoint.FieldTermsIteratorIndexSearch)
+	pl, err := searcher.Search(iter.reader)
+	sp.Finish()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Hold onto the postings bitmap to intersect against on a per term basis.
 	bitmap, ok := roaring.BitmapFromPostingsList(pl)
 	if !ok {
-		return errUnpackBitmapFromPostingsList
+		return nil, errUnpackBitmapFromPostingsList
 	}
 
-	fti.restrictByPostings = bitmap
-
-	return nil
+	iter.restrictByPostings = bitmap
+	return iter, nil
 }
 
 func (fti *fieldsAndTermsIter) setNextField() bool {
@@ -286,6 +278,5 @@ func (fti *fieldsAndTermsIter) Close() error {
 	if fti.termIter != nil {
 		multiErr = multiErr.Add(fti.termIter.Close())
 	}
-	multiErr = multiErr.Add(fti.Reset(nil, fieldsAndTermsIteratorOpts{}))
 	return multiErr.FinalError()
 }

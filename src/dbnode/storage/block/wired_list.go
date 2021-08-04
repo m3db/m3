@@ -289,7 +289,7 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 			// is single-threaded.
 			instrument.EmitAndLogInvariantViolation(l.iOpts, func(l *zap.Logger) {
 				l.With(
-					zap.Time("blockStart", entry.startTime),
+					zap.Time("blockStart", entry.startTime.ToTime()),
 					zap.Bool("closed", entry.closed),
 					zap.Bool("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
 				).Error("wired list tried to process a block that was not retrieved from disk")
@@ -304,7 +304,7 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 				// Entry should always have a series ID attached
 				instrument.EmitAndLogInvariantViolation(l.iOpts, func(l *zap.Logger) {
 					l.With(
-						zap.Time("blockStart", entry.startTime),
+						zap.Time("blockStart", entry.startTime.ToTime()),
 						zap.Bool("closed", entry.closed),
 						zap.Bool("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
 					).Error("wired list entry does not have seriesID set")
@@ -324,7 +324,7 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 			// Should never happen
 			instrument.EmitAndLogInvariantViolation(l.iOpts, func(l *zap.Logger) {
 				l.With(
-					zap.Time("blockStart", entry.startTime),
+					zap.Time("blockStart", entry.startTime.ToTime()),
 					zap.Bool("closed", entry.closed),
 					zap.Bool("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
 				).Error("wired list tried to close a block that was not from disk")
