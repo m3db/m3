@@ -1396,6 +1396,60 @@ func TestKeepLastValue(t *testing.T) {
 	}
 }
 
+func TestRoundFunction(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer func() { _ = ctx.Close() }()
+
+	tests := []struct {
+		name       string
+		inputs     []float64
+		outputs    []float64
+		outputName string
+		precision  int
+	}{
+		{
+			"foo",
+			[]float64{111.1, math.NaN(), 111.11, math.NaN(), 111.111},
+			[]float64{110, math.NaN(), 110, math.NaN(), 110},
+			"roundFunction(foo,-1)",
+			-1,
+		},
+		{
+			"foo",
+			[]float64{1.1, math.NaN(), 1.11, math.NaN(), 1.111},
+			[]float64{1, math.NaN(), 1, math.NaN(), 1},
+			"roundFunction(foo)",
+			0,
+		},
+		{
+			"foo",
+			[]float64{1.1, math.NaN(), 1.11, math.NaN(), 1.111},
+			[]float64{1.1, math.NaN(), 1.1, math.NaN(), 1.1},
+			"roundFunction(foo,1)",
+			1,
+		},
+		{
+			"foo",
+			[]float64{1.1, math.NaN(), 1.11, math.NaN(), 1.111},
+			[]float64{1.10, math.NaN(), 1.11, math.NaN(), 1.11},
+			"roundFunction(foo,2)",
+			2,
+		},
+	}
+
+	start := time.Now()
+	for _, test := range tests {
+		input := ts.NewSeries(ctx, test.name, start, common.NewTestSeriesValues(ctx, 100, test.inputs))
+		outputs, err := roundFunction(ctx, singlePathSpec{
+			Values: []*ts.Series{input},
+		}, test.precision)
+		expected := common.TestSeries{Name: test.outputName, Data: test.outputs}
+		require.NoError(t, err)
+		common.CompareOutputsAndExpected(t, 100, start,
+			[]common.TestSeries{expected}, outputs.Values)
+	}
+}
+
 func TestSustainedAbove(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer func() { _ = ctx.Close() }()
@@ -3368,6 +3422,15 @@ func TestSubstr(t *testing.T) {
 	results, err = substr(ctx, singlePathSpec{
 		Values: []*ts.Series{series},
 	}, -1, 0)
+	expected = common.TestSeries{Name: "bar", Data: input.values}
+	require.NoError(t, err)
+	common.CompareOutputsAndExpected(t, input.stepInMilli, input.startTime,
+		[]common.TestSeries{expected}, results.Values)
+
+	// Negative support -3, 0.
+	results, err = substr(ctx, singlePathSpec{
+		Values: []*ts.Series{series},
+	}, -3, 0)
 	expected = common.TestSeries{Name: "bar", Data: input.values}
 	require.NoError(t, err)
 	common.CompareOutputsAndExpected(t, input.stepInMilli, input.startTime,
