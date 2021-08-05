@@ -430,7 +430,7 @@ type databaseNamespace interface {
 	// FlushIndex flushes in-memory index data.
 	FlushIndex(
 		flush persist.IndexFlush,
-	) error
+	) ([]shardFlush, error)
 
 	// ColdFlush flushes unflushed in-memory ColdWrites.
 	ColdFlush(
@@ -761,7 +761,7 @@ type NamespaceIndex interface {
 	WarmFlush(
 		flush persist.IndexFlush,
 		shards []databaseShard,
-	) error
+	) ([]shardFlush, error)
 
 	// ColdFlush performs any cold flushes that the index has outstanding using
 	// the owned shards of the database. Also returns a callback to be called when

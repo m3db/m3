@@ -170,7 +170,8 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 		multiErr = multiErr.Add(fmt.Errorf("error rotating commitlog in mediator tick: %v", err))
 	}
 
-	if err = m.indexFlush(namespaces); err != nil {
+	indexFlushes, err := m.indexFlush(namespaces)
+	if err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
@@ -178,9 +179,19 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 
 	// Mark all flush states at the very end to ensure this
 	// happens after both data and index flushing.
+	// TODO: if this matching approach of data + index ns+shard+time is needed, then reimplement this
+	// more efficiently w/ hashing for constant lookup cost.
 	for _, f := range flushes {
 		for _, s := range f.shardFlushes {
-			s.shard.MarkWarmFlushStateSuccessOrError(s.time, err)
+			for _, ff := range indexFlushes {
+				for _, ss := range ff.shardFlushes {
+					if f.namespace.ID().Equal(ff.namespace.ID()) &&
+						s.shard.ID() == ss.shard.ID() &&
+						s.time.Equal(ss.time) {
+						s.shard.MarkWarmFlushStateSuccessOrError(s.time, err)
+					}
+				}
+			}
 		}
 	}
 
@@ -276,16 +287,17 @@ func (m *flushManager) dataSnapshot(
 
 func (m *flushManager) indexFlush(
 	namespaces []databaseNamespace,
-) error {
+) ([]namespaceFlush, error) {
 	indexFlush, err := m.pm.StartIndexPersist()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	m.setState(flushManagerIndexFlushInProgress)
 	var (
-		start    = m.nowFn()
-		multiErr = xerrors.NewMultiError()
+		start            = m.nowFn()
+		multiErr         = xerrors.NewMultiError()
+		namespaceFlushes = make([]namespaceFlush, 0)
 	)
 	for _, ns := range namespaces {
 		var (
@@ -296,12 +308,20 @@ func (m *flushManager) indexFlush(
 			continue
 		}
 
-		multiErr = multiErr.Add(ns.FlushIndex(indexFlush))
+		shardFlushes, err := ns.FlushIndex(indexFlush)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		} else {
+			namespaceFlushes = append(namespaceFlushes, namespaceFlush{
+				namespace:    ns,
+				shardFlushes: shardFlushes,
+			})
+		}
 	}
 	multiErr = multiErr.Add(indexFlush.DoneIndex())
 
 	m.metrics.indexFlushDuration.Record(m.nowFn().Sub(start))
-	return multiErr.FinalError()
+	return namespaceFlushes, multiErr.FinalError()
 }
 
 func (m *flushManager) Report() {
