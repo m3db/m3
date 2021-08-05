@@ -118,11 +118,11 @@ For more advanced setups, it's best to follow the guides on how to configure an 
 
 First, run the following command to pull the latest M3DB image:
 
-    docker pull quay.io/m3db/m3dbnode:latest
+    docker pull quay.io/m3db/m3dbnode:{{% docker-version %}}
 
 Next, run the following command to start the M3DB container:
 
-    docker run -p 7201:7201 -p 7203:7203 -p 9000:9000 -p 9001:9001 -p 9002:9002 -p 9003:9003 -p 9004:9004 -p 2379:2379 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db -v $(pwd)/src/dbnode/config/m3dbnode-local-etcd-proto.yml:/etc/m3dbnode/m3dbnode.yml -v <PATH_TO_SCHEMA_Protobuf_FILE>:/etc/m3dbnode/default_schema.proto quay.io/m3db/m3dbnode:latest
+    docker run -p 7201:7201 -p 7203:7203 -p 9000:9000 -p 9001:9001 -p 9002:9002 -p 9003:9003 -p 9004:9004 -p 2379:2379 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db -v $(pwd)/src/dbnode/config/m3dbnode-local-etcd-proto.yml:/etc/m3dbnode/m3dbnode.yml -v <PATH_TO_SCHEMA_Protobuf_FILE>:/etc/m3dbnode/default_schema.proto quay.io/m3db/m3dbnode:{{% docker-version %}}
 
 Breaking that down:
 
@@ -134,7 +134,7 @@ Breaking that down:
 Once the M3DB container has started, issue the following CURL statement to create the `default` namespace:
 
 ```shell
-curl -X POST http://localhost:7201/api/v1/database/create -d '{
+curl -X POST {{% apiendpoint %}}database/create -d '{
   "type": "local",
   "namespaceName": "default",
   "retentionTime": "4h"
