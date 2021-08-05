@@ -3427,6 +3427,15 @@ func TestSubstr(t *testing.T) {
 	common.CompareOutputsAndExpected(t, input.stepInMilli, input.startTime,
 		[]common.TestSeries{expected}, results.Values)
 
+	// Negative support -3, 0.
+	results, err = substr(ctx, singlePathSpec{
+		Values: []*ts.Series{series},
+	}, -3, 0)
+	expected = common.TestSeries{Name: "bar", Data: input.values}
+	require.NoError(t, err)
+	common.CompareOutputsAndExpected(t, input.stepInMilli, input.startTime,
+		[]common.TestSeries{expected}, results.Values)
+
 	results, err = substr(ctx, singlePathSpec{
 		Values: []*ts.Series{series},
 	}, 2, 1)
