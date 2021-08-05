@@ -613,6 +613,33 @@ func keepLastValue(ctx *common.Context, input singlePathSpec, limit int) (ts.Ser
 	return r, nil
 }
 
+func roundFunction(ctx *common.Context, input singlePathSpec, precision int) (ts.SeriesList, error) {
+	output := make([]*ts.Series, 0, len(input.Values))
+	for _, series := range input.Values {
+		numSteps := series.Len()
+		vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
+		for i := 0; i < numSteps; i++ {
+			value := series.ValueAt(i)
+			if !math.IsNaN(value) {
+				value = roundTo(value, int32(precision))
+			}
+			vals.SetValueAt(i, value)
+		}
+		name := ""
+		if precision == 0 {
+			name = fmt.Sprintf("roundFunction(%s)", series.Name())
+		} else {
+			name = fmt.Sprintf("roundFunction(%s,%d)", series.Name(), precision)
+		}
+		newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
+		output = append(output, newSeries)
+	}
+
+	r := ts.SeriesList(input)
+	r.Values = output
+	return r, nil
+}
+
 type comparator func(float64, float64) bool
 
 // equalFunc checks whether x is equal to y
@@ -1011,7 +1038,10 @@ func (impl *exponentialMovingAverageImpl) Evaluate(
 	}
 }
 
-func roundTo(n float64, decimals uint32) float64 {
+func roundTo(n float64, decimals int32) float64 {
+	if decimals < 0 {
+		return math.Round(n/math.Pow(10, math.Abs(float64(decimals)))) * math.Pow(10, math.Abs(float64(decimals)))
+	}
 	return math.Round(n*math.Pow(10, float64(decimals))) / math.Pow(10, float64(decimals))
 }
 
@@ -2942,6 +2972,9 @@ func init() {
 	MustRegisterFunction(removeEmptySeries).WithDefaultParams(map[uint8]interface{}{
 		2: 0.0, // xFilesFactor
 	})
+	MustRegisterFunction(roundFunction).WithDefaultParams(map[uint8]interface{}{
+		2: 0, // precision
+	})
 	MustRegisterFunction(scale)
 	MustRegisterFunction(scaleToSeconds)
 	MustRegisterFunction(sortBy).WithDefaultParams(map[uint8]interface{}{
@@ -3005,6 +3038,7 @@ func init() {
 	MustRegisterAliasedFunction("max", maxSeries)
 	MustRegisterAliasedFunction("min", minSeries)
 	MustRegisterAliasedFunction("randomWalk", randomWalkFunction)
+	MustRegisterAliasedFunction("round", roundFunction)
 	MustRegisterAliasedFunction("sum", sumSeries)
 	MustRegisterAliasedFunction("time", timeFunction)
 }
