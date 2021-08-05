@@ -147,12 +147,6 @@ offlineSearch = false
     localCordinator = "http://localhost:7201/"
     apiEndpoint = "api/v1/"
 
-  [[params.versions]]
-    version = "1.1"
-    url = "/docs"
-  [[params.versions]]
-    version = "1.0"
-    url = "/v1.0/docs"
   [params.releases]
     docker = "v1.1.0"
     operator = "v0.13.0"
