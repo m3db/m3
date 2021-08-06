@@ -114,20 +114,6 @@ func (mr *MockClientMockRecorder) WritePassthrough(arg0, arg1 interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WritePassthrough", reflect.TypeOf((*MockClient)(nil).WritePassthrough), arg0, arg1)
 }
 
-// WriteTimed mocks base method.
-func (m *MockClient) WriteTimed(arg0 aggregated.Metric, arg1 metadata.TimedMetadata) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTimed", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WriteTimed indicates an expected call of WriteTimed.
-func (mr *MockClientMockRecorder) WriteTimed(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTimed", reflect.TypeOf((*MockClient)(nil).WriteTimed), arg0, arg1)
-}
-
 // WriteTimedWithStagedMetadatas mocks base method.
 func (m *MockClient) WriteTimedWithStagedMetadatas(arg0 aggregated.Metric, arg1 metadata.StagedMetadatas) error {
 	m.ctrl.T.Helper()
@@ -275,20 +261,6 @@ func (m *MockAdminClient) WritePassthrough(arg0 aggregated.Metric, arg1 policy.S
 func (mr *MockAdminClientMockRecorder) WritePassthrough(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WritePassthrough", reflect.TypeOf((*MockAdminClient)(nil).WritePassthrough), arg0, arg1)
-}
-
-// WriteTimed mocks base method.
-func (m *MockAdminClient) WriteTimed(arg0 aggregated.Metric, arg1 metadata.TimedMetadata) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteTimed", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WriteTimed indicates an expected call of WriteTimed.
-func (mr *MockAdminClientMockRecorder) WriteTimed(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTimed", reflect.TypeOf((*MockAdminClient)(nil).WriteTimed), arg0, arg1)
 }
 
 // WriteTimedWithStagedMetadatas mocks base method.

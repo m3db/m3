@@ -1243,13 +1243,6 @@ func (c *aggregatorLocalAdminClient) WriteUntimedGauge(
 	return c.agg.AddUntimed(gauge.ToUnion(), metadatas)
 }
 
-// WriteTimed writes timed metrics.
-func (c *aggregatorLocalAdminClient) WriteTimed(
-	metric aggregated.Metric,
-	metadata metadata.TimedMetadata,
-) error {
-	return c.agg.AddTimed(metric, metadata)
-}
 
 // WriteTimedWithStagedMetadatas writes timed metrics with staged metadatas.
 func (c *aggregatorLocalAdminClient) WriteTimedWithStagedMetadatas(

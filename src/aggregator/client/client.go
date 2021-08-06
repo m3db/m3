@@ -58,12 +58,6 @@ type Client interface {
 		metadatas metadata.StagedMetadatas,
 	) error
 
-	// WriteTimed writes timed metrics.
-	WriteTimed(
-		metric aggregated.Metric,
-		metadata metadata.TimedMetadata,
-	) error
-
 	// WritePassthrough writes passthrough metrics.
 	WritePassthrough(
 		metric aggregated.Metric,

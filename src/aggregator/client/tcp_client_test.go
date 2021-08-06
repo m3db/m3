@@ -118,9 +118,19 @@ var (
 			},
 		},
 	}
-	testTimedMetadata = metadata.TimedMetadata{
-		AggregationID: aggregation.DefaultID,
-		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
+	testTimedMetadata = metadata.StagedMetadatas{
+		{
+			Metadata: metadata.Metadata{
+				Pipelines: metadata.PipelineMetadatas{
+					{
+						AggregationID: aggregation.DefaultID,
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
+						},
+					},
+				},
+			},
+		},
 	}
 	testForwardMetadata = metadata.ForwardMetadata{
 		AggregationID: aggregation.DefaultID,
@@ -445,13 +455,13 @@ func TestTCPClientWriteTimedMetricSuccess(t *testing.T) {
 	}
 	testMetric := testTimed
 	testMetric.TimeNanos = testNowNanos
-	err := c.WriteTimed(testMetric, testTimedMetadata)
+	err := c.WriteTimedWithStagedMetadatas(testMetric, testTimedMetadata)
 	require.NoError(t, err)
 	require.Equal(t, expectedInstances, instancesRes)
 	require.Equal(t, uint32(1), shardRes)
-	require.Equal(t, timedType, payloadRes.payloadType)
-	require.Equal(t, testMetric, payloadRes.timed.metric)
-	require.Equal(t, testTimedMetadata, payloadRes.timed.metadata)
+	require.Equal(t, timedWithStagedMetadatasType, payloadRes.payloadType)
+	require.Equal(t, testMetric, payloadRes.timedWithStagedMetadatas.metric)
+	require.Equal(t, testTimedMetadata, payloadRes.timedWithStagedMetadatas.metadatas)
 }
 
 func TestTCPClientWriteTimedMetricPartialError(t *testing.T) {
@@ -493,14 +503,14 @@ func TestTCPClientWriteTimedMetricPartialError(t *testing.T) {
 	}
 	testMetric := testTimed
 	testMetric.TimeNanos = testNowNanos
-	err := c.WriteTimed(testMetric, testTimedMetadata)
+	err := c.WriteTimedWithStagedMetadatas(testMetric, testTimedMetadata)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), errInstanceWrite.Error()))
 	require.Equal(t, expectedInstances, instancesRes)
 	require.Equal(t, uint32(1), shardRes)
-	require.Equal(t, timedType, payloadRes.payloadType)
-	require.Equal(t, testMetric, payloadRes.timed.metric)
-	require.Equal(t, testTimedMetadata, payloadRes.timed.metadata)
+	require.Equal(t, timedWithStagedMetadatasType, payloadRes.payloadType)
+	require.Equal(t, testMetric, payloadRes.timedWithStagedMetadatas.metric)
+	require.Equal(t, testTimedMetadata, payloadRes.timedWithStagedMetadatas.metadatas)
 }
 
 func TestTCPClientWriteForwardedMetricSuccess(t *testing.T) {

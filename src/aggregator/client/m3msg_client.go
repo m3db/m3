@@ -152,24 +152,6 @@ func (c *M3MsgClient) WriteUntimedGauge(
 	return err
 }
 
-// WriteTimed writes timed metrics.
-func (c *M3MsgClient) WriteTimed(
-	metric aggregated.Metric,
-	metadata metadata.TimedMetadata,
-) error {
-	callStart := c.nowFn()
-	payload := payloadUnion{
-		payloadType: timedType,
-		timed: timedPayload{
-			metric:   metric,
-			metadata: metadata,
-		},
-	}
-	err := c.write(metric.ID, payload)
-	c.metrics.writeForwarded.ReportSuccessOrError(err, c.nowFn().Sub(callStart))
-	return err
-}
-
 // WritePassthrough writes passthrough metrics.
 func (c *M3MsgClient) WritePassthrough(
 	metric aggregated.Metric,

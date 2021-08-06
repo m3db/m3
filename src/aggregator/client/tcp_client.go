@@ -155,23 +155,6 @@ func (c *TCPClient) WriteUntimedGauge(
 	return c.write(gauge.ID, c.nowFn().UnixNano(), payload)
 }
 
-// WriteTimed writes timed metrics.
-func (c *TCPClient) WriteTimed(
-	metric aggregated.Metric,
-	metadata metadata.TimedMetadata,
-) error {
-	payload := payloadUnion{
-		payloadType: timedType,
-		timed: timedPayload{
-			metric:   metric,
-			metadata: metadata,
-		},
-	}
-
-	c.metrics.writeForwarded.Inc(1)
-	return c.write(metric.ID, metric.TimeNanos, payload)
-}
-
 // WritePassthrough writes passthrough metrics.
 func (c *TCPClient) WritePassthrough(
 	metric aggregated.Metric,
