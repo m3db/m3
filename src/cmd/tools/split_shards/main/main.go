@@ -291,7 +291,9 @@ func verifySplitShards(
 			return fmt.Errorf("mismatched shards, %d to %d", srcShard, newShardID)
 		}
 		dstReader := dstReaders[newShardID/srcNumShards]
-		dstEntry, err := dstReader.StreamingReadMetadata()
+
+		// Using StreamingRead() on destination filesets here because it also verifies data checksums.
+		dstEntry, err := dstReader.StreamingRead()
 		if err != nil {
 			return fmt.Errorf("dst read error: %w", err)
 		}
