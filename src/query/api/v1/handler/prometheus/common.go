@@ -21,6 +21,7 @@
 package prometheus
 
 import (
+	"bytes"
 	goerrors "errors"
 	"fmt"
 	"io"
@@ -424,6 +425,7 @@ func RenderListTagResultsJSON(
 	w io.Writer,
 	result *consolidators.CompleteTagsResult,
 	opts RenderSeriesMetadataOptions,
+	strip [][]byte,
 ) (RenderSeriesMetadataResult, error) {
 	if !result.CompleteNameOnly {
 		return RenderSeriesMetadataResult{}, errors.ErrWithNames
@@ -449,6 +451,9 @@ func RenderListTagResultsJSON(
 			limited = true
 			break
 		}
+		if contains(strip, t.Name) {
+			continue
+		}
 		rendered++
 		jw.WriteBytesString(t.Name)
 	}
@@ -461,6 +466,15 @@ func RenderListTagResultsJSON(
 		TotalResults:           total,
 		LimitedMaxReturnedData: limited,
 	}, jw.Close()
+}
+
+func contains(arr [][]byte, str []byte) bool {
+	for _, s := range arr {
+		if bytes.Equal(s, str) {
+			return true
+		}
+	}
+	return false
 }
 
 // RenderTagCompletionResultsJSON renders tag completion results to json format.
