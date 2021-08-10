@@ -1394,7 +1394,7 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	return res
 }
 
-func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) ([]shardFlush, error) {
+func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) (shardFlushes, error) {
 	callStart := n.nowFn()
 	n.RLock()
 	if n.bootstrapState != Bootstrapped {
@@ -1406,7 +1406,7 @@ func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) ([]shardFlush, error)
 
 	if !n.nopts.FlushEnabled() || !n.nopts.IndexOptions().Enabled() {
 		n.metrics.flushIndex.ReportSuccess(n.nowFn().Sub(callStart))
-		return []shardFlush{}, nil
+		return nil, nil
 	}
 
 	shards := n.OwnedShards()

@@ -54,14 +54,34 @@ const (
 	flushManagerIndexFlushInProgress
 )
 
+type namespaceFlushes map[string]namespaceFlush
+
+type shardFlushes map[shardFlush]bool
+
 type namespaceFlush struct {
 	namespace    databaseNamespace
-	shardFlushes []shardFlush
+	shardFlushes map[shardFlush]bool
 }
 
 type shardFlush struct {
 	time  xtime.UnixNano
 	shard databaseShard
+}
+
+func (n namespaceFlushes) forEachMatch(nn namespaceFlushes, fn func(shardFlush)) {
+	for nsID, ns := range n {
+		otherNS, ok := nn[nsID]
+		if !ok {
+			continue
+		}
+
+		for s := range ns.shardFlushes {
+			_, ok := otherNS.shardFlushes[s]
+			if ok {
+				fn(s)
+			}
+		}
+	}
 }
 
 type flushManagerMetrics struct {
@@ -181,19 +201,9 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 	// happens after both data and index flushing.
 	// TODO: if this matching approach of data + index ns+shard+time is needed, then reimplement this
 	// more efficiently w/ hashing for constant lookup cost.
-	for _, f := range flushes {
-		for _, s := range f.shardFlushes {
-			for _, ff := range indexFlushes {
-				for _, ss := range ff.shardFlushes {
-					if f.namespace.ID().Equal(ff.namespace.ID()) &&
-						s.shard.ID() == ss.shard.ID() &&
-						s.time.Equal(ss.time) {
-						s.shard.MarkWarmFlushStateSuccessOrError(s.time, err)
-					}
-				}
-			}
-		}
-	}
+	flushes.forEachMatch(indexFlushes, func(match shardFlush) {
+		match.shard.MarkWarmFlushStateSuccessOrError(match.time, err)
+	})
 
 	return err
 }
@@ -201,7 +211,7 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 func (m *flushManager) dataWarmFlush(
 	namespaces []databaseNamespace,
 	startTime xtime.UnixNano,
-) ([]namespaceFlush, error) {
+) (namespaceFlushes, error) {
 	flushPersist, err := m.pm.StartFlushPersist()
 	if err != nil {
 		return nil, err
@@ -211,7 +221,7 @@ func (m *flushManager) dataWarmFlush(
 	var (
 		start      = m.nowFn()
 		multiErr   = xerrors.NewMultiError()
-		allFlushes = make([]namespaceFlush, 0)
+		allFlushes = make(map[string]namespaceFlush, 0)
 	)
 	for _, ns := range namespaces {
 		// Flush first because we will only snapshot if there are no outstanding flushes.
@@ -224,7 +234,7 @@ func (m *flushManager) dataWarmFlush(
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
-		allFlushes = append(allFlushes, flush)
+		allFlushes[ns.ID().String()] = flush
 	}
 
 	err = flushPersist.DoneFlush()
@@ -287,7 +297,7 @@ func (m *flushManager) dataSnapshot(
 
 func (m *flushManager) indexFlush(
 	namespaces []databaseNamespace,
-) ([]namespaceFlush, error) {
+) (namespaceFlushes, error) {
 	indexFlush, err := m.pm.StartIndexPersist()
 	if err != nil {
 		return nil, err
@@ -297,7 +307,7 @@ func (m *flushManager) indexFlush(
 	var (
 		start            = m.nowFn()
 		multiErr         = xerrors.NewMultiError()
-		namespaceFlushes = make([]namespaceFlush, 0)
+		namespaceFlushes = make(map[string]namespaceFlush, 0)
 	)
 	for _, ns := range namespaces {
 		var (
@@ -312,10 +322,10 @@ func (m *flushManager) indexFlush(
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		} else {
-			namespaceFlushes = append(namespaceFlushes, namespaceFlush{
+			namespaceFlushes[ns.ID().String()] = namespaceFlush{
 				namespace:    ns,
 				shardFlushes: shardFlushes,
-			})
+			}
 		}
 	}
 	multiErr = multiErr.Add(indexFlush.DoneIndex())
@@ -406,7 +416,7 @@ func (m *flushManager) flushNamespaceWithTimes(
 	times []xtime.UnixNano,
 	flushPreparer persist.FlushPreparer,
 ) (namespaceFlush, error) {
-	flushes := make([]shardFlush, 0)
+	var flushes map[shardFlush]bool
 	multiErr := xerrors.NewMultiError()
 	for _, t := range times {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
@@ -418,10 +428,10 @@ func (m *flushManager) flushNamespaceWithTimes(
 			multiErr = multiErr.Add(detailedErr)
 		} else {
 			for _, s := range shards {
-				flushes = append(flushes, shardFlush{
-					time:  t,
+				flushes[shardFlush{
 					shard: s,
-				})
+					time:  t,
+				}] = true
 			}
 		}
 	}

@@ -1007,10 +1007,10 @@ func (i *nsIndex) tickingBlocks(
 func (i *nsIndex) WarmFlush(
 	flush persist.IndexFlush,
 	shards []databaseShard,
-) ([]shardFlush, error) {
+) (shardFlushes, error) {
 	if len(shards) == 0 {
 		// No-op if no shards currently owned.
-		return []shardFlush{}, nil
+		return nil, nil
 	}
 
 	flushable, err := i.flushableBlocks(shards, series.WarmWrite)
@@ -1039,7 +1039,7 @@ func (i *nsIndex) WarmFlush(
 	defer i.metrics.flushIndexingConcurrency.Update(0)
 
 	var evicted int
-	shardFlushes := make([]shardFlush, 0)
+	shardFlushes := make(map[shardFlush]bool, 0)
 	for _, block := range flushable {
 		immutableSegments, err := i.flushBlock(flush, block, shards, builder)
 		if err != nil {
@@ -1076,10 +1076,10 @@ func (i *nsIndex) WarmFlush(
 			)
 		} else {
 			for _, s := range shards {
-				shardFlushes = append(shardFlushes, shardFlush{
+				shardFlushes[shardFlush{
 					shard: s,
 					time:  block.StartTime(),
-				})
+				}] = true
 			}
 		}
 	}
