@@ -258,6 +258,7 @@ func TestAliasByNodeWitCallSubExpressions(t *testing.T) {
 // quotes the time shift arg so that it appears as a string and can be used to find
 // the inner path expression without failing compilation when aliasByNode finds the
 // first path element.
+// nolint: dupl
 func TestAliasByNodeAndTimeShift(t *testing.T) {
 	ctrl := xgomock.NewController(t)
 	defer ctrl.Finish()
@@ -284,6 +285,7 @@ func TestAliasByNodeAndTimeShift(t *testing.T) {
 // return of a sub-expression ends up as a function name (i.e. identity) but
 // is not a function call it's simply a pattern returned from result of
 // something like groupByNodes.
+// nolint: dupl
 func TestAliasByNodeAndPatternThatMatchesFunctionName(t *testing.T) {
 	ctrl := xgomock.NewController(t)
 	defer ctrl.Finish()
