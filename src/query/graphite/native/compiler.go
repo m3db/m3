@@ -187,6 +187,10 @@ type errFuncNotFound struct{ err error }
 
 func (e *errFuncNotFound) Error() string { return e.err.Error() }
 
+type errNotFuncCall struct{ err error }
+
+func (e *errNotFuncCall) Error() string { return e.err.Error() }
+
 // compileFunctionCall compiles a function call
 func (c *compiler) compileFunctionCall(fname string) (*functionCall, error) {
 	fn := findFunction(fname)
@@ -195,7 +199,9 @@ func (c *compiler) compileFunctionCall(fname string) (*functionCall, error) {
 	}
 
 	if _, err := c.expectToken(lexer.LParenthesis); err != nil {
-		return nil, err
+		// This could be just a pattern or fetch expression, so return
+		// with context that there was no opening parenthesis.
+		return nil, &errNotFuncCall{err}
 	}
 
 	argTypes := fn.in
@@ -345,8 +351,13 @@ func (c *compiler) convertTokenToArg(token *lexer.Token, reflectType reflect.Typ
 
 		fc, err := c.compileFunctionCall(currentToken)
 		if err != nil {
-			var notFoundErr *errFuncNotFound
-			if goerrors.As(err, &notFoundErr) && c.canCompileAsFetch(currentToken) {
+			var (
+				notFuncErr    *errNotFuncCall
+				notFoundErr   *errFuncNotFound
+				isNotFuncErr  = goerrors.As(err, &notFuncErr)
+				isNotFoundErr = goerrors.As(err, &notFoundErr)
+			)
+			if (isNotFuncErr || isNotFoundErr) && c.canCompileAsFetch(currentToken) {
 				return newFetchExpression(currentToken), nil
 			}
 			return nil, err
@@ -360,8 +371,8 @@ func (c *compiler) convertTokenToArg(token *lexer.Token, reflectType reflect.Typ
 
 // expectToken reads the next token and confirms it is the expected type before returning it
 func (c *compiler) expectToken(expectedType lexer.TokenType) (*lexer.Token, error) {
-	token := c.tokens.get()
-	if token == nil {
+	token, ok := c.tokens.peek()
+	if !ok || token == nil {
 		return nil, c.errorf("expected %v but encountered eof", expectedType)
 	}
 
@@ -369,6 +380,8 @@ func (c *compiler) expectToken(expectedType lexer.TokenType) (*lexer.Token, erro
 		return nil, c.errorf("expected %v but encountered %s", expectedType, token.Value())
 	}
 
+	// Consume the token as it matches.
+	_ = c.tokens.get()
 	return token, nil
 }
 
