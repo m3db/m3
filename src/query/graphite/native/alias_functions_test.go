@@ -254,11 +254,12 @@ func TestAliasByNodeWitCallSubExpressions(t *testing.T) {
 	assert.Equal(t, "foo02", results.Values[1].Name())
 }
 
-// TestExecuteAliasByNodeAndTimeShift tests that the output of timeshift properly
+// TestAliasByNodeAndTimeShift tests that the output of timeshift properly
 // quotes the time shift arg so that it appears as a string and can be used to find
 // the inner path expression without failing compilation when aliasByNode finds the
 // first path element.
-func TestExecuteAliasByNodeAndTimeShift(t *testing.T) {
+// nolint: dupl
+func TestAliasByNodeAndTimeShift(t *testing.T) {
 	ctrl := xgomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -273,7 +274,37 @@ func TestExecuteAliasByNodeAndTimeShift(t *testing.T) {
 		buildTestSeriesFn(stepSize, "foo.bar.q.zed", "foo.bar.g.zed",
 			"foo.bar.x.zed"))
 
-	expr, err := engine.Compile("aliasByNode(timeShift(foo.bar.*.zed,'-7d'), 0)")
+	expr, err := engine.Compile("aliasByNode(timeShift(foo.bar.*.zed,'-7d'), 2)")
+	require.NoError(t, err)
+
+	_, err = expr.Execute(ctx)
+	require.NoError(t, err)
+}
+
+// TestAliasByNodeAndPatternThatMatchesFunctionName test the case where the
+// return of a sub-expression ends up as a function name (i.e. identity) but
+// is not a function call it's simply a pattern returned from result of
+// something like groupByNodes.
+// nolint: dupl
+func TestAliasByNodeAndPatternThatMatchesFunctionName(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+
+	engine := NewEngine(store, CompileOptions{})
+
+	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
+
+	stepSize := int((10 * time.Minute) / time.Millisecond)
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize,
+			"foo.bar.a.zed",
+			"foo.bar.b.zed",
+			"foo.bar.identity.zed",
+		))
+
+	expr, err := engine.Compile("aliasByNode(summarize(groupByNode(foo.bar.*.zed, 2, 'average'), '5min', 'avg'), 0)")
 	require.NoError(t, err)
 
 	_, err = expr.Execute(ctx)
