@@ -182,7 +182,8 @@ func (s *replicatedSessionTestSuite) TestReplicate() {
 
 	var newSessionFunc = func(opts Options) (clientSession, error) {
 		s := NewMockclientSession(s.mockCtrl)
-		s.EXPECT().Write(namespace, id, now, value, unit, annotation).Return(nil)
+		s.EXPECT().Write(ident.NewIDMatcher(namespace.String()), ident.NewIDMatcher(id.String()),
+			now, value, unit, annotation).Return(nil)
 		return s, nil
 	}
 
