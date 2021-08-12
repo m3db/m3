@@ -138,8 +138,13 @@ func (c *compiler) compileExpression() (Expression, error) {
 		fc, err := c.compileFunctionCall(token.Value())
 		fetchCandidate := false
 		if err != nil {
-			var notFoundErr *errFuncNotFound
-			if goerrors.As(err, &notFoundErr) && c.canCompileAsFetch(token.Value()) {
+			var (
+				notFuncErr    *errNotFuncCall
+				notFoundErr   *errFuncNotFound
+				isNotFuncErr  = goerrors.As(err, &notFuncErr)
+				isNotFoundErr = goerrors.As(err, &notFoundErr)
+			)
+			if (isNotFuncErr || isNotFoundErr) && c.canCompileAsFetch(token.Value()) {
 				fetchCandidate = true
 				expr = newFetchExpression(token.Value())
 			} else {

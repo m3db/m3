@@ -311,6 +311,11 @@ func TestAliasByNodeAndPatternThatMatchesFunctionName(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestGroupByNodeAndAliasMetric tests the case when compiling an identifier
+// immediately in groupByNode when doing meta series grouping and finding the
+// first inner metrics path.
+// It tries to compile as function call but needs to back out when if a function
+// matches but it's actually just a pattern instead.
 // nolint: dupl
 func TestGroupByNodeAndAliasMetric(t *testing.T) {
 	ctrl := xgomock.NewController(t)
@@ -325,12 +330,12 @@ func TestGroupByNodeAndAliasMetric(t *testing.T) {
 	stepSize := int((10 * time.Minute) / time.Millisecond)
 	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		buildTestSeriesFn(stepSize,
-			"system.service.env.region.handler.rpc.foo.request.lat.p95",
-			"system.service.env.region.handler.rpc.foo.request.lat.max",
-			"system.service.env.region.handler.rpc.foo.request.lat.mean",
+			"handler.rpc.foo.request.lat.p95",
+			"handler.rpc.foo.request.lat.max",
+			"handler.rpc.foo.request.lat.mean",
 		))
 
-	expr, err := engine.Compile("groupByNode(aliasByMetric(system.service.env.region.handler.handler.rpc.*.request.lat.{p*,max,mean}), -1, 'max')")
+	expr, err := engine.Compile("groupByNode(aliasByMetric(handler.rpc.*.request.lat.{p*,max,mean}), -1, 'max')")
 	require.NoError(t, err)
 
 	_, err = expr.Execute(ctx)
