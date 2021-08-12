@@ -310,3 +310,29 @@ func TestAliasByNodeAndPatternThatMatchesFunctionName(t *testing.T) {
 	_, err = expr.Execute(ctx)
 	require.NoError(t, err)
 }
+
+// nolint: dupl
+func TestGroupByNodeAndAliasMetric(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+
+	engine := NewEngine(store, CompileOptions{})
+
+	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
+
+	stepSize := int((10 * time.Minute) / time.Millisecond)
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize,
+			"system.service.env.region.handler.rpc.foo.request.lat.p95",
+			"system.service.env.region.handler.rpc.foo.request.lat.max",
+			"system.service.env.region.handler.rpc.foo.request.lat.mean",
+		))
+
+	expr, err := engine.Compile("groupByNode(aliasByMetric(system.service.env.region.handler.handler.rpc.*.request.lat.{p*,max,mean}), -1, 'max')")
+	require.NoError(t, err)
+
+	_, err = expr.Execute(ctx)
+	require.NoError(t, err)
+}
