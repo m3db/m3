@@ -183,7 +183,7 @@ func (s *replicatedSessionTestSuite) TestReplicate() {
 		annotation = []byte("annotation")
 	)
 
-	var newSessionFunc = func(opts Options) (clientSession, error) {
+	newSessionFunc := func(opts Options) (clientSession, error) {
 		s := NewMockclientSession(s.mockCtrl)
 		s.EXPECT().Write(
 			ident.NewIDMatcher(namespace.String()),
@@ -215,7 +215,7 @@ func (s *replicatedSessionTestSuite) TestReplicateTagged() {
 		annotation = []byte("annotation")
 	)
 
-	var newSessionFunc = func(opts Options) (clientSession, error) {
+	newSessionFunc := func(opts Options) (clientSession, error) {
 		s := NewMockclientSession(s.mockCtrl)
 		s.EXPECT().WriteTagged(
 			ident.NewIDMatcher(namespace.String()),
