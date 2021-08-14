@@ -24,11 +24,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/ts"
-
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/query/graphite/common"
+	"github.com/m3db/m3/src/query/graphite/storage"
+	"github.com/m3db/m3/src/query/graphite/ts"
+	xgomock "github.com/m3db/m3/src/x/test"
 )
 
 func TestAlias(t *testing.T) {
@@ -249,4 +252,92 @@ func TestAliasByNodeWitCallSubExpressions(t *testing.T) {
 	require.Equal(t, len(series), results.Len())
 	assert.Equal(t, "foo01", results.Values[0].Name())
 	assert.Equal(t, "foo02", results.Values[1].Name())
+}
+
+// TestAliasByNodeAndTimeShift tests that the output of timeshift properly
+// quotes the time shift arg so that it appears as a string and can be used to find
+// the inner path expression without failing compilation when aliasByNode finds the
+// first path element.
+// nolint: dupl
+func TestAliasByNodeAndTimeShift(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+
+	engine := NewEngine(store, CompileOptions{})
+
+	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
+
+	stepSize := int((10 * time.Minute) / time.Millisecond)
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.q.zed", "foo.bar.g.zed",
+			"foo.bar.x.zed"))
+
+	expr, err := engine.Compile("aliasByNode(timeShift(foo.bar.*.zed,'-7d'), 2)")
+	require.NoError(t, err)
+
+	_, err = expr.Execute(ctx)
+	require.NoError(t, err)
+}
+
+// TestAliasByNodeAndPatternThatMatchesFunctionName test the case where the
+// return of a sub-expression ends up as a function name (i.e. identity) but
+// is not a function call it's simply a pattern returned from result of
+// something like groupByNodes.
+// nolint: dupl
+func TestAliasByNodeAndPatternThatMatchesFunctionName(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+
+	engine := NewEngine(store, CompileOptions{})
+
+	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
+
+	stepSize := int((10 * time.Minute) / time.Millisecond)
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize,
+			"foo.bar.a.zed",
+			"foo.bar.b.zed",
+			"foo.bar.identity.zed",
+		))
+
+	expr, err := engine.Compile("aliasByNode(summarize(groupByNode(foo.bar.*.zed, 2, 'average'), '5min', 'avg'), 0)")
+	require.NoError(t, err)
+
+	_, err = expr.Execute(ctx)
+	require.NoError(t, err)
+}
+
+// TestGroupByNodeAndAliasMetric tests the case when compiling an identifier
+// immediately in groupByNode when doing meta series grouping and finding the
+// first inner metrics path.
+// It tries to compile as function call but needs to back out when if a function
+// matches but it's actually just a pattern instead.
+// nolint: dupl
+func TestGroupByNodeAndAliasMetric(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+
+	engine := NewEngine(store, CompileOptions{})
+
+	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
+
+	stepSize := int((10 * time.Minute) / time.Millisecond)
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize,
+			"handler.rpc.foo.request.lat.p95",
+			"handler.rpc.foo.request.lat.max",
+			"handler.rpc.foo.request.lat.mean",
+		))
+
+	expr, err := engine.Compile("groupByNode(aliasByMetric(handler.rpc.*.request.lat.{p*,max,mean}), -1, 'max')")
+	require.NoError(t, err)
+
+	_, err = expr.Execute(ctx)
+	require.NoError(t, err)
 }
