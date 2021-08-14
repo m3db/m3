@@ -26,11 +26,11 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -208,7 +208,7 @@ func (s *replicatedSessionTestSuite) TestReplicateTagged() {
 		asyncCount = 2
 		namespace  = ident.StringID("foo")
 		id         = ident.StringID("bar")
-		tags       = ident.NewFieldsTagsIterator([]doc.Field{{[]byte("k"), []byte("v")}})
+		tags       = ident.NewFieldsTagsIterator([]doc.Field{{Name: []byte("k"), Value: []byte("v")}})
 		now        = xtime.Now()
 		value      = float64(123)
 		unit       = xtime.Nanosecond
@@ -283,13 +283,15 @@ func (s *replicatedSessionTestSuite) TestOpenReplicatedSessionAsyncError() {
 }
 
 func (s *replicatedSessionTestSuite) waitForAsyncSessions(asyncCount int) {
-	t := time.NewTimer(1 * time.Second) // Allow async expectations to occur before ending test
+	t := time.NewTimer(1 * time.Second)
+
+	// Allow async expectations to occur before ending test.
 	for i := 0; i < asyncCount; i++ {
 		select {
 		case err := <-s.replicatedSession.outCh:
 			s.NoError(err)
 		case <-t.C:
-			break
+			return
 		}
 	}
 }
