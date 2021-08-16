@@ -1255,8 +1255,16 @@ func TestEntryAddTimedMetricTooLate(t *testing.T) {
 		storagePolicy policy.StoragePolicy
 	}{
 		{
-			timeNanos:     now.UnixNano() - 40*time.Second.Nanoseconds(),
+			timeNanos:     now.UnixNano() - 11*time.Second.Nanoseconds(),
 			storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+		},
+		{
+			timeNanos:     now.UnixNano() - 12*time.Second.Nanoseconds(),
+			storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+		},
+		{
+			timeNanos:     now.UnixNano() - 61*time.Second.Nanoseconds(),
+			storagePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
 		},
 		{
 			timeNanos:     now.UnixNano() - 62*time.Second.Nanoseconds(),
@@ -1264,15 +1272,90 @@ func TestEntryAddTimedMetricTooLate(t *testing.T) {
 		},
 	}
 
-	for _, input := range inputs {
+	for i, input := range inputs {
 		metric := testTimedMetric
 		metric.TimeNanos = input.timeNanos
 		err := e.AddTimed(metric, metadata.TimedMetadata{StoragePolicy: input.storagePolicy})
-		require.True(t, xerrors.IsInvalidParams(err))
-		require.Equal(t, errTooFarInThePast, xerrors.InnerError(err))
-		require.True(t, strings.Contains(err.Error(), "datapoint for aggregation too far in past"))
-		require.True(t, strings.Contains(err.Error(), "timestamp="))
-		require.True(t, strings.Contains(err.Error(), "past_limit="))
+		if i%2 == 0 {
+			require.NoError(t, err)
+			for _, l := range e.lists.lists {
+				require.IsType(t, &timedMetricList{}, l)
+			}
+		} else {
+			require.True(t, xerrors.IsInvalidParams(err))
+			require.True(t, xerrors.Is(err, errTooFarInThePast))
+			require.Equal(t, errTooFarInThePast, xerrors.InnerError(err))
+			require.True(t, strings.Contains(err.Error(), "datapoint for aggregation too far in past"))
+			require.True(t, strings.Contains(err.Error(), "timestamp="))
+			require.True(t, strings.Contains(err.Error(), "past_limit="))
+		}
+	}
+}
+
+//nolint:dupl
+func TestEntryAddTimedWithStagedMetadatasMetricTooLate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	timedAggregationBufferPastFn := func(
+		resolution time.Duration,
+	) time.Duration {
+		return resolution + time.Second
+	}
+	e, _, now := testEntry(ctrl, testEntryOptions{
+		options: testOptions(ctrl).SetVerboseErrors(true),
+	})
+	e.opts = e.opts.SetBufferForPastTimedMetricFn(timedAggregationBufferPastFn)
+
+	inputs := []struct {
+		timeNanos     int64
+		storagePolicy policy.StoragePolicy
+	}{
+		{
+			timeNanos:     now.UnixNano() - 11*time.Second.Nanoseconds(),
+			storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+		},
+		{
+			timeNanos:     now.UnixNano() - 12*time.Second.Nanoseconds(),
+			storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+		},
+		{
+			timeNanos:     now.UnixNano() - 61*time.Second.Nanoseconds(),
+			storagePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+		},
+		{
+			timeNanos:     now.UnixNano() - 62*time.Second.Nanoseconds(),
+			storagePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+		},
+	}
+
+	for i, input := range inputs {
+		metric := testTimedMetric
+		metric.TimeNanos = input.timeNanos
+		metadatas := metadata.StagedMetadatas{
+			{
+				Metadata: metadata.Metadata{
+					Pipelines: metadata.PipelineMetadatas{
+						{
+							StoragePolicies: policy.StoragePolicies{input.storagePolicy},
+						},
+					},
+				},
+			},
+		}
+		err := e.AddTimedWithStagedMetadatas(metric, metadatas)
+		if i%2 == 0 {
+			require.NoError(t, err)
+			for _, l := range e.lists.lists {
+				require.IsType(t, &timedMetricList{}, l)
+			}
+		} else {
+			require.True(t, xerrors.IsInvalidParams(err))
+			require.True(t, xerrors.Is(err, errTooFarInThePast))
+			require.True(t, strings.Contains(err.Error(), "datapoint for aggregation too far in past"))
+			require.True(t, strings.Contains(err.Error(), "timestamp="))
+			require.True(t, strings.Contains(err.Error(), "past_limit="))
+		}
 	}
 }
 
