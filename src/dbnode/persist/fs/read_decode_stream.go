@@ -41,7 +41,7 @@ type readerDecoderStream struct {
 	bytesReader      *bytes.Reader
 	readerWithDigest digest.ReaderWithDigest
 	backingBytes     []byte
-	buf              [8]byte
+	buf              [64]byte
 	lastReadByte     int
 	unreadByte       int
 }
