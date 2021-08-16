@@ -22,7 +22,12 @@ package ingest
 
 import (
 	"context"
+	"regexp"
 	"sync"
+	"time"
+
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/metrics/policy"
@@ -34,8 +39,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
 )
 
 var (
@@ -101,6 +104,7 @@ type WriteOptions struct {
 
 	DownsampleOverride bool
 	WriteOverride      bool
+	Delayed            bool
 }
 
 type downsamplerAndWriterMetrics struct {
@@ -115,6 +119,7 @@ type downsamplerAndWriter struct {
 	workerPool  xsync.PooledWorkerPool
 
 	metrics downsamplerAndWriterMetrics
+	logger  *zap.Logger
 }
 
 // NewDownsamplerAndWriter creates a new downsampler and writer.
@@ -125,14 +130,16 @@ func NewDownsamplerAndWriter(
 	instrumentOpts instrument.Options,
 ) DownsamplerAndWriter {
 	scope := instrumentOpts.MetricsScope().SubScope("downsampler")
-	return &downsamplerAndWriter{
+	dw := &downsamplerAndWriter{
 		store:       store,
 		downsampler: downsampler,
 		workerPool:  workerPool,
 		metrics: downsamplerAndWriterMetrics{
 			dropped: scope.Counter("metrics_dropped"),
 		},
+		logger: instrumentOpts.Logger(),
 	}
+	return dw
 }
 
 func (d *downsamplerAndWriter) Write(
@@ -454,9 +461,9 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 	defer appender.Finalize()
 
 	for iter.Next() {
+		value := iter.Current()
 		appender.NextMetric()
 
-		value := iter.Current()
 		if err := value.Tags.Validate(); err != nil {
 			multiErr = multiErr.Add(err)
 			continue
@@ -561,4 +568,10 @@ func storageAttributesFromPolicy(
 		}
 	}
 	return attributes
+}
+
+// ProcessDelay delays metrics for the configured name regexp.
+type ProcessDelay struct {
+	NameRe *regexp.Regexp
+	Delay  time.Duration
 }

@@ -32,20 +32,18 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/x/clock"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
-var (
-	testForwardedWriterAggregationKey = aggregationKey{
-		aggregationID:     aggregation.MustCompressTypes(aggregation.Count),
-		storagePolicy:     policy.MustParseStoragePolicy("10s:2d"),
-		numForwardedTimes: 1,
-	}
-)
+var testForwardedWriterAggregationKey = aggregationKey{
+	aggregationID:     aggregation.MustCompressTypes(aggregation.Count),
+	storagePolicy:     policy.MustParseStoragePolicy("10s:2d"),
+	numForwardedTimes: 1,
+}
 
 func TestForwardedWriterRegisterWriterClosed(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -53,7 +51,8 @@ func TestForwardedWriterRegisterWriterClosed(t *testing.T) {
 
 	var (
 		c      = client.NewMockAdminClient(ctrl)
-		w      = newForwardedWriter(0, c, tally.NoopScope)
+		opts   = NewOptions(clock.NewOptions()).SetAdminClient(c)
+		w      = newForwardedWriter(0, opts)
 		mt     = metric.CounterType
 		mid    = id.RawID("foo")
 		aggKey = testForwardedWriterAggregationKey
@@ -83,7 +82,11 @@ func TestForwardedWriterRegisterWriterClosed(t *testing.T) {
 		}
 
 		assert.NotPanics(t, func() {
-			_, _, err := w.Register(mt, mid, aggKey)
+			_, _, err := w.Register(testRegisterable{
+				metricType: mt,
+				id:         mid,
+				key:        aggKey,
+			})
 			require.Equal(t, errForwardedWriterClosed, err)
 
 			err = w.Flush()
@@ -102,14 +105,19 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 
 	var (
 		c      = client.NewMockAdminClient(ctrl)
-		w      = newForwardedWriter(0, c, tally.NoopScope)
+		opts   = NewOptions(clock.NewOptions()).SetAdminClient(c)
+		w      = newForwardedWriter(0, opts)
 		mt     = metric.GaugeType
 		mid    = id.RawID("foo")
 		aggKey = testForwardedWriterAggregationKey
 	)
 
 	// Validate that no error is returned.
-	writeFn, onDoneFn, err := w.Register(mt, mid, aggKey)
+	writeFn, onDoneFn, err := w.Register(testRegisterable{
+		metricType: mt,
+		id:         mid,
+		key:        aggKey,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, writeFn)
 	require.NotNil(t, onDoneFn)
@@ -132,22 +140,28 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 	require.Equal(t, 0, len(agg.byKey[0].buckets))
 
 	// Validate that writeFn can be used to write data to the aggregation.
-	writeFn(aggKey, 1234, 5.67, nil)
+	writeFn(aggKey, 1234, 5.67, 5.0, nil)
 	require.Equal(t, 1, len(agg.byKey[0].buckets))
-	require.Equal(t, int64(1234), agg.byKey[0].buckets[0].timeNanos)
-	require.Equal(t, []float64{5.67}, agg.byKey[0].buckets[0].values)
+	require.Equal(t, int64(1234), agg.byKey[0].buckets[1234].timeNanos)
+	require.Equal(t, []float64{5.67}, agg.byKey[0].buckets[1234].values)
+	require.Equal(t, []float64{5.0}, agg.byKey[0].buckets[1234].prevValues)
+	require.Equal(t, int64(0), agg.byKey[0].buckets[1234].version)
 	require.Nil(t, agg.byKey[0].buckets[0].annotation)
 
-	writeFn(aggKey, 1234, 1.78, testAnnot)
+	writeFn(aggKey, 1234, 1.78, 1.0, testAnnot)
 	require.Equal(t, 1, len(agg.byKey[0].buckets))
-	require.Equal(t, int64(1234), agg.byKey[0].buckets[0].timeNanos)
-	require.Equal(t, []float64{5.67, 1.78}, agg.byKey[0].buckets[0].values)
-	require.Equal(t, testAnnot, agg.byKey[0].buckets[0].annotation)
+	require.Equal(t, int64(1234), agg.byKey[0].buckets[1234].timeNanos)
+	require.Equal(t, []float64{5.67, 1.78}, agg.byKey[0].buckets[1234].values)
+	require.Equal(t, []float64{5.0, 1.0}, agg.byKey[0].buckets[1234].prevValues)
+	require.Equal(t, int64(0), agg.byKey[0].buckets[1234].version)
+	require.Equal(t, testAnnot, agg.byKey[0].buckets[1234].annotation)
 
-	writeFn(aggKey, 1240, -2.95, nil)
+	writeFn(aggKey, 1240, -2.95, 0.0, nil)
 	require.Equal(t, 2, len(agg.byKey[0].buckets))
-	require.Equal(t, int64(1240), agg.byKey[0].buckets[1].timeNanos)
-	require.Equal(t, []float64{-2.95}, agg.byKey[0].buckets[1].values)
+	require.Equal(t, int64(1240), agg.byKey[0].buckets[1240].timeNanos)
+	require.Equal(t, []float64{-2.95}, agg.byKey[0].buckets[1240].values)
+	require.Equal(t, []float64{0.0}, agg.byKey[0].buckets[1240].prevValues)
+	require.Equal(t, int64(0), agg.byKey[0].buckets[1240].version)
 
 	// Validate that onDoneFn can be used to flush data out.
 	expectedMetric1 := aggregated.ForwardedMetric{
@@ -155,13 +169,16 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 		ID:         mid,
 		TimeNanos:  1234,
 		Values:     []float64{5.67, 1.78},
+		PrevValues: []float64{5.0, 1.0},
 		Annotation: testAnnot,
 	}
 	expectedMetric2 := aggregated.ForwardedMetric{
-		Type:      mt,
-		ID:        mid,
-		TimeNanos: 1240,
-		Values:    []float64{-2.95},
+		Type:       mt,
+		ID:         mid,
+		TimeNanos:  1240,
+		Values:     []float64{-2.95},
+		PrevValues: []float64{0.0},
+		Version:    0,
 	}
 	expectedMeta := metadata.ForwardMetadata{
 		AggregationID:     aggregation.MustCompressTypes(aggregation.Count),
@@ -181,14 +198,19 @@ func TestForwardedWriterRegisterExistingAggregation(t *testing.T) {
 
 	var (
 		c      = client.NewMockAdminClient(ctrl)
-		w      = newForwardedWriter(0, c, tally.NoopScope)
+		opts   = NewOptions(clock.NewOptions()).SetAdminClient(c)
+		w      = newForwardedWriter(0, opts)
 		mt     = metric.GaugeType
 		mid    = id.RawID("foo")
 		aggKey = testForwardedWriterAggregationKey
 	)
 
 	// Register an aggregation first.
-	writeFn, onDoneFn, err := w.Register(mt, mid, aggKey)
+	writeFn, onDoneFn, err := w.Register(testRegisterable{
+		metricType: mt,
+		id:         mid,
+		key:        aggKey,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, writeFn)
 	require.NotNil(t, onDoneFn)
@@ -203,7 +225,11 @@ func TestForwardedWriterRegisterExistingAggregation(t *testing.T) {
 	require.Equal(t, 1, agg.byKey[0].totalRefCnt)
 
 	// Register the same aggregation again.
-	writeFn, onDoneFn, err = w.Register(mt, mid, aggKey)
+	writeFn, onDoneFn, err = w.Register(testRegisterable{
+		metricType: mt,
+		id:         mid,
+		key:        aggKey,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, writeFn)
 	require.NotNil(t, onDoneFn)
@@ -217,7 +243,8 @@ func TestForwardedWriterUnregisterWriterClosed(t *testing.T) {
 
 	var (
 		c      = client.NewMockAdminClient(ctrl)
-		w      = newForwardedWriter(0, c, tally.NoopScope)
+		opts   = NewOptions(clock.NewOptions()).SetAdminClient(c)
+		w      = newForwardedWriter(0, opts)
 		mt     = metric.GaugeType
 		mid    = id.RawID("foo")
 		aggKey = testForwardedWriterAggregationKey
@@ -233,7 +260,8 @@ func TestForwardedWriterUnregisterMetricNotFound(t *testing.T) {
 
 	var (
 		c      = client.NewMockAdminClient(ctrl)
-		w      = newForwardedWriter(0, c, tally.NoopScope)
+		opts   = NewOptions(clock.NewOptions()).SetAdminClient(c)
+		w      = newForwardedWriter(0, opts)
 		mt     = metric.GaugeType
 		mid    = id.RawID("foo")
 		aggKey = testForwardedWriterAggregationKey
@@ -248,14 +276,19 @@ func TestForwardedWriterUnregisterAggregationKeyNotFound(t *testing.T) {
 
 	var (
 		c      = client.NewMockAdminClient(ctrl)
-		w      = newForwardedWriter(0, c, tally.NoopScope)
+		opts   = NewOptions(clock.NewOptions()).SetAdminClient(c)
+		w      = newForwardedWriter(0, opts)
 		mt     = metric.GaugeType
 		mid    = id.RawID("foo")
 		aggKey = testForwardedWriterAggregationKey
 	)
 
 	// Register an aggregation first.
-	_, _, err := w.Register(mt, mid, aggKey)
+	_, _, err := w.Register(testRegisterable{
+		metricType: mt,
+		id:         mid,
+		key:        aggKey,
+	})
 	require.NoError(t, err)
 
 	// Unregister a different aggregation key.
@@ -270,20 +303,29 @@ func TestForwardedWriterUnregister(t *testing.T) {
 
 	var (
 		c      = client.NewMockAdminClient(ctrl)
-		w      = newForwardedWriter(0, c, tally.NoopScope)
+		opts   = NewOptions(clock.NewOptions()).SetAdminClient(c)
+		w      = newForwardedWriter(0, opts)
 		mt     = metric.GaugeType
 		mid    = id.RawID("foo")
 		aggKey = testForwardedWriterAggregationKey
 	)
 
 	// Register an aggregation first.
-	_, _, err := w.Register(mt, mid, aggKey)
+	_, _, err := w.Register(testRegisterable{
+		metricType: mt,
+		id:         mid,
+		key:        aggKey,
+	})
 	require.NoError(t, err)
 	fw := w.(*forwardedWriter)
 	require.Equal(t, 1, len(fw.aggregations))
 
 	// Register the aggregation again.
-	_, _, err = w.Register(mt, mid, aggKey)
+	_, _, err = w.Register(testRegisterable{
+		metricType: mt,
+		id:         mid,
+		key:        aggKey,
+	})
 	require.NoError(t, err)
 	require.Equal(t, 1, len(fw.aggregations))
 
@@ -302,7 +344,8 @@ func TestForwardedWriterPrepare(t *testing.T) {
 
 	var (
 		c      = client.NewMockAdminClient(ctrl)
-		w      = newForwardedWriter(0, c, tally.NoopScope)
+		opts   = NewOptions(clock.NewOptions()).SetAdminClient(c)
+		w      = newForwardedWriter(0, opts)
 		mt     = metric.GaugeType
 		mid    = id.RawID("foo")
 		mid2   = id.RawID("bar")
@@ -310,45 +353,59 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	)
 
 	// Register an aggregation.
-	writeFn, onDoneFn, err := w.Register(mt, mid, aggKey)
+	writeFn, onDoneFn, err := w.Register(testRegisterable{
+		metricType: mt,
+		id:         mid,
+		key:        aggKey,
+	})
 	require.NoError(t, err)
 
 	// Write some datapoints.
-	writeFn(aggKey, 1234, 3.4, nil)
-	writeFn(aggKey, 1234, 3.5, nil)
-	writeFn(aggKey, 1240, 98.2, nil)
+	writeFn(aggKey, 1234, 3.4, 3.0, nil)
+	writeFn(aggKey, 1234, 3.5, 2.0, nil)
+	writeFn(aggKey, 1240, 98.2, 98.0, nil)
 
 	// Register another aggregation.
-	writeFn2, onDoneFn2, err := w.Register(mt, mid2, aggKey)
+	writeFn2, onDoneFn2, err := w.Register(testRegisterable{
+		metricType: mt,
+		id:         mid2,
+		key:        aggKey,
+	})
 	require.NoError(t, err)
 
 	// Write some more datapoints.
-	writeFn2(aggKey, 1238, 3.4, nil)
-	writeFn2(aggKey, 1239, 3.5, nil)
+	writeFn2(aggKey, 1238, 3.4, 0.0, nil)
+	writeFn2(aggKey, 1239, 3.5, 0.0, nil)
 
 	expectedMetric1 := aggregated.ForwardedMetric{
-		Type:      mt,
-		ID:        mid,
-		TimeNanos: 1234,
-		Values:    []float64{3.4, 3.5},
+		Type:       mt,
+		ID:         mid,
+		TimeNanos:  1234,
+		Values:     []float64{3.4, 3.5},
+		PrevValues: []float64{3.0, 2.0},
 	}
 	expectedMetric2 := aggregated.ForwardedMetric{
-		Type:      mt,
-		ID:        mid,
-		TimeNanos: 1240,
-		Values:    []float64{98.2},
+		Type:       mt,
+		ID:         mid,
+		TimeNanos:  1240,
+		Values:     []float64{98.2},
+		PrevValues: []float64{98.0},
+		Version:    0,
 	}
 	expectedMetric3 := aggregated.ForwardedMetric{
-		Type:      mt,
-		ID:        mid2,
-		TimeNanos: 1238,
-		Values:    []float64{3.4},
+		Type:       mt,
+		ID:         mid2,
+		TimeNanos:  1238,
+		Values:     []float64{3.4},
+		PrevValues: []float64{0.0},
 	}
 	expectedMetric4 := aggregated.ForwardedMetric{
-		Type:      mt,
-		ID:        mid2,
-		TimeNanos: 1239,
-		Values:    []float64{3.5},
+		Type:       mt,
+		ID:         mid2,
+		TimeNanos:  1239,
+		Values:     []float64{3.5},
+		PrevValues: []float64{0.0},
+		Version:    0,
 	}
 	expectedMeta := metadata.ForwardMetadata{
 		AggregationID:     aggregation.MustCompressTypes(aggregation.Count),
@@ -387,20 +444,20 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	require.Equal(t, 1, len(agg.byKey))
 	require.Equal(t, 0, len(agg.byKey[0].buckets))
 	require.Equal(t, 0, agg.byKey[0].currRefCnt)
-	require.Equal(t, 2, len(agg.byKey[0].cachedValueArrays))
+	require.Equal(t, 4, len(agg.byKey[0].cachedValueArrays))
 	agg, exists = fw.aggregations[newIDKey(mt, mid2)]
 	require.True(t, exists)
 	require.Equal(t, 1, len(agg.byKey))
 	require.Equal(t, 0, len(agg.byKey[0].buckets))
 	require.Equal(t, 0, agg.byKey[0].currRefCnt)
-	require.Equal(t, 2, len(agg.byKey[0].cachedValueArrays))
+	require.Equal(t, 4, len(agg.byKey[0].cachedValueArrays))
 
 	// Write datapoints again.
-	writeFn(aggKey, 1234, 3.4, nil)
-	writeFn(aggKey, 1234, 3.5, nil)
-	writeFn(aggKey, 1240, 98.2, nil)
-	writeFn2(aggKey, 1238, 3.4, nil)
-	writeFn2(aggKey, 1239, 3.5, nil)
+	writeFn(aggKey, 1234, 3.4, 3.0, nil)
+	writeFn(aggKey, 1234, 3.5, 2.0, nil)
+	writeFn(aggKey, 1240, 98.2, 98.0, nil)
+	writeFn2(aggKey, 1238, 3.4, 0.0, nil)
+	writeFn2(aggKey, 1239, 3.5, 0.0, nil)
 	require.NoError(t, onDoneFn(aggKey))
 	require.NoError(t, onDoneFn2(aggKey))
 
@@ -419,13 +476,187 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	require.Equal(t, 0, len(agg.byKey[0].cachedValueArrays))
 }
 
+func TestForwardedWriterResend(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		c      = client.NewMockAdminClient(ctrl)
+		now    = time.Unix(0, 1300)
+		nowPtr = &now
+		nowFn  = func() time.Time { return *nowPtr }
+		opts   = NewOptions(clock.NewOptions().SetNowFn(nowFn)).SetAdminClient(c).
+			SetBufferForPastTimedMetricFn(func(resolution time.Duration) time.Duration {
+				return resolution
+			})
+		w      = newForwardedWriter(0, opts)
+		mt     = metric.GaugeType
+		mid    = id.RawID("foo")
+		mid2   = id.RawID("bar")
+		aggKey = testForwardedWriterAggregationKey
+	)
+
+	// Register an aggregation.
+	writeFn, onDoneFn, err := w.Register(testRegisterable{
+		metricType:    mt,
+		id:            mid,
+		key:           aggKey,
+		resendEnabled: true,
+	})
+	require.NoError(t, err)
+
+	// Write some datapoints.
+	writeFn(aggKey, 1234, 3.4, 3.0, nil)
+	writeFn(aggKey, 1234, 3.5, 2.0, nil)
+	writeFn(aggKey, 1240, 98.2, 98.0, nil)
+
+	// Register another aggregation.
+	writeFn2, onDoneFn2, err := w.Register(testRegisterable{
+		metricType:    mt,
+		id:            mid2,
+		key:           aggKey,
+		resendEnabled: true,
+	})
+	require.NoError(t, err)
+
+	// Write some more datapoints.
+	writeFn2(aggKey, 1238, 3.4, 0.0, nil)
+	writeFn2(aggKey, 1239, 3.5, 0.0, nil)
+
+	expectedMetric1 := aggregated.ForwardedMetric{
+		Type:       mt,
+		ID:         mid,
+		TimeNanos:  1234,
+		Values:     []float64{3.4, 3.5},
+		PrevValues: []float64{3.0, 2.0},
+	}
+	expectedMetric2 := aggregated.ForwardedMetric{
+		Type:       mt,
+		ID:         mid,
+		TimeNanos:  1240,
+		Values:     []float64{98.2},
+		PrevValues: []float64{98.0},
+		Version:    0,
+	}
+	expectedMetric3 := aggregated.ForwardedMetric{
+		Type:       mt,
+		ID:         mid2,
+		TimeNanos:  1238,
+		Values:     []float64{3.4},
+		PrevValues: []float64{0.0},
+	}
+	expectedMetric4 := aggregated.ForwardedMetric{
+		Type:       mt,
+		ID:         mid2,
+		TimeNanos:  1239,
+		Values:     []float64{3.5},
+		PrevValues: []float64{0.0},
+		Version:    0,
+	}
+	expectedMeta := metadata.ForwardMetadata{
+		AggregationID:     aggregation.MustCompressTypes(aggregation.Count),
+		StoragePolicy:     policy.MustParseStoragePolicy("10s:2d"),
+		SourceID:          0,
+		NumForwardedTimes: 1,
+		Pipeline:          aggKey.pipeline,
+		ResendEnabled:     true,
+	}
+	c.EXPECT().WriteForwarded(expectedMetric1, expectedMeta).Return(nil)
+	c.EXPECT().WriteForwarded(expectedMetric2, expectedMeta).Return(nil)
+	c.EXPECT().WriteForwarded(expectedMetric3, expectedMeta).Return(nil)
+	c.EXPECT().WriteForwarded(expectedMetric4, expectedMeta).Return(nil)
+	require.NoError(t, onDoneFn(aggKey))
+	require.NoError(t, onDoneFn2(aggKey))
+
+	fw := w.(*forwardedWriter)
+	require.Equal(t, 2, len(fw.aggregations))
+	agg, exists := fw.aggregations[newIDKey(mt, mid)]
+	require.True(t, exists)
+	require.Equal(t, 1, len(agg.byKey))
+	require.Equal(t, 2, len(agg.byKey[0].buckets))
+	require.Equal(t, 1, agg.byKey[0].currRefCnt)
+	require.Equal(t, 0, len(agg.byKey[0].cachedValueArrays))
+	agg, exists = fw.aggregations[newIDKey(mt, mid2)]
+	require.True(t, exists)
+	require.Equal(t, 1, len(agg.byKey))
+	require.Equal(t, 2, len(agg.byKey[0].buckets))
+	require.Equal(t, 1, agg.byKey[0].currRefCnt)
+	require.Equal(t, 0, len(agg.byKey[0].cachedValueArrays))
+
+	w.Prepare()
+
+	// Assert the internal state has been reset.
+	require.Equal(t, 2, len(fw.aggregations))
+	agg, exists = fw.aggregations[newIDKey(mt, mid)]
+	require.True(t, exists)
+	require.Equal(t, 1, len(agg.byKey))
+	require.Equal(t, 2, len(agg.byKey[0].buckets))
+	require.Equal(t, 0, agg.byKey[0].currRefCnt)
+	require.Equal(t, 4, len(agg.byKey[0].cachedValueArrays))
+	agg, exists = fw.aggregations[newIDKey(mt, mid2)]
+	require.True(t, exists)
+	require.Equal(t, 1, len(agg.byKey))
+	require.Equal(t, 2, len(agg.byKey[0].buckets))
+	require.Equal(t, 0, agg.byKey[0].currRefCnt)
+	require.Equal(t, 4, len(agg.byKey[0].cachedValueArrays))
+
+	// Write datapoints again.
+	writeFn(aggKey, 1234, 3.4, 3.0, nil)
+	writeFn(aggKey, 1234, 3.5, 2.0, nil)
+	writeFn(aggKey, 1240, 98.2, 98.0, nil)
+	writeFn2(aggKey, 1238, 3.4, 0.0, nil)
+	writeFn2(aggKey, 1239, 3.5, 0.0, nil)
+
+	expectedMetric1.Version = 1
+	expectedMetric2.Version = 1
+	expectedMetric3.Version = 1
+	expectedMetric4.Version = 1
+
+	c.EXPECT().WriteForwarded(expectedMetric1, expectedMeta).Return(nil)
+	c.EXPECT().WriteForwarded(expectedMetric2, expectedMeta).Return(nil)
+	c.EXPECT().WriteForwarded(expectedMetric3, expectedMeta).Return(nil)
+	c.EXPECT().WriteForwarded(expectedMetric4, expectedMeta).Return(nil)
+
+	require.NoError(t, onDoneFn(aggKey))
+	require.NoError(t, onDoneFn2(aggKey))
+
+	require.Equal(t, 2, len(fw.aggregations))
+	agg, exists = fw.aggregations[newIDKey(mt, mid)]
+	require.True(t, exists)
+	require.Equal(t, 1, len(agg.byKey))
+	require.Equal(t, 2, len(agg.byKey[0].buckets))
+	require.Equal(t, 1, agg.byKey[0].currRefCnt)
+	require.Equal(t, 4, len(agg.byKey[0].cachedValueArrays))
+	agg, exists = fw.aggregations[newIDKey(mt, mid2)]
+	require.True(t, exists)
+	require.Equal(t, 1, len(agg.byKey))
+	require.Equal(t, 2, len(agg.byKey[0].buckets))
+	require.Equal(t, 1, agg.byKey[0].currRefCnt)
+	require.Equal(t, 4, len(agg.byKey[0].cachedValueArrays))
+
+	// advance the time past the buffer to GC the buckets.
+	now = now.Add(time.Second * 10)
+	nowPtr = &now
+	w.Prepare()
+	require.Equal(t, 2, len(fw.aggregations))
+	agg, exists = fw.aggregations[newIDKey(mt, mid)]
+	require.True(t, exists)
+	require.Equal(t, 1, len(agg.byKey))
+	require.Equal(t, 0, len(agg.byKey[0].buckets))
+	agg, exists = fw.aggregations[newIDKey(mt, mid2)]
+	require.True(t, exists)
+	require.Equal(t, 1, len(agg.byKey))
+	require.Equal(t, 0, len(agg.byKey[0].buckets))
+}
+
 func TestForwardedWriterCloseWriterClosed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	var (
-		c = client.NewMockAdminClient(ctrl)
-		w = newForwardedWriter(0, c, tally.NoopScope)
+		c    = client.NewMockAdminClient(ctrl)
+		opts = NewOptions(clock.NewOptions()).SetAdminClient(c)
+		w    = newForwardedWriter(0, opts)
 	)
 
 	// Close the writer
@@ -436,3 +667,28 @@ func TestForwardedWriterCloseWriterClosed(t *testing.T) {
 	// Closing the writer a second time results in an error.
 	require.Equal(t, errForwardedWriterClosed, w.Close())
 }
+
+type testRegisterable struct {
+	metricType    metric.Type
+	id            id.RawID
+	key           aggregationKey
+	resendEnabled bool
+}
+
+func (t testRegisterable) Type() metric.Type {
+	return t.metricType
+}
+
+func (t testRegisterable) ForwardedID() (id.RawID, bool) {
+	return t.id, true
+}
+
+func (t testRegisterable) ForwardedAggregationKey() (aggregationKey, bool) {
+	return t.key, true
+}
+
+func (t testRegisterable) ResendEnabled() bool {
+	return t.resendEnabled
+}
+
+var _ Registerable = &testRegisterable{}

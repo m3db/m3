@@ -45,7 +45,7 @@ func mustNewOp(t require.TestingT, ttype transformation.Type) transformation.Op 
 
 func TestElemBaseID(t *testing.T) {
 	e := &elemBase{}
-	e.resetSetData(testCounterID, testStoragePolicy, maggregation.DefaultTypes, true, applied.DefaultPipeline, 0, NoPrefixNoSuffix)
+	require.NoError(t, e.resetSetData(testCounterElemData, false))
 	require.Equal(t, testCounterID, e.ID())
 }
 
@@ -87,7 +87,10 @@ func TestElemBaseResetSetData(t *testing.T) {
 		}),
 	}
 	e := &elemBase{}
-	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, testPipeline, 3, WithPrefixWithSuffix)
+	elemData := testCounterElemData
+	elemData.AggTypes = testAggregationTypesExpensive
+	elemData.NumForwardedTimes = 3
+	require.NoError(t, e.resetSetData(elemData, false))
 	require.Equal(t, testCounterID, e.id)
 	require.Equal(t, testStoragePolicy, e.sp)
 	require.Equal(t, testAggregationTypesExpensive, e.aggTypes)
@@ -110,7 +113,9 @@ func TestElemBaseResetSetDataNoRollup(t *testing.T) {
 		},
 	})
 	e := &elemBase{}
-	err := e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypes, false, pipelineNoRollup, 0, WithPrefixWithSuffix)
+	elemData := testCounterElemData
+	elemData.Pipeline = pipelineNoRollup
+	err := e.resetSetData(elemData, false)
 	require.NoError(t, err)
 }
 
@@ -122,7 +127,7 @@ func TestElemBaseForwardedIDWithDefaultPipeline(t *testing.T) {
 
 func TestElemBaseForwardedIDWithCustomPipeline(t *testing.T) {
 	e := &elemBase{}
-	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, testPipeline, 3, WithPrefixWithSuffix)
+	require.NoError(t, e.resetSetData(testCounterElemData, false))
 	fid, ok := e.ForwardedID()
 	require.True(t, ok)
 	require.Equal(t, id.RawID("foo.bar"), fid)
@@ -136,7 +141,9 @@ func TestElemBaseForwardedAggregationKeyWithDefaultPipeline(t *testing.T) {
 
 func TestElemBaseForwardedAggregationKeyWithCustomPipeline(t *testing.T) {
 	e := &elemBase{}
-	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, testPipeline, 3, WithPrefixWithSuffix)
+	elemData := testCounterElemData
+	elemData.NumForwardedTimes = 3
+	require.NoError(t, e.resetSetData(elemData, false))
 	aggKey, ok := e.ForwardedAggregationKey()
 	require.True(t, ok)
 	expected := aggregationKey{

@@ -94,6 +94,7 @@ type flushForwardedMetricFn func(
 	aggregationKey aggregationKey,
 	timeNanos int64,
 	value float64,
+	prevValue float64,
 	annotation []byte,
 )
 

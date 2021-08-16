@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/uber-go/tally"
@@ -50,6 +51,7 @@ type writeForwardedMetricFn func(
 	key aggregationKey,
 	timeNanos int64,
 	value float64,
+	prevValue float64,
 	annotation []byte,
 )
 
@@ -61,11 +63,7 @@ type forwardedMetricWriter interface {
 	Len() int
 
 	// Register registers a forwarded metric.
-	Register(
-		metricType metric.Type,
-		metricID id.RawID,
-		aggKey aggregationKey,
-	) (writeForwardedMetricFn, onForwardedAggregationDoneFn, error)
+	Register(metric Registerable) (writeForwardedMetricFn, onForwardedAggregationDoneFn, error)
 
 	// Unregister unregisters a forwarded metric.
 	Unregister(
@@ -82,6 +80,21 @@ type forwardedMetricWriter interface {
 
 	// Close closes the writer.
 	Close() error
+}
+
+// Registerable can be registered with the forward writer.
+type Registerable interface {
+	// Type returns the metric type.
+	Type() metric.Type
+
+	// ForwardedID returns the id of the forwarded metric if applicable.
+	ForwardedID() (id.RawID, bool)
+
+	// ForwardedAggregationKey returns the forwarded aggregation key if applicable.
+	ForwardedAggregationKey() (aggregationKey, bool)
+
+	// ResendEnabled returns true if the element can resend aggregated values after the initial flush.
+	ResendEnabled() bool
 }
 
 type forwardedWriterMetrics struct {
@@ -143,44 +156,46 @@ type forwardedWriter struct {
 	shard  uint32
 	client client.AdminClient
 
-	closed             atomic.Bool
-	aggregations       map[idKey]*forwardedAggregation // Aggregations for each forward metric id
-	metrics            forwardedWriterMetrics
-	aggregationMetrics *forwardedAggregationMetrics
+	closed                     atomic.Bool
+	aggregations               map[idKey]*forwardedAggregation // Aggregations for each forward metric id
+	metrics                    forwardedWriterMetrics
+	aggregationMetrics         *forwardedAggregationMetrics
+	nowFn                      clock.NowFn
+	bufferForPastTimedMetricFn BufferForPastTimedMetricFn
 }
 
 func newForwardedWriter(
 	shard uint32,
-	client client.AdminClient,
-	scope tally.Scope,
-) forwardedMetricWriter {
+	opts Options) forwardedMetricWriter {
+	scope := opts.InstrumentOptions().MetricsScope().
+		Tagged(map[string]string{"writer-type": "forwarded"}).
+		SubScope("writer")
 	return &forwardedWriter{
-		shard:              shard,
-		client:             client,
-		aggregations:       make(map[idKey]*forwardedAggregation),
-		metrics:            newForwardedWriterMetrics(scope),
-		aggregationMetrics: newForwardedAggregationMetrics(scope.SubScope("aggregations")),
+		shard:                      shard,
+		client:                     opts.AdminClient(),
+		aggregations:               make(map[idKey]*forwardedAggregation),
+		metrics:                    newForwardedWriterMetrics(scope),
+		aggregationMetrics:         newForwardedAggregationMetrics(scope.SubScope("aggregations")),
+		bufferForPastTimedMetricFn: opts.BufferForPastTimedMetricFn(),
+		nowFn:                      opts.ClockOptions().NowFn(),
 	}
 }
 
 func (w *forwardedWriter) Len() int { return len(w.aggregations) }
 
-func (w *forwardedWriter) Register(
-	metricType metric.Type,
-	metricID id.RawID,
-	aggKey aggregationKey,
-) (writeForwardedMetricFn, onForwardedAggregationDoneFn, error) {
+func (w *forwardedWriter) Register(metric Registerable) (writeForwardedMetricFn, onForwardedAggregationDoneFn, error) {
 	if w.closed.Load() {
 		w.metrics.registerWriterClosed.Inc(1)
 		return nil, nil, errForwardedWriterClosed
 	}
-	key := newIDKey(metricType, metricID)
+	metricID, _ := metric.ForwardedID()
+	key := newIDKey(metric.Type(), metricID)
 	fa, exists := w.aggregations[key]
 	if !exists {
-		fa = newForwardedAggregation(metricType, metricID, w.shard, w.client, w.aggregationMetrics)
+		fa = w.newForwardedAggregation(metric.Type(), metricID)
 		w.aggregations[key] = fa
 	}
-	fa.add(aggKey)
+	fa.add(metric)
 	w.metrics.registerSuccess.Inc(1)
 	return fa.writeForwardedMetricFn(), fa.onAggregationKeyDoneFn(), nil
 }
@@ -261,10 +276,10 @@ func newIDKey(
 type forwardedAggregationBucket struct {
 	timeNanos  int64
 	values     []float64
+	prevValues []float64
+	version    int64
 	annotation []byte
 }
-
-type forwardedAggregationBuckets []forwardedAggregationBucket
 
 type forwardedAggregationWithKey struct {
 	key aggregationKey
@@ -279,46 +294,66 @@ type forwardedAggregationWithKey struct {
 	// all elements producing this forwarded metric with this aggregation key has been processed
 	// for this flush cycle and can now be flushed as a batch, at which point the onDone function
 	// is called.
-	currRefCnt        int
-	cachedValueArrays [][]float64
-	buckets           forwardedAggregationBuckets
+	currRefCnt               int
+	cachedValueArrays        [][]float64
+	buckets                  map[int64]forwardedAggregationBucket
+	bufferForPastTimedMetric int64
+	nowFn                    clock.NowFn
+	resendEnabled            bool
 }
 
 func (agg *forwardedAggregationWithKey) reset() {
 	agg.currRefCnt = 0
-	for i := 0; i < len(agg.buckets); i++ {
-		agg.buckets[i].values = agg.buckets[i].values[:0]
-		agg.cachedValueArrays = append(agg.cachedValueArrays, agg.buckets[i].values)
-		agg.buckets[i].values = nil
+	for k, v := range agg.buckets {
+		v.values = v.values[:0]
+		v.prevValues = v.prevValues[:0]
+		agg.cachedValueArrays = append(agg.cachedValueArrays, v.values, v.prevValues)
+		v.values = nil
+		v.prevValues = nil
+		// keep buckets around for the buffer period.
+		if agg.resendEnabled {
+			if agg.nowFn().UnixNano()-k <= agg.bufferForPastTimedMetric {
+				agg.buckets[k] = v
+				continue
+			}
+		}
+		delete(agg.buckets, k)
 	}
-	agg.buckets = agg.buckets[:0]
 }
 
-func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64, annotation []byte) {
-	for i := 0; i < len(agg.buckets); i++ {
-		if agg.buckets[i].timeNanos == timeNanos {
-			agg.buckets[i].values = append(agg.buckets[i].values, value)
-			if annotation != nil {
-				agg.buckets[i].annotation = annotation
-			}
-			return
+func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64, prevValue float64, annotation []byte) {
+	if b, ok := agg.buckets[timeNanos]; ok {
+		b.values = append(b.values, value)
+		b.prevValues = append(b.prevValues, prevValue)
+		if annotation != nil {
+			b.annotation = annotation
 		}
+		agg.buckets[timeNanos] = b
+		return
 	}
-	var values []float64
-	if numCachedValueArrays := len(agg.cachedValueArrays); numCachedValueArrays > 0 {
+	var (
+		values     []float64
+		prevValues []float64
+	)
+	if numCachedValueArrays := len(agg.cachedValueArrays); numCachedValueArrays > 1 {
 		values = agg.cachedValueArrays[numCachedValueArrays-1]
+		prevValues = agg.cachedValueArrays[numCachedValueArrays-2]
 		values = values[:0]
-		agg.cachedValueArrays = agg.cachedValueArrays[:numCachedValueArrays-1]
+		prevValues = prevValues[:0]
+		agg.cachedValueArrays = agg.cachedValueArrays[:numCachedValueArrays-2]
 	} else {
 		values = make([]float64, 0, initialValueArrayCapacity)
+		prevValues = make([]float64, 0, initialValueArrayCapacity)
 	}
 	values = append(values, value)
+	prevValues = append(prevValues, prevValue)
 	bucket := forwardedAggregationBucket{
 		timeNanos:  timeNanos,
 		values:     values,
+		prevValues: prevValues,
 		annotation: annotation,
 	}
-	agg.buckets = append(agg.buckets, bucket)
+	agg.buckets[timeNanos] = bucket
 }
 
 type forwardedAggregationMetrics struct {
@@ -349,26 +384,24 @@ type forwardedAggregation struct {
 	shard      uint32
 	client     client.AdminClient
 
-	byKey    []forwardedAggregationWithKey
-	metrics  *forwardedAggregationMetrics
-	writeFn  writeForwardedMetricFn
-	onDoneFn onForwardedAggregationDoneFn
+	byKey                      []forwardedAggregationWithKey
+	metrics                    *forwardedAggregationMetrics
+	writeFn                    writeForwardedMetricFn
+	onDoneFn                   onForwardedAggregationDoneFn
+	bufferForPastTimedMetricFn BufferForPastTimedMetricFn
+	nowFn                      clock.NowFn
 }
 
-func newForwardedAggregation(
-	metricType metric.Type,
-	metricID id.RawID,
-	shard uint32,
-	client client.AdminClient,
-	fm *forwardedAggregationMetrics,
-) *forwardedAggregation {
+func (w *forwardedWriter) newForwardedAggregation(metricType metric.Type, metricID id.RawID) *forwardedAggregation {
 	agg := &forwardedAggregation{
-		metricType: metricType,
-		metricID:   metricID,
-		shard:      shard,
-		client:     client,
-		byKey:      make([]forwardedAggregationWithKey, 0, 2),
-		metrics:    fm,
+		metricType:                 metricType,
+		metricID:                   metricID,
+		shard:                      w.shard,
+		client:                     w.client,
+		byKey:                      make([]forwardedAggregationWithKey, 0, 2),
+		metrics:                    w.aggregationMetrics,
+		bufferForPastTimedMetricFn: w.bufferForPastTimedMetricFn,
+		nowFn:                      w.nowFn,
 	}
 	agg.writeFn = agg.write
 	agg.onDoneFn = agg.onDone
@@ -394,16 +427,20 @@ func (agg *forwardedAggregation) reset() {
 // add adds the aggregation key to the set of aggregations. If the aggregation
 // key already exists, its ref count is incremented. Otherwise, a new aggregation
 // bucket is created and added to the set of aggregtaions.
-func (agg *forwardedAggregation) add(key aggregationKey) {
+func (agg *forwardedAggregation) add(metric Registerable) {
+	key, _ := metric.ForwardedAggregationKey()
 	if idx := agg.index(key); idx >= 0 {
 		agg.byKey[idx].totalRefCnt++
 		return
 	}
 	aggregation := forwardedAggregationWithKey{
-		key:         key,
-		totalRefCnt: 1,
-		currRefCnt:  0,
-		buckets:     make(forwardedAggregationBuckets, 0, 2),
+		key:                      key,
+		totalRefCnt:              1,
+		currRefCnt:               0,
+		buckets:                  make(map[int64]forwardedAggregationBucket),
+		bufferForPastTimedMetric: int64(agg.bufferForPastTimedMetricFn(key.storagePolicy.Resolution().Window)),
+		nowFn:                    agg.nowFn,
+		resendEnabled:            metric.ResendEnabled(),
 	}
 	agg.byKey = append(agg.byKey, aggregation)
 	agg.metrics.added.Inc(1)
@@ -431,10 +468,11 @@ func (agg *forwardedAggregation) write(
 	key aggregationKey,
 	timeNanos int64,
 	value float64,
+	prevValue float64,
 	annotation []byte,
 ) {
 	idx := agg.index(key)
-	agg.byKey[idx].add(timeNanos, value, annotation)
+	agg.byKey[idx].add(timeNanos, value, prevValue, annotation)
 	agg.metrics.write.Inc(1)
 }
 
@@ -454,9 +492,10 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 				Pipeline:          key.pipeline,
 				SourceID:          agg.shard,
 				NumForwardedTimes: key.numForwardedTimes,
+				ResendEnabled:     agg.byKey[idx].resendEnabled,
 			}
 		)
-		for _, b := range agg.byKey[idx].buckets {
+		for t, b := range agg.byKey[idx].buckets {
 			if len(b.values) == 0 {
 				continue
 			}
@@ -465,14 +504,18 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 				ID:         agg.metricID,
 				TimeNanos:  b.timeNanos,
 				Values:     b.values,
+				PrevValues: b.prevValues,
 				Annotation: b.annotation,
+				Version:    b.version,
 			}
+			b.version++
 			if err := agg.client.WriteForwarded(metric, meta); err != nil {
 				multiErr = multiErr.Add(err)
 				agg.metrics.onDoneWriteErrors.Inc(1)
 			} else {
 				agg.metrics.onDoneWriteSuccess.Inc(1)
 			}
+			agg.byKey[idx].buckets[t] = b
 		}
 		return multiErr.FinalError()
 	}

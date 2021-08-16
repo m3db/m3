@@ -27,9 +27,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	raggregation "github.com/m3db/m3/src/aggregator/aggregation"
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	mpipeline "github.com/m3db/m3/src/metrics/pipeline"
@@ -37,9 +42,6 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/x/pool"
-
-	"github.com/willf/bitset"
-	"go.uber.org/zap"
 )
 
 const (
@@ -89,27 +91,11 @@ const (
 
 // metricElem is the common interface for metric elements.
 type metricElem interface {
-	// Type returns the metric type.
-	Type() metric.Type
-
+	Registerable
 	// ID returns the metric id.
 	ID() id.RawID
 
-	// ForwardedID returns the id of the forwarded metric if applicable.
-	ForwardedID() (id.RawID, bool)
-
-	// ForwardedAggregationKey returns the forwarded aggregation key if applicable.
-	ForwardedAggregationKey() (aggregationKey, bool)
-
-	// ResetSetData resets the element and sets data.
-	ResetSetData(
-		id id.RawID,
-		sp policy.StoragePolicy,
-		aggTypes maggregation.Types,
-		pipeline applied.Pipeline,
-		numForwardedTimes int,
-		idPrefixSuffixType IDPrefixSuffixType,
-	) error
+	ResetSetData(data ElemData) error
 
 	// SetForwardedCallbacks sets the callback functions to write forwarded
 	// metrics for elements producing such forwarded metrics.
@@ -127,7 +113,7 @@ type metricElem interface {
 	// AddUnique adds a metric value from a given source at a given timestamp.
 	// If previous values from the same source have already been added to the
 	// same aggregation, the incoming value is discarded.
-	AddUnique(timestamp time.Time, values []float64, annotation []byte, sourceID uint32) error
+	AddUnique(timestamp time.Time, metric aggregated.ForwardedMetric, metadata metadata.ForwardMetadata) error
 
 	// Consume consumes values before a given time and removes
 	// them from the element after they are consumed, returning whether
@@ -149,6 +135,17 @@ type metricElem interface {
 	Close()
 }
 
+// ElemData are initialization parameters for an element.
+type ElemData struct {
+	ID                 id.RawID
+	StoragePolicy      policy.StoragePolicy
+	AggTypes           maggregation.Types
+	Pipeline           applied.Pipeline
+	NumForwardedTimes  int
+	IDPrefixSuffixType IDPrefixSuffixType
+	ResendEnabled      bool
+}
+
 // nolint: maligned
 type elemBase struct {
 	sync.RWMutex
@@ -166,48 +163,55 @@ type elemBase struct {
 	idPrefixSuffixType              IDPrefixSuffixType
 	writeForwardedMetricFn          writeForwardedMetricFn
 	onForwardedAggregationWrittenFn onForwardedAggregationDoneFn
+	metrics                         elemMetrics
+	resendEnabled                   bool
 
 	// Mutable states.
 	tombstoned           bool
 	closed               bool
-	cachedSourceSetsLock sync.Mutex       // nolint: structcheck
-	cachedSourceSets     []*bitset.BitSet // nolint: structcheck
+	cachedSourceSetsLock sync.Mutex         // nolint: structcheck
+	cachedSourceSets     []map[uint32]int64 // nolint: structcheck
+}
+
+type elemMetrics struct {
+	updatedValues  tally.Counter
+	discardedNans  tally.Counter
+	resendNoChange tally.Counter
 }
 
 func newElemBase(opts Options) elemBase {
+	scope := opts.InstrumentOptions().MetricsScope()
 	return elemBase{
 		opts:         opts,
 		aggTypesOpts: opts.AggregationTypesOptions(),
 		aggOpts:      raggregation.NewOptions(opts.InstrumentOptions()),
+		metrics: elemMetrics{
+			updatedValues:  scope.Counter("updated-values"),
+			discardedNans:  scope.Counter("discarded-nans"),
+			resendNoChange: scope.Counter("resend-no-change"),
+		},
 	}
 }
 
 // resetSetData resets the element base and sets data.
-func (e *elemBase) resetSetData(
-	id id.RawID,
-	sp policy.StoragePolicy,
-	aggTypes maggregation.Types,
-	useDefaultAggregation bool,
-	pipeline applied.Pipeline,
-	numForwardedTimes int,
-	idPrefixSuffixType IDPrefixSuffixType,
-) error {
-	parsed, err := newParsedPipeline(pipeline)
+func (e *elemBase) resetSetData(data ElemData, useDefaultAggregation bool) error {
+	parsed, err := newParsedPipeline(data.Pipeline)
 	if err != nil {
 		l := e.opts.InstrumentOptions().Logger()
 		l.Error("error parsing pipeline", zap.Error(err))
 		return err
 	}
-	e.id = id
-	e.sp = sp
-	e.aggTypes = aggTypes
+	e.id = data.ID
+	e.sp = data.StoragePolicy
+	e.aggTypes = data.AggTypes
 	e.useDefaultAggregation = useDefaultAggregation
-	e.aggOpts.ResetSetData(aggTypes)
+	e.aggOpts.ResetSetData(data.AggTypes)
 	e.parsedPipeline = parsed
-	e.numForwardedTimes = numForwardedTimes
+	e.numForwardedTimes = data.NumForwardedTimes
 	e.tombstoned = false
 	e.closed = false
-	e.idPrefixSuffixType = idPrefixSuffixType
+	e.idPrefixSuffixType = data.IDPrefixSuffixType
+	e.resendEnabled = data.ResendEnabled
 	return nil
 }
 

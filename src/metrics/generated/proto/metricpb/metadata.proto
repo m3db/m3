@@ -34,6 +34,7 @@ message PipelineMetadata {
   repeated policypb.StoragePolicy storage_policies = 2 [(gogoproto.nullable) = false];
   pipelinepb.AppliedPipeline pipeline = 3 [(gogoproto.nullable) = false];
   policypb.DropPolicy drop_policy = 4;
+  bool resend_enabled = 5;
 }
 
 message Metadata {
@@ -56,6 +57,7 @@ message ForwardMetadata {
   pipelinepb.AppliedPipeline pipeline = 3 [(gogoproto.nullable) = false];
   uint32 source_id = 4;
   int32 num_forwarded_times = 5;
+  bool resend_enabled = 6;
 }
 
 message TimedMetadata {

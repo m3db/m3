@@ -46,10 +46,7 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	"github.com/m3db/m3/src/dbnode/integration/fake"
-	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
-	"github.com/m3db/m3/src/metrics/pipeline/applied"
-	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/producer/buffer"
@@ -122,6 +119,10 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetAggregationTypesOptions(opts.AggregationTypesOptions()).
 		SetEntryCheckInterval(opts.EntryCheckInterval()).
 		SetMaxAllowedForwardingDelayFn(opts.MaxAllowedForwardingDelayFn()).
+		SetBufferForPastTimedMetric(opts.BufferForPastTimedMetric()).
+		SetBufferForPastTimedMetricFn(func(resolution time.Duration) time.Duration {
+			return resolution + opts.BufferForPastTimedMetric()
+		}).
 		SetDiscardNaNAggregatedValues(opts.DiscardNaNAggregatedValues())
 
 	// Set up placement manager.
@@ -232,19 +233,19 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	counterElemPool := aggregator.NewCounterElemPool(nil)
 	aggregatorOpts = aggregatorOpts.SetCounterElemPool(counterElemPool)
 	counterElemPool.Init(func() *aggregator.CounterElem {
-		return aggregator.MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregator.NoPrefixNoSuffix, aggregatorOpts)
+		return aggregator.MustNewCounterElem(aggregator.ElemData{}, aggregatorOpts)
 	})
 
 	timerElemPool := aggregator.NewTimerElemPool(nil)
 	aggregatorOpts = aggregatorOpts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem {
-		return aggregator.MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregator.NoPrefixNoSuffix, aggregatorOpts)
+		return aggregator.MustNewTimerElem(aggregator.ElemData{}, aggregatorOpts)
 	})
 
 	gaugeElemPool := aggregator.NewGaugeElemPool(nil)
 	aggregatorOpts = aggregatorOpts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem {
-		return aggregator.MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregator.NoPrefixNoSuffix, aggregatorOpts)
+		return aggregator.MustNewGaugeElem(aggregator.ElemData{}, aggregatorOpts)
 	})
 
 	return &testServerSetup{
@@ -390,6 +391,32 @@ func (ts *testServerSetup) waitUntilLeader() error {
 	return errLeaderElectionTimeout
 }
 
+// sortedLastResults returns only the latest written metric for a (time, ID, resolution), simulating the same last
+// write wins behavior by m3db.
+func (ts *testServerSetup) sortedLastResults() []aggregated.MetricWithStoragePolicy {
+	last := make(map[resultKey]aggregated.MetricWithStoragePolicy)
+	for _, r := range *ts.results {
+		key := resultKey{
+			timeNanons: r.TimeNanos,
+			metricID:   string(r.Metric.ID),
+			resolution: r.StoragePolicy.Resolution().Window,
+		}
+		last[key] = r
+	}
+	*ts.results = (*ts.results)[:0]
+	for _, r := range last {
+		*ts.results = append(*ts.results, r)
+	}
+	return ts.sortedResults()
+}
+
+type resultKey struct {
+	timeNanons int64
+	metricID   string
+	resolution time.Duration
+}
+
+// sortedResults returns all written metrics, including duplicates.
 func (ts *testServerSetup) sortedResults() []aggregated.MetricWithStoragePolicy {
 	sort.Sort(byTimeIDPolicyAscending(*ts.results))
 	return *ts.results
@@ -448,6 +475,7 @@ type capturingWriter struct {
 
 func (w *capturingWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) error {
 	w.resultLock.Lock()
+	defer w.resultLock.Unlock()
 	var fullID []byte
 	fullID = append(fullID, mp.ChunkedID.Prefix...)
 	fullID = append(fullID, mp.ChunkedID.Data...)
@@ -464,7 +492,6 @@ func (w *capturingWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) er
 		Metric:        metric,
 		StoragePolicy: mp.StoragePolicy,
 	})
-	w.resultLock.Unlock()
 	return nil
 }
 

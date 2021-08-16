@@ -434,6 +434,7 @@ func (as *activeRuleSet) toRollupResults(
 			AggregationID:   aggregationID,
 			StoragePolicies: target.StoragePolicies,
 			Pipeline:        applied,
+			ResendEnabled:   target.ResendEnabled,
 		}
 		if rollupID == nil {
 			// The applied pipeline applies to the incoming ID.

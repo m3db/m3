@@ -193,6 +193,14 @@ type Configuration struct {
 
 	// Debug configuration.
 	Debug config.DebugConfiguration `yaml:"debug"`
+
+	ProcessDelay *ProcessDelayConfiguration `yaml:"processDelay"`
+}
+
+// ProcessDelayConfiguration configures the ProcessDelay.
+type ProcessDelayConfiguration struct {
+	NameRegex string        `yaml:"nameRegex"`
+	Delay     time.Duration `yaml:"delay"`
 }
 
 // ListenAddressOrDefault returns the listen address or default.
