@@ -48,6 +48,7 @@ type replicatedSession struct {
 	session              clientSession
 	asyncSessions        []clientSession
 	newSessionFn         newSessionFn
+	identifierPool       ident.Pool
 	workerPool           m3sync.PooledWorkerPool
 	replicationSemaphore chan struct{}
 	scope                tally.Scope
@@ -93,6 +94,7 @@ func newReplicatedSession(
 
 	session := replicatedSession{
 		newSessionFn:         newSession,
+		identifierPool:       opts.IdentifierPool(),
 		workerPool:           workerPool,
 		replicationSemaphore: make(chan struct{}, opts.AsyncWriteMaxConcurrency()),
 		scope:                scope,
@@ -161,18 +163,28 @@ type replicatedParams struct {
 func (s replicatedSession) replicate(params replicatedParams) error {
 	for _, asyncSession := range s.asyncSessions {
 		asyncSession := asyncSession // capture var
+
+		var (
+			clonedID   = s.identifierPool.Clone(params.id)
+			clonedNS   = s.identifierPool.Clone(params.namespace)
+			clonedTags ident.TagIterator
+		)
+		if params.useTags {
+			clonedTags = params.tags.Duplicate()
+		}
+
 		select {
 		case s.replicationSemaphore <- struct{}{}:
 			s.workerPool.Go(func() {
 				var err error
 				if params.useTags {
 					err = asyncSession.WriteTagged(
-						params.namespace, params.id, params.tags, params.t,
+						clonedNS, clonedID, clonedTags, params.t,
 						params.value, params.unit, params.annotation,
 					)
 				} else {
 					err = asyncSession.Write(
-						params.namespace, params.id, params.t,
+						clonedNS, clonedID, params.t,
 						params.value, params.unit, params.annotation,
 					)
 				}
