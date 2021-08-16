@@ -125,19 +125,23 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 
 	// Set up placement manager.
 	placementWatcherOpts := placement.NewWatcherOptions().
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetStagedPlacementKey(opts.PlacementKVKey()).
 		SetStagedPlacementStore(opts.KVStore())
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetInstanceID(opts.InstanceID()).
 		SetWatcherOptions(placementWatcherOpts)
 	placementManager := aggregator.NewPlacementManager(placementManagerOpts)
 	aggregatorOpts = aggregatorOpts.
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetShardFn(opts.ShardFn()).
 		SetPlacementManager(placementManager)
 
 	// Set up flush times manager.
 	flushTimesManagerOpts := aggregator.NewFlushTimesManagerOptions().
 		SetClockOptions(clockOpts).
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFlushTimesKeyFmt(opts.FlushTimesKeyFmt()).
 		SetFlushTimesStore(opts.KVStore())
 	flushTimesManager := aggregator.NewFlushTimesManager(flushTimesManagerOpts)
@@ -156,6 +160,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	leaderService := electionCluster.LeaderService()
 	electionManagerOpts := aggregator.NewElectionManagerOptions().
 		SetClockOptions(clockOpts).
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetCampaignOptions(campaignOpts).
 		SetElectionKeyFmt(opts.ElectionKeyFmt()).
 		SetLeaderService(leaderService).
@@ -167,6 +172,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	// Set up flush manager.
 	flushManagerOpts := aggregator.NewFlushManagerOptions().
 		SetClockOptions(clockOpts).
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionManager).
