@@ -67,7 +67,7 @@ var (
 	errTooFarInTheFuture = xerrors.NewInvalidParamsError(errors.New("too far in the future"))
 	errTooFarInThePast   = xerrors.NewInvalidParamsError(errors.New("too far in the past"))
 	errArrivedTooLate    = xerrors.NewInvalidParamsError(errors.New("arrived too late"))
-	errTimestampFormat   = time.RFC822Z
+	errTimestampFormat   = time.RFC3339
 )
 
 type rateLimitEntryMetrics struct {
