@@ -21,7 +21,10 @@
 package integration
 
 import (
+	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	aggclient "github.com/m3db/m3/src/aggregator/client"
@@ -143,6 +146,12 @@ type testServerOptions interface {
 	// KVStore returns the key value store.
 	KVStore() kv.Store
 
+	// SetAggregatorClientType sets the aggregator client type.
+	SetAggregatorClientType(value aggclient.AggregatorClientType) testServerOptions
+
+	// AggregatorClientType returns the agggregator client type.
+	AggregatorClientType() aggclient.AggregatorClientType
+
 	// SetClientBatchSize sets the client-side batch size.
 	SetClientBatchSize(value int) testServerOptions
 
@@ -223,6 +232,7 @@ type serverOptions struct {
 	kvStore                     kv.Store
 	serverStateChangeTimeout    time.Duration
 	workerPoolSize              int
+	clientType                  aggclient.AggregatorClientType
 	clientBatchSize             int
 	clientConnectionOpts        aggclient.ConnectionOptions
 	electionStateChangeTimeout  time.Duration
@@ -233,11 +243,19 @@ type serverOptions struct {
 	discardNaNAggregatedValues  bool
 }
 
-func newTestServerOptions() testServerOptions {
+func newTestServerOptions(t *testing.T) testServerOptions {
+	clientType, err := getAggregatorClientTypeFromEnv()
+	require.NoError(t, err)
+	instanceID := defaultRawTCPAddr
+	if clientType == aggclient.M3MsgAggregatorClient {
+		instanceID = defaultM3MsgAddr
+	}
+
 	aggTypesOpts := aggregation.NewTypesOptions().
 		SetCounterTypeStringTransformFn(aggregation.EmptyTransform).
 		SetTimerTypeStringTransformFn(aggregation.SuffixTransform).
 		SetGaugeTypeStringTransformFn(aggregation.EmptyTransform)
+	connOpts := aggclient.NewConnectionOptions().SetWriteTimeout(time.Second)
 	return &serverOptions{
 		rawTCPAddr:                  defaultRawTCPAddr,
 		httpAddr:                    defaultHTTPAddr,
@@ -245,7 +263,7 @@ func newTestServerOptions() testServerOptions {
 		clockOpts:                   clock.NewOptions(),
 		instrumentOpts:              instrument.NewOptions(),
 		aggTypesOpts:                aggTypesOpts,
-		instanceID:                  defaultInstanceID,
+		instanceID:                  instanceID,
 		electionKeyFmt:              defaultElectionKeyFmt,
 		shardSetID:                  defaultShardSetID,
 		shardFn:                     sharding.Murmur32Hash.MustShardFn(),
@@ -255,8 +273,9 @@ func newTestServerOptions() testServerOptions {
 		kvStore:                     mem.NewStore(),
 		serverStateChangeTimeout:    defaultServerStateChangeTimeout,
 		workerPoolSize:              defaultWorkerPoolSize,
+		clientType:                  clientType,
 		clientBatchSize:             defaultClientBatchSize,
-		clientConnectionOpts:        aggclient.NewConnectionOptions(),
+		clientConnectionOpts:        connOpts,
 		electionStateChangeTimeout:  defaultElectionStateChangeTimeout,
 		jitterEnabled:               defaultJitterEnabled,
 		entryCheckInterval:          defaultEntryCheckInterval,
@@ -414,6 +433,16 @@ func (o *serverOptions) SetKVStore(value kv.Store) testServerOptions {
 
 func (o *serverOptions) KVStore() kv.Store {
 	return o.kvStore
+}
+
+func (o *serverOptions) SetAggregatorClientType(value aggclient.AggregatorClientType) testServerOptions {
+	opts := *o
+	opts.clientType = value
+	return &opts
+}
+
+func (o *serverOptions) AggregatorClientType() aggclient.AggregatorClientType {
+	return o.clientType
 }
 
 func (o *serverOptions) SetClientBatchSize(value int) testServerOptions {

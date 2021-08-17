@@ -54,6 +54,7 @@ import (
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
+	"github.com/m3db/m3/src/x/retry"
 	xserver "github.com/m3db/m3/src/x/server"
 	xsync "github.com/m3db/m3/src/x/sync"
 
@@ -71,6 +72,7 @@ type testServerSetup struct {
 	m3msgAddr        string
 	rawTCPAddr       string
 	httpAddr         string
+	clientOptions    aggclient.Options
 	m3msgServerOpts  m3msgserver.Options
 	rawTCPServerOpts rawtcpserver.Options
 	httpServerOpts   httpserver.Options
@@ -92,7 +94,7 @@ type testServerSetup struct {
 
 func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	if opts == nil {
-		opts = newTestServerOptions()
+		opts = newTestServerOptions(t)
 	}
 
 	// TODO: based on environment variable, use M3MSG aggregator as default
@@ -215,7 +217,9 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetTopicName(topicName).
 		SetTopicService(topicService).
 		SetServiceDiscovery(svcs).
-		SetTopicWatchInitTimeout(5 * time.Second)
+		SetTopicWatchInitTimeout(5 * time.Second).
+		SetMessageQueueNewWritesScanInterval(10 * time.Millisecond).
+		SetMessageRetryOptions(retry.NewOptions().SetInitialBackoff(5 * time.Second))
 	writer := msgwriter.NewWriter(writerOpts)
 	producerOpts := producer.NewOptions().
 		SetBuffer(buffer).
@@ -230,13 +234,15 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetWatcherOptions(placementWatcherOpts).
 		SetRWOptions(rwOpts).
 		SetM3MsgOptions(m3msgClientOpts).
-		SetAggregatorClientType(aggclient.M3MsgAggregatorClient)
+		SetAggregatorClientType(aggclient.TCPAggregatorClient)
 	c, err := aggclient.NewClient(clientOpts)
 	require.NoError(t, err)
 	adminClient, ok := c.(aggclient.AdminClient)
 	require.True(t, ok)
 	require.NoError(t, adminClient.Init())
 	aggregatorOpts = aggregatorOpts.SetAdminClient(adminClient)
+
+	testClientOpts := clientOpts.SetAggregatorClientType(opts.AggregatorClientType())
 
 	// Set up the handler.
 	var (
@@ -282,6 +288,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		rawTCPAddr:       opts.RawTCPAddr(),
 		httpAddr:         opts.HTTPAddr(),
 		m3msgAddr:        opts.M3MsgAddr(),
+		clientOptions:    testClientOpts,
 		rawTCPServerOpts: rawTCPServerOpts,
 		m3msgServerOpts:  m3msgServerOpts,
 		httpServerOpts:   httpServerOpts,
@@ -299,9 +306,12 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	}
 }
 
-func (ts *testServerSetup) newClient() *client {
-	connectTimeout := ts.opts.ClientConnectionOptions().ConnectionTimeout()
-	return newClient(ts.rawTCPAddr, ts.opts.ClientBatchSize(), connectTimeout)
+func (ts *testServerSetup) newClient(t *testing.T) *client {
+	testClient, err := aggclient.NewClient(ts.clientOptions)
+	require.NoError(t, err)
+	testAdminClient, ok := testClient.(aggclient.AdminClient)
+	require.True(t, ok)
+	return newClient(testAdminClient)
 }
 
 func (ts *testServerSetup) getStatusResponse(path string, response interface{}) error {
