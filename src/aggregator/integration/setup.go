@@ -31,6 +31,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
@@ -57,9 +60,6 @@ import (
 	"github.com/m3db/m3/src/x/retry"
 	xserver "github.com/m3db/m3/src/x/server"
 	xsync "github.com/m3db/m3/src/x/sync"
-
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 var (
@@ -193,8 +193,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	svcs := fake.NewM3ClusterServicesWithPlacementService(placementSvc)
 	clusterClient := fake.NewM3ClusterClient(svcs, opts.KVStore())
 
-	var consumerServices []topic.ConsumerService
-
+	consumerServices := make([]topic.ConsumerService, 0)
 	for _, inst := range p.Instances() {
 		serviceID := services.NewServiceID().SetName(inst.ID())
 		cs := topic.NewConsumerService().SetServiceID(serviceID).SetConsumptionType(topic.Replicated)
@@ -209,7 +208,8 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetConfigService(clusterClient)
 	topicService, err := topic.NewService(topicServiceOpts)
 	require.NoError(t, err)
-	topicService.CheckAndSet(ingestTopic, 0)
+	_, err = topicService.CheckAndSet(ingestTopic, 0)
+	require.NoError(t, err)
 
 	buffer, err := buffer.NewBuffer(nil)
 	require.NoError(t, err)

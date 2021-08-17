@@ -119,7 +119,7 @@ func NewM3ClusterServices() M3ClusterServices {
 	}
 }
 
-// NewM3ClusterServices creates a new fake m3cluster services with given placement service.
+// NewM3ClusterServicesWithPlacementService creates a new fake m3cluster services with given placement service.
 func NewM3ClusterServicesWithPlacementService(placementSvc M3ClusterPlacementService) M3ClusterServices {
 	return &m3ClusterServices{
 		services:         make(map[string]*m3RegisteredService),
@@ -251,7 +251,7 @@ func NewM3ClusterPlacementService() M3ClusterPlacementService {
 	}
 }
 
-// NewM3ClusterPlacementService creates a fake m3cluster placement service with given placement.
+// NewM3ClusterPlacementServiceWithPlacement creates a fake m3cluster placement service with given placement.
 func NewM3ClusterPlacementServiceWithPlacement(placement placement.Placement) M3ClusterPlacementService {
 	return &m3ClusterPlacementService{
 		placement:       placement,
