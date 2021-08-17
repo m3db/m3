@@ -68,22 +68,6 @@ type shardFlush struct {
 	shard databaseShard
 }
 
-func (n namespaceFlushes) forEachMatch(nn namespaceFlushes, fn func(shardFlush)) {
-	for nsID, ns := range n {
-		otherNS, ok := nn[nsID]
-		if !ok {
-			continue
-		}
-
-		for s := range ns.shardFlushes {
-			_, ok := otherNS.shardFlushes[s]
-			if ok {
-				fn(s)
-			}
-		}
-	}
-}
-
 type flushManagerMetrics struct {
 	isFlushing      tally.Gauge
 	isSnapshotting  tally.Gauge
@@ -174,7 +158,7 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 	// will attempt to snapshot blocks w/ unflushed data which would be wasteful if
 	// the block is already flushable.
 	multiErr := xerrors.NewMultiError()
-	flushes, err := m.dataWarmFlush(namespaces, startTime)
+	dataFlushes, err := m.dataWarmFlush(namespaces, startTime)
 	if err != nil {
 		multiErr = multiErr.Add(err)
 	}
@@ -197,13 +181,36 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 
 	err = multiErr.FinalError()
 
-	// Mark all flush states at the very end to ensure this
-	// happens after both data and index flushing.
-	// TODO: if this matching approach of data + index ns+shard+time is needed, then reimplement this
-	// more efficiently w/ hashing for constant lookup cost.
-	flushes.forEachMatch(indexFlushes, func(match shardFlush) {
-		match.shard.MarkWarmFlushStateSuccessOrError(match.time, err)
-	})
+	// Mark all flushed shards as such.
+	// If index is not enabled, then a shard+blockStart is "flushed" if the data has been flushed.
+	// If index is enabled, then a shard+blockStart is "flushed" if the data AND index has been flushed.
+	for _, n := range namespaces {
+		var (
+			indexEnabled  = n.Options().IndexOptions().Enabled()
+			flushedShards map[shardFlush]bool
+		)
+		if indexEnabled {
+			flushedShards = indexFlushes[n.ID().String()].shardFlushes
+		} else {
+			flushedShards = dataFlushes[n.ID().String()].shardFlushes
+		}
+
+		for s := range flushedShards {
+			s.shard.MarkWarmFlushStateSuccessOrError(s.time, err)
+
+			// Block sizes for data and index can differ and so if we are driving the flushing by
+			// the index blockStarts, we must expand them to mark all containing data blockStarts.
+			// E.g. if blockSize == 2h and indexBlockSize == 4h and the flushed index time is 6:00pm,
+			// we should mark as flushed [6:00pm, 8:00pm].
+			if indexEnabled {
+				blockSize := n.Options().RetentionOptions().BlockSize()
+				indexBlockSize := n.Options().IndexOptions().BlockSize()
+				for start := s.time.Add(indexBlockSize); start < s.time.Add(indexBlockSize); start = start.Add(blockSize) {
+					s.shard.MarkWarmFlushStateSuccessOrError(start, err)
+				}
+			}
+		}
+	}
 
 	return err
 }
@@ -416,7 +423,7 @@ func (m *flushManager) flushNamespaceWithTimes(
 	times []xtime.UnixNano,
 	flushPreparer persist.FlushPreparer,
 ) (namespaceFlush, error) {
-	var flushes map[shardFlush]bool
+	flushes := make(map[shardFlush]bool, 0)
 	multiErr := xerrors.NewMultiError()
 	for _, t := range times {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
