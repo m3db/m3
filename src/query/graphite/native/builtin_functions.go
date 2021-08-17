@@ -2888,7 +2888,9 @@ func init() {
 	MustRegisterFunction(highestAverage)
 	MustRegisterFunction(highestCurrent)
 	MustRegisterFunction(highestMax)
-	MustRegisterFunction(hitcount)
+	MustRegisterFunction(hitcount).WithDefaultParams(map[uint8]interface{}{
+		3: false, // alignToInterval
+	})
 	MustRegisterFunction(holtWintersAberration)
 	MustRegisterFunction(holtWintersConfidenceBands)
 	MustRegisterFunction(holtWintersForecast)
