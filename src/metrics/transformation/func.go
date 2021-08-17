@@ -56,8 +56,8 @@ func (fn UnaryTransformFn) Evaluate(dp Datapoint) Datapoint {
 
 // FeatureFlags holds options passed into transformations from
 // the aggregator configuration file.
+// nolint:gofumpt
 type FeatureFlags struct {
-	IncreaseWithPrevNaNTranslatesToCurrValueIncrease bool
 }
 
 // BinaryTransform is a binary transformation that takes the
