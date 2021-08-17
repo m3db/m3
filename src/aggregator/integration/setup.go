@@ -185,56 +185,12 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	aggregatorOpts = aggregatorOpts.SetFlushManager(flushManager)
 
 	// Set up admin client.
-	topicName := "aggregator_ingest"
-
-	p := opts.Placement()
-	require.NoError(t, err)
-	placementSvc := fake.NewM3ClusterPlacementServiceWithPlacement(p)
-	svcs := fake.NewM3ClusterServicesWithPlacementService(placementSvc)
-	clusterClient := fake.NewM3ClusterClient(svcs, opts.KVStore())
-
-	consumerServices := make([]topic.ConsumerService, 0)
-	for _, inst := range p.Instances() {
-		serviceID := services.NewServiceID().SetName(inst.ID())
-		cs := topic.NewConsumerService().SetServiceID(serviceID).SetConsumptionType(topic.Replicated)
-		consumerServices = append(consumerServices, cs)
-	}
-
-	ingestTopic := topic.NewTopic().
-		SetName(topicName).
-		SetNumberOfShards(uint32(p.NumShards())).
-		SetConsumerServices(consumerServices)
-	topicServiceOpts := topic.NewServiceOptions().
-		SetConfigService(clusterClient)
-	topicService, err := topic.NewService(topicServiceOpts)
-	require.NoError(t, err)
-	_, err = topicService.CheckAndSet(ingestTopic, 0)
-	require.NoError(t, err)
-
-	buffer, err := buffer.NewBuffer(nil)
-	require.NoError(t, err)
-	writerOpts := msgwriter.NewOptions().
-		SetTopicName(topicName).
-		SetTopicService(topicService).
-		SetServiceDiscovery(svcs).
-		SetTopicWatchInitTimeout(5 * time.Second).
-		SetMessageQueueNewWritesScanInterval(10 * time.Millisecond).
-		SetMessageRetryOptions(retry.NewOptions().SetInitialBackoff(5 * time.Second))
-	writer := msgwriter.NewWriter(writerOpts)
-	producerOpts := producer.NewOptions().
-		SetBuffer(buffer).
-		SetWriter(writer)
-	producer := producer.NewProducer(producerOpts)
-	m3msgClientOpts := aggclient.NewM3MsgOptions().
-		SetProducer(producer)
 	clientOpts := aggclient.NewOptions().
 		SetClockOptions(clockOpts).
 		SetConnectionOptions(opts.ClientConnectionOptions()).
 		SetShardFn(opts.ShardFn()).
 		SetWatcherOptions(placementWatcherOpts).
-		SetRWOptions(rwOpts).
-		SetM3MsgOptions(m3msgClientOpts).
-		SetAggregatorClientType(aggclient.TCPAggregatorClient)
+		SetRWOptions(rwOpts)
 	c, err := aggclient.NewClient(clientOpts)
 	require.NoError(t, err)
 	adminClient, ok := c.(aggclient.AdminClient)
@@ -307,7 +263,56 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 }
 
 func (ts *testServerSetup) newClient(t *testing.T) *client {
-	testClient, err := aggclient.NewClient(ts.clientOptions)
+	clientType := ts.opts.AggregatorClientType()
+	clientOpts := ts.clientOptions.SetAggregatorClientType(clientType)
+
+	if clientType == aggclient.M3MsgAggregatorClient {
+		opts := ts.opts
+		topicName := "aggregator_ingest"
+
+		p := opts.Placement()
+		placementSvc := fake.NewM3ClusterPlacementServiceWithPlacement(p)
+		svcs := fake.NewM3ClusterServicesWithPlacementService(placementSvc)
+		clusterClient := fake.NewM3ClusterClient(svcs, opts.KVStore())
+
+		consumerServices := make([]topic.ConsumerService, 0)
+		for _, inst := range p.Instances() {
+			serviceID := services.NewServiceID().SetName(inst.ID())
+			cs := topic.NewConsumerService().SetServiceID(serviceID).SetConsumptionType(topic.Replicated)
+			consumerServices = append(consumerServices, cs)
+		}
+
+		ingestTopic := topic.NewTopic().
+			SetName(topicName).
+			SetNumberOfShards(uint32(p.NumShards())).
+			SetConsumerServices(consumerServices)
+		topicServiceOpts := topic.NewServiceOptions().
+			SetConfigService(clusterClient)
+		topicService, err := topic.NewService(topicServiceOpts)
+		require.NoError(t, err)
+		topicService.CheckAndSet(ingestTopic, 0) //nolint:errcheck
+
+		buffer, err := buffer.NewBuffer(nil)
+		require.NoError(t, err)
+		writerOpts := msgwriter.NewOptions().
+			SetTopicName(topicName).
+			SetTopicService(topicService).
+			SetServiceDiscovery(svcs).
+			SetTopicWatchInitTimeout(5 * time.Second).
+			SetMessageQueueNewWritesScanInterval(10 * time.Millisecond).
+			SetMessageRetryOptions(retry.NewOptions().SetInitialBackoff(5 * time.Second))
+		writer := msgwriter.NewWriter(writerOpts)
+		producerOpts := producer.NewOptions().
+			SetBuffer(buffer).
+			SetWriter(writer)
+		producer := producer.NewProducer(producerOpts)
+		m3msgOpts := aggclient.NewM3MsgOptions().
+			SetProducer(producer)
+
+		clientOpts = clientOpts.SetM3MsgOptions(m3msgOpts)
+	}
+
+	testClient, err := aggclient.NewClient(clientOpts)
 	require.NoError(t, err)
 	testAdminClient, ok := testClient.(aggclient.AdminClient)
 	require.True(t, ok)
