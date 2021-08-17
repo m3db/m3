@@ -384,11 +384,11 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 		ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return([]databaseShard{s1, s2}, nil).Times(blocks),
 		ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes(),
 		ns.EXPECT().FlushIndex(gomock.Any()).Return(mockFlushedShards, nil),
+		s1.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil),
+		s1.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil),
+		s2.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil),
+		s2.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil),
 	)
-	steps = append(steps, s1.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil))
-	steps = append(steps, s1.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil))
-	steps = append(steps, s2.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil))
-	steps = append(steps, s2.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil))
 	gomock.InOrder(steps...)
 
 	var (

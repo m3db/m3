@@ -236,7 +236,7 @@ func (m *flushManager) dataWarmFlush(
 	var (
 		start      = m.nowFn()
 		multiErr   = xerrors.NewMultiError()
-		allFlushes = make(map[string]namespaceFlush, 0)
+		allFlushes = make(map[string]namespaceFlush)
 	)
 	for _, ns := range namespaces {
 		// Flush first because we will only snapshot if there are no outstanding flushes.
@@ -322,7 +322,7 @@ func (m *flushManager) indexFlush(
 	var (
 		start            = m.nowFn()
 		multiErr         = xerrors.NewMultiError()
-		namespaceFlushes = make(map[string]namespaceFlush, 0)
+		namespaceFlushes = make(map[string]namespaceFlush)
 	)
 	for _, ns := range namespaces {
 		var (
@@ -333,13 +333,13 @@ func (m *flushManager) indexFlush(
 			continue
 		}
 
-		shardFlushes, err := ns.FlushIndex(indexFlush)
+		flushes, err := ns.FlushIndex(indexFlush)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		} else {
 			namespaceFlushes[ns.ID().String()] = namespaceFlush{
 				namespace:    ns,
-				shardFlushes: shardFlushes,
+				shardFlushes: flushes,
 			}
 		}
 	}
