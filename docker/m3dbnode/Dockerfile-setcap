@@ -29,7 +29,10 @@ COPY --from=builder /go/src/github.com/m3db/m3/bin/m3dbnode \
 
 # Use setcap to set +e "effective" and +p "permitted" to adjust the SYS_RESOURCE
 # so the process can raise the hard file limit with setrlimit.
-RUN apk add --no-cache curl jq libcap && \
+# Also provide timezone data to allow TZ environment variable to be set
+# for parsing relative times such as "9am" correctly and respect
+# the TZ environment variable.
+RUN apk add --no-cache tzdata curl jq libcap && \
   setcap cap_sys_resource=+ep /bin/m3dbnode
 
 ENV GODEBUG madvdontneed=1
