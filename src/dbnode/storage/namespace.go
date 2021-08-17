@@ -1410,9 +1410,9 @@ func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) (shardFlushes, error)
 	}
 
 	shards := n.OwnedShards()
-	shardFlushes, err := n.reverseIndex.WarmFlush(flush, shards)
+	flushes, err := n.reverseIndex.WarmFlush(flush, shards)
 	n.metrics.flushIndex.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return shardFlushes, err
+	return flushes, err
 }
 
 func (n *dbNamespace) Snapshot(

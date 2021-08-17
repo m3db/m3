@@ -373,18 +373,22 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	// Validate that the flush state is marked as successful only AFTER all prequisite steps have been run.
 	// Order is important to avoid any edge case where data is GCed from memory without all flushing operations
 	// being completed.
+	mockFlushedShards := map[shardFlush]bool{
+		shardFlush{shard: s1, time: xtime.Now().Add(time.Minute * 1)}: true,
+		shardFlush{shard: s1, time: xtime.Now().Add(time.Minute * 2)}: true,
+		shardFlush{shard: s2, time: xtime.Now().Add(time.Minute * 1)}: true,
+		shardFlush{shard: s2, time: xtime.Now().Add(time.Minute * 2)}: true,
+	}
 	steps := make([]*gomock.Call, 0)
 	steps = append(steps,
 		ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return([]databaseShard{s1, s2}, nil).Times(blocks),
 		ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes(),
-		ns.EXPECT().FlushIndex(gomock.Any()).Return(nil),
+		ns.EXPECT().FlushIndex(gomock.Any()).Return(mockFlushedShards, nil),
 	)
-	for i := 0; i < blocks; i++ {
-		steps = append(steps,
-			s1.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil),
-			s2.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil),
-		)
-	}
+	steps = append(steps, s1.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil))
+	steps = append(steps, s1.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil))
+	steps = append(steps, s2.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil))
+	steps = append(steps, s2.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil))
 	gomock.InOrder(steps...)
 
 	var (
