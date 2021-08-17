@@ -67,7 +67,7 @@ var (
 	errTooFarInTheFuture = xerrors.NewInvalidParamsError(errors.New("too far in the future"))
 	errTooFarInThePast   = xerrors.NewInvalidParamsError(errors.New("too far in the past"))
 	errArrivedTooLate    = xerrors.NewInvalidParamsError(errors.New("arrived too late"))
-	errTimestampFormat   = time.RFC822Z
+	errTimestampFormat   = time.RFC3339
 )
 
 type rateLimitEntryMetrics struct {
@@ -456,7 +456,7 @@ func (e *Entry) addUntimed(
 
 	if e.shouldUpdateStagedMetadatasWithLock(sm) {
 		err := e.updateStagedMetadatasWithLock(metric.ID, metric.Type,
-			hasDefaultMetadatas, sm)
+			hasDefaultMetadatas, sm, false)
 		if err != nil {
 			// NB(xichen): if an error occurred during policy update, the policies
 			// will remain as they are, i.e., there are no half-updated policies.
@@ -613,6 +613,7 @@ func (e *Entry) updateStagedMetadatasWithLock(
 	metricType metric.Type,
 	hasDefaultMetadatas bool,
 	sm metadata.StagedMetadata,
+	timed bool,
 ) error {
 	var (
 		elemID          = e.maybeCopyIDWithLock(metricID)
@@ -629,9 +630,16 @@ func (e *Entry) updateStagedMetadatasWithLock(
 				pipeline:           sm.Pipelines[i].Pipeline,
 				idPrefixSuffixType: WithPrefixWithSuffix,
 			}
-			listID := standardMetricListID{
-				resolution: storagePolicies[j].Resolution().Window,
-			}.toMetricListID()
+			var listID metricListID
+			if timed {
+				listID = timedMetricListID{
+					resolution: storagePolicies[j].Resolution().Window,
+				}.toMetricListID()
+			} else {
+				listID = standardMetricListID{
+					resolution: storagePolicies[j].Resolution().Window,
+				}.toMetricListID()
+			}
 			var err error
 			newAggregations, err = e.addNewAggregationKeyWithLock(metricType, elemID, key, listID, newAggregations)
 			if err != nil {
@@ -683,17 +691,6 @@ func (e *Entry) addTimed(
 		e.RUnlock()
 		timeLock.RUnlock()
 		return errEntryClosed
-	}
-
-	// Reject datapoints that arrive too late or too early.
-	if err := e.checkTimestampForTimedMetric(
-		metric,
-		currTime.UnixNano(),
-		metadata.StoragePolicy.Resolution().Window,
-	); err != nil {
-		e.RUnlock()
-		timeLock.RUnlock()
-		return err
 	}
 
 	// Only apply processing of staged metadatas if has sent staged metadatas
@@ -755,7 +752,7 @@ func (e *Entry) addTimed(
 
 		if e.shouldUpdateStagedMetadatasWithLock(sm) {
 			err := e.updateStagedMetadatasWithLock(metric.ID, metric.Type,
-				hasDefaultMetadatas, sm)
+				hasDefaultMetadatas, sm, true)
 			if err != nil {
 				// NB(xichen): if an error occurred during policy update, the policies
 				// will remain as they are, i.e., there are no half-updated policies.
@@ -814,6 +811,7 @@ func (e *Entry) addTimed(
 	return err
 }
 
+// Reject datapoints that arrive too late or too early.
 func (e *Entry) checkTimestampForTimedMetric(
 	metric aggregated.Metric,
 	currNanos int64,
@@ -893,15 +891,23 @@ func (e *Entry) addTimedWithLock(
 	metric aggregated.Metric,
 ) error {
 	timestamp := time.Unix(0, metric.TimeNanos)
+	err := e.checkTimestampForTimedMetric(metric, e.nowFn().UnixNano(), value.key.storagePolicy.Resolution().Window)
+	if err != nil {
+		return err
+	}
 	return value.elem.Value.(metricElem).AddValue(timestamp, metric.Value, metric.Annotation)
 }
 
-func (e *Entry) addTimedWithStagedMetadatasAndLock(
-	metric aggregated.Metric,
-) error {
+func (e *Entry) addTimedWithStagedMetadatasAndLock(metric aggregated.Metric) error {
 	timestamp := time.Unix(0, metric.TimeNanos)
 	multiErr := xerrors.NewMultiError()
 	for i := range e.aggregations {
+		err := e.checkTimestampForTimedMetric(metric, e.nowFn().UnixNano(),
+			e.aggregations[i].key.storagePolicy.Resolution().Window)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
 		if err := e.aggregations[i].elem.Value.(metricElem).AddValue(timestamp, metric.Value, metric.Annotation); err != nil {
 			multiErr = multiErr.Add(err)
 		}

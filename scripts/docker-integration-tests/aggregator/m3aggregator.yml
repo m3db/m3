@@ -121,6 +121,7 @@ aggregator:
   bufferDurationBeforeShardCutover: 10m
   bufferDurationAfterShardCutoff: 10m
   bufferDurationForFutureTimedMetric: 10m # Allow test to write into future.
+  bufferDurationForPastTimedMetric: 10s # Don't wait too long for timed metrics to flush.
   resignTimeout: 1m
   flushTimesManager:
     kvConfig:
