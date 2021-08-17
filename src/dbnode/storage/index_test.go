@@ -649,7 +649,9 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 
 	mockFlush := persist.NewMockIndexFlush(ctrl)
 
-	require.NoError(t, idx.WarmFlush(mockFlush, shards))
+	flushed, err := idx.WarmFlush(mockFlush, shards)
+	require.NoError(t, err)
+	require.Equal(t, shardFlushes{}, flushed)
 }
 
 func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
@@ -829,17 +831,18 @@ func verifyFlushForShards(
 	shards []uint32,
 ) {
 	var (
-		mockFlush          = persist.NewMockIndexFlush(ctrl)
-		shardMap           = make(map[uint32]struct{})
-		now                = xtime.Now()
-		warmBlockStart     = now.Add(-idx.bufferPast).Truncate(idx.blockSize)
-		mockShards         []*MockdatabaseShard
-		dbShards           []databaseShard
-		numBlocks          int
-		persistClosedTimes int
-		persistCalledTimes int
-		actualDocs         = make([]doc.Metadata, 0)
-		expectedDocs       = make([]doc.Metadata, 0)
+		mockFlush            = persist.NewMockIndexFlush(ctrl)
+		shardMap             = make(map[uint32]struct{})
+		now                  = xtime.Now()
+		warmBlockStart       = now.Add(-idx.bufferPast).Truncate(idx.blockSize)
+		mockShards           []*MockdatabaseShard
+		dbShards             []databaseShard
+		numBlocks            int
+		persistClosedTimes   int
+		persistCalledTimes   int
+		actualDocs           = make([]doc.Metadata, 0)
+		expectedDocs         = make([]doc.Metadata, 0)
+		expectedShardFlushes = make(map[shardFlush]bool, 0)
 	)
 	// NB(bodu): Always align now w/ the index's view of now.
 	idx.nowFn = func() time.Time {
@@ -925,16 +928,25 @@ func verifyFlushForShards(
 
 			mockShard.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockStart, blockStart.Add(idx.blockSize),
 				gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results, nil, nil)
+
+			expectedShardFlushes[shardFlush{shard: mockShard, time: blockStart}] = true
 		}
 
 		mockBlock.EXPECT().IsSealed().Return(true)
 		mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
 		mockBlock.EXPECT().EvictMutableSegments().Return(nil)
 	}
-	require.NoError(t, idx.WarmFlush(mockFlush, dbShards))
+	flushed, err := idx.WarmFlush(mockFlush, dbShards)
+	require.NoError(t, err)
+	require.Equal(t, len(expectedShardFlushes), len(flushed))
 	require.Equal(t, numBlocks, persistClosedTimes)
 	require.Equal(t, numBlocks, persistCalledTimes)
 	require.Equal(t, expectedDocs, actualDocs)
+
+	for flushedShard := range flushed {
+		_, ok := expectedShardFlushes[flushedShard]
+		require.Equal(t, true, ok)
+	}
 }
 
 func newReadIndexInfoFileResult(
