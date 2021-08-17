@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -172,17 +173,23 @@ func (s *replicatedSessionTestSuite) TestSetAsyncSessions() {
 }
 
 func (s *replicatedSessionTestSuite) TestReplicate() {
-	asyncCount := 2
-	namespace := ident.StringID("foo")
-	id := ident.StringID("bar")
-	now := xtime.Now()
-	value := float64(123)
-	unit := xtime.Nanosecond
-	annotation := []byte{}
+	var (
+		asyncCount = 2
+		namespace  = ident.StringID("foo")
+		id         = ident.StringID("bar")
+		now        = xtime.Now()
+		value      = float64(123)
+		unit       = xtime.Nanosecond
+		annotation = []byte("annotation")
+	)
 
-	var newSessionFunc = func(opts Options) (clientSession, error) {
+	newSessionFunc := func(opts Options) (clientSession, error) {
 		s := NewMockclientSession(s.mockCtrl)
-		s.EXPECT().Write(namespace, id, now, value, unit, annotation).Return(nil)
+		s.EXPECT().Write(
+			ident.NewIDMatcher(namespace.String()),
+			ident.NewIDMatcher(id.String()),
+			now, value, unit, annotation,
+		).Return(nil)
 		return s, nil
 	}
 
@@ -193,15 +200,40 @@ func (s *replicatedSessionTestSuite) TestReplicate() {
 	err := s.replicatedSession.Write(namespace, id, now, value, unit, annotation)
 	s.NoError(err)
 
-	t := time.NewTimer(1 * time.Second) // Allow async expectations to occur before ending test
-	for i := 0; i < asyncCount; i++ {
-		select {
-		case err := <-s.replicatedSession.outCh:
-			s.NoError(err)
-		case <-t.C:
-			break
-		}
+	s.waitForAsyncSessions(asyncCount)
+}
+
+func (s *replicatedSessionTestSuite) TestReplicateTagged() {
+	var (
+		asyncCount = 2
+		namespace  = ident.StringID("foo")
+		id         = ident.StringID("bar")
+		tags       = ident.NewFieldsTagsIterator([]doc.Field{{Name: []byte("k"), Value: []byte("v")}})
+		now        = xtime.Now()
+		value      = float64(123)
+		unit       = xtime.Nanosecond
+		annotation = []byte("annotation")
+	)
+
+	newSessionFunc := func(opts Options) (clientSession, error) {
+		s := NewMockclientSession(s.mockCtrl)
+		s.EXPECT().WriteTagged(
+			ident.NewIDMatcher(namespace.String()),
+			ident.NewIDMatcher(id.String()),
+			ident.NewTagIterMatcher(tags),
+			now, value, unit, annotation,
+		).Return(nil)
+		return s, nil
 	}
+
+	opts := optionsWithAsyncSessions(true, asyncCount)
+	s.initReplicatedSession(opts, newSessionFunc)
+	s.replicatedSession.outCh = make(chan error)
+
+	err := s.replicatedSession.WriteTagged(namespace, id, tags, now, value, unit, annotation)
+	s.NoError(err)
+
+	s.waitForAsyncSessions(asyncCount)
 }
 
 func (s *replicatedSessionTestSuite) TestOpenReplicatedSession() {
@@ -248,4 +280,18 @@ func (s *replicatedSessionTestSuite) TestOpenReplicatedSessionAsyncError() {
 	sessions[1].EXPECT().Open().Return(errors.New("an error"))
 	sessions[2].EXPECT().Open().Return(nil)
 	s.replicatedSession.Open()
+}
+
+func (s *replicatedSessionTestSuite) waitForAsyncSessions(asyncCount int) {
+	t := time.NewTimer(1 * time.Second)
+
+	// Allow async expectations to occur before ending test.
+	for i := 0; i < asyncCount; i++ {
+		select {
+		case err := <-s.replicatedSession.outCh:
+			s.NoError(err)
+		case <-t.C:
+			return
+		}
+	}
 }

@@ -835,7 +835,7 @@ type MultiProcessConfiguration struct {
 	// PerCPU is the factor of processes to run per CPU, leave
 	// zero to use the default of 0.5 per CPU (i.e. one process for
 	// every two CPUs).
-	PerCPU float64 `yaml:"perCPU" validate:"min=0.0, max=0.0"`
+	PerCPU float64 `yaml:"perCPU" validate:"min=0.0, max=1.0"`
 	// GoMaxProcs if set will explicitly set the child GOMAXPROCs env var.
 	GoMaxProcs int `yaml:"goMaxProcs"`
 }

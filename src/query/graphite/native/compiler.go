@@ -138,8 +138,13 @@ func (c *compiler) compileExpression() (Expression, error) {
 		fc, err := c.compileFunctionCall(token.Value())
 		fetchCandidate := false
 		if err != nil {
-			var notFoundErr *errFuncNotFound
-			if goerrors.As(err, &notFoundErr) && c.canCompileAsFetch(token.Value()) {
+			var (
+				notFuncErr    *errNotFuncCall
+				notFoundErr   *errFuncNotFound
+				isNotFuncErr  = goerrors.As(err, &notFuncErr)
+				isNotFoundErr = goerrors.As(err, &notFoundErr)
+			)
+			if (isNotFuncErr || isNotFoundErr) && c.canCompileAsFetch(token.Value()) {
 				fetchCandidate = true
 				expr = newFetchExpression(token.Value())
 			} else {
@@ -187,6 +192,10 @@ type errFuncNotFound struct{ err error }
 
 func (e *errFuncNotFound) Error() string { return e.err.Error() }
 
+type errNotFuncCall struct{ err error }
+
+func (e *errNotFuncCall) Error() string { return e.err.Error() }
+
 // compileFunctionCall compiles a function call
 func (c *compiler) compileFunctionCall(fname string) (*functionCall, error) {
 	fn := findFunction(fname)
@@ -195,7 +204,9 @@ func (c *compiler) compileFunctionCall(fname string) (*functionCall, error) {
 	}
 
 	if _, err := c.expectToken(lexer.LParenthesis); err != nil {
-		return nil, err
+		// This could be just a pattern or fetch expression, so return
+		// with context that there was no opening parenthesis.
+		return nil, &errNotFuncCall{err}
 	}
 
 	argTypes := fn.in
@@ -284,11 +295,20 @@ func (c *compiler) compileArg(
 	}
 
 	if !arg.CompatibleWith(reflectType) {
-		return nil, false, c.errorf("invalid function call %s, arg %d: expected a %s, received '%s'",
-			fname, index, reflectType.Name(), arg)
+		return nil, false, c.errorf("invalid function call %s, arg %d: expected a %s, received a %s '%s'",
+			fname, index, reflectTypeName(reflectType), reflectTypeName(arg.Type()), arg)
 	}
 
 	return arg, false, nil
+}
+
+// reflectTypeName will dereference any pointer types to their base name
+// so that function call or fetch expression can be referenced by their name.
+func reflectTypeName(reflectType reflect.Type) string {
+	for reflectType.Kind() == reflect.Ptr {
+		reflectType = reflectType.Elem()
+	}
+	return reflectType.Name()
 }
 
 // convertTokenToArg converts the given token into the corresponding argument
@@ -336,8 +356,13 @@ func (c *compiler) convertTokenToArg(token *lexer.Token, reflectType reflect.Typ
 
 		fc, err := c.compileFunctionCall(currentToken)
 		if err != nil {
-			var notFoundErr *errFuncNotFound
-			if goerrors.As(err, &notFoundErr) && c.canCompileAsFetch(currentToken) {
+			var (
+				notFuncErr    *errNotFuncCall
+				notFoundErr   *errFuncNotFound
+				isNotFuncErr  = goerrors.As(err, &notFuncErr)
+				isNotFoundErr = goerrors.As(err, &notFoundErr)
+			)
+			if (isNotFuncErr || isNotFoundErr) && c.canCompileAsFetch(currentToken) {
 				return newFetchExpression(currentToken), nil
 			}
 			return nil, err
@@ -351,8 +376,8 @@ func (c *compiler) convertTokenToArg(token *lexer.Token, reflectType reflect.Typ
 
 // expectToken reads the next token and confirms it is the expected type before returning it
 func (c *compiler) expectToken(expectedType lexer.TokenType) (*lexer.Token, error) {
-	token := c.tokens.get()
-	if token == nil {
+	token, ok := c.tokens.peek()
+	if !ok || token == nil {
 		return nil, c.errorf("expected %v but encountered eof", expectedType)
 	}
 
@@ -360,6 +385,8 @@ func (c *compiler) expectToken(expectedType lexer.TokenType) (*lexer.Token, erro
 		return nil, c.errorf("expected %v but encountered %s", expectedType, token.Value())
 	}
 
+	// Consume the token as it matches.
+	_ = c.tokens.get()
 	return token, nil
 }
 

@@ -93,11 +93,11 @@ Add to your Prometheus configuration the `m3coordinator` sidecar remote read/wri
 
 ```yaml
 remote_read:
-  - url: "http://localhost:7201/api/v1/prom/remote/read"
+  - url: "{{% apiendpoint %}}prom/remote/read"
     # To test reading even when local Prometheus has the data
     read_recent: true
 remote_write:
-  - url: "http://localhost:7201/api/v1/prom/remote/write"
+  - url: "{{% apiendpoint %}}prom/remote/write"
 ```
 
 Also, we recommend adding `M3DB` and `M3Coordinator`/`M3Query` to your list of jobs under `scrape_configs` so that you can monitor them using Prometheus. With this scraping setup, you can also use our pre-configured [M3DB Grafana dashboard](https://grafana.com/dashboards/8126).

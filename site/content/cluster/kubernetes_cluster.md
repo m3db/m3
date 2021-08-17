@@ -31,8 +31,9 @@ M3 stores its cluster placements and runtime metadata in [etcd](https://etcd.io)
 
 We have example services and stateful sets you can use, but feel free to use your own configuration and change any later instructions accordingly.
 
+
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/example/etcd/etcd-basic.yaml
+kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/{{% operator-version %}}/example/etcd/etcd-basic.yaml
 ```
 
 {{% notice tip %}}
@@ -50,7 +51,7 @@ kubectl exec etcd-0 -- env ETCDCTL_API=3 etcdctl endpoint health
 Install the bundled operator manifests in the current namespace:
 
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/bundle.yaml
+kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/{{% operator-version %}}/bundle.yaml
 ```
 
 ## Create an M3 Cluster
@@ -66,7 +67,7 @@ The cluster derives pod identity from the `podIdentityConfig` parameter, which i
 [Read more details on all the parameters in the Operator API docs](https://operator.m3db.io/api/).
 
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/example/m3db-local.yaml
+kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/{{% operator-version %}}/example/m3db-local.yaml
 ```
 
 Verify that the cluster is running with something like the Kubernetes dashboard, or the command below:
@@ -277,80 +278,5 @@ curl {{% apiendpoint %}}services/m3db/placement | jq .
 {{% notice tip %}}
 [Read more about the bootstrapping process](/docs/operational_guide/bootstrapping_crash_recovery/).
 {{% /notice %}}
-
-### Ready a Namespace
-<!-- TODO: Why?> -->
-Once a namespace has finished bootstrapping, you must mark it as ready before receiving traffic by using the _{{% apiendpoint %}}services/m3db/namespace/ready_.
-
-{{< tabs name="ready_namespaces" >}}
-{{% tab name="Command" %}}
-
-{{% codeinclude file="docs/includes/quickstart/ready-namespace.sh" language="shell" %}}
-
-{{% /tab %}}
-{{% tab name="Output" %}}
-
-```json
-{
-"ready": true
-}
-```
-
-{{% /tab %}}
-{{< /tabs >}}
-
-### View Details of a Namespace
-
-You can also view the attributes of all namespaces by calling the _{{% apiendpoint %}}services/m3db/namespace_ endpoint
-
-{{< tabs name="check_namespaces" >}}
-{{% tab name="Command" %}}
-
-```shell
-curl {{% apiendpoint %}}services/m3db/namespace | jq .
-```
-
-{{% notice tip %}}
-Add `?debug=1` to the request to convert nano units in the output into standard units.
-{{% /notice %}}
-
-{{% /tab %}}
-{{% tab name="Output" %}}
-
-```json
-{
-  "registry": {
-    "namespaces": {
-      "default": {
-        "bootstrapEnabled": true,
-        "flushEnabled": true,
-        "writesToCommitLog": true,
-        "cleanupEnabled": true,
-        "repairEnabled": false,
-        "retentionOptions": {
-          "retentionPeriodNanos": "43200000000000",
-          "blockSizeNanos": "1800000000000",
-          "bufferFutureNanos": "120000000000",
-          "bufferPastNanos": "600000000000",
-          "blockDataExpiry": true,
-          "blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
-          "futureRetentionPeriodNanos": "0"
-        },
-        "snapshotEnabled": true,
-        "indexOptions": {
-          "enabled": true,
-          "blockSizeNanos": "1800000000000"
-        },
-        "schemaOptions": null,
-        "coldWritesEnabled": false,
-        "runtimeOptions": null
-      }
-    }
-  }
-}
-```
-
-{{% /tab %}}
-{{< /tabs >}}
 
 {{< fileinclude file="cluster-common-steps.md" >}}
