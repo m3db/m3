@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -114,11 +115,14 @@ func main() {
 		}
 
 		var (
-			namespace     = pathParts[1]
-			shard, _      = strconv.Atoi(pathParts[2])
-			blockStart, _ = strconv.Atoi(pathParts[3])
-			volume, _     = strconv.Atoi(pathParts[4])
+			namespace        = pathParts[1]
+			shard, err2      = strconv.Atoi(pathParts[2])
+			blockStart, err3 = strconv.Atoi(pathParts[3])
+			volume, err4     = strconv.Atoi(pathParts[4])
 		)
+		if err = xerrors.FirstError(err2, err3, err4); err != nil {
+			return err
+		}
 
 		if blockStart >= int(*optBlockUntil) {
 			fmt.Println(" - skip (too recent)") // nolint: forbidigo
