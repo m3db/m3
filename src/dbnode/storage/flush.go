@@ -190,14 +190,20 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 			flushedShards map[shardFlush]bool
 		)
 		if indexEnabled {
-			flushedShards = indexFlushes[n.ID().String()].shardFlushes
+			flushesForNs, ok := indexFlushes[n.ID().String()]
+			if !ok {
+				continue
+			}
+			flushedShards = flushesForNs.shardFlushes
 		} else {
-			flushedShards = dataFlushes[n.ID().String()].shardFlushes
+			flushesForNs, ok := dataFlushes[n.ID().String()]
+			if !ok {
+				continue
+			}
+			flushedShards = flushesForNs.shardFlushes
 		}
 
 		for s := range flushedShards {
-			s.shard.MarkWarmFlushStateSuccessOrError(s.time, err)
-
 			// Block sizes for data and index can differ and so if we are driving the flushing by
 			// the index blockStarts, we must expand them to mark all containing data blockStarts.
 			// E.g. if blockSize == 2h and indexBlockSize == 4h and the flushed index time is 6:00pm,
@@ -205,9 +211,11 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 			if indexEnabled {
 				blockSize := n.Options().RetentionOptions().BlockSize()
 				indexBlockSize := n.Options().IndexOptions().BlockSize()
-				for start := s.time.Add(indexBlockSize); start < s.time.Add(indexBlockSize); start = start.Add(blockSize) {
+				for start := s.time; start < s.time.Add(indexBlockSize); start = start.Add(blockSize) {
 					s.shard.MarkWarmFlushStateSuccessOrError(start, err)
 				}
+			} else {
+				s.shard.MarkWarmFlushStateSuccessOrError(s.time, err)
 			}
 		}
 	}
