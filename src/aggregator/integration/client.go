@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 )
 
-// TODO(xichen): replace client with the actual aggregation server client.
 type client struct {
 	aggClient aggclient.AdminClient
 }
