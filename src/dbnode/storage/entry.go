@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -68,8 +69,8 @@ type Entry struct {
 	pendingIndexBatchSizeOne []writes.PendingIndexInsert
 }
 
-// ensure Entry satisfies the `index.OnIndexSeries` interface.
-var _ index.OnIndexSeries = &Entry{}
+// ensure Entry satisfies the `doc.OnIndexSeries` interface.
+var _ doc.OnIndexSeries = &Entry{}
 
 // ensure Entry satisfies the `bootstrap.SeriesRef` interface.
 var _ bootstrap.SeriesRef = &Entry{}

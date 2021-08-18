@@ -196,7 +196,7 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 
 	// Set the doc ref for later recall.
 	for i := range entries {
-		docs[i].Ref = entries[i].OnIndexSeries
+		docs[i].OnIndexSeries = entries[i].OnIndexSeries
 	}
 
 	segmentBuilder.Reset()
@@ -611,22 +611,14 @@ func (m *mutableSegments) backgroundCompactWithTask(
 		documentsFilter = segment.DocumentsFilterFn(func(d doc.Metadata) bool {
 			// Filter out any documents that only were indexed for
 			// sealed blocks.
-			if d.Ref == nil {
+			if d.OnIndexSeries == nil {
 				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
-					l.Error("unexpected nil for document ref for background compact")
+					l.Error("unexpected nil for document index entry for background compact")
 				})
 				return true
 			}
 
-			entry, ok := d.Ref.(OnIndexSeries)
-			if !ok {
-				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
-					l.Error("unexpected type for document ref for background compact")
-				})
-				return true
-			}
-
-			isEmpty, ok := entry.RelookupAndCheckIsEmpty()
+			isEmpty, ok := d.OnIndexSeries.RelookupAndCheckIsEmpty()
 			if !ok {
 				// Should not happen since shard will not expire until
 				// no more block starts are indexed.

@@ -20,6 +20,10 @@
 
 package doc
 
+import (
+	xtime "github.com/m3db/m3/src/x/time"
+)
+
 // MetadataIterator provides an iterator over a collection of document metadata. It is NOT
 // safe for multiple goroutines to invoke methods on an MetadataIterator simultaneously.
 type MetadataIterator interface {
@@ -71,4 +75,46 @@ type QueryDocIterator interface {
 	// This is used by the index query path to check if there are more docs to process before waiting for an index
 	// worker.
 	Done() bool
+}
+
+// OnIndexSeries provides a set of callback hooks to allow the reverse index
+// to do lifecycle management of any resources retained during indexing.
+type OnIndexSeries interface {
+	// OnIndexSuccess is executed when an entry is successfully indexed. The
+	// provided value for `blockStart` is the blockStart for which the write
+	// was indexed.
+	OnIndexSuccess(blockStart xtime.UnixNano)
+
+	// OnIndexFinalize is executed when the index no longer holds any references
+	// to the provided resources. It can be used to cleanup any resources held
+	// during the course of indexing. `blockStart` is the startTime of the index
+	// block for which the write was attempted.
+	OnIndexFinalize(blockStart xtime.UnixNano)
+
+	// OnIndexPrepare prepares the Entry to be handed off to the indexing sub-system.
+	// NB(prateek): we retain the ref count on the entry while the indexing is pending,
+	// the callback executed on the entry once the indexing is completed releases this
+	// reference.
+	OnIndexPrepare(blockStart xtime.UnixNano)
+
+	// NeedsIndexUpdate returns a bool to indicate if the Entry needs to be indexed
+	// for the provided blockStart. It only allows a single index attempt at a time
+	// for a single entry.
+	// NB(prateek): NeedsIndexUpdate is a CAS, i.e. when this method returns true, it
+	// also sets state on the entry to indicate that a write for the given blockStart
+	// is going to be sent to the index, and other go routines should not attempt the
+	// same write. Callers are expected to ensure they follow this guideline.
+	// Further, every call to NeedsIndexUpdate which returns true needs to have a corresponding
+	// OnIndexFinalze() call. This is required for correct lifecycle maintenance.
+	NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool
+
+	IfAlreadyIndexedMarkIndexSuccessAndFinalize(
+		blockStart xtime.UnixNano,
+	) bool
+
+	RelookupAndCheckIsEmpty() (bool, bool)
+
+	DecrementReaderWriterCount()
+
+	IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool
 }
