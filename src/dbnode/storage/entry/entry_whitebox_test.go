@@ -18,13 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package entry
 
 import (
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -35,22 +36,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	initTime      = time.Date(2018, time.May, 12, 15, 55, 0, 0, time.UTC)
-	testBlockSize = 24 * time.Hour
-)
-
-func newTime(n int) xtime.UnixNano {
-	t := initTime.Truncate(testBlockSize).Add(time.Duration(n) * testBlockSize)
-	return xtime.ToUnixNano(t)
-}
-
 func TestEntryIndexAttemptRotatesSlice(t *testing.T) {
-	e := NewEntry(NewEntryOptions{})
+	e := storage.NewEntry(storage.NewEntryOptions{})
 	for i := 0; i < 10; i++ {
 		ti := newTime(i)
 		require.True(t, e.NeedsIndexUpdate(ti))
-		require.Equal(t, i+1, len(e.reverseIndex.states))
+		require.Equal(t, i+1, e.IndexedBlockCount())
 	}
 
 	// ensure only the latest ones are held on to
@@ -64,7 +55,7 @@ func TestEntryIndexSeriesRef(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	now := time.Now()
 	blockStart := newTime(0)
-	mockIndexWriter := NewMockIndexWriter(ctrl)
+	mockIndexWriter := storage.NewMockIndexWriter(ctrl)
 	mockIndexWriter.EXPECT().BlockStartForWriteTime(blockStart).
 		Return(blockStart).
 		Times(2)
@@ -80,7 +71,7 @@ func TestEntryIndexSeriesRef(t *testing.T) {
 		series.WriteOptions{},
 	).Return(true, series.WarmWrite, nil)
 
-	e := NewEntry(NewEntryOptions{
+	e := storage.NewEntry(storage.NewEntryOptions{
 		Series:      mockSeries,
 		IndexWriter: mockIndexWriter,
 		NowFn: func() time.Time {

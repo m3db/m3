@@ -120,6 +120,14 @@ func (entry *Entry) DecrementReaderWriterCount() {
 	atomic.AddInt32(&entry.curReadWriters, -1)
 }
 
+// IndexedBlockCount returns the count of indexed block states.
+func (entry *Entry) IndexedBlockCount() int {
+	entry.reverseIndex.RLock()
+	count := len(entry.reverseIndex.states)
+	entry.reverseIndex.RUnlock()
+	return count
+}
+
 // IndexedForBlockStart returns a bool to indicate if the Entry has been successfully
 // indexed for the given index blockstart.
 func (entry *Entry) IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool {

@@ -282,7 +282,7 @@ func setupMockBlock(
 	ts xtime.UnixNano,
 	id ident.ID,
 	tag ident.Tag,
-	lifecycle index.OnIndexSeries,
+	lifecycle doc.OnIndexSeries,
 ) {
 	bl.EXPECT().
 		WriteBatch(gomock.Any()).

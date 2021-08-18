@@ -323,6 +323,8 @@ func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return([]databaseShard{s1, s2}, nil).AnyTimes()
 	ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	s1.EXPECT().ID().Return(uint32(1)).AnyTimes()
+	s2.EXPECT().ID().Return(uint32(2)).AnyTimes()
 	s1.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil).AnyTimes()
 	s2.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil).AnyTimes()
 
@@ -373,11 +375,11 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	// Validate that the flush state is marked as successful only AFTER all prequisite steps have been run.
 	// Order is important to avoid any edge case where data is GCed from memory without all flushing operations
 	// being completed.
-	mockFlushedShards := map[shardFlush]bool{
-		shardFlush{shard: s1, time: xtime.Now().Add(time.Minute * 1)}: true,
-		shardFlush{shard: s1, time: xtime.Now().Add(time.Minute * 2)}: true,
-		shardFlush{shard: s2, time: xtime.Now().Add(time.Minute * 1)}: true,
-		shardFlush{shard: s2, time: xtime.Now().Add(time.Minute * 2)}: true,
+	mockFlushedShards := shardFlushes{
+		shardFlushKey{shardID: s1.ID(), blockStart: xtime.Now().Add(time.Minute * 1)}: s1,
+		shardFlushKey{shardID: s1.ID(), blockStart: xtime.Now().Add(time.Minute * 2)}: s1,
+		shardFlushKey{shardID: s2.ID(), blockStart: xtime.Now().Add(time.Minute * 1)}: s2,
+		shardFlushKey{shardID: s2.ID(), blockStart: xtime.Now().Add(time.Minute * 2)}: s2,
 	}
 	steps := make([]*gomock.Call, 0)
 	steps = append(steps,

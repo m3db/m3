@@ -38,7 +38,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
@@ -100,7 +99,7 @@ func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID, tags id
 	series.EXPECT().ID().Return(id).AnyTimes()
 	series.EXPECT().IsEmpty().Return(false).AnyTimes()
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(storage.NewEntry(storage.NewEntryOptions{
+	shard.insertNewShardEntryWithLock(NewEntry(NewEntryOptions{
 		Series: series,
 		Index:  index,
 	}))
@@ -215,7 +214,7 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 
 	// Load the mock into the shard as an expected series so that we can assert
 	// on the call to its Bootstrap() method below.
-	entry := storage.NewEntry(storage.NewEntryOptions{
+	entry := NewEntry(NewEntryOptions{
 		Series: mockSeries,
 	})
 	s.Lock()
@@ -464,7 +463,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeErr, expectedErr)
-		s.list.PushBack(storage.NewEntry(storage.NewEntryOptions{
+		s.list.PushBack(NewEntry(NewEntryOptions{
 			Series: curr,
 		}))
 	}
@@ -551,7 +550,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeFlushedToDisk, nil)
-		s.list.PushBack(storage.NewEntry(storage.NewEntryOptions{
+		s.list.PushBack(NewEntry(NewEntryOptions{
 			Series: curr,
 		}))
 	}
@@ -662,7 +661,7 @@ func TestShardColdFlush(t *testing.T) {
 		curr.EXPECT().Metadata().Return(doc.Metadata{ID: ds.id.Bytes()}).AnyTimes()
 		curr.EXPECT().ColdFlushBlockStarts(gomock.Any()).
 			Return(optimizedTimesFromTimes(ds.dirtyTimes))
-		shard.list.PushBack(storage.NewEntry(storage.NewEntryOptions{
+		shard.list.PushBack(NewEntry(NewEntryOptions{
 			Series: curr,
 		}))
 	}
@@ -866,7 +865,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 				snapshotted[i] = struct{}{}
 			}).
 			Return(series.SnapshotResult{}, nil)
-		s.list.PushBack(storage.NewEntry(storage.NewEntryOptions{
+		s.list.PushBack(NewEntry(NewEntryOptions{
 			Series: entry,
 		}))
 	}
@@ -886,7 +885,7 @@ func addMockTestSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID) *se
 	series := series.NewMockDatabaseSeries(ctrl)
 	series.EXPECT().ID().AnyTimes().Return(id)
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(storage.NewEntry(storage.NewEntryOptions{
+	shard.insertNewShardEntryWithLock(NewEntry(NewEntryOptions{
 		Series: series,
 	}))
 	shard.Unlock()
@@ -904,7 +903,7 @@ func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.Dat
 		Options:     shard.seriesOpts,
 	})
 	shard.Lock()
-	entry := storage.NewEntry(storage.NewEntryOptions{
+	entry := NewEntry(NewEntryOptions{
 		Series: seriesEntry,
 	})
 	for i := int32(0); i < count; i++ {
@@ -1244,7 +1243,7 @@ func TestShardTickRace(t *testing.T) {
 	wg.Wait()
 
 	shard.RLock()
-	shardlen := shard.storage.Len()
+	shardlen := shard.lookup.Len()
 	shard.RUnlock()
 
 	require.Equal(t, 0, shardlen)
@@ -1265,7 +1264,7 @@ func TestShardTickCleanupSmallBatchSize(t *testing.T) {
 	addTestSeries(shard, ident.StringID("foo"))
 	_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
 	require.NoError(t, err)
-	require.Equal(t, 0, shard.storage.Len())
+	require.Equal(t, 0, shard.lookup.Len())
 }
 
 // This tests ensures the shard returns an error if two ticks are triggered concurrently.
@@ -1409,7 +1408,7 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 	require.NoError(t, err)
 
 	shard.RLock()
-	require.Equal(t, 0, shard.storage.Len())
+	require.Equal(t, 0, shard.lookup.Len())
 	shard.RUnlock()
 }
 
@@ -1466,7 +1465,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
-	require.Equal(t, 1, shard.storage.Len())
+	require.Equal(t, 1, shard.lookup.Len())
 }
 
 // This tests the scenario where tickForEachSeries finishes, and before purgeExpiredSeries
@@ -1476,7 +1475,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	var entry *storage.Entry
+	var entry *Entry
 
 	opts := DefaultTestOptions()
 	shard := testDatabaseShard(t, opts)
@@ -1494,10 +1493,10 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
-	require.Equal(t, 1, shard.storage.Len())
+	require.Equal(t, 1, shard.lookup.Len())
 
 	entry.DecrementReaderWriterCount()
-	require.Equal(t, 1, shard.storage.Len())
+	require.Equal(t, 1, shard.lookup.Len())
 }
 
 func TestForEachShardEntry(t *testing.T) {
@@ -1509,7 +1508,7 @@ func TestForEachShardEntry(t *testing.T) {
 	}
 
 	count := 0
-	entryFn := func(entry *storage.Entry) bool {
+	entryFn := func(entry *Entry) bool {
 		if entry.Series.ID().String() == "foo.8" {
 			return false
 		}
@@ -1529,7 +1528,7 @@ func TestForEachShardEntry(t *testing.T) {
 	// Ensure that reader writer count gets reset
 	shard.RLock()
 	for elem := shard.list.Front(); elem != nil; elem = elem.Next() {
-		entry := elem.Value.(*storage.Entry)
+		entry := elem.Value.(*Entry)
 		assert.Equal(t, int32(0), entry.ReaderWriterCount())
 	}
 	shard.RUnlock()
@@ -2023,7 +2022,7 @@ func TestSeriesRefResolver(t *testing.T) {
 	// should return already inserted entry as series.
 	resolverEntry, err := shard.SeriesRefResolver(seriesID, iter)
 	require.NoError(t, err)
-	require.IsType(t, &storage.Entry{}, resolverEntry)
+	require.IsType(t, &Entry{}, resolverEntry)
 	refEntry, err := resolverEntry.SeriesRef()
 	require.NoError(t, err)
 	require.Equal(t, seriesRef, refEntry)

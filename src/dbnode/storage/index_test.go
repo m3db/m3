@@ -842,7 +842,7 @@ func verifyFlushForShards(
 		persistCalledTimes   int
 		actualDocs           = make([]doc.Metadata, 0)
 		expectedDocs         = make([]doc.Metadata, 0)
-		expectedShardFlushes = make(map[shardFlush]bool, 0)
+		expectedShardFlushes = make(shardFlushes, 0)
 	)
 	// NB(bodu): Always align now w/ the index's view of now.
 	idx.nowFn = func() time.Time {
@@ -929,7 +929,7 @@ func verifyFlushForShards(
 			mockShard.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockStart, blockStart.Add(idx.blockSize),
 				gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results, nil, nil)
 
-			expectedShardFlushes[shardFlush{shard: mockShard, time: blockStart}] = true
+			expectedShardFlushes[shardFlushKey{shardID: mockShard.ID(), blockStart: blockStart}] = mockShard
 		}
 
 		mockBlock.EXPECT().IsSealed().Return(true)

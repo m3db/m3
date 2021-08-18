@@ -98,7 +98,7 @@ func testWriteBatchEntry(
 	id ident.ID,
 	tags ident.Tags,
 	timestamp xtime.UnixNano,
-	fns index.OnIndexSeries,
+	fns doc.OnIndexSeries,
 ) (index.WriteBatchEntry, doc.Metadata) {
 	d := doc.Metadata{ID: copyBytes(id.Bytes())}
 	for _, tag := range tags.Values() {

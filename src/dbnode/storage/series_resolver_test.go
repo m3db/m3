@@ -27,14 +27,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/x/ident"
 )
 
 func TestResolveError(t *testing.T) {
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*storage.Entry, error) {
+	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
 		return nil, fmt.Errorf("unable to resolve series")
 	})
 	_, err := sut.SeriesRef()
@@ -44,7 +43,7 @@ func TestResolveError(t *testing.T) {
 func TestResolveNilEntry(t *testing.T) {
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*storage.Entry, error) {
+	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
 		return nil, nil
 	})
 	_, err := sut.SeriesRef()
@@ -54,53 +53,53 @@ func TestResolveNilEntry(t *testing.T) {
 func TestResolve(t *testing.T) {
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*storage.Entry, error) {
-		return storage.NewEntry(storage.NewEntryOptions{
+	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
+		return NewEntry(NewEntryOptions{
 			Index: 11,
 		}), nil
 	})
 	seriesRef, err := sut.SeriesRef()
 	require.NoError(t, err)
-	require.IsType(t, &storage.Entry{}, seriesRef)
-	entry := seriesRef.(*storage.Entry)
+	require.IsType(t, &Entry{}, seriesRef)
+	entry := seriesRef.(*Entry)
 	require.Equal(t, uint64(11), entry.Index)
 }
 
 func TestSecondResolveWontWait(t *testing.T) {
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*storage.Entry, error) {
-		return storage.NewEntry(storage.NewEntryOptions{
+	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
+		return NewEntry(NewEntryOptions{
 			Index: 11,
 		}), nil
 	})
 	seriesRef, err := sut.SeriesRef()
 	require.NoError(t, err)
-	require.IsType(t, &storage.Entry{}, seriesRef)
-	entry := seriesRef.(*storage.Entry)
+	require.IsType(t, &Entry{}, seriesRef)
+	entry := seriesRef.(*Entry)
 	require.Equal(t, uint64(11), entry.Index)
 
 	wg.Add(1)
 	seriesRef2, err := sut.SeriesRef()
 	require.NoError(t, err)
-	require.IsType(t, &storage.Entry{}, seriesRef2)
-	entry2 := seriesRef2.(*storage.Entry)
+	require.IsType(t, &Entry{}, seriesRef2)
+	entry2 := seriesRef2.(*Entry)
 	require.Equal(t, entry, entry2)
 }
 
 func TestReleaseRef(t *testing.T) {
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*storage.Entry, error) {
-		entry := storage.NewEntry(storage.NewEntryOptions{})
+	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
+		entry := NewEntry(NewEntryOptions{})
 		entry.IncrementReaderWriterCount()
 		return entry, nil
 	})
 	seriesRef, err := sut.SeriesRef()
 	require.NoError(t, err)
-	require.IsType(t, &storage.Entry{}, seriesRef)
+	require.IsType(t, &Entry{}, seriesRef)
 
-	entry := seriesRef.(*storage.Entry)
+	entry := seriesRef.(*Entry)
 	require.Equal(t, int32(1), entry.ReaderWriterCount())
 	err = sut.ReleaseRef()
 	require.NoError(t, err)
@@ -110,7 +109,7 @@ func TestReleaseRef(t *testing.T) {
 func TestReleaseRefError(t *testing.T) {
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*storage.Entry, error) {
+	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
 		return nil, fmt.Errorf("unable to resolve series")
 	})
 	err := sut.ReleaseRef()
@@ -120,8 +119,8 @@ func TestReleaseRefError(t *testing.T) {
 func TestReleaseRefWithoutSeriesRef(t *testing.T) {
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*storage.Entry, error) {
-		entry := storage.NewEntry(storage.NewEntryOptions{})
+	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
+		entry := NewEntry(NewEntryOptions{})
 		entry.IncrementReaderWriterCount()
 		return entry, nil
 	})
