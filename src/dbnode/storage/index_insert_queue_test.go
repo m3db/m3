@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -89,7 +90,7 @@ func TestIndexInsertQueueCallback(t *testing.T) {
 		q               = newTestIndexInsertQueue(newTestNamespaceMetadata(t))
 		insertLock      sync.Mutex
 		insertedBatches []*index.WriteBatch
-		callback        = index.NewMockOnIndexSeries(ctrl)
+		callback        = doc.NewMockOnIndexSeries(ctrl)
 	)
 	q.indexBatchFn = func(inserts *index.WriteBatch) {
 		insertLock.Lock()
@@ -150,7 +151,7 @@ func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 	}
 
 	q.indexBatchBackoff = backoff
-	callback := index.NewMockOnIndexSeries(ctrl)
+	callback := doc.NewMockOnIndexSeries(ctrl)
 
 	var slept time.Duration
 	var numSleeps int

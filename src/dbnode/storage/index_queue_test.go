@@ -145,7 +145,7 @@ func TestNamespaceIndexWriteAfterClose(t *testing.T) {
 
 	now := xtime.Now()
 
-	lifecycle := index.NewMockOnIndexSeries(ctrl)
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	lifecycle.EXPECT().OnIndexFinalize(now.Truncate(idx.blockSize))
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
 		Return(false).
@@ -169,7 +169,7 @@ func TestNamespaceIndexWriteQueueError(t *testing.T) {
 	)
 
 	n := xtime.Now()
-	lifecycle := index.NewMockOnIndexSeries(ctrl)
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	lifecycle.EXPECT().OnIndexFinalize(n.Truncate(idx.blockSize))
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
 	q.EXPECT().
@@ -213,7 +213,7 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 		tags = ident.NewTags(
 			ident.StringTag("name", "value"),
 		)
-		lifecycle = index.NewMockOnIndexSeries(ctrl)
+		lifecycle = doc.NewMockOnIndexSeries(ctrl)
 	)
 
 	tooOld := now.Add(-1 * idx.bufferPast).Add(-1 * time.Second)
@@ -279,7 +279,7 @@ func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
 	now := xtime.Now()
 
 	var wg sync.WaitGroup
-	lifecycle := index.NewMockOnIndexSeries(ctrl)
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	q.EXPECT().InsertBatch(gomock.Any()).Return(&wg, nil)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
 		Return(false).
@@ -319,7 +319,7 @@ func setupIndex(t *testing.T,
 		tags      = ident.NewTags(
 			ident.StringTag("name", "value"),
 		)
-		lifecycleFns = index.NewMockOnIndexSeries(ctrl)
+		lifecycleFns = doc.NewMockOnIndexSeries(ctrl)
 	)
 
 	lifecycleFns.EXPECT().OnIndexFinalize(ts)

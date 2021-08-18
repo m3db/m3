@@ -256,7 +256,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 	id := ident.StringID("foo")
 	tag := ident.StringTag("name", "value")
 	tags := ident.NewTags(tag)
-	lifecycle := index.NewMockOnIndexSeries(ctrl)
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	mockWriteBatch(t, &now, lifecycle, mockBlock, &tag)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
 	batch := index.NewWriteBatch(index.WriteBatchOptions{
@@ -325,7 +325,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	id := ident.StringID("foo")
 	tag := ident.StringTag("name", "value")
 	tags := ident.NewTags(tag)
-	lifecycle := index.NewMockOnIndexSeries(ctrl)
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	mockWriteBatch(t, &now, lifecycle, bActive, &tag)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
 		Return(false).
@@ -1595,7 +1595,7 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 
 func mockWriteBatch(t *testing.T,
 	now *xtime.UnixNano,
-	lifecycle *index.MockOnIndexSeries,
+	lifecycle *doc.MockOnIndexSeries,
 	block *index.MockBlock,
 	tag *ident.Tag,
 ) {

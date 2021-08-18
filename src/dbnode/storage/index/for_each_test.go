@@ -53,7 +53,7 @@ func TestWriteBatchForEachUnmarkedBatchByBlockStart(t *testing.T) {
 	for _, n := range []int64{2, 0, 1} {
 		batch.Append(WriteBatchEntry{
 			Timestamp:     tn(n),
-			OnIndexSeries: NewMockOnIndexSeries(ctrl),
+			OnIndexSeries: doc.NewMockOnIndexSeries(ctrl),
 		}, d(n))
 	}
 
@@ -109,7 +109,7 @@ func TestWriteBatchForEachUnmarkedBatchByBlockStartMore(t *testing.T) {
 	} {
 		batch.Append(WriteBatchEntry{
 			Timestamp:     tn(v.nTime),
-			OnIndexSeries: NewMockOnIndexSeries(ctrl),
+			OnIndexSeries: doc.NewMockOnIndexSeries(ctrl),
 		}, d(v.nDoc))
 	}
 

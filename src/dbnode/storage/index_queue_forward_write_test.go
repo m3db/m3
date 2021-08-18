@@ -107,7 +107,7 @@ func setupForwardIndex(
 		tags    = ident.NewTags(
 			ident.StringTag("name", "value"),
 		)
-		lifecycle = index.NewMockOnIndexSeries(ctrl)
+		lifecycle = doc.NewMockOnIndexSeries(ctrl)
 	)
 
 	gomock.InOrder(
@@ -377,7 +377,7 @@ func TestNamespaceIndexForwardWrite(t *testing.T) {
 	id := ident.StringID("foo")
 	tag := ident.StringTag("name", "value")
 	tags := ident.NewTags(tag)
-	lifecycle := index.NewMockOnIndexSeries(ctrl)
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 
 	var (
 		ts   = idx.(*nsIndex).state.latestBlock.StartTime()
@@ -420,7 +420,7 @@ func TestNamespaceIndexForwardWriteCreatesBlock(t *testing.T) {
 	id := ident.StringID("foo")
 	tag := ident.StringTag("name", "value")
 	tags := ident.NewTags(tag)
-	lifecycle := index.NewMockOnIndexSeries(ctrl)
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 
 	var (
 		ts   = idx.(*nsIndex).state.latestBlock.StartTime()
@@ -598,7 +598,7 @@ func testShardForwardWriteTaggedSyncRefCount(
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
 		shard.Lock()
-		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		entry, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		require.NoError(t, err)
 		require.Equal(t, int32(0), entry.ReaderWriterCount(), id)
@@ -614,7 +614,7 @@ func testShardForwardWriteTaggedSyncRefCount(
 	// // ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
 		shard.Lock()
-		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		entry, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		require.NoError(t, err)
 		require.Equal(t, int32(0), entry.ReaderWriterCount(), id)
@@ -658,7 +658,7 @@ func testShardForwardWriteTaggedAsyncRefCount(
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
 		shard.Lock()
-		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		entry, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		require.NoError(t, err)
 		require.Equal(t, int32(0), entry.ReaderWriterCount(), id)
@@ -673,7 +673,7 @@ func testShardForwardWriteTaggedAsyncRefCount(
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
 		shard.Lock()
-		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		entry, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		require.NoError(t, err)
 		require.Equal(t, int32(0), entry.ReaderWriterCount(), id)

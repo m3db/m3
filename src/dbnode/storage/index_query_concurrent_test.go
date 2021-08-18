@@ -162,7 +162,7 @@ func testNamespaceIndexHighConcurrentQueries(
 
 		var onIndexWg sync.WaitGroup
 		onIndexWg.Add(idsPerBlock)
-		onIndexSeries := index.NewMockOnIndexSeries(ctrl)
+		onIndexSeries := doc.NewMockOnIndexSeries(ctrl)
 		onIndexSeries.EXPECT().
 			OnIndexSuccess(gomock.Any()).
 			Times(idsPerBlock).

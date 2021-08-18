@@ -1698,7 +1698,7 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 	time.Sleep(time.Second)
 
 	shard.RLock()
-	entry, _, err := shard.lookupEntryWithLock(ident.StringID("foo"))
+	entry, err := shard.lookupEntryWithLock(ident.StringID("foo"))
 	shard.RUnlock()
 
 	require.Equal(t, err, errShardEntryNotFound)
@@ -1792,7 +1792,7 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	begin := time.Now()
 	for time.Since(begin) < 10*time.Second {
 		shard.RLock()
-		entry, _, err := shard.lookupEntryWithLock(ident.StringID("foo"))
+		entry, err := shard.lookupEntryWithLock(ident.StringID("foo"))
 		shard.RUnlock()
 		if err == errShardEntryNotFound {
 			time.Sleep(5 * time.Millisecond)
@@ -1806,7 +1806,7 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	}
 
 	shard.RLock()
-	entry, _, err := shard.lookupEntryWithLock(ident.StringID("foo"))
+	entry, err := shard.lookupEntryWithLock(ident.StringID("foo"))
 	shard.RUnlock()
 	require.NoError(t, err)
 	require.NotNil(t, entry)
