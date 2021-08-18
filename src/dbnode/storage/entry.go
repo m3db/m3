@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package lookup
+package storage
 
 import (
 	"sync"
@@ -58,6 +58,7 @@ type IndexWriter interface {
 // members to track lifecycle and minimize indexing overhead.
 // NB: users are expected to use `NewEntry` to construct these objects.
 type Entry struct {
+	Shard                    Shard
 	Series                   series.DatabaseSeries
 	Index                    uint64
 	indexWriter              IndexWriter
@@ -78,6 +79,7 @@ var _ bootstrap.SeriesRefResolver = &Entry{}
 
 // NewEntryOptions supplies options for a new entry.
 type NewEntryOptions struct {
+	Shard       Shard
 	Series      series.DatabaseSeries
 	Index       uint64
 	IndexWriter IndexWriter
@@ -91,6 +93,7 @@ func NewEntry(opts NewEntryOptions) *Entry {
 		nowFn = opts.NowFn
 	}
 	entry := &Entry{
+		Shard:                    opts.Shard,
 		Series:                   opts.Series,
 		Index:                    opts.Index,
 		indexWriter:              opts.IndexWriter,
@@ -223,9 +226,17 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 	return successAlready
 }
 
-// IsEmpty returns true if the entry has no in-memory series data.
-func (entry *Entry) IsEmpty() bool {
-	return entry.Series.IsEmpty()
+// RelookupAndCheckIsEmpty looks up the series and checks if it is empty.
+// The first result indicates if the series is empty.
+// The second result indicates if the series can be looked up at all.
+func (entry *Entry) RelookupAndCheckIsEmpty() (bool, bool) {
+	e, _, err := entry.Shard.TryRetrieveWritableSeries(entry.Series.ID())
+	if err != nil || e == nil {
+		return false, false
+	}
+	defer entry.DecrementReaderWriterCount()
+
+	return entry.Series.IsEmpty(), true
 }
 
 // Write writes a new value.

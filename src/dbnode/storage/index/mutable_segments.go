@@ -626,8 +626,19 @@ func (m *mutableSegments) backgroundCompactWithTask(
 				return true
 			}
 
+			isEmpty, ok := entry.RelookupAndCheckIsEmpty()
+			if !ok {
+				// Should not happen since shard will not expire until
+				// no more block starts are indexed.
+				// We do not GC this series if shard is missing since
+				// we open up a race condition where the entry is not
+				// in the shard yet and we GC it since we can't find it
+				// due to an asynchronous insert.
+				return true
+			}
+
 			// Keep if not yet empty (i.e. there is still in-memory data associated with the series).
-			return !entry.IsEmpty()
+			return !isEmpty
 		})
 	}
 

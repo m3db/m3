@@ -140,7 +140,7 @@ func TestShardAsyncInsertMarkIndexedForBlockStart(t *testing.T) {
 
 	start := time.Now()
 	for time.Since(start) < 10*time.Second {
-		entry, _, err := shard.tryRetrieveWritableSeries(ident.StringID("foo"))
+		entry, _, err := shard.TryRetrieveWritableSeries(ident.StringID("foo"))
 		require.NoError(t, err)
 		if entry == nil {
 			time.Sleep(10 * time.Millisecond)
@@ -190,7 +190,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	// make sure next block not marked as indexed
 	start := time.Now()
 	for time.Since(start) < 10*time.Second {
-		entry, _, err := shard.tryRetrieveWritableSeries(ident.StringID("foo"))
+		entry, _, err := shard.TryRetrieveWritableSeries(ident.StringID("foo"))
 		require.NoError(t, err)
 		if entry == nil {
 			time.Sleep(10 * time.Millisecond)

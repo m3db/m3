@@ -27,14 +27,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
+	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/x/ident"
 )
 
 func TestResolveError(t *testing.T) {
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*lookup.Entry, error) {
+	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*storage.Entry, error) {
 		return nil, fmt.Errorf("unable to resolve series")
 	})
 	_, err := sut.SeriesRef()
@@ -44,7 +44,7 @@ func TestResolveError(t *testing.T) {
 func TestResolveNilEntry(t *testing.T) {
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*lookup.Entry, error) {
+	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*storage.Entry, error) {
 		return nil, nil
 	})
 	_, err := sut.SeriesRef()
@@ -54,53 +54,53 @@ func TestResolveNilEntry(t *testing.T) {
 func TestResolve(t *testing.T) {
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*lookup.Entry, error) {
-		return lookup.NewEntry(lookup.NewEntryOptions{
+	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*storage.Entry, error) {
+		return storage.NewEntry(storage.NewEntryOptions{
 			Index: 11,
 		}), nil
 	})
 	seriesRef, err := sut.SeriesRef()
 	require.NoError(t, err)
-	require.IsType(t, &lookup.Entry{}, seriesRef)
-	entry := seriesRef.(*lookup.Entry)
+	require.IsType(t, &storage.Entry{}, seriesRef)
+	entry := seriesRef.(*storage.Entry)
 	require.Equal(t, uint64(11), entry.Index)
 }
 
 func TestSecondResolveWontWait(t *testing.T) {
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*lookup.Entry, error) {
-		return lookup.NewEntry(lookup.NewEntryOptions{
+	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*storage.Entry, error) {
+		return storage.NewEntry(storage.NewEntryOptions{
 			Index: 11,
 		}), nil
 	})
 	seriesRef, err := sut.SeriesRef()
 	require.NoError(t, err)
-	require.IsType(t, &lookup.Entry{}, seriesRef)
-	entry := seriesRef.(*lookup.Entry)
+	require.IsType(t, &storage.Entry{}, seriesRef)
+	entry := seriesRef.(*storage.Entry)
 	require.Equal(t, uint64(11), entry.Index)
 
 	wg.Add(1)
 	seriesRef2, err := sut.SeriesRef()
 	require.NoError(t, err)
-	require.IsType(t, &lookup.Entry{}, seriesRef2)
-	entry2 := seriesRef2.(*lookup.Entry)
+	require.IsType(t, &storage.Entry{}, seriesRef2)
+	entry2 := seriesRef2.(*storage.Entry)
 	require.Equal(t, entry, entry2)
 }
 
 func TestReleaseRef(t *testing.T) {
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*lookup.Entry, error) {
-		entry := lookup.NewEntry(lookup.NewEntryOptions{})
+	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*storage.Entry, error) {
+		entry := storage.NewEntry(storage.NewEntryOptions{})
 		entry.IncrementReaderWriterCount()
 		return entry, nil
 	})
 	seriesRef, err := sut.SeriesRef()
 	require.NoError(t, err)
-	require.IsType(t, &lookup.Entry{}, seriesRef)
+	require.IsType(t, &storage.Entry{}, seriesRef)
 
-	entry := seriesRef.(*lookup.Entry)
+	entry := seriesRef.(*storage.Entry)
 	require.Equal(t, int32(1), entry.ReaderWriterCount())
 	err = sut.ReleaseRef()
 	require.NoError(t, err)
@@ -110,7 +110,7 @@ func TestReleaseRef(t *testing.T) {
 func TestReleaseRefError(t *testing.T) {
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*lookup.Entry, error) {
+	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*storage.Entry, error) {
 		return nil, fmt.Errorf("unable to resolve series")
 	})
 	err := sut.ReleaseRef()
@@ -120,8 +120,8 @@ func TestReleaseRefError(t *testing.T) {
 func TestReleaseRefWithoutSeriesRef(t *testing.T) {
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*lookup.Entry, error) {
-		entry := lookup.NewEntry(lookup.NewEntryOptions{})
+	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*storage.Entry, error) {
+		entry := storage.NewEntry(storage.NewEntryOptions{})
 		entry.IncrementReaderWriterCount()
 		return entry, nil
 	})

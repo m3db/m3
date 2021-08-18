@@ -400,7 +400,7 @@ type OnIndexSeries interface {
 		blockStart xtime.UnixNano,
 	) bool
 
-	IsEmpty() bool
+	RelookupAndCheckIsEmpty() (bool, bool)
 
 	DecrementReaderWriterCount()
 

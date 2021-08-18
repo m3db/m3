@@ -502,6 +502,9 @@ type Shard interface {
 	// OpenStreamingDataReader creates and opens a streaming fs.DataFileSetReader
 	// on the latest volume of the given block.
 	OpenStreamingReader(blockStart xtime.UnixNano) (fs.DataFileSetReader, error)
+
+	// TryRetrieveWritableSeries attempts to retrieve a writable series.
+	TryRetrieveWritableSeries(id ident.ID) (*Entry, WritableSeriesOptions, error)
 }
 
 type databaseShard interface {
