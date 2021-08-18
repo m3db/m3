@@ -1039,7 +1039,7 @@ func (i *nsIndex) WarmFlush(
 	defer i.metrics.flushIndexingConcurrency.Update(0)
 
 	var evicted int
-	shardFlushes := make(map[shardFlush]bool, 0)
+	flushes := make(shardFlushes, 0)
 	for _, block := range flushable {
 		immutableSegments, err := i.flushBlock(flush, block, shards, builder)
 		if err != nil {
@@ -1074,17 +1074,18 @@ func (i *nsIndex) WarmFlush(
 				zap.Error(err),
 				zap.Time("blockStart", block.StartTime().ToTime()),
 			)
-		} else {
-			for _, s := range shards {
-				shardFlushes[shardFlush{
-					shard: s,
-					time:  block.StartTime(),
-				}] = true
-			}
+			continue
+		}
+
+		for _, s := range shards {
+			flushes[shardFlushKey{
+				shardID:    s.ID(),
+				blockStart: block.StartTime(),
+			}] = s
 		}
 	}
 	i.metrics.blocksEvictedMutableSegments.Inc(int64(evicted))
-	return shardFlushes, nil
+	return flushes, nil
 }
 
 func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {

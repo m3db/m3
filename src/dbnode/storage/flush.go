@@ -56,16 +56,16 @@ const (
 
 type namespaceFlushes map[string]namespaceFlush
 
-type shardFlushes map[shardFlush]bool
-
 type namespaceFlush struct {
 	namespace    databaseNamespace
-	shardFlushes map[shardFlush]bool
+	shardFlushes shardFlushes
 }
 
-type shardFlush struct {
-	time  xtime.UnixNano
-	shard databaseShard
+type shardFlushes map[shardFlushKey]databaseShard
+
+type shardFlushKey struct {
+	shardID    uint32
+	blockStart xtime.UnixNano
 }
 
 type flushManagerMetrics struct {
@@ -186,24 +186,24 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 	// If index is enabled, then a shard+blockStart is "flushed" if the data AND index has been flushed.
 	for _, n := range namespaces {
 		var (
-			indexEnabled  = n.Options().IndexOptions().Enabled()
-			flushedShards map[shardFlush]bool
+			indexEnabled = n.Options().IndexOptions().Enabled()
+			flushed      shardFlushes
 		)
 		if indexEnabled {
 			flushesForNs, ok := indexFlushes[n.ID().String()]
 			if !ok {
 				continue
 			}
-			flushedShards = flushesForNs.shardFlushes
+			flushed = flushesForNs.shardFlushes
 		} else {
 			flushesForNs, ok := dataFlushes[n.ID().String()]
 			if !ok {
 				continue
 			}
-			flushedShards = flushesForNs.shardFlushes
+			flushed = flushesForNs.shardFlushes
 		}
 
-		for s := range flushedShards {
+		for k, v := range flushed {
 			// Block sizes for data and index can differ and so if we are driving the flushing by
 			// the index blockStarts, we must expand them to mark all containing data blockStarts.
 			// E.g. if blockSize == 2h and indexBlockSize == 4h and the flushed index time is 6:00pm,
@@ -211,11 +211,11 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 			if indexEnabled {
 				blockSize := n.Options().RetentionOptions().BlockSize()
 				indexBlockSize := n.Options().IndexOptions().BlockSize()
-				for start := s.time; start < s.time.Add(indexBlockSize); start = start.Add(blockSize) {
-					s.shard.MarkWarmFlushStateSuccessOrError(start, err)
+				for start := k.blockStart; start < k.blockStart.Add(indexBlockSize); start = start.Add(blockSize) {
+					v.MarkWarmFlushStateSuccessOrError(start, err)
 				}
 			} else {
-				s.shard.MarkWarmFlushStateSuccessOrError(s.time, err)
+				v.MarkWarmFlushStateSuccessOrError(k.blockStart, err)
 			}
 		}
 	}
@@ -431,7 +431,7 @@ func (m *flushManager) flushNamespaceWithTimes(
 	times []xtime.UnixNano,
 	flushPreparer persist.FlushPreparer,
 ) (namespaceFlush, error) {
-	flushes := make(map[shardFlush]bool, 0)
+	flushes := make(shardFlushes, 0)
 	multiErr := xerrors.NewMultiError()
 	for _, t := range times {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
@@ -441,13 +441,14 @@ func (m *flushManager) flushNamespaceWithTimes(
 			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v",
 				ns.ID().String(), err)
 			multiErr = multiErr.Add(detailedErr)
-		} else {
-			for _, s := range shards {
-				flushes[shardFlush{
-					shard: s,
-					time:  t,
-				}] = true
-			}
+			continue
+		}
+
+		for _, s := range shards {
+			flushes[shardFlushKey{
+				shardID:    s.ID(),
+				blockStart: t,
+			}] = s
 		}
 	}
 	return namespaceFlush{
