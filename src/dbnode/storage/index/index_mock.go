@@ -853,20 +853,6 @@ func (mr *MockOnIndexSeriesMockRecorder) IndexedForBlockStart(indexBlockStart in
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexedForBlockStart", reflect.TypeOf((*MockOnIndexSeries)(nil).IndexedForBlockStart), indexBlockStart)
 }
 
-// IsEmpty mocks base method.
-func (m *MockOnIndexSeries) IsEmpty() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsEmpty")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsEmpty indicates an expected call of IsEmpty.
-func (mr *MockOnIndexSeriesMockRecorder) IsEmpty() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmpty", reflect.TypeOf((*MockOnIndexSeries)(nil).IsEmpty))
-}
-
 // NeedsIndexUpdate mocks base method.
 func (m *MockOnIndexSeries) NeedsIndexUpdate(indexBlockStartForWrite time0.UnixNano) bool {
 	m.ctrl.T.Helper()
@@ -915,6 +901,21 @@ func (m *MockOnIndexSeries) OnIndexSuccess(blockStart time0.UnixNano) {
 func (mr *MockOnIndexSeriesMockRecorder) OnIndexSuccess(blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexSuccess", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexSuccess), blockStart)
+}
+
+// RelookupAndCheckIsEmpty mocks base method.
+func (m *MockOnIndexSeries) RelookupAndCheckIsEmpty() (bool, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RelookupAndCheckIsEmpty")
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// RelookupAndCheckIsEmpty indicates an expected call of RelookupAndCheckIsEmpty.
+func (mr *MockOnIndexSeriesMockRecorder) RelookupAndCheckIsEmpty() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RelookupAndCheckIsEmpty", reflect.TypeOf((*MockOnIndexSeries)(nil).RelookupAndCheckIsEmpty))
 }
 
 // MockBlock is a mock of Block interface.

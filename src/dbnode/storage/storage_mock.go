@@ -1951,6 +1951,22 @@ func (mr *MockShardMockRecorder) OpenStreamingReader(blockStart interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenStreamingReader", reflect.TypeOf((*MockShard)(nil).OpenStreamingReader), blockStart)
 }
 
+// TryRetrieveWritableSeries mocks base method.
+func (m *MockShard) TryRetrieveWritableSeries(id ident.ID) (*Entry, WritableSeriesOptions, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TryRetrieveWritableSeries", id)
+	ret0, _ := ret[0].(*Entry)
+	ret1, _ := ret[1].(WritableSeriesOptions)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// TryRetrieveWritableSeries indicates an expected call of TryRetrieveWritableSeries.
+func (mr *MockShardMockRecorder) TryRetrieveWritableSeries(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryRetrieveWritableSeries", reflect.TypeOf((*MockShard)(nil).TryRetrieveWritableSeries), id)
+}
+
 // MockdatabaseShard is a mock of databaseShard interface.
 type MockdatabaseShard struct {
 	ctrl     *gomock.Controller
@@ -2363,6 +2379,22 @@ func (m *MockdatabaseShard) Tick(c context.Cancellable, startTime time0.UnixNano
 func (mr *MockdatabaseShardMockRecorder) Tick(c, startTime, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseShard)(nil).Tick), c, startTime, nsCtx)
+}
+
+// TryRetrieveWritableSeries mocks base method.
+func (m *MockdatabaseShard) TryRetrieveWritableSeries(id ident.ID) (*Entry, WritableSeriesOptions, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TryRetrieveWritableSeries", id)
+	ret0, _ := ret[0].(*Entry)
+	ret1, _ := ret[1].(WritableSeriesOptions)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// TryRetrieveWritableSeries indicates an expected call of TryRetrieveWritableSeries.
+func (mr *MockdatabaseShardMockRecorder) TryRetrieveWritableSeries(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryRetrieveWritableSeries", reflect.TypeOf((*MockdatabaseShard)(nil).TryRetrieveWritableSeries), id)
 }
 
 // UpdateFlushStates mocks base method.

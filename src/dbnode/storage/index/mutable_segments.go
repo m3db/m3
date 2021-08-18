@@ -634,6 +634,9 @@ func (m *mutableSegments) backgroundCompactWithTask(
 				// we open up a race condition where the entry is not
 				// in the shard yet and we GC it since we can't find it
 				// due to an asynchronous insert.
+				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+					l.Error("unexpected checking series entry does not exist")
+				})
 				return true
 			}
 
