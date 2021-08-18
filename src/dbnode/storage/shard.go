@@ -601,8 +601,6 @@ func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn)
 			return
 		}
 	}
-
-	return
 }
 
 func (s *dbShard) IsBootstrapped() bool {
