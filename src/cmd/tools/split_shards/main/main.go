@@ -265,6 +265,7 @@ func verifySplitShards(
 		return fmt.Errorf("unable to open srcReader: %w", err)
 	}
 
+	dstEntries := 0
 	for i := range dstReaders {
 		dstReadOpts := fs.DataReaderOpenOptions{
 			Identifier: fs.FileSetFileIdentifier{
@@ -279,6 +280,11 @@ func verifySplitShards(
 		if err := dstReaders[i].Open(dstReadOpts); err != nil {
 			return fmt.Errorf("unable to open dstReaders[%d]: %w", i, err)
 		}
+		dstEntries += dstReaders[i].Entries()
+	}
+
+	if srcReader.Entries() != dstEntries {
+		return fmt.Errorf("entry count mismatch: src %d != dst %d", srcReader.Entries(), dstEntries)
 	}
 
 	for {
