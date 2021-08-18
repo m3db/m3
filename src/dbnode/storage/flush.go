@@ -431,7 +431,7 @@ func (m *flushManager) flushNamespaceWithTimes(
 	times []xtime.UnixNano,
 	flushPreparer persist.FlushPreparer,
 ) (namespaceFlush, error) {
-	flushes := make(shardFlushes, 0)
+	flushes := make(shardFlushes)
 	multiErr := xerrors.NewMultiError()
 	for _, t := range times {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.

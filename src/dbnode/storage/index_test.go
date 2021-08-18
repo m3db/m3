@@ -842,7 +842,7 @@ func verifyFlushForShards(
 		persistCalledTimes   int
 		actualDocs           = make([]doc.Metadata, 0)
 		expectedDocs         = make([]doc.Metadata, 0)
-		expectedShardFlushes = make(shardFlushes, 0)
+		expectedShardFlushes = make(shardFlushes)
 	)
 	// NB(bodu): Always align now w/ the index's view of now.
 	idx.nowFn = func() time.Time {

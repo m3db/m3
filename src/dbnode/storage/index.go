@@ -1039,7 +1039,7 @@ func (i *nsIndex) WarmFlush(
 	defer i.metrics.flushIndexingConcurrency.Update(0)
 
 	var evicted int
-	flushes := make(shardFlushes, 0)
+	flushes := make(shardFlushes)
 	for _, block := range flushable {
 		immutableSegments, err := i.flushBlock(flush, block, shards, builder)
 		if err != nil {

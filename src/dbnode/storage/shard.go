@@ -445,7 +445,7 @@ func (s *dbShard) OnRetrieveBlock(
 	nsCtx namespace.Context,
 ) {
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(id)
+	entry, err := s.lookupEntryWithLock(id)
 	if entry != nil {
 		entry.IncrementReaderWriterCount()
 		defer entry.DecrementReaderWriterCount()
@@ -499,7 +499,7 @@ func (s *dbShard) OnRetrieveBlock(
 
 func (s *dbShard) OnEvictedFromWiredList(id ident.ID, blockStart xtime.UnixNano) {
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(id)
+	entry, err := s.lookupEntryWithLock(id)
 	s.RUnlock()
 
 	if err != nil && err != errShardEntryNotFound {
@@ -523,8 +523,8 @@ func (s *dbShard) OnEvictedFromWiredList(id ident.ID, blockStart xtime.UnixNano)
 	entry.Series.OnEvictedFromWiredList(id, blockStart)
 }
 
-func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
-	return s.forEachShardEntryBatch(func(currEntries []*Entry) bool {
+func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) {
+	s.forEachShardEntryBatch(func(currEntries []*Entry) bool {
 		for _, entry := range currEntries {
 			if continueForEach := entryFn(entry); !continueForEach {
 				return false
@@ -542,7 +542,7 @@ func iterateBatchSize(elemsLen int) int {
 	return int(math.Max(shardIterateBatchMinSize, t))
 }
 
-func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn) error {
+func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn) {
 	// NB(r): consider using a lockless list for ticking.
 	s.RLock()
 	elemsLen := s.list.Len()
@@ -598,11 +598,11 @@ func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn)
 		currEntries = currEntries[:0]
 		if !continueExecution {
 			decRefElem(nextElem)
-			return nil
+			return
 		}
 	}
 
-	return nil
+	return
 }
 
 func (s *dbShard) IsBootstrapped() bool {
@@ -1066,7 +1066,7 @@ func (s *dbShard) ReadEncoded(
 	nsCtx namespace.Context,
 ) (series.BlockReaderIter, error) {
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(id)
+	entry, err := s.lookupEntryWithLock(id)
 	if entry != nil {
 		// NB(r): Ensure readers have consistent view of this series, do
 		// not expire the series while being read from.
@@ -1111,17 +1111,17 @@ func (s *dbShard) FetchWideEntry(
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
-func (s *dbShard) lookupEntryWithLock(id ident.ID) (*Entry, *list.Element, error) {
+func (s *dbShard) lookupEntryWithLock(id ident.ID) (*Entry, error) {
 	if s.state != dbShardStateOpen {
 		// NB(r): Return an invalid params error here so any upstream
 		// callers will not retry this operation
-		return nil, nil, xerrors.NewInvalidParamsError(errShardNotOpen)
+		return nil, xerrors.NewInvalidParamsError(errShardNotOpen)
 	}
 	elem, exists := s.lookup.Get(id)
 	if !exists {
-		return nil, nil, errShardEntryNotFound
+		return nil, errShardEntryNotFound
 	}
-	return elem.Value.(*Entry), elem, nil
+	return elem.Value.(*Entry), nil
 }
 
 func (s *dbShard) writableSeries(id ident.ID, tagResolver convert.TagMetadataResolver) (*Entry, error) {
@@ -1161,7 +1161,7 @@ func (s *dbShard) TryRetrieveWritableSeries(id ident.ID) (
 	opts := WritableSeriesOptions{
 		WriteNewSeriesAsync: s.currRuntimeOptions.writeNewSeriesAsync,
 	}
-	if entry, _, err := s.lookupEntryWithLock(id); err == nil {
+	if entry, err := s.lookupEntryWithLock(id); err == nil {
 		entry.IncrementReaderWriterCount()
 		s.RUnlock()
 		return entry, opts, nil
@@ -1359,7 +1359,7 @@ func (s *dbShard) insertSeriesSync(
 		}
 	}()
 
-	existingEntry, _, err := s.lookupEntryWithLock(id)
+	existingEntry, err := s.lookupEntryWithLock(id)
 	if err != nil && err != errShardEntryNotFound {
 		// Shard not taking inserts likely.
 		return nil, err
@@ -1444,7 +1444,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// i.e. we don't have a ref on provided entry, so we check if between the operation being
 		// enqueue in the shard insert queue, and this function executing, an entry was created
 		// for the same ID.
-		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.Series.ID())
+		entry, err := s.lookupEntryWithLock(inserts[i].entry.Series.ID())
 		if entry != nil {
 			// Already exists so update the entry we're pointed at for this insert.
 			inserts[i].entry = entry
@@ -1578,7 +1578,7 @@ func (s *dbShard) FetchBlocks(
 	nsCtx namespace.Context,
 ) ([]block.FetchBlockResult, error) {
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(id)
+	entry, err := s.lookupEntryWithLock(id)
 	if entry != nil {
 		// NB(r): Ensure readers have consistent view of this series, do
 		// not expire the series while being read from.
@@ -1619,7 +1619,7 @@ func (s *dbShard) FetchBlocksForColdFlush(
 	nsCtx namespace.Context,
 ) (block.FetchBlockResult, error) {
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(seriesID)
+	entry, err := s.lookupEntryWithLock(seriesID)
 	s.RUnlock()
 	if entry == nil || err != nil {
 		return block.FetchBlockResult{}, err
@@ -2646,7 +2646,7 @@ func (s *dbShard) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 	s.RLock()
 	defer s.RUnlock()
 
-	entry, _, err := s.lookupEntryWithLock(id)
+	entry, err := s.lookupEntryWithLock(id)
 	if err == nil {
 		return entry.Series.Metadata(), true, nil
 	}
