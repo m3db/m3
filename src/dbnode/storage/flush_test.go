@@ -371,15 +371,15 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
+	s1.EXPECT().ID().Return(uint32(1)).AnyTimes()
+	s2.EXPECT().ID().Return(uint32(2)).AnyTimes()
 
 	// Validate that the flush state is marked as successful only AFTER all prequisite steps have been run.
 	// Order is important to avoid any edge case where data is GCed from memory without all flushing operations
 	// being completed.
 	mockFlushedShards := shardFlushes{
 		shardFlushKey{shardID: s1.ID(), blockStart: xtime.Now().Add(time.Minute * 1)}: s1,
-		shardFlushKey{shardID: s1.ID(), blockStart: xtime.Now().Add(time.Minute * 2)}: s1,
 		shardFlushKey{shardID: s2.ID(), blockStart: xtime.Now().Add(time.Minute * 1)}: s2,
-		shardFlushKey{shardID: s2.ID(), blockStart: xtime.Now().Add(time.Minute * 2)}: s2,
 	}
 	steps := make([]*gomock.Call, 0)
 	steps = append(steps,
@@ -387,8 +387,6 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 		ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes(),
 		ns.EXPECT().FlushIndex(gomock.Any()).Return(mockFlushedShards, nil),
 		s1.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil),
-		s1.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil),
-		s2.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil),
 		s2.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil),
 	)
 	gomock.InOrder(steps...)
