@@ -18,14 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package dbnode
+package storage
 
 import (
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -37,7 +36,7 @@ import (
 )
 
 func TestEntryIndexAttemptRotatesSlice(t *testing.T) {
-	e := storage.NewEntry(storage.NewEntryOptions{})
+	e := NewEntry(NewEntryOptions{})
 	for i := 0; i < 10; i++ {
 		ti := newTime(i)
 		require.True(t, e.NeedsIndexUpdate(ti))
@@ -55,7 +54,7 @@ func TestEntryIndexSeriesRef(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	now := time.Now()
 	blockStart := newTime(0)
-	mockIndexWriter := storage.NewMockIndexWriter(ctrl)
+	mockIndexWriter := NewMockIndexWriter(ctrl)
 	mockIndexWriter.EXPECT().BlockStartForWriteTime(blockStart).
 		Return(blockStart).
 		Times(2)
@@ -71,7 +70,7 @@ func TestEntryIndexSeriesRef(t *testing.T) {
 		series.WriteOptions{},
 	).Return(true, series.WarmWrite, nil)
 
-	e := storage.NewEntry(storage.NewEntryOptions{
+	e := NewEntry(NewEntryOptions{
 		Series:      mockSeries,
 		IndexWriter: mockIndexWriter,
 		NowFn: func() time.Time {
