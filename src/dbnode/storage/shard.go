@@ -1997,7 +1997,7 @@ func (s *dbShard) UpdateFlushStates() {
 		// within the range of a given index blockStart
 		for at := blockStart; at < blockStart.Add(indexBlockSize); at = at.Add(blockSize) {
 			currState := s.flushStateNoBootstrapCheck(at)
-			if currState.WarmStatus.DataFlushed != fileOpSuccess {
+			if currState.WarmStatus.IndexFlushed != fileOpSuccess {
 				s.markWarmIndexFlushStateSuccess(at)
 			}
 		}
