@@ -492,11 +492,6 @@ clean: clean-build
 
 .DEFAULT_GOAL := all
 
-linter: $(tools_bin_path)/linter
-
-$(tools_bin_path)/linter:
-	GOBIN=$(tools_bin_path) go install -tags linter ./src/cmd/tools/linter
-
-lint: install-tools linter
+lint: install-tools
 	@echo "--- :golang: Running linter on 'src'"
 	./scripts/run-ci-lint.sh $(tools_bin_path)/golangci-lint ./src/...
