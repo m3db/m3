@@ -26,9 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/metric"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSameIDMultiTypeWithStagedMetadatas(t *testing.T) {
@@ -86,9 +87,8 @@ func testSameIDMultiType(t *testing.T, metadataFn metadataFn) {
 		stop     = start.Add(10 * time.Second)
 		interval = time.Second
 	)
-	client := testServer.newClient()
+	client := testServer.newClient(t)
 	require.NoError(t, client.connect())
-	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
 	metricTypeFn := func(ts time.Time, idx int) metric.Type {
@@ -135,9 +135,11 @@ func testSameIDMultiType(t *testing.T, metadataFn metadataFn) {
 
 	// Move time forward and wait for ticking to happen. The sleep time
 	// must be the longer than the lowest resolution across all policies.
-	finalTime := stop.Add(time.Second)
+	finalTime := stop.Add(6 * time.Second)
 	clock.SetNow(finalTime)
 	time.Sleep(4 * time.Second)
+
+	require.NoError(t, client.close())
 
 	// Stop the server.
 	require.NoError(t, testServer.stopServer())

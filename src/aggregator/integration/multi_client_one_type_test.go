@@ -27,9 +27,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/metric"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMultiClientOneTypeWithStagedMetadatas(t *testing.T) {
@@ -89,9 +90,8 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 		clients    = make([]*client, numClients)
 	)
 	for i := 0; i < numClients; i++ {
-		clients[i] = testServer.newClient()
+		clients[i] = testServer.newClient(t)
 		require.NoError(t, clients[i].connect())
-		defer clients[i].close()
 	}
 
 	ids := generateTestIDs(idPrefix, numIDs)
@@ -123,9 +123,13 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 
 	// Move time forward and wait for ticking to happen. The sleep time
 	// must be the longer than the lowest resolution across all policies.
-	finalTime := stop.Add(time.Second)
+	finalTime := stop.Add(6 * time.Second)
 	clock.SetNow(finalTime)
 	time.Sleep(4 * time.Second)
+
+	for i := 0; i < numClients; i++ {
+		require.NoError(t, clients[i].close())
+	}
 
 	// Stop the server.
 	require.NoError(t, testServer.stopServer())

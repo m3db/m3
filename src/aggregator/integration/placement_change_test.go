@@ -138,10 +138,10 @@ func TestPlacementChange(t *testing.T) {
 			SetClockOptions(clock.Options()).
 			SetInstrumentOptions(instrumentOpts).
 			SetElectionCluster(electionCluster).
+			SetRawTCPAddr(mss.rawTCPAddr).
 			SetHTTPAddr(mss.httpAddr).
 			SetInstanceID(initialInstanceConfig[i].instanceID).
 			SetKVStore(kvStore).
-			SetRawTCPAddr(mss.rawTCPAddr).
 			SetShardSetID(initialInstanceConfig[i].shardSetID).
 			SetShardFn(shardFn).
 			SetClientConnectionOptions(connectionOpts)
@@ -159,7 +159,7 @@ func TestPlacementChange(t *testing.T) {
 	// Create clients for writing to the servers.
 	clients := make([]*client, 0, len(servers))
 	for _, server := range servers {
-		client := server.newClient()
+		client := server.newClient(t)
 		require.NoError(t, client.connect())
 		clients = append(clients, client)
 	}
@@ -255,15 +255,15 @@ func TestPlacementChange(t *testing.T) {
 	clock.SetNow(finalTime)
 	time.Sleep(sleepDuration)
 
+	// Stop the clients.
+	for _, client := range clients {
+		require.NoError(t, client.close())
+	}
+
 	// Stop the servers.
 	for i, server := range servers {
 		require.NoError(t, server.stopServer())
 		log.Sugar().Infof("server %d is now down", i)
-	}
-
-	// Stop the clients.
-	for _, client := range clients {
-		client.close()
 	}
 
 	actual := make([]aggregated.MetricWithStoragePolicy, 0)

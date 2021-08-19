@@ -79,9 +79,8 @@ func TestOneClientMultiTypeTimedMetrics(t *testing.T) {
 		stop     = start.Add(10 * time.Second)
 		interval = 2 * time.Second
 	)
-	client := testServer.newClient()
+	client := testServer.newClient(t)
 	require.NoError(t, client.connect())
-	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
 	testTimedMetadataTemplate := metadata.TimedMetadata{
@@ -120,6 +119,8 @@ func TestOneClientMultiTypeTimedMetrics(t *testing.T) {
 	finalTime := stop.Add(time.Minute + 2*time.Second)
 	clock.SetNow(finalTime)
 	time.Sleep(2 * time.Second)
+
+	require.NoError(t, client.close())
 
 	// Stop the server.
 	require.NoError(t, testServer.stopServer())

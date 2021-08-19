@@ -159,10 +159,10 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			SetClockOptions(clock.Options()).
 			SetInstrumentOptions(instrumentOpts).
 			SetElectionCluster(electionCluster).
+			SetRawTCPAddr(mss.rawTCPAddr).
 			SetHTTPAddr(mss.httpAddr).
 			SetInstanceID(mss.instanceConfig.instanceID).
 			SetKVStore(kvStore).
-			SetRawTCPAddr(mss.rawTCPAddr).
 			SetShardFn(shardFn).
 			SetShardSetID(mss.instanceConfig.shardSetID).
 			SetClientConnectionOptions(connectionOpts).
@@ -182,7 +182,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	// Create clients for writing to the servers.
 	clients := make([]*client, 0, len(servers))
 	for _, server := range servers {
-		client := server.newClient()
+		client := server.newClient(t)
 		require.NoError(t, client.connect())
 		clients = append(clients, client)
 	}
@@ -321,15 +321,15 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		time.Sleep(time.Second)
 	}
 
+	// Stop the clients.
+	for _, client := range clients {
+		require.NoError(t, client.close())
+	}
+
 	// Stop the servers.
 	for i, server := range servers {
 		require.NoError(t, server.stopServer())
 		log.Sugar().Infof("server %d is now down", i)
-	}
-
-	// Stop the clients.
-	for _, client := range clients {
-		client.close()
 	}
 
 	// Validate results.

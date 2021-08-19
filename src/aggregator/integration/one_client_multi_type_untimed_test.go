@@ -84,9 +84,8 @@ func testOneClientMultiType(t *testing.T, metadataFn metadataFn) {
 		stop     = start.Add(4 * time.Second)
 		interval = 2 * time.Second
 	)
-	client := testServer.newClient()
+	client := testServer.newClient(t)
 	require.NoError(t, client.connect())
-	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
 	dataset := mustGenerateTestDataset(t, datasetGenOpts{
@@ -112,9 +111,11 @@ func testOneClientMultiType(t *testing.T, metadataFn metadataFn) {
 
 	// Move time forward and wait for ticking to happen. The sleep time
 	// must be the longer than the lowest resolution across all policies.
-	finalTime := stop.Add(time.Second)
+	finalTime := stop.Add(6 * time.Second)
 	clock.SetNow(finalTime)
 	time.Sleep(4 * time.Second)
+
+	require.NoError(t, client.close())
 
 	// Stop the server.
 	require.NoError(t, testServer.stopServer())

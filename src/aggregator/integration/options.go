@@ -39,7 +39,7 @@ const (
 	defaultServerStateChangeTimeout   = 5 * time.Second
 	defaultClientBatchSize            = 1440
 	defaultWorkerPoolSize             = 4
-	defaultInstanceID                 = "localhost"
+	defaultInstanceID                 = defaultRawTCPAddr
 	defaultPlacementKVKey             = "/placement"
 	defaultElectionKeyFmt             = "/shardset/%d/lock"
 	defaultFlushTimesKeyFmt           = "/shardset/%d/flush"
@@ -222,6 +222,7 @@ func newTestServerOptions() testServerOptions {
 		SetCounterTypeStringTransformFn(aggregation.EmptyTransform).
 		SetTimerTypeStringTransformFn(aggregation.SuffixTransform).
 		SetGaugeTypeStringTransformFn(aggregation.EmptyTransform)
+	connOpts := aggclient.NewConnectionOptions().SetWriteTimeout(time.Second)
 	return &serverOptions{
 		rawTCPAddr:                  defaultRawTCPAddr,
 		httpAddr:                    defaultHTTPAddr,
@@ -238,7 +239,7 @@ func newTestServerOptions() testServerOptions {
 		serverStateChangeTimeout:    defaultServerStateChangeTimeout,
 		workerPoolSize:              defaultWorkerPoolSize,
 		clientBatchSize:             defaultClientBatchSize,
-		clientConnectionOpts:        aggclient.NewConnectionOptions(),
+		clientConnectionOpts:        connOpts,
 		electionStateChangeTimeout:  defaultElectionStateChangeTimeout,
 		jitterEnabled:               defaultJitterEnabled,
 		entryCheckInterval:          defaultEntryCheckInterval,

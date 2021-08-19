@@ -30,6 +30,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
@@ -48,9 +51,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
 	xsync "github.com/m3db/m3/src/x/sync"
-
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 var (
@@ -63,6 +63,7 @@ type testServerSetup struct {
 	m3msgAddr        string
 	rawTCPAddr       string
 	httpAddr         string
+	clientOptions    aggclient.Options
 	m3msgServerOpts  m3msgserver.Options
 	rawTCPServerOpts rawtcpserver.Options
 	httpServerOpts   httpserver.Options
@@ -114,19 +115,23 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 
 	// Set up placement manager.
 	placementWatcherOpts := placement.NewWatcherOptions().
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetStagedPlacementKey(opts.PlacementKVKey()).
 		SetStagedPlacementStore(opts.KVStore())
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetInstanceID(opts.InstanceID()).
 		SetWatcherOptions(placementWatcherOpts)
 	placementManager := aggregator.NewPlacementManager(placementManagerOpts)
 	aggregatorOpts = aggregatorOpts.
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetShardFn(opts.ShardFn()).
 		SetPlacementManager(placementManager)
 
 	// Set up flush times manager.
 	flushTimesManagerOpts := aggregator.NewFlushTimesManagerOptions().
 		SetClockOptions(clockOpts).
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFlushTimesKeyFmt(opts.FlushTimesKeyFmt()).
 		SetFlushTimesStore(opts.KVStore())
 	flushTimesManager := aggregator.NewFlushTimesManager(flushTimesManagerOpts)
@@ -145,6 +150,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	leaderService := electionCluster.LeaderService()
 	electionManagerOpts := aggregator.NewElectionManagerOptions().
 		SetClockOptions(clockOpts).
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetCampaignOptions(campaignOpts).
 		SetElectionKeyFmt(opts.ElectionKeyFmt()).
 		SetLeaderService(leaderService).
@@ -156,6 +162,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	// Set up flush manager.
 	flushManagerOpts := aggregator.NewFlushManagerOptions().
 		SetClockOptions(clockOpts).
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionManager).
@@ -178,6 +185,8 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	require.True(t, ok)
 	require.NoError(t, adminClient.Init())
 	aggregatorOpts = aggregatorOpts.SetAdminClient(adminClient)
+
+	testClientOpts := clientOpts.SetAggregatorClientType(aggclient.TCPAggregatorClient)
 
 	// Set up the handler.
 	var (
@@ -222,6 +231,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		opts:             opts,
 		rawTCPAddr:       opts.RawTCPAddr(),
 		httpAddr:         opts.HTTPAddr(),
+		clientOptions:    testClientOpts,
 		rawTCPServerOpts: rawTCPServerOpts,
 		m3msgServerOpts:  m3msgServerOpts,
 		httpServerOpts:   httpServerOpts,
@@ -239,9 +249,12 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	}
 }
 
-func (ts *testServerSetup) newClient() *client {
-	connectTimeout := ts.opts.ClientConnectionOptions().ConnectionTimeout()
-	return newClient(ts.rawTCPAddr, ts.opts.ClientBatchSize(), connectTimeout)
+func (ts *testServerSetup) newClient(t *testing.T) *client {
+	testClient, err := aggclient.NewClient(ts.clientOptions)
+	require.NoError(t, err)
+	testAdminClient, ok := testClient.(aggclient.AdminClient)
+	require.True(t, ok)
+	return newClient(testAdminClient)
 }
 
 func (ts *testServerSetup) getStatusResponse(path string, response interface{}) error {
