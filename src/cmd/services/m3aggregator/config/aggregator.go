@@ -177,6 +177,13 @@ type AggregatorConfiguration struct {
 
 	// TimedMetricsFlushOffsetEnabled enables using FlushOffset for timed metrics.
 	TimedMetricsFlushOffsetEnabled bool `yaml:"timedMetricsFlushOffsetEnabled"`
+
+	// FeatureFlags are feature flags to apply.
+	FeatureFlags aggregator.FeatureFlagConfigurations `yaml:"featureFlags"`
+
+	// WritesIgnoreCutoffCutover allows accepting writes ignoring cutoff/cutover timestamp.
+	// Must be in sync with m3msg WriterConfiguration.IgnoreCutoffCutover.
+	WritesIgnoreCutoffCutover bool `yaml:"writesIgnoreCutoffCutover"`
 }
 
 // InstanceIDType is the instance ID type that defines how the
@@ -263,12 +270,14 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		SetRuntimeOptionsManager(runtimeOptsManager).
 		SetVerboseErrors(c.VerboseErrors).
 		SetAddToReset(c.AddToReset).
-		SetTimedMetricsFlushOffsetEnabled(c.TimedMetricsFlushOffsetEnabled)
+		SetTimedMetricsFlushOffsetEnabled(c.TimedMetricsFlushOffsetEnabled).
+		SetFeatureFlagBundlesParsed(c.FeatureFlags.Parse())
 
 	rwOpts := serveOpts.RWOptions()
 	if rwOpts == nil {
 		rwOpts = xio.NewOptions()
 	}
+
 	// Set the aggregation types options.
 	aggTypesOpts, err := c.AggregationTypes.NewOptions(instrumentOpts)
 	if err != nil {
@@ -482,6 +491,9 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	entryPool.Init(func() *aggregator.Entry {
 		return aggregator.NewEntryWithMetrics(nil, metrics, runtimeOpts, opts)
 	})
+
+	opts = opts.SetWritesIgnoreCutoffCutover(c.WritesIgnoreCutoffCutover)
+
 	return opts, nil
 }
 

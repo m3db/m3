@@ -160,6 +160,12 @@ func newReplicatedShardWriter(
 
 func (w *replicatedShardWriter) Write(rm *producer.RefCountedMessage) {
 	w.RLock()
+	if len(w.messageWriters) == 0 {
+		w.RUnlock()
+		w.m.noWritersError.Inc(1)
+		w.logger.Error("no message writers available for shard", zap.Uint32("shard", rm.Shard()))
+		return
+	}
 	for _, mw := range w.messageWriters {
 		mw.Write(rm)
 	}

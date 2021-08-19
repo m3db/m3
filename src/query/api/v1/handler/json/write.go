@@ -26,8 +26,8 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
@@ -44,7 +44,7 @@ import (
 
 const (
 	// WriteJSONURL is the url for the write json handler
-	WriteJSONURL = handler.RoutePrefixV1 + "/json/write"
+	WriteJSONURL = route.Prefix + "/json/write"
 
 	// JSONWriteHTTPMethod is the HTTP method used with this resource.
 	JSONWriteHTTPMethod = http.MethodPost
@@ -116,7 +116,7 @@ func (h *WriteJSONHandler) newWriteQuery(req *WriteQuery) (*storage.WriteQuery, 
 		Tags: tags,
 		Datapoints: ts.Datapoints{
 			{
-				Timestamp: parsedTime,
+				Timestamp: xtime.ToUnixNano(parsedTime),
 				Value:     req.Value,
 			},
 		},

@@ -140,6 +140,9 @@ type Configuration struct {
 	// RPC is the RPC configuration.
 	RPC *RPCConfiguration `yaml:"rpc"`
 
+	// HTTP is the HTTP configuration.
+	HTTP HTTPConfiguration `yaml:"http"`
+
 	// Backend is the backend store for query service. We currently support grpc and m3db (default).
 	Backend BackendStorageType `yaml:"backend"`
 
@@ -163,6 +166,9 @@ type Configuration struct {
 
 	// Carbon is the carbon configuration.
 	Carbon *CarbonConfiguration `yaml:"carbon"`
+
+	// Middleware is middleware-specific configuration.
+	Middleware MiddlewareConfiguration `yaml:"middleware"`
 
 	// Query is the query configuration.
 	Query QueryConfiguration `yaml:"query"`
@@ -363,10 +369,26 @@ type PerQueryLimitsConfiguration struct {
 	// service.
 	MaxFetchedSeries int `yaml:"maxFetchedSeries"`
 
+	// InstanceMultiple increases the per database instance series limit.
+	// The series limit per database instance is calculated as:
+	//
+	// InstanceSeriesLimit = MaxFetchesSeries / (instances per replica) * InstanceMultiple.
+	//
+	// A value > 1 allows a buffer in case data is not uniformly sharded across instances in a replica.
+	// If set to 0 the feature is disabled and the MaxFetchedSeries is used as the limit for database instance.
+	// For large clusters, enabling this feature can dramatically decrease the amount of wasted series read from a
+	// single database instance.
+	InstanceMultiple float32 `yaml:"instanceMultiple"`
+
 	// MaxFetchedDocs limits the number of index documents matched for any given
 	// individual storage node per query, before returning result to query
 	// service.
 	MaxFetchedDocs int `yaml:"maxFetchedDocs"`
+
+	// MaxFetchedRange limits the time range of index documents matched for any given
+	// individual storage node per query, before returning result to query
+	// service.
+	MaxFetchedRange time.Duration `yaml:"maxFetchedRange"`
 
 	// RequireExhaustive results in an error if the query exceeds any limit.
 	RequireExhaustive *bool `yaml:"requireExhaustive"`
@@ -392,7 +414,9 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handl
 
 	return handleroptions.FetchOptionsBuilderLimitsOptions{
 		SeriesLimit:       int(seriesLimit),
+		InstanceMultiple:  l.InstanceMultiple,
 		DocsLimit:         int(docsLimit),
+		RangeLimit:        l.MaxFetchedRange,
 		RequireExhaustive: requireExhaustive,
 	}
 }
@@ -459,6 +483,54 @@ type CarbonConfiguration struct {
 	// CompileEscapeAllNotOnlyQuotes will escape all characters when using a backslash
 	// in a quoted string rather than just reserving for escaping quotes.
 	CompileEscapeAllNotOnlyQuotes bool `yaml:"compileEscapeAllNotOnlyQuotes"`
+}
+
+// MiddlewareConfiguration is middleware-specific configuration.
+type MiddlewareConfiguration struct {
+	// Logging configures the logging middleware.
+	Logging LoggingMiddlewareConfiguration `yaml:"logging"`
+	// Metrics configures the metrics middleware.
+	Metrics MetricsMiddlewareConfiguration `yaml:"metrics"`
+	// Prometheus configures prometheus-related middleware.
+	Prometheus PrometheusMiddlewareConfiguration `yaml:"prometheus"`
+}
+
+// LoggingMiddlewareConfiguration configures the logging middleware.
+type LoggingMiddlewareConfiguration struct {
+	// Threshold defines the latency threshold for logging the response. If zero, the default of 1s is used. To disable
+	// response logging set Disabled.
+	Threshold time.Duration
+	// Disabled turns off response logging by default for endpoints.
+	Disabled bool
+}
+
+// MetricsMiddlewareConfiguration configures the metrics middleware.
+type MetricsMiddlewareConfiguration struct {
+	// LargeSeriesCountThreshold is the minimum number of series fetched by
+	// a query necessary to classify it as large.
+	LargeSeriesCountThreshold int `yaml:"largeSeriesCountThreshold"`
+	// LargeSeriesRangeThreshold is the minimum query range for a query necessary
+	// to classify it as large.
+	LargeSeriesRangeThreshold time.Duration `yaml:"largeSeriesRangeThreshold"`
+	// InspectQuerySize will tag query metrics as large if they exceed both of the
+	// given thresholds.
+	InspectQuerySize bool `yaml:"inspectQueries"`
+	// AddStatusToLatencies will add a tag with the query's response code to
+	// middleware latency metrics.
+	// NB: Setting this to true will increase cardinality by the number of
+	// expected response codes (likely around ~10).
+	AddStatusToLatencies bool `yaml:"addStatusToLatencies"`
+}
+
+// PrometheusMiddlewareConfiguration configures the range rewriting middleware.
+type PrometheusMiddlewareConfiguration struct {
+	// ResolutionMultiplier is the multiple that will be applied to the range if it's determined
+	// that it needs to be updated. If this value is greater than 0, the range in a query will be
+	// updated if the namespaces used to service the request have resolution(s)
+	// that are greater than the range. The range will be updated to the largest resolution
+	// of the namespaces to service the request * the multiplier specified here. If this multiplier
+	// is 0, then this feature is disabled.
+	ResolutionMultiplier int `yaml:"resolutionMultiplier"`
 }
 
 // CarbonIngesterConfiguration is the configuration struct for carbon ingestion.
@@ -655,6 +727,14 @@ type RPCConfiguration struct {
 	ReflectionEnabled bool `yaml:"reflectionEnabled"`
 }
 
+// HTTPConfiguration is the HTTP configuration for configuring
+// the HTTP server used by the coordinator to serve incoming requests.
+type HTTPConfiguration struct {
+	// EnableH2C enables support for the HTTP/2 cleartext protocol. H2C
+	// enables the use of HTTP/2 without requiring TLS.
+	EnableH2C bool `yaml:"enableH2C"`
+}
+
 // TagOptionsConfiguration is the configuration for shared tag options
 // Currently only name, but can expand to cover deduplication settings, or other
 // relevant options.
@@ -755,7 +835,7 @@ type MultiProcessConfiguration struct {
 	// PerCPU is the factor of processes to run per CPU, leave
 	// zero to use the default of 0.5 per CPU (i.e. one process for
 	// every two CPUs).
-	PerCPU float64 `yaml:"perCPU" validate:"min=0.0, max=0.0"`
+	PerCPU float64 `yaml:"perCPU" validate:"min=0.0, max=1.0"`
 	// GoMaxProcs if set will explicitly set the child GOMAXPROCs env var.
 	GoMaxProcs int `yaml:"goMaxProcs"`
 }

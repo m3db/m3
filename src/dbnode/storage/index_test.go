@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 	"testing"
 	"time"
 
@@ -60,13 +61,14 @@ func TestNamespaceIndexCleanupExpiredFilesets(t *testing.T) {
 		testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 
-	now := time.Now().Truncate(time.Hour)
+	now := xtime.Now().Truncate(time.Hour)
 	idx := nsIdx.(*nsIndex)
 
 	oldestTime := now.Add(-time.Hour * 8)
 	files := []string{"abc"}
 
-	idx.indexFilesetsBeforeFn = func(dir string, nsID ident.ID, exclusiveTime time.Time) ([]string, error) {
+	idx.indexFilesetsBeforeFn = func(
+		dir string, nsID ident.ID, exclusiveTime xtime.UnixNano) ([]string, error) {
 		require.True(t, oldestTime.Equal(exclusiveTime), fmt.Sprintf("%v %v", exclusiveTime, oldestTime))
 		return files, nil
 	}
@@ -85,7 +87,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 	require.NoError(t, err)
 
 	idx := nsIdx.(*nsIndex)
-	now := time.Now().Truncate(time.Hour)
+	now := xtime.Now().Truncate(time.Hour)
 	indexBlockSize := 2 * time.Hour
 	blockTime := now.Add(-2 * indexBlockSize)
 
@@ -105,7 +107,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 	infoFiles := []fs.ReadIndexInfoFileResult{
 		{
 			Info: indexpb.IndexVolumeInfo{
-				BlockStart: blockTime.UnixNano(),
+				BlockStart: int64(blockTime),
 				BlockSize:  int64(indexBlockSize),
 				Shards:     []uint32{0, 1, 2},
 				IndexVolumeType: &protobuftypes.StringValue{
@@ -116,7 +118,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 		},
 		{
 			Info: indexpb.IndexVolumeInfo{
-				BlockStart: blockTime.UnixNano(),
+				BlockStart: int64(blockTime),
 				BlockSize:  int64(indexBlockSize),
 				Shards:     []uint32{0, 1, 2},
 				IndexVolumeType: &protobuftypes.StringValue{
@@ -127,7 +129,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 		},
 		{
 			Info: indexpb.IndexVolumeInfo{
-				BlockStart: blockTime.UnixNano(),
+				BlockStart: int64(blockTime),
 				BlockSize:  int64(indexBlockSize),
 				Shards:     []uint32{0, 1, 2, 3},
 				IndexVolumeType: &protobuftypes.StringValue{
@@ -141,6 +143,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
+
 	idx.deleteFilesFn = func(s []string) error {
 		require.Equal(t, []string{fset1.Name(), fset2.Name()}, s)
 		multiErr := xerrors.NewMultiError()
@@ -153,11 +156,11 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 }
 
 func TestNamespaceIndexCleanupDuplicateFilesets_SortingByBlockStartAndVolumeType(t *testing.T) {
-	blockStart1 := time.Now().Truncate(2 * time.Hour)
+	blockStart1 := xtime.Now().Truncate(2 * time.Hour)
 	blockStart2 := blockStart1.Add(-2 * time.Hour)
 
 	filesets := []struct {
-		blockStart   time.Time
+		blockStart   xtime.UnixNano
 		volumeType   string
 		volumeIndex  int
 		shouldRemove bool
@@ -265,7 +268,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets_ChangingShardList(t *testing.T) 
 		},
 	}
 
-	blockStart := time.Now().Truncate(2 * time.Hour)
+	blockStart := xtime.Now().Truncate(2 * time.Hour)
 	expectedFilesToRemove := make([]string, 0)
 	infoFiles := make([]fs.ReadIndexInfoFileResult, 0)
 	for i, shardList := range shardLists {
@@ -316,7 +319,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets_IgnoreNonActiveShards(t *testing
 		},
 	}
 
-	blockStart := time.Now().Truncate(2 * time.Hour)
+	blockStart := xtime.Now().Truncate(2 * time.Hour)
 	expectedFilesToRemove := make([]string, 0)
 	infoFiles := make([]fs.ReadIndexInfoFileResult, 0)
 	for i, shardList := range shardLists {
@@ -367,7 +370,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets_NoActiveShards(t *testing.T) {
 		},
 	}
 
-	blockStart := time.Now().Truncate(2 * time.Hour)
+	blockStart := xtime.Now().Truncate(2 * time.Hour)
 	expectedFilesToRemove := make([]string, 0)
 	infoFiles := make([]fs.ReadIndexInfoFileResult, 0)
 	for i, shardList := range shardLists {
@@ -406,7 +409,7 @@ func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
 	require.NoError(t, err)
 
 	idx := nsIdx.(*nsIndex)
-	now := time.Now().Truncate(time.Hour)
+	now := xtime.Now().Truncate(time.Hour)
 	indexBlockSize := 2 * time.Hour
 	blockTime := now.Add(-2 * indexBlockSize)
 
@@ -424,7 +427,7 @@ func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
 	infoFiles := []fs.ReadIndexInfoFileResult{
 		{
 			Info: indexpb.IndexVolumeInfo{
-				BlockStart: blockTime.UnixNano(),
+				BlockStart: int64(blockTime),
 				BlockSize:  int64(indexBlockSize),
 				Shards:     []uint32{0, 1, 2},
 				IndexVolumeType: &protobuftypes.StringValue{
@@ -435,7 +438,7 @@ func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
 		},
 		{
 			Info: indexpb.IndexVolumeInfo{
-				BlockStart: blockTime.UnixNano(),
+				BlockStart: int64(blockTime),
 				BlockSize:  int64(indexBlockSize),
 				Shards:     []uint32{4},
 				IndexVolumeType: &protobuftypes.StringValue{
@@ -449,6 +452,7 @@ func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
 	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
+
 	idx.deleteFilesFn = func(s []string) error {
 		require.Equal(t, []string{}, s)
 		return nil
@@ -457,7 +461,7 @@ func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
 }
 
 func TestNamespaceIndexCleanupExpiredFilesetsWithBlocks(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	md := testNamespaceMetadata(time.Hour, time.Hour*8)
@@ -470,24 +474,108 @@ func TestNamespaceIndexCleanupExpiredFilesetsWithBlocks(t *testing.T) {
 		require.NoError(t, nsIdx.Close())
 	}()
 
-	now := time.Now().Truncate(time.Hour)
+	now := xtime.Now().Truncate(time.Hour)
 	idx := nsIdx.(*nsIndex)
 
 	mockBlock := index.NewMockBlock(ctrl)
 	mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	mockBlock.EXPECT().Close().Return(nil)
 	oldestTime := now.Add(-time.Hour * 9)
-	idx.state.blocksByTime[xtime.ToUnixNano(oldestTime)] = mockBlock
+	idx.state.blocksByTime[oldestTime] = mockBlock
 
-	idx.indexFilesetsBeforeFn = func(dir string, nsID ident.ID, exclusiveTime time.Time) ([]string, error) {
+	idx.indexFilesetsBeforeFn = func(
+		dir string, nsID ident.ID, exclusiveTime xtime.UnixNano) ([]string, error) {
 		require.True(t, exclusiveTime.Equal(oldestTime))
 		return nil, nil
 	}
 	require.NoError(t, idx.CleanupExpiredFileSets(now))
 }
 
+func TestNamespaceIndexCleanupCorruptedFilesets(t *testing.T) {
+	md := testNamespaceMetadata(time.Hour, time.Hour*24)
+	nsIdx, err := newNamespaceIndex(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, DefaultTestOptions())
+	require.NoError(t, err)
+
+	idx := nsIdx.(*nsIndex)
+	now := xtime.Now().Truncate(time.Hour)
+	indexBlockSize := 2 * time.Hour
+	var (
+		blockStarts = []xtime.UnixNano{
+			now.Add(-6 * indexBlockSize),
+			now.Add(-5 * indexBlockSize),
+			now.Add(-4 * indexBlockSize),
+			now.Add(-3 * indexBlockSize),
+			now.Add(-2 * indexBlockSize),
+			now.Add(-1 * indexBlockSize),
+		}
+		shards = []uint32{0, 1, 2} // has no effect on this test
+
+		volumeTypeDefault = "default"
+		volumeTypeExtra   = "extra"
+	)
+
+	filesetsForTest := []struct {
+		infoFile     fs.ReadIndexInfoFileResult
+		shouldRemove bool
+	}{
+		{newReadIndexInfoFileResult(blockStarts[0], volumeTypeDefault, 0, shards), false},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[0], volumeTypeDefault, 1), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[0], volumeTypeDefault, 2), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[0], volumeTypeExtra, 5), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[0], volumeTypeExtra, 6), false},
+		{newReadIndexInfoFileResult(blockStarts[0], volumeTypeDefault, 11, shards), false},
+
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[1], volumeTypeDefault, 1), false},
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[1], 3), true},
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[1], 4), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[1], volumeTypeExtra, 5), false},
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[1], 6), true},
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[1], 7), false},
+
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[2], 0), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[2], volumeTypeDefault, 1), true},
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[2], volumeTypeExtra, 2), true},
+		{newReadIndexInfoFileResult(blockStarts[2], volumeTypeDefault, 3, shards), false},
+		{newReadIndexInfoFileResult(blockStarts[2], volumeTypeExtra, 4, shards), false},
+
+		{newReadIndexInfoFileResult(blockStarts[3], volumeTypeDefault, 0, shards), false},
+
+		{newReadIndexInfoFileResultForCorruptedFileset(blockStarts[4], volumeTypeDefault, 0), false},
+
+		{newReadIndexInfoFileResultForCorruptedInfoFile(blockStarts[5], 0), false},
+	}
+
+	var (
+		infoFiles         = make([]fs.ReadIndexInfoFileResult, 0)
+		expectedFilenames = make([]string, 0)
+	)
+	for _, f := range filesetsForTest {
+		infoFiles = append(infoFiles, f.infoFile)
+		if f.shouldRemove {
+			expectedFilenames = append(expectedFilenames, f.infoFile.AbsoluteFilePaths...)
+		}
+	}
+
+	idx.readIndexInfoFilesFn = func(_ fs.ReadIndexInfoFilesOptions) []fs.ReadIndexInfoFileResult {
+		return infoFiles
+	}
+
+	deleteFilesFnInvoked := false
+	idx.deleteFilesFn = func(s []string) error {
+		sort.Strings(s)
+		sort.Strings(expectedFilenames)
+		require.Equal(t, expectedFilenames, s)
+		deleteFilesFnInvoked = true
+		return nil
+	}
+	require.NoError(t, idx.CleanupCorruptedFileSets())
+	require.True(t, deleteFilesFnInvoked)
+}
+
 func TestNamespaceIndexFlushSuccess(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	test := newTestIndex(t, ctrl)
@@ -508,7 +596,7 @@ func TestNamespaceIndexFlushSuccess(t *testing.T) {
 }
 
 func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	test := newTestIndex(t, ctrl)
@@ -529,12 +617,12 @@ func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
 }
 
 func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	test := newTestIndex(t, ctrl)
 
-	now := time.Now().Truncate(test.indexBlockSize)
+	now := xtime.Now().Truncate(test.indexBlockSize)
 	idx := test.index.(*nsIndex)
 
 	defer func() {
@@ -548,7 +636,7 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 	blockTime := now.Add(-2 * test.indexBlockSize)
 	mockBlock.EXPECT().StartTime().Return(blockTime).AnyTimes()
 	mockBlock.EXPECT().EndTime().Return(blockTime.Add(test.indexBlockSize)).AnyTimes()
-	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
+	idx.state.blocksByTime[blockTime] = mockBlock
 
 	mockBlock.EXPECT().IsSealed().Return(true)
 	mockBlock.EXPECT().Close().Return(nil)
@@ -556,21 +644,24 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 	mockShard := NewMockdatabaseShard(ctrl)
 	mockShard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	mockShard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{WarmStatus: fileOpFailed}, nil).AnyTimes()
+	mockShard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{WarmStatus: warmStatus{
+		IndexFlushed: fileOpFailed,
+	}}, nil).AnyTimes()
 	shards := []databaseShard{mockShard}
 
 	mockFlush := persist.NewMockIndexFlush(ctrl)
 
-	require.NoError(t, idx.WarmFlush(mockFlush, shards))
+	err := idx.WarmFlush(mockFlush, shards)
+	require.NoError(t, err)
 }
 
 func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	test := newTestIndex(t, ctrl)
 
-	now := time.Now().Truncate(test.indexBlockSize)
+	now := xtime.Now().Truncate(test.indexBlockSize)
 	query := index.Query{Query: idx.NewTermQuery([]byte("foo"), []byte("bar"))}
 	idx := test.index.(*nsIndex)
 
@@ -584,7 +675,7 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	mockBlock.EXPECT().StartTime().Return(blockTime).AnyTimes()
 	mockBlock.EXPECT().EndTime().Return(blockTime.Add(test.indexBlockSize)).AnyTimes()
 	mockBlock.EXPECT().Close().Return(nil)
-	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
+	idx.state.blocksByTime[blockTime] = mockBlock
 
 	ctx := context.NewBackground()
 	defer ctx.Close()
@@ -621,12 +712,12 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 }
 
 func TestNamespaceIndexQueryTimeout(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	test := newTestIndex(t, ctrl)
 
-	now := time.Now().Truncate(test.indexBlockSize)
+	now := xtime.Now().Truncate(test.indexBlockSize)
 	query := index.Query{Query: idx.NewTermQuery([]byte("foo"), []byte("bar"))}
 	idx := test.index.(*nsIndex)
 
@@ -663,7 +754,7 @@ func TestNamespaceIndexQueryTimeout(t *testing.T) {
 			return ctx.GoContext().Err()
 		})
 	mockBlock.EXPECT().Close().Return(nil)
-	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
+	idx.state.blocksByTime[blockTime] = mockBlock
 	idx.updateBlockStartsWithLock()
 
 	start := blockTime
@@ -681,12 +772,12 @@ func TestNamespaceIndexQueryTimeout(t *testing.T) {
 }
 
 func TestNamespaceIndexFlushSkipBootstrappingShards(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	test := newTestIndex(t, ctrl)
 
-	now := time.Now().Truncate(test.indexBlockSize)
+	now := xtime.Now().Truncate(test.indexBlockSize)
 	idx := test.index.(*nsIndex)
 
 	defer func() {
@@ -701,9 +792,9 @@ func TestNamespaceIndexFlushSkipBootstrappingShards(t *testing.T) {
 	mockBlock.EXPECT().StartTime().Return(blockTime).AnyTimes()
 	mockBlock.EXPECT().EndTime().Return(blockTime.Add(test.indexBlockSize)).AnyTimes()
 	mockBlock.EXPECT().NeedsColdMutableSegmentsEvicted().Return(true).AnyTimes()
-	mockBlock.EXPECT().RotateColdMutableSegments().Return().AnyTimes()
+	mockBlock.EXPECT().RotateColdMutableSegments().Return(nil).AnyTimes()
 	mockBlock.EXPECT().EvictColdMutableSegments().Return(nil).AnyTimes()
-	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
+	idx.state.blocksByTime[blockTime] = mockBlock
 
 	mockBlock.EXPECT().Close().Return(nil)
 
@@ -723,7 +814,9 @@ func TestNamespaceIndexFlushSkipBootstrappingShards(t *testing.T) {
 		mockShard.EXPECT().IsBootstrapped().Return(shardInfo.isBootstrapped).AnyTimes()
 		mockShard.EXPECT().ID().Return(shardInfo.id).AnyTimes()
 		if shardInfo.isBootstrapped {
-			mockShard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{WarmStatus: fileOpSuccess}, nil).AnyTimes()
+			mockShard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{WarmStatus: warmStatus{
+				IndexFlushed: fileOpSuccess,
+			}}, nil).AnyTimes()
 		}
 		shards = append(shards, mockShard)
 	}
@@ -743,7 +836,7 @@ func verifyFlushForShards(
 	var (
 		mockFlush          = persist.NewMockIndexFlush(ctrl)
 		shardMap           = make(map[uint32]struct{})
-		now                = time.Now()
+		now                = xtime.Now()
 		warmBlockStart     = now.Add(-idx.bufferPast).Truncate(idx.blockSize)
 		mockShards         []*MockdatabaseShard
 		dbShards           []databaseShard
@@ -755,7 +848,7 @@ func verifyFlushForShards(
 	)
 	// NB(bodu): Always align now w/ the index's view of now.
 	idx.nowFn = func() time.Time {
-		return now
+		return now.ToTime()
 	}
 	for _, shard := range shards {
 		mockShard := NewMockdatabaseShard(ctrl)
@@ -772,7 +865,7 @@ func verifyFlushForShards(
 		mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 		mockBlock.EXPECT().StartTime().Return(blockStart).AnyTimes()
 		mockBlock.EXPECT().EndTime().Return(blockStart.Add(idx.blockSize)).AnyTimes()
-		idx.state.blocksByTime[xtime.ToUnixNano(blockStart)] = mockBlock
+		idx.state.blocksByTime[blockStart] = mockBlock
 
 		mockBlock.EXPECT().Close().Return(nil)
 
@@ -814,8 +907,14 @@ func verifyFlushForShards(
 
 		for _, mockShard := range mockShards {
 			mockShard.EXPECT().IsBootstrapped().Return(true)
-			mockShard.EXPECT().FlushState(blockStart).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
-			mockShard.EXPECT().FlushState(blockStart.Add(blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
+			mockShard.EXPECT().FlushState(blockStart).Return(fileOpState{WarmStatus: warmStatus{
+				// Index flushing requires data flush already happened.
+				DataFlushed: fileOpSuccess,
+			}}, nil)
+			mockShard.EXPECT().FlushState(blockStart.Add(blockSize)).Return(fileOpState{WarmStatus: warmStatus{
+				// Index flushing requires data flush already happened.
+				DataFlushed: fileOpSuccess,
+			}}, nil)
 
 			resultsTags1 := ident.NewTagsIterator(ident.NewTags())
 			resultsTags2 := ident.NewTagsIterator(ident.NewTags())
@@ -837,34 +936,42 @@ func verifyFlushForShards(
 
 			mockShard.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockStart, blockStart.Add(idx.blockSize),
 				gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results, nil, nil)
+
+			// For a given index block, which in this test is 2x the size of a block, we expect that
+			// we mark as flushed 2 blockStarts that fall within the index block.
+			mockShard.EXPECT().MarkWarmIndexFlushStateSuccessOrError(blockStart, nil)
+			mockShard.EXPECT().MarkWarmIndexFlushStateSuccessOrError(blockStart.Add(blockSize), nil)
 		}
 
 		mockBlock.EXPECT().IsSealed().Return(true)
 		mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
 		mockBlock.EXPECT().EvictMutableSegments().Return(nil)
 	}
-	require.NoError(t, idx.WarmFlush(mockFlush, dbShards))
+	err := idx.WarmFlush(mockFlush, dbShards)
+	require.NoError(t, err)
 	require.Equal(t, numBlocks, persistClosedTimes)
 	require.Equal(t, numBlocks, persistCalledTimes)
 	require.Equal(t, expectedDocs, actualDocs)
 }
 
 func newReadIndexInfoFileResult(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	volumeType string,
 	volumeIndex int,
 	shards []uint32,
 ) fs.ReadIndexInfoFileResult {
 	filenames := []string{
-		fmt.Sprintf("fileset-%v-%v-segement-1.db", blockStart.UnixNano(), volumeIndex),
-		fmt.Sprintf("fileset-%v-%v-segement-2.db", blockStart.UnixNano(), volumeIndex),
+		// TODO: this may be an error/
+		fmt.Sprintf("fileset-%v-%v-segement-1.db", blockStart, volumeIndex),
+		fmt.Sprintf("fileset-%v-%v-segement-2.db", blockStart, volumeIndex),
 	}
 	return fs.ReadIndexInfoFileResult{
 		ID: fs.FileSetFileIdentifier{
+			BlockStart:  blockStart,
 			VolumeIndex: volumeIndex,
 		},
 		Info: indexpb.IndexVolumeInfo{
-			BlockStart: blockStart.UnixNano(),
+			BlockStart: int64(blockStart),
 			BlockSize:  int64(2 * time.Hour),
 			Shards:     shards,
 			IndexVolumeType: &protobuftypes.StringValue{
@@ -872,7 +979,27 @@ func newReadIndexInfoFileResult(
 			},
 		},
 		AbsoluteFilePaths: filenames,
+		Corrupted:         false,
 	}
+}
+
+func newReadIndexInfoFileResultForCorruptedFileset(
+	blockStart xtime.UnixNano,
+	volumeType string,
+	volumeIndex int,
+) fs.ReadIndexInfoFileResult {
+	res := newReadIndexInfoFileResult(blockStart, volumeType, volumeIndex, []uint32{})
+	res.Corrupted = true
+	return res
+}
+
+func newReadIndexInfoFileResultForCorruptedInfoFile(
+	blockStart xtime.UnixNano,
+	volumeIndex int,
+) fs.ReadIndexInfoFileResult {
+	res := newReadIndexInfoFileResultForCorruptedFileset(blockStart, "", volumeIndex)
+	res.Info = indexpb.IndexVolumeInfo{}
+	return res
 }
 
 type testIndex struct {

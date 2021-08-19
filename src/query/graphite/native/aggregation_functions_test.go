@@ -443,6 +443,56 @@ func TestDivideSeriesLists(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestDivideSeriesListsWithUnsortedSeriesInput ensures that if input into
+// the function wasn't sorted as input that it becomes sorted before dividing
+// two series lists (to ensure deterministic results).
+func TestDivideSeriesListsWithUnsortedSeriesInput(t *testing.T) {
+	start := time.Now().Truncate(time.Minute).Add(-10 * time.Minute)
+	end := start.Add(5 * time.Minute)
+	ctx := common.NewContext(common.ContextOptions{Start: start, End: end})
+
+	dividend := []*ts.Series{
+		ts.NewSeries(ctx, "a", start,
+			ts.NewConstantValues(ctx, 1, 5, 60000)),
+		ts.NewSeries(ctx, "c", start,
+			ts.NewConstantValues(ctx, 3, 5, 60000)),
+		ts.NewSeries(ctx, "b", start,
+			ts.NewConstantValues(ctx, 2, 5, 60000)),
+	}
+
+	divisor := []*ts.Series{
+		ts.NewSeries(ctx, "b", start,
+			ts.NewConstantValues(ctx, 2, 5, 60000)),
+		ts.NewSeries(ctx, "a", start,
+			ts.NewConstantValues(ctx, 1, 5, 60000)),
+		ts.NewSeries(ctx, "d", start,
+			ts.NewConstantValues(ctx, 3, 5, 60000)),
+	}
+
+	actual, err := divideSeriesLists(ctx, singlePathSpec{
+		Values: dividend,
+	}, singlePathSpec{
+		Values: divisor,
+	})
+	require.Nil(t, err)
+	expected := []common.TestSeries{
+		{
+			Name: "divideSeries(a,a)",
+			Data: []float64{1, 1, 1, 1, 1},
+		},
+		{
+			Name: "divideSeries(b,b)",
+			Data: []float64{1, 1, 1, 1, 1},
+		},
+		{
+			Name: "divideSeries(c,d)",
+			Data: []float64{1, 1, 1, 1, 1},
+		},
+	}
+
+	common.CompareOutputsAndExpected(t, 60000, start, expected, actual.Values)
+}
+
 //nolint:govet
 func TestAverageSeriesWithWildcards(t *testing.T) {
 	ctx, _ := newConsolidationTestSeries()
@@ -776,7 +826,7 @@ func TestGroupByNodes(t *testing.T) {
 		inputs   = []*ts.Series{
 			ts.NewSeries(ctx, "transformNull(servers.foo-1.pod1.status.500)", start,
 				ts.NewConstantValues(ctx, 2, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-2.pod1.status.500", start,
+			ts.NewSeries(ctx, "scaleToSeconds(servers.foo-2.pod1.status.500,1)", start,
 				ts.NewConstantValues(ctx, 4, 12, 10000)),
 			ts.NewSeries(ctx, "servers.foo-3.pod1.status.500", start,
 				ts.NewConstantValues(ctx, 6, 12, 10000)),
@@ -817,6 +867,12 @@ func TestGroupByNodes(t *testing.T) {
 			{"pod2.400", 40 * 12},
 			{"pod2.500", 10 * 12},
 		}},
+		{"median", []int{2, 4}, []result{ // test with different function
+			{"pod1.400", ((20 + 30) / 2) * 12},
+			{"pod1.500", 4 * 12},
+			{"pod2.400", 40 * 12},
+			{"pod2.500", ((8 + 10) / 2) * 12},
+		}},
 		{"max", []int{2, 4, 100}, []result{ // test with a node number that exceeds num parts
 			{"pod1.400.", 30 * 12},
 			{"pod1.500.", 6 * 12},
@@ -830,7 +886,14 @@ func TestGroupByNodes(t *testing.T) {
 			{"pod2.500", 8 * 12},
 		}},
 		{"sum", []int{}, []result{ // test empty slice handing.
-			{"sumSeries(transformNull(servers.foo-1.pod1.status.500),servers.foo-2.pod1.status.500,servers.foo-3.pod1.status.500,servers.foo-1.pod2.status.500,servers.foo-2.pod2.status.500,servers.foo-1.pod1.status.400,servers.foo-2.pod1.status.400,servers.foo-3.pod2.status.400)", (2 + 4 + 6 + 8 + 10 + 20 + 30 + 40) * 12},
+			{
+				"sumSeries(transformNull(servers.foo-1.pod1.status.500)," +
+					"scaleToSeconds(servers.foo-2.pod1.status.500,1)," +
+					"servers.foo-3.pod1.status.500,servers.foo-1.pod2.status.500," +
+					"servers.foo-2.pod2.status.500,servers.foo-1.pod1.status.400," +
+					"servers.foo-2.pod1.status.400,servers.foo-3.pod2.status.400)",
+				(2 + 4 + 6 + 8 + 10 + 20 + 30 + 40) * 12,
+			},
 		}},
 		{"sum", []int{100}, []result{ // test all nodes out of bounds
 			{"", (2 + 4 + 6 + 8 + 10 + 20 + 30 + 40) * 12},

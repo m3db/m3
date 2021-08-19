@@ -57,14 +57,14 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 		numWorkers        = 100
 		numStepsPerWorker = numWorkers * 100
 		opts              = newSeriesTestOptions()
-		start             = time.Now()
+		start             = xtime.Now()
 		series            = NewDatabaseSeries(DatabaseSeriesOptions{
 			ID:             ident.StringID("foo"),
 			UniqueIndex:    1,
 			BlockRetriever: blockRetriever,
 			Options:        opts,
 		}).(*dbSeries)
-		dbBlock = block.NewDatabaseBlock(time.Time{}, time.Hour*2,
+		dbBlock = block.NewDatabaseBlock(0, time.Hour*2,
 			ts.Segment{}, block.NewOptions(), namespace.Context{})
 	)
 
@@ -78,7 +78,7 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		for i := 0; i < numStepsPerWorker; i++ {
-			wasWritten, _, err := series.Write(ctx, time.Now(), float64(i),
+			wasWritten, _, err := series.Write(ctx, xtime.Now(), float64(i),
 				xtime.Nanosecond, nil, WriteOptions{})
 			if err != nil {
 				panic(err)
@@ -95,7 +95,7 @@ func TestSeriesWriteReadParallel(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			for i := 0; i < numStepsPerWorker; i++ {
-				now := time.Now()
+				now := xtime.Now()
 				_, err := series.ReadEncoded(ctx, start.Add(-time.Minute),
 					now.Add(time.Minute), namespace.Context{})
 				if err != nil {

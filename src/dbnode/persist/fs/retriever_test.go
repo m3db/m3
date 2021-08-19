@@ -103,7 +103,7 @@ func newOpenTestWriter(
 	t *testing.T,
 	fsOpts Options,
 	shard uint32,
-	start time.Time,
+	start xtime.UnixNano,
 	volume int,
 ) (DataFileSetWriter, testCleanupFn) {
 	w := newTestWriter(t, fsOpts.FilePathPrefix())
@@ -126,7 +126,7 @@ type streamResult struct {
 	ctx        context.Context
 	shard      uint32
 	id         string
-	blockStart time.Time
+	blockStart xtime.UnixNano
 	stream     xio.BlockReader
 	canceled   bool
 }
@@ -173,7 +173,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		nsMeta   = testNs1Metadata(t)
 		ropts    = nsMeta.Options().RetentionOptions()
 		nsCtx    = namespace.NewContextFrom(nsMeta)
-		now      = time.Now().Truncate(ropts.BlockSize())
+		now      = xtime.Now().Truncate(ropts.BlockSize())
 		min, max = now.Add(-6 * ropts.BlockSize()), now.Add(-ropts.BlockSize())
 
 		shards         = []uint32{0, 1, 2}
@@ -183,7 +183,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		dataBytesPerID = 32
 		// Shard -> ID -> Blockstart -> Data
 		shardData   = make(map[uint32]map[string]map[xtime.UnixNano]checked.Bytes)
-		blockStarts []time.Time
+		blockStarts []xtime.UnixNano
 		volumes     = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
 	)
 	for st := min; !st.After(max); st = st.Add(ropts.BlockSize()) {
@@ -227,7 +227,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		numNonTerminalVolumeOpens int
 		numSeekerCloses           int
 	)
-	newNewOpenSeekerFn := func(shard uint32, blockStart time.Time, volume int) (DataFileSetSeeker, error) {
+	newNewOpenSeekerFn := func(shard uint32, blockStart xtime.UnixNano, volume int) (DataFileSetSeeker, error) {
 		// Artificially slow down how long it takes to open a seeker to exercise the logic where
 		// multiple goroutines are trying to open seekers for the same shard/blockStart and need
 		// to wait for the others to complete.
@@ -294,7 +294,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 					// Always write the same data for each series regardless of volume to make asserting on
 					// Stream() responses simpler. Each volume gets a unique tag so we can verify that leases
 					// are being upgraded by checking the tags.
-					blockStartNanos := xtime.ToUnixNano(blockStart)
+					blockStartNanos := blockStart
 					data, ok := shardData[shard][idString][blockStartNanos]
 					if !ok {
 						data = checked.NewBytes(nil, nil)
@@ -337,7 +337,8 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	)
 	bytesPool.Init()
 
-	onRetrieve := block.OnRetrieveBlockFn(func(id ident.ID, tagsIter ident.TagIterator, startTime time.Time, segment ts.Segment, nsCtx namespace.Context) {
+	onRetrieve := block.OnRetrieveBlockFn(func(id ident.ID, tagsIter ident.TagIterator,
+		startTime xtime.UnixNano, segment ts.Segment, nsCtx namespace.Context) {
 		// TagsFromTagsIter requires a series ID to try and share bytes so we just pass
 		// an empty string because we don't care about efficiency.
 		tags, err := convert.TagsFromTagsIter(ident.StringID(""), tagsIter, idPool)
@@ -405,7 +406,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 				}
 
 				for _, r := range results {
-					compare.Head = shardData[r.shard][r.id][xtime.ToUnixNano(r.blockStart)]
+					compare.Head = shardData[r.shard][r.id][r.blockStart]
 
 					// If the stream is empty, assert that the expected result is also nil
 					if r.stream.IsEmpty() {
@@ -572,7 +573,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	rOpts := nsMeta.Options().RetentionOptions()
 	nsCtx := namespace.NewContextFrom(nsMeta)
 	shard := uint32(0)
-	blockStart := time.Now().Truncate(rOpts.BlockSize())
+	blockStart := xtime.Now().Truncate(rOpts.BlockSize())
 
 	// Setup the reader
 	opts := testBlockRetrieverOptions{
@@ -622,7 +623,7 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 	rOpts := testNs1Metadata(t).Options().RetentionOptions()
 	nsCtx := namespace.NewContextFrom(testNs1Metadata(t))
 	shard := uint32(0)
-	blockStart := time.Now().Truncate(rOpts.BlockSize())
+	blockStart := xtime.Now().Truncate(rOpts.BlockSize())
 
 	// Setup the reader.
 	opts := testBlockRetrieverOptions{
@@ -674,7 +675,7 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 		ident.StringID("no-tags"), blockStart, block.OnRetrieveBlockFn(func(
 			id ident.ID,
 			tagsIter ident.TagIterator,
-			startTime time.Time,
+			startTime xtime.UnixNano,
 			segment ts.Segment,
 			nsCtx namespace.Context,
 		) {
@@ -688,7 +689,7 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 		ident.StringID("tags"), blockStart, block.OnRetrieveBlockFn(func(
 			id ident.ID,
 			tagsIter ident.TagIterator,
-			startTime time.Time,
+			startTime xtime.UnixNano,
 			segment ts.Segment,
 			nsCtx namespace.Context,
 		) {
@@ -740,7 +741,7 @@ func testBlockRetrieverOnRetrieve(t *testing.T, globalFlag bool, nsFlag bool) {
 	rOpts := md.Options().RetentionOptions()
 	nsCtx := namespace.NewContextFrom(md)
 	shard := uint32(0)
-	blockStart := time.Now().Truncate(rOpts.BlockSize())
+	blockStart := xtime.Now().Truncate(rOpts.BlockSize())
 
 	// Setup the reader.
 	opts := testBlockRetrieverOptions{
@@ -779,7 +780,7 @@ func testBlockRetrieverOnRetrieve(t *testing.T, globalFlag bool, nsFlag bool) {
 	retrieveFn := block.OnRetrieveBlockFn(func(
 		id ident.ID,
 		tagsIter ident.TagIterator,
-		startTime time.Time,
+		startTime xtime.UnixNano,
 		segment ts.Segment,
 		nsCtx namespace.Context,
 	) {
@@ -841,7 +842,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 		rOpts      = testNs1Metadata(t).Options().RetentionOptions()
 		nsCtx      = namespace.NewContextFrom(testNs1Metadata(t))
 		shard      = uint32(0)
-		blockStart = time.Now().Truncate(rOpts.BlockSize())
+		blockStart = xtime.Now().Truncate(rOpts.BlockSize())
 	)
 
 	mockSeekerManager := NewMockDataFileSetSeekerManager(ctrl)

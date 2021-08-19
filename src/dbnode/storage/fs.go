@@ -22,10 +22,10 @@ package storage
 
 import (
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
 )
@@ -39,12 +39,17 @@ const (
 	fileOpFailed
 )
 
+type warmStatus struct {
+	DataFlushed  fileOpStatus
+	IndexFlushed fileOpStatus
+}
+
 type fileOpState struct {
 	// WarmStatus is the status of data persistence for WarmWrites only.
 	// Each block will only be warm-flushed once, so not keeping track of a
 	// version here is okay. This is used in the buffer Tick to determine when
 	// a warm bucket is evictable from memory.
-	WarmStatus fileOpStatus
+	WarmStatus warmStatus
 	// ColdVersionRetrievable keeps track of data persistence for ColdWrites only.
 	// Each block can be cold-flushed multiple times, so this tracks which
 	// version of the flush completed successfully. This is ultimately used in
@@ -132,7 +137,7 @@ func (m *fileSystemManager) Status() fileOpStatus {
 	return status
 }
 
-func (m *fileSystemManager) Run(t time.Time) bool {
+func (m *fileSystemManager) Run(t xtime.UnixNano) bool {
 	m.Lock()
 	if !m.shouldRunWithLock() {
 		m.Unlock()
@@ -147,7 +152,7 @@ func (m *fileSystemManager) Run(t time.Time) bool {
 		m.Unlock()
 	}()
 
-	m.log.Debug("starting warm flush", zap.Time("time", t))
+	m.log.Debug("starting warm flush", zap.Time("time", t.ToTime()))
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	if err := m.WarmFlushCleanup(t); err != nil {
@@ -157,16 +162,16 @@ func (m *fileSystemManager) Run(t time.Time) bool {
 		// the build.
 		instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 			func(l *zap.Logger) {
-				l.Error("error when cleaning up data", zap.Time("time", t), zap.Error(err))
+				l.Error("error when cleaning up data", zap.Time("time", t.ToTime()), zap.Error(err))
 			})
 	}
 	if err := m.Flush(t); err != nil {
 		instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 			func(l *zap.Logger) {
-				l.Error("error when flushing data", zap.Time("time", t), zap.Error(err))
+				l.Error("error when flushing data", zap.Time("time", t.ToTime()), zap.Error(err))
 			})
 	}
-	m.log.Debug("completed warm flush", zap.Time("time", t))
+	m.log.Debug("completed warm flush", zap.Time("time", t.ToTime()))
 
 	return true
 }

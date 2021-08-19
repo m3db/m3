@@ -22,6 +22,7 @@ package native
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -36,8 +37,10 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/m3db/m3/src/query/api/v1/middleware"
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 func TestQueryResponse(t *testing.T) {
@@ -49,6 +52,8 @@ func TestQueryResponse(t *testing.T) {
 		code            int
 		duration        time.Duration
 		threshold       time.Duration
+		disabled        bool
+		err             error
 		form            map[string]string
 		requestHeaders  map[string]string
 		responseHeaders map[string]string
@@ -119,6 +124,26 @@ func TestQueryResponse(t *testing.T) {
 			},
 		},
 		{
+			name: "error",
+			form: map[string]string{
+				"query": "fooquery",
+				"start": "now",
+				"end":   "now",
+			},
+			code:      500,
+			err:       errors.New("boom"),
+			duration:  time.Second,
+			threshold: time.Microsecond,
+			fields: map[string]interface{}{
+				"query":      "fooquery",
+				"start":      now,
+				"end":        now,
+				"status":     int64(500),
+				"queryRange": time.Duration(0),
+				"error":      "boom",
+			},
+		},
+		{
 			name: "below threshold",
 			form: map[string]string{
 				"query": "fooquery",
@@ -129,6 +154,18 @@ func TestQueryResponse(t *testing.T) {
 			duration:  time.Millisecond,
 			threshold: time.Second,
 		},
+		{
+			name: "disabled",
+			form: map[string]string{
+				"query": "fooquery",
+				"start": "now",
+				"end":   "now",
+			},
+			code:      200,
+			disabled:  true,
+			duration:  time.Second,
+			threshold: time.Millisecond,
+		},
 	}
 
 	for _, tc := range cases {
@@ -137,13 +174,22 @@ func TestQueryResponse(t *testing.T) {
 			core, recorded := observer.New(zapcore.InfoLevel)
 			iOpts := instrument.NewOptions().SetLogger(zap.New(core))
 			clock := clockwork.NewFakeClockAt(now)
-			h := QueryResponse(QueryResponseOptions{
-				Threshold:      tc.threshold,
+			opts := WithQueryParams(middleware.Options{
 				InstrumentOpts: iOpts,
 				Clock:          clock,
-			}).Middleware(
+				Metrics:        middleware.MetricsOptions{},
+				Logging: middleware.LoggingOptions{
+					Threshold: tc.threshold,
+					Disabled:  tc.disabled,
+				},
+			})
+			h := middleware.ResponseLogging(opts).Middleware(
 				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					clock.Advance(tc.duration)
+					if tc.err != nil {
+						xhttp.WriteError(w, tc.err)
+						return
+					}
 					for k, v := range tc.responseHeaders {
 						w.Header().Set(k, v)
 					}
@@ -169,7 +215,7 @@ func TestQueryResponse(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
 			require.Equal(t, tc.code, resp.StatusCode)
-			msgs := recorded.FilterMessage("finished handling query request").All()
+			msgs := recorded.FilterMessage("finished handling request").All()
 			if len(tc.fields) == 0 {
 				require.Len(t, msgs, 0)
 			} else {

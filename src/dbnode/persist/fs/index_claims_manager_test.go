@@ -62,7 +62,7 @@ func TestIndexClaimsManagerConcurrentClaims(t *testing.T) {
 	mgr.nextIndexFileSetVolumeIndexFn = func(
 		filePathPrefix string,
 		namespace ident.ID,
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 	) (int, error) {
 		return 0, nil
 	}
@@ -74,7 +74,7 @@ func TestIndexClaimsManagerConcurrentClaims(t *testing.T) {
 		m          sync.Map
 		wg         sync.WaitGroup
 		blockSize  = md.Options().IndexOptions().BlockSize()
-		blockStart = time.Now().Truncate(blockSize)
+		blockStart = xtime.Now().Truncate(blockSize)
 	)
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -106,14 +106,14 @@ func TestIndexClaimsManagerOutOfRetention(t *testing.T) {
 	mgr.nextIndexFileSetVolumeIndexFn = func(
 		filePathPrefix string,
 		namespace ident.ID,
-		blockStart time.Time,
+		blockStart xtime.UnixNano,
 	) (int, error) {
 		return 0, nil
 	}
 
 	md, err := namespace.NewMetadata(ident.StringID("foo"), namespace.NewOptions())
 	blockSize := md.Options().IndexOptions().BlockSize()
-	blockStart := time.Now().Truncate(blockSize)
+	blockStart := xtime.Now().Truncate(blockSize)
 	require.NoError(t, err)
 
 	_, err = mgr.ClaimNextIndexFileSetVolumeIndex(
@@ -132,6 +132,6 @@ func TestIndexClaimsManagerOutOfRetention(t *testing.T) {
 	require.Equal(t, ErrIndexOutOfRetention, err)
 
 	// Verify that the out of retention entry has been deleted as well.
-	_, ok = mgr.volumeIndexClaims[md.ID().String()][xtime.ToUnixNano(blockStart)]
+	_, ok = mgr.volumeIndexClaims[md.ID().String()][blockStart]
 	require.False(t, ok)
 }

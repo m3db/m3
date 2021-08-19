@@ -30,7 +30,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,7 +57,7 @@ var (
 	}
 
 	bounds = models.Bounds{
-		Start:    time.Now(),
+		Start:    xtime.Now(),
 		Duration: time.Minute * 5,
 		StepSize: time.Minute,
 	}
@@ -94,7 +96,7 @@ func TestFunctionFilteringWithA(t *testing.T) {
 	}
 	expectedMetaTags := models.EmptyTags()
 
-	test.CompareValuesInOrder(t, sink.Metas, expectedMetas, sink.Values, expected)
+	compare.CompareValuesInOrder(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	assert.Equal(t, expectedMetaTags.Tags, sink.Meta.Tags.Tags)
 }
@@ -121,7 +123,7 @@ func TestFunctionFilteringWithoutA(t *testing.T) {
 	}
 
 	expectedMetaTags := test.TagSliceToTags([]models.Tag{{Name: []byte("d"), Value: []byte("4")}})
-	test.CompareValuesInOrder(t, sink.Metas, expectedMetas, sink.Values, expected)
+	compare.CompareValuesInOrder(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	assert.Equal(t, expectedMetaTags.Tags, sink.Meta.Tags.Tags)
 }
@@ -142,7 +144,7 @@ func TestFunctionFilteringWithD(t *testing.T) {
 	}
 
 	expectedMetaTags := test.TagSliceToTags([]models.Tag{{Name: []byte("d"), Value: []byte("4")}})
-	test.CompareValuesInOrder(t, sink.Metas, expectedMetas, sink.Values, expected)
+	compare.CompareValuesInOrder(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	assert.Equal(t, expectedMetaTags.Tags, sink.Meta.Tags.Tags)
 }
@@ -176,7 +178,7 @@ func TestFunctionFilteringWithoutD(t *testing.T) {
 	}
 	expectedMetaTags := models.EmptyTags()
 
-	test.CompareValuesInOrder(t, sink.Metas, expectedMetas, sink.Values, expected)
+	compare.CompareValuesInOrder(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	assert.Equal(t, expectedMetaTags.Tags, sink.Meta.Tags.Tags)
 }

@@ -34,7 +34,7 @@ type segments struct {
 	shardRanges       result.ShardTimeRanges
 	volumeType        idxpersist.IndexVolumeType
 	volumeIndex       int
-	blockStart        time.Time
+	blockStart        xtime.UnixNano
 }
 
 // NewSegments returns an on disk segments for an index info file.
@@ -44,7 +44,7 @@ func NewSegments(
 	absoluteFilepaths []string,
 ) Segments {
 	sr := result.NewShardTimeRanges()
-	indexBlockStart := xtime.UnixNano(info.BlockStart).ToTime()
+	indexBlockStart := xtime.UnixNano(info.BlockStart)
 	indexBlockRange := xtime.Range{
 		Start: indexBlockStart,
 		End:   indexBlockStart.Add(time.Duration(info.BlockSize)),
@@ -86,6 +86,6 @@ func (o *segments) VolumeIndex() int {
 	return o.volumeIndex
 }
 
-func (o *segments) BlockStart() time.Time {
+func (o *segments) BlockStart() xtime.UnixNano {
 	return o.blockStart
 }

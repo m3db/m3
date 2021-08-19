@@ -31,15 +31,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/headers"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"
@@ -48,7 +49,7 @@ import (
 )
 
 type tagValuesMatcher struct {
-	start, end time.Time
+	start, end xtime.UnixNano
 	filterTag  string
 }
 
@@ -102,9 +103,9 @@ func TestTagValues(t *testing.T) {
 
 	// setup storage and handler
 	store := storage.NewMockStorage(ctrl)
-	now := time.Now()
+	now := xtime.Now()
 	nowFn := func() time.Time {
-		return now
+		return now.ToTime()
 	}
 
 	fb, err := handleroptions.NewFetchOptionsBuilder(
@@ -134,20 +135,20 @@ func TestTagValues(t *testing.T) {
 
 func testTagValuesWithMatch(
 	t *testing.T,
-	now time.Time,
+	now xtime.UnixNano,
 	store *storage.MockStorage,
 	name string,
 	valueHandler http.Handler,
 	withMatchOverride bool,
 ) {
-	path := fmt.Sprintf("%s/label/%s/values?start=100", handler.RoutePrefixV1, name)
+	path := fmt.Sprintf("%s/label/%s/values?start=100", route.Prefix, name)
 	nameMatcher := models.Matcher{
 		Type: models.MatchField,
 		Name: []byte(name),
 	}
 	matchers := models.Matchers{nameMatcher}
 	if withMatchOverride {
-		path = fmt.Sprintf("%s/label/%s/values?start=100&match[]=testing", handler.RoutePrefixV1, name)
+		path = fmt.Sprintf("%s/label/%s/values?start=100&match[]=testing", route.Prefix, name)
 		matchers = models.Matchers{
 			nameMatcher,
 			{
@@ -159,7 +160,7 @@ func testTagValuesWithMatch(
 	}
 
 	matcher := &storage.CompleteTagsQuery{
-		Start:            time.Unix(100, 0),
+		Start:            xtime.FromSeconds(100),
 		End:              now,
 		CompleteNameOnly: false,
 		FilterNameTags:   [][]byte{[]byte(name)},
@@ -256,7 +257,7 @@ func TestTagValueTimeout(t *testing.T) {
 	h := NewTagValuesHandler(storageSetup(t, ctrl, 1*time.Millisecond, expectTimeout))
 	router := mux.NewRouter()
 	router.HandleFunc(
-		fmt.Sprintf("%s/label/{%s}/values", handler.RoutePrefixV1, NameReplace),
+		fmt.Sprintf("%s/label/{%s}/values", route.Prefix, NameReplace),
 		h.ServeHTTP,
 	)
 	router.ServeHTTP(w, req)
@@ -277,7 +278,7 @@ func TestTagValueUseRequestContext(t *testing.T) {
 	h := NewTagValuesHandler(storageSetup(t, ctrl, 15*time.Second, expectCancellation))
 	router := mux.NewRouter()
 	router.HandleFunc(
-		fmt.Sprintf("%s/label/{%s}/values", handler.RoutePrefixV1, NameReplace),
+		fmt.Sprintf("%s/label/{%s}/values", route.Prefix, NameReplace),
 		h.ServeHTTP,
 	)
 	router.ServeHTTP(w, req)

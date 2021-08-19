@@ -36,6 +36,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
@@ -44,7 +46,7 @@ import (
 )
 
 func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions().SetSeriesCachePolicy(series.CacheAll)
@@ -53,7 +55,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
-	start := time.Now()
+	start := xtime.Now()
 	end := start.Add(defaultTestRetentionOpts.BlockSize())
 
 	fetchLimit := int64(5)
@@ -68,7 +70,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 	seriesFetchOpts := series.FetchBlocksMetadataOptions{
 		FetchBlocksMetadataOptions: fetchOpts,
 	}
-	lastRead := time.Now().Add(-time.Minute)
+	lastRead := xtime.Now().Add(-time.Minute)
 	for i := int64(0); i < 10; i++ {
 		id := ident.StringID(fmt.Sprintf("foo.%d", i))
 		tags := ident.NewTags(
@@ -127,7 +129,7 @@ func (b fetchBlockMetadataResultByStart) Less(i, j int) bool {
 }
 
 func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := DefaultTestOptions().SetSeriesCachePolicy(series.CacheRecentlyRead)
@@ -142,7 +144,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 	ropts := defaultTestRetentionOpts
 	blockSize := ropts.BlockSize()
 	retentionPeriod := ropts.RetentionPeriod()
-	now := time.Now()
+	now := xtime.Now()
 	mostRecentBlockStart := now.Truncate(blockSize)
 	start := mostRecentBlockStart.Add(-retentionPeriod)
 	end := mostRecentBlockStart.Add(blockSize)
@@ -181,7 +183,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 		require.NoError(t, err)
 
 		for i := 0; i < numFlushedSeries; i++ {
-			idxBlock := time.Duration(at.UnixNano()-start.UnixNano()) / blockSize
+			idxBlock := time.Duration(at-start) / blockSize
 			if (idxBlock%2 == 0 && i%2 == 0) || (idxBlock%2 != 0 && i%2 != 0) {
 				continue // Every other block skip the evens and odds
 			}
@@ -201,7 +203,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 			require.NoError(t, err)
 
 			blockMetadataResult := block.NewFetchBlockMetadataResult(at,
-				int64(len(data)), &checksum, time.Time{}, nil)
+				int64(len(data)), &checksum, 0, nil)
 			expected[id.String()] = append(expected[id.String()], blockMetadataResult)
 		}
 
@@ -213,7 +215,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 	seriesFetchOpts := series.FetchBlocksMetadataOptions{
 		FetchBlocksMetadataOptions: fetchOpts,
 	}
-	lastRead := time.Now().Add(-time.Minute)
+	lastRead := xtime.Now().Add(-time.Minute)
 	for i := 0; i < numActiveSeries; i++ {
 		id := ident.StringID(fmt.Sprintf("series+instance=%d", i))
 		tags := ident.NewTags(

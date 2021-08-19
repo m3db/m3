@@ -21,8 +21,6 @@
 package client
 
 import (
-	"time"
-
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -53,7 +51,7 @@ type writeAttemptArgs struct {
 	namespace   ident.ID
 	id          ident.ID
 	tags        ident.TagIterator
-	t           time.Time
+	t           xtime.UnixNano
 	value       float64
 	annotation  []byte
 	unit        xtime.Unit

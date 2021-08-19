@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/assert"
@@ -75,7 +76,7 @@ func TestDayOfMonth(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[DayOfMonthType])
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestDayOfWeek(t *testing.T) {
@@ -98,7 +99,7 @@ func TestDayOfWeek(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[DayOfWeekType])
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestDaysInMonth(t *testing.T) {
@@ -121,7 +122,7 @@ func TestDaysInMonth(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[DaysInMonthType])
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestHour(t *testing.T) {
@@ -144,7 +145,7 @@ func TestHour(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[HourType])
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestMinute(t *testing.T) {
@@ -167,7 +168,7 @@ func TestMinute(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[MinuteType])
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestMonth(t *testing.T) {
@@ -190,7 +191,7 @@ func TestMonth(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[MonthType])
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestYear(t *testing.T) {
@@ -213,7 +214,7 @@ func TestYear(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[YearType])
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 }
 
 func TestNonExistentDateFunc(t *testing.T) {

@@ -105,12 +105,6 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 	c.connectWithLockFn = c.connectWithLock
 	c.writeWithLockFn = c.writeWithLock
 
-	c.Lock()
-	if err := c.connectWithLockFn(); err != nil {
-		c.numFailures++
-	}
-	c.Unlock()
-
 	return c
 }
 

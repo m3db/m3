@@ -26,11 +26,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func TestShardTimeRangesAdd(t *testing.T) {
-	start := time.Now().Truncate(testBlockSize)
-	times := []time.Time{start, start.Add(testBlockSize), start.Add(2 * testBlockSize), start.Add(3 * testBlockSize)}
+	start := xtime.Now().Truncate(testBlockSize)
+	times := []xtime.UnixNano{
+		start, start.Add(testBlockSize),
+		start.Add(2 * testBlockSize), start.Add(3 * testBlockSize),
+	}
 
 	sr := []ShardTimeRanges{
 		NewShardTimeRangesFromRange(times[0], times[1], 1, 2, 3),
@@ -50,7 +55,7 @@ func TestShardTimeRangesAdd(t *testing.T) {
 }
 
 func TestFilterShards(t *testing.T) {
-	start := time.Now().Truncate(testBlockSize)
+	start := xtime.Now().Truncate(testBlockSize)
 	end := start.Add(testBlockSize)
 	ranges := NewShardTimeRangesFromRange(start, end, 0, 1, 2)
 
@@ -99,7 +104,7 @@ func TestFilterShards(t *testing.T) {
 }
 
 func TestShardTimeRangesIsSuperset(t *testing.T) {
-	start := time.Now().Truncate(testBlockSize)
+	start := xtime.Now().Truncate(testBlockSize)
 
 	ranges1 := createShardTimeRanges(start, testBlockSize, 3, []uint32{1, 2, 3})
 	ranges2 := createShardTimeRanges(start, testBlockSize, 3, []uint32{1, 2})
@@ -116,7 +121,7 @@ func TestShardTimeRangesIsSuperset(t *testing.T) {
 }
 
 func TestShardTimeRangesIsSupersetNoOverlapShards(t *testing.T) {
-	start := time.Now().Truncate(testBlockSize)
+	start := xtime.Now().Truncate(testBlockSize)
 
 	ranges1 := createShardTimeRanges(start, testBlockSize, 3, []uint32{1, 3, 5})
 	ranges2 := createShardTimeRanges(start, testBlockSize, 3, []uint32{2, 4, 6})
@@ -127,7 +132,7 @@ func TestShardTimeRangesIsSupersetNoOverlapShards(t *testing.T) {
 }
 
 func TestShardTimeRangesIsSupersetPartialOverlapShards(t *testing.T) {
-	start := time.Now().Truncate(testBlockSize)
+	start := xtime.Now().Truncate(testBlockSize)
 
 	ranges1 := createShardTimeRanges(start, testBlockSize, 3, []uint32{1, 3, 5})
 	ranges2 := createShardTimeRanges(start, testBlockSize, 3, []uint32{3, 4, 6})
@@ -138,7 +143,7 @@ func TestShardTimeRangesIsSupersetPartialOverlapShards(t *testing.T) {
 }
 
 func TestShardTimeRangesIsSupersetNoOverlapTimeRanges(t *testing.T) {
-	start := time.Now().Truncate(testBlockSize)
+	start := xtime.Now().Truncate(testBlockSize)
 
 	ranges1 := createShardTimeRanges(start, testBlockSize, 3, []uint32{1, 3, 5})
 	ranges2 := createShardTimeRanges(start.Add(testBlockSize*3), testBlockSize, 3,
@@ -150,7 +155,7 @@ func TestShardTimeRangesIsSupersetNoOverlapTimeRanges(t *testing.T) {
 }
 
 func TestShardTimeRangesIsSupersetPartialOverlapTimeRanges(t *testing.T) {
-	start := time.Now().Truncate(testBlockSize)
+	start := xtime.Now().Truncate(testBlockSize)
 
 	ranges1 := createShardTimeRanges(start, testBlockSize, 3, []uint32{1, 3, 5})
 	ranges2 := createShardTimeRanges(start.Add(testBlockSize*2), testBlockSize, 3,
@@ -162,7 +167,7 @@ func TestShardTimeRangesIsSupersetPartialOverlapTimeRanges(t *testing.T) {
 }
 
 func TestShardTimeRangesIsSupersetEmpty(t *testing.T) {
-	start := time.Now().Truncate(testBlockSize)
+	start := xtime.Now().Truncate(testBlockSize)
 
 	ranges1 := createShardTimeRanges(start, testBlockSize, 3, []uint32{1, 3, 5})
 	ranges2 := NewShardTimeRanges()
@@ -173,7 +178,7 @@ func TestShardTimeRangesIsSupersetEmpty(t *testing.T) {
 }
 
 func createShardTimeRanges(
-	start time.Time,
+	start xtime.UnixNano,
 	blockSize time.Duration,
 	numBlocks int,
 	shards []uint32,

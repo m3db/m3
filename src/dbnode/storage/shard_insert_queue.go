@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/clock"
@@ -335,7 +334,7 @@ type dbShardInsertsByCPUCore struct {
 }
 
 type dbShardInsert struct {
-	entry *lookup.Entry
+	entry *Entry
 	opts  dbShardInsertAsyncOptions
 }
 
@@ -359,7 +358,7 @@ type dbShardInsertAsyncOptions struct {
 }
 
 type dbShardPendingWrite struct {
-	timestamp  time.Time
+	timestamp  xtime.UnixNano
 	value      float64
 	unit       xtime.Unit
 	annotation checked.Bytes
@@ -367,14 +366,14 @@ type dbShardPendingWrite struct {
 }
 
 type dbShardPendingIndex struct {
-	timestamp  time.Time
+	timestamp  xtime.UnixNano
 	enqueuedAt time.Time
 }
 
 type dbShardPendingRetrievedBlock struct {
 	id      ident.ID
 	tags    ident.TagIterator
-	start   time.Time
+	start   xtime.UnixNano
 	segment ts.Segment
 	nsCtx   namespace.Context
 }

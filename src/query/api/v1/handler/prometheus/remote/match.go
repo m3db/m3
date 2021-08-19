@@ -24,10 +24,10 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
@@ -41,13 +41,11 @@ import (
 
 const (
 	// PromSeriesMatchURL is the url for remote prom series matcher handler.
-	PromSeriesMatchURL = handler.RoutePrefixV1 + "/series"
+	PromSeriesMatchURL = route.Prefix + "/series"
 )
 
-var (
-	// PromSeriesMatchHTTPMethods are the HTTP methods for this handler.
-	PromSeriesMatchHTTPMethods = []string{http.MethodGet, http.MethodPost}
-)
+// PromSeriesMatchHTTPMethods are the HTTP methods for this handler.
+var PromSeriesMatchHTTPMethods = []string{http.MethodGet, http.MethodPost}
 
 // PromSeriesMatchHandler represents a handler for
 // the prometheus series matcher endpoint.
@@ -106,6 +104,13 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		meta = meta.CombineMetadata(result.Metadata)
 	}
 
+	err = handleroptions.AddDBResultResponseHeaders(w, meta, opts)
+	if err != nil {
+		logger.Error("error writing database limit headers", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
 	// First write out results to zero output to check if will limit
 	// results and if so then write the header about truncation if occurred.
 	var (
@@ -126,8 +131,8 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		TotalResults: renderResult.TotalResults,
 		Limited:      renderResult.LimitedMaxReturnedData,
 	}
-	if err := handleroptions.AddResponseHeaders(w, meta, opts, nil, limited); err != nil {
-		logger.Error("unable to render list tags headers", zap.Error(err))
+	if err := handleroptions.AddReturnedLimitResponseHeaders(w, nil, limited); err != nil {
+		logger.Error("unable to returned data headers", zap.Error(err))
 		xhttp.WriteError(w, err)
 		return
 	}

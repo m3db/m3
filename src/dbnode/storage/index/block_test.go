@@ -81,7 +81,7 @@ func newTestNSMetadata(t require.TestingT) namespace.Metadata {
 
 func TestBlockCtor(t *testing.T) {
 	md := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	b, err := NewBlock(start, md, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestBlockWriteAfterClose(t *testing.T) {
 	testMD := newTestNSMetadata(t)
 	blockSize := time.Hour
 
-	now := time.Now()
+	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
 	nowNotBlockStartAligned := now.
@@ -111,8 +111,8 @@ func TestBlockWriteAfterClose(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, b.Close())
 
-	lifecycle := NewMockOnIndexSeries(ctrl)
-	lifecycle.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
+	lifecycle.EXPECT().OnIndexFinalize(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -148,7 +148,7 @@ func TestBlockWriteAfterSeal(t *testing.T) {
 	blockSize := time.Hour
 	testMD := newTestNSMetadata(t)
 
-	now := time.Now()
+	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
 	nowNotBlockStartAligned := now.
@@ -160,8 +160,8 @@ func TestBlockWriteAfterSeal(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, b.Seal())
 
-	lifecycle := NewMockOnIndexSeries(ctrl)
-	lifecycle.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
+	lifecycle.EXPECT().OnIndexFinalize(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -197,7 +197,7 @@ func TestBlockWrite(t *testing.T) {
 	testMD := newTestNSMetadata(t)
 	blockSize := time.Hour
 
-	now := time.Now()
+	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
 	nowNotBlockStartAligned := now.
@@ -214,13 +214,13 @@ func TestBlockWrite(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().OnIndexFinalize(blockStart)
+	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h2.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().OnIndexFinalize(blockStart)
+	h2.EXPECT().OnIndexSuccess(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -247,7 +247,7 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 	md := newTestNSMetadata(t)
 	blockSize := time.Hour
 
-	now := time.Now()
+	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
 	nowNotBlockStartAligned := now.
@@ -260,12 +260,12 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().OnIndexFinalize(blockStart)
+	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().OnIndexFinalize(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -308,7 +308,7 @@ func TestBlockWritePartialFailure(t *testing.T) {
 	md := newTestNSMetadata(t)
 	blockSize := time.Hour
 
-	now := time.Now()
+	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
 	nowNotBlockStartAligned := now.
@@ -321,12 +321,12 @@ func TestBlockWritePartialFailure(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().OnIndexFinalize(blockStart)
+	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().OnIndexFinalize(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -364,7 +364,7 @@ func TestBlockWritePartialFailure(t *testing.T) {
 
 func TestBlockQueryAfterClose(t *testing.T) {
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	b, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -382,7 +382,7 @@ func TestBlockQueryWithCancelledQuery(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -423,7 +423,7 @@ func TestBlockQueryWithCancelledQuery(t *testing.T) {
 
 func TestBlockQueryExecutorError(t *testing.T) {
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -444,7 +444,7 @@ func TestBlockQuerySegmentReaderError(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -466,7 +466,7 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -505,7 +505,7 @@ func TestBlockMockQueryExecutorExecError(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -532,7 +532,7 @@ func TestBlockMockQueryExecutorExecIterErr(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -575,7 +575,7 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -629,7 +629,7 @@ func TestBlockMockQuerySeriesLimitNonExhaustive(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -683,7 +683,7 @@ func TestBlockMockQuerySeriesLimitExhaustive(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -737,7 +737,7 @@ func TestBlockMockQueryDocsLimitNonExhaustive(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -789,7 +789,7 @@ func TestBlockMockQueryDocsLimitExhaustive(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -843,7 +843,7 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -901,7 +901,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -967,7 +967,7 @@ func TestBlockAddResultsAddsSegment(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -992,7 +992,7 @@ func TestBlockAddResultsAfterCloseFails(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -1011,7 +1011,7 @@ func TestBlockAddResultsAfterSealWorks(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -1037,7 +1037,7 @@ func TestBlockTickSingleSegment(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -1060,7 +1060,7 @@ func TestBlockTickMultipleSegment(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -1091,7 +1091,7 @@ func TestBlockTickAfterSeal(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -1115,7 +1115,7 @@ func TestBlockTickAfterClose(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -1130,7 +1130,7 @@ func TestBlockAddResultsRangeCheck(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -1157,7 +1157,7 @@ func TestBlockAddResultsCoversCurrentData(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -1190,7 +1190,7 @@ func TestBlockAddResultsDoesNotCoverCurrentData(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -1224,7 +1224,7 @@ func TestBlockNeedsMutableSegmentsEvicted(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -1236,9 +1236,9 @@ func TestBlockNeedsMutableSegmentsEvicted(t *testing.T) {
 	require.False(t, b.NeedsMutableSegmentsEvicted())
 
 	// perform write and ensure it says it needs eviction
-	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(start))
-	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(start))
+	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().OnIndexFinalize(start)
+	h1.EXPECT().OnIndexSuccess(start)
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: time.Hour,
 	})
@@ -1259,7 +1259,7 @@ func TestBlockNeedsMutableSegmentsEvictedMutableSegments(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -1294,7 +1294,7 @@ func TestBlockEvictMutableSegmentsSimple(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -1311,7 +1311,7 @@ func TestBlockEvictMutableSegmentsAddResults(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -1349,7 +1349,7 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	blockSize := time.Hour
 
 	testMD := newTestNSMetadata(t)
-	now := time.Now()
+	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
 	nowNotBlockStartAligned := now.
@@ -1372,13 +1372,13 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().OnIndexFinalize(blockStart)
+	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h2.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().OnIndexFinalize(blockStart)
+	h2.EXPECT().OnIndexSuccess(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -1443,7 +1443,7 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	testMD := newTestNSMetadata(t)
 	blockSize := time.Hour
 
-	now := time.Now()
+	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
 	nowNotBlockStartAligned := now.
@@ -1456,13 +1456,19 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().OnIndexFinalize(blockStart)
+	h1.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().IndexedForBlockStart(blockStart).
+		Return(true).
+		AnyTimes()
 
-	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h2.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().OnIndexFinalize(blockStart)
+	h2.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().IndexedForBlockStart(blockStart).
+		Return(true).
+		AnyTimes()
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -1490,7 +1496,11 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	ctx := context.NewBackground()
 	queryIter, err := b.QueryIter(ctx, Query{q})
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{SeriesLimit: limit}, queryIter, results, time.Now().Add(time.Minute),
+	err = b.QueryWithIter(ctx, QueryOptions{
+		SeriesLimit:    limit,
+		StartInclusive: blockStart,
+		EndExclusive:   blockStart,
+	}, queryIter, results, time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
 	require.Equal(t, 1, results.Size())
@@ -1525,7 +1535,7 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	testMD := newTestNSMetadata(t)
 	blockSize := time.Hour
 
-	now := time.Now()
+	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
 	nowNotBlockStartAligned := now.
@@ -1538,13 +1548,19 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().OnIndexFinalize(blockStart)
+	h1.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().IndexedForBlockStart(blockStart).
+		Return(true).
+		AnyTimes()
 
-	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h2.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().OnIndexFinalize(blockStart)
+	h2.EXPECT().OnIndexSuccess(blockStart)
+	h2.EXPECT().IndexedForBlockStart(blockStart).
+		Return(true).
+		AnyTimes()
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -1582,7 +1598,10 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	queryIter, err := b.QueryIter(ctx, Query{q})
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
+	err = b.QueryWithIter(ctx, QueryOptions{
+		StartInclusive: blockStart,
+		EndExclusive:   blockStart,
+	}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
 	require.NoError(t, err)
 	require.Equal(t, 2, results.Size())
 
@@ -1618,7 +1637,7 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	testMD := newTestNSMetadata(t)
 	blockSize := time.Hour
 
-	now := time.Now()
+	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
 	nowNotBlockStartAligned := now.
@@ -1631,9 +1650,12 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().OnIndexFinalize(blockStart)
+	h1.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().IndexedForBlockStart(blockStart).
+		Return(true).
+		AnyTimes()
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -1667,7 +1689,10 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	queryIter, err := b.QueryIter(ctx, Query{q})
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
+	err = b.QueryWithIter(ctx, QueryOptions{
+		StartInclusive: blockStart,
+		EndExclusive:   blockStart,
+	}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
 	require.NoError(t, err)
 	require.Equal(t, 2, results.Size())
 
@@ -1703,7 +1728,7 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	testMD := newTestNSMetadata(t)
 	blockSize := time.Hour
 
-	now := time.Now()
+	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
 	nowNotBlockStartAligned := now.
@@ -1725,14 +1750,17 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	// First write
-	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	// Testing compaction only, so mark GC as already running so the test is limited only to compaction.
+	b.mutableSegments.compact.compactingBackgroundGarbageCollect = true
 
-	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h2.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	// First write
+	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().OnIndexFinalize(blockStart)
+	h1.EXPECT().OnIndexSuccess(blockStart)
+
+	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().OnIndexFinalize(blockStart)
+	h2.EXPECT().OnIndexSuccess(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -1759,9 +1787,9 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	b.Unlock()
 
 	// Second write
-	h1 = NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h1 = doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().OnIndexFinalize(blockStart)
+	h1.EXPECT().OnIndexSuccess(blockStart)
 
 	batch = NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -1782,13 +1810,13 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 		{Segment: b.mutableSegments.foregroundSegments[0].Segment()},
 	})
 	require.Equal(t, 2, len(b.mutableSegments.backgroundSegments))
-	require.True(t, b.mutableSegments.compact.compactingBackground)
+	require.True(t, b.mutableSegments.compact.compactingBackgroundStandard)
 	b.mutableSegments.Unlock()
 
 	// Wait for compaction to finish
 	for {
 		b.mutableSegments.RLock()
-		compacting := b.mutableSegments.compact.compactingBackground
+		compacting := b.mutableSegments.compact.compactingBackgroundStandard
 		b.mutableSegments.RUnlock()
 		if !compacting {
 			break
@@ -1805,7 +1833,7 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 
 func TestBlockAggregateAfterClose(t *testing.T) {
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	b, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -1823,7 +1851,7 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -1888,7 +1916,7 @@ func TestBlockAggregate(t *testing.T) {
 	// NB: seriesLimit must be higher than the number of fields to be exhaustive.
 	seriesLimit := 10
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
@@ -1983,7 +2011,7 @@ func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 	aggTestOpts := testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, BlockOptions{},
 		namespace.NewRuntimeOptionsManager("foo"), aggTestOpts)
 	require.NoError(t, err)
@@ -2052,7 +2080,7 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 
 	aggResultsEntryArrayPool := NewAggregateResultsEntryArrayPool(AggregateResultsEntryArrayPoolOpts{
 		Options: pool.NewObjectPoolOptions().
@@ -2133,7 +2161,7 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 	blockSize := time.Hour
 
 	testMD := newTestNSMetadata(t)
-	now := time.Now()
+	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
 	nowNotBlockStartAligned := now.
@@ -2156,17 +2184,17 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().OnIndexFinalize(blockStart)
+	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h2.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().OnIndexFinalize(blockStart)
+	h2.EXPECT().OnIndexSuccess(blockStart)
 
-	h3 := NewMockOnIndexSeries(ctrl)
-	h3.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-	h3.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+	h3 := doc.NewMockOnIndexSeries(ctrl)
+	h3.EXPECT().OnIndexFinalize(blockStart)
+	h3.EXPECT().OnIndexSuccess(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -2503,7 +2531,7 @@ func TestBlockAggregateBatching(t *testing.T) {
 				SetQueryLimits(queryLimits)
 
 			testMD := newTestNSMetadata(t)
-			start := time.Now().Truncate(time.Hour)
+			start := xtime.Now().Truncate(time.Hour)
 			blk, err := NewBlock(start, testMD, BlockOptions{},
 				namespace.NewRuntimeOptionsManager("foo"), testOpts)
 			require.NoError(t, err)

@@ -139,8 +139,8 @@ type block struct {
 	newFieldsAndTermsIteratorFn     newFieldsAndTermsIteratorFn
 	newExecutorWithRLockFn          newExecutorFn
 	addAggregateResultsFn           addAggregateResultsFn
-	blockStart                      time.Time
-	blockEnd                        time.Time
+	blockStart                      xtime.UnixNano
+	blockEnd                        xtime.UnixNano
 	blockSize                       time.Duration
 	opts                            Options
 	iopts                           instrument.Options
@@ -211,7 +211,7 @@ type BlockOptions struct {
 
 // NewBlockFn is a new block constructor.
 type NewBlockFn func(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	md namespace.Metadata,
 	blockOpts BlockOptions,
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
@@ -224,7 +224,7 @@ var _ NewBlockFn = NewBlock
 // NewBlock returns a new Block, representing a complete reverse index for the
 // duration of time specified. It is backed by one or more segments.
 func NewBlock(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	md namespace.Metadata,
 	blockOpts BlockOptions,
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
@@ -235,7 +235,7 @@ func NewBlock(
 	scope := iopts.MetricsScope().SubScope("index").SubScope("block")
 	iopts = iopts.SetMetricsScope(scope)
 
-	segs, err := newMutableSegments(
+	segs := newMutableSegments(
 		md,
 		blockStart,
 		opts,
@@ -243,11 +243,8 @@ func NewBlock(
 		namespaceRuntimeOptsMgr,
 		iopts,
 	)
-	if err != nil {
-		return nil, err
-	}
 
-	coldSegs, err := newMutableSegments(
+	coldSegs := newMutableSegments(
 		md,
 		blockStart,
 		opts,
@@ -255,9 +252,6 @@ func NewBlock(
 		namespaceRuntimeOptsMgr,
 		iopts,
 	)
-	if err != nil {
-		return nil, err
-	}
 
 	// NB(bodu): The length of coldMutableSegments is always at least 1.
 	coldMutableSegments := []*mutableSegments{coldSegs}
@@ -286,20 +280,11 @@ func NewBlock(
 	return b, nil
 }
 
-func (b *block) ActiveBlockNotifySealedBlocks(
-	sealed []xtime.UnixNano,
-) error {
-	if !b.blockOpts.ActiveBlock {
-		return fmt.Errorf("block not in-memory block: start=%v", b.StartTime())
-	}
-	return b.mutableSegments.NotifySealedBlocks(sealed)
-}
-
-func (b *block) StartTime() time.Time {
+func (b *block) StartTime() xtime.UnixNano {
 	return b.blockStart
 }
 
-func (b *block) EndTime() time.Time {
+func (b *block) EndTime() xtime.UnixNano {
 	return b.blockEnd
 }
 
@@ -536,7 +521,27 @@ func (b *block) queryWithSpan(
 			}
 		}
 
-		batch = append(batch, iter.Current())
+		// Ensure that the block contains any of the relevant time segments for the query range.
+		doc := iter.Current()
+		if md, ok := doc.Metadata(); ok && md.OnIndexSeries != nil {
+			var (
+				inBlock      bool
+				currentBlock = opts.StartInclusive.Truncate(b.blockSize)
+			)
+			for !inBlock {
+				inBlock = md.OnIndexSeries.IndexedForBlockStart(currentBlock)
+				currentBlock = currentBlock.Add(b.blockSize)
+				if !currentBlock.Before(opts.EndExclusive) {
+					break
+				}
+			}
+
+			if !inBlock {
+				continue
+			}
+		}
+
+		batch = append(batch, doc)
 		if len(batch) < batchSize {
 			continue
 		}
@@ -1213,7 +1218,7 @@ func (b *block) EvictColdMutableSegments() error {
 func (b *block) RotateColdMutableSegments() error {
 	b.Lock()
 	defer b.Unlock()
-	coldSegs, err := newMutableSegments(
+	coldSegs := newMutableSegments(
 		b.nsMD,
 		b.blockStart,
 		b.opts,
@@ -1221,9 +1226,6 @@ func (b *block) RotateColdMutableSegments() error {
 		b.namespaceRuntimeOptsMgr,
 		b.iopts,
 	)
-	if err != nil {
-		return err
-	}
 	b.coldMutableSegments = append(b.coldMutableSegments, coldSegs)
 	return nil
 }

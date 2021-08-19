@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -125,7 +126,7 @@ func (mgr *tickManager) SetRuntimeOptions(opts runtime.Options) {
 	})
 }
 
-func (mgr *tickManager) Tick(forceType forceType, startTime time.Time) error {
+func (mgr *tickManager) Tick(forceType forceType, startTime xtime.UnixNano) error {
 	if forceType == force {
 		acquired := false
 		waiter := time.NewTicker(tokenCheckInterval)

@@ -234,7 +234,7 @@ func (mr *MockDatabaseMockRecorder) Close() *gomock.Call {
 }
 
 // FetchBlocks mocks base method.
-func (m *MockDatabase) FetchBlocks(ctx context.Context, namespace ident.ID, shard uint32, id ident.ID, starts []time.Time) ([]block.FetchBlockResult, error) {
+func (m *MockDatabase) FetchBlocks(ctx context.Context, namespace ident.ID, shard uint32, id ident.ID, starts []time0.UnixNano) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocks", ctx, namespace, shard, id, starts)
 	ret0, _ := ret[0].([]block.FetchBlockResult)
@@ -249,7 +249,7 @@ func (mr *MockDatabaseMockRecorder) FetchBlocks(ctx, namespace, shard, id, start
 }
 
 // FetchBlocksMetadataV2 mocks base method.
-func (m *MockDatabase) FetchBlocksMetadataV2(ctx context.Context, namespace ident.ID, shard uint32, start, end time.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
+func (m *MockDatabase) FetchBlocksMetadataV2(ctx context.Context, namespace ident.ID, shard uint32, start, end time0.UnixNano, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataV2", ctx, namespace, shard, start, end, limit, pageToken, opts)
 	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
@@ -265,7 +265,7 @@ func (mr *MockDatabaseMockRecorder) FetchBlocksMetadataV2(ctx, namespace, shard,
 }
 
 // FlushState mocks base method.
-func (m *MockDatabase) FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error) {
+func (m *MockDatabase) FlushState(namespace ident.ID, shardID uint32, blockStart time0.UnixNano) (fileOpState, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushState", namespace, shardID, blockStart)
 	ret0, _ := ret[0].(fileOpState)
@@ -394,7 +394,7 @@ func (mr *MockDatabaseMockRecorder) QueryIDs(ctx, namespace, query, opts interfa
 }
 
 // ReadEncoded mocks base method.
-func (m *MockDatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) (series.BlockReaderIter, error) {
+func (m *MockDatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time0.UnixNano) (series.BlockReaderIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, namespace, id, start, end)
 	ret0, _ := ret[0].(series.BlockReaderIter)
@@ -466,7 +466,7 @@ func (mr *MockDatabaseMockRecorder) Truncate(namespace interface{}) *gomock.Call
 }
 
 // WideQuery mocks base method.
-func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]xio.WideEntry, error) {
+func (m *MockDatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time0.UnixNano, shards []uint32, iterOpts index.IterationOptions) ([]xio.WideEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
 	ret0, _ := ret[0].([]xio.WideEntry)
@@ -481,7 +481,7 @@ func (mr *MockDatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shar
 }
 
 // Write mocks base method.
-func (m *MockDatabase) Write(ctx context.Context, namespace, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockDatabase) Write(ctx context.Context, namespace, id ident.ID, timestamp time0.UnixNano, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", ctx, namespace, id, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
@@ -509,7 +509,7 @@ func (mr *MockDatabaseMockRecorder) WriteBatch(ctx, namespace, writes, errHandle
 }
 
 // WriteTagged mocks base method.
-func (m *MockDatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockDatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time0.UnixNano, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTagged", ctx, namespace, id, tagResolver, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
@@ -673,7 +673,7 @@ func (mr *MockdatabaseMockRecorder) Close() *gomock.Call {
 }
 
 // FetchBlocks mocks base method.
-func (m *Mockdatabase) FetchBlocks(ctx context.Context, namespace ident.ID, shard uint32, id ident.ID, starts []time.Time) ([]block.FetchBlockResult, error) {
+func (m *Mockdatabase) FetchBlocks(ctx context.Context, namespace ident.ID, shard uint32, id ident.ID, starts []time0.UnixNano) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocks", ctx, namespace, shard, id, starts)
 	ret0, _ := ret[0].([]block.FetchBlockResult)
@@ -688,7 +688,7 @@ func (mr *MockdatabaseMockRecorder) FetchBlocks(ctx, namespace, shard, id, start
 }
 
 // FetchBlocksMetadataV2 mocks base method.
-func (m *Mockdatabase) FetchBlocksMetadataV2(ctx context.Context, namespace ident.ID, shard uint32, start, end time.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
+func (m *Mockdatabase) FetchBlocksMetadataV2(ctx context.Context, namespace ident.ID, shard uint32, start, end time0.UnixNano, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataV2", ctx, namespace, shard, start, end, limit, pageToken, opts)
 	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
@@ -704,7 +704,7 @@ func (mr *MockdatabaseMockRecorder) FetchBlocksMetadataV2(ctx, namespace, shard,
 }
 
 // FlushState mocks base method.
-func (m *Mockdatabase) FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error) {
+func (m *Mockdatabase) FlushState(namespace ident.ID, shardID uint32, blockStart time0.UnixNano) (fileOpState, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushState", namespace, shardID, blockStart)
 	ret0, _ := ret[0].(fileOpState)
@@ -848,7 +848,7 @@ func (mr *MockdatabaseMockRecorder) QueryIDs(ctx, namespace, query, opts interfa
 }
 
 // ReadEncoded mocks base method.
-func (m *Mockdatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) (series.BlockReaderIter, error) {
+func (m *Mockdatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time0.UnixNano) (series.BlockReaderIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, namespace, id, start, end)
 	ret0, _ := ret[0].(series.BlockReaderIter)
@@ -934,7 +934,7 @@ func (mr *MockdatabaseMockRecorder) UpdateOwnedNamespaces(namespaces interface{}
 }
 
 // WideQuery mocks base method.
-func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time.Time, shards []uint32, iterOpts index.IterationOptions) ([]xio.WideEntry, error) {
+func (m *Mockdatabase) WideQuery(ctx context.Context, namespace ident.ID, query index.Query, start time0.UnixNano, shards []uint32, iterOpts index.IterationOptions) ([]xio.WideEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WideQuery", ctx, namespace, query, start, shards, iterOpts)
 	ret0, _ := ret[0].([]xio.WideEntry)
@@ -949,7 +949,7 @@ func (mr *MockdatabaseMockRecorder) WideQuery(ctx, namespace, query, start, shar
 }
 
 // Write mocks base method.
-func (m *Mockdatabase) Write(ctx context.Context, namespace, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *Mockdatabase) Write(ctx context.Context, namespace, id ident.ID, timestamp time0.UnixNano, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", ctx, namespace, id, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
@@ -977,7 +977,7 @@ func (mr *MockdatabaseMockRecorder) WriteBatch(ctx, namespace, writes, errHandle
 }
 
 // WriteTagged mocks base method.
-func (m *Mockdatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *Mockdatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time0.UnixNano, value float64, unit time0.Unit, annotation []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTagged", ctx, namespace, id, tagResolver, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
@@ -1044,7 +1044,7 @@ func (mr *MockNamespaceMockRecorder) DocRef(id interface{}) *gomock.Call {
 }
 
 // FetchWideEntry mocks base method.
-func (m *MockNamespace) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time.Time, filter schema.WideEntryFilter) (block.StreamedWideEntry, error) {
+func (m *MockNamespace) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time0.UnixNano, filter schema.WideEntryFilter) (block.StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchWideEntry", ctx, id, blockStart, filter)
 	ret0, _ := ret[0].(block.StreamedWideEntry)
@@ -1379,7 +1379,7 @@ func (mr *MockdatabaseNamespaceMockRecorder) DocRef(id interface{}) *gomock.Call
 }
 
 // FetchBlocks mocks base method.
-func (m *MockdatabaseNamespace) FetchBlocks(ctx context.Context, shardID uint32, id ident.ID, starts []time.Time) ([]block.FetchBlockResult, error) {
+func (m *MockdatabaseNamespace) FetchBlocks(ctx context.Context, shardID uint32, id ident.ID, starts []time0.UnixNano) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocks", ctx, shardID, id, starts)
 	ret0, _ := ret[0].([]block.FetchBlockResult)
@@ -1394,7 +1394,7 @@ func (mr *MockdatabaseNamespaceMockRecorder) FetchBlocks(ctx, shardID, id, start
 }
 
 // FetchBlocksMetadataV2 mocks base method.
-func (m *MockdatabaseNamespace) FetchBlocksMetadataV2(ctx context.Context, shardID uint32, start, end time.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
+func (m *MockdatabaseNamespace) FetchBlocksMetadataV2(ctx context.Context, shardID uint32, start, end time0.UnixNano, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataV2", ctx, shardID, start, end, limit, pageToken, opts)
 	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
@@ -1410,7 +1410,7 @@ func (mr *MockdatabaseNamespaceMockRecorder) FetchBlocksMetadataV2(ctx, shardID,
 }
 
 // FetchWideEntry mocks base method.
-func (m *MockdatabaseNamespace) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time.Time, filter schema.WideEntryFilter) (block.StreamedWideEntry, error) {
+func (m *MockdatabaseNamespace) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time0.UnixNano, filter schema.WideEntryFilter) (block.StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchWideEntry", ctx, id, blockStart, filter)
 	ret0, _ := ret[0].(block.StreamedWideEntry)
@@ -1439,7 +1439,7 @@ func (mr *MockdatabaseNamespaceMockRecorder) FlushIndex(flush interface{}) *gomo
 }
 
 // FlushState mocks base method.
-func (m *MockdatabaseNamespace) FlushState(shardID uint32, blockStart time.Time) (fileOpState, error) {
+func (m *MockdatabaseNamespace) FlushState(shardID uint32, blockStart time0.UnixNano) (fileOpState, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushState", shardID, blockStart)
 	ret0, _ := ret[0].(fileOpState)
@@ -1497,7 +1497,7 @@ func (mr *MockdatabaseNamespaceMockRecorder) Metadata() *gomock.Call {
 }
 
 // NeedsFlush mocks base method.
-func (m *MockdatabaseNamespace) NeedsFlush(alignedInclusiveStart, alignedInclusiveEnd time.Time) (bool, error) {
+func (m *MockdatabaseNamespace) NeedsFlush(alignedInclusiveStart, alignedInclusiveEnd time0.UnixNano) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NeedsFlush", alignedInclusiveStart, alignedInclusiveEnd)
 	ret0, _ := ret[0].(bool)
@@ -1584,7 +1584,7 @@ func (mr *MockdatabaseNamespaceMockRecorder) QueryIDs(ctx, query, opts interface
 }
 
 // ReadEncoded mocks base method.
-func (m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id ident.ID, start, end time.Time) (series.BlockReaderIter, error) {
+func (m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id ident.ID, start, end time0.UnixNano) (series.BlockReaderIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, id, start, end)
 	ret0, _ := ret[0].(series.BlockReaderIter)
@@ -1629,17 +1629,17 @@ func (mr *MockdatabaseNamespaceMockRecorder) ReadableShardAt(shardID interface{}
 }
 
 // Repair mocks base method.
-func (m *MockdatabaseNamespace) Repair(repairer databaseShardRepairer, tr time0.Range) error {
+func (m *MockdatabaseNamespace) Repair(repairer databaseShardRepairer, tr time0.Range, opts NamespaceRepairOptions) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Repair", repairer, tr)
+	ret := m.ctrl.Call(m, "Repair", repairer, tr, opts)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Repair indicates an expected call of Repair.
-func (mr *MockdatabaseNamespaceMockRecorder) Repair(repairer, tr interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) Repair(repairer, tr, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseNamespace)(nil).Repair), repairer, tr)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseNamespace)(nil).Repair), repairer, tr, opts)
 }
 
 // Schema mocks base method.
@@ -1727,7 +1727,7 @@ func (mr *MockdatabaseNamespaceMockRecorder) Shards() *gomock.Call {
 }
 
 // Snapshot mocks base method.
-func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.SnapshotPreparer) error {
+func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time0.UnixNano, flush persist.SnapshotPreparer) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotTime, flush)
 	ret0, _ := ret[0].(error)
@@ -1755,7 +1755,7 @@ func (mr *MockdatabaseNamespaceMockRecorder) StorageOptions() *gomock.Call {
 }
 
 // Tick mocks base method.
-func (m *MockdatabaseNamespace) Tick(c context.Cancellable, startTime time.Time) error {
+func (m *MockdatabaseNamespace) Tick(c context.Cancellable, startTime time0.UnixNano) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", c, startTime)
 	ret0, _ := ret[0].(error)
@@ -1784,7 +1784,7 @@ func (mr *MockdatabaseNamespaceMockRecorder) Truncate() *gomock.Call {
 }
 
 // WarmFlush mocks base method.
-func (m *MockdatabaseNamespace) WarmFlush(blockStart time.Time, flush persist.FlushPreparer) error {
+func (m *MockdatabaseNamespace) WarmFlush(blockStart time0.UnixNano, flush persist.FlushPreparer) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WarmFlush", blockStart, flush)
 	ret0, _ := ret[0].(error)
@@ -1812,7 +1812,7 @@ func (mr *MockdatabaseNamespaceMockRecorder) WideQueryIDs(ctx, query, collector,
 }
 
 // Write mocks base method.
-func (m *MockdatabaseNamespace) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (SeriesWrite, error) {
+func (m *MockdatabaseNamespace) Write(ctx context.Context, id ident.ID, timestamp time0.UnixNano, value float64, unit time0.Unit, annotation []byte) (SeriesWrite, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(SeriesWrite)
@@ -1841,7 +1841,7 @@ func (mr *MockdatabaseNamespaceMockRecorder) WritePendingIndexInserts(pending in
 }
 
 // WriteTagged mocks base method.
-func (m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (SeriesWrite, error) {
+func (m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time0.UnixNano, value float64, unit time0.Unit, annotation []byte) (SeriesWrite, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tagResolver, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(SeriesWrite)
@@ -1935,7 +1935,7 @@ func (mr *MockShardMockRecorder) NumSeries() *gomock.Call {
 }
 
 // OpenStreamingReader mocks base method.
-func (m *MockShard) OpenStreamingReader(blockStart time.Time) (fs.DataFileSetReader, error) {
+func (m *MockShard) OpenStreamingReader(blockStart time0.UnixNano) (fs.DataFileSetReader, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OpenStreamingReader", blockStart)
 	ret0, _ := ret[0].(fs.DataFileSetReader)
@@ -1947,6 +1947,22 @@ func (m *MockShard) OpenStreamingReader(blockStart time.Time) (fs.DataFileSetRea
 func (mr *MockShardMockRecorder) OpenStreamingReader(blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenStreamingReader", reflect.TypeOf((*MockShard)(nil).OpenStreamingReader), blockStart)
+}
+
+// TryRetrieveWritableSeries mocks base method.
+func (m *MockShard) TryRetrieveWritableSeries(id ident.ID) (*Entry, WritableSeriesOptions, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TryRetrieveWritableSeries", id)
+	ret0, _ := ret[0].(*Entry)
+	ret1, _ := ret[1].(WritableSeriesOptions)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// TryRetrieveWritableSeries indicates an expected call of TryRetrieveWritableSeries.
+func (mr *MockShardMockRecorder) TryRetrieveWritableSeries(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryRetrieveWritableSeries", reflect.TypeOf((*MockShard)(nil).TryRetrieveWritableSeries), id)
 }
 
 // MockdatabaseShard is a mock of databaseShard interface.
@@ -2030,7 +2046,7 @@ func (mr *MockdatabaseShardMockRecorder) CleanupCompactedFileSets() *gomock.Call
 }
 
 // CleanupExpiredFileSets mocks base method.
-func (m *MockdatabaseShard) CleanupExpiredFileSets(earliestToRetain time.Time) error {
+func (m *MockdatabaseShard) CleanupExpiredFileSets(earliestToRetain time0.UnixNano) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CleanupExpiredFileSets", earliestToRetain)
 	ret0, _ := ret[0].(error)
@@ -2089,7 +2105,7 @@ func (mr *MockdatabaseShardMockRecorder) DocRef(id interface{}) *gomock.Call {
 }
 
 // FetchBlocks mocks base method.
-func (m *MockdatabaseShard) FetchBlocks(ctx context.Context, id ident.ID, starts []time.Time, nsCtx namespace.Context) ([]block.FetchBlockResult, error) {
+func (m *MockdatabaseShard) FetchBlocks(ctx context.Context, id ident.ID, starts []time0.UnixNano, nsCtx namespace.Context) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocks", ctx, id, starts, nsCtx)
 	ret0, _ := ret[0].([]block.FetchBlockResult)
@@ -2104,7 +2120,7 @@ func (mr *MockdatabaseShardMockRecorder) FetchBlocks(ctx, id, starts, nsCtx inte
 }
 
 // FetchBlocksForColdFlush mocks base method.
-func (m *MockdatabaseShard) FetchBlocksForColdFlush(ctx context.Context, seriesID ident.ID, start time.Time, version int, nsCtx namespace.Context) (block.FetchBlockResult, error) {
+func (m *MockdatabaseShard) FetchBlocksForColdFlush(ctx context.Context, seriesID ident.ID, start time0.UnixNano, version int, nsCtx namespace.Context) (block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksForColdFlush", ctx, seriesID, start, version, nsCtx)
 	ret0, _ := ret[0].(block.FetchBlockResult)
@@ -2119,7 +2135,7 @@ func (mr *MockdatabaseShardMockRecorder) FetchBlocksForColdFlush(ctx, seriesID, 
 }
 
 // FetchBlocksMetadataV2 mocks base method.
-func (m *MockdatabaseShard) FetchBlocksMetadataV2(ctx context.Context, start, end time.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
+func (m *MockdatabaseShard) FetchBlocksMetadataV2(ctx context.Context, start, end time0.UnixNano, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataV2", ctx, start, end, limit, pageToken, opts)
 	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
@@ -2135,7 +2151,7 @@ func (mr *MockdatabaseShardMockRecorder) FetchBlocksMetadataV2(ctx, start, end, 
 }
 
 // FetchWideEntry mocks base method.
-func (m *MockdatabaseShard) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time.Time, filter schema.WideEntryFilter, nsCtx namespace.Context) (block.StreamedWideEntry, error) {
+func (m *MockdatabaseShard) FetchWideEntry(ctx context.Context, id ident.ID, blockStart time0.UnixNano, filter schema.WideEntryFilter, nsCtx namespace.Context) (block.StreamedWideEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchWideEntry", ctx, id, blockStart, filter, nsCtx)
 	ret0, _ := ret[0].(block.StreamedWideEntry)
@@ -2150,7 +2166,7 @@ func (mr *MockdatabaseShardMockRecorder) FetchWideEntry(ctx, id, blockStart, fil
 }
 
 // FlushState mocks base method.
-func (m *MockdatabaseShard) FlushState(blockStart time.Time) (fileOpState, error) {
+func (m *MockdatabaseShard) FlushState(blockStart time0.UnixNano) (fileOpState, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushState", blockStart)
 	ret0, _ := ret[0].(fileOpState)
@@ -2193,7 +2209,7 @@ func (mr *MockdatabaseShardMockRecorder) IsBootstrapped() *gomock.Call {
 }
 
 // LatestVolume mocks base method.
-func (m *MockdatabaseShard) LatestVolume(blockStart time.Time) (int, error) {
+func (m *MockdatabaseShard) LatestVolume(blockStart time0.UnixNano) (int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LatestVolume", blockStart)
 	ret0, _ := ret[0].(int)
@@ -2221,6 +2237,18 @@ func (mr *MockdatabaseShardMockRecorder) LoadBlocks(series interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBlocks", reflect.TypeOf((*MockdatabaseShard)(nil).LoadBlocks), series)
 }
 
+// MarkWarmIndexFlushStateSuccessOrError mocks base method.
+func (m *MockdatabaseShard) MarkWarmIndexFlushStateSuccessOrError(blockStart time0.UnixNano, err error) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "MarkWarmIndexFlushStateSuccessOrError", blockStart, err)
+}
+
+// MarkWarmIndexFlushStateSuccessOrError indicates an expected call of MarkWarmIndexFlushStateSuccessOrError.
+func (mr *MockdatabaseShardMockRecorder) MarkWarmIndexFlushStateSuccessOrError(blockStart, err interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkWarmIndexFlushStateSuccessOrError", reflect.TypeOf((*MockdatabaseShard)(nil).MarkWarmIndexFlushStateSuccessOrError), blockStart, err)
+}
+
 // NumSeries mocks base method.
 func (m *MockdatabaseShard) NumSeries() int64 {
 	m.ctrl.T.Helper()
@@ -2236,7 +2264,7 @@ func (mr *MockdatabaseShardMockRecorder) NumSeries() *gomock.Call {
 }
 
 // OnEvictedFromWiredList mocks base method.
-func (m *MockdatabaseShard) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
+func (m *MockdatabaseShard) OnEvictedFromWiredList(id ident.ID, blockStart time0.UnixNano) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "OnEvictedFromWiredList", id, blockStart)
 }
@@ -2248,7 +2276,7 @@ func (mr *MockdatabaseShardMockRecorder) OnEvictedFromWiredList(id, blockStart i
 }
 
 // OpenStreamingReader mocks base method.
-func (m *MockdatabaseShard) OpenStreamingReader(blockStart time.Time) (fs.DataFileSetReader, error) {
+func (m *MockdatabaseShard) OpenStreamingReader(blockStart time0.UnixNano) (fs.DataFileSetReader, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OpenStreamingReader", blockStart)
 	ret0, _ := ret[0].(fs.DataFileSetReader)
@@ -2277,7 +2305,7 @@ func (mr *MockdatabaseShardMockRecorder) PrepareBootstrap(ctx interface{}) *gomo
 }
 
 // ReadEncoded mocks base method.
-func (m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ident.ID, start, end time.Time, nsCtx namespace.Context) (series.BlockReaderIter, error) {
+func (m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ident.ID, start, end time0.UnixNano, nsCtx namespace.Context) (series.BlockReaderIter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, id, start, end, nsCtx)
 	ret0, _ := ret[0].(series.BlockReaderIter)
@@ -2322,7 +2350,7 @@ func (mr *MockdatabaseShardMockRecorder) SeriesRefResolver(id, tags interface{})
 }
 
 // Snapshot mocks base method.
-func (m *MockdatabaseShard) Snapshot(blockStart, snapshotStart time.Time, flush persist.SnapshotPreparer, nsCtx namespace.Context) (ShardSnapshotResult, error) {
+func (m *MockdatabaseShard) Snapshot(blockStart, snapshotStart time0.UnixNano, flush persist.SnapshotPreparer, nsCtx namespace.Context) (ShardSnapshotResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotStart, flush, nsCtx)
 	ret0, _ := ret[0].(ShardSnapshotResult)
@@ -2337,7 +2365,7 @@ func (mr *MockdatabaseShardMockRecorder) Snapshot(blockStart, snapshotStart, flu
 }
 
 // Tick mocks base method.
-func (m *MockdatabaseShard) Tick(c context.Cancellable, startTime time.Time, nsCtx namespace.Context) (tickResult, error) {
+func (m *MockdatabaseShard) Tick(c context.Cancellable, startTime time0.UnixNano, nsCtx namespace.Context) (tickResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", c, startTime, nsCtx)
 	ret0, _ := ret[0].(tickResult)
@@ -2349,6 +2377,22 @@ func (m *MockdatabaseShard) Tick(c context.Cancellable, startTime time.Time, nsC
 func (mr *MockdatabaseShardMockRecorder) Tick(c, startTime, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseShard)(nil).Tick), c, startTime, nsCtx)
+}
+
+// TryRetrieveWritableSeries mocks base method.
+func (m *MockdatabaseShard) TryRetrieveWritableSeries(id ident.ID) (*Entry, WritableSeriesOptions, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TryRetrieveWritableSeries", id)
+	ret0, _ := ret[0].(*Entry)
+	ret1, _ := ret[1].(WritableSeriesOptions)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// TryRetrieveWritableSeries indicates an expected call of TryRetrieveWritableSeries.
+func (mr *MockdatabaseShardMockRecorder) TryRetrieveWritableSeries(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryRetrieveWritableSeries", reflect.TypeOf((*MockdatabaseShard)(nil).TryRetrieveWritableSeries), id)
 }
 
 // UpdateFlushStates mocks base method.
@@ -2364,7 +2408,7 @@ func (mr *MockdatabaseShardMockRecorder) UpdateFlushStates() *gomock.Call {
 }
 
 // WarmFlush mocks base method.
-func (m *MockdatabaseShard) WarmFlush(blockStart time.Time, flush persist.FlushPreparer, nsCtx namespace.Context) error {
+func (m *MockdatabaseShard) WarmFlush(blockStart time0.UnixNano, flush persist.FlushPreparer, nsCtx namespace.Context) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WarmFlush", blockStart, flush, nsCtx)
 	ret0, _ := ret[0].(error)
@@ -2378,7 +2422,7 @@ func (mr *MockdatabaseShardMockRecorder) WarmFlush(blockStart, flush, nsCtx inte
 }
 
 // Write mocks base method.
-func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (SeriesWrite, error) {
+func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time0.UnixNano, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (SeriesWrite, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation, wOpts)
 	ret0, _ := ret[0].(SeriesWrite)
@@ -2393,7 +2437,7 @@ func (mr *MockdatabaseShardMockRecorder) Write(ctx, id, timestamp, value, unit, 
 }
 
 // WriteTagged mocks base method.
-func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (SeriesWrite, error) {
+func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tagResolver convert.TagMetadataResolver, timestamp time0.UnixNano, value float64, unit time0.Unit, annotation []byte, wOpts series.WriteOptions) (SeriesWrite, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tagResolver, timestamp, value, unit, annotation, wOpts)
 	ret0, _ := ret[0].(SeriesWrite)
@@ -2495,7 +2539,7 @@ func (mr *MockNamespaceIndexMockRecorder) AssignShardSet(shardSet interface{}) *
 }
 
 // BlockForBlockStart mocks base method.
-func (m *MockNamespaceIndex) BlockForBlockStart(blockStart time.Time) (index.Block, error) {
+func (m *MockNamespaceIndex) BlockForBlockStart(blockStart time0.UnixNano) (index.Block, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BlockForBlockStart", blockStart)
 	ret0, _ := ret[0].(index.Block)
@@ -2510,7 +2554,7 @@ func (mr *MockNamespaceIndexMockRecorder) BlockForBlockStart(blockStart interfac
 }
 
 // BlockStartForWriteTime mocks base method.
-func (m *MockNamespaceIndex) BlockStartForWriteTime(writeTime time.Time) time0.UnixNano {
+func (m *MockNamespaceIndex) BlockStartForWriteTime(writeTime time0.UnixNano) time0.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BlockStartForWriteTime", writeTime)
 	ret0, _ := ret[0].(time0.UnixNano)
@@ -2551,6 +2595,20 @@ func (mr *MockNamespaceIndexMockRecorder) Bootstrapped() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrapped", reflect.TypeOf((*MockNamespaceIndex)(nil).Bootstrapped))
 }
 
+// CleanupCorruptedFileSets mocks base method.
+func (m *MockNamespaceIndex) CleanupCorruptedFileSets() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CleanupCorruptedFileSets")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CleanupCorruptedFileSets indicates an expected call of CleanupCorruptedFileSets.
+func (mr *MockNamespaceIndexMockRecorder) CleanupCorruptedFileSets() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupCorruptedFileSets", reflect.TypeOf((*MockNamespaceIndex)(nil).CleanupCorruptedFileSets))
+}
+
 // CleanupDuplicateFileSets mocks base method.
 func (m *MockNamespaceIndex) CleanupDuplicateFileSets(activeShards []uint32) error {
 	m.ctrl.T.Helper()
@@ -2566,7 +2624,7 @@ func (mr *MockNamespaceIndexMockRecorder) CleanupDuplicateFileSets(activeShards 
 }
 
 // CleanupExpiredFileSets mocks base method.
-func (m *MockNamespaceIndex) CleanupExpiredFileSets(t time.Time) error {
+func (m *MockNamespaceIndex) CleanupExpiredFileSets(t time0.UnixNano) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CleanupExpiredFileSets", t)
 	ret0, _ := ret[0].(error)
@@ -2638,7 +2696,7 @@ func (mr *MockNamespaceIndexMockRecorder) Query(ctx, query, opts interface{}) *g
 }
 
 // Tick mocks base method.
-func (m *MockNamespaceIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
+func (m *MockNamespaceIndex) Tick(c context.Cancellable, startTime time0.UnixNano) (namespaceIndexTickResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", c, startTime)
 	ret0, _ := ret[0].(namespaceIndexTickResult)
@@ -2906,7 +2964,7 @@ func (m *MockdatabaseFlushManager) EXPECT() *MockdatabaseFlushManagerMockRecorde
 }
 
 // Flush mocks base method.
-func (m *MockdatabaseFlushManager) Flush(startTime time.Time) error {
+func (m *MockdatabaseFlushManager) Flush(startTime time0.UnixNano) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Flush", startTime)
 	ret0, _ := ret[0].(error)
@@ -2970,7 +3028,7 @@ func (m *MockdatabaseCleanupManager) EXPECT() *MockdatabaseCleanupManagerMockRec
 }
 
 // ColdFlushCleanup mocks base method.
-func (m *MockdatabaseCleanupManager) ColdFlushCleanup(t time.Time) error {
+func (m *MockdatabaseCleanupManager) ColdFlushCleanup(t time0.UnixNano) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ColdFlushCleanup", t)
 	ret0, _ := ret[0].(error)
@@ -2996,7 +3054,7 @@ func (mr *MockdatabaseCleanupManagerMockRecorder) Report() *gomock.Call {
 }
 
 // WarmFlushCleanup mocks base method.
-func (m *MockdatabaseCleanupManager) WarmFlushCleanup(t time.Time) error {
+func (m *MockdatabaseCleanupManager) WarmFlushCleanup(t time0.UnixNano) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WarmFlushCleanup", t)
 	ret0, _ := ret[0].(error)
@@ -3061,7 +3119,7 @@ func (mr *MockdatabaseFileSystemManagerMockRecorder) Enable() *gomock.Call {
 }
 
 // Flush mocks base method.
-func (m *MockdatabaseFileSystemManager) Flush(t time.Time) error {
+func (m *MockdatabaseFileSystemManager) Flush(t time0.UnixNano) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Flush", t)
 	ret0, _ := ret[0].(error)
@@ -3102,7 +3160,7 @@ func (mr *MockdatabaseFileSystemManagerMockRecorder) Report() *gomock.Call {
 }
 
 // Run mocks base method.
-func (m *MockdatabaseFileSystemManager) Run(t time.Time) bool {
+func (m *MockdatabaseFileSystemManager) Run(t time0.UnixNano) bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Run", t)
 	ret0, _ := ret[0].(bool)
@@ -3153,7 +3211,7 @@ func (m *MockdatabaseColdFlushManager) EXPECT() *MockdatabaseColdFlushManagerMoc
 }
 
 // ColdFlushCleanup mocks base method.
-func (m *MockdatabaseColdFlushManager) ColdFlushCleanup(t time.Time) error {
+func (m *MockdatabaseColdFlushManager) ColdFlushCleanup(t time0.UnixNano) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ColdFlushCleanup", t)
 	ret0, _ := ret[0].(error)
@@ -3207,7 +3265,7 @@ func (mr *MockdatabaseColdFlushManagerMockRecorder) Report() *gomock.Call {
 }
 
 // Run mocks base method.
-func (m *MockdatabaseColdFlushManager) Run(t time.Time) bool {
+func (m *MockdatabaseColdFlushManager) Run(t time0.UnixNano) bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Run", t)
 	ret0, _ := ret[0].(bool)
@@ -3235,7 +3293,7 @@ func (mr *MockdatabaseColdFlushManagerMockRecorder) Status() *gomock.Call {
 }
 
 // WarmFlushCleanup mocks base method.
-func (m *MockdatabaseColdFlushManager) WarmFlushCleanup(t time.Time) error {
+func (m *MockdatabaseColdFlushManager) WarmFlushCleanup(t time0.UnixNano) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WarmFlushCleanup", t)
 	ret0, _ := ret[0].(error)
@@ -3491,7 +3549,7 @@ func (m *MockdatabaseTickManager) EXPECT() *MockdatabaseTickManagerMockRecorder 
 }
 
 // Tick mocks base method.
-func (m *MockdatabaseTickManager) Tick(forceType forceType, startTime time.Time) error {
+func (m *MockdatabaseTickManager) Tick(forceType forceType, startTime time0.UnixNano) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", forceType, startTime)
 	ret0, _ := ret[0].(error)
@@ -3707,7 +3765,7 @@ func (mr *MockdatabaseMediatorMockRecorder) Report() *gomock.Call {
 }
 
 // Tick mocks base method.
-func (m *MockdatabaseMediator) Tick(forceType forceType, startTime time.Time) error {
+func (m *MockdatabaseMediator) Tick(forceType forceType, startTime time0.UnixNano) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", forceType, startTime)
 	ret0, _ := ret[0].(error)

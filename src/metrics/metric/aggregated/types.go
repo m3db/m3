@@ -162,6 +162,7 @@ func (m ForwardedMetric) ToProto(pb *metricpb.ForwardedMetric) error {
 	pb.Id = m.ID
 	pb.TimeNanos = m.TimeNanos
 	pb.Values = m.Values
+	pb.Annotation = m.Annotation
 	return nil
 }
 

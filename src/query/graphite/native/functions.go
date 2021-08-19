@@ -171,11 +171,19 @@ type contextShiftFunc func(*common.Context) *common.Context
 // unaryTransformer takes in one series and returns a transformed series.
 type unaryTransformer func(ts.SeriesList) (ts.SeriesList, error)
 
+// contextShiftAdjustFunc determines after an initial context shift whether
+// an adjustment is necessary or not
+type contextShiftAdjustFunc func(
+	shiftedContext *common.Context,
+	bootstrappedSeries ts.SeriesList,
+) (*common.Context, bool, error)
+
 // unaryContextShifter contains a contextShiftFunc for generating shift contexts
 // as well as a unaryTransformer for transforming one series to another.
 type unaryContextShifter struct {
-	ContextShiftFunc contextShiftFunc
-	UnaryTransformer unaryTransformer
+	ContextShiftFunc       contextShiftFunc
+	UnaryTransformer       unaryTransformer
+	ContextShiftAdjustFunc contextShiftAdjustFunc
 }
 
 var (
@@ -199,25 +207,23 @@ var (
 	genericInterfaceType       = reflect.TypeOf((*genericInterface)(nil)).Elem()
 )
 
-var (
-	allowableTypes = reflectTypeSet{
-		// these are for return types
-		timeSeriesListType,
-		unaryContextShifterPtrType,
-		seriesListType,
-		singlePathSpecType,
-		multiplePathSpecsType,
-		interfaceType, // only for function parameters
-		float64Type,
-		float64SliceType,
-		intType,
-		intSliceType,
-		stringType,
-		stringSliceType,
-		boolType,
-		boolSliceType,
-	}
-)
+var allowableTypes = reflectTypeSet{
+	// these are for return types
+	timeSeriesListType,
+	unaryContextShifterPtrType,
+	seriesListType,
+	singlePathSpecType,
+	multiplePathSpecsType,
+	interfaceType, // only for function parameters
+	float64Type,
+	float64SliceType,
+	intType,
+	intSliceType,
+	stringType,
+	stringSliceType,
+	boolType,
+	boolSliceType,
+}
 
 var (
 	errNonFunction   = xerrors.NewInvalidParamsError(errors.New("not a function"))
@@ -499,8 +505,9 @@ func (f *Function) reflectCall(ctx *common.Context, args []reflect.Value) (refle
 
 // A funcArg is an argument to a function that gets resolved at runtime
 type funcArg interface {
-	ArgumentASTNode
+	ASTNode
 	Evaluate(ctx *common.Context) (reflect.Value, error)
+	Type() reflect.Type
 	CompatibleWith(reflectType reflect.Type) bool
 }
 
@@ -516,11 +523,13 @@ func newFloat64Const(n float64) funcArg { return constFuncArg{value: reflect.Val
 func newIntConst(n int) funcArg         { return constFuncArg{value: reflect.ValueOf(n)} }
 
 func (c constFuncArg) Evaluate(ctx *common.Context) (reflect.Value, error) { return c.value, nil }
+func (c constFuncArg) Type() reflect.Type                                  { return c.value.Type() }
 func (c constFuncArg) CompatibleWith(reflectType reflect.Type) bool {
 	return c.value.Type() == reflectType || reflectType == interfaceType
 }
-func (c constFuncArg) String() string                 { return fmt.Sprintf("%v", c.value.Interface()) }
-func (c constFuncArg) PathExpression() (string, bool) { return "", false }
+func (c constFuncArg) String() string                      { return fmt.Sprintf("%v", c.value.Interface()) }
+func (c constFuncArg) PathExpression() (string, bool)      { return "", false }
+func (c constFuncArg) CallExpression() (CallASTNode, bool) { return nil, false }
 
 // A functionCall is an actual call to a function, with resolution for arguments
 type functionCall struct {
@@ -532,16 +541,20 @@ func (call *functionCall) Name() string {
 	return call.f.name
 }
 
-func (call *functionCall) Arguments() []ArgumentASTNode {
-	args := make([]ArgumentASTNode, len(call.in))
-	for i, arg := range call.in {
-		args[i] = arg
+func (call *functionCall) Arguments() []ASTNode {
+	args := make([]ASTNode, 0, len(call.in))
+	for _, arg := range call.in {
+		args = append(args, arg)
 	}
 	return args
 }
 
 func (call *functionCall) PathExpression() (string, bool) {
 	return "", false
+}
+
+func (call *functionCall) CallExpression() (CallASTNode, bool) {
+	return call, true
 }
 
 // Evaluate evaluates the function call and returns the result as a reflect.Value
@@ -586,8 +599,46 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 	if err != nil {
 		return reflect.Value{}, err
 	}
-	transformerFn := contextShifter.Field(1)
-	var ret []reflect.Value
+
+	// Determine if need to adjust the shift based on fetched series
+	// from the context shift.
+MaybeAdjustShiftLoop:
+	for {
+		adjustFn := contextShifter.Field(2)
+		if adjustFn.IsNil() {
+			break MaybeAdjustShiftLoop
+		}
+
+		reflected := adjustFn.Call([]reflect.Value{
+			reflect.ValueOf(shiftedCtx),
+			shiftedSeries,
+		})
+		if reflectedErr := reflected[2]; !reflectedErr.IsNil() {
+			return reflect.Value{}, reflectedErr.Interface().(error)
+		}
+
+		if reflectedAdjust := reflected[1]; !reflectedAdjust.Bool() {
+			// No further adjust.
+			break MaybeAdjustShiftLoop
+		}
+
+		// Adjusted again, need to re-bootstrap from the shifted series.
+		adjustedShiftedCtx := reflected[0].Interface().(*common.Context)
+		adjustedShiftedSeries, err := call.in[0].Evaluate(adjustedShiftedCtx)
+		if err != nil {
+			return reflect.Value{}, err
+		}
+
+		// Override previously shifted context and series fetched and re-eval.
+		shiftedCtx = adjustedShiftedCtx
+		shiftedSeries = adjustedShiftedSeries
+	}
+
+	// Execute the unary transformer function with the shifted series.
+	var (
+		transformerFn = contextShifter.Field(1)
+		ret           []reflect.Value
+	)
 	switch call.f.out {
 	case unaryContextShifterPtrType:
 		// unary function
@@ -599,6 +650,10 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 		err = ret[1].Interface().(error)
 	}
 	return ret[0], err
+}
+
+func (call *functionCall) Type() reflect.Type {
+	return reflect.ValueOf(call).Type()
 }
 
 // CompatibleWith checks whether the function call's return is compatible with the given reflection type

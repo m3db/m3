@@ -453,8 +453,12 @@ func TestConfiguration(t *testing.T) {
     queueChannel: null
   repair:
     enabled: false
+    type: 0
+    strategy: 0
+    force: false
     throttle: 2m0s
     checkInterval: 1m0s
+    concurrency: 0
     debugShadowComparisonsEnabled: false
     debugShadowComparisonsPercentage: 0
   replication: null
@@ -690,10 +694,16 @@ func TestConfiguration(t *testing.T) {
   tracing:
     serviceName: ""
     backend: jaeger
+    opentelemetry:
+      serviceName: ""
+      endpoint: ""
+      insecure: false
+      attributes: {}
     jaeger:
       serviceName: ""
       disabled: false
       rpc_metrics: false
+      traceid_128bit: false
       tags: []
       sampler: null
       reporter: null

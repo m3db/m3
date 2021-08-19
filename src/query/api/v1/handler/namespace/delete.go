@@ -29,9 +29,9 @@ import (
 	"strings"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -51,7 +51,7 @@ const (
 var (
 	// M3DBDeleteURL is the url for the M3DB namespace delete handler.
 	M3DBDeleteURL = path.Join(
-		handler.RoutePrefixV1,
+		route.Prefix,
 		M3DBServiceNamespacePathName,
 		fmt.Sprintf("{%s}", namespaceIDVar),
 	)

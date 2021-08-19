@@ -56,7 +56,6 @@ func verifyDedupeMap(
 	for iter.Next() {
 		dp, _, _ := iter.Current()
 		ex := expected[i]
-		ex.TimestampNanos = xtime.ToUnixNano(ex.Timestamp)
 		assert.Equal(t, ex, dp)
 		i++
 	}
@@ -65,7 +64,7 @@ func verifyDedupeMap(
 }
 
 type dp struct {
-	t   time.Time
+	t   xtime.UnixNano
 	val float64
 }
 
@@ -88,8 +87,7 @@ func it(
 	it.EXPECT().Next().Return(true)
 	it.EXPECT().Current().
 		Return(ts.Datapoint{
-			TimestampNanos: xtime.ToUnixNano(dp.t),
-			Timestamp:      dp.t,
+			TimestampNanos: dp.t,
 			Value:          dp.val,
 		}, xtime.Second, nil).AnyTimes()
 	it.EXPECT().Next().Return(false)
@@ -131,7 +129,7 @@ func TestTagDedupeMap(t *testing.T) {
 		tagOpts: models.NewTagOptions(),
 	})
 
-	start := time.Now().Truncate(time.Hour)
+	start := xtime.Now().Truncate(time.Hour)
 	attrs := storagemetadata.Attributes{
 		MetricsType: storagemetadata.UnaggregatedMetricsType,
 		Resolution:  time.Hour,
@@ -139,7 +137,7 @@ func TestTagDedupeMap(t *testing.T) {
 
 	dedupeMap.add(it(ctrl, dp{t: start, val: 14},
 		"id1", "foo", "bar", "qux", "quail"), attrs)
-	verifyDedupeMap(t, dedupeMap, ts.Datapoint{Timestamp: start, Value: 14})
+	verifyDedupeMap(t, dedupeMap, ts.Datapoint{TimestampNanos: start, Value: 14})
 
 	// Lower resolution must override.
 	attrs.Resolution = time.Minute
@@ -149,14 +147,14 @@ func TestTagDedupeMap(t *testing.T) {
 		"id2", "foo", "bar", "qux", "quail"), attrs)
 
 	verifyDedupeMap(t, dedupeMap,
-		ts.Datapoint{Timestamp: start.Add(time.Minute), Value: 10},
-		ts.Datapoint{Timestamp: start.Add(time.Minute * 2), Value: 12})
+		ts.Datapoint{TimestampNanos: start.Add(time.Minute), Value: 10},
+		ts.Datapoint{TimestampNanos: start.Add(time.Minute * 2), Value: 12})
 
 	// Lower resolution must override.
 	attrs.Resolution = time.Second
 	dedupeMap.add(it(ctrl, dp{t: start, val: 100},
 		"id1", "foo", "bar", "qux", "quail"), attrs)
-	verifyDedupeMap(t, dedupeMap, ts.Datapoint{Timestamp: start, Value: 100})
+	verifyDedupeMap(t, dedupeMap, ts.Datapoint{TimestampNanos: start, Value: 100})
 
 	for _, it := range dedupeMap.list() {
 		iter := it.iter

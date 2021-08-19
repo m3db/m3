@@ -89,9 +89,9 @@ func (f Fields) shallowCopy() Fields {
 
 // Metadata represents a document to be indexed.
 type Metadata struct {
-	ID     []byte
-	Fields []Field
-	Ref    interface{}
+	ID            []byte
+	Fields        []Field
+	OnIndexSeries OnIndexSeries
 }
 
 // Get returns the value of the specified field name in the document if it exists.

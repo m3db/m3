@@ -26,10 +26,17 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+	"github.com/uber/tchannel-go"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
@@ -59,13 +66,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
-
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
-	"github.com/uber/tchannel-go"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -87,7 +90,7 @@ var (
 )
 
 // nowSetterFn is the function that sets the current time
-type nowSetterFn func(t time.Time)
+type nowSetterFn func(t xtime.UnixNano)
 
 type assertTestDataEqual func(t *testing.T, expected, actual []generate.TestValue) bool
 
@@ -103,6 +106,7 @@ type testSetup struct {
 
 	db                cluster.Database
 	storageOpts       storage.Options
+	instrumentOpts    instrument.Options
 	serverStorageOpts server.StorageOptions
 	fsOpts            fs.Options
 	blockLeaseManager block.LeaseManager
@@ -110,7 +114,8 @@ type testSetup struct {
 	origin            topology.Host
 	topoInit          topology.Initializer
 	shardSet          sharding.ShardSet
-	getNowFn          clock.NowFn
+	getNowFn          xNowFn
+	clockNowFn        clock.NowFn
 	setNowFn          nowSetterFn
 	tchannelClient    *TestTChannelClient
 	m3dbClient        client.Client
@@ -136,6 +141,8 @@ type testSetup struct {
 	closedCh chan struct{}
 }
 
+type xNowFn func() xtime.UnixNano
+
 // TestSetup is a test setup.
 type TestSetup interface {
 	topology.MapProvider
@@ -160,10 +167,12 @@ type TestSetup interface {
 	Origin() topology.Host
 	ServerIsBootstrapped() bool
 	StopServer() error
+	StopServerAndVerifyOpenFilesAreClosed() error
 	StartServer() error
 	StartServerDontWaitBootstrap() error
-	NowFn() clock.NowFn
-	SetNowFn(time.Time)
+	NowFn() xNowFn
+	ClockNowFn() clock.NowFn
+	SetNowFn(xtime.UnixNano)
 	Close()
 	WriteBatch(ident.ID, generate.SeriesBlock) error
 	ShouldBeEqual() bool
@@ -268,8 +277,8 @@ func NewTestSetup(
 		zap.Stringer("cache-policy", storageOpts.SeriesCachePolicy()),
 	}
 	logger = logger.With(fields...)
-	iOpts := storageOpts.InstrumentOptions()
-	storageOpts = storageOpts.SetInstrumentOptions(iOpts.SetLogger(logger))
+	instrumentOpts := storageOpts.InstrumentOptions().SetLogger(logger)
+	storageOpts = storageOpts.SetInstrumentOptions(instrumentOpts)
 
 	indexMode := index.InsertSync
 	if opts.WriteNewSeriesAsync() {
@@ -277,7 +286,7 @@ func NewTestSetup(
 	}
 
 	plCache, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
-		InstrumentOptions: iOpts,
+		InstrumentOptions: instrumentOpts,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create postings list cache: %v", err)
@@ -301,8 +310,8 @@ func NewTestSetup(
 		return nil, err
 	}
 
-	// Set up shard set
-	shardSet, err := newTestShardSet(opts.NumShards())
+	// Set up shard set.
+	shardSet, err := newTestShardSet(opts.NumShards(), opts.ShardSetOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +334,8 @@ func NewTestSetup(
 		}
 	}
 
-	adminClient, verificationAdminClient, err := newClients(topoInit, opts, schemaReg, id, tchannelNodeAddr)
+	adminClient, verificationAdminClient, err := newClients(topoInit, opts,
+		schemaReg, id, tchannelNodeAddr, instrumentOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -350,14 +360,17 @@ func NewTestSetup(
 
 	// Set up getter and setter for now
 	var lock sync.RWMutex
-	now := time.Now().Truncate(truncateSize)
-	getNowFn := func() time.Time {
+	now := xtime.Now().Truncate(truncateSize)
+	getNowFn := func() xtime.UnixNano {
 		lock.RLock()
 		t := now
 		lock.RUnlock()
 		return t
 	}
-	setNowFn := func(t time.Time) {
+	clockNowFn := func() time.Time {
+		return getNowFn().ToTime()
+	}
+	setNowFn := func(t xtime.UnixNano) {
 		lock.Lock()
 		now = t
 		lock.Unlock()
@@ -368,7 +381,7 @@ func NewTestSetup(
 			storageOpts.ClockOptions().SetNowFn(overrideTimeNow))
 	} else {
 		storageOpts = storageOpts.SetClockOptions(
-			storageOpts.ClockOptions().SetNowFn(getNowFn))
+			storageOpts.ClockOptions().SetNowFn(clockNowFn))
 	}
 
 	// Set up file path prefix
@@ -451,7 +464,7 @@ func NewTestSetup(
 		// Have to manually set the blockpool because the default one uses a constructor
 		// function that doesn't have the updated blockOpts.
 		blockPool.Init(func() block.DatabaseBlock {
-			return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts, namespace.Context{})
+			return block.NewDatabaseBlock(0, 0, ts.Segment{}, blockOpts, namespace.Context{})
 		})
 		blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 		storageOpts = storageOpts.SetDatabaseBlockOptions(blockOpts)
@@ -482,12 +495,14 @@ func NewTestSetup(
 		scope:                       scope,
 		storageOpts:                 storageOpts,
 		blockLeaseManager:           blockLeaseManager,
+		instrumentOpts:              instrumentOpts,
 		fsOpts:                      fsOpts,
 		hostID:                      id,
 		origin:                      newOrigin(id, tchannelNodeAddr),
 		topoInit:                    topoInit,
 		shardSet:                    shardSet,
 		getNowFn:                    getNowFn,
+		clockNowFn:                  clockNowFn,
 		setNowFn:                    setNowFn,
 		tchannelClient:              tchanClient,
 		m3dbClient:                  adminClient.(client.Client),
@@ -576,11 +591,15 @@ func (ts *testSetup) Namespaces() []namespace.Metadata {
 	return ts.namespaces
 }
 
-func (ts *testSetup) NowFn() clock.NowFn {
+func (ts *testSetup) NowFn() xNowFn {
 	return ts.getNowFn
 }
 
-func (ts *testSetup) SetNowFn(t time.Time) {
+func (ts *testSetup) ClockNowFn() clock.NowFn {
+	return ts.clockNowFn
+}
+
+func (ts *testSetup) SetNowFn(t xtime.UnixNano) {
 	ts.setNowFn(t)
 }
 
@@ -651,7 +670,7 @@ func (ts *testSetup) GeneratorOptions(ropts retention.Options) generate.Options 
 		storageOpts = ts.storageOpts
 		fsOpts      = storageOpts.CommitLogOptions().FilesystemOptions()
 		opts        = generate.NewOptions()
-		co          = opts.ClockOptions().SetNowFn(ts.getNowFn)
+		co          = opts.ClockOptions().SetNowFn(ts.clockNowFn)
 	)
 
 	return opts.
@@ -801,6 +820,29 @@ func (ts *testSetup) StopServer() error {
 	return nil
 }
 
+func (ts *testSetup) StopServerAndVerifyOpenFilesAreClosed() error {
+	if err := ts.DB().Close(); err != nil {
+		return err
+	}
+
+	openDataFiles := openFiles(ts.filePathPrefix + "/data/")
+	require.Empty(ts.t, openDataFiles)
+
+	return ts.StopServer()
+}
+
+// counts open/locked files inside parent dir.
+func openFiles(parentDir string) []string {
+	cmd := exec.Command("lsof", "+D", parentDir) // nolint:gosec
+
+	out, _ := cmd.Output()
+	if len(out) == 0 {
+		return nil
+	}
+
+	return strings.Split(string(out), "\n")
+}
+
 func (ts *testSetup) TChannelClient() *TestTChannelClient {
 	return ts.tchannelClient
 }
@@ -906,8 +948,9 @@ func (ts *testSetup) httpDebugAddr() string {
 func (ts *testSetup) MaybeResetClients() error {
 	if ts.m3dbClient == nil {
 		// Recreate the clients as their session was destroyed by StopServer()
-		adminClient, verificationAdminClient, err := newClients(
-			ts.topoInit, ts.opts, ts.schemaReg, ts.hostID, ts.tchannelNodeAddr())
+		adminClient, verificationAdminClient, err := newClients(ts.topoInit,
+			ts.opts, ts.schemaReg, ts.hostID, ts.tchannelNodeAddr(),
+			ts.instrumentOpts)
 		if err != nil {
 			return err
 		}
@@ -975,7 +1018,8 @@ func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions
 			SetIndexOptions(storageIdxOpts).
 			SetPersistManager(persistMgr).
 			SetIndexClaimsManager(storageOpts.IndexClaimsManager()).
-			SetCompactor(compactor)
+			SetCompactor(compactor).
+			SetInstrumentOptions(storageOpts.InstrumentOptions())
 		bs, err = bfs.NewFileSystemBootstrapperProvider(bfsOpts, bs)
 		if err != nil {
 			return err
@@ -1011,8 +1055,8 @@ func newClients(
 	topoInit topology.Initializer,
 	opts TestOptions,
 	schemaReg namespace.SchemaRegistry,
-	id,
-	tchannelNodeAddr string,
+	id, tchannelNodeAddr string,
+	instrumentOpts instrument.Options,
 ) (client.AdminClient, client.AdminClient, error) {
 	var (
 		clientOpts = defaultClientOptions(topoInit).SetClusterConnectTimeout(
@@ -1020,7 +1064,8 @@ func newClients(
 			SetFetchRequestTimeout(opts.FetchRequestTimeout()).
 			SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
 			SetTopologyInitializer(topoInit).
-			SetUseV2BatchAPIs(true)
+			SetUseV2BatchAPIs(true).
+			SetInstrumentOptions(instrumentOpts)
 
 		origin             = newOrigin(id, tchannelNodeAddr)
 		verificationOrigin = newOrigin(id+"-verification", tchannelNodeAddr)

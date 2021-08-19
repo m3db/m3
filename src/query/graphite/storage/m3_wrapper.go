@@ -37,21 +37,20 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	querystorage "github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
-	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"go.uber.org/zap"
 )
 
-var (
-	errSeriesNoResolution = errors.New("series has no resolution set")
-)
+var errSeriesNoResolution = errors.New("series has no resolution set")
 
 type m3WrappedStore struct {
 	m3             storage.Storage
-	m3dbOpts       m3db.Options
+	m3dbOpts       m3.Options
 	instrumentOpts instrument.Options
 	opts           M3WrappedStorageOptions
 }
@@ -81,7 +80,7 @@ type seriesMetadata struct {
 // storage instance.
 func NewM3WrappedStorage(
 	m3storage storage.Storage,
-	m3dbOpts m3db.Options,
+	m3dbOpts m3.Options,
 	instrumentOpts instrument.Options,
 	opts M3WrappedStorageOptions,
 ) Storage {
@@ -93,16 +92,29 @@ func NewM3WrappedStorage(
 	}
 }
 
+// TranslatedQueryType describes a translated query type.
+type TranslatedQueryType uint
+
+const (
+	// TerminatedTranslatedQuery is a query that is terminated at an explicit
+	// leaf node (i.e. specific graphite path index number).
+	TerminatedTranslatedQuery TranslatedQueryType = iota
+	// StarStarUnterminatedTranslatedQuery is a query that is not terminated by
+	// an explicit leaf node since it matches indefinite child nodes due to
+	// a "**" in the query which matches indefinited child nodes.
+	StarStarUnterminatedTranslatedQuery
+)
+
 // TranslateQueryToMatchersWithTerminator converts a graphite query to tag
 // matcher pairs, and adds a terminator matcher to the end.
 func TranslateQueryToMatchersWithTerminator(
 	query string,
-) (models.Matchers, error) {
+) (models.Matchers, TranslatedQueryType, error) {
 	if strings.Contains(query, "**") {
 		// First add matcher to ensure it's a graphite metric with __g0__ tag.
 		hasFirstPathMatcher, err := convertMetricPartToMatcher(0, wildcard)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		// Need to regexp on the entire ID since ** matches over different
 		// graphite path dimensions.
@@ -111,7 +123,7 @@ func TranslateQueryToMatchersWithTerminator(
 		}
 		idRegexp, _, err := graphite.ExtendedGlobToRegexPattern(query, globOpts)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		return models.Matchers{
 			hasFirstPathMatcher,
@@ -120,7 +132,7 @@ func TranslateQueryToMatchersWithTerminator(
 				Name:  doc.IDReservedFieldName,
 				Value: idRegexp,
 			},
-		}, nil
+		}, StarStarUnterminatedTranslatedQuery, nil
 	}
 
 	metricLength := graphite.CountMetricParts(query)
@@ -132,19 +144,20 @@ func TranslateQueryToMatchersWithTerminator(
 		if len(metric) > 0 {
 			m, err := convertMetricPartToMatcher(i, metric)
 			if err != nil {
-				return nil, err
+				return nil, 0, err
 			}
 
 			matchers[i] = m
 		} else {
-			return nil, fmt.Errorf("invalid matcher format: %s", query)
+			err := fmt.Errorf("invalid matcher format: %s", query)
+			return nil, 0, err
 		}
 	}
 
 	// Add a terminator matcher at the end to ensure expansion is terminated at
 	// the last given metric part.
 	matchers[metricLength] = matcherTerminator(metricLength)
-	return matchers, nil
+	return matchers, TerminatedTranslatedQuery, nil
 }
 
 // GetQueryTerminatorTagName will return the name for the terminator matcher in
@@ -159,7 +172,7 @@ func translateQuery(
 	fetchOpts FetchOptions,
 	opts M3WrappedStorageOptions,
 ) (*storage.FetchQuery, error) {
-	matchers, err := TranslateQueryToMatchersWithTerminator(query)
+	matchers, _, err := TranslateQueryToMatchersWithTerminator(query)
 	if err != nil {
 		return nil, err
 	}
@@ -191,12 +204,15 @@ type truncateBoundsToResolutionOptions struct {
 }
 
 func truncateBoundsToResolution(
-	start time.Time,
-	end time.Time,
+	startTime time.Time,
+	endTime time.Time,
 	resolution time.Duration,
 	opts truncateBoundsToResolutionOptions,
-) (time.Time, time.Time) {
+) (xtime.UnixNano, xtime.UnixNano) {
 	var (
+		start = xtime.ToUnixNano(startTime)
+		end   = xtime.ToUnixNano(endTime)
+
 		truncatedStart            = start.Truncate(resolution)
 		truncatedEnd              = end.Truncate(resolution)
 		startAtResolutionBoundary = start.Equal(truncatedStart)
@@ -277,7 +293,7 @@ func translateTimeseries(
 	ctx xctx.Context,
 	result block.Result,
 	start, end time.Time,
-	m3dbOpts m3db.Options,
+	m3dbOpts m3.Options,
 	truncateOpts truncateBoundsToResolutionOptions,
 ) ([]*ts.Series, error) {
 	if len(result.Blocks) == 0 {
@@ -317,7 +333,7 @@ func translateTimeseries(
 		resultsLock sync.Mutex
 	)
 	processor := m3dbOpts.BlockSeriesProcessor()
-	err = processor.Process(bl, m3dbOpts, m3db.BlockSeriesProcessorFn(func(
+	err = processor.Process(bl, m3dbOpts, m3.BlockSeriesProcessorFn(func(
 		iter block.SeriesIter,
 	) error {
 		series, err := translateTimeseriesFromIter(ctx, iter,
@@ -388,7 +404,7 @@ func translateTimeseriesFromIter(
 		}
 
 		name := string(seriesMetas[idx].Name)
-		series = append(series, ts.NewSeries(ctx, name, start, values))
+		series = append(series, ts.NewSeries(ctx, name, start.ToTime(), values))
 	}
 
 	if err := iter.Err(); err != nil {

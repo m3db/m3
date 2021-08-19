@@ -34,6 +34,7 @@ import (
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/kv"
+	handleroptions3 "github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
@@ -55,11 +56,9 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/fanout"
 	"github.com/m3db/m3/src/query/storage/m3"
-	queryconsolidators "github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/remote"
 	"github.com/m3db/m3/src/query/stores/m3db"
-	tsdb "github.com/m3db/m3/src/query/ts/m3db"
-	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
@@ -79,6 +78,8 @@ import (
 	prometheuspromql "github.com/prometheus/prometheus/promql"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -166,22 +167,29 @@ type InstrumentOptionsReady struct {
 }
 
 // CustomTSDBOptionsFn is a transformation function for TSDB Options.
-type CustomTSDBOptionsFn func(tsdb.Options) tsdb.Options
+type CustomTSDBOptionsFn func(m3.Options) m3.Options
 
 // BackendStorageTransform is a transformation function for backend storage.
 type BackendStorageTransform func(
 	storage.Storage,
-	tsdb.Options,
+	m3.Options,
 	instrument.Options,
 ) storage.Storage
 
+// RunResult returns metadata about the process run.
+type RunResult struct {
+	MultiProcessRun               bool
+	MultiProcessIsParentCleanExit bool
+}
+
 // Run runs the server programmatically given a filename for the configuration file.
-func Run(runOpts RunOptions) {
+func Run(runOpts RunOptions) RunResult {
 	rand.Seed(time.Now().UnixNano())
 
 	var (
 		cfg          = runOpts.Config
 		listenerOpts = xnet.NewListenerOptions()
+		runResult    RunResult
 	)
 
 	logger, err := cfg.LoggingOrDefault().BuildLogger()
@@ -198,21 +206,27 @@ func Run(runOpts RunOptions) {
 
 	xconfig.WarnOnDeprecation(cfg, logger)
 
+	var commonLabels map[string]string
 	if cfg.MultiProcess.Enabled {
-		runResult, err := multiProcessRun(cfg, logger, listenerOpts)
+		// Mark as a multi-process run result.
+		runResult.MultiProcessRun = true
+
+		// Execute multi-process parent spawn or child setup code path.
+		multiProcessRunResult, err := multiProcessRun(cfg, logger, listenerOpts)
 		if err != nil {
 			logger = logger.With(zap.String("processID", multiProcessProcessID()))
 			logger.Fatal("failed to run", zap.Error(err))
 		}
-		if runResult.isParentCleanExit {
+		if multiProcessRunResult.isParentCleanExit {
 			// Parent process clean exit.
-			os.Exit(0)
-			return
+			runResult.MultiProcessIsParentCleanExit = true
+			return runResult
 		}
 
-		cfg = runResult.cfg
-		logger = runResult.logger
-		listenerOpts = runResult.listenerOpts
+		cfg = multiProcessRunResult.cfg
+		logger = multiProcessRunResult.logger
+		listenerOpts = multiProcessRunResult.listenerOpts
+		commonLabels = multiProcessRunResult.commonLabels
 	}
 
 	prometheusEngineRegistry := extprom.NewRegistry()
@@ -229,6 +243,7 @@ func Run(runOpts RunOptions) {
 				// cause a panic.
 				logger.Error("register metric error", zap.Error(err))
 			},
+			CommonLabels: commonLabels,
 		})
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
@@ -317,7 +332,7 @@ func Run(runOpts RunOptions) {
 			RequireExhaustive:              fetchOptsBuilderLimitsOpts.RequireExhaustive,
 		}
 
-		matchOptions = queryconsolidators.MatchOptions{
+		matchOptions = consolidators.MatchOptions{
 			MatchType: cfg.Query.ConsolidationConfiguration.MatchType,
 		}
 	)
@@ -347,7 +362,7 @@ func Run(runOpts RunOptions) {
 		m3dbPoolWrapper *pools.PoolWrapper
 	)
 
-	tsdbOpts := tsdb.NewOptions().
+	tsdbOpts := m3.NewOptions().
 		SetTagOptions(tagOptions).
 		SetLookbackDuration(lookbackDuration).
 		SetConsolidationFunc(consolidators.TakeLast).
@@ -393,7 +408,7 @@ func Run(runOpts RunOptions) {
 		)
 
 		backendStorage = fanout.NewStorage(remotes, r, w, c,
-			tagOptions, instrumentOptions)
+			tagOptions, tsdbOpts, instrumentOptions)
 		logger.Info("setup grpc backend")
 
 	case config.NoopEtcdStorageType:
@@ -461,7 +476,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unable to create new downsampler and writer", zap.Error(err))
 	}
 
-	var serviceOptionDefaults []handleroptions.ServiceOptionsDefault
+	var serviceOptionDefaults []handleroptions3.ServiceOptionsDefault
 	if dbCfg := runOpts.DBConfig; dbCfg != nil {
 		hostID, err := dbCfg.HostIDOrDefault().Resolve()
 		if err != nil {
@@ -483,9 +498,9 @@ func Run(runOpts RunOptions) {
 		}
 		if svcCfg := cluster.Service; svcCfg != nil {
 			serviceOptionDefaults = append(serviceOptionDefaults,
-				handleroptions.WithDefaultServiceEnvironment(svcCfg.Env))
+				handleroptions3.WithDefaultServiceEnvironment(svcCfg.Env))
 			serviceOptionDefaults = append(serviceOptionDefaults,
-				handleroptions.WithDefaultServiceZone(svcCfg.Zone))
+				handleroptions3.WithDefaultServiceZone(svcCfg.Zone))
 		}
 	}
 
@@ -545,7 +560,7 @@ func Run(runOpts RunOptions) {
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
 		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
 		runOpts.DBConfig, fetchOptsBuilder, graphiteFindFetchOptsBuilder, graphiteRenderFetchOptsBuilder,
-		queryCtxOpts, instrumentOptions, cpuProfileDuration, []string{handleroptions.M3DBServiceName},
+		queryCtxOpts, instrumentOptions, cpuProfileDuration, []string{handleroptions3.M3DBServiceName},
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
 		graphiteStorageOpts, tsdbOpts)
 	if err != nil {
@@ -557,13 +572,17 @@ func Run(runOpts RunOptions) {
 	}
 
 	customHandlers := runOpts.CustomHandlerOptions.CustomHandlers
-	handler := httpd.NewHandler(handlerOptions, customHandlers...)
+	handler := httpd.NewHandler(handlerOptions, cfg.Middleware, customHandlers...)
 	if err := handler.RegisterRoutes(); err != nil {
 		logger.Fatal("unable to register routes", zap.Error(err))
 	}
 
 	listenAddress := cfg.ListenAddressOrDefault()
-	srv := &http.Server{Addr: listenAddress, Handler: handler.Router()}
+	srvHandler := handler.Router()
+	if cfg.HTTP.EnableH2C {
+		srvHandler = h2c.NewHandler(handler.Router(), &http2.Server{})
+	}
+	srv := &http.Server{Addr: listenAddress, Handler: srvHandler}
 	defer func() {
 		logger.Info("closing server")
 		if err := srv.Shutdown(context.Background()); err != nil {
@@ -635,6 +654,8 @@ func Run(runOpts RunOptions) {
 	xos.WaitForInterrupt(logger, xos.InterruptOptions{
 		InterruptCh: runOpts.InterruptCh,
 	})
+
+	return runResult
 }
 
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage
@@ -644,7 +665,7 @@ func newM3DBStorage(
 	poolWrapper *pools.PoolWrapper,
 	runOpts RunOptions,
 	queryContextOptions models.QueryContextOptions,
-	tsdbOpts tsdb.Options,
+	tsdbOpts m3.Options,
 	downsamplerReadyCh chan<- struct{},
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	rwOpts xio.Options,
@@ -950,7 +971,7 @@ func newStorages(
 	cfg config.Configuration,
 	poolWrapper *pools.PoolWrapper,
 	queryContextOptions models.QueryContextOptions,
-	opts tsdb.Options,
+	opts m3.Options,
 	instrumentOpts instrument.Options,
 ) (storage.Storage, cleanupFn, error) {
 	var (
@@ -1037,14 +1058,14 @@ func newStorages(
 	}
 
 	fanoutStorage := fanout.NewStorage(stores, readFilter, writeFilter,
-		completeTagsFilter, opts.TagOptions(), instrumentOpts)
+		completeTagsFilter, opts.TagOptions(), opts, instrumentOpts)
 	return fanoutStorage, cleanup, nil
 }
 
 func remoteZoneStorage(
 	zone config.Remote,
 	poolWrapper *pools.PoolWrapper,
-	opts tsdb.Options,
+	opts m3.Options,
 	instrumentOpts instrument.Options,
 ) (storage.Storage, error) {
 	if len(zone.Addresses) == 0 {
@@ -1070,7 +1091,7 @@ func remoteZoneStorage(
 func remoteClient(
 	poolWrapper *pools.PoolWrapper,
 	remoteOpts config.RemoteOptions,
-	opts tsdb.Options,
+	opts m3.Options,
 	instrumentOpts instrument.Options,
 ) ([]storage.Storage, bool, error) {
 	logger := instrumentOpts.Logger()

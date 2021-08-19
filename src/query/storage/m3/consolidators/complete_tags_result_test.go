@@ -92,12 +92,13 @@ func TestMultiFetchTagsResult(t *testing.T) {
 	it := res.Tags[0].Iter
 
 	// NB: assert tags are still iteratable.
-	ex := []tag{tag{name: "foo", value: "bar"}}
+	ex := []tag{{name: "foo", value: "bar"}}
 	for i := 0; it.Next(); i++ {
 		tag := it.Current()
 		assert.Equal(t, ex[i].name, tag.Name.String())
 		assert.Equal(t, ex[i].value, tag.Value.String())
 	}
 
+	require.Equal(t, 1, res.Metadata.FetchedSeriesCount)
 	require.NoError(t, it.Err())
 }

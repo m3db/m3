@@ -22,17 +22,25 @@ package test
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 )
 
 // slowStorage slows down a request by delay
 type slowStorage struct {
 	storage storage.Storage
 	delay   time.Duration
+}
+
+func (s *slowStorage) FetchCompressed(ctx context.Context,
+	query *storage.FetchQuery, options *storage.FetchOptions) (consolidators.MultiFetchResult, error) {
+	time.Sleep(s.delay)
+	return s.storage.FetchCompressed(ctx, query, options)
 }
 
 // NewSlowStorage creates a new slow storage
@@ -85,6 +93,14 @@ func (s *slowStorage) Write(
 ) error {
 	time.Sleep(s.delay)
 	return s.storage.Write(ctx, query)
+}
+
+func (s *slowStorage) QueryStorageMetadataAttributes(
+	ctx context.Context,
+	queryStart, queryEnd time.Time,
+	opts *storage.FetchOptions,
+) ([]storagemetadata.Attributes, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (s *slowStorage) Type() storage.Type {

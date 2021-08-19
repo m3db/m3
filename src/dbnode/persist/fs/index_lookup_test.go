@@ -41,12 +41,12 @@ import (
 func TestNewNearestIndexOffsetDetectsUnsortedFiles(t *testing.T) {
 	// Create a slice of out-of-order index summary entries
 	outOfOrderSummaries := []schema.IndexSummary{
-		schema.IndexSummary{
+		{
 			Index:            0,
 			ID:               []byte("1"),
 			IndexEntryOffset: 0,
 		},
-		schema.IndexSummary{
+		{
 			Index:            1,
 			ID:               []byte("0"),
 			IndexEntryOffset: 10,
@@ -101,12 +101,12 @@ func TestCloneCannotBeCloned(t *testing.T) {
 
 func TestClosingCloneDoesNotAffectParent(t *testing.T) {
 	indexSummaries := []schema.IndexSummary{
-		schema.IndexSummary{
+		{
 			Index:            0,
 			ID:               []byte("0"),
 			IndexEntryOffset: 0,
 		},
-		schema.IndexSummary{
+		{
 			Index:            1,
 			ID:               []byte("1"),
 			IndexEntryOffset: 10,

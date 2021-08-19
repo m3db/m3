@@ -27,16 +27,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/prometheus/prometheus/promql"
 	"google.golang.org/protobuf/runtime/protoiface"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	placementhandleroptions "github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	dbnamespace "github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/middleware"
 	"github.com/m3db/m3/src/query/api/v1/validators"
 	"github.com/m3db/m3/src/query/executor"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
@@ -44,7 +45,6 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -68,15 +68,6 @@ type CustomHandlerOptions struct {
 	OptionTransformFn OptionTransformFn
 }
 
-// RegisterMiddleware is a func to build the set of middleware functions.
-type RegisterMiddleware func(opts MiddlewareOptions) []mux.MiddlewareFunc
-
-// MiddlewareOptions is the set of parameters passed to the RegisterMiddleware function.
-type MiddlewareOptions struct {
-	InstrumentOpts instrument.Options
-	Route          *mux.Route
-}
-
 // CustomHandler allows for custom third party http handlers.
 type CustomHandler interface {
 	// Route is the custom handler route.
@@ -87,9 +78,10 @@ type CustomHandler interface {
 	// prev is optional argument for getting already registered handler for the same route.
 	// If there is nothing to override, prev will be nil.
 	Handler(handlerOptions HandlerOptions, prev http.Handler) (http.Handler, error)
-	// Middleware is the middleware to run before the custom handler.
-	// If not set, the default set of middleware is installed.
-	Middleware() RegisterMiddleware
+	// MiddlewareOverride is a function to override the global middleware configuration for the route.
+	// If this CustomHandler is overriding an existing handler, the MiddlewareOverride for the existing handler is first
+	// applied before applying this function.
+	MiddlewareOverride() middleware.OverrideOptions
 }
 
 // QueryRouter is responsible for routing queries between promql and m3query.
@@ -180,9 +172,9 @@ type HandlerOptions interface {
 	SetPlacementServiceNames(n []string) HandlerOptions
 
 	// ServiceOptionDefaults returns the service option defaults.
-	ServiceOptionDefaults() []handleroptions.ServiceOptionsDefault
+	ServiceOptionDefaults() []placementhandleroptions.ServiceOptionsDefault
 	// SetServiceOptionDefaults sets the service option defaults.
-	SetServiceOptionDefaults(s []handleroptions.ServiceOptionsDefault) HandlerOptions
+	SetServiceOptionDefaults(s []placementhandleroptions.ServiceOptionsDefault) HandlerOptions
 
 	// NowFn returns the now function.
 	NowFn() clock.NowFn
@@ -227,9 +219,9 @@ type HandlerOptions interface {
 	SetGraphiteRenderFetchOptionsBuilder(value handleroptions.FetchOptionsBuilder) HandlerOptions
 
 	// SetM3DBOptions sets the M3DB options.
-	SetM3DBOptions(value m3db.Options) HandlerOptions
+	SetM3DBOptions(value m3.Options) HandlerOptions
 	// M3DBOptions returns the M3DB options.
-	M3DBOptions() m3db.Options
+	M3DBOptions() m3.Options
 
 	// SetStoreMetricsType enables/disables storing of metrics type.
 	SetStoreMetricsType(value bool) HandlerOptions
@@ -245,6 +237,11 @@ type HandlerOptions interface {
 	SetKVStoreProtoParser(KVStoreProtoParser) HandlerOptions
 	// KVStoreProtoHandler returns the KVStoreProtoParser.
 	KVStoreProtoParser() KVStoreProtoParser
+
+	// SetRegisterMiddleware sets the function to construct the set of Middleware functions to run.
+	SetRegisterMiddleware(value middleware.Register) HandlerOptions
+	// RegisterMiddleware returns the function to construct the set of Middleware functions to run.
+	RegisterMiddleware() middleware.Register
 }
 
 // HandlerOptions represents handler options.
@@ -265,17 +262,18 @@ type handlerOptions struct {
 	instrumentOpts                    instrument.Options
 	cpuProfileDuration                time.Duration
 	placementServiceNames             []string
-	serviceOptionDefaults             []handleroptions.ServiceOptionsDefault
+	serviceOptionDefaults             []placementhandleroptions.ServiceOptionsDefault
 	nowFn                             clock.NowFn
 	queryRouter                       QueryRouter
 	instantQueryRouter                QueryRouter
 	graphiteStorageOpts               graphite.M3WrappedStorageOptions
 	graphiteFindFetchOptionsBuilder   handleroptions.FetchOptionsBuilder
 	graphiteRenderFetchOptionsBuilder handleroptions.FetchOptionsBuilder
-	m3dbOpts                          m3db.Options
+	m3dbOpts                          m3.Options
 	namespaceValidator                NamespaceValidator
 	storeMetricsType                  bool
 	kvStoreProtoParser                KVStoreProtoParser
+	registerMiddleware                middleware.Register
 }
 
 // EmptyHandlerOptions returns  default handler options.
@@ -283,7 +281,7 @@ func EmptyHandlerOptions() HandlerOptions {
 	return &handlerOptions{
 		instrumentOpts: instrument.NewOptions(),
 		nowFn:          time.Now,
-		m3dbOpts:       m3db.NewOptions(),
+		m3dbOpts:       m3.NewOptions(),
 	}
 }
 
@@ -304,11 +302,11 @@ func NewHandlerOptions(
 	instrumentOpts instrument.Options,
 	cpuProfileDuration time.Duration,
 	placementServiceNames []string,
-	serviceOptionDefaults []handleroptions.ServiceOptionsDefault,
+	serviceOptionDefaults []placementhandleroptions.ServiceOptionsDefault,
 	queryRouter QueryRouter,
 	instantQueryRouter QueryRouter,
 	graphiteStorageOpts graphite.M3WrappedStorageOptions,
-	m3dbOpts m3db.Options,
+	m3dbOpts m3.Options,
 ) (HandlerOptions, error) {
 	storeMetricsType := false
 	if cfg.StoreMetricsType != nil {
@@ -341,6 +339,7 @@ func NewHandlerOptions(
 		m3dbOpts:                          m3dbOpts,
 		storeMetricsType:                  storeMetricsType,
 		namespaceValidator:                validators.NamespaceValidator,
+		registerMiddleware:                middleware.Default,
 	}, nil
 }
 
@@ -485,12 +484,12 @@ func (o *handlerOptions) SetPlacementServiceNames(
 	return &opts
 }
 
-func (o *handlerOptions) ServiceOptionDefaults() []handleroptions.ServiceOptionsDefault {
+func (o *handlerOptions) ServiceOptionDefaults() []placementhandleroptions.ServiceOptionsDefault {
 	return o.serviceOptionDefaults
 }
 
 func (o *handlerOptions) SetServiceOptionDefaults(
-	s []handleroptions.ServiceOptionsDefault) HandlerOptions {
+	s []placementhandleroptions.ServiceOptionsDefault) HandlerOptions {
 	opts := *o
 	opts.serviceOptionDefaults = s
 	return &opts
@@ -593,13 +592,13 @@ func (o *handlerOptions) SetGraphiteRenderFetchOptionsBuilder(value handleroptio
 	return &opts
 }
 
-func (o *handlerOptions) SetM3DBOptions(value m3db.Options) HandlerOptions {
+func (o *handlerOptions) SetM3DBOptions(value m3.Options) HandlerOptions {
 	opts := *o
 	opts.m3dbOpts = value
 	return &opts
 }
 
-func (o *handlerOptions) M3DBOptions() m3db.Options {
+func (o *handlerOptions) M3DBOptions() m3.Options {
 	return o.m3dbOpts
 }
 
@@ -637,6 +636,16 @@ func (o *handlerOptions) SetKVStoreProtoParser(value KVStoreProtoParser) Handler
 
 func (o *handlerOptions) KVStoreProtoParser() KVStoreProtoParser {
 	return o.kvStoreProtoParser
+}
+
+func (o *handlerOptions) RegisterMiddleware() middleware.Register {
+	return o.registerMiddleware
+}
+
+func (o *handlerOptions) SetRegisterMiddleware(value middleware.Register) HandlerOptions {
+	opts := *o
+	opts.registerMiddleware = value
+	return &opts
 }
 
 // KVStoreProtoParser parses protobuf messages based off specific keys.

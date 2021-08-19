@@ -37,8 +37,8 @@ type testAccumulatorSeries struct {
 	id          string
 	nsID        string
 	retainTag   bool
-	start       time.Time
-	end         time.Time
+	start       xtime.UnixNano
+	end         xtime.UnixNano
 	input       []accumulatorInput
 	expected    []testValue
 	expectedErr *testSeriesErr
@@ -59,7 +59,7 @@ func TestSeriesIteratorAccumulatorRetainTag(t *testing.T) {
 }
 
 func testSeriesIteratorAccumulator(t *testing.T, retain bool) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 	end := start.Add(time.Minute)
 
 	values := []accumulatorInput{
@@ -113,7 +113,7 @@ func testSeriesIteratorAccumulator(t *testing.T, retain bool) {
 }
 
 func TestSingleSeriesIteratorAccumulator(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
+	start := xtime.Now().Truncate(time.Minute)
 	end := start.Add(time.Minute)
 
 	values := []accumulatorInput{
@@ -168,8 +168,8 @@ func newTestSeriesAccumulatorIterator(
 			Tags: ident.NewTagsIterator(ident.NewTags(
 				ident.StringTag("foo", "bar"), ident.StringTag("qux", "quz"),
 			)),
-			StartInclusive: xtime.ToUnixNano(series.start),
-			EndExclusive:   xtime.ToUnixNano(series.end),
+			StartInclusive: series.start,
+			EndExclusive:   series.end,
 			Replicas:       []MultiReaderIterator{multiIter},
 		}, nil)
 
@@ -230,7 +230,7 @@ func assertTestSeriesAccumulatorIterator(
 		dp, unit, annotation := iter.Current()
 		expected := series.expected[i]
 		assert.Equal(t, expected.value, dp.Value)
-		assert.Equal(t, expected.t, dp.Timestamp)
+		assert.Equal(t, expected.t, dp.TimestampNanos)
 		assert.Equal(t, expected.unit, unit)
 		assert.Equal(t, expected.annotation, []byte(annotation))
 		checkTags()
@@ -266,12 +266,12 @@ func TestAccumulatorMocked(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	start := time.Now()
+	start := xtime.Now()
 	base := NewMockSeriesIterator(ctrl)
 	base.EXPECT().ID().Return(ident.StringID("base")).AnyTimes()
 	base.EXPECT().Namespace().Return(ident.StringID("ns")).AnyTimes()
 	base.EXPECT().Next().Return(true)
-	dp := ts.Datapoint{TimestampNanos: xtime.ToUnixNano(start), Value: 88}
+	dp := ts.Datapoint{TimestampNanos: start, Value: 88}
 	base.EXPECT().Current().Return(dp, xtime.Second, nil).AnyTimes()
 	base.EXPECT().Next().Return(false)
 	base.EXPECT().Start().Return(start)

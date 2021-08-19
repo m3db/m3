@@ -790,79 +790,6 @@ func (mr *MockAggregateValuesPoolMockRecorder) Put(value interface{}) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockAggregateValuesPool)(nil).Put), value)
 }
 
-// MockOnIndexSeries is a mock of OnIndexSeries interface.
-type MockOnIndexSeries struct {
-	ctrl     *gomock.Controller
-	recorder *MockOnIndexSeriesMockRecorder
-}
-
-// MockOnIndexSeriesMockRecorder is the mock recorder for MockOnIndexSeries.
-type MockOnIndexSeriesMockRecorder struct {
-	mock *MockOnIndexSeries
-}
-
-// NewMockOnIndexSeries creates a new mock instance.
-func NewMockOnIndexSeries(ctrl *gomock.Controller) *MockOnIndexSeries {
-	mock := &MockOnIndexSeries{ctrl: ctrl}
-	mock.recorder = &MockOnIndexSeriesMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockOnIndexSeries) EXPECT() *MockOnIndexSeriesMockRecorder {
-	return m.recorder
-}
-
-// NeedsIndexUpdate mocks base method.
-func (m *MockOnIndexSeries) NeedsIndexUpdate(indexBlockStartForWrite time0.UnixNano) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NeedsIndexUpdate", indexBlockStartForWrite)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// NeedsIndexUpdate indicates an expected call of NeedsIndexUpdate.
-func (mr *MockOnIndexSeriesMockRecorder) NeedsIndexUpdate(indexBlockStartForWrite interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsIndexUpdate", reflect.TypeOf((*MockOnIndexSeries)(nil).NeedsIndexUpdate), indexBlockStartForWrite)
-}
-
-// OnIndexFinalize mocks base method.
-func (m *MockOnIndexSeries) OnIndexFinalize(blockStart time0.UnixNano) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "OnIndexFinalize", blockStart)
-}
-
-// OnIndexFinalize indicates an expected call of OnIndexFinalize.
-func (mr *MockOnIndexSeriesMockRecorder) OnIndexFinalize(blockStart interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexFinalize", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexFinalize), blockStart)
-}
-
-// OnIndexPrepare mocks base method.
-func (m *MockOnIndexSeries) OnIndexPrepare() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "OnIndexPrepare")
-}
-
-// OnIndexPrepare indicates an expected call of OnIndexPrepare.
-func (mr *MockOnIndexSeriesMockRecorder) OnIndexPrepare() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexPrepare", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexPrepare))
-}
-
-// OnIndexSuccess mocks base method.
-func (m *MockOnIndexSeries) OnIndexSuccess(blockStart time0.UnixNano) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "OnIndexSuccess", blockStart)
-}
-
-// OnIndexSuccess indicates an expected call of OnIndexSuccess.
-func (mr *MockOnIndexSeriesMockRecorder) OnIndexSuccess(blockStart interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexSuccess", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexSuccess), blockStart)
-}
-
 // MockBlock is a mock of Block interface.
 type MockBlock struct {
 	ctrl     *gomock.Controller
@@ -944,10 +871,10 @@ func (mr *MockBlockMockRecorder) Close() *gomock.Call {
 }
 
 // EndTime mocks base method.
-func (m *MockBlock) EndTime() time.Time {
+func (m *MockBlock) EndTime() time0.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EndTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	return ret0
 }
 
@@ -983,6 +910,20 @@ func (m *MockBlock) EvictMutableSegments() error {
 func (mr *MockBlockMockRecorder) EvictMutableSegments() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EvictMutableSegments", reflect.TypeOf((*MockBlock)(nil).EvictMutableSegments))
+}
+
+// IsOpen mocks base method.
+func (m *MockBlock) IsOpen() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsOpen")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsOpen indicates an expected call of IsOpen.
+func (mr *MockBlockMockRecorder) IsOpen() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOpen", reflect.TypeOf((*MockBlock)(nil).IsOpen))
 }
 
 // IsSealed mocks base method.
@@ -1072,9 +1013,11 @@ func (mr *MockBlockMockRecorder) QueryWithIter(ctx, opts, iter, results, deadlin
 }
 
 // RotateColdMutableSegments mocks base method.
-func (m *MockBlock) RotateColdMutableSegments() {
+func (m *MockBlock) RotateColdMutableSegments() error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RotateColdMutableSegments")
+	ret := m.ctrl.Call(m, "RotateColdMutableSegments")
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // RotateColdMutableSegments indicates an expected call of RotateColdMutableSegments.
@@ -1098,10 +1041,10 @@ func (mr *MockBlockMockRecorder) Seal() *gomock.Call {
 }
 
 // StartTime mocks base method.
-func (m *MockBlock) StartTime() time.Time {
+func (m *MockBlock) StartTime() time0.UnixNano {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StartTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	return ret0
 }
 

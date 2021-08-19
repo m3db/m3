@@ -29,7 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -42,7 +42,7 @@ import (
 
 const (
 	// WriteURL is the URL for the annotated write handler.
-	WriteURL = handler.RoutePrefixExperimental + "/prom/remote/annotated/write"
+	WriteURL = route.PrefixExperimental + "/prom/remote/annotated/write"
 
 	// WriteHTTPMethod is the HTTP method for the annotated write handler.
 	WriteHTTPMethod = http.MethodPost

@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -74,7 +75,7 @@ func NewReaderUsingRetriever(
 // ReadEncoded reads encoded blocks using just a block retriever.
 func (r *Reader) ReadEncoded(
 	ctx context.Context,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	nsCtx namespace.Context,
 ) (BlockReaderIter, error) {
 	return r.readersWithBlocksMapAndBuffer(ctx, start, end, nil, nil, nsCtx)
@@ -82,7 +83,7 @@ func (r *Reader) ReadEncoded(
 
 func (r *Reader) readersWithBlocksMapAndBuffer(
 	ctx context.Context,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	seriesBlocks block.DatabaseSeriesBlocks,
 	seriesBuffer databaseBuffer,
 	nsCtx namespace.Context,
@@ -93,7 +94,7 @@ func (r *Reader) readersWithBlocksMapAndBuffer(
 
 	var (
 		nowFn        = r.opts.ClockOptions().NowFn()
-		now          = nowFn()
+		now          = xtime.ToUnixNano(nowFn())
 		ropts        = r.opts.RetentionOptions()
 		size         = ropts.BlockSize()
 		alignedStart = start.Truncate(size)
@@ -148,8 +149,8 @@ type BlockReaderIter interface {
 }
 
 type blockReaderIterOpts struct {
-	start     time.Time
-	end       time.Time
+	start     xtime.UnixNano
+	end       xtime.UnixNano
 	blockSize time.Duration
 	reader    *Reader
 	nsCtx     namespace.Context
@@ -160,7 +161,7 @@ type blockReaderIterOpts struct {
 type blockReaderIter struct {
 	blockReaderIterOpts
 
-	blockAt time.Time
+	blockAt xtime.UnixNano
 	curr    []xio.BlockReader
 	err     error
 }
@@ -225,14 +226,14 @@ func (i *blockReaderIter) ToSlices(ctx context.Context) ([][]xio.BlockReader, er
 
 func (r *Reader) readersWithBlocksMapAndBufferAligned(
 	ctx context.Context,
-	start, end time.Time,
+	start, end xtime.UnixNano,
 	seriesBlocks block.DatabaseSeriesBlocks,
 	seriesBuffer databaseBuffer,
 	nsCtx namespace.Context,
 ) (BlockReaderIter, error) {
 	var (
 		nowFn       = r.opts.ClockOptions().NowFn()
-		now         = nowFn()
+		now         = xtime.ToUnixNano(nowFn())
 		ropts       = r.opts.RetentionOptions()
 		blockSize   = ropts.BlockSize()
 		readerCount = end.Sub(start) / blockSize
@@ -300,13 +301,13 @@ func (r *Reader) readersWithBlocksMapAndBufferAligned(
 // FetchWideEntry reads wide entries using just a block retriever.
 func (r *Reader) FetchWideEntry(
 	ctx context.Context,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	filter schema.WideEntryFilter,
 	nsCtx namespace.Context,
 ) (block.StreamedWideEntry, error) {
 	var (
 		nowFn = r.opts.ClockOptions().NowFn()
-		now   = nowFn()
+		now   = xtime.ToUnixNano(nowFn())
 		ropts = r.opts.RetentionOptions()
 	)
 
@@ -340,7 +341,7 @@ func (r *Reader) FetchWideEntry(
 // just a block retriever.
 func (r *Reader) FetchBlocks(
 	ctx context.Context,
-	starts []time.Time,
+	starts []xtime.UnixNano,
 	nsCtx namespace.Context,
 ) ([]block.FetchBlockResult, error) {
 	return r.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, nil, nil, nsCtx)
@@ -348,7 +349,7 @@ func (r *Reader) FetchBlocks(
 
 func (r *Reader) fetchBlocksWithBlocksMapAndBuffer(
 	ctx context.Context,
-	starts []time.Time,
+	starts []xtime.UnixNano,
 	seriesBlocks block.DatabaseSeriesBlocks,
 	seriesBuffer databaseBuffer,
 	nsCtx namespace.Context,
@@ -393,7 +394,7 @@ func (r *Reader) fetchBlocksWithBlocksMapAndBuffer(
 
 func (r *Reader) resolveBlockResults(
 	ctx context.Context,
-	starts []time.Time,
+	starts []xtime.UnixNano,
 	seriesBlocks block.DatabaseSeriesBlocks,
 	nsCtx namespace.Context,
 ) []block.FetchBlockResult {
@@ -458,7 +459,7 @@ func (r *Reader) resolveBlockResults(
 
 func retrieveCached(
 	ctx context.Context,
-	start time.Time,
+	start xtime.UnixNano,
 	seriesBlocks block.DatabaseSeriesBlocks,
 ) (xio.BlockReader, block.DatabaseBlock, bool, error) {
 	if seriesBlocks != nil {
@@ -479,7 +480,7 @@ func retrieveCached(
 
 func (r *Reader) streamBlock(
 	ctx context.Context,
-	start time.Time,
+	start xtime.UnixNano,
 	onRetrieve block.OnRetrieveBlock,
 	nsCtx namespace.Context,
 ) (xio.BlockReader, bool, error) {

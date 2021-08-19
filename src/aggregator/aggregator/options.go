@@ -334,6 +334,20 @@ type Options interface {
 
 	// SetTimedMetricsFlushOffsetEnabled controls using of FlushOffset for timed metrics.
 	SetTimedMetricsFlushOffsetEnabled(bool) Options
+
+	// FeatureFlagBundlesParsed returns the feature flag bundles that have been parsed.
+	FeatureFlagBundlesParsed() []FeatureFlagBundleParsed
+
+	// SetFeatureFlagBundlesParsed returns the feature flag bundles that have been parsed.
+	SetFeatureFlagBundlesParsed([]FeatureFlagBundleParsed) Options
+
+	// WritesIgnoreCutoffCutover returns a flag indicating whether cutoff/cutover timestamps
+	// are ignored for incoming writes.
+	WritesIgnoreCutoffCutover() bool
+
+	// SetWritesIgnoreCutoffCutover sets a flag controlling whether cutoff/cutover timestamps
+	// are ignored for incoming writes.
+	SetWritesIgnoreCutoffCutover(value bool) Options
 }
 
 type options struct {
@@ -377,6 +391,8 @@ type options struct {
 	verboseErrors                    bool
 	addToReset                       bool
 	timedMetricsFlushOffsetEnabled   bool
+	featureFlagBundlesParsed         []FeatureFlagBundleParsed
+	writesIgnoreCutoffCutover        bool
 
 	// Derived options.
 	fullCounterPrefix []byte
@@ -892,6 +908,26 @@ func (o *options) TimedMetricsFlushOffsetEnabled() bool {
 func (o *options) SetTimedMetricsFlushOffsetEnabled(value bool) Options {
 	opts := *o
 	opts.timedMetricsFlushOffsetEnabled = value
+	return &opts
+}
+
+func (o *options) SetFeatureFlagBundlesParsed(value []FeatureFlagBundleParsed) Options {
+	opts := *o
+	opts.featureFlagBundlesParsed = value
+	return &opts
+}
+
+func (o *options) FeatureFlagBundlesParsed() []FeatureFlagBundleParsed {
+	return o.featureFlagBundlesParsed
+}
+
+func (o *options) WritesIgnoreCutoffCutover() bool {
+	return o.writesIgnoreCutoffCutover
+}
+
+func (o *options) SetWritesIgnoreCutoffCutover(value bool) Options {
+	opts := *o
+	opts.writesIgnoreCutoffCutover = value
 	return &opts
 }
 

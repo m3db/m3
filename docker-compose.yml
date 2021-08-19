@@ -1,21 +1,26 @@
-app:
-  image: golang:1.13-stretch
-  volumes:
-    - .:/go/src/github.com/m3db/m3
-    - /usr/bin/buildkite-agent:/usr/bin/buildkite-agent
-  environment:
-    - CI
-    - BUILDKITE
-    - BUILDKITE_AGENT_ACCESS_TOKEN
-    - BUILDKITE_JOB_ID
-    - BUILDKITE_BUILD_ID
-    - BUILDKITE_BUILD_NUMBER
-    - BUILDKITE_BRANCH
-    - BUILDKITE_BUILD_URL
-    - BUILDKITE_PROJECT_SLUG
-    - BUILDKITE_COMMIT
-    - BUILDKITE_PULL_REQUEST
-    - BUILDKITE_TAG
-    - CODECOV_TOKEN
-    - SPLIT_IDX
-    - TOTAL_SPLITS
+version: "3"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/go/src/github.com/m3db/m3
+      - /usr/bin/buildkite-agent:/usr/bin/buildkite-agent
+    environment:
+      - CI
+      - BUILDKITE
+      - BUILDKITE_AGENT_ACCESS_TOKEN
+      - BUILDKITE_JOB_ID
+      - BUILDKITE_BUILD_ID
+      - BUILDKITE_BUILD_NUMBER
+      - BUILDKITE_BRANCH
+      - BUILDKITE_BUILD_URL
+      - BUILDKITE_PROJECT_SLUG
+      - BUILDKITE_COMMIT
+      - BUILDKITE_PULL_REQUEST
+      - BUILDKITE_TAG
+      - CODECOV_TOKEN
+      - SPLIT_IDX
+      - TOTAL_SPLITS

@@ -32,10 +32,10 @@ import (
 	"time"
 
 	comparator "github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -47,6 +47,7 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
@@ -58,13 +59,11 @@ import (
 
 const (
 	// PromReadURL is the url for remote prom read handler
-	PromReadURL = handler.RoutePrefixV1 + "/prom/remote/read"
+	PromReadURL = route.Prefix + "/prom/remote/read"
 )
 
-var (
-	// PromReadHTTPMethods are the HTTP methods used with this resource.
-	PromReadHTTPMethods = []string{http.MethodPost, http.MethodGet}
-)
+// PromReadHTTPMethods are the HTTP methods used with this resource.
+var PromReadHTTPMethods = []string{http.MethodPost, http.MethodGet}
 
 // promReadHandler is a handler for the prometheus remote read endpoint.
 type promReadHandler struct {
@@ -137,7 +136,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write headers before response.
-	err = handleroptions.AddResponseHeaders(w, readResult.Meta, fetchOpts, nil, nil)
+	err = handleroptions.AddDBResultResponseHeaders(w, readResult.Meta, fetchOpts)
 	if err != nil {
 		h.promReadMetrics.incError(err)
 		logger.Error("remote read query write response header error",
@@ -321,8 +320,8 @@ func parseExpr(
 	var vectorsInspected []*promql.VectorSelector
 	promql.Inspect(expr, func(node promql.Node, path []promql.Node) error {
 		var (
-			start         = queryStart
-			end           = queryEnd
+			start         = xtime.ToUnixNano(queryStart)
+			end           = xtime.ToUnixNano(queryEnd)
 			offset        time.Duration
 			labelMatchers []*labels.Matcher
 		)
@@ -446,7 +445,8 @@ func Read(
 				LimitMaxReturnedSeries:         fetchOpts.ReturnedSeriesLimit,
 				LimitMaxReturnedDatapoints:     fetchOpts.ReturnedDatapointsLimit,
 				LimitMaxReturnedSeriesMetadata: fetchOpts.ReturnedSeriesMetadataLimit,
-			}}
+			},
+		}
 
 		engine = opts.Engine()
 
@@ -566,7 +566,7 @@ func datapointsConvert(dps ts.Datapoints) comparator.Datapoints {
 	for _, dp := range dps.Datapoints() {
 		val := comparator.Datapoint{
 			Value:     comparator.Value(dp.Value),
-			Timestamp: dp.Timestamp,
+			Timestamp: dp.Timestamp.ToTime(),
 		}
 		datapoints = append(datapoints, val)
 	}

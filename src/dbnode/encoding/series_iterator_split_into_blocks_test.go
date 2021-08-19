@@ -44,7 +44,7 @@ type Series struct {
 }
 
 type SeriesBlock struct {
-	Start          time.Time
+	Start          xtime.UnixNano
 	BlockSize      time.Duration
 	Replicas       []encoding.MultiReaderIterator
 	ValuesIterator encoding.SeriesIterator
@@ -53,8 +53,7 @@ type SeriesBlock struct {
 func TestDeconstructAndReconstruct(t *testing.T) {
 	blockSize := 2 * time.Hour
 
-	now := time.Now()
-
+	now := xtime.Now()
 	start := now.Truncate(time.Hour).Add(2 * time.Minute)
 	end := start.Add(30 * time.Minute)
 
@@ -62,7 +61,7 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 
 	i := 0
 	for at := start; at.Before(end); at = at.Add(time.Minute) {
-		datapoint := ts.Datapoint{Timestamp: at, Value: float64(i + 1)}
+		datapoint := ts.Datapoint{TimestampNanos: at, Value: float64(i + 1)}
 		err := encoder.Encode(datapoint, xtime.Second, nil)
 		assert.NoError(t, err)
 		i++
@@ -85,8 +84,8 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 	orig := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
 		ID:             ident.StringID("foo"),
 		Namespace:      ident.StringID("namespace"),
-		StartInclusive: xtime.ToUnixNano(start),
-		EndExclusive:   xtime.ToUnixNano(end),
+		StartInclusive: start,
+		EndExclusive:   end,
 		Replicas:       []encoding.MultiReaderIterator{multiReader},
 	}, nil)
 
@@ -161,8 +160,8 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 			ID:             orig.ID(),
 			Namespace:      orig.Namespace(),
 			Tags:           orig.Tags(),
-			StartInclusive: xtime.ToUnixNano(filterValuesStart),
-			EndExclusive:   xtime.ToUnixNano(filterValuesEnd),
+			StartInclusive: filterValuesStart,
+			EndExclusive:   filterValuesEnd,
 			Replicas:       block.Replicas,
 		}, nil)
 
@@ -177,7 +176,7 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 		for iter.Next() {
 			dp, _, _ := iter.Current()
 
-			assert.Equal(t, dp.Timestamp, start.Add(time.Minute*time.Duration(blockCount)))
+			assert.Equal(t, dp.TimestampNanos, start.Add(time.Minute*time.Duration(blockCount)))
 			assert.Equal(t, dp.Value, float64(blockCount+1))
 			blockCount++
 		}

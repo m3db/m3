@@ -31,7 +31,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -138,7 +140,7 @@ func TestScalars(t *testing.T) {
 				tt.expected, tt.expected,
 			}}
 
-			test.EqualsWithNans(t, expected, sink.Values)
+			compare.EqualsWithNans(t, expected, sink.Values)
 
 			assert.Equal(t, bounds, sink.Meta.Bounds)
 			assert.Equal(t, 0, sink.Meta.Tags.Len())
@@ -202,7 +204,7 @@ func TestScalarsReturnBoolFalse(t *testing.T) {
 				tt.expected, tt.expected,
 			}}
 
-			test.EqualsWithNans(t, expected, sink.Values)
+			compare.EqualsWithNans(t, expected, sink.Values)
 
 			assert.Equal(t, bounds, sink.Meta.Bounds)
 			assert.Equal(t, 0, sink.Meta.Tags.Len())
@@ -539,7 +541,7 @@ var singleSeriesTests = []struct {
 }
 
 func TestSingleSeriesReturnBool(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 
 	for _, tt := range singleSeriesTests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -596,7 +598,7 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			test.EqualsWithNans(t, tt.expectedBool, sink.Values)
+			compare.EqualsWithNans(t, tt.expectedBool, sink.Values)
 
 			assert.Equal(t, bounds, sink.Meta.Bounds)
 			assert.Equal(t, 0, sink.Meta.Tags.Len())
@@ -607,7 +609,7 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 }
 
 func TestSingleSeriesReturnValues(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 
 	for _, tt := range singleSeriesTests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -664,7 +666,7 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			test.EqualsWithNans(t, tt.expected, sink.Values)
+			compare.EqualsWithNans(t, tt.expected, sink.Values)
 
 			assert.Equal(t, bounds, sink.Meta.Bounds)
 			assert.Equal(t, 0, sink.Meta.Tags.Len())
@@ -888,7 +890,7 @@ var bothSeriesTests = []struct {
 }
 
 func TestBothSeries(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 
 	for _, tt := range bothSeriesTests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -919,7 +921,7 @@ func TestBothSeries(t *testing.T) {
 				test.NewBlockFromValuesWithSeriesMeta(bounds, tt.rhsMeta, tt.rhs))
 			require.NoError(t, err)
 
-			test.EqualsWithNans(t, tt.expected, sink.Values)
+			compare.EqualsWithNans(t, tt.expected, sink.Values)
 
 			// Extract duped expected metas
 			expectedMeta := block.Metadata{
@@ -937,7 +939,7 @@ func TestBothSeries(t *testing.T) {
 }
 
 func TestBinaryFunctionWithDifferentNames(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 
 	meta := func(bounds models.Bounds, name string, m block.ResultMetadata) block.Metadata {
 		return block.Metadata{
@@ -1002,7 +1004,7 @@ func TestBinaryFunctionWithDifferentNames(t *testing.T) {
 	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), right)
 	require.NoError(t, err)
 
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 
 	exResultMeta := block.ResultMetadata{
 		LocalOnly:  false,
@@ -1029,7 +1031,7 @@ func TestBinaryFunctionWithDifferentNames(t *testing.T) {
 }
 
 func TestOneToOneMatcher(t *testing.T) {
-	now := time.Now()
+	now := xtime.Now()
 
 	meta := func(bounds models.Bounds, name string, m block.ResultMetadata) block.Metadata {
 		return block.Metadata{
@@ -1094,7 +1096,7 @@ func TestOneToOneMatcher(t *testing.T) {
 	err = node.Process(models.NoopQueryContext(), parser.NodeID(rune(1)), right)
 	require.NoError(t, err)
 
-	test.EqualsWithNans(t, expected, sink.Values)
+	compare.EqualsWithNans(t, expected, sink.Values)
 
 	expectedMetas := []block.SeriesMeta{
 		{

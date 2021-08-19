@@ -41,8 +41,10 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/generated/proto/kvpb"
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/placementhandler"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
-	queryconfig "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -78,12 +80,11 @@ import (
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
-	"github.com/m3db/m3/src/query/api/v1/handler/placement"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	xcontext "github.com/m3db/m3/src/x/context"
 	xdebug "github.com/m3db/m3/src/x/debug"
+	extdebug "github.com/m3db/m3/src/x/debug/ext"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -465,12 +466,20 @@ func Run(runOpts RunOptions) {
 	maxIdxConcurrency := int(math.Ceil(float64(runtime.NumCPU()) / 2))
 	if cfg.Index.MaxQueryIDsConcurrency > 0 {
 		maxIdxConcurrency = cfg.Index.MaxQueryIDsConcurrency
+		logger.Info("max index query IDs concurrency set",
+			zap.Int("maxIdxConcurrency", maxIdxConcurrency))
 	} else {
-		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
+		logger.Info("max index query IDs concurrency was not set, falling back to default value",
+			zap.Int("maxIdxConcurrency", maxIdxConcurrency))
 	}
 	maxWorkerTime := time.Second
 	if cfg.Index.MaxWorkerTime > 0 {
 		maxWorkerTime = cfg.Index.MaxWorkerTime
+		logger.Info("max index worker time set",
+			zap.Duration("maxWorkerTime", maxWorkerTime))
+	} else {
+		logger.Info("max index worker time was not set, falling back to default value",
+			zap.Duration("maxWorkerTime", maxWorkerTime))
 	}
 	opts = opts.SetPermitsOptions(permitOptions.SetIndexQueryPermitsManager(
 		permits.NewFixedPermitsManager(maxIdxConcurrency, int64(maxWorkerTime), iOpts)))
@@ -805,8 +814,8 @@ func Run(runOpts RunOptions) {
 	debugListenAddress := cfg.DebugListenAddressOrDefault()
 	if debugListenAddress != "" {
 		var debugWriter xdebug.ZipWriter
-		handlerOpts, err := placement.NewHandlerOptions(syncCfg.ClusterClient,
-			queryconfig.Configuration{}, nil, iOpts)
+		handlerOpts, err := placementhandler.NewHandlerOptions(syncCfg.ClusterClient,
+			placement.Configuration{}, nil, iOpts)
 		if err != nil {
 			logger.Warn("could not create handler options for debug writer", zap.Error(err))
 		} else {
@@ -816,7 +825,7 @@ func Run(runOpts RunOptions) {
 					zap.Error(err),
 					zap.Bool("envCfgClusterServiceIsNil", envCfgCluster.Service == nil))
 			} else {
-				debugWriter, err = xdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
+				debugWriter, err = extdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
 					cpuProfileDuration,
 					syncCfg.ClusterClient,
 					handlerOpts,
@@ -882,7 +891,8 @@ func Run(runOpts RunOptions) {
 	m3dbClient, err := newAdminClient(
 		cfg.Client, opts.ClockOptions(), iOpts, tchannelOpts, syncCfg.TopologyInitializer,
 		runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
-		syncCfg.KVStore, logger, runOpts.CustomOptions)
+		syncCfg.KVStore, opts.ContextPool(), opts.BytesPool(), opts.IdentifierPool(),
+		logger, runOpts.CustomOptions)
 	if err != nil {
 		logger.Fatal("could not create m3db client", zap.Error(err))
 	}
@@ -919,7 +929,8 @@ func Run(runOpts RunOptions) {
 			clusterClient, err := newAdminClient(
 				clientCfg, opts.ClockOptions(), iOpts, tchannelOpts, topologyInitializer,
 				runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
-				syncCfg.KVStore, logger, runOpts.CustomOptions)
+				syncCfg.KVStore, opts.ContextPool(), opts.BytesPool(),
+				opts.IdentifierPool(), logger, runOpts.CustomOptions)
 			if err != nil {
 				logger.Fatal(
 					"unable to create client for replicated cluster",
@@ -933,8 +944,11 @@ func Run(runOpts RunOptions) {
 		repairOpts := opts.RepairOptions().
 			SetAdminClients(repairClients)
 
-		if cfg.Repair != nil {
+		if repairCfg := cfg.Repair; repairCfg != nil {
 			repairOpts = repairOpts.
+				SetType(repairCfg.Type).
+				SetStrategy(repairCfg.Strategy).
+				SetForce(repairCfg.Force).
 				SetResultOptions(rsOpts).
 				SetDebugShadowComparisonsEnabled(cfg.Repair.DebugShadowComparisonsEnabled)
 			if cfg.Repair.Throttle > 0 {
@@ -942,6 +956,9 @@ func Run(runOpts RunOptions) {
 			}
 			if cfg.Repair.CheckInterval > 0 {
 				repairOpts = repairOpts.SetRepairCheckInterval(cfg.Repair.CheckInterval)
+			}
+			if cfg.Repair.Concurrency > 0 {
+				repairOpts = repairOpts.SetRepairShardConcurrency(cfg.Repair.Concurrency)
 			}
 
 			if cfg.Repair.DebugShadowComparisonsPercentage > 0 {
@@ -1335,6 +1352,7 @@ func dynamicLimitToLimitOpts(dynamicLimit *kvpb.QueryLimit) limits.LookbackLimit
 		Limit:         dynamicLimit.Limit,
 		Lookback:      time.Duration(dynamicLimit.LookbackSeconds) * time.Second,
 		ForceExceeded: dynamicLimit.ForceExceeded,
+		ForceWaited:   dynamicLimit.ForceWaited,
 	}
 }
 
@@ -1690,15 +1708,16 @@ func withEncodingAndPoolingOptions(
 		SetReaderIteratorPool(iteratorPool).
 		SetBytesPool(bytesPool).
 		SetSegmentReaderPool(segmentReaderPool).
-		SetCheckedBytesWrapperPool(bytesWrapperPool)
+		SetCheckedBytesWrapperPool(bytesWrapperPool).
+		SetMetrics(encoding.NewMetrics(scope))
 
 	encoderPool.Init(func() encoding.Encoder {
 		if cfg.Proto != nil && cfg.Proto.Enabled {
-			enc := proto.NewEncoder(time.Time{}, encodingOpts)
+			enc := proto.NewEncoder(0, encodingOpts)
 			return enc
 		}
 
-		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(0, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
 	iteratorPool.Init(func(r xio.Reader64, descr namespace.SchemaDescr) encoding.ReaderIterator {
@@ -1771,7 +1790,7 @@ func withEncodingAndPoolingOptions(
 			policy.BlockPool,
 			scope.SubScope("block-pool")))
 	blockPool.Init(func() block.DatabaseBlock {
-		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts, namespace.Context{})
+		return block.NewDatabaseBlock(0, 0, ts.Segment{}, blockOpts, namespace.Context{})
 	})
 	blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 	opts = opts.SetDatabaseBlockOptions(blockOpts)
@@ -1865,6 +1884,9 @@ func newAdminClient(
 	protoEnabled bool,
 	schemaRegistry namespace.SchemaRegistry,
 	kvStore kv.Store,
+	contextPool xcontext.Pool,
+	checkedBytesPool pool.CheckedBytesPool,
+	identifierPool ident.Pool,
 	logger *zap.Logger,
 	custom []client.CustomAdminOption,
 ) (client.AdminClient, error) {
@@ -1883,7 +1905,13 @@ func newAdminClient(
 			return opts.SetRuntimeOptionsManager(runtimeOptsMgr).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
-			return opts.SetContextPool(opts.ContextPool()).(client.AdminOptions)
+			return opts.SetContextPool(contextPool).(client.AdminOptions)
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetCheckedBytesPool(checkedBytesPool).(client.AdminOptions)
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetIdentifierPool(identifierPool).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetOrigin(origin).(client.AdminOptions)

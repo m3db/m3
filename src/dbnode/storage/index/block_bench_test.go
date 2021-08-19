@@ -44,7 +44,7 @@ func BenchmarkBlockWrite(b *testing.B) {
 	testMD := newTestNSMetadata(b)
 	blockSize := time.Hour
 
-	now := time.Now()
+	now := xtime.Now()
 	blockStart := now.Truncate(blockSize)
 
 	bl, err := NewBlock(blockStart, testMD, BlockOptions{},
@@ -60,10 +60,10 @@ func BenchmarkBlockWrite(b *testing.B) {
 	})
 
 	fieldValues := map[string][]string{
-		"fruit":     []string{"apple", "banana", "orange", "watermelon"},
-		"vegetable": []string{"broccoli", "carrot", "celery", "cucumber"},
-		"meat":      []string{"beef", "chicken", "pork", "steak"},
-		"cheese":    []string{"cheddar", "swiss", "brie", "bleu"},
+		"fruit":     {"apple", "banana", "orange", "watermelon"},
+		"vegetable": {"broccoli", "carrot", "celery", "cucumber"},
+		"meat":      {"beef", "chicken", "pork", "steak"},
+		"cheese":    {"cheddar", "swiss", "brie", "bleu"},
 	}
 
 	for i := 0; i < 4096; i++ {
@@ -77,7 +77,7 @@ func BenchmarkBlockWrite(b *testing.B) {
 		batch.Append(WriteBatchEntry{
 			Timestamp:     now,
 			OnIndexSeries: onIndexSeries,
-			EnqueuedAt:    now,
+			EnqueuedAt:    now.ToTime(),
 		}, doc.Metadata{
 			ID:     []byte(fmt.Sprintf("doc.%d", i)),
 			Fields: fields,
@@ -115,11 +115,23 @@ func BenchmarkBlockWrite(b *testing.B) {
 // useless to use in benchmarks
 type mockOnIndexSeries struct{}
 
-var _ OnIndexSeries = mockOnIndexSeries{}
+var _ doc.OnIndexSeries = mockOnIndexSeries{}
 
-func (m mockOnIndexSeries) OnIndexSuccess(blockStart xtime.UnixNano)  {}
-func (m mockOnIndexSeries) OnIndexFinalize(blockStart xtime.UnixNano) {}
-func (m mockOnIndexSeries) OnIndexPrepare()                           {}
-func (m mockOnIndexSeries) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool {
+func (m mockOnIndexSeries) OnIndexSuccess(_ xtime.UnixNano)  {}
+func (m mockOnIndexSeries) OnIndexFinalize(_ xtime.UnixNano) {}
+func (m mockOnIndexSeries) OnIndexPrepare(_ xtime.UnixNano)  {}
+func (m mockOnIndexSeries) NeedsIndexUpdate(_ xtime.UnixNano) bool {
 	return false
 }
+func (m mockOnIndexSeries) DecrementReaderWriterCount() {}
+func (m mockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(_ xtime.UnixNano) bool {
+	return false
+}
+func (m mockOnIndexSeries) IndexedForBlockStart(_ xtime.UnixNano) bool { return false }
+func (m mockOnIndexSeries) RemoveIndexedForBlockStarts(
+	_ map[xtime.UnixNano]struct{},
+) RemoveIndexedForBlockStartsResult {
+	return RemoveIndexedForBlockStartsResult{}
+}
+func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool           { return false }
+func (m mockOnIndexSeries) RelookupAndCheckIsEmpty() (bool, bool) { return false, false }

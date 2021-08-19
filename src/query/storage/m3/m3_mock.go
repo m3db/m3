@@ -27,11 +27,13 @@ package m3
 import (
 	"context"
 	"reflect"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
@@ -134,19 +136,34 @@ func (mr *MockStorageMockRecorder) FetchBlocks(arg0, arg1, arg2 interface{}) *go
 }
 
 // FetchCompressed mocks base method.
-func (m *MockStorage) FetchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (consolidators.SeriesFetchResult, Cleanup, error) {
+func (m *MockStorage) FetchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (consolidators.MultiFetchResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchCompressed", arg0, arg1, arg2)
-	ret0, _ := ret[0].(consolidators.SeriesFetchResult)
-	ret1, _ := ret[1].(Cleanup)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(consolidators.MultiFetchResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // FetchCompressed indicates an expected call of FetchCompressed.
 func (mr *MockStorageMockRecorder) FetchCompressed(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchCompressed", reflect.TypeOf((*MockStorage)(nil).FetchCompressed), arg0, arg1, arg2)
+}
+
+// FetchCompressedResult mocks base method.
+func (m *MockStorage) FetchCompressedResult(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (consolidators.SeriesFetchResult, Cleanup, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchCompressedResult", arg0, arg1, arg2)
+	ret0, _ := ret[0].(consolidators.SeriesFetchResult)
+	ret1, _ := ret[1].(Cleanup)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// FetchCompressedResult indicates an expected call of FetchCompressedResult.
+func (mr *MockStorageMockRecorder) FetchCompressedResult(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchCompressedResult", reflect.TypeOf((*MockStorage)(nil).FetchCompressedResult), arg0, arg1, arg2)
 }
 
 // FetchProm mocks base method.
@@ -176,6 +193,21 @@ func (m *MockStorage) Name() string {
 func (mr *MockStorageMockRecorder) Name() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Name", reflect.TypeOf((*MockStorage)(nil).Name))
+}
+
+// QueryStorageMetadataAttributes mocks base method.
+func (m *MockStorage) QueryStorageMetadataAttributes(arg0 context.Context, arg1, arg2 time.Time, arg3 *storage.FetchOptions) ([]storagemetadata.Attributes, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryStorageMetadataAttributes", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].([]storagemetadata.Attributes)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// QueryStorageMetadataAttributes indicates an expected call of QueryStorageMetadataAttributes.
+func (mr *MockStorageMockRecorder) QueryStorageMetadataAttributes(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryStorageMetadataAttributes", reflect.TypeOf((*MockStorage)(nil).QueryStorageMetadataAttributes), arg0, arg1, arg2, arg3)
 }
 
 // SearchCompressed mocks base method.

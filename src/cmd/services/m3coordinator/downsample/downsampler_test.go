@@ -58,6 +58,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -1693,6 +1694,89 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesPerSecondSum(t *testing
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerAggregationWithRulesConfigRollupRulesAugmentTags(t *testing.T) {
+	t.Parallel()
+
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			nameTag:         "http_requests",
+			"app":           "nginx_edge",
+			"status_code":   "500",
+			"endpoint":      "/foo/bar",
+			"not_rolled_up": "not_rolled_up_value",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 42},
+			{value: 64, offset: 1 * time.Second},
+		},
+	}
+	res := 1 * time.Second
+	ret := 30 * 24 * time.Hour
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		rulesConfig: &RulesConfiguration{
+			RollupRules: []RollupRuleConfiguration{
+				{
+					Filter: fmt.Sprintf(
+						"%s:http_requests app:* status_code:* endpoint:*",
+						nameTag),
+					Transforms: []TransformConfiguration{
+						{
+							Transform: &TransformOperationConfiguration{
+								Type: transformation.PerSecond,
+							},
+						},
+						{
+							Rollup: &RollupOperationConfiguration{
+								MetricName:   "http_requests_by_status_code",
+								GroupBy:      []string{"app", "status_code", "endpoint"},
+								Aggregations: []aggregation.Type{aggregation.Sum},
+							},
+						},
+					},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: res,
+							Retention:  ret,
+						},
+					},
+					Tags: []Tag{
+						{
+							Name:  "__rollup_type__",
+							Value: "counter",
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags: map[string]string{
+						nameTag:               "http_requests_by_status_code",
+						string(rollupTagName): string(rollupTagValue),
+						"__rollup_type__":     "counter",
+						"app":                 "nginx_edge",
+						"status_code":         "500",
+						"endpoint":            "/foo/bar",
+					},
+					values: []expectedValue{{value: 22}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  res,
+						Retention:   ret,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 // TestDownsamplerAggregationWithRulesConfigRollupRulesAggregateTransformNoRollup
 // tests that rollup rules can be used to actually simply transform values
 // without the need for an explicit rollup step.
@@ -2812,7 +2896,7 @@ type testCounterMetric struct {
 }
 
 type testCounterMetricTimedSample struct {
-	time   time.Time
+	time   xtime.UnixNano
 	offset time.Duration
 	value  int64
 }
@@ -2826,7 +2910,7 @@ type testGaugeMetric struct {
 }
 
 type testGaugeMetricTimedSample struct {
-	time   time.Time
+	time   xtime.UnixNano
 	offset time.Duration
 	value  float64
 }
@@ -2840,7 +2924,7 @@ type testTimerMetric struct {
 }
 
 type testTimerMetricTimedSample struct {
-	time   time.Time
+	time   xtime.UnixNano
 	offset time.Duration
 	value  float64
 }
@@ -3179,6 +3263,7 @@ func testDownsamplerAggregationIngest(
 	}
 	// make the current timestamp predictable:
 	now := time.Now().Truncate(time.Microsecond)
+	xNow := xtime.ToUnixNano(now)
 	for _, metric := range testCounterMetrics {
 		appender.NextMetric()
 
@@ -3200,7 +3285,7 @@ func testDownsamplerAggregationIngest(
 		}
 		for _, sample := range metric.timedSamples {
 			if sample.time.IsZero() {
-				sample.time = now // Allow empty time to mean "now"
+				sample.time = xNow // Allow empty time to mean "now"
 			}
 			if sample.offset > 0 {
 				sample.time = sample.time.Add(sample.offset)
@@ -3237,7 +3322,7 @@ func testDownsamplerAggregationIngest(
 		}
 		for _, sample := range metric.timedSamples {
 			if sample.time.IsZero() {
-				sample.time = now // Allow empty time to mean "now"
+				sample.time = xNow // Allow empty time to mean "now"
 			}
 			if sample.offset > 0 {
 				sample.time = sample.time.Add(sample.offset)
@@ -3276,7 +3361,7 @@ func testDownsamplerAggregationIngest(
 		}
 		for _, sample := range metric.timedSamples {
 			if sample.time.IsZero() {
-				sample.time = now // Allow empty time to mean "now"
+				sample.time = xtime.ToUnixNano(now) // Allow empty time to mean "now"
 			}
 			if sample.offset > 0 {
 				sample.time = sample.time.Add(sample.offset)

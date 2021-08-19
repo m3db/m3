@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/sync"
@@ -57,9 +56,7 @@ const (
 	testLongestRetention = test1YearRetention
 )
 
-var (
-	testFetchResponseMetadata = client.FetchResponseMetadata{Exhaustive: true}
-)
+var testFetchResponseMetadata = client.FetchResponseMetadata{Exhaustive: true}
 
 type testSessions struct {
 	unaggregated1MonthRetention                       *client.MockSession
@@ -132,7 +129,7 @@ func newTestStorage(t *testing.T, clusters Clusters) storage.Storage {
 	require.NoError(t, err)
 	writePool.Init()
 	tagOpts := models.NewTagOptions().SetMetricName([]byte("name"))
-	opts := m3db.NewOptions().
+	opts := NewOptions().
 		SetWriteWorkerPool(writePool).
 		SetLookbackDuration(time.Minute).
 		SetTagOptions(tagOpts)
@@ -172,11 +169,11 @@ func newWriteQuery(t *testing.T) *storage.WriteQuery {
 		Unit: xtime.Millisecond,
 		Datapoints: ts.Datapoints{
 			{
-				Timestamp: time.Now(),
+				Timestamp: xtime.Now(),
 				Value:     1.0,
 			},
 			{
-				Timestamp: time.Now().Add(-10 * time.Second),
+				Timestamp: xtime.Now().Add(-10 * time.Second),
 				Value:     2.0,
 			},
 		},
@@ -195,6 +192,46 @@ func setupLocalWrite(t *testing.T, ctrl *gomock.Controller) storage.Storage {
 	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	return store
+}
+
+func TestQueryStorageMetadataAttributes(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+	store, _ := setup(t, ctrl)
+
+	unaggAttrs, err := store.QueryStorageMetadataAttributes(
+		context.Background(),
+		time.Now().Add(-10*time.Minute),
+		time.Now(),
+		buildFetchOpts(),
+	)
+	require.NoError(t, err)
+	require.Equal(t, []storagemetadata.Attributes{
+		{
+			MetricsType: storagemetadata.UnaggregatedMetricsType,
+			Retention:   test1MonthRetention,
+		},
+	}, unaggAttrs)
+
+	aggAttrs, err := store.QueryStorageMetadataAttributes(
+		context.Background(),
+		time.Now().Add(-120*24*time.Hour),
+		time.Now(),
+		buildFetchOpts(),
+	)
+	require.NoError(t, err)
+	require.Equal(t, []storagemetadata.Attributes{
+		{
+			MetricsType: storagemetadata.AggregatedMetricsType,
+			Retention:   test1YearRetention,
+			Resolution:  10 * time.Minute,
+		},
+		{
+			MetricsType: storagemetadata.AggregatedMetricsType,
+			Retention:   test6MonthRetention,
+			Resolution:  1 * time.Minute,
+		},
+	}, aggAttrs)
 }
 
 func TestLocalWriteEmpty(t *testing.T) {
@@ -385,11 +422,11 @@ func TestLocalWritesWithExpiredContext(t *testing.T) {
 	writeQueryOpts := newWriteQuery(t).Options()
 	writeQueryOpts.Datapoints = ts.Datapoints{
 		ts.Datapoint{
-			Timestamp: time.Now(),
+			Timestamp: xtime.Now(),
 			Value:     42,
 		},
 		ts.Datapoint{
-			Timestamp: time.Now(),
+			Timestamp: xtime.Now(),
 			Value:     84,
 		},
 	}
@@ -762,8 +799,8 @@ func TestLocalCompleteTagsSuccess(t *testing.T) {
 	})
 
 	req := newCompleteTagsReq()
-	req.Start = time.Now().Add(-10 * time.Minute)
-	req.End = time.Now()
+	req.Start = xtime.Now().Add(-10 * time.Minute)
+	req.End = xtime.Now()
 	result, err := store.CompleteTags(context.TODO(), req, buildFetchOpts())
 	require.NoError(t, err)
 
@@ -845,7 +882,7 @@ func TestLocalCompleteTagsSuccessFinalize(t *testing.T) {
 }
 
 func TestInvalidBlockTypes(t *testing.T) {
-	opts := m3db.NewOptions()
+	opts := NewOptions()
 	s, err := NewStorage(nil, opts, instrument.NewOptions())
 	require.NoError(t, err)
 

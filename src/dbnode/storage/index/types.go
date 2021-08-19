@@ -79,15 +79,19 @@ type Query struct {
 // preferences on query execution.
 type QueryOptions struct {
 	// StartInclusive is the start time for the query.
-	StartInclusive time.Time
+	StartInclusive xtime.UnixNano
 	// EndExclusive	is the exclusive end for the query.
-	EndExclusive time.Time
+	EndExclusive xtime.UnixNano
 	// SeriesLimit is an optional limit for number of series matched.
 	SeriesLimit int
+	// InstanceMultiple is how much to increase the per database instance series limit.
+	InstanceMultiple float32
 	// DocsLimit is an optional limit for number of documents matched.
 	DocsLimit int
 	// RequireExhaustive requires queries to be under given limit sizes.
 	RequireExhaustive bool
+	// RequireNoWait requires queries to abort if execution must wait for permits.
+	RequireNoWait bool
 	// IterationOptions controls additional iteration methods.
 	IterationOptions IterationOptions
 	// Source is an optional query source.
@@ -98,9 +102,9 @@ type QueryOptions struct {
 // preferences on wide query execution.
 type WideQueryOptions struct {
 	// StartInclusive is the start time for the query.
-	StartInclusive time.Time
+	StartInclusive xtime.UnixNano
 	// EndExclusive is the exclusive end for the query.
-	EndExclusive time.Time
+	EndExclusive xtime.UnixNano
 	// BatchSize controls wide query batch size.
 	BatchSize int
 	// ShardsQueried are the shards to query. These must be in ascending order.
@@ -131,6 +135,8 @@ type QueryResult struct {
 	Results QueryResults
 	// Exhaustive indicates that the query was exhaustive.
 	Exhaustive bool
+	// Waited is a count of the times a query has waited for permits.
+	Waited int
 }
 
 // AggregateQueryResult is the collection of results for an aggregate query.
@@ -139,6 +145,8 @@ type AggregateQueryResult struct {
 	Results AggregateResults
 	// Exhaustive indicates that the query was exhaustive.
 	Exhaustive bool
+	// Waited is a count of the times a query has waited for permits.
+	Waited int
 }
 
 // BaseResults is a collection of basic results for a generic query, it is
@@ -357,50 +365,6 @@ type AggregateResultsEntry struct {
 	Terms []ident.ID
 }
 
-// OnIndexSeries provides a set of callback hooks to allow the reverse index
-// to do lifecycle management of any resources retained during indexing.
-type OnIndexSeries interface {
-	// OnIndexSuccess is executed when an entry is successfully indexed. The
-	// provided value for `blockStart` is the blockStart for which the write
-	// was indexed.
-	OnIndexSuccess(blockStart xtime.UnixNano)
-
-	// OnIndexFinalize is executed when the index no longer holds any references
-	// to the provided resources. It can be used to cleanup any resources held
-	// during the course of indexing. `blockStart` is the startTime of the index
-	// block for which the write was attempted.
-	OnIndexFinalize(blockStart xtime.UnixNano)
-
-	// OnIndexPrepare prepares the Entry to be handed off to the indexing sub-system.
-	// NB(prateek): we retain the ref count on the entry while the indexing is pending,
-	// the callback executed on the entry once the indexing is completed releases this
-	// reference.
-	OnIndexPrepare(blockStart xtime.UnixNano)
-
-	// NeedsIndexUpdate returns a bool to indicate if the Entry needs to be indexed
-	// for the provided blockStart. It only allows a single index attempt at a time
-	// for a single entry.
-	// NB(prateek): NeedsIndexUpdate is a CAS, i.e. when this method returns true, it
-	// also sets state on the entry to indicate that a write for the given blockStart
-	// is going to be sent to the index, and other go routines should not attempt the
-	// same write. Callers are expected to ensure they follow this guideline.
-	// Further, every call to NeedsIndexUpdate which returns true needs to have a corresponding
-	// OnIndexFinalze() call. This is required for correct lifecycle maintenance.
-	NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool
-
-	IfAlreadyIndexedMarkIndexSuccessAndFinalize(
-		blockStart xtime.UnixNano,
-	) bool
-
-	RemoveIndexedForBlockStarts(
-		blockStarts map[xtime.UnixNano]struct{},
-	) RemoveIndexedForBlockStartsResult
-
-	RelookupAndIncrementReaderWriterCount() (OnIndexSeries, bool)
-
-	DecrementReaderWriterCount()
-}
-
 // RemoveIndexedForBlockStartsResult is the result from calling
 // RemoveIndexedForBlockStarts.
 type RemoveIndexedForBlockStartsResult struct {
@@ -412,10 +376,10 @@ type RemoveIndexedForBlockStartsResult struct {
 // index for a period of time defined by [StartTime, EndTime).
 type Block interface {
 	// StartTime returns the start time of the period this Block indexes.
-	StartTime() time.Time
+	StartTime() xtime.UnixNano
 
 	// EndTime returns the end time of the period this Block indexes.
-	EndTime() time.Time
+	EndTime() xtime.UnixNano
 
 	// WriteBatch writes a batch of provided entries.
 	WriteBatch(inserts *WriteBatch) (WriteBatchResult, error)
@@ -448,10 +412,6 @@ type Block interface {
 
 	// AddResults adds bootstrap results to the block.
 	AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error
-
-	// ActiveBlockNotifySealedBlocks notifies an active in-memory block of
-	// sealed blocks.
-	ActiveBlockNotifySealedBlocks(sealed []xtime.UnixNano) error
 
 	// Tick does internal house keeping operations.
 	Tick(c context.Cancellable) (BlockTickResult, error)
@@ -696,7 +656,7 @@ func (b *WriteBatch) ForEach(fn ForEachWriteBatchEntryFn) {
 // reference to a restricted set of the write batch for each unique block
 // start.
 type ForEachWriteBatchByBlockStartFn func(
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 	batch *WriteBatch,
 )
 
@@ -735,14 +695,14 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 			b.entries = allEntries[startIdx:i]
 			b.docs = allDocs[startIdx:i]
 			if len(b.entries) != 0 {
-				fn(lastBlockStart.ToTime(), b)
+				fn(lastBlockStart, b)
 			}
 			return
 		}
 
 		blockStart := allEntries[i].indexBlockStart(blockSize)
 		if !blockStart.Equal(lastBlockStart) {
-			prevLastBlockStart := lastBlockStart.ToTime()
+			prevLastBlockStart := lastBlockStart
 			lastBlockStart = blockStart
 			// We only want to call the the ForEachUnmarkedBatchByBlockStart once we have calculated the entire group,
 			// i.e. once we have gone past the last element for a given blockStart, but the first element
@@ -763,7 +723,7 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 	if startIdx < len(allEntries) {
 		b.entries = allEntries[startIdx:]
 		b.docs = allDocs[startIdx:]
-		fn(lastBlockStart.ToTime(), b)
+		fn(lastBlockStart, b)
 	}
 }
 
@@ -930,10 +890,10 @@ func (b *WriteBatch) Less(i, j int) bool {
 // being inserted.
 type WriteBatchEntry struct {
 	// Timestamp is the timestamp that this entry should be indexed for
-	Timestamp time.Time
+	Timestamp xtime.UnixNano
 	// OnIndexSeries is a listener/callback for when this entry is marked done
 	// it is set to nil when the entry is marked done
-	OnIndexSeries OnIndexSeries
+	OnIndexSeries doc.OnIndexSeries
 	// EnqueuedAt is the timestamp that this entry was enqueued for indexing
 	// so that we can calculate the latency it takes to index the entry
 	EnqueuedAt time.Time
@@ -959,7 +919,7 @@ type WriteBatchEntryResult struct {
 func (e WriteBatchEntry) indexBlockStart(
 	indexBlockSize time.Duration,
 ) xtime.UnixNano {
-	return xtime.ToUnixNano(e.Timestamp.Truncate(indexBlockSize))
+	return e.Timestamp.Truncate(indexBlockSize)
 }
 
 // Result returns the result for this entry.

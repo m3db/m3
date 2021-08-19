@@ -143,11 +143,13 @@ func TestNamespaceIndexWriteAfterClose(t *testing.T) {
 	q.EXPECT().Stop().Return(nil)
 	assert.NoError(t, idx.Close())
 
-	now := time.Now()
+	now := xtime.Now()
 
-	lifecycle := index.NewMockOnIndexSeries(ctrl)
-	lifecycle.EXPECT().
-		OnIndexFinalize(xtime.ToUnixNano(now.Truncate(idx.blockSize)))
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
+	lifecycle.EXPECT().OnIndexFinalize(now.Truncate(idx.blockSize))
+	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
+		Return(false).
+		AnyTimes()
 	entry, document := testWriteBatchEntry(id, tags, now, lifecycle)
 	assert.Error(t, idx.WriteBatch(testWriteBatch(entry, document,
 		testWriteBatchBlockSizeOption(idx.blockSize))))
@@ -166,10 +168,10 @@ func TestNamespaceIndexWriteQueueError(t *testing.T) {
 		ident.StringTag("name", "value"),
 	)
 
-	n := time.Now()
-	lifecycle := index.NewMockOnIndexSeries(ctrl)
-	lifecycle.EXPECT().
-		OnIndexFinalize(xtime.ToUnixNano(n.Truncate(idx.blockSize)))
+	n := xtime.Now()
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
+	lifecycle.EXPECT().OnIndexFinalize(n.Truncate(idx.blockSize))
+	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
 	q.EXPECT().
 		InsertBatch(gomock.Any()).
 		Return(nil, fmt.Errorf("random err"))
@@ -184,12 +186,12 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 
 	var (
 		nowLock sync.Mutex
-		now     = time.Now()
+		now     = xtime.Now()
 		nowFn   = func() time.Time {
 			nowLock.Lock()
 			n := now
 			nowLock.Unlock()
-			return n
+			return n.ToTime()
 		}
 	)
 
@@ -211,12 +213,14 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 		tags = ident.NewTags(
 			ident.StringTag("name", "value"),
 		)
-		lifecycle = index.NewMockOnIndexSeries(ctrl)
+		lifecycle = doc.NewMockOnIndexSeries(ctrl)
 	)
 
 	tooOld := now.Add(-1 * idx.bufferPast).Add(-1 * time.Second)
-	lifecycle.EXPECT().
-		OnIndexFinalize(xtime.ToUnixNano(tooOld.Truncate(idx.blockSize)))
+	lifecycle.EXPECT().OnIndexFinalize(tooOld.Truncate(idx.blockSize))
+	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
+		Return(false).
+		AnyTimes()
 	entry, document := testWriteBatchEntry(id, tags, tooOld, lifecycle)
 	batch := testWriteBatch(entry, document, testWriteBatchBlockSizeOption(idx.blockSize))
 
@@ -236,8 +240,7 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 	require.Equal(t, 1, verified)
 
 	tooNew := now.Add(1 * idx.bufferFuture).Add(1 * time.Second)
-	lifecycle.EXPECT().
-		OnIndexFinalize(xtime.ToUnixNano(tooNew.Truncate(idx.blockSize)))
+	lifecycle.EXPECT().OnIndexFinalize(tooNew.Truncate(idx.blockSize))
 	entry, document = testWriteBatchEntry(id, tags, tooNew, lifecycle)
 	batch = testWriteBatch(entry, document, testWriteBatchBlockSizeOption(idx.blockSize))
 	assert.Error(t, idx.WriteBatch(batch))
@@ -273,18 +276,22 @@ func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
 		)
 	)
 
-	now := time.Now()
+	now := xtime.Now()
 
 	var wg sync.WaitGroup
-	lifecycle := index.NewMockOnIndexSeries(ctrl)
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	q.EXPECT().InsertBatch(gomock.Any()).Return(&wg, nil)
+	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
+		Return(false).
+		AnyTimes()
 	assert.NoError(t, idx.WriteBatch(testWriteBatch(testWriteBatchEntry(id,
 		tags, now, lifecycle))))
 }
 
 func setupIndex(t *testing.T,
 	ctrl *gomock.Controller,
-	now time.Time,
+	now xtime.UnixNano,
+	expectAggregateQuery bool,
 ) NamespaceIndex {
 	newFn := func(
 		fn nsIndexInsertBatchFn,
@@ -312,11 +319,16 @@ func setupIndex(t *testing.T,
 		tags      = ident.NewTags(
 			ident.StringTag("name", "value"),
 		)
-		lifecycleFns = index.NewMockOnIndexSeries(ctrl)
+		lifecycleFns = doc.NewMockOnIndexSeries(ctrl)
 	)
 
-	lifecycleFns.EXPECT().OnIndexFinalize(xtime.ToUnixNano(ts))
-	lifecycleFns.EXPECT().OnIndexSuccess(xtime.ToUnixNano(ts))
+	lifecycleFns.EXPECT().OnIndexFinalize(ts)
+	lifecycleFns.EXPECT().OnIndexSuccess(ts)
+	lifecycleFns.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
+
+	if !expectAggregateQuery {
+		lifecycleFns.EXPECT().IndexedForBlockStart(ts).Return(true)
+	}
 
 	entry, doc := testWriteBatchEntry(id, tags, now, lifecycleFns)
 	batch := testWriteBatch(entry, doc, testWriteBatchBlockSizeOption(blockSize))
@@ -333,8 +345,8 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	now := time.Now()
-	idx := setupIndex(t, ctrl, now)
+	now := xtime.Now()
+	idx := setupIndex(t, ctrl, now, false)
 	defer idx.Close()
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
@@ -369,8 +381,8 @@ func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
 	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	now := time.Now()
-	idx := setupIndex(t, ctrl, now)
+	now := xtime.Now()
+	idx := setupIndex(t, ctrl, now, true)
 	defer idx.Close()
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
@@ -407,8 +419,8 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	now := time.Now()
-	idx := setupIndex(t, ctrl, now)
+	now := xtime.Now()
+	idx := setupIndex(t, ctrl, now, false)
 	defer idx.Close()
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
@@ -416,7 +428,7 @@ func TestNamespaceIndexInsertWideQuery(t *testing.T) {
 	doneCh := make(chan struct{})
 	collector := make(chan *ident.IDBatch)
 	blockSize := 2 * time.Hour
-	queryOpts, err := index.NewWideQueryOptions(time.Now().Truncate(blockSize),
+	queryOpts, err := index.NewWideQueryOptions(xtime.Now().Truncate(blockSize),
 		5, blockSize, nil, index.IterationOptions{})
 	require.NoError(t, err)
 
@@ -454,8 +466,8 @@ func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
 	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	now := time.Now()
-	idx := setupIndex(t, ctrl, now)
+	now := xtime.Now()
+	idx := setupIndex(t, ctrl, now, false)
 	defer idx.Close()
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
@@ -465,7 +477,7 @@ func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
 	shard := testShardSet.Lookup(ident.StringID("foo"))
 	offShard := shard + 1
 	blockSize := 2 * time.Hour
-	queryOpts, err := index.NewWideQueryOptions(time.Now().Truncate(blockSize),
+	queryOpts, err := index.NewWideQueryOptions(xtime.Now().Truncate(blockSize),
 		5, blockSize, []uint32{offShard}, index.IterationOptions{})
 	require.NoError(t, err)
 

@@ -23,7 +23,6 @@ package m3tsz
 import (
 	"errors"
 	"math"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -63,7 +62,7 @@ type encoder struct {
 
 // NewEncoder creates a new encoder.
 func NewEncoder(
-	start time.Time,
+	start xtime.UnixNano,
 	bytes checked.Bytes,
 	intOptimized bool,
 	opts encoding.Options,
@@ -93,7 +92,7 @@ func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 		return errEncoderClosed
 	}
 
-	err := enc.tsEncoderState.WriteTime(enc.os, dp.Timestamp, ant, tu)
+	err := enc.tsEncoderState.WriteTime(enc.os, dp.TimestampNanos, ant, tu)
 	if err != nil {
 		return err
 	}
@@ -258,14 +257,18 @@ func (enc *encoder) newBuffer(capacity int) checked.Bytes {
 }
 
 // Reset resets the encoder for reuse.
-func (enc *encoder) Reset(start time.Time, capacity int, schema namespace.SchemaDescr) {
+func (enc *encoder) Reset(
+	start xtime.UnixNano,
+	capacity int,
+	schema namespace.SchemaDescr,
+) {
 	enc.reset(start, enc.newBuffer(capacity))
 }
 
-func (enc *encoder) reset(start time.Time, bytes checked.Bytes) {
+func (enc *encoder) reset(start xtime.UnixNano, bytes checked.Bytes) {
 	enc.os.Reset(bytes)
 
-	timeUnit := initialTimeUnit(xtime.ToUnixNano(start), enc.opts.DefaultTimeUnit())
+	timeUnit := initialTimeUnit(start, enc.opts.DefaultTimeUnit())
 	enc.tsEncoderState = NewTimestampEncoder(start, timeUnit, enc.opts)
 
 	enc.floatEnc = FloatEncoderAndIterator{}
@@ -305,8 +308,7 @@ func (enc *encoder) LastEncoded() (ts.Datapoint, error) {
 	}
 
 	result := ts.Datapoint{
-		Timestamp:      enc.tsEncoderState.PrevTime,
-		TimestampNanos: xtime.ToUnixNano(enc.tsEncoderState.PrevTime),
+		TimestampNanos: enc.tsEncoderState.PrevTime,
 	}
 	if enc.isFloat {
 		result.Value = math.Float64frombits(enc.floatEnc.PrevFloatBits)
@@ -374,7 +376,11 @@ func (enc *encoder) Discard() ts.Segment {
 }
 
 // DiscardReset does the same thing as Discard except it does not close the encoder but resets it for reuse.
-func (enc *encoder) DiscardReset(start time.Time, capacity int, descr namespace.SchemaDescr) ts.Segment {
+func (enc *encoder) DiscardReset(
+	start xtime.UnixNano,
+	capacity int,
+	descr namespace.SchemaDescr,
+) ts.Segment {
 	segment := enc.segmentTakeOwnership()
 	enc.Reset(start, capacity, descr)
 	return segment

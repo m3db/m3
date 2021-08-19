@@ -35,8 +35,8 @@ func alias(ctx *common.Context, series singlePathSpec, a string) (ts.SeriesList,
 
 // aliasByMetric takes a seriesList and applies an alias derived from the base
 // metric name.
-func aliasByMetric(ctx *common.Context, series singlePathSpec) (ts.SeriesList, error) {
-	return common.AliasByMetric(ctx, ts.SeriesList(series))
+func aliasByMetric(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList, error) {
+	return aliasByNode(ctx, seriesList, -1)
 }
 
 // aliasByNode renames a time series result according to a subset of the nodes
@@ -44,7 +44,10 @@ func aliasByMetric(ctx *common.Context, series singlePathSpec) (ts.SeriesList, e
 func aliasByNode(ctx *common.Context, seriesList singlePathSpec, nodes ...int) (ts.SeriesList, error) {
 	renamed := make([]*ts.Series, 0, ts.SeriesList(seriesList).Len())
 	for _, series := range seriesList.Values {
-		name := getFirstPathExpression(series.Name())
+		name, err := getFirstPathExpression(series.Name())
+		if err != nil {
+			return ts.SeriesList{}, err
+		}
 
 		nameParts := strings.Split(name, ".")
 		newNameParts := make([]string, 0, len(nodes))
@@ -66,34 +69,35 @@ func aliasByNode(ctx *common.Context, seriesList singlePathSpec, nodes ...int) (
 	return ts.SeriesList(seriesList), nil
 }
 
-func getFirstPathExpression(name string) string {
-	expr, err := Compile(name, CompileOptions{})
+func getFirstPathExpression(name string) (string, error) {
+	node, err := ParseGrammar(name, CompileOptions{})
 	if err != nil {
-		return name
+		return "", err
 	}
-	if path, ok := getFirstPathExpressionDepthFirst(expr.Arguments()); ok {
-		return path
+	if path, ok := getFirstPathExpressionDepthFirst(node); ok {
+		return path, nil
 	}
-	return name
+	return name, nil
 }
 
-func getFirstPathExpressionDepthFirst(args []ArgumentASTNode) (string, bool) {
-	for i := 0; i < len(args); i++ {
-		path, ok := args[i].PathExpression()
-		if ok {
-			return path, true
-		}
+func getFirstPathExpressionDepthFirst(node ASTNode) (string, bool) {
+	path, ok := node.PathExpression()
+	if ok {
+		return path, true
+	}
 
-		inner, ok := args[i].(CallASTNode)
-		if !ok {
-			continue
-		}
+	call, ok := node.CallExpression()
+	if !ok {
+		return "", false
+	}
 
-		path, ok = getFirstPathExpressionDepthFirst(inner.Arguments())
+	for _, arg := range call.Arguments() {
+		path, ok = getFirstPathExpressionDepthFirst(arg)
 		if ok {
 			return path, true
 		}
 	}
+
 	return "", false
 }
 

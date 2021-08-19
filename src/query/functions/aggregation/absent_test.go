@@ -30,7 +30,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/test/executor"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,7 +41,7 @@ import (
 func toArgs(f float64) []interface{} { return []interface{}{f} }
 
 var (
-	start     = time.Now()
+	start     = xtime.Now()
 	testBound = models.Bounds{
 		Start:    start,
 		Duration: time.Hour,
@@ -139,7 +141,7 @@ func TestAbsent(t *testing.T) {
 				require.Equal(t, 0, len(sink.Values))
 			} else {
 				require.Equal(t, 1, len(sink.Values))
-				test.EqualsWithNans(t, tt.expectedVals, sink.Values[0])
+				compare.EqualsWithNans(t, tt.expectedVals, sink.Values[0])
 				assert.True(t, tt.expectedMeta.Equals(sink.Meta))
 			}
 		})

@@ -22,7 +22,6 @@ package bootstrap
 
 import (
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -60,7 +59,7 @@ type Process interface {
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
 	Run(
 		ctx context.Context,
-		start time.Time,
+		start xtime.UnixNano,
 		namespaces []ProcessNamespace,
 	) (NamespaceResults, error)
 }
@@ -481,7 +480,7 @@ type SeriesRef interface {
 	// Write writes a new value.
 	Write(
 		ctx context.Context,
-		timestamp time.Time,
+		timestamp xtime.UnixNano,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -493,6 +492,9 @@ type SeriesRef interface {
 		block block.DatabaseBlock,
 		writeType series.WriteType,
 	) error
+
+	// UniqueIndex is the unique index for the series.
+	UniqueIndex() uint64
 }
 
 // SeriesRefResolver is a series resolver for just in time resolving of

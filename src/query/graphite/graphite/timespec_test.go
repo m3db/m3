@@ -59,10 +59,13 @@ func TestParseTime(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		s := test.timespec
-		parsed, err := ParseTime(s, relativeTo, 0)
-		assert.Nil(t, err, "error parsing %s", s)
-		assert.Equal(t, test.expectedTime, parsed, "incorrect parsed value for %s", s)
+		test := test
+		t.Run(test.timespec, func(t *testing.T) {
+			s := test.timespec
+			parsed, err := ParseTime(s, relativeTo, 0)
+			assert.Nil(t, err, "error parsing %s", s)
+			assert.True(t, test.expectedTime.Equal(parsed), "incorrect parsed value for %s", s)
+		})
 	}
 }
 

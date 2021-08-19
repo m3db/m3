@@ -51,10 +51,10 @@ type optimizeType int
 
 const (
 	// safe optimizes the load distribution without violating
-	// minimal shard movemoment.
+	// minimal shard movement.
 	safe optimizeType = iota
 	// unsafe optimizes the load distribution with the potential of violating
-	// minimal shard movement in order to reach best shard distribution
+	// minimal shard movement in order to reach best shard distribution.
 	unsafe
 )
 
@@ -493,6 +493,7 @@ func (ph *helper) mostUnderLoadedInstance() (placement.Instance, bool) {
 	var (
 		res        placement.Instance
 		maxLoadGap int
+		totalLoadSurplus int
 	)
 
 	for id, instance := range ph.instances {
@@ -501,11 +502,13 @@ func (ph *helper) mostUnderLoadedInstance() (placement.Instance, bool) {
 			maxLoadGap = loadGap
 			res = instance
 		}
+		if loadGap < 0 {
+			totalLoadSurplus -= loadGap
+		}
 	}
-	if maxLoadGap > 0 {
+	if maxLoadGap > 0 && totalLoadSurplus != 0 {
 		return res, true
 	}
-
 	return nil, false
 }
 

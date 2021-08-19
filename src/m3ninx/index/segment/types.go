@@ -23,11 +23,11 @@ package segment
 import (
 	"errors"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
-
-	"github.com/uber-go/tally"
 )
 
 var (

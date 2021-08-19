@@ -37,7 +37,7 @@ import (
 )
 
 func TestRepairDisjointSeries(t *testing.T) {
-	genRepairData := func(now time.Time, blockSize time.Duration) (
+	genRepairData := func(now xtime.UnixNano, blockSize time.Duration) (
 		node0Data generate.SeriesBlocksByStart,
 		node1Data generate.SeriesBlocksByStart,
 		node2Data generate.SeriesBlocksByStart,
@@ -75,7 +75,7 @@ func TestRepairDisjointSeries(t *testing.T) {
 }
 
 func TestRepairMergeSeries(t *testing.T) {
-	genRepairData := func(now time.Time, blockSize time.Duration) (
+	genRepairData := func(now xtime.UnixNano, blockSize time.Duration) (
 		node0Data generate.SeriesBlocksByStart,
 		node1Data generate.SeriesBlocksByStart,
 		node2Data generate.SeriesBlocksByStart,
@@ -119,7 +119,7 @@ func TestRepairMergeSeries(t *testing.T) {
 }
 
 func TestRepairDoesNotRepairCurrentBlock(t *testing.T) {
-	genRepairData := func(now time.Time, blockSize time.Duration) (
+	genRepairData := func(now xtime.UnixNano, blockSize time.Duration) (
 		node0Data generate.SeriesBlocksByStart,
 		node1Data generate.SeriesBlocksByStart,
 		node2Data generate.SeriesBlocksByStart,
@@ -135,7 +135,7 @@ func TestRepairDoesNotRepairCurrentBlock(t *testing.T) {
 
 		allData = make(map[xtime.UnixNano]generate.SeriesBlock)
 		for start, data := range node0Data {
-			if !start.ToTime().Equal(currBlockStart) {
+			if !start.Equal(currBlockStart) {
 				allData[start] = data
 			}
 		}
@@ -153,7 +153,7 @@ func TestRepairDoesNotRepairCurrentBlock(t *testing.T) {
 }
 
 type genRepairDatafn func(
-	now time.Time,
+	now xtime.UnixNano,
 	blockSize time.Duration,
 ) (
 	node0Data generate.SeriesBlocksByStart,

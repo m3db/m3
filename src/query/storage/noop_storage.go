@@ -23,9 +23,11 @@ package storage
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 )
 
 var errNoopClient = errors.New("operation not valid for noop client")
@@ -38,6 +40,14 @@ func NewNoopStorage() Storage {
 
 type noopStorage struct{}
 
+func (noopStorage) QueryStorageMetadataAttributes(
+	ctx context.Context,
+	queryStart, queryEnd time.Time,
+	opts *FetchOptions,
+) ([]storagemetadata.Attributes, error) {
+	return nil, errNoopClient
+}
+
 func (noopStorage) Fetch(ctx context.Context, query *FetchQuery, options *FetchOptions) (*FetchResult, error) {
 	return nil, errNoopClient
 }
@@ -49,6 +59,14 @@ func (noopStorage) FetchProm(ctx context.Context, query *FetchQuery, options *Fe
 // FetchBlocks fetches timeseries as blocks based on a query.
 func (noopStorage) FetchBlocks(ctx context.Context, query *FetchQuery, options *FetchOptions) (block.Result, error) {
 	return block.Result{}, errNoopClient
+}
+
+func (noopStorage) FetchCompressed(
+	ctx context.Context,
+	query *FetchQuery,
+	options *FetchOptions,
+) (consolidators.MultiFetchResult, error) {
+	return nil, errNoopClient
 }
 
 // SearchSeries returns series IDs matching the current query.

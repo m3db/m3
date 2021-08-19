@@ -20,25 +20,30 @@
 
 package retention
 
-import "time"
+import (
+	"time"
+
+	xtime "github.com/m3db/m3/src/x/time"
+)
 
 // FlushTimeStart is the earliest flushable time
-func FlushTimeStart(opts Options, t time.Time) time.Time {
+func FlushTimeStart(opts Options, t xtime.UnixNano) xtime.UnixNano {
 	return FlushTimeStartForRetentionPeriod(opts.RetentionPeriod(), opts.BlockSize(), t)
 }
 
 // FlushTimeStartForRetentionPeriod is the earliest flushable time
-func FlushTimeStartForRetentionPeriod(retentionPeriod time.Duration, blockSize time.Duration, t time.Time) time.Time {
+func FlushTimeStartForRetentionPeriod(
+	retentionPeriod time.Duration, blockSize time.Duration, t xtime.UnixNano) xtime.UnixNano {
 	return t.Add(-retentionPeriod).Truncate(blockSize)
 }
 
 // FlushTimeEnd is the latest flushable time
-func FlushTimeEnd(opts Options, t time.Time) time.Time {
+func FlushTimeEnd(opts Options, t xtime.UnixNano) xtime.UnixNano {
 	return FlushTimeEndForBlockSize(opts.BlockSize(),
 		t.Add(opts.FutureRetentionPeriod()).Add(-opts.BufferPast()))
 }
 
 // FlushTimeEndForBlockSize is the latest flushable time
-func FlushTimeEndForBlockSize(blockSize time.Duration, t time.Time) time.Time {
+func FlushTimeEndForBlockSize(blockSize time.Duration, t xtime.UnixNano) xtime.UnixNano {
 	return t.Add(-blockSize).Truncate(blockSize)
 }

@@ -27,9 +27,11 @@ package storage
 import (
 	"context"
 	"reflect"
+	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 
 	"github.com/golang/mock/gomock"
 )
@@ -115,6 +117,21 @@ func (mr *MockStorageMockRecorder) FetchBlocks(arg0, arg1, arg2 interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockStorage)(nil).FetchBlocks), arg0, arg1, arg2)
 }
 
+// FetchCompressed mocks base method.
+func (m *MockStorage) FetchCompressed(arg0 context.Context, arg1 *FetchQuery, arg2 *FetchOptions) (consolidators.MultiFetchResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchCompressed", arg0, arg1, arg2)
+	ret0, _ := ret[0].(consolidators.MultiFetchResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchCompressed indicates an expected call of FetchCompressed.
+func (mr *MockStorageMockRecorder) FetchCompressed(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchCompressed", reflect.TypeOf((*MockStorage)(nil).FetchCompressed), arg0, arg1, arg2)
+}
+
 // FetchProm mocks base method.
 func (m *MockStorage) FetchProm(arg0 context.Context, arg1 *FetchQuery, arg2 *FetchOptions) (PromResult, error) {
 	m.ctrl.T.Helper()
@@ -142,6 +159,21 @@ func (m *MockStorage) Name() string {
 func (mr *MockStorageMockRecorder) Name() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Name", reflect.TypeOf((*MockStorage)(nil).Name))
+}
+
+// QueryStorageMetadataAttributes mocks base method.
+func (m *MockStorage) QueryStorageMetadataAttributes(arg0 context.Context, arg1, arg2 time.Time, arg3 *FetchOptions) ([]storagemetadata.Attributes, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryStorageMetadataAttributes", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].([]storagemetadata.Attributes)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// QueryStorageMetadataAttributes indicates an expected call of QueryStorageMetadataAttributes.
+func (mr *MockStorageMockRecorder) QueryStorageMetadataAttributes(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryStorageMetadataAttributes", reflect.TypeOf((*MockStorage)(nil).QueryStorageMetadataAttributes), arg0, arg1, arg2, arg3)
 }
 
 // SearchSeries mocks base method.

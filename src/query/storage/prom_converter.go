@@ -43,7 +43,7 @@ func iteratorToPromResult(
 	for iter.Next() {
 		dp, _, _ := iter.Current()
 		samples = append(samples, prompb.Sample{
-			Timestamp: TimeToPromTimestamp(dp.Timestamp),
+			Timestamp: TimeToPromTimestamp(dp.TimestampNanos),
 			Value:     dp.Value,
 		})
 	}

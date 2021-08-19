@@ -58,7 +58,7 @@ var (
 	contextPool   context.Pool
 	bytesPool     pool.CheckedBytesPool
 
-	startTime = time.Now().Truncate(blockSize)
+	startTime = xtime.Now().Truncate(blockSize)
 
 	id0 = ident.StringID("id0")
 	id1 = ident.StringID("id1")
@@ -104,101 +104,101 @@ func TestMergeWithIntersection(t *testing.T) {
 	// Both have id3, and all datapoints have overlapping timestamps.
 	diskData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
 	diskData.Set(id0, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(0 * time.Second), Value: 0},
-		{Timestamp: startTime.Add(1 * time.Second), Value: 1},
-		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+		{TimestampNanos: startTime.Add(0 * time.Second), Value: 0},
+		{TimestampNanos: startTime.Add(1 * time.Second), Value: 1},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 2},
 	}))
 	diskData.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
-		{Timestamp: startTime.Add(3 * time.Second), Value: 3},
-		{Timestamp: startTime.Add(6 * time.Second), Value: 4},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 5},
-		{Timestamp: startTime.Add(9 * time.Second), Value: 6},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 2},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 3},
+		{TimestampNanos: startTime.Add(6 * time.Second), Value: 4},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 5},
+		{TimestampNanos: startTime.Add(9 * time.Second), Value: 6},
 	}))
 	diskData.Set(id2, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(1 * time.Second), Value: 7},
-		{Timestamp: startTime.Add(3 * time.Second), Value: 8},
-		{Timestamp: startTime.Add(5 * time.Second), Value: 9},
-		{Timestamp: startTime.Add(6 * time.Second), Value: 10},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 11},
-		{Timestamp: startTime.Add(10 * time.Second), Value: 12},
+		{TimestampNanos: startTime.Add(1 * time.Second), Value: 7},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 8},
+		{TimestampNanos: startTime.Add(5 * time.Second), Value: 9},
+		{TimestampNanos: startTime.Add(6 * time.Second), Value: 10},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 11},
+		{TimestampNanos: startTime.Add(10 * time.Second), Value: 12},
 	}))
 	diskData.Set(id3, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(2 * time.Second), Value: 13},
-		{Timestamp: startTime.Add(4 * time.Second), Value: 14},
-		{Timestamp: startTime.Add(8 * time.Second), Value: 15},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 13},
+		{TimestampNanos: startTime.Add(4 * time.Second), Value: 14},
+		{TimestampNanos: startTime.Add(8 * time.Second), Value: 15},
 	}))
 
 	mergeTargetData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
 	mergeTargetData.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(4 * time.Second), Value: 16},
-		{Timestamp: startTime.Add(5 * time.Second), Value: 17},
-		{Timestamp: startTime.Add(8 * time.Second), Value: 18},
+		{TimestampNanos: startTime.Add(4 * time.Second), Value: 16},
+		{TimestampNanos: startTime.Add(5 * time.Second), Value: 17},
+		{TimestampNanos: startTime.Add(8 * time.Second), Value: 18},
 	}))
 	mergeTargetData.Set(id2, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(3 * time.Second), Value: 19},
-		{Timestamp: startTime.Add(6 * time.Second), Value: 20},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 21},
-		{Timestamp: startTime.Add(9 * time.Second), Value: 22},
-		{Timestamp: startTime.Add(10 * time.Second), Value: 23},
-		{Timestamp: startTime.Add(13 * time.Second), Value: 24},
-		{Timestamp: startTime.Add(16 * time.Second), Value: 25},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 19},
+		{TimestampNanos: startTime.Add(6 * time.Second), Value: 20},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 21},
+		{TimestampNanos: startTime.Add(9 * time.Second), Value: 22},
+		{TimestampNanos: startTime.Add(10 * time.Second), Value: 23},
+		{TimestampNanos: startTime.Add(13 * time.Second), Value: 24},
+		{TimestampNanos: startTime.Add(16 * time.Second), Value: 25},
 	}))
 	mergeTargetData.Set(id3, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(2 * time.Second), Value: 26},
-		{Timestamp: startTime.Add(4 * time.Second), Value: 27},
-		{Timestamp: startTime.Add(8 * time.Second), Value: 28},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 26},
+		{TimestampNanos: startTime.Add(4 * time.Second), Value: 27},
+		{TimestampNanos: startTime.Add(8 * time.Second), Value: 28},
 	}))
 	mergeTargetData.Set(id4, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(8 * time.Second), Value: 29},
+		{TimestampNanos: startTime.Add(8 * time.Second), Value: 29},
 	}))
 	mergeTargetData.Set(id5, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(3 * time.Second), Value: 30},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 31},
-		{Timestamp: startTime.Add(12 * time.Second), Value: 32},
-		{Timestamp: startTime.Add(15 * time.Second), Value: 34},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 30},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 31},
+		{TimestampNanos: startTime.Add(12 * time.Second), Value: 32},
+		{TimestampNanos: startTime.Add(15 * time.Second), Value: 34},
 	}))
 
 	expected := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
 	expected.Set(id0, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(0 * time.Second), Value: 0},
-		{Timestamp: startTime.Add(1 * time.Second), Value: 1},
-		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+		{TimestampNanos: startTime.Add(0 * time.Second), Value: 0},
+		{TimestampNanos: startTime.Add(1 * time.Second), Value: 1},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 2},
 	}))
 	expected.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
-		{Timestamp: startTime.Add(3 * time.Second), Value: 3},
-		{Timestamp: startTime.Add(4 * time.Second), Value: 16},
-		{Timestamp: startTime.Add(5 * time.Second), Value: 17},
-		{Timestamp: startTime.Add(6 * time.Second), Value: 4},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 5},
-		{Timestamp: startTime.Add(8 * time.Second), Value: 18},
-		{Timestamp: startTime.Add(9 * time.Second), Value: 6},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 2},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 3},
+		{TimestampNanos: startTime.Add(4 * time.Second), Value: 16},
+		{TimestampNanos: startTime.Add(5 * time.Second), Value: 17},
+		{TimestampNanos: startTime.Add(6 * time.Second), Value: 4},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 5},
+		{TimestampNanos: startTime.Add(8 * time.Second), Value: 18},
+		{TimestampNanos: startTime.Add(9 * time.Second), Value: 6},
 	}))
 	expected.Set(id2, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(1 * time.Second), Value: 7},
-		{Timestamp: startTime.Add(3 * time.Second), Value: 19},
-		{Timestamp: startTime.Add(5 * time.Second), Value: 9},
-		{Timestamp: startTime.Add(6 * time.Second), Value: 20},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 21},
-		{Timestamp: startTime.Add(9 * time.Second), Value: 22},
-		{Timestamp: startTime.Add(10 * time.Second), Value: 23},
-		{Timestamp: startTime.Add(13 * time.Second), Value: 24},
-		{Timestamp: startTime.Add(16 * time.Second), Value: 25},
+		{TimestampNanos: startTime.Add(1 * time.Second), Value: 7},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 19},
+		{TimestampNanos: startTime.Add(5 * time.Second), Value: 9},
+		{TimestampNanos: startTime.Add(6 * time.Second), Value: 20},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 21},
+		{TimestampNanos: startTime.Add(9 * time.Second), Value: 22},
+		{TimestampNanos: startTime.Add(10 * time.Second), Value: 23},
+		{TimestampNanos: startTime.Add(13 * time.Second), Value: 24},
+		{TimestampNanos: startTime.Add(16 * time.Second), Value: 25},
 	}))
 	expected.Set(id3, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(2 * time.Second), Value: 26},
-		{Timestamp: startTime.Add(4 * time.Second), Value: 27},
-		{Timestamp: startTime.Add(8 * time.Second), Value: 28},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 26},
+		{TimestampNanos: startTime.Add(4 * time.Second), Value: 27},
+		{TimestampNanos: startTime.Add(8 * time.Second), Value: 28},
 	}))
 	expected.Set(id4, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(8 * time.Second), Value: 29},
+		{TimestampNanos: startTime.Add(8 * time.Second), Value: 29},
 	}))
 	expected.Set(id5, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(3 * time.Second), Value: 30},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 31},
-		{Timestamp: startTime.Add(12 * time.Second), Value: 32},
-		{Timestamp: startTime.Add(15 * time.Second), Value: 34},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 30},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 31},
+		{TimestampNanos: startTime.Add(12 * time.Second), Value: 32},
+		{TimestampNanos: startTime.Add(15 * time.Second), Value: 34},
 	}))
 
 	testMergeWith(t, diskData, mergeTargetData, expected)
@@ -209,44 +209,44 @@ func TestMergeWithFullIntersection(t *testing.T) {
 	// from disk.
 	diskData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
 	diskData.Set(id0, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(0 * time.Second), Value: 0},
-		{Timestamp: startTime.Add(1 * time.Second), Value: 1},
-		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+		{TimestampNanos: startTime.Add(0 * time.Second), Value: 0},
+		{TimestampNanos: startTime.Add(1 * time.Second), Value: 1},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 2},
 	}))
 	diskData.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
-		{Timestamp: startTime.Add(3 * time.Second), Value: 3},
-		{Timestamp: startTime.Add(6 * time.Second), Value: 4},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 5},
-		{Timestamp: startTime.Add(9 * time.Second), Value: 6},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 2},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 3},
+		{TimestampNanos: startTime.Add(6 * time.Second), Value: 4},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 5},
+		{TimestampNanos: startTime.Add(9 * time.Second), Value: 6},
 	}))
 
 	mergeTargetData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
 	mergeTargetData.Set(id0, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(0 * time.Second), Value: 7},
-		{Timestamp: startTime.Add(1 * time.Second), Value: 8},
-		{Timestamp: startTime.Add(2 * time.Second), Value: 9},
+		{TimestampNanos: startTime.Add(0 * time.Second), Value: 7},
+		{TimestampNanos: startTime.Add(1 * time.Second), Value: 8},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 9},
 	}))
 	mergeTargetData.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(2 * time.Second), Value: 10},
-		{Timestamp: startTime.Add(3 * time.Second), Value: 11},
-		{Timestamp: startTime.Add(6 * time.Second), Value: 12},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 13},
-		{Timestamp: startTime.Add(9 * time.Second), Value: 14},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 10},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 11},
+		{TimestampNanos: startTime.Add(6 * time.Second), Value: 12},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 13},
+		{TimestampNanos: startTime.Add(9 * time.Second), Value: 14},
 	}))
 
 	expected := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
 	expected.Set(id0, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(0 * time.Second), Value: 7},
-		{Timestamp: startTime.Add(1 * time.Second), Value: 8},
-		{Timestamp: startTime.Add(2 * time.Second), Value: 9},
+		{TimestampNanos: startTime.Add(0 * time.Second), Value: 7},
+		{TimestampNanos: startTime.Add(1 * time.Second), Value: 8},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 9},
 	}))
 	expected.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(2 * time.Second), Value: 10},
-		{Timestamp: startTime.Add(3 * time.Second), Value: 11},
-		{Timestamp: startTime.Add(6 * time.Second), Value: 12},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 13},
-		{Timestamp: startTime.Add(9 * time.Second), Value: 14},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 10},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 11},
+		{TimestampNanos: startTime.Add(6 * time.Second), Value: 12},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 13},
+		{TimestampNanos: startTime.Add(9 * time.Second), Value: 14},
 	}))
 
 	testMergeWith(t, diskData, mergeTargetData, expected)
@@ -257,76 +257,76 @@ func TestMergeWithNoIntersection(t *testing.T) {
 	// merge target data (series from one source does not exist in the other).
 	diskData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
 	diskData.Set(id0, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(0 * time.Second), Value: 0},
-		{Timestamp: startTime.Add(1 * time.Second), Value: 1},
-		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+		{TimestampNanos: startTime.Add(0 * time.Second), Value: 0},
+		{TimestampNanos: startTime.Add(1 * time.Second), Value: 1},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 2},
 	}))
 	diskData.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
-		{Timestamp: startTime.Add(3 * time.Second), Value: 3},
-		{Timestamp: startTime.Add(6 * time.Second), Value: 4},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 5},
-		{Timestamp: startTime.Add(9 * time.Second), Value: 6},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 2},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 3},
+		{TimestampNanos: startTime.Add(6 * time.Second), Value: 4},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 5},
+		{TimestampNanos: startTime.Add(9 * time.Second), Value: 6},
 	}))
 	diskData.Set(id2, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(1 * time.Second), Value: 7},
-		{Timestamp: startTime.Add(3 * time.Second), Value: 8},
-		{Timestamp: startTime.Add(5 * time.Second), Value: 9},
-		{Timestamp: startTime.Add(6 * time.Second), Value: 10},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 11},
-		{Timestamp: startTime.Add(10 * time.Second), Value: 12},
+		{TimestampNanos: startTime.Add(1 * time.Second), Value: 7},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 8},
+		{TimestampNanos: startTime.Add(5 * time.Second), Value: 9},
+		{TimestampNanos: startTime.Add(6 * time.Second), Value: 10},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 11},
+		{TimestampNanos: startTime.Add(10 * time.Second), Value: 12},
 	}))
 
 	mergeTargetData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
 	mergeTargetData.Set(id3, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(2 * time.Second), Value: 26},
-		{Timestamp: startTime.Add(4 * time.Second), Value: 27},
-		{Timestamp: startTime.Add(8 * time.Second), Value: 28},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 26},
+		{TimestampNanos: startTime.Add(4 * time.Second), Value: 27},
+		{TimestampNanos: startTime.Add(8 * time.Second), Value: 28},
 	}))
 	mergeTargetData.Set(id4, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(8 * time.Second), Value: 29},
+		{TimestampNanos: startTime.Add(8 * time.Second), Value: 29},
 	}))
 	mergeTargetData.Set(id5, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(3 * time.Second), Value: 30},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 31},
-		{Timestamp: startTime.Add(12 * time.Second), Value: 32},
-		{Timestamp: startTime.Add(15 * time.Second), Value: 34},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 30},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 31},
+		{TimestampNanos: startTime.Add(12 * time.Second), Value: 32},
+		{TimestampNanos: startTime.Add(15 * time.Second), Value: 34},
 	}))
 
 	expected := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
 	expected.Set(id0, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(0 * time.Second), Value: 0},
-		{Timestamp: startTime.Add(1 * time.Second), Value: 1},
-		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+		{TimestampNanos: startTime.Add(0 * time.Second), Value: 0},
+		{TimestampNanos: startTime.Add(1 * time.Second), Value: 1},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 2},
 	}))
 	expected.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
-		{Timestamp: startTime.Add(3 * time.Second), Value: 3},
-		{Timestamp: startTime.Add(6 * time.Second), Value: 4},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 5},
-		{Timestamp: startTime.Add(9 * time.Second), Value: 6},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 2},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 3},
+		{TimestampNanos: startTime.Add(6 * time.Second), Value: 4},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 5},
+		{TimestampNanos: startTime.Add(9 * time.Second), Value: 6},
 	}))
 	expected.Set(id2, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(1 * time.Second), Value: 7},
-		{Timestamp: startTime.Add(3 * time.Second), Value: 8},
-		{Timestamp: startTime.Add(5 * time.Second), Value: 9},
-		{Timestamp: startTime.Add(6 * time.Second), Value: 10},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 11},
-		{Timestamp: startTime.Add(10 * time.Second), Value: 12},
+		{TimestampNanos: startTime.Add(1 * time.Second), Value: 7},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 8},
+		{TimestampNanos: startTime.Add(5 * time.Second), Value: 9},
+		{TimestampNanos: startTime.Add(6 * time.Second), Value: 10},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 11},
+		{TimestampNanos: startTime.Add(10 * time.Second), Value: 12},
 	}))
 	expected.Set(id3, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(2 * time.Second), Value: 26},
-		{Timestamp: startTime.Add(4 * time.Second), Value: 27},
-		{Timestamp: startTime.Add(8 * time.Second), Value: 28},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 26},
+		{TimestampNanos: startTime.Add(4 * time.Second), Value: 27},
+		{TimestampNanos: startTime.Add(8 * time.Second), Value: 28},
 	}))
 	expected.Set(id4, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(8 * time.Second), Value: 29},
+		{TimestampNanos: startTime.Add(8 * time.Second), Value: 29},
 	}))
 	expected.Set(id5, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(3 * time.Second), Value: 30},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 31},
-		{Timestamp: startTime.Add(12 * time.Second), Value: 32},
-		{Timestamp: startTime.Add(15 * time.Second), Value: 34},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 30},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 31},
+		{TimestampNanos: startTime.Add(12 * time.Second), Value: 32},
+		{TimestampNanos: startTime.Add(15 * time.Second), Value: 34},
 	}))
 
 	testMergeWith(t, diskData, mergeTargetData, expected)
@@ -336,48 +336,48 @@ func TestMergeWithNoMergeTargetData(t *testing.T) {
 	// This test scenario is when there is no data in the merge target.
 	diskData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
 	diskData.Set(id0, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(0 * time.Second), Value: 0},
-		{Timestamp: startTime.Add(1 * time.Second), Value: 1},
-		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+		{TimestampNanos: startTime.Add(0 * time.Second), Value: 0},
+		{TimestampNanos: startTime.Add(1 * time.Second), Value: 1},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 2},
 	}))
 	diskData.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
-		{Timestamp: startTime.Add(3 * time.Second), Value: 3},
-		{Timestamp: startTime.Add(6 * time.Second), Value: 4},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 5},
-		{Timestamp: startTime.Add(9 * time.Second), Value: 6},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 2},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 3},
+		{TimestampNanos: startTime.Add(6 * time.Second), Value: 4},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 5},
+		{TimestampNanos: startTime.Add(9 * time.Second), Value: 6},
 	}))
 	diskData.Set(id2, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(1 * time.Second), Value: 7},
-		{Timestamp: startTime.Add(3 * time.Second), Value: 8},
-		{Timestamp: startTime.Add(5 * time.Second), Value: 9},
-		{Timestamp: startTime.Add(6 * time.Second), Value: 10},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 11},
-		{Timestamp: startTime.Add(10 * time.Second), Value: 12},
+		{TimestampNanos: startTime.Add(1 * time.Second), Value: 7},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 8},
+		{TimestampNanos: startTime.Add(5 * time.Second), Value: 9},
+		{TimestampNanos: startTime.Add(6 * time.Second), Value: 10},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 11},
+		{TimestampNanos: startTime.Add(10 * time.Second), Value: 12},
 	}))
 
 	mergeTargetData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
 
 	expected := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
 	expected.Set(id0, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(0 * time.Second), Value: 0},
-		{Timestamp: startTime.Add(1 * time.Second), Value: 1},
-		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
+		{TimestampNanos: startTime.Add(0 * time.Second), Value: 0},
+		{TimestampNanos: startTime.Add(1 * time.Second), Value: 1},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 2},
 	}))
 	expected.Set(id1, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(2 * time.Second), Value: 2},
-		{Timestamp: startTime.Add(3 * time.Second), Value: 3},
-		{Timestamp: startTime.Add(6 * time.Second), Value: 4},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 5},
-		{Timestamp: startTime.Add(9 * time.Second), Value: 6},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 2},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 3},
+		{TimestampNanos: startTime.Add(6 * time.Second), Value: 4},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 5},
+		{TimestampNanos: startTime.Add(9 * time.Second), Value: 6},
 	}))
 	expected.Set(id2, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(1 * time.Second), Value: 7},
-		{Timestamp: startTime.Add(3 * time.Second), Value: 8},
-		{Timestamp: startTime.Add(5 * time.Second), Value: 9},
-		{Timestamp: startTime.Add(6 * time.Second), Value: 10},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 11},
-		{Timestamp: startTime.Add(10 * time.Second), Value: 12},
+		{TimestampNanos: startTime.Add(1 * time.Second), Value: 7},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 8},
+		{TimestampNanos: startTime.Add(5 * time.Second), Value: 9},
+		{TimestampNanos: startTime.Add(6 * time.Second), Value: 10},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 11},
+		{TimestampNanos: startTime.Add(10 * time.Second), Value: 12},
 	}))
 
 	testMergeWith(t, diskData, mergeTargetData, expected)
@@ -389,34 +389,34 @@ func TestMergeWithNoDiskData(t *testing.T) {
 
 	mergeTargetData := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
 	mergeTargetData.Set(id3, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(2 * time.Second), Value: 26},
-		{Timestamp: startTime.Add(4 * time.Second), Value: 27},
-		{Timestamp: startTime.Add(8 * time.Second), Value: 28},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 26},
+		{TimestampNanos: startTime.Add(4 * time.Second), Value: 27},
+		{TimestampNanos: startTime.Add(8 * time.Second), Value: 28},
 	}))
 	mergeTargetData.Set(id4, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(8 * time.Second), Value: 29},
+		{TimestampNanos: startTime.Add(8 * time.Second), Value: 29},
 	}))
 	mergeTargetData.Set(id5, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(3 * time.Second), Value: 30},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 31},
-		{Timestamp: startTime.Add(12 * time.Second), Value: 32},
-		{Timestamp: startTime.Add(15 * time.Second), Value: 34},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 30},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 31},
+		{TimestampNanos: startTime.Add(12 * time.Second), Value: 32},
+		{TimestampNanos: startTime.Add(15 * time.Second), Value: 34},
 	}))
 
 	expected := newCheckedBytesByIDMap(newCheckedBytesByIDMapOptions{})
 	expected.Set(id3, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(2 * time.Second), Value: 26},
-		{Timestamp: startTime.Add(4 * time.Second), Value: 27},
-		{Timestamp: startTime.Add(8 * time.Second), Value: 28},
+		{TimestampNanos: startTime.Add(2 * time.Second), Value: 26},
+		{TimestampNanos: startTime.Add(4 * time.Second), Value: 27},
+		{TimestampNanos: startTime.Add(8 * time.Second), Value: 28},
 	}))
 	expected.Set(id4, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(8 * time.Second), Value: 29},
+		{TimestampNanos: startTime.Add(8 * time.Second), Value: 29},
 	}))
 	expected.Set(id5, datapointsToCheckedBytes(t, []ts.Datapoint{
-		{Timestamp: startTime.Add(3 * time.Second), Value: 30},
-		{Timestamp: startTime.Add(7 * time.Second), Value: 31},
-		{Timestamp: startTime.Add(12 * time.Second), Value: 32},
-		{Timestamp: startTime.Add(15 * time.Second), Value: 34},
+		{TimestampNanos: startTime.Add(3 * time.Second), Value: 30},
+		{TimestampNanos: startTime.Add(7 * time.Second), Value: 31},
+		{TimestampNanos: startTime.Add(12 * time.Second), Value: 32},
+		{TimestampNanos: startTime.Add(15 * time.Second), Value: 34},
 	}))
 
 	testMergeWith(t, diskData, mergeTargetData, expected)
@@ -445,7 +445,7 @@ func TestCleanup(t *testing.T) {
 	md, err := namespace.NewMetadata(ident.StringID("foo"), namespace.NewOptions())
 	require.NoError(t, err)
 
-	blockStart := time.Now()
+	blockStart := xtime.Now()
 	var shard uint32 = 1
 	fsID := FileSetFileIdentifier{
 		Namespace:   md.ID(),
@@ -689,7 +689,7 @@ func mockMergeWithFromData(
 	}
 
 	mergeWith.EXPECT().
-		ForEachRemaining(gomock.Any(), xtime.ToUnixNano(startTime), gomock.Any(), gomock.Any()).
+		ForEachRemaining(gomock.Any(), startTime, gomock.Any(), gomock.Any()).
 		Return(nil).
 		Do(func(ctx context.Context, blockStart xtime.UnixNano, fn ForEachRemainingFn, nsCtx namespace.Context) {
 			for _, id := range remaining {
@@ -734,7 +734,7 @@ func datapointsFromSegment(t *testing.T, seg ts.Segment) []ts.Datapoint {
 func blockReaderFromData(
 	data checked.Bytes,
 	segReader xio.SegmentReader,
-	startTime time.Time,
+	startTime xtime.UnixNano,
 	blockSize time.Duration,
 ) xio.BlockReader {
 	seg := ts.NewSegment(data, nil, 0, ts.FinalizeHead)

@@ -28,19 +28,21 @@ import (
 	"testing"
 	"time"
 
+	handleroptions3 "github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
+	"github.com/m3db/m3/src/query/api/v1/middleware"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/executor"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	m3storage "github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/test/m3"
-	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 
@@ -53,12 +55,12 @@ import (
 var (
 	// Created by init().
 	testWorkerPool            xsync.PooledWorkerPool
-	testM3DBOpts              = m3db.NewOptions()
+	testM3DBOpts              = m3storage.NewOptions()
 	defaultLookbackDuration   = time.Minute
 	defaultCPUProfileduration = 5 * time.Second
 	defaultPlacementServices  = []string{"m3db"}
-	svcDefaultOptions         = []handleroptions.ServiceOptionsDefault{
-		func(o handleroptions.ServiceOptions) handleroptions.ServiceOptions {
+	svcDefaultOptions         = []handleroptions3.ServiceOptionsDefault{
+		func(o handleroptions3.ServiceOptions) handleroptions3.ServiceOptions {
 			return o
 		},
 	}
@@ -121,7 +123,7 @@ func setupHandler(
 		return nil, err
 	}
 
-	return NewHandler(opts, customHandlers...), nil
+	return NewHandler(opts, config.MiddlewareConfiguration{}, customHandlers...), nil
 }
 
 func newPromEngine() *promql.Engine {
@@ -310,7 +312,7 @@ type customHandler struct {
 	routeName  string
 	methods    []string
 	assertFn   assertFn
-	middleware options.RegisterMiddleware
+	middleware middleware.OverrideOptions
 }
 
 func (h *customHandler) Route() string     { return h.routeName }
@@ -328,7 +330,7 @@ func (h *customHandler) Handler(
 
 	return http.HandlerFunc(fn), nil
 }
-func (h *customHandler) Middleware() options.RegisterMiddleware {
+func (h *customHandler) MiddlewareOverride() middleware.OverrideOptions {
 	return h.middleware
 }
 
@@ -384,7 +386,8 @@ func TestCustomRoutes(t *testing.T) {
 			assert.Nil(t, prev, "Should not shadow already existing handler")
 		},
 	}
-	handler := NewHandler(opts, custom, customShadowGet, customShadowHead, customNew)
+	handler := NewHandler(opts, config.MiddlewareConfiguration{},
+		custom, customShadowGet, customShadowHead, customNew)
 	require.NoError(t, err, "unable to setup handler")
 	err = handler.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
