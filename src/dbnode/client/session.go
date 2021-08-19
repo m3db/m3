@@ -1078,7 +1078,9 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		}
 	}()
 
-	s.log.Info("successfully updated topology", zap.Int("numHosts", topoMap.HostsLen()))
+	s.log.Info("successfully updated topology",
+		zap.Int("numHosts", topoMap.HostsLen()),
+		zap.Int("numShards", len(topoMap.ShardSet().AllIDs())))
 }
 
 func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQueue, error) {
