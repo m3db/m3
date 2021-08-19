@@ -1951,23 +1951,6 @@ func (s *dbShard) UpdateFlushStates() {
 	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
 		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)
 
-	// TODO: use for blockSize differences
-	blockSize := s.namespace.Options().RetentionOptions().BlockSize()
-	indexBlockSize := s.namespace.Options().IndexOptions().BlockSize()
-
-	// expose for getting all info files
-	indexFlushedBlockStarts := s.reverseIndex.WarmFlushedBlockStarts()
-	for _, blockStart := range indexFlushedBlockStarts {
-		// Index block size is wider than data block size, so we want to set all data blockStarts
-		// within the range of a given index blockStart
-		for at := blockStart; at < blockStart.Add(indexBlockSize); at = at.Add(blockSize) {
-			currState := s.flushStateNoBootstrapCheck(at)
-			if currState.WarmStatus.DataFlushed != fileOpSuccess {
-				s.markWarmIndexFlushStateSuccess(at)
-			}
-		}
-	}
-
 	for _, result := range readInfoFilesResults {
 		if err := result.Err.Error(); err != nil {
 			s.logger.Error("unable to read info files in shard bootstrap",
@@ -1997,6 +1980,26 @@ func (s *dbShard) UpdateFlushStates() {
 		if currState.ColdVersionRetrievable < info.VolumeIndex {
 			s.setFlushStateColdVersionRetrievable(at, info.VolumeIndex)
 			s.setFlushStateColdVersionFlushed(at, info.VolumeIndex)
+		}
+	}
+
+	// Populate index flush state only if enabled.
+	if !s.namespace.Options().IndexOptions().Enabled() {
+		return
+	}
+
+	blockSize := s.namespace.Options().RetentionOptions().BlockSize()
+	indexBlockSize := s.namespace.Options().IndexOptions().BlockSize()
+
+	indexFlushedBlockStarts := s.reverseIndex.WarmFlushedBlockStarts()
+	for _, blockStart := range indexFlushedBlockStarts {
+		// Index block size is wider than data block size, so we want to set all data blockStarts
+		// within the range of a given index blockStart
+		for at := blockStart; at < blockStart.Add(indexBlockSize); at = at.Add(blockSize) {
+			currState := s.flushStateNoBootstrapCheck(at)
+			if currState.WarmStatus.DataFlushed != fileOpSuccess {
+				s.markWarmIndexFlushStateSuccess(at)
+			}
 		}
 	}
 }

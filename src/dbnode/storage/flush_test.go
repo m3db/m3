@@ -375,15 +375,11 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	// Validate that the flush state is marked as successful only AFTER all prequisite steps have been run.
 	// Order is important to avoid any edge case where data is GCed from memory without all flushing operations
 	// being completed.
-	steps := make([]*gomock.Call, 0)
-	steps = append(steps,
+	gomock.InOrder(
 		ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return(nil).Times(blocks),
 		ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes(),
 		ns.EXPECT().FlushIndex(gomock.Any()).Return(nil),
-		s1.EXPECT().MarkWarmIndexFlushStateSuccessOrError(gomock.Any(), nil),
-		s2.EXPECT().MarkWarmIndexFlushStateSuccessOrError(gomock.Any(), nil),
 	)
-	gomock.InOrder(steps...)
 
 	var (
 		mockFlushPersist    = persist.NewMockFlushPreparer(ctrl)

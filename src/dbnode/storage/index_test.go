@@ -908,10 +908,12 @@ func verifyFlushForShards(
 		for _, mockShard := range mockShards {
 			mockShard.EXPECT().IsBootstrapped().Return(true)
 			mockShard.EXPECT().FlushState(blockStart).Return(fileOpState{WarmStatus: warmStatus{
-				IndexFlushed: fileOpSuccess,
+				// Index flushing requires data flush already happened.
+				DataFlushed: fileOpSuccess,
 			}}, nil)
 			mockShard.EXPECT().FlushState(blockStart.Add(blockSize)).Return(fileOpState{WarmStatus: warmStatus{
-				IndexFlushed: fileOpSuccess,
+				// Index flushing requires data flush already happened.
+				DataFlushed: fileOpSuccess,
 			}}, nil)
 
 			resultsTags1 := ident.NewTagsIterator(ident.NewTags())
@@ -934,6 +936,11 @@ func verifyFlushForShards(
 
 			mockShard.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockStart, blockStart.Add(idx.blockSize),
 				gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results, nil, nil)
+
+			// For a given index block, which in this test is 2x the size of a block, we expect that
+			// we mark as flushed 2 blockStarts that fall within the index block.
+			mockShard.EXPECT().MarkWarmIndexFlushStateSuccessOrError(blockStart, nil)
+			mockShard.EXPECT().MarkWarmIndexFlushStateSuccessOrError(blockStart.Add(blockSize), nil)
 		}
 
 		mockBlock.EXPECT().IsSealed().Return(true)

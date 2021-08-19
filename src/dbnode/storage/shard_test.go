@@ -488,21 +488,9 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, fileOpState{
 		WarmStatus: warmStatus{
-			DataFlushed: fileOpNotStarted,
-		},
-		NumFailures: 0,
-	}, flushState)
-
-	_ = s.markWarmDataFlushStateSuccessOrError(blockStart, flushErr)
-
-	flushState, err = s.FlushState(blockStart)
-	require.NoError(t, err)
-	require.Equal(t, fileOpState{
-		WarmStatus: warmStatus{
 			DataFlushed: fileOpFailed,
 		},
-		ColdVersionRetrievable: 0,
-		NumFailures:            1,
+		NumFailures: 1,
 	}, flushState)
 }
 
@@ -578,18 +566,6 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 
 	// State not yet updated since an explicit call to MarkWarmFlushStateSuccessOrError is required.
 	flushState, err := s.FlushState(blockStart)
-	require.NoError(t, err)
-	require.Equal(t, fileOpState{
-		WarmStatus: warmStatus{
-			DataFlushed: fileOpNotStarted,
-		},
-		ColdVersionRetrievable: 0,
-		NumFailures:            0,
-	}, flushState)
-
-	_ = s.markWarmDataFlushStateSuccessOrError(blockStart, nil)
-
-	flushState, err = s.FlushState(blockStart)
 	require.NoError(t, err)
 	require.Equal(t, fileOpState{
 		WarmStatus: warmStatus{
