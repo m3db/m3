@@ -17,18 +17,18 @@ genny-map-all: idhashmap-update byteshashmap-update
 
 .PHONY: idhashmap-update
 idhashmap-update:
-	cd $(m3x_package_path)/generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg idkey -ast gen "KeyType=ident.ID ValueType=MapValue" > ./idkey/map_gen.go
+	cd $(m3x_package_path)/generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg idkey gen "KeyType=ident.ID ValueType=MapValue" > ./idkey/map_gen.go
 
 .PHONY: byteshashmap-update
 byteshashmap-update:
-	cd $(m3x_package_path)/generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg byteskey -ast gen "KeyType=[]byte ValueType=MapValue" > ./byteskey/map_gen.go
+	cd $(m3x_package_path)/generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg byteskey gen "KeyType=[]byte ValueType=MapValue" > ./byteskey/map_gen.go
 
 # NB(prateek): `target_package` should not have a trailing slash
 # Generic targets meant to be re-used by other users
 .PHONY: hashmap-gen
 hashmap-gen:
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
-	cd $(m3x_package_path)/generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg $(pkg) -ast gen "KeyType=$(key_type) ValueType=$(value_type)" > "$(out_dir)/map_gen.go"
+	cd $(m3x_package_path)/generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg $(pkg) gen "KeyType=$(key_type) ValueType=$(value_type)" > "$(out_dir)/map_gen.go"
 ifneq ($(rename_type_prefix),)
 	make hashmap-gen-rename
 endif
@@ -36,8 +36,8 @@ endif
 .PHONY: idhashmap-gen
 idhashmap-gen:
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
-	cd $(m3x_package_path)/generics/hashmap/idkey && cat ./map_gen.go | grep -v nolint | genny -pkg $(pkg) -ast gen "MapValue=$(value_type)" > "$(out_dir:\=)/map_gen.go"
-	cd $(m3x_package_path)/generics/hashmap/idkey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) -ast gen "MapValue=$(value_type)" > "$(out_dir:\=)/new_map_gen.go"
+	cd $(m3x_package_path)/generics/hashmap/idkey && cat ./map_gen.go | grep -v nolint | genny -pkg $(pkg) gen "MapValue=$(value_type)" > "$(out_dir:\=)/map_gen.go"
+	cd $(m3x_package_path)/generics/hashmap/idkey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) gen "MapValue=$(value_type)" > "$(out_dir:\=)/new_map_gen.go"
 ifneq ($(rename_type_prefix),)
 	make hashmap-gen-rename rename_nogen_key="true"
 endif
@@ -45,8 +45,8 @@ endif
 .PHONY: byteshashmap-gen
 byteshashmap-gen:
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
-	cd $(m3x_package_path)/generics/hashmap/byteskey && cat ./map_gen.go | grep -v nolint | genny -pkg $(pkg) -ast gen "MapValue=$(value_type)" > "$(out_dir:\=)/map_gen.go"
-	cd $(m3x_package_path)/generics/hashmap/byteskey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) -ast gen "MapValue=$(value_type)" > "$(out_dir:\=)/new_map_gen.go"
+	cd $(m3x_package_path)/generics/hashmap/byteskey && cat ./map_gen.go | grep -v nolint | genny -pkg $(pkg) gen "MapValue=$(value_type)" > "$(out_dir:\=)/map_gen.go"
+	cd $(m3x_package_path)/generics/hashmap/byteskey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) gen "MapValue=$(value_type)" > "$(out_dir:\=)/new_map_gen.go"
 ifneq ($(rename_type_prefix),)
 	make hashmap-gen-rename rename_nogen_key="true"
 endif
@@ -165,7 +165,7 @@ genny-arraypool-ident-tags:
 .PHONY: genny-arraypool
 genny-arraypool:
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
-	cat $(m3x_package_path)/generics/arraypool/pool.go | grep -v nolint | genny -pkg $(pkg) -ast gen "elemType=$(elem_type)" > "$(out_dir)/$(out_file)"
+	cat $(m3x_package_path)/generics/arraypool/pool.go | grep -v nolint | genny -pkg $(pkg) gen "elemType=$(elem_type)" > "$(out_dir)/$(out_file)"
 ifneq ($(rename_type_prefix),)
 	$(eval temp_outdir=$(out_dir)$(temp_suffix))
 	@if [ -d $(temp_outdir) ] ; then echo "temp directory $(temp_outdir) exists, failing" ; exit 1 ; fi
@@ -209,12 +209,12 @@ endif
 .PHONY: genny-leakcheckpool
 genny-leakcheckpool:
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
-	cat $(m3x_package_path)/generics/leakcheckpool/pool.go | grep -v nolint | genny -pkg $(pkg) -ast gen "elemType=$(elem_type) elemTypePool=$(elem_type_pool)" > "$(out_dir)/$(out_file)"
+	cat $(m3x_package_path)/generics/leakcheckpool/pool.go | grep -v nolint | genny -pkg $(pkg) gen "elemType=$(elem_type) elemTypePool=$(elem_type_pool)" > "$(out_dir)/$(out_file)"
 
 .PHONY: genny-pooled-elem-list-gen
 genny-pooled-elem-list-gen:
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
-	cd $(m3x_package_path)/generics/list && cat ./list.go | grep -v nolint | genny -pkg $(pkg) -ast gen "ValueType=$(value_type)" > "$(out_dir)/list_gen.go"
+	cd $(m3x_package_path)/generics/list && cat ./list.go | grep -v nolint | genny -pkg $(pkg) gen "ValueType=$(value_type)" > "$(out_dir)/list_gen.go"
 ifneq ($(rename_type_prefix),)
 	$(eval temp_outdir=$(out_dir)$(temp_suffix))
 	@if [ -d $(temp_outdir) ] ; then echo "temp directory $(temp_outdir) exists, failing" ; exit 1 ; fi

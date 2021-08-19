@@ -21,8 +21,10 @@
 package hashmap
 
 import (
-	"github.com/mauricelam/genny/generic"
+	"github.com/cheekybits/genny/generic"
 )
+
+var _ generic.Type // genny panics if it can't find any imports in a twice-generated file
 
 // KeyType is the generic key type for use with the specialized hash map.
 type KeyType generic.Type
