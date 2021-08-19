@@ -84,6 +84,7 @@ TOOLS :=               \
 	read_index_files     \
 	read_index_segments  \
 	read_commitlog       \
+	split_shards         \
 	query_index_segments \
 	clone_fileset        \
 	dtest                \

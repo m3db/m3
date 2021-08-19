@@ -1868,9 +1868,8 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesIncreaseAdd(t *testing.
 				"not_rolled_up": "not_rolled_up_value_1",
 			},
 			timedSamples: []testGaugeMetricTimedSample{
-				{value: 42, offset: 1 * time.Second}, // +42 (should not be accounted since is a reset)
-				// Explicit no value.
-				{value: 12, offset: 2 * time.Second}, // +12 - simulate a reset (should not be accounted)
+				{value: 42, offset: 1 * time.Second}, // +42
+				{value: 12, offset: 2 * time.Second}, // +12 - simulate a reset (should count as a 0)
 				{value: 33, offset: 3 * time.Second}, // +21
 			},
 		},
@@ -1883,9 +1882,8 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesIncreaseAdd(t *testing.
 				"not_rolled_up": "not_rolled_up_value_2",
 			},
 			timedSamples: []testGaugeMetricTimedSample{
-				{value: 13, offset: 1 * time.Second}, // +13 (should not be accounted since is a reset)
+				{value: 13, offset: 1 * time.Second}, // +13
 				{value: 27, offset: 2 * time.Second}, // +14
-				// Explicit no value.
 				{value: 42, offset: 3 * time.Second}, // +15
 			},
 		},
@@ -1941,8 +1939,9 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesIncreaseAdd(t *testing.
 						"endpoint":            "/foo/bar",
 					},
 					values: []expectedValue{
-						{value: 14},
-						{value: 50, offset: 1 * time.Second},
+						{value: 55},
+						{value: 69, offset: 1 * time.Second},
+						{value: 105, offset: 2 * time.Second},
 					},
 					attributes: &storagemetadata.Attributes{
 						MetricsType: storagemetadata.AggregatedMetricsType,
@@ -2559,9 +2558,8 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByIncreaseSumAdd
 				"instance":    "not_rolled_up_instance_1",
 			},
 			timedSamples: []testGaugeMetricTimedSample{
-				{value: 42, offset: 1 * time.Second}, // +42 (should not be accounted since is a reset)
-				// Explicit no value.
-				{value: 12, offset: 2 * time.Second}, // +12 - simulate a reset (should not be accounted)
+				{value: 42, offset: 1 * time.Second}, // +42
+				{value: 12, offset: 2 * time.Second}, // +12 - simulate a reset (should count as a 0)
 				{value: 33, offset: 3 * time.Second}, // +21
 			},
 		},
@@ -2574,9 +2572,8 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByIncreaseSumAdd
 				"instance":    "not_rolled_up_instance_2",
 			},
 			timedSamples: []testGaugeMetricTimedSample{
-				{value: 13, offset: 1 * time.Second}, // +13 (should not be accounted since is a reset)
+				{value: 13, offset: 1 * time.Second}, // +13
 				{value: 27, offset: 2 * time.Second}, // +14
-				// Explicit no value.
 				{value: 42, offset: 3 * time.Second}, // +15
 			},
 		},
@@ -2632,8 +2629,9 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesExcludeByIncreaseSumAdd
 						"endpoint":            "/foo/bar",
 					},
 					values: []expectedValue{
-						{value: 14},
-						{value: 50, offset: 1 * time.Second},
+						{value: 55},
+						{value: 69, offset: 1 * time.Second},
+						{value: 105, offset: 2 * time.Second},
 					},
 					attributes: &storagemetadata.Attributes{
 						MetricsType: storagemetadata.AggregatedMetricsType,
