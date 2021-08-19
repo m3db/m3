@@ -2724,20 +2724,6 @@ func (mr *MockNamespaceIndexMockRecorder) WarmFlush(flush, shards interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockNamespaceIndex)(nil).WarmFlush), flush, shards)
 }
 
-// WarmFlushedBlockStarts mocks base method.
-func (m *MockNamespaceIndex) WarmFlushedBlockStarts() []time0.UnixNano {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WarmFlushedBlockStarts")
-	ret0, _ := ret[0].([]time0.UnixNano)
-	return ret0
-}
-
-// WarmFlushedBlockStarts indicates an expected call of WarmFlushedBlockStarts.
-func (mr *MockNamespaceIndexMockRecorder) WarmFlushedBlockStarts() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushedBlockStarts", reflect.TypeOf((*MockNamespaceIndex)(nil).WarmFlushedBlockStarts))
-}
-
 // WideQuery mocks base method.
 func (m *MockNamespaceIndex) WideQuery(ctx context.Context, query index.Query, collector chan *ident.IDBatch, opts index.WideQueryOptions) error {
 	m.ctrl.T.Helper()

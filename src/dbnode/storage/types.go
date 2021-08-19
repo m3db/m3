@@ -767,9 +767,6 @@ type NamespaceIndex interface {
 		shards []databaseShard,
 	) error
 
-	// WarmFlushedBlockStarts returns all index blockStarts which have been flushed to disk.
-	WarmFlushedBlockStarts() []xtime.UnixNano
-
 	// ColdFlush performs any cold flushes that the index has outstanding using
 	// the owned shards of the database. Also returns a callback to be called when
 	// cold flushing completes to perform houskeeping.

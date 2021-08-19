@@ -1112,18 +1112,6 @@ func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
 	}, nil
 }
 
-// WarmFlushedBlockStarts returns all index blockStarts which have been flushed to disk.
-func (i *nsIndex) WarmFlushedBlockStarts() []xtime.UnixNano {
-	flushed := make([]xtime.UnixNano, 0)
-	infoFiles := i.readInfoFilesAsMap()
-	for blockStart := range infoFiles {
-		if i.hasIndexWarmFlushedToDisk(infoFiles, blockStart) {
-			flushed = append(flushed, blockStart)
-		}
-	}
-	return flushed
-}
-
 func (i *nsIndex) readInfoFilesAsMap() map[xtime.UnixNano]fs.ReadIndexInfoFileResult {
 	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
 	infoFiles := i.readIndexInfoFilesFn(fs.ReadIndexInfoFilesOptions{
