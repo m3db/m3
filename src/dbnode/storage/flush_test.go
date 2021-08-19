@@ -315,12 +315,16 @@ func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
 	defer ctrl.Finish()
 
 	nsOpts := defaultTestNs1Opts.SetIndexOptions(namespace.NewIndexOptions().SetEnabled(false))
+	s1 := NewMockdatabaseShard(ctrl)
+	s2 := NewMockdatabaseShard(ctrl)
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	s1.EXPECT().ID().Return(uint32(1)).AnyTimes()
+	s2.EXPECT().ID().Return(uint32(2)).AnyTimes()
 
 	var (
 		mockFlushPersist    = persist.NewMockFlushPreparer(ctrl)
@@ -357,14 +361,25 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
+	blocks := 24
 	nsOpts := defaultTestNs1Opts.SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true))
+	s1 := NewMockdatabaseShard(ctrl)
+	s2 := NewMockdatabaseShard(ctrl)
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
-	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	ns.EXPECT().FlushIndex(gomock.Any()).Return(nil)
+	s1.EXPECT().ID().Return(uint32(1)).AnyTimes()
+	s2.EXPECT().ID().Return(uint32(2)).AnyTimes()
+
+	// Validate that the flush state is marked as successful only AFTER all prequisite steps have been run.
+	// Order is important to avoid any edge case where data is GCed from memory without all flushing operations
+	// being completed.
+	gomock.InOrder(
+		ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return(nil).Times(blocks),
+		ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes(),
+		ns.EXPECT().FlushIndex(gomock.Any()).Return(nil),
+	)
 
 	var (
 		mockFlushPersist    = persist.NewMockFlushPreparer(ctrl)

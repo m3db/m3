@@ -111,7 +111,7 @@ func TestBlockWriteAfterClose(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, b.Close())
 
-	lifecycle := NewMockOnIndexSeries(ctrl)
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	lifecycle.EXPECT().OnIndexFinalize(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
@@ -160,7 +160,7 @@ func TestBlockWriteAfterSeal(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, b.Seal())
 
-	lifecycle := NewMockOnIndexSeries(ctrl)
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	lifecycle.EXPECT().OnIndexFinalize(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
@@ -214,11 +214,11 @@ func TestBlockWrite(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
@@ -260,11 +260,11 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
@@ -321,11 +321,11 @@ func TestBlockWritePartialFailure(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
@@ -1236,7 +1236,7 @@ func TestBlockNeedsMutableSegmentsEvicted(t *testing.T) {
 	require.False(t, b.NeedsMutableSegmentsEvicted())
 
 	// perform write and ensure it says it needs eviction
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(start)
 	h1.EXPECT().OnIndexSuccess(start)
 	batch := NewWriteBatch(WriteBatchOptions{
@@ -1372,11 +1372,11 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
@@ -1456,14 +1456,14 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 	h1.EXPECT().IndexedForBlockStart(blockStart).
 		Return(true).
 		AnyTimes()
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 	h1.EXPECT().IndexedForBlockStart(blockStart).
@@ -1548,14 +1548,14 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 	h1.EXPECT().IndexedForBlockStart(blockStart).
 		Return(true).
 		AnyTimes()
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 	h2.EXPECT().IndexedForBlockStart(blockStart).
@@ -1650,7 +1650,7 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 	h1.EXPECT().IndexedForBlockStart(blockStart).
@@ -1750,12 +1750,15 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
+	// Testing compaction only, so mark GC as already running so the test is limited only to compaction.
+	b.mutableSegments.compact.compactingBackgroundGarbageCollect = true
+
 	// First write
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
@@ -1784,7 +1787,7 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	b.Unlock()
 
 	// Second write
-	h1 = NewMockOnIndexSeries(ctrl)
+	h1 = doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
@@ -2181,15 +2184,15 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
-	h3 := NewMockOnIndexSeries(ctrl)
+	h3 := doc.NewMockOnIndexSeries(ctrl)
 	h3.EXPECT().OnIndexFinalize(blockStart)
 	h3.EXPECT().OnIndexSuccess(blockStart)
 

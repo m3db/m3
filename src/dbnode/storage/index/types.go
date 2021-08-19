@@ -365,52 +365,6 @@ type AggregateResultsEntry struct {
 	Terms []ident.ID
 }
 
-// OnIndexSeries provides a set of callback hooks to allow the reverse index
-// to do lifecycle management of any resources retained during indexing.
-type OnIndexSeries interface {
-	// OnIndexSuccess is executed when an entry is successfully indexed. The
-	// provided value for `blockStart` is the blockStart for which the write
-	// was indexed.
-	OnIndexSuccess(blockStart xtime.UnixNano)
-
-	// OnIndexFinalize is executed when the index no longer holds any references
-	// to the provided resources. It can be used to cleanup any resources held
-	// during the course of indexing. `blockStart` is the startTime of the index
-	// block for which the write was attempted.
-	OnIndexFinalize(blockStart xtime.UnixNano)
-
-	// OnIndexPrepare prepares the Entry to be handed off to the indexing sub-system.
-	// NB(prateek): we retain the ref count on the entry while the indexing is pending,
-	// the callback executed on the entry once the indexing is completed releases this
-	// reference.
-	OnIndexPrepare(blockStart xtime.UnixNano)
-
-	// NeedsIndexUpdate returns a bool to indicate if the Entry needs to be indexed
-	// for the provided blockStart. It only allows a single index attempt at a time
-	// for a single entry.
-	// NB(prateek): NeedsIndexUpdate is a CAS, i.e. when this method returns true, it
-	// also sets state on the entry to indicate that a write for the given blockStart
-	// is going to be sent to the index, and other go routines should not attempt the
-	// same write. Callers are expected to ensure they follow this guideline.
-	// Further, every call to NeedsIndexUpdate which returns true needs to have a corresponding
-	// OnIndexFinalze() call. This is required for correct lifecycle maintenance.
-	NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool
-
-	IfAlreadyIndexedMarkIndexSuccessAndFinalize(
-		blockStart xtime.UnixNano,
-	) bool
-
-	RemoveIndexedForBlockStarts(
-		blockStarts map[xtime.UnixNano]struct{},
-	) RemoveIndexedForBlockStartsResult
-
-	RelookupAndIncrementReaderWriterCount() (OnIndexSeries, bool)
-
-	DecrementReaderWriterCount()
-
-	IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool
-}
-
 // RemoveIndexedForBlockStartsResult is the result from calling
 // RemoveIndexedForBlockStarts.
 type RemoveIndexedForBlockStartsResult struct {
@@ -458,10 +412,6 @@ type Block interface {
 
 	// AddResults adds bootstrap results to the block.
 	AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error
-
-	// ActiveBlockNotifyFlushedBlocks notifies an active in-memory block of
-	// sealed blocks.
-	ActiveBlockNotifyFlushedBlocks(sealed []xtime.UnixNano) error
 
 	// Tick does internal house keeping operations.
 	Tick(c context.Cancellable) (BlockTickResult, error)
@@ -943,7 +893,7 @@ type WriteBatchEntry struct {
 	Timestamp xtime.UnixNano
 	// OnIndexSeries is a listener/callback for when this entry is marked done
 	// it is set to nil when the entry is marked done
-	OnIndexSeries OnIndexSeries
+	OnIndexSeries doc.OnIndexSeries
 	// EnqueuedAt is the timestamp that this entry was enqueued for indexing
 	// so that we can calculate the latency it takes to index the entry
 	EnqueuedAt time.Time

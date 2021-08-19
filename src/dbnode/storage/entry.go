@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package lookup
+package storage
 
 import (
 	"sync"
@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -58,18 +59,18 @@ type IndexWriter interface {
 // members to track lifecycle and minimize indexing overhead.
 // NB: users are expected to use `NewEntry` to construct these objects.
 type Entry struct {
-	relookupAndIncrementReaderWriterCount func() (index.OnIndexSeries, bool)
-	Series                                series.DatabaseSeries
-	Index                                 uint64
-	indexWriter                           IndexWriter
-	curReadWriters                        int32
-	reverseIndex                          entryIndexState
-	nowFn                                 clock.NowFn
-	pendingIndexBatchSizeOne              []writes.PendingIndexInsert
+	Shard                    Shard
+	Series                   series.DatabaseSeries
+	Index                    uint64
+	indexWriter              IndexWriter
+	curReadWriters           int32
+	reverseIndex             entryIndexState
+	nowFn                    clock.NowFn
+	pendingIndexBatchSizeOne []writes.PendingIndexInsert
 }
 
-// ensure Entry satisfies the `index.OnIndexSeries` interface.
-var _ index.OnIndexSeries = &Entry{}
+// ensure Entry satisfies the `doc.OnIndexSeries` interface.
+var _ doc.OnIndexSeries = &Entry{}
 
 // ensure Entry satisfies the `bootstrap.SeriesRef` interface.
 var _ bootstrap.SeriesRef = &Entry{}
@@ -79,11 +80,11 @@ var _ bootstrap.SeriesRefResolver = &Entry{}
 
 // NewEntryOptions supplies options for a new entry.
 type NewEntryOptions struct {
-	RelookupAndIncrementReaderWriterCount func() (index.OnIndexSeries, bool)
-	Series                                series.DatabaseSeries
-	Index                                 uint64
-	IndexWriter                           IndexWriter
-	NowFn                                 clock.NowFn
+	Shard       Shard
+	Series      series.DatabaseSeries
+	Index       uint64
+	IndexWriter IndexWriter
+	NowFn       clock.NowFn
 }
 
 // NewEntry returns a new Entry.
@@ -93,20 +94,15 @@ func NewEntry(opts NewEntryOptions) *Entry {
 		nowFn = opts.NowFn
 	}
 	entry := &Entry{
-		relookupAndIncrementReaderWriterCount: opts.RelookupAndIncrementReaderWriterCount,
-		Series:                                opts.Series,
-		Index:                                 opts.Index,
-		indexWriter:                           opts.IndexWriter,
-		nowFn:                                 nowFn,
-		pendingIndexBatchSizeOne:              make([]writes.PendingIndexInsert, 1),
-		reverseIndex:                          newEntryIndexState(),
+		Shard:                    opts.Shard,
+		Series:                   opts.Series,
+		Index:                    opts.Index,
+		indexWriter:              opts.IndexWriter,
+		nowFn:                    nowFn,
+		pendingIndexBatchSizeOne: make([]writes.PendingIndexInsert, 1),
+		reverseIndex:             newEntryIndexState(),
 	}
 	return entry
-}
-
-// RelookupAndIncrementReaderWriterCount will relookup the entry.
-func (entry *Entry) RelookupAndIncrementReaderWriterCount() (index.OnIndexSeries, bool) {
-	return entry.relookupAndIncrementReaderWriterCount()
 }
 
 // ReaderWriterCount returns the current ref count on the Entry.
@@ -122,6 +118,14 @@ func (entry *Entry) IncrementReaderWriterCount() {
 // DecrementReaderWriterCount decrements the ref count on the Entry.
 func (entry *Entry) DecrementReaderWriterCount() {
 	atomic.AddInt32(&entry.curReadWriters, -1)
+}
+
+// IndexedBlockCount returns the count of indexed block states.
+func (entry *Entry) IndexedBlockCount() int {
+	entry.reverseIndex.RLock()
+	count := len(entry.reverseIndex.states)
+	entry.reverseIndex.RUnlock()
+	return count
 }
 
 // IndexedForBlockStart returns a bool to indicate if the Entry has been successfully
@@ -231,23 +235,17 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 	return successAlready
 }
 
-// RemoveIndexedForBlockStarts removes the entry for the index for all blockStarts.
-func (entry *Entry) RemoveIndexedForBlockStarts(
-	blockStarts map[xtime.UnixNano]struct{},
-) index.RemoveIndexedForBlockStartsResult {
-	var result index.RemoveIndexedForBlockStartsResult
-	entry.reverseIndex.Lock()
-	for k, state := range entry.reverseIndex.states {
-		_, ok := blockStarts[k]
-		if ok && state.success {
-			delete(entry.reverseIndex.states, k)
-			result.IndexedBlockStartsRemoved++
-			continue
-		}
-		result.IndexedBlockStartsRemaining++
+// RelookupAndCheckIsEmpty looks up the series and checks if it is empty.
+// The first result indicates if the series is empty.
+// The second result indicates if the series can be looked up at all.
+func (entry *Entry) RelookupAndCheckIsEmpty() (bool, bool) {
+	e, _, err := entry.Shard.TryRetrieveWritableSeries(entry.Series.ID())
+	if err != nil || e == nil {
+		return false, false
 	}
-	entry.reverseIndex.Unlock()
-	return result
+	defer entry.DecrementReaderWriterCount()
+
+	return entry.Series.IsEmpty(), true
 }
 
 // Write writes a new value.

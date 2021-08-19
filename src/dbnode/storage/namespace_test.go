@@ -607,7 +607,8 @@ func testNamespaceBootstrapUnfulfilledShards(
 func TestNamespaceFlushNotBootstrapped(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
-	require.Equal(t, errNamespaceNotBootstrapped, ns.WarmFlush(xtime.Now(), nil))
+	err := ns.WarmFlush(xtime.Now(), nil)
+	require.Equal(t, errNamespaceNotBootstrapped, err)
 	require.Equal(t, errNamespaceNotBootstrapped, ns.ColdFlush(nil))
 }
 
@@ -617,7 +618,8 @@ func TestNamespaceFlushDontNeedFlush(t *testing.T) {
 	defer close()
 
 	ns.bootstrapState = Bootstrapped
-	require.NoError(t, ns.WarmFlush(xtime.Now(), nil))
+	err := ns.WarmFlush(xtime.Now(), nil)
+	require.NoError(t, err)
 	require.NoError(t, ns.ColdFlush(nil))
 }
 
@@ -627,7 +629,8 @@ func TestNamespaceSkipFlushIfReadOnly(t *testing.T) {
 
 	ns.bootstrapState = Bootstrapped
 	ns.SetReadOnly(true)
-	require.NoError(t, ns.WarmFlush(xtime.Now(), nil))
+	err := ns.WarmFlush(xtime.Now(), nil)
+	require.NoError(t, err)
 	require.NoError(t, ns.ColdFlush(nil))
 }
 
@@ -645,20 +648,21 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 	blockStart := xtime.Now().Truncate(ns.Options().RetentionOptions().BlockSize())
 
 	states := []fileOpState{
-		{WarmStatus: fileOpNotStarted},
-		{WarmStatus: fileOpSuccess},
+		{WarmStatus: warmStatus{DataFlushed: fileOpNotStarted}},
+		{WarmStatus: warmStatus{DataFlushed: fileOpSuccess}},
 	}
 	for i, s := range states {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 		shard.EXPECT().FlushState(blockStart).Return(s, nil)
-		if s.WarmStatus != fileOpSuccess {
+		if s.WarmStatus.DataFlushed != fileOpSuccess {
 			shard.EXPECT().WarmFlush(blockStart, gomock.Any(), gomock.Any()).Return(nil)
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
-	require.NoError(t, ns.WarmFlush(blockStart, nil))
+	err := ns.WarmFlush(blockStart, nil)
+	require.NoError(t, err)
 }
 
 func TestNamespaceFlushSkipShardNotBootstrapped(t *testing.T) {
@@ -679,7 +683,8 @@ func TestNamespaceFlushSkipShardNotBootstrapped(t *testing.T) {
 	shard.EXPECT().IsBootstrapped().Return(false)
 	ns.shards[testShardIDs[0].ID()] = shard
 
-	require.NoError(t, ns.WarmFlush(blockStart, nil))
+	err := ns.WarmFlush(blockStart, nil)
+	require.NoError(t, err)
 	require.NoError(t, ns.ColdFlush(nil))
 }
 
@@ -1007,11 +1012,15 @@ func setShardExpects(ns *dbNamespace, ctrl *gomock.Controller, cases []needsFlus
 		for t, needFlush := range cs.needsFlush {
 			if needFlush {
 				shard.EXPECT().FlushState(t).Return(fileOpState{
-					WarmStatus: fileOpNotStarted,
+					WarmStatus: warmStatus{
+						DataFlushed: fileOpNotStarted,
+					},
 				}, nil).AnyTimes()
 			} else {
 				shard.EXPECT().FlushState(t).Return(fileOpState{
-					WarmStatus: fileOpSuccess,
+					WarmStatus: warmStatus{
+						DataFlushed: fileOpSuccess,
+					},
 				}, nil).AnyTimes()
 			}
 		}
@@ -1140,7 +1149,9 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().ID().Return(s.ID()).AnyTimes()
 		shard.EXPECT().FlushState(blockStart).Return(fileOpState{
-			WarmStatus: fileOpSuccess,
+			WarmStatus: warmStatus{
+				DataFlushed: fileOpSuccess,
+			},
 		}, nil).AnyTimes()
 		ns.shards[s.ID()] = shard
 	}
@@ -1184,15 +1195,21 @@ func TestNamespaceNeedsFlushAnyFailed(t *testing.T) {
 		switch shard.ID() {
 		case shards[0].ID():
 			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
-				WarmStatus: fileOpSuccess,
+				WarmStatus: warmStatus{
+					DataFlushed: fileOpSuccess,
+				},
 			}, nil).AnyTimes()
 		case shards[1].ID():
 			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
-				WarmStatus: fileOpSuccess,
+				WarmStatus: warmStatus{
+					DataFlushed: fileOpSuccess,
+				},
 			}, nil).AnyTimes()
 		case shards[2].ID():
 			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
-				WarmStatus:  fileOpFailed,
+				WarmStatus: warmStatus{
+					DataFlushed: fileOpFailed,
+				},
 				NumFailures: 999,
 			}, nil).AnyTimes()
 		}
@@ -1238,15 +1255,21 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 		switch shard.ID() {
 		case shards[0].ID():
 			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
-				WarmStatus: fileOpSuccess,
+				WarmStatus: warmStatus{
+					DataFlushed: fileOpSuccess,
+				},
 			}, nil).AnyTimes()
 		case shards[1].ID():
 			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
-				WarmStatus: fileOpNotStarted,
+				WarmStatus: warmStatus{
+					DataFlushed: fileOpNotStarted,
+				},
 			}, nil).AnyTimes()
 		case shards[2].ID():
 			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
-				WarmStatus: fileOpSuccess,
+				WarmStatus: warmStatus{
+					DataFlushed: fileOpSuccess,
+				},
 			}, nil).AnyTimes()
 		}
 		ns.shards[s.ID()] = shard

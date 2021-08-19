@@ -31,7 +31,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -205,7 +204,7 @@ func shardEntriesAreEqual(shard *dbShard, expectedEntries []shardEntryState) err
 			return fmt.Errorf("expected to have %d idx, but did not see anything", idx)
 		}
 		nextElem := elem.Next()
-		entry := elem.Value.(*lookup.Entry)
+		entry := elem.Value.(*Entry)
 		if !entry.Series.ID().Equal(expectedEntry.id) {
 			return fmt.Errorf("expected id: %s at %d, observed: %s",
 				expectedEntry.id.String(), idx, entry.Series.ID().String())
@@ -253,7 +252,7 @@ func genBatchWorkFn() gopter.Gen {
 	return gen.UInt8().
 		Map(func(n uint8) dbShardEntryBatchWorkFn {
 			i := uint8(0)
-			return func([]*lookup.Entry) bool {
+			return func([]*Entry) bool {
 				i++
 				return i < n
 			}

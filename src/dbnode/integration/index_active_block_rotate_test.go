@@ -51,7 +51,7 @@ func TestIndexActiveBlockRotate(t *testing.T) {
 		numWrites       = 50
 		numTags         = 10
 		blockSize       = 2 * time.Hour
-		indexBlockSize  = blockSize
+		indexBlockSize  = blockSize * 2
 		retentionPeriod = 12 * blockSize
 		bufferPast      = 10 * time.Minute
 		rOpts           = retention.NewOptions().

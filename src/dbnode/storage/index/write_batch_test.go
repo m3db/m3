@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -44,14 +45,14 @@ func TestWriteBatchSortByUnmarkedAndIndexBlockStart(t *testing.T) {
 		Truncate(blockSize).
 		Add(time.Minute)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 
-	h3 := NewMockOnIndexSeries(ctrl)
+	h3 := doc.NewMockOnIndexSeries(ctrl)
 	h3.EXPECT().OnIndexFinalize(blockStart)
 	h3.EXPECT().OnIndexSuccess(blockStart)
 

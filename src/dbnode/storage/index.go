@@ -929,9 +929,6 @@ func (i *nsIndex) Tick(
 	// such as notify of sealed blocks.
 	tickingBlocks, multiErr := i.tickingBlocks(startTime)
 
-	// Track blocks that are flushed (and have their bootstrapped results).
-	flushedBlocks := make([]xtime.UnixNano, 0, len(tickingBlocks.tickingBlocks))
-
 	result.NumBlocks = int64(tickingBlocks.totalBlocks)
 	for _, block := range tickingBlocks.tickingBlocks {
 		if c.IsCancelled() {
@@ -946,10 +943,6 @@ func (i *nsIndex) Tick(
 		result.NumSegmentsMutable += blockTickResult.NumSegmentsMutable
 		result.NumTotalDocs += blockTickResult.NumDocs
 		result.FreeMmap += blockTickResult.FreeMmap
-
-		if tickErr == nil && blockTickResult.NumSegmentsBootstrapped != 0 {
-			flushedBlocks = append(flushedBlocks, block.StartTime())
-		}
 	}
 
 	blockTickResult, tickErr := tickingBlocks.activeBlock.Tick(c)
@@ -959,18 +952,6 @@ func (i *nsIndex) Tick(
 	result.NumSegmentsMutable += blockTickResult.NumSegmentsMutable
 	result.NumTotalDocs += blockTickResult.NumDocs
 	result.FreeMmap += blockTickResult.FreeMmap
-
-	// Notify in memory block of sealed and flushed blocks
-	// and make sure to do this out of the lock since
-	// this can take a considerable amount of time
-	// and is an expensive task that doesn't require
-	// holding the index lock.
-	notifyErr := tickingBlocks.activeBlock.ActiveBlockNotifyFlushedBlocks(flushedBlocks)
-	if notifyErr != nil {
-		multiErr = multiErr.Add(notifyErr)
-	} else {
-		i.metrics.blocksNotifyFlushed.Inc(int64(len(flushedBlocks)))
-	}
 
 	i.metrics.tick.Inc(1)
 
@@ -1093,6 +1074,12 @@ func (i *nsIndex) WarmFlush(
 				zap.Time("blockStart", block.StartTime().ToTime()),
 			)
 		}
+
+		for _, t := range i.blockStartsFromIndexBlockStart(block.StartTime()) {
+			for _, s := range shards {
+				s.MarkWarmIndexFlushStateSuccessOrError(t, err)
+			}
+		}
 	}
 	i.metrics.blocksEvictedMutableSegments.Inc(int64(evicted))
 	return nil
@@ -1208,21 +1195,34 @@ func (i *nsIndex) canFlushBlockWithRLock(
 				Debug("skipping index cold flush due to shard not bootstrapped yet")
 			continue
 		}
-		start := blockStart
-		end := blockStart.Add(i.blockSize)
-		dataBlockSize := i.nsMetadata.Options().RetentionOptions().BlockSize()
-		for t := start; t.Before(end); t = t.Add(dataBlockSize) {
+
+		for _, t := range i.blockStartsFromIndexBlockStart(blockStart) {
 			flushState, err := shard.FlushState(t)
 			if err != nil {
 				return false, err
 			}
-			if flushState.WarmStatus != fileOpSuccess {
+
+			// Skip if the data flushing failed. Data flushing precedes index flushing.
+			if flushState.WarmStatus.DataFlushed != fileOpSuccess {
 				return false, nil
 			}
 		}
 	}
 
 	return true, nil
+}
+
+// blockStartsFromIndexBlockStart returns the possibly many blocksStarts that exist within
+// a given index block (since index block size >= data block size)
+func (i *nsIndex) blockStartsFromIndexBlockStart(blockStart xtime.UnixNano) []xtime.UnixNano {
+	start := blockStart
+	end := blockStart.Add(i.blockSize)
+	dataBlockSize := i.nsMetadata.Options().RetentionOptions().BlockSize()
+	blockStarts := make([]xtime.UnixNano, 0)
+	for t := start; t.Before(end); t = t.Add(dataBlockSize) {
+		blockStarts = append(blockStarts, t)
+	}
+	return blockStarts
 }
 
 func (i *nsIndex) hasIndexWarmFlushedToDisk(
@@ -2508,7 +2508,6 @@ type nsIndexMetrics struct {
 	forwardIndexCounter              tally.Counter
 	insertEndToEndLatency            tally.Timer
 	blocksEvictedMutableSegments     tally.Counter
-	blocksNotifyFlushed              tally.Counter
 	blockMetrics                     nsIndexBlocksMetrics
 	indexingConcurrencyMin           tally.Gauge
 	indexingConcurrencyMax           tally.Gauge
@@ -2576,7 +2575,6 @@ func newNamespaceIndexMetrics(
 		insertEndToEndLatency: instrument.NewTimer(scope,
 			"insert-end-to-end-latency", iopts.TimerOptions()),
 		blocksEvictedMutableSegments: scope.Counter("blocks-evicted-mutable-segments"),
-		blocksNotifyFlushed:          scope.Counter("blocks-notify-flushed"),
 		blockMetrics:                 newNamespaceIndexBlocksMetrics(opts, blocksScope),
 		indexingConcurrencyMin: scope.Tagged(map[string]string{
 			"stat": "min",

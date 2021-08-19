@@ -82,10 +82,6 @@ type mutableSegments struct {
 	optsListener             xresource.SimpleCloser
 	writeIndexingConcurrency int
 
-	flushedBlockStarts         map[xtime.UnixNano]struct{}
-	backgroundCompactGCPending bool
-	backgroundCompactDisable   bool
-
 	metrics mutableSegmentsMetrics
 	logger  *zap.Logger
 }
@@ -130,46 +126,17 @@ func newMutableSegments(
 	iopts instrument.Options,
 ) *mutableSegments {
 	m := &mutableSegments{
-		blockStart:         blockStart,
-		blockSize:          md.Options().IndexOptions().BlockSize(),
-		opts:               opts,
-		blockOpts:          blockOpts,
-		compact:            mutableSegmentsCompact{opts: opts, blockOpts: blockOpts},
-		flushedBlockStarts: make(map[xtime.UnixNano]struct{}),
-		iopts:              iopts,
-		metrics:            newMutableSegmentsMetrics(iopts.MetricsScope()),
-		logger:             iopts.Logger(),
+		blockStart: blockStart,
+		blockSize:  md.Options().IndexOptions().BlockSize(),
+		opts:       opts,
+		blockOpts:  blockOpts,
+		compact:    mutableSegmentsCompact{opts: opts, blockOpts: blockOpts},
+		iopts:      iopts,
+		metrics:    newMutableSegmentsMetrics(iopts.MetricsScope()),
+		logger:     iopts.Logger(),
 	}
 	m.optsListener = namespaceRuntimeOptsMgr.RegisterListener(m)
 	return m
-}
-
-func (m *mutableSegments) NotifyFlushedBlocks(
-	flushed []xtime.UnixNano,
-) error {
-	if len(flushed) == 0 {
-		return nil
-	}
-
-	m.Lock()
-	updated := false
-	for _, blockStart := range flushed {
-		_, exists := m.flushedBlockStarts[blockStart]
-		if exists {
-			continue
-		}
-		m.flushedBlockStarts[blockStart] = struct{}{}
-		updated = true
-	}
-	if updated {
-		// Only trigger background compact GC if
-		// and only if updated the sealed block starts.
-		m.backgroundCompactGCPending = true
-		m.maybeBackgroundCompactWithLock()
-	}
-	m.Unlock()
-
-	return nil
 }
 
 func (m *mutableSegments) SetNamespaceRuntimeOptions(opts namespace.RuntimeOptions) {
@@ -229,7 +196,7 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats,
 
 	// Set the doc ref for later recall.
 	for i := range entries {
-		docs[i].Ref = entries[i].OnIndexSeries
+		docs[i].OnIndexSeries = entries[i].OnIndexSeries
 	}
 
 	segmentBuilder.Reset()
@@ -393,9 +360,6 @@ func (m *mutableSegments) Close() {
 }
 
 func (m *mutableSegments) maybeBackgroundCompactWithLock() {
-	if m.backgroundCompactDisable {
-		return
-	}
 	if m.compact.compactingBackgroundStandard {
 		return
 	}
@@ -429,19 +393,13 @@ func (m *mutableSegments) backgroundCompactWithLock() {
 	}
 
 	var (
-		gcRequired         = false
-		gcPlan             = &compaction.Plan{}
-		gcAlreadyRunning   = m.compact.compactingBackgroundGarbageCollect
-		flushedBlockStarts = make(map[xtime.UnixNano]struct{}, len(m.flushedBlockStarts))
+		gcRequired       = false
+		gcPlan           = &compaction.Plan{}
+		gcAlreadyRunning = m.compact.compactingBackgroundGarbageCollect
 	)
-	// Take copy of sealed block starts so can act on this
-	// async.
-	for k, v := range m.flushedBlockStarts {
-		flushedBlockStarts[k] = v
-	}
-	if !gcAlreadyRunning && m.backgroundCompactGCPending {
+
+	if !gcAlreadyRunning {
 		gcRequired = true
-		m.backgroundCompactGCPending = false
 
 		for _, seg := range m.backgroundSegments {
 			alreadyHasTask := false
@@ -488,8 +446,7 @@ func (m *mutableSegments) backgroundCompactWithLock() {
 		// Kick off compaction.
 		m.compact.compactingBackgroundStandard = true
 		go func() {
-			m.backgroundCompactWithPlan(plan, m.compact.backgroundCompactors,
-				gcRequired, flushedBlockStarts)
+			m.backgroundCompactWithPlan(plan, m.compact.backgroundCompactors, gcRequired)
 
 			m.Lock()
 			m.compact.compactingBackgroundStandard = false
@@ -508,8 +465,7 @@ func (m *mutableSegments) backgroundCompactWithLock() {
 					l.Error("error background gc segments", zap.Error(err))
 				})
 			} else {
-				m.backgroundCompactWithPlan(gcPlan, compactors,
-					gcRequired, flushedBlockStarts)
+				m.backgroundCompactWithPlan(gcPlan, compactors, gcRequired)
 				m.closeCompactors(compactors)
 			}
 
@@ -580,7 +536,6 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 	plan *compaction.Plan,
 	compactors chan *compaction.Compactor,
 	gcRequired bool,
-	flushedBlocks map[xtime.UnixNano]struct{},
 ) {
 	sw := m.metrics.backgroundCompactionPlanRunLatency.Start()
 	defer sw.Stop()
@@ -617,7 +572,7 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 				wg.Done()
 			}()
 			err := m.backgroundCompactWithTask(task, compactor, gcRequired,
-				flushedBlocks, log, logger.With(zap.Int("task", i)))
+				log, logger.With(zap.Int("task", i)))
 			if err != nil {
 				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
 					l.Error("error compacting segments", zap.Error(err))
@@ -638,7 +593,6 @@ func (m *mutableSegments) backgroundCompactWithTask(
 	task compaction.Task,
 	compactor *compaction.Compactor,
 	gcRequired bool,
-	flushedBlocks map[xtime.UnixNano]struct{},
 	log bool,
 	logger *zap.Logger,
 ) error {
@@ -657,22 +611,14 @@ func (m *mutableSegments) backgroundCompactWithTask(
 		documentsFilter = segment.DocumentsFilterFn(func(d doc.Metadata) bool {
 			// Filter out any documents that only were indexed for
 			// sealed blocks.
-			if d.Ref == nil {
+			if d.OnIndexSeries == nil {
 				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
-					l.Error("unexpected nil for document ref for background compact")
+					l.Error("unexpected nil for document index entry for background compact")
 				})
 				return true
 			}
 
-			entry, ok := d.Ref.(OnIndexSeries)
-			if !ok {
-				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
-					l.Error("unexpected type for document ref for background compact")
-				})
-				return true
-			}
-
-			latestEntry, ok := entry.RelookupAndIncrementReaderWriterCount()
+			isEmpty, ok := d.OnIndexSeries.RelookupAndCheckIsEmpty()
 			if !ok {
 				// Should not happen since shard will not expire until
 				// no more block starts are indexed.
@@ -680,15 +626,14 @@ func (m *mutableSegments) backgroundCompactWithTask(
 				// we open up a race condition where the entry is not
 				// in the shard yet and we GC it since we can't find it
 				// due to an asynchronous insert.
+				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+					l.Error("unexpected checking series entry does not exist")
+				})
 				return true
 			}
 
-			result := latestEntry.RemoveIndexedForBlockStarts(flushedBlocks)
-			latestEntry.DecrementReaderWriterCount()
-
-			// Keep the series if and only if there are remaining
-			// index block starts outside of the sealed blocks starts.
-			return result.IndexedBlockStartsRemaining > 0
+			// Keep if not yet empty (i.e. there is still in-memory data associated with the series).
+			return !isEmpty
 		})
 	}
 

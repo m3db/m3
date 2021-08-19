@@ -98,7 +98,7 @@ func testWriteBatchEntry(
 	id ident.ID,
 	tags ident.Tags,
 	timestamp xtime.UnixNano,
-	fns index.OnIndexSeries,
+	fns doc.OnIndexSeries,
 ) (index.WriteBatchEntry, doc.Metadata) {
 	d := doc.Metadata{ID: copyBytes(id.Bytes())}
 	for _, tag := range tags.Values() {
@@ -256,7 +256,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 	id := ident.StringID("foo")
 	tag := ident.StringTag("name", "value")
 	tags := ident.NewTags(tag)
-	lifecycle := index.NewMockOnIndexSeries(ctrl)
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	mockWriteBatch(t, &now, lifecycle, mockBlock, &tag)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
 	batch := index.NewWriteBatch(index.WriteBatchOptions{
@@ -325,7 +325,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	id := ident.StringID("foo")
 	tag := ident.StringTag("name", "value")
 	tags := ident.NewTags(tag)
-	lifecycle := index.NewMockOnIndexSeries(ctrl)
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	mockWriteBatch(t, &now, lifecycle, bActive, &tag)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
 		Return(false).
@@ -460,7 +460,6 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 	c := context.NewCancellable()
 
 	bActive.EXPECT().Tick(c).Return(index.BlockTickResult{}, nil)
-	bActive.EXPECT().ActiveBlockNotifyFlushedBlocks(gomock.Any()).Return(nil)
 
 	b0.EXPECT().Close().Return(nil)
 
@@ -531,9 +530,6 @@ func TestNamespaceIndexTick(t *testing.T) {
 		}, nil).
 		AnyTimes()
 	bActive.EXPECT().IsSealed().Return(false).AnyTimes()
-	bActive.EXPECT().ActiveBlockNotifyFlushedBlocks(gomock.Any()).
-		Return(nil).
-		AnyTimes()
 
 	b0.EXPECT().Tick(c).
 		Return(index.BlockTickResult{
@@ -1599,7 +1595,7 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 
 func mockWriteBatch(t *testing.T,
 	now *xtime.UnixNano,
-	lifecycle *index.MockOnIndexSeries,
+	lifecycle *doc.MockOnIndexSeries,
 	block *index.MockBlock,
 	tag *ident.Tag,
 ) {

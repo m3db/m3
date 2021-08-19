@@ -502,6 +502,9 @@ type Shard interface {
 	// OpenStreamingDataReader creates and opens a streaming fs.DataFileSetReader
 	// on the latest volume of the given block.
 	OpenStreamingReader(blockStart xtime.UnixNano) (fs.DataFileSetReader, error)
+
+	// TryRetrieveWritableSeries attempts to retrieve a writable series.
+	TryRetrieveWritableSeries(id ident.ID) (*Entry, WritableSeriesOptions, error)
 }
 
 type databaseShard interface {
@@ -610,6 +613,10 @@ type databaseShard interface {
 		flush persist.FlushPreparer,
 		nsCtx namespace.Context,
 	) error
+
+	// MarkWarmIndexFlushStateSuccessOrError marks the blockStart as
+	// success or fail based on the provided err.
+	MarkWarmIndexFlushStateSuccessOrError(blockStart xtime.UnixNano, err error)
 
 	// ColdFlush flushes the unflushed ColdWrites in this shard.
 	ColdFlush(

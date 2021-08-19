@@ -280,15 +280,6 @@ func NewBlock(
 	return b, nil
 }
 
-func (b *block) ActiveBlockNotifyFlushedBlocks(
-	flushed []xtime.UnixNano,
-) error {
-	if !b.blockOpts.ActiveBlock {
-		return fmt.Errorf("block not in-memory block: start=%v", b.StartTime())
-	}
-	return b.mutableSegments.NotifyFlushedBlocks(flushed)
-}
-
 func (b *block) StartTime() xtime.UnixNano {
 	return b.blockStart
 }
@@ -532,23 +523,21 @@ func (b *block) queryWithSpan(
 
 		// Ensure that the block contains any of the relevant time segments for the query range.
 		doc := iter.Current()
-		if md, ok := doc.Metadata(); ok {
-			if entry, ok := md.Ref.(OnIndexSeries); ok {
-				var (
-					inBlock      bool
-					currentBlock = opts.StartInclusive.Truncate(b.blockSize)
-				)
-				for !inBlock {
-					inBlock = entry.IndexedForBlockStart(currentBlock)
-					currentBlock = currentBlock.Add(b.blockSize)
-					if !currentBlock.Before(opts.EndExclusive) {
-						break
-					}
+		if md, ok := doc.Metadata(); ok && md.OnIndexSeries != nil {
+			var (
+				inBlock      bool
+				currentBlock = opts.StartInclusive.Truncate(b.blockSize)
+			)
+			for !inBlock {
+				inBlock = md.OnIndexSeries.IndexedForBlockStart(currentBlock)
+				currentBlock = currentBlock.Add(b.blockSize)
+				if !currentBlock.Before(opts.EndExclusive) {
+					break
 				}
+			}
 
-				if !inBlock {
-					continue
-				}
+			if !inBlock {
+				continue
 			}
 		}
 

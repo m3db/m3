@@ -115,7 +115,7 @@ func BenchmarkBlockWrite(b *testing.B) {
 // useless to use in benchmarks
 type mockOnIndexSeries struct{}
 
-var _ OnIndexSeries = mockOnIndexSeries{}
+var _ doc.OnIndexSeries = mockOnIndexSeries{}
 
 func (m mockOnIndexSeries) OnIndexSuccess(_ xtime.UnixNano)  {}
 func (m mockOnIndexSeries) OnIndexFinalize(_ xtime.UnixNano) {}
@@ -133,7 +133,5 @@ func (m mockOnIndexSeries) RemoveIndexedForBlockStarts(
 ) RemoveIndexedForBlockStartsResult {
 	return RemoveIndexedForBlockStartsResult{}
 }
-func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool { return false }
-func (m mockOnIndexSeries) RelookupAndIncrementReaderWriterCount() (OnIndexSeries, bool) {
-	return m, false
-}
+func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool           { return false }
+func (m mockOnIndexSeries) RelookupAndCheckIsEmpty() (bool, bool) { return false, false }
