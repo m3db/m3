@@ -99,7 +99,7 @@ GOINSTALL_BUILD_TOOLS := \
 	github.com/google/go-jsonnet/cmd/jsonnet@latest                              \
 	github.com/m3db/build-tools/utilities/genclean@latest                        \
 	github.com/m3db/tools/update-license@latest                                  \
-	github.com/mauricelam/genny@v0.0.0-20190320071652-0800202903e5               \
+	github.com/mauricelam/genny@v0.0.0-20180903214747-eb2c5232c885               \
 	github.com/mjibson/esc@latest                                                \
 	github.com/pointlander/peg@latest                                            \
 	github.com/rakyll/statik@latest                                              \
