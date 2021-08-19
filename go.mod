@@ -44,7 +44,7 @@ require (
 	github.com/m3db/stackmurmur3/v2 v2.0.2
 	github.com/m3dbx/pilosa v1.4.1
 	github.com/m3dbx/vellum v0.0.0-20201119082309-5b47f7a70f69
-	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
+	github.com/mauricelam/genny v0.0.0-20190320071652-0800202903e5
 	github.com/onsi/ginkgo v1.14.2 // indirect
 	github.com/onsi/gomega v1.10.4 // indirect
 	github.com/opentracing-contrib/go-stdlib v1.0.0
@@ -90,9 +90,11 @@ require (
 	go.uber.org/goleak v1.1.10
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.19.0
+	golang.org/x/mod v0.5.0 // indirect
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1
+	golang.org/x/sys v0.0.0-20210819135213-f52c844e1c1c
+	golang.org/x/tools v0.1.5 // indirect
 	google.golang.org/grpc v1.39.0
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/go-playground/validator.v9 v9.29.1

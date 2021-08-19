@@ -46,6 +46,8 @@ type CopyFn func(KeyType) KeyType
 // FinalizeFn is the finalize key function to execute when finished with a key.
 type FinalizeFn func(KeyType)
 
+var _ generic.Type // genny panics if it can't find any imports in a regenerated file
+
 // Map uses the genny package to provide a generic hash map that can be specialized
 // by running the following command from this root of the repository:
 // ```
