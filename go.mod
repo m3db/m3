@@ -11,7 +11,6 @@ require (
 	github.com/bmizerany/perks v0.0.0-20141205001514-d9a9656a3a4b // indirect
 	github.com/c2h5oh/datasize v0.0.0-20171227191756-4eba002a5eae
 	github.com/cespare/xxhash/v2 v2.1.1
-	github.com/cheekybits/genny v1.0.1-0.20200709201058-3e22f1a88ff2
 	github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb // indirect
 	github.com/davecgh/go-spew v1.1.1
 	github.com/fortytw2/leaktest v1.3.0
@@ -45,7 +44,7 @@ require (
 	github.com/m3db/stackmurmur3/v2 v2.0.2
 	github.com/m3dbx/pilosa v1.4.1
 	github.com/m3dbx/vellum v0.0.0-20201119082309-5b47f7a70f69
-	github.com/mauricelam/genny v0.0.0-20190320071652-0800202903e5
+	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
 	github.com/onsi/ginkgo v1.14.2 // indirect
 	github.com/onsi/gomega v1.10.4 // indirect
 	github.com/opentracing-contrib/go-stdlib v1.0.0
@@ -93,8 +92,7 @@ require (
 	go.uber.org/zap v1.19.0
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210819135213-f52c844e1c1c
-	golang.org/x/tools v0.1.5 // indirect
+	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1
 	google.golang.org/grpc v1.39.0
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/go-playground/validator.v9 v9.29.1
