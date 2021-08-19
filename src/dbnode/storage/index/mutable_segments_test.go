@@ -25,7 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -49,7 +48,7 @@ type testMutableSegmentsResult struct {
 func newTestMutableSegments(
 	t *testing.T,
 	md namespace.Metadata,
-	blockStart time.Time,
+	blockStart xtime.UnixNano,
 ) (*mutableSegments, testMutableSegmentsResult) {
 	cachedSearchesWorkers := xsync.NewWorkerPool(2)
 	cachedSearchesWorkers.Init()
@@ -75,7 +74,7 @@ func newTestMutableSegments(
 			CacheSearches: true,
 		})
 
-	segs, err := newMutableSegments(md, blockStart, opts, BlockOptions{},
+	segs := newMutableSegments(md, blockStart, opts, BlockOptions{},
 		cachedSearchesWorkers, namespace.NewRuntimeOptionsManager("foo"), iOpts)
 	require.NoError(t, err)
 
@@ -121,20 +120,11 @@ func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.
 					IndexBlockSize: blockSize,
 				})
 				for i := 0; i < 128; i++ {
-					stillIndexedBlockStartsAtGC := 1
-					if inserted%2 == 0 {
-						stillIndexedBlockStartsAtGC = 0
-					}
-					onIndexSeries := NewMockOnIndexSeries(ctrl)
+					onIndexSeries := doc.NewMockOnIndexSeries(ctrl)
 					onIndexSeries.EXPECT().
-						RelookupAndIncrementReaderWriterCount().
-						Return(onIndexSeries, true).
-						AnyTimes()
-					onIndexSeries.EXPECT().
-						RemoveIndexedForBlockStarts(gomock.Any()).
-						Return(RemoveIndexedForBlockStartsResult{
-							IndexedBlockStartsRemaining: stillIndexedBlockStartsAtGC,
-						}).
+						RelookupAndCheckIsEmpty().
+						// Every other is "empty".
+						Return(inserted%2 == 0, true).
 						AnyTimes()
 					onIndexSeries.EXPECT().
 						DecrementReaderWriterCount().

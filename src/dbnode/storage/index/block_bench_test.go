@@ -128,13 +128,8 @@ func (m mockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(_ xtime.U
 	return false
 }
 func (m mockOnIndexSeries) IndexedForBlockStart(_ xtime.UnixNano) bool { return false }
-func (m mockOnIndexSeries) RemoveIndexedForBlockStarts(
-	_ map[xtime.UnixNano]struct{},
-) RemoveIndexedForBlockStartsResult {
-	return RemoveIndexedForBlockStartsResult{}
-}
-func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool           { return false }
-func (m mockOnIndexSeries) RelookupAndCheckIsEmpty() (bool, bool) { return false, false }
+func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool                { return false }
+func (m mockOnIndexSeries) RelookupAndCheckIsEmpty() (bool, bool)      { return false, false }
 func (m mockOnIndexSeries) RelookupAndIncrementReaderWriterCount() (doc.OnIndexSeries, bool) {
 	return nil, false
 }

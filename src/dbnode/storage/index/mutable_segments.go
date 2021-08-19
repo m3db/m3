@@ -97,6 +97,9 @@ type mutableSegments struct {
 
 	metrics mutableSegmentsMetrics
 	logger  *zap.Logger
+
+	// For testing purposes.
+	backgroundCompactDisable bool
 }
 
 type mutableSegmentsMetrics struct {
@@ -415,7 +418,7 @@ func (m *mutableSegments) Close() {
 }
 
 func (m *mutableSegments) maybeBackgroundCompactWithLock() {
-	if m.compact.compactingBackgroundStandard {
+	if m.compact.compactingBackgroundStandard || m.backgroundCompactDisable {
 		return
 	}
 
