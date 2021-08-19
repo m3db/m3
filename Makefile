@@ -94,18 +94,18 @@ TOOLS :=               \
 	m3ctl                \
 
 GOINSTALL_BUILD_TOOLS := \
-	github.com/fossas/fossa-cli/cmd/fossa@latest                \
-	github.com/golang/mock/mockgen@latest                       \
-	github.com/google/go-jsonnet/cmd/jsonnet@latest             \
-	github.com/m3db/build-tools/utilities/genclean@latest       \
-	github.com/m3db/tools/update-license@latest                 \
-	github.com/mauricelam/genny@latest                          \
-	github.com/mjibson/esc@latest                               \
-	github.com/pointlander/peg@latest                           \
-	github.com/rakyll/statik@latest                             \
-	github.com/instrumenta/kubeval@latest                       \
-	github.com/wjdp/htmltest@latest                             \
-	github.com/golangci/golangci-lint/cmd/golangci-lint@v1.37.0 \
+	github.com/fossas/fossa-cli/cmd/fossa@latest                                 \
+	github.com/golang/mock/mockgen@latest                                        \
+	github.com/google/go-jsonnet/cmd/jsonnet@latest                              \
+	github.com/m3db/build-tools/utilities/genclean@latest                        \
+	github.com/m3db/tools/update-license@latest                                  \
+	github.com/mauricelam/genny@latest                                           \
+	github.com/mjibson/esc@latest                                                \
+	github.com/pointlander/peg@latest                                            \
+	github.com/rakyll/statik@latest                                              \
+	github.com/instrumenta/kubeval@latest                                        \
+	github.com/wjdp/htmltest@latest                                              \
+	github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) \
 
 .PHONY: setup
 setup:
