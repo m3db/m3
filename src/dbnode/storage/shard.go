@@ -375,7 +375,21 @@ func (s *dbShard) hasWarmFlushed(blockStart xtime.UnixNano) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return statusIsRetrievable(flushState.WarmStatus), nil
+	return s.warmStatusIsRetrievable(flushState.WarmStatus), nil
+}
+
+func (s *dbShard) warmStatusIsRetrievable(status warmStatus) bool {
+	if !statusIsRetrievable(status.DataFlushed) {
+		return false
+	}
+
+	// If the index is disabled, then we only are tracking data flushing.
+	// Otherwise, warm status requires both data and index flushed.
+	if !s.namespace.Options().IndexOptions().Enabled() {
+		return true
+	}
+
+	return statusIsRetrievable(status.IndexFlushed)
 }
 
 func statusIsRetrievable(status fileOpStatus) bool {
@@ -424,7 +438,7 @@ func (s *dbShard) blockStatesSnapshotWithRLock() series.ShardBlockStateSnapshot 
 	snapshot := make(map[xtime.UnixNano]series.BlockState, len(s.flushState.statesByTime))
 	for time, state := range s.flushState.statesByTime {
 		snapshot[time] = series.BlockState{
-			WarmRetrievable: statusIsRetrievable(state.WarmStatus),
+			WarmRetrievable: s.warmStatusIsRetrievable(state.WarmStatus),
 			// Use ColdVersionRetrievable instead of ColdVersionFlushed since the snapshot
 			// will be used to make eviction decisions and we don't want to evict data before
 			// it is retrievable.
@@ -1937,6 +1951,23 @@ func (s *dbShard) UpdateFlushStates() {
 	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
 		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)
 
+	// TODO: use for blockSize differences
+	blockSize := s.namespace.Options().RetentionOptions().BlockSize()
+	indexBlockSize := s.namespace.Options().IndexOptions().BlockSize()
+
+	// expose for getting all info files
+	indexFlushedBlockStarts := s.reverseIndex.WarmFlushedBlockStarts()
+	for _, blockStart := range indexFlushedBlockStarts {
+		// Index block size is wider than data block size, so we want to set all data blockStarts
+		// within the range of a given index blockStart
+		for at := blockStart; at < blockStart.Add(indexBlockSize); at = at.Add(blockSize) {
+			currState := s.flushStateNoBootstrapCheck(at)
+			if currState.WarmStatus.DataFlushed != fileOpSuccess {
+				s.markWarmIndexFlushStateSuccess(at)
+			}
+		}
+	}
+
 	for _, result := range readInfoFilesResults {
 		if err := result.Err.Error(); err != nil {
 			s.logger.Error("unable to read info files in shard bootstrap",
@@ -1950,9 +1981,11 @@ func (s *dbShard) UpdateFlushStates() {
 		info := result.Info
 		at := xtime.UnixNano(info.BlockStart)
 		currState := s.flushStateNoBootstrapCheck(at)
-		if currState.WarmStatus != fileOpSuccess {
-			s.markWarmFlushStateSuccess(at)
+		if currState.WarmStatus.DataFlushed != fileOpSuccess {
+			s.markWarmDataFlushStateSuccess(at)
 		}
+
+		// we need to init if index is flushed to pull into this granular state.
 
 		// Cold version needs to get bootstrapped so that the 1:1 relationship
 		// between volume number and cold version is maintained and the volume
@@ -2230,7 +2263,7 @@ func (s *dbShard) WarmFlush(
 		multiErr = multiErr.Add(err)
 	}
 
-	return multiErr.FinalError()
+	return s.markWarmDataFlushStateSuccessOrError(blockStart, multiErr.FinalError())
 }
 
 func (s *dbShard) ColdFlush(
@@ -2487,33 +2520,64 @@ func (s *dbShard) flushStateNoBootstrapCheck(blockStart xtime.UnixNano) fileOpSt
 func (s *dbShard) flushStateWithRLock(blockStart xtime.UnixNano) fileOpState {
 	state, ok := s.flushState.statesByTime[blockStart]
 	if !ok {
-		return fileOpState{WarmStatus: fileOpNotStarted}
+		return fileOpState{WarmStatus: warmStatus{
+			DataFlushed:  fileOpNotStarted,
+			IndexFlushed: fileOpNotStarted,
+		}}
 	}
 	return state
 }
 
-func (s *dbShard) MarkWarmFlushStateSuccessOrError(blockStart xtime.UnixNano, err error) {
+func (s *dbShard) markWarmDataFlushStateSuccessOrError(blockStart xtime.UnixNano, err error) error {
 	// Track flush state for block state
 	if err == nil {
-		s.markWarmFlushStateSuccess(blockStart)
+		s.markWarmDataFlushStateSuccess(blockStart)
 	} else {
-		s.markWarmFlushStateFail(blockStart)
+		s.markWarmDataFlushStateFail(blockStart)
 	}
+	return err
 }
 
-func (s *dbShard) markWarmFlushStateSuccess(blockStart xtime.UnixNano) {
+func (s *dbShard) markWarmDataFlushStateSuccess(blockStart xtime.UnixNano) {
 	s.flushState.Lock()
-	s.flushState.statesByTime[blockStart] =
-		fileOpState{
-			WarmStatus: fileOpSuccess,
-		}
+	state := s.flushState.statesByTime[blockStart]
+	state.WarmStatus.DataFlushed = fileOpSuccess
+	s.flushState.statesByTime[blockStart] = state
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) markWarmFlushStateFail(blockStart xtime.UnixNano) {
+func (s *dbShard) markWarmDataFlushStateFail(blockStart xtime.UnixNano) {
 	s.flushState.Lock()
 	state := s.flushState.statesByTime[blockStart]
-	state.WarmStatus = fileOpFailed
+	state.WarmStatus.DataFlushed = fileOpFailed
+	state.NumFailures++
+	s.flushState.statesByTime[blockStart] = state
+	s.flushState.Unlock()
+}
+
+// MarkWarmIndexFlushStateSuccessOrError marks the blockStart as
+// success or fail based on the provided err.
+func (s *dbShard) MarkWarmIndexFlushStateSuccessOrError(blockStart xtime.UnixNano, err error) {
+	// Track flush state for block state
+	if err == nil {
+		s.markWarmIndexFlushStateSuccess(blockStart)
+	} else {
+		s.markWarmIndexFlushStateFail(blockStart)
+	}
+}
+
+func (s *dbShard) markWarmIndexFlushStateSuccess(blockStart xtime.UnixNano) {
+	s.flushState.Lock()
+	state := s.flushState.statesByTime[blockStart]
+	state.WarmStatus.IndexFlushed = fileOpSuccess
+	s.flushState.statesByTime[blockStart] = state
+	s.flushState.Unlock()
+}
+
+func (s *dbShard) markWarmIndexFlushStateFail(blockStart xtime.UnixNano) {
+	s.flushState.Lock()
+	state := s.flushState.statesByTime[blockStart]
+	state.WarmStatus.IndexFlushed = fileOpFailed
 	state.NumFailures++
 	s.flushState.statesByTime[blockStart] = state
 	s.flushState.Unlock()
@@ -2700,7 +2764,7 @@ func (s *dbShard) finishWriting(
 	markWarmFlushStateSuccess bool,
 ) error {
 	if markWarmFlushStateSuccess {
-		s.markWarmFlushStateSuccess(blockStart)
+		s.markWarmDataFlushStateSuccess(blockStart)
 	}
 
 	// After writing the full block successfully update the ColdVersionFlushed number. This will

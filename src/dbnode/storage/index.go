@@ -1007,15 +1007,15 @@ func (i *nsIndex) tickingBlocks(
 func (i *nsIndex) WarmFlush(
 	flush persist.IndexFlush,
 	shards []databaseShard,
-) (shardFlushes, error) {
+) error {
 	if len(shards) == 0 {
 		// No-op if no shards currently owned.
-		return nil, nil
+		return nil
 	}
 
 	flushable, err := i.flushableBlocks(shards, series.WarmWrite)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Determine the current flush indexing concurrency.
@@ -1029,7 +1029,7 @@ func (i *nsIndex) WarmFlush(
 
 	builder, err := builder.NewBuilderFromDocuments(builderOpts)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer builder.Close()
 
@@ -1039,11 +1039,10 @@ func (i *nsIndex) WarmFlush(
 	defer i.metrics.flushIndexingConcurrency.Update(0)
 
 	var evicted int
-	flushes := make(shardFlushes)
 	for _, block := range flushable {
 		immutableSegments, err := i.flushBlock(flush, block, shards, builder)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		// Make a result that covers the entire time ranges for the
 		// block for each shard
@@ -1060,7 +1059,7 @@ func (i *nsIndex) WarmFlush(
 		results := result.NewIndexBlockByVolumeType(block.StartTime())
 		results.SetBlock(idxpersist.DefaultIndexVolumeType, blockResult)
 		if err := block.AddResults(results); err != nil {
-			return nil, err
+			return err
 		}
 
 		evicted++
@@ -1074,18 +1073,16 @@ func (i *nsIndex) WarmFlush(
 				zap.Error(err),
 				zap.Time("blockStart", block.StartTime().ToTime()),
 			)
-			continue
 		}
 
-		for _, s := range shards {
-			flushes[shardFlushKey{
-				shardID:    s.ID(),
-				blockStart: block.StartTime(),
-			}] = s
+		for _, t := range i.blockStartsFromIndexBlockStart(block.StartTime()) {
+			for _, s := range shards {
+				s.MarkWarmIndexFlushStateSuccessOrError(t, err)
+			}
 		}
 	}
 	i.metrics.blocksEvictedMutableSegments.Inc(int64(evicted))
-	return flushes, nil
+	return nil
 }
 
 func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
@@ -1113,6 +1110,18 @@ func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
 		}
 		return multiErr.FinalError()
 	}, nil
+}
+
+// WarmFlushedBlockStarts returns all index blockStarts which have been flushed to disk.
+func (i *nsIndex) WarmFlushedBlockStarts() []xtime.UnixNano {
+	flushed := make([]xtime.UnixNano, 0)
+	infoFiles := i.readInfoFilesAsMap()
+	for blockStart := range infoFiles {
+		if i.hasIndexWarmFlushedToDisk(infoFiles, blockStart) {
+			flushed = append(flushed, blockStart)
+		}
+	}
+	return flushed
 }
 
 func (i *nsIndex) readInfoFilesAsMap() map[xtime.UnixNano]fs.ReadIndexInfoFileResult {
@@ -1198,24 +1207,34 @@ func (i *nsIndex) canFlushBlockWithRLock(
 				Debug("skipping index cold flush due to shard not bootstrapped yet")
 			continue
 		}
-		start := blockStart
-		end := blockStart.Add(i.blockSize)
-		dataBlockSize := i.nsMetadata.Options().RetentionOptions().BlockSize()
-		for t := start; t.Before(end); t = t.Add(dataBlockSize) {
+
+		for _, t := range i.blockStartsFromIndexBlockStart(blockStart) {
 			flushState, err := shard.FlushState(t)
 			if err != nil {
 				return false, err
 			}
 
-			// Skip if the data flushing failed. We mark as "success" only once both
-			// data and index are flushed.
-			if flushState.WarmStatus == fileOpFailed {
+			// Skip if the data flushing failed. Data flushing precedes index flushing.
+			if flushState.WarmStatus.DataFlushed != fileOpSuccess {
 				return false, nil
 			}
 		}
 	}
 
 	return true, nil
+}
+
+// blockStartsFromIndexBlockStart returns the possibly many blocksStarts that exist within
+// a given index block (since index block size >= data block size)
+func (i *nsIndex) blockStartsFromIndexBlockStart(blockStart xtime.UnixNano) []xtime.UnixNano {
+	start := blockStart
+	end := blockStart.Add(i.blockSize)
+	dataBlockSize := i.nsMetadata.Options().RetentionOptions().BlockSize()
+	blockStarts := make([]xtime.UnixNano, 0)
+	for t := start; t.Before(end); t = t.Add(dataBlockSize) {
+		blockStarts = append(blockStarts, t)
+	}
+	return blockStarts
 }
 
 func (i *nsIndex) hasIndexWarmFlushedToDisk(

@@ -54,20 +54,6 @@ const (
 	flushManagerIndexFlushInProgress
 )
 
-type namespaceFlushes map[string]namespaceFlush
-
-type namespaceFlush struct {
-	namespace    databaseNamespace
-	shardFlushes shardFlushes
-}
-
-type shardFlushes map[shardFlushKey]databaseShard
-
-type shardFlushKey struct {
-	shardID    uint32
-	blockStart xtime.UnixNano
-}
-
 type flushManagerMetrics struct {
 	isFlushing      tally.Gauge
 	isSnapshotting  tally.Gauge
@@ -158,8 +144,7 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 	// will attempt to snapshot blocks w/ unflushed data which would be wasteful if
 	// the block is already flushable.
 	multiErr := xerrors.NewMultiError()
-	dataFlushes, err := m.dataWarmFlush(namespaces, startTime)
-	if err != nil {
+	if err := m.dataWarmFlush(namespaces, startTime); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
@@ -174,69 +159,26 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 		multiErr = multiErr.Add(fmt.Errorf("error rotating commitlog in mediator tick: %v", err))
 	}
 
-	indexFlushes, err := m.indexFlush(namespaces)
-	if err != nil {
+	if err := m.indexFlush(namespaces); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
-	err = multiErr.FinalError()
-
-	// Mark all flushed shards as such.
-	// If index is not enabled, then a shard+blockStart is "flushed" if the data has been flushed.
-	// If index is enabled, then a shard+blockStart is "flushed" if the data AND index has been flushed.
-	for _, n := range namespaces {
-		var (
-			indexEnabled = n.Options().IndexOptions().Enabled()
-			flushed      shardFlushes
-		)
-		if indexEnabled {
-			flushesForNs, ok := indexFlushes[n.ID().String()]
-			if !ok {
-				continue
-			}
-			flushed = flushesForNs.shardFlushes
-		} else {
-			flushesForNs, ok := dataFlushes[n.ID().String()]
-			if !ok {
-				continue
-			}
-			flushed = flushesForNs.shardFlushes
-		}
-
-		for k, v := range flushed {
-			// Block sizes for data and index can differ and so if we are driving the flushing by
-			// the index blockStarts, we must expand them to mark all containing data blockStarts.
-			// E.g. if blockSize == 2h and indexBlockSize == 4h and the flushed index time is 6:00pm,
-			// we should mark as flushed [6:00pm, 8:00pm].
-			if indexEnabled {
-				blockSize := n.Options().RetentionOptions().BlockSize()
-				indexBlockSize := n.Options().IndexOptions().BlockSize()
-				for start := k.blockStart; start < k.blockStart.Add(indexBlockSize); start = start.Add(blockSize) {
-					v.MarkWarmFlushStateSuccessOrError(start, err)
-				}
-			} else {
-				v.MarkWarmFlushStateSuccessOrError(k.blockStart, err)
-			}
-		}
-	}
-
-	return err
+	return multiErr.FinalError()
 }
 
 func (m *flushManager) dataWarmFlush(
 	namespaces []databaseNamespace,
 	startTime xtime.UnixNano,
-) (namespaceFlushes, error) {
+) error {
 	flushPersist, err := m.pm.StartFlushPersist()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	m.setState(flushManagerFlushInProgress)
 	var (
-		start      = m.nowFn()
-		multiErr   = xerrors.NewMultiError()
-		allFlushes = make(map[string]namespaceFlush)
+		start    = m.nowFn()
+		multiErr = xerrors.NewMultiError()
 	)
 	for _, ns := range namespaces {
 		// Flush first because we will only snapshot if there are no outstanding flushes.
@@ -245,11 +187,9 @@ func (m *flushManager) dataWarmFlush(
 			multiErr = multiErr.Add(err)
 			continue
 		}
-		flush, err := m.flushNamespaceWithTimes(ns, flushTimes, flushPersist)
-		if err != nil {
+		if err := m.flushNamespaceWithTimes(ns, flushTimes, flushPersist); err != nil {
 			multiErr = multiErr.Add(err)
 		}
-		allFlushes[ns.ID().String()] = flush
 	}
 
 	err = flushPersist.DoneFlush()
@@ -258,7 +198,7 @@ func (m *flushManager) dataWarmFlush(
 	}
 
 	m.metrics.dataWarmFlushDuration.Record(m.nowFn().Sub(start))
-	return allFlushes, multiErr.FinalError()
+	return multiErr.FinalError()
 }
 
 func (m *flushManager) dataSnapshot(
@@ -312,17 +252,16 @@ func (m *flushManager) dataSnapshot(
 
 func (m *flushManager) indexFlush(
 	namespaces []databaseNamespace,
-) (namespaceFlushes, error) {
+) error {
 	indexFlush, err := m.pm.StartIndexPersist()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	m.setState(flushManagerIndexFlushInProgress)
 	var (
-		start            = m.nowFn()
-		multiErr         = xerrors.NewMultiError()
-		namespaceFlushes = make(map[string]namespaceFlush)
+		start    = m.nowFn()
+		multiErr = xerrors.NewMultiError()
 	)
 	for _, ns := range namespaces {
 		var (
@@ -333,20 +272,14 @@ func (m *flushManager) indexFlush(
 			continue
 		}
 
-		flushes, err := ns.FlushIndex(indexFlush)
-		if err != nil {
+		if err := ns.FlushIndex(indexFlush); err != nil {
 			multiErr = multiErr.Add(err)
-		} else {
-			namespaceFlushes[ns.ID().String()] = namespaceFlush{
-				namespace:    ns,
-				shardFlushes: flushes,
-			}
 		}
 	}
 	multiErr = multiErr.Add(indexFlush.DoneIndex())
 
 	m.metrics.indexFlushDuration.Record(m.nowFn().Sub(start))
-	return namespaceFlushes, multiErr.FinalError()
+	return multiErr.FinalError()
 }
 
 func (m *flushManager) Report() {
@@ -430,31 +363,18 @@ func (m *flushManager) flushNamespaceWithTimes(
 	ns databaseNamespace,
 	times []xtime.UnixNano,
 	flushPreparer persist.FlushPreparer,
-) (namespaceFlush, error) {
-	flushes := make(shardFlushes)
+) error {
 	multiErr := xerrors.NewMultiError()
 	for _, t := range times {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		shards, err := ns.WarmFlush(t, flushPreparer)
-		if err != nil {
+		if err := ns.WarmFlush(t, flushPreparer); err != nil {
 			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v",
 				ns.ID().String(), err)
 			multiErr = multiErr.Add(detailedErr)
-			continue
-		}
-
-		for _, s := range shards {
-			flushes[shardFlushKey{
-				shardID:    s.ID(),
-				blockStart: t,
-			}] = s
 		}
 	}
-	return namespaceFlush{
-		namespace:    ns,
-		shardFlushes: flushes,
-	}, multiErr.FinalError()
+	return multiErr.FinalError()
 }
 
 func (m *flushManager) LastSuccessfulSnapshotStartTime() (xtime.UnixNano, bool) {

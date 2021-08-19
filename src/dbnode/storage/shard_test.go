@@ -176,7 +176,9 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 	nsCtx := namespace.Context{ID: ident.StringID("foo")}
 	s.Bootstrap(ctx, nsCtx)
 
-	notStarted := fileOpState{WarmStatus: fileOpNotStarted}
+	notStarted := fileOpState{WarmStatus: warmStatus{
+		DataFlushed: fileOpNotStarted,
+	}}
 	for st := earliest; !st.After(latest); st = st.Add(ropts.BlockSize()) {
 		flushState, err := s.FlushState(earliest)
 		require.NoError(t, err)
@@ -430,7 +432,9 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	s.Bootstrap(ctx, nsCtx)
 
 	s.flushState.statesByTime[blockStart] = fileOpState{
-		WarmStatus:  fileOpNotStarted,
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpNotStarted,
+		},
 		NumFailures: 0,
 	}
 
@@ -483,16 +487,20 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	flushState, err := s.FlushState(blockStart)
 	require.NoError(t, err)
 	require.Equal(t, fileOpState{
-		WarmStatus:  fileOpNotStarted,
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpNotStarted,
+		},
 		NumFailures: 0,
 	}, flushState)
 
-	s.MarkWarmFlushStateSuccessOrError(blockStart, flushErr)
+	_ = s.markWarmDataFlushStateSuccessOrError(blockStart, flushErr)
 
 	flushState, err = s.FlushState(blockStart)
 	require.NoError(t, err)
 	require.Equal(t, fileOpState{
-		WarmStatus:             fileOpFailed,
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpFailed,
+		},
 		ColdVersionRetrievable: 0,
 		NumFailures:            1,
 	}, flushState)
@@ -520,7 +528,9 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	s.Bootstrap(ctx, nsCtx)
 
 	s.flushState.statesByTime[blockStart] = fileOpState{
-		WarmStatus:  fileOpNotStarted,
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpNotStarted,
+		},
 		NumFailures: 0,
 	}
 
@@ -570,17 +580,21 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	flushState, err := s.FlushState(blockStart)
 	require.NoError(t, err)
 	require.Equal(t, fileOpState{
-		WarmStatus:             fileOpNotStarted,
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpNotStarted,
+		},
 		ColdVersionRetrievable: 0,
 		NumFailures:            0,
 	}, flushState)
 
-	s.MarkWarmFlushStateSuccessOrError(blockStart, nil)
+	_ = s.markWarmDataFlushStateSuccessOrError(blockStart, nil)
 
 	flushState, err = s.FlushState(blockStart)
 	require.NoError(t, err)
 	require.Equal(t, fileOpState{
-		WarmStatus:             fileOpSuccess,
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpSuccess,
+		},
 		ColdVersionRetrievable: 0,
 		NumFailures:            0,
 	}, flushState)
@@ -641,13 +655,13 @@ func TestShardColdFlush(t *testing.T) {
 	// happen after a successful warm flush because warm flushes currently don't
 	// have merging logic. This means that all blocks except t7 should
 	// successfully cold flush.
-	shard.markWarmFlushStateSuccess(t0)
-	shard.markWarmFlushStateSuccess(t1)
-	shard.markWarmFlushStateSuccess(t2)
-	shard.markWarmFlushStateSuccess(t3)
-	shard.markWarmFlushStateSuccess(t4)
-	shard.markWarmFlushStateSuccess(t5)
-	shard.markWarmFlushStateSuccess(t6)
+	shard.markWarmDataFlushStateSuccess(t0)
+	shard.markWarmDataFlushStateSuccess(t1)
+	shard.markWarmDataFlushStateSuccess(t2)
+	shard.markWarmDataFlushStateSuccess(t3)
+	shard.markWarmDataFlushStateSuccess(t4)
+	shard.markWarmDataFlushStateSuccess(t5)
+	shard.markWarmDataFlushStateSuccess(t6)
 
 	dirtyData := []testDirtySeries{
 		{id: ident.StringID("id0"), dirtyTimes: []xtime.UnixNano{t0, t2, t3, t4}},
@@ -722,10 +736,10 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 	t1 := t0.Add(1 * blockSize)
 	t2 := t0.Add(2 * blockSize)
 	t3 := t0.Add(3 * blockSize)
-	shard.markWarmFlushStateSuccess(t0)
-	shard.markWarmFlushStateSuccess(t1)
-	shard.markWarmFlushStateSuccess(t2)
-	shard.markWarmFlushStateSuccess(t3)
+	shard.markWarmDataFlushStateSuccess(t0)
+	shard.markWarmDataFlushStateSuccess(t1)
+	shard.markWarmDataFlushStateSuccess(t2)
+	shard.markWarmDataFlushStateSuccess(t3)
 
 	preparer := persist.NewMockFlushPreparer(ctrl)
 	fsReader := fs.NewMockDataFileSetReader(ctrl)
@@ -991,10 +1005,14 @@ func TestShardTick(t *testing.T) {
 
 	// Also check that it expires flush states by time
 	shard.flushState.statesByTime[earliestFlush] = fileOpState{
-		WarmStatus: fileOpSuccess,
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpSuccess,
+		},
 	}
 	shard.flushState.statesByTime[beforeEarliestFlush] = fileOpState{
-		WarmStatus: fileOpSuccess,
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpSuccess,
+		},
 	}
 	assert.Equal(t, 2, len(shard.flushState.statesByTime))
 
@@ -1162,10 +1180,14 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 
 	// Also check that it expires flush states by time
 	shard.flushState.statesByTime[earliestFlush] = fileOpState{
-		WarmStatus: fileOpSuccess,
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpSuccess,
+		},
 	}
 	shard.flushState.statesByTime[beforeEarliestFlush] = fileOpState{
-		WarmStatus: fileOpSuccess,
+		WarmStatus: warmStatus{
+			DataFlushed: fileOpSuccess,
+		},
 	}
 	assert.Equal(t, 2, len(shard.flushState.statesByTime))
 
@@ -1659,8 +1681,8 @@ func TestShardFetchIndexChecksum(t *testing.T) {
 	ropts := shard.seriesOpts.RetentionOptions()
 	end := xtime.ToUnixNano(opts.ClockOptions().NowFn()()).Truncate(ropts.BlockSize())
 	start := end.Add(-2 * ropts.BlockSize())
-	shard.markWarmFlushStateSuccess(start)
-	shard.markWarmFlushStateSuccess(start.Add(ropts.BlockSize()))
+	shard.markWarmDataFlushStateSuccess(start)
+	shard.markWarmDataFlushStateSuccess(start.Add(ropts.BlockSize()))
 
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)
@@ -1733,8 +1755,8 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	ropts := shard.seriesOpts.RetentionOptions()
 	end := xtime.ToUnixNano(opts.ClockOptions().NowFn()()).Truncate(ropts.BlockSize())
 	start := end.Add(-2 * ropts.BlockSize())
-	shard.markWarmFlushStateSuccess(start)
-	shard.markWarmFlushStateSuccess(start.Add(ropts.BlockSize()))
+	shard.markWarmDataFlushStateSuccess(start)
+	shard.markWarmDataFlushStateSuccess(start.Add(ropts.BlockSize()))
 
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)

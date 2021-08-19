@@ -644,14 +644,15 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 	mockShard := NewMockdatabaseShard(ctrl)
 	mockShard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	mockShard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{WarmStatus: fileOpFailed}, nil).AnyTimes()
+	mockShard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{WarmStatus: warmStatus{
+		IndexFlushed: fileOpFailed,
+	}}, nil).AnyTimes()
 	shards := []databaseShard{mockShard}
 
 	mockFlush := persist.NewMockIndexFlush(ctrl)
 
-	flushed, err := idx.WarmFlush(mockFlush, shards)
+	err := idx.WarmFlush(mockFlush, shards)
 	require.NoError(t, err)
-	require.Equal(t, shardFlushes{}, flushed)
 }
 
 func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
@@ -813,7 +814,9 @@ func TestNamespaceIndexFlushSkipBootstrappingShards(t *testing.T) {
 		mockShard.EXPECT().IsBootstrapped().Return(shardInfo.isBootstrapped).AnyTimes()
 		mockShard.EXPECT().ID().Return(shardInfo.id).AnyTimes()
 		if shardInfo.isBootstrapped {
-			mockShard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{WarmStatus: fileOpSuccess}, nil).AnyTimes()
+			mockShard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{WarmStatus: warmStatus{
+				IndexFlushed: fileOpSuccess,
+			}}, nil).AnyTimes()
 		}
 		shards = append(shards, mockShard)
 	}
@@ -831,18 +834,17 @@ func verifyFlushForShards(
 	shards []uint32,
 ) {
 	var (
-		mockFlush            = persist.NewMockIndexFlush(ctrl)
-		shardMap             = make(map[uint32]struct{})
-		now                  = xtime.Now()
-		warmBlockStart       = now.Add(-idx.bufferPast).Truncate(idx.blockSize)
-		mockShards           []*MockdatabaseShard
-		dbShards             []databaseShard
-		numBlocks            int
-		persistClosedTimes   int
-		persistCalledTimes   int
-		actualDocs           = make([]doc.Metadata, 0)
-		expectedDocs         = make([]doc.Metadata, 0)
-		expectedShardFlushes = make(shardFlushes)
+		mockFlush          = persist.NewMockIndexFlush(ctrl)
+		shardMap           = make(map[uint32]struct{})
+		now                = xtime.Now()
+		warmBlockStart     = now.Add(-idx.bufferPast).Truncate(idx.blockSize)
+		mockShards         []*MockdatabaseShard
+		dbShards           []databaseShard
+		numBlocks          int
+		persistClosedTimes int
+		persistCalledTimes int
+		actualDocs         = make([]doc.Metadata, 0)
+		expectedDocs       = make([]doc.Metadata, 0)
 	)
 	// NB(bodu): Always align now w/ the index's view of now.
 	idx.nowFn = func() time.Time {
@@ -905,8 +907,12 @@ func verifyFlushForShards(
 
 		for _, mockShard := range mockShards {
 			mockShard.EXPECT().IsBootstrapped().Return(true)
-			mockShard.EXPECT().FlushState(blockStart).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
-			mockShard.EXPECT().FlushState(blockStart.Add(blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
+			mockShard.EXPECT().FlushState(blockStart).Return(fileOpState{WarmStatus: warmStatus{
+				IndexFlushed: fileOpSuccess,
+			}}, nil)
+			mockShard.EXPECT().FlushState(blockStart.Add(blockSize)).Return(fileOpState{WarmStatus: warmStatus{
+				IndexFlushed: fileOpSuccess,
+			}}, nil)
 
 			resultsTags1 := ident.NewTagsIterator(ident.NewTags())
 			resultsTags2 := ident.NewTagsIterator(ident.NewTags())
@@ -928,25 +934,17 @@ func verifyFlushForShards(
 
 			mockShard.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockStart, blockStart.Add(idx.blockSize),
 				gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results, nil, nil)
-
-			expectedShardFlushes[shardFlushKey{shardID: mockShard.ID(), blockStart: blockStart}] = mockShard
 		}
 
 		mockBlock.EXPECT().IsSealed().Return(true)
 		mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
 		mockBlock.EXPECT().EvictMutableSegments().Return(nil)
 	}
-	flushed, err := idx.WarmFlush(mockFlush, dbShards)
+	err := idx.WarmFlush(mockFlush, dbShards)
 	require.NoError(t, err)
-	require.Equal(t, len(expectedShardFlushes), len(flushed))
 	require.Equal(t, numBlocks, persistClosedTimes)
 	require.Equal(t, numBlocks, persistCalledTimes)
 	require.Equal(t, expectedDocs, actualDocs)
-
-	for flushedShard := range flushed {
-		_, ok := expectedShardFlushes[flushedShard]
-		require.Equal(t, true, ok)
-	}
 }
 
 func newReadIndexInfoFileResult(

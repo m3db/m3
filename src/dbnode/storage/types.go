@@ -425,12 +425,12 @@ type databaseNamespace interface {
 	Bootstrap(ctx context.Context, bootstrapResult bootstrap.NamespaceResult) error
 
 	// WarmFlush flushes in-memory WarmWrites.
-	WarmFlush(blockStart xtime.UnixNano, flush persist.FlushPreparer) ([]databaseShard, error)
+	WarmFlush(blockStart xtime.UnixNano, flush persist.FlushPreparer) error
 
 	// FlushIndex flushes in-memory index data.
 	FlushIndex(
 		flush persist.IndexFlush,
-	) (shardFlushes, error)
+	) error
 
 	// ColdFlush flushes unflushed in-memory ColdWrites.
 	ColdFlush(
@@ -614,8 +614,9 @@ type databaseShard interface {
 		nsCtx namespace.Context,
 	) error
 
-	// MarkWarmFlushStateSuccessOrError marks the flush state as success or error.
-	MarkWarmFlushStateSuccessOrError(blockStart xtime.UnixNano, err error)
+	// MarkWarmIndexFlushStateSuccessOrError marks the blockStart as
+	// success or fail based on the provided err.
+	MarkWarmIndexFlushStateSuccessOrError(blockStart xtime.UnixNano, err error)
 
 	// ColdFlush flushes the unflushed ColdWrites in this shard.
 	ColdFlush(
@@ -764,7 +765,10 @@ type NamespaceIndex interface {
 	WarmFlush(
 		flush persist.IndexFlush,
 		shards []databaseShard,
-	) (shardFlushes, error)
+	) error
+
+	// WarmFlushedBlockStarts returns all index blockStarts which have been flushed to disk.
+	WarmFlushedBlockStarts() []xtime.UnixNano
 
 	// ColdFlush performs any cold flushes that the index has outstanding using
 	// the owned shards of the database. Also returns a callback to be called when

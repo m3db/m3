@@ -321,12 +321,10 @@ func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
-	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return([]databaseShard{s1, s2}, nil).AnyTimes()
+	ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	s1.EXPECT().ID().Return(uint32(1)).AnyTimes()
 	s2.EXPECT().ID().Return(uint32(2)).AnyTimes()
-	s1.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil).AnyTimes()
-	s2.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil).AnyTimes()
 
 	var (
 		mockFlushPersist    = persist.NewMockFlushPreparer(ctrl)
@@ -377,17 +375,13 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	// Validate that the flush state is marked as successful only AFTER all prequisite steps have been run.
 	// Order is important to avoid any edge case where data is GCed from memory without all flushing operations
 	// being completed.
-	mockFlushedShards := shardFlushes{
-		shardFlushKey{shardID: s1.ID(), blockStart: xtime.Now().Add(time.Minute * 1)}: s1,
-		shardFlushKey{shardID: s2.ID(), blockStart: xtime.Now().Add(time.Minute * 1)}: s2,
-	}
 	steps := make([]*gomock.Call, 0)
 	steps = append(steps,
-		ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return([]databaseShard{s1, s2}, nil).Times(blocks),
+		ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return(nil).Times(blocks),
 		ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes(),
-		ns.EXPECT().FlushIndex(gomock.Any()).Return(mockFlushedShards, nil),
-		s1.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil),
-		s2.EXPECT().MarkWarmFlushStateSuccessOrError(gomock.Any(), nil),
+		ns.EXPECT().FlushIndex(gomock.Any()).Return(nil),
+		s1.EXPECT().MarkWarmIndexFlushStateSuccessOrError(gomock.Any(), nil),
+		s2.EXPECT().MarkWarmIndexFlushStateSuccessOrError(gomock.Any(), nil),
 	)
 	gomock.InOrder(steps...)
 

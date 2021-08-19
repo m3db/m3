@@ -1425,12 +1425,11 @@ func (mr *MockdatabaseNamespaceMockRecorder) FetchWideEntry(ctx, id, blockStart,
 }
 
 // FlushIndex mocks base method.
-func (m *MockdatabaseNamespace) FlushIndex(flush persist.IndexFlush) (shardFlushes, error) {
+func (m *MockdatabaseNamespace) FlushIndex(flush persist.IndexFlush) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushIndex", flush)
-	ret0, _ := ret[0].(shardFlushes)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // FlushIndex indicates an expected call of FlushIndex.
@@ -1785,12 +1784,11 @@ func (mr *MockdatabaseNamespaceMockRecorder) Truncate() *gomock.Call {
 }
 
 // WarmFlush mocks base method.
-func (m *MockdatabaseNamespace) WarmFlush(blockStart time0.UnixNano, flush persist.FlushPreparer) ([]databaseShard, error) {
+func (m *MockdatabaseNamespace) WarmFlush(blockStart time0.UnixNano, flush persist.FlushPreparer) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WarmFlush", blockStart, flush)
-	ret0, _ := ret[0].([]databaseShard)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // WarmFlush indicates an expected call of WarmFlush.
@@ -2239,16 +2237,16 @@ func (mr *MockdatabaseShardMockRecorder) LoadBlocks(series interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBlocks", reflect.TypeOf((*MockdatabaseShard)(nil).LoadBlocks), series)
 }
 
-// MarkWarmFlushStateSuccessOrError mocks base method.
-func (m *MockdatabaseShard) MarkWarmFlushStateSuccessOrError(blockStart time0.UnixNano, err error) {
+// MarkWarmIndexFlushStateSuccessOrError mocks base method.
+func (m *MockdatabaseShard) MarkWarmIndexFlushStateSuccessOrError(blockStart time0.UnixNano, err error) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "MarkWarmFlushStateSuccessOrError", blockStart, err)
+	m.ctrl.Call(m, "MarkWarmIndexFlushStateSuccessOrError", blockStart, err)
 }
 
-// MarkWarmFlushStateSuccessOrError indicates an expected call of MarkWarmFlushStateSuccessOrError.
-func (mr *MockdatabaseShardMockRecorder) MarkWarmFlushStateSuccessOrError(blockStart, err interface{}) *gomock.Call {
+// MarkWarmIndexFlushStateSuccessOrError indicates an expected call of MarkWarmIndexFlushStateSuccessOrError.
+func (mr *MockdatabaseShardMockRecorder) MarkWarmIndexFlushStateSuccessOrError(blockStart, err interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkWarmFlushStateSuccessOrError", reflect.TypeOf((*MockdatabaseShard)(nil).MarkWarmFlushStateSuccessOrError), blockStart, err)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkWarmIndexFlushStateSuccessOrError", reflect.TypeOf((*MockdatabaseShard)(nil).MarkWarmIndexFlushStateSuccessOrError), blockStart, err)
 }
 
 // NumSeries mocks base method.
@@ -2713,18 +2711,31 @@ func (mr *MockNamespaceIndexMockRecorder) Tick(c, startTime interface{}) *gomock
 }
 
 // WarmFlush mocks base method.
-func (m *MockNamespaceIndex) WarmFlush(flush persist.IndexFlush, shards []databaseShard) (shardFlushes, error) {
+func (m *MockNamespaceIndex) WarmFlush(flush persist.IndexFlush, shards []databaseShard) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WarmFlush", flush, shards)
-	ret0, _ := ret[0].(shardFlushes)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // WarmFlush indicates an expected call of WarmFlush.
 func (mr *MockNamespaceIndexMockRecorder) WarmFlush(flush, shards interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockNamespaceIndex)(nil).WarmFlush), flush, shards)
+}
+
+// WarmFlushedBlockStarts mocks base method.
+func (m *MockNamespaceIndex) WarmFlushedBlockStarts() []time0.UnixNano {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WarmFlushedBlockStarts")
+	ret0, _ := ret[0].([]time0.UnixNano)
+	return ret0
+}
+
+// WarmFlushedBlockStarts indicates an expected call of WarmFlushedBlockStarts.
+func (mr *MockNamespaceIndexMockRecorder) WarmFlushedBlockStarts() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushedBlockStarts", reflect.TypeOf((*MockNamespaceIndex)(nil).WarmFlushedBlockStarts))
 }
 
 // WideQuery mocks base method.
