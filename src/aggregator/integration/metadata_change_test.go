@@ -130,7 +130,7 @@ func testMetadataChange(t *testing.T, oldMetadataFn, newMetadataFn metadataFn) {
 			require.NoError(t, client.flush())
 
 			// Give server some time to process the incoming packets.
-			time.Sleep(time.Second)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 

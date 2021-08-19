@@ -294,12 +294,14 @@ func (ts *testServerSetup) newClient(t *testing.T) *client {
 
 		buffer, err := buffer.NewBuffer(nil)
 		require.NoError(t, err)
+		connectionOpts := msgwriter.NewConnectionOptions().SetFlushInterval(10 * time.Millisecond)
 		writerOpts := msgwriter.NewOptions().
 			SetTopicName(topicName).
 			SetTopicService(topicService).
 			SetServiceDiscovery(svcs).
 			SetTopicWatchInitTimeout(5 * time.Second).
 			SetMessageQueueNewWritesScanInterval(10 * time.Millisecond).
+			SetConnectionOptions(connectionOpts).
 			SetMessageRetryOptions(retry.NewOptions().SetInitialBackoff(5 * time.Second))
 		writer := msgwriter.NewWriter(writerOpts)
 		producerOpts := producer.NewOptions().

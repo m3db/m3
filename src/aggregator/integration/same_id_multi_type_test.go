@@ -131,7 +131,7 @@ func testSameIDMultiType(t *testing.T, metadataFn metadataFn) {
 		require.NoError(t, client.flush())
 
 		// Give server some time to process the incoming packets.
-		time.Sleep(time.Second)
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	// Move time forward and wait for ticking to happen. The sleep time
