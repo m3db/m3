@@ -18,10 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package generated is a dummy package to make sure mockgen dependencies are pulled in correctly in vendor mode:
-// https://github.com/golang/mock/issues/415
+// Package generated is a dummy package to make sure mockgen dependencies are pulled in correctly in vendor mode.
 package generated
 
 import (
+	// https://github.com/golang/mock/issues/494
 	_ "github.com/golang/mock/mockgen/model"
 )
