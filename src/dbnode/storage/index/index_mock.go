@@ -813,20 +813,6 @@ func (m *MockBlock) EXPECT() *MockBlockMockRecorder {
 	return m.recorder
 }
 
-// ActiveBlockNotifySealedBlocks mocks base method.
-func (m *MockBlock) ActiveBlockNotifySealedBlocks(sealed []time0.UnixNano) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ActiveBlockNotifySealedBlocks", sealed)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ActiveBlockNotifySealedBlocks indicates an expected call of ActiveBlockNotifySealedBlocks.
-func (mr *MockBlockMockRecorder) ActiveBlockNotifySealedBlocks(sealed interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActiveBlockNotifySealedBlocks", reflect.TypeOf((*MockBlock)(nil).ActiveBlockNotifySealedBlocks), sealed)
-}
-
 // AddResults mocks base method.
 func (m *MockBlock) AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error {
 	m.ctrl.T.Helper()
