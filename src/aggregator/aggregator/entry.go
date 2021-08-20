@@ -621,13 +621,16 @@ func (e *Entry) updateStagedMetadatasWithLock(
 	)
 
 	// Update the metadatas.
-	for i := range sm.Pipelines {
-		storagePolicies := e.storagePolicies(sm.Pipelines[i].StoragePolicies)
+	for _, p := range sm.Pipelines {
+		if e.opts.AddToReset() {
+			p.Pipeline = p.Pipeline.WithResets()
+		}
+		storagePolicies := e.storagePolicies(p.StoragePolicies)
 		for j := range storagePolicies {
 			key := aggregationKey{
-				aggregationID:      sm.Pipelines[i].AggregationID,
+				aggregationID:      p.AggregationID,
 				storagePolicy:      storagePolicies[j],
-				pipeline:           sm.Pipelines[i].Pipeline,
+				pipeline:           p.Pipeline,
 				idPrefixSuffixType: WithPrefixWithSuffix,
 			}
 			var listID metricListID
