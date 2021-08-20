@@ -40,9 +40,10 @@ GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD) LDFLAG)
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
 # GO_RELEASER_DOCKER_IMAGE is latest goreleaser for go 1.16
-GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.173.2 
+GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.173.2
 GO_RELEASER_RELEASE_ARGS  ?= --rm-dist
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
+GOLANGCI_LINT_VERSION     := v1.37.0
 
 # Retool will look for tools.json in the nearest parent git directory if not
 # explicitly told the current dir. Allow setting the base dir so that tools can
@@ -92,7 +93,20 @@ TOOLS :=               \
 	verify_index_files   \
 	carbon_load          \
 	m3ctl                \
-	linter               \
+
+GOINSTALL_BUILD_TOOLS := \
+	github.com/fossas/fossa-cli/cmd/fossa@latest                                 \
+	github.com/golang/mock/mockgen@latest                                        \
+	github.com/google/go-jsonnet/cmd/jsonnet@latest                              \
+	github.com/m3db/build-tools/utilities/genclean@latest                        \
+	github.com/m3db/tools/update-license@latest                                  \
+	github.com/mauricelam/genny@v0.0.0-20180903214747-eb2c5232c885               \
+	github.com/mjibson/esc@latest                                                \
+	github.com/pointlander/peg@latest                                            \
+	github.com/rakyll/statik@latest                                              \
+	github.com/instrumenta/kubeval@latest                                        \
+	github.com/wjdp/htmltest@latest                                              \
+	github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) \
 
 .PHONY: setup
 setup:
@@ -171,22 +185,13 @@ tools-linux-amd64:
 all: test-ci-unit test-ci-integration services tools
 	@echo Made all successfully
 
+.SILENT: install-tools
 .PHONY: install-tools
 install-tools:
-	@echo "Installing build tools"
-	GOBIN=$(tools_bin_path) go install \
-		github.com/fossas/fossa-cli/cmd/fossa \
-		github.com/golang/mock/mockgen \
-		github.com/google/go-jsonnet/cmd/jsonnet \
-		github.com/m3db/build-tools/utilities/genclean \
-		github.com/m3db/tools/update-license \
-		github.com/golangci/golangci-lint/cmd/golangci-lint \
-		github.com/mauricelam/genny \
-		github.com/mjibson/esc \
-		github.com/pointlander/peg \
-		github.com/rakyll/statik \
-		github.com/garethr/kubeval \
-		github.com/wjdp/htmltest
+	echo "Installing build tools"
+	for tool in $(GOINSTALL_BUILD_TOOLS); do \
+		GOBIN=$(tools_bin_path) go install $$tool;  \
+		done
 
 .PHONY: check-for-goreleaser-github-token
 check-for-goreleaser-github-token:
@@ -377,7 +382,7 @@ lint-$(SUBDIR): export GO_BUILD_TAGS = $(GO_BUILD_TAGS_LIST)
 lint-$(SUBDIR): install-tools linter
 	@echo "--- :golang: Running linters on $(SUBDIR)"
 	./scripts/run-ci-lint.sh $(tools_bin_path)/golangci-lint ./src/$(SUBDIR)/...
-	./bin/linter ./src/$(SUBDIR)/...
+	$(tools_bin_path)/linter ./src/$(SUBDIR)/...
 
 endef
 
@@ -488,7 +493,6 @@ clean: clean-build
 
 .DEFAULT_GOAL := all
 
-lint: install-tools linter
+lint: install-tools
 	@echo "--- :golang: Running linter on 'src'"
 	./scripts/run-ci-lint.sh $(tools_bin_path)/golangci-lint ./src/...
-	./bin/linter ./src/...
