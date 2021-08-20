@@ -108,13 +108,17 @@ type OnIndexSeries interface {
 	// OnIndexFinalze() call. This is required for correct lifecycle maintenance.
 	NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool
 
+	// IfAlreadyIndexedMarkIndexSuccessAndFinalize checks if the blockStart has been indexed.
+	// If indexed, it will be marked as such and finalized, and then return true. Otherwise false.
 	IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 		blockStart xtime.UnixNano,
 	) bool
 
-	RelookupAndCheckIsEmpty() (bool, bool)
+	// RelookupAndCheckIsEmpty looks up the series and checks if it is empty.
+	// The first result indicates if the series is empty.
+	// The second result indicates if the series can be looked up at all.
+	RelookupAndCheckIsEmpty() (isEmpty bool, isPresent bool)
 
-	DecrementReaderWriterCount()
-
-	IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool
+	// IndexedForBlockStart returns true if the blockStart has been indexed.
+	IndexedForBlockStart(blockStart xtime.UnixNano) bool
 }
