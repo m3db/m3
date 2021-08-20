@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	bitmap "github.com/m3dbx/pilosa/roaring"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -55,7 +56,6 @@ import (
 	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-	bitmap "github.com/m3dbx/pilosa/roaring"
 )
 
 var (
@@ -805,8 +805,7 @@ func newPopulateCachedSearchesWorker() *populateCachedSearchesWorker {
 }
 
 func (w *populateCachedSearchesWorker) addCloser(c io.Closer) {
-	n := len(w.cachedClosers)
-	if n > 0 {
+	if n := len(w.cachedClosers); n > 0 {
 		last := w.cachedClosers[n-1]
 		last.Reset(c)
 		w.cachedClosers[n-1] = nil
@@ -847,6 +846,7 @@ func (m *mutableSegments) populateCachedSearches(
 
 	searches := make(map[PostingsListCacheKey]cachedPatternForCompactedSegment)
 	for i, seg := range prevSegs {
+		i := i
 		result := seg.segment.CachedSearchPatterns(func(p CachedPattern) {
 			pattern, ok := searches[p.CacheKey]
 			if !ok {
@@ -1009,13 +1009,17 @@ func (m *mutableSegments) populateCachedSearches(
 					}
 					value := curr + s.patterns[i].prevSeg.meta.Offset - postings.ID(negativeOffset)
 					if err := w.postings.Insert(value); err != nil {
-						iter.Close()
+						if closeErr := iter.Close(); closeErr != nil {
+							err = xerrors.NewMultiError().Add(err).Add(closeErr)
+						}
 						return fmt.Errorf("could not insert from cached postings: %w", err)
 					}
 				}
 
 				err := iter.Err()
-				iter.Close()
+				if closeErr := iter.Close(); closeErr != nil {
+					err = xerrors.NewMultiError().Add(err).Add(closeErr)
+				}
 				if err != nil {
 					return fmt.Errorf("could not close cached postings: %w", err)
 				}

@@ -41,7 +41,6 @@ import (
 
 type testMutableSegmentsResult struct {
 	logger      *zap.Logger
-	cache       *PostingsListCache
 	searchCache *PostingsListCache
 }
 
@@ -103,6 +102,7 @@ func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.
 	segs.Unlock()
 
 	for runs := 0; runs < 10; runs++ {
+		runs := runs
 		t.Run(fmt.Sprintf("run-%d", runs), func(t *testing.T) {
 			logger := result.logger.With(zap.Int("run", runs))
 
@@ -160,7 +160,7 @@ func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.
 							return
 						default:
 						}
-						// Search continously.
+						// Search continuously.
 						testDocSearches(t, segs)
 					}
 				}()

@@ -35,9 +35,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	errInstrumentOptions = errors.New("no instrument options set")
-)
+var errInstrumentOptions = errors.New("no instrument options set")
 
 // PatternType is an enum for the various pattern types. It allows us
 // separate them logically within the cache.
@@ -274,24 +272,29 @@ func (q *PostingsListCache) startReportLoop() Closer {
 	return func() { close(doneCh) }
 }
 
+// CachedPattern defines a cached pattern.
 type CachedPattern struct {
 	CacheKey    PostingsListCacheKey
 	SearchQuery *querypb.Query
 	Postings    postings.List
 }
 
+// CachedPatternsResult defines the result of a cached pattern.
 type CachedPatternsResult struct {
 	InRegistry      bool
 	TotalPatterns   int
 	MatchedPatterns int
 }
 
+// CachedPatternForEachFn defines a function for iterating a cached pattern.
 type CachedPatternForEachFn func(CachedPattern)
 
+// CachedPatternsQuery defines a cached pattern query.
 type CachedPatternsQuery struct {
 	PatternType *PatternType
 }
 
+// CachedPatterns returns cached patterns for given query.
 func (q *PostingsListCache) CachedPatterns(
 	uuid uuid.UUID,
 	query CachedPatternsQuery,

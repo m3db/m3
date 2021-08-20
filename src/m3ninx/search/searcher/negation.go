@@ -28,9 +28,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/search"
 )
 
-var (
-	errNotMutable = errors.New("match all postings list for negation immmutable")
-)
+var errNotMutable = errors.New("match all postings list for negation immmutable")
 
 type negationSearcher struct {
 	searcher search.Searcher

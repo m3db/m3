@@ -174,6 +174,7 @@ func (r *ReadThroughSegment) Size() int64 {
 	return r.segment.Size()
 }
 
+// PutCachedSearchPattern caches a search pattern.
 func (r *ReadThroughSegment) PutCachedSearchPattern(
 	queryStr string,
 	query search.Query,
@@ -193,11 +194,13 @@ func (r *ReadThroughSegment) PutCachedSearchPattern(
 	cache.PutSearch(r.uuid, queryStr, query, pl)
 }
 
+// CachedSearchPatternsResult defines cached search patterns.
 type CachedSearchPatternsResult struct {
 	CacheSearchesDisabled bool
 	CachedPatternsResult  CachedPatternsResult
 }
 
+// CachedSearchPatterns returns cached search patterns.
 func (r *ReadThroughSegment) CachedSearchPatterns(
 	fn CachedPatternForEachFn,
 ) CachedSearchPatternsResult {
