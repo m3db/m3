@@ -188,6 +188,11 @@ func main() {
 		seriesCount++
 	}
 
+	if seriesCount != reader.Entries() {
+		log.Fatalf("actual time series count (%d) did not match info file data (%d)",
+			seriesCount, reader.Entries())
+	}
+
 	if benchMode != benchmarkNone {
 		runTime := time.Since(start)
 		fmt.Printf("Running time: %s\n", runTime)     // nolint: forbidigo

@@ -52,7 +52,7 @@ Note: keep this example similar to the one found in coordinator API
 documentation for consistency/ease of readers.
 -->
 ```shell
-curl 'http://localhost:7201/api/v1/query_range?query=abs(http_requests_total)&start=1530220860&end=1530220900&step=15s'
+curl '{{% apiendpoint %}}query_range?query=abs(http_requests_total)&start=1530220860&end=1530220900&step=15s'
 {
   "status": "success",
   "data": {
