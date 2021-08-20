@@ -31,7 +31,7 @@ const (
 
 // Now returns the current local time.
 func Now() UnixNano {
-	return ToUnixNano(time.Now())
+	return ToUnixNano(time.Now().UTC())
 }
 
 // ToNormalizedTime returns the normalized units of time given a time unit.
