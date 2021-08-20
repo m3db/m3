@@ -53,6 +53,7 @@ db:
           size: 100
           cacheRegexp: false
           cacheTerms: false
+          cacheSearch: null
 
   metrics:
       prometheus:
@@ -429,6 +430,7 @@ func TestConfiguration(t *testing.T) {
       size: 100
       cacheRegexp: false
       cacheTerms: false
+      cacheSearch: null
     regexp: null
   filesystem:
     filePathPrefix: /var/lib/m3db
