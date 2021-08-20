@@ -18,8 +18,6 @@ m3_package_path      := $(gopath_prefix)/$(m3_package)
 mockgen_package      := github.com/golang/mock/mockgen
 tools_bin_path       := $(abspath ./_tools/bin)
 combined_bin_paths   := $(tools_bin_path):$(gopath_bin_path)
-retool_src_prefix    := $(m3_package_path)/_tools/src
-retool_package       := github.com/twitchtv/retool
 mocks_output_dir     := generated/mocks
 mocks_rules_dir      := generated/mocks
 proto_output_dir     := generated/proto
@@ -44,13 +42,6 @@ GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.173.2
 GO_RELEASER_RELEASE_ARGS  ?= --rm-dist
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 GOLANGCI_LINT_VERSION     := v1.37.0
-
-# Retool will look for tools.json in the nearest parent git directory if not
-# explicitly told the current dir. Allow setting the base dir so that tools can
-# be built inside of other external repos.
-ifdef RETOOL_BASE_DIR
-	retool_base_args := -base-dir $(RETOOL_BASE_DIR)
-endif
 
 export NPROC := 2 # Maximum package concurrency for unit tests.
 
@@ -379,10 +370,9 @@ test-ci-integration-$(SUBDIR):
 
 .PHONY: lint-$(SUBDIR)
 lint-$(SUBDIR): export GO_BUILD_TAGS = $(GO_BUILD_TAGS_LIST)
-lint-$(SUBDIR): install-tools linter
-	@echo "--- :golang: Running linters on $(SUBDIR)"
+lint-$(SUBDIR): install-tools
+	@echo "--- :golang: Running linter on $(SUBDIR)"
 	./scripts/run-ci-lint.sh $(tools_bin_path)/golangci-lint ./src/$(SUBDIR)/...
-	$(tools_bin_path)/linter ./src/$(SUBDIR)/...
 
 endef
 
