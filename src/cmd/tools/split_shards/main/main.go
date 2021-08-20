@@ -196,7 +196,7 @@ func splitFileSet(
 			ShardID:             mapToDstShard(srcNumShards, i, srcShard),
 			BlockStart:          blockStart,
 			BlockSize:           srcReader.Status().BlockSize,
-			VolumeIndex:         volume,
+			VolumeIndex:         volume + 1,
 			PlannedRecordsCount: plannedRecordsCount,
 		}
 		if err := dstWriters[i].Open(writeOpts); err != nil {
@@ -272,7 +272,7 @@ func verifySplitShards(
 				Namespace:   ident.StringID(namespace),
 				Shard:       mapToDstShard(srcNumShards, i, srcShard),
 				BlockStart:  blockStart,
-				VolumeIndex: volume,
+				VolumeIndex: volume + 1,
 			},
 			FileSetType:      persist.FileSetFlushType,
 			StreamingEnabled: true,
