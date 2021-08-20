@@ -503,8 +503,10 @@ type Shard interface {
 	// on the latest volume of the given block.
 	OpenStreamingReader(blockStart xtime.UnixNano) (fs.DataFileSetReader, error)
 
-	// TryRetrieveWritableSeries attempts to retrieve a writable series.
-	TryRetrieveWritableSeries(id ident.ID) (*Entry, WritableSeriesOptions, error)
+	// TryRetrieveSeriesAndIncrementReaderWriterCount attempts to retrieve a writable series.
+	// This increments the reader/writer count and so should be decremented when the series
+	// is no longer held.
+	TryRetrieveSeriesAndIncrementReaderWriterCount(id ident.ID) (*Entry, WritableSeriesOptions, error)
 }
 
 type databaseShard interface {

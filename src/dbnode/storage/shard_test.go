@@ -1884,7 +1884,7 @@ func TestShardNewEntryDoesNotAlterIDOrTags(t *testing.T) {
 	shard.insertNewShardEntryWithLock(entry)
 	shard.Unlock()
 
-	entry, _, err = shard.TryRetrieveWritableSeries(seriesID)
+	entry, _, err = shard.TryRetrieveSeriesAndIncrementReaderWriterCount(seriesID)
 	require.NoError(t, err)
 
 	entryIDBytes := entry.Series.ID().Bytes()
