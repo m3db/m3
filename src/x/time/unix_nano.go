@@ -45,7 +45,7 @@ const (
 )
 
 // Truncate returns the result of rounding u down to a multiple of d.
-// If d <= 0, Truncate returns u unchanged.
+// If d <= 1, Truncate returns u unchanged.
 func (u UnixNano) Truncate(d time.Duration) UnixNano {
 	if d <= 1 {
 		return u
@@ -124,7 +124,6 @@ func (u UnixNano) IsZero() bool {
 // String returns the time formatted using the format string
 //	"2006-01-02 15:04:05.999999999 -0700 MST"
 func (u UnixNano) String() string {
-	// return fmt.Sprint(u.ToTime().UTC().UnixNano())
 	return u.ToTime().UTC().String()
 }
 

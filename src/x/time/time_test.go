@@ -190,6 +190,7 @@ func TestTruncate(t *testing.T) {
 	)
 
 	for _, blockSize := range blockSizes {
+		blockSize := blockSize
 		t.Run(blockSize.String(), func(t *testing.T) {
 			xNow := ToUnixNano(n).Truncate(blockSize)
 			now := n.Truncate(blockSize)
