@@ -20,7 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package harness
+package integration
 
 import (
 	"encoding/json"
@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/cmd/tools/dtest/docker/harness/resources"
+	"github.com/m3db/m3/src/integration/resources"
 
 	"github.com/stretchr/testify/assert"
 )
