@@ -1818,6 +1818,54 @@ func TestEntryMaybeExpireWithExpiry(t *testing.T) {
 	}
 }
 
+func TestEntry_AddToReset(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cases := []struct {
+		name       string
+		addToReset bool
+	}{
+		{
+			name:       "add to reset enabled",
+			addToReset: true,
+		},
+		{
+			name:       "add to reset disabled",
+			addToReset: false,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			timed, _, _ := testEntry(ctrl, testEntryOptions{
+				options: testOptions(ctrl).SetAddToReset(tc.addToReset),
+			})
+			untimed, _, _ := testEntry(ctrl, testEntryOptions{
+				options: testOptions(ctrl).SetAddToReset(tc.addToReset),
+			})
+
+			sms := testCustomStagedMetadatas
+			p := testPipeline
+			p.Operations[0].Transformation.Type = transformation.Add
+			sms[0].Metadata.Pipelines[0].Pipeline = p
+			require.NoError(t, timed.AddTimedWithStagedMetadatas(testTimedMetric, sms))
+			require.NoError(t, untimed.addUntimed(testUntimedMetric, sms))
+
+			if tc.addToReset {
+				require.Equal(t, timed.aggregations[0].key.pipeline.Operations[0].Transformation.Type, transformation.Reset)
+				require.Equal(t, untimed.aggregations[0].key.pipeline.Operations[0].Transformation.Type, transformation.Reset)
+			} else {
+				require.Equal(t, timed.aggregations[0].key.pipeline.Operations[0].Transformation.Type, transformation.Add)
+				require.Equal(t, untimed.aggregations[0].key.pipeline.Operations[0].Transformation.Type, transformation.Add)
+			}
+			require.Equal(t, timed.aggregations[0].key.pipeline.Operations[1].Transformation.Type, transformation.PerSecond)
+			require.Equal(t, untimed.aggregations[0].key.pipeline.Operations[1].Transformation.Type, transformation.PerSecond)
+		})
+	}
+}
+
 func TestEntryMaybeCopyIDWithLock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
