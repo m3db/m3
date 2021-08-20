@@ -239,11 +239,11 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 // The first result indicates if the series is empty.
 // The second result indicates if the series can be looked up at all.
 func (entry *Entry) RelookupAndCheckIsEmpty() (bool, bool) {
-	e, _, err := entry.Shard.TryRetrieveWritableSeries(entry.Series.ID())
+	e, _, err := entry.Shard.TryRetrieveSeriesAndIncrementReaderWriterCount(entry.Series.ID())
 	if err != nil || e == nil {
 		return false, false
 	}
-	defer entry.DecrementReaderWriterCount()
+	defer e.DecrementReaderWriterCount()
 
 	return entry.Series.IsEmpty(), true
 }

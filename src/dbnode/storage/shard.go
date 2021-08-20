@@ -898,7 +898,7 @@ func (s *dbShard) writeAndIndex(
 	shouldReverseIndex bool,
 ) (SeriesWrite, error) {
 	// Prepare write
-	entry, opts, err := s.TryRetrieveWritableSeries(id)
+	entry, opts, err := s.TryRetrieveSeriesAndIncrementReaderWriterCount(id)
 	if err != nil {
 		return SeriesWrite{}, err
 	}
@@ -1163,8 +1163,10 @@ type WritableSeriesOptions struct {
 	WriteNewSeriesAsync bool
 }
 
-// TryRetrieveWritableSeries attempts to retrieve a writable series.
-func (s *dbShard) TryRetrieveWritableSeries(id ident.ID) (
+// TryRetrieveSeriesAndIncrementReaderWriterCount attempts to retrieve a writable series.
+// This increments the reader/writer count and so should be decremented when the series
+// is no longer held.
+func (s *dbShard) TryRetrieveSeriesAndIncrementReaderWriterCount(id ident.ID) (
 	*Entry,
 	WritableSeriesOptions,
 	error,
@@ -1186,7 +1188,7 @@ func (s *dbShard) TryRetrieveWritableSeries(id ident.ID) (
 }
 
 func (s *dbShard) retrieveWritableSeries(id ident.ID) (*Entry, error) {
-	entry, _, err := s.TryRetrieveWritableSeries(id)
+	entry, _, err := s.TryRetrieveSeriesAndIncrementReaderWriterCount(id)
 	return entry, err
 }
 
@@ -2106,7 +2108,7 @@ func (s *dbShard) loadBlock(
 	)
 
 	// First lookup if series already exists.
-	entry, shardOpts, err := s.TryRetrieveWritableSeries(id)
+	entry, shardOpts, err := s.TryRetrieveSeriesAndIncrementReaderWriterCount(id)
 	if err != nil && err != errShardEntryNotFound {
 		return result, err
 	}

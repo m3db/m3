@@ -1949,20 +1949,20 @@ func (mr *MockShardMockRecorder) OpenStreamingReader(blockStart interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenStreamingReader", reflect.TypeOf((*MockShard)(nil).OpenStreamingReader), blockStart)
 }
 
-// TryRetrieveWritableSeries mocks base method.
-func (m *MockShard) TryRetrieveWritableSeries(id ident.ID) (*Entry, WritableSeriesOptions, error) {
+// TryRetrieveSeriesAndIncrementReaderWriterCount mocks base method.
+func (m *MockShard) TryRetrieveSeriesAndIncrementReaderWriterCount(id ident.ID) (*Entry, WritableSeriesOptions, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TryRetrieveWritableSeries", id)
+	ret := m.ctrl.Call(m, "TryRetrieveSeriesAndIncrementReaderWriterCount", id)
 	ret0, _ := ret[0].(*Entry)
 	ret1, _ := ret[1].(WritableSeriesOptions)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
-// TryRetrieveWritableSeries indicates an expected call of TryRetrieveWritableSeries.
-func (mr *MockShardMockRecorder) TryRetrieveWritableSeries(id interface{}) *gomock.Call {
+// TryRetrieveSeriesAndIncrementReaderWriterCount indicates an expected call of TryRetrieveSeriesAndIncrementReaderWriterCount.
+func (mr *MockShardMockRecorder) TryRetrieveSeriesAndIncrementReaderWriterCount(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryRetrieveWritableSeries", reflect.TypeOf((*MockShard)(nil).TryRetrieveWritableSeries), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryRetrieveSeriesAndIncrementReaderWriterCount", reflect.TypeOf((*MockShard)(nil).TryRetrieveSeriesAndIncrementReaderWriterCount), id)
 }
 
 // MockdatabaseShard is a mock of databaseShard interface.
@@ -2379,20 +2379,20 @@ func (mr *MockdatabaseShardMockRecorder) Tick(c, startTime, nsCtx interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseShard)(nil).Tick), c, startTime, nsCtx)
 }
 
-// TryRetrieveWritableSeries mocks base method.
-func (m *MockdatabaseShard) TryRetrieveWritableSeries(id ident.ID) (*Entry, WritableSeriesOptions, error) {
+// TryRetrieveSeriesAndIncrementReaderWriterCount mocks base method.
+func (m *MockdatabaseShard) TryRetrieveSeriesAndIncrementReaderWriterCount(id ident.ID) (*Entry, WritableSeriesOptions, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TryRetrieveWritableSeries", id)
+	ret := m.ctrl.Call(m, "TryRetrieveSeriesAndIncrementReaderWriterCount", id)
 	ret0, _ := ret[0].(*Entry)
 	ret1, _ := ret[1].(WritableSeriesOptions)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
-// TryRetrieveWritableSeries indicates an expected call of TryRetrieveWritableSeries.
-func (mr *MockdatabaseShardMockRecorder) TryRetrieveWritableSeries(id interface{}) *gomock.Call {
+// TryRetrieveSeriesAndIncrementReaderWriterCount indicates an expected call of TryRetrieveSeriesAndIncrementReaderWriterCount.
+func (mr *MockdatabaseShardMockRecorder) TryRetrieveSeriesAndIncrementReaderWriterCount(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryRetrieveWritableSeries", reflect.TypeOf((*MockdatabaseShard)(nil).TryRetrieveWritableSeries), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryRetrieveSeriesAndIncrementReaderWriterCount", reflect.TypeOf((*MockdatabaseShard)(nil).TryRetrieveSeriesAndIncrementReaderWriterCount), id)
 }
 
 // UpdateFlushStates mocks base method.
