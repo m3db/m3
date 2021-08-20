@@ -30,6 +30,7 @@ thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 cache_policy         ?= recently_read
+aggregator_client    ?= tcp
 genny_target         ?= genny-all
 
 BUILD                     := $(abspath ./bin)
@@ -271,7 +272,7 @@ test-ci-big-unit: test-big-base
 
 .PHONY: test-ci-integration
 test-ci-integration:
-	INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+	INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) TEST_AGGREGATOR_CLIENT_TYPE=$(aggregator_client) make test-base-ci-integration
 	$(process_coverfile) $(coverfile)
 
 define SUBDIR_RULES
@@ -365,7 +366,7 @@ test-ci-big-unit-$(SUBDIR):
 .PHONY: test-ci-integration-$(SUBDIR)
 test-ci-integration-$(SUBDIR):
 	@echo "--- test-ci-integration $(SUBDIR)"
-	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=true INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=true INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) TEST_AGGREGATOR_CLIENT_TYPE=$(aggregator_client) make test-base-ci-integration
 	if [ -z "$(SKIP_CODECOV)" ]; then \
 		@echo "--- uploading coverage report"; \
 		$(codecov_push) -f $(coverfile) -F $(SUBDIR); \
