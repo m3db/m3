@@ -43,11 +43,9 @@ var (
 
 func testReadThroughSegmentCaches(
 	segmentPostingsListCache *PostingsListCache,
-	searchPostingsListCache *PostingsListCache,
 ) ReadThroughSegmentCaches {
 	return ReadThroughSegmentCaches{
 		SegmentPostingsListCache: segmentPostingsListCache,
-		SearchPostingsListCache:  searchPostingsListCache,
 	}
 }
 
@@ -70,7 +68,7 @@ func TestReadThroughSegmentMatchRegexp(t *testing.T) {
 	}
 
 	readThrough, err := NewReadThroughSegment(seg,
-		testReadThroughSegmentCaches(cache, nil),
+		testReadThroughSegmentCaches(cache),
 		defaultReadThroughSegmentOptions).Reader()
 	require.NoError(t, err)
 
@@ -109,7 +107,7 @@ func TestReadThroughSegmentMatchRegexpCacheDisabled(t *testing.T) {
 	}
 
 	readThrough, err := NewReadThroughSegment(seg,
-		testReadThroughSegmentCaches(cache, nil),
+		testReadThroughSegmentCaches(cache),
 		ReadThroughSegmentOptions{
 			CacheRegexp: false,
 		}).
@@ -153,7 +151,7 @@ func TestReadThroughSegmentMatchRegexpNoCache(t *testing.T) {
 	}
 
 	readThrough, err := NewReadThroughSegment(seg,
-		testReadThroughSegmentCaches(nil, nil),
+		testReadThroughSegmentCaches(nil),
 		defaultReadThroughSegmentOptions).
 		Reader()
 	require.NoError(t, err)
@@ -188,7 +186,7 @@ func TestReadThroughSegmentMatchTerm(t *testing.T) {
 	require.NoError(t, originalPL.Insert(1))
 
 	readThrough, err := NewReadThroughSegment(seg,
-		testReadThroughSegmentCaches(cache, nil),
+		testReadThroughSegmentCaches(cache),
 		defaultReadThroughSegmentOptions).
 		Reader()
 	require.NoError(t, err)
@@ -227,7 +225,7 @@ func TestReadThroughSegmentMatchTermCacheDisabled(t *testing.T) {
 	require.NoError(t, originalPL.Insert(1))
 
 	readThrough, err := NewReadThroughSegment(seg,
-		testReadThroughSegmentCaches(cache, nil),
+		testReadThroughSegmentCaches(cache),
 		ReadThroughSegmentOptions{
 			CacheTerms: false,
 		}).
@@ -269,7 +267,7 @@ func TestReadThroughSegmentMatchTermNoCache(t *testing.T) {
 	seg.EXPECT().Reader().Return(reader, nil)
 
 	readThrough, err := NewReadThroughSegment(seg,
-		testReadThroughSegmentCaches(nil, nil),
+		testReadThroughSegmentCaches(nil),
 		defaultReadThroughSegmentOptions).
 		Reader()
 	require.NoError(t, err)
@@ -291,7 +289,7 @@ func TestClose(t *testing.T) {
 	require.NoError(t, err)
 
 	readThroughSeg := NewReadThroughSegment(segment,
-		testReadThroughSegmentCaches(nil, nil),
+		testReadThroughSegmentCaches(nil),
 		defaultReadThroughSegmentOptions)
 
 	segmentUUID := readThroughSeg.uuid
@@ -333,7 +331,7 @@ func TestReadThroughSegmentMatchField(t *testing.T) {
 	require.NoError(t, originalPL.Insert(1))
 
 	readThrough, err := NewReadThroughSegment(seg,
-		testReadThroughSegmentCaches(cache, nil),
+		testReadThroughSegmentCaches(cache),
 		defaultReadThroughSegmentOptions).
 		Reader()
 	require.NoError(t, err)
@@ -371,7 +369,7 @@ func TestReadThroughSegmentMatchFieldCacheDisabled(t *testing.T) {
 	require.NoError(t, originalPL.Insert(1))
 
 	readThrough, err := NewReadThroughSegment(seg,
-		testReadThroughSegmentCaches(cache, nil),
+		testReadThroughSegmentCaches(cache),
 		ReadThroughSegmentOptions{
 			CacheTerms: false,
 		}).
@@ -412,7 +410,7 @@ func TestReadThroughSegmentMatchFieldNoCache(t *testing.T) {
 	seg.EXPECT().Reader().Return(reader, nil)
 
 	readThrough, err := NewReadThroughSegment(seg,
-		testReadThroughSegmentCaches(nil, nil),
+		testReadThroughSegmentCaches(nil),
 		defaultReadThroughSegmentOptions).
 		Reader()
 	require.NoError(t, err)
@@ -432,7 +430,7 @@ func TestCloseNoCache(t *testing.T) {
 	seg := fst.NewMockSegment(ctrl)
 
 	readThrough := NewReadThroughSegment(seg,
-		testReadThroughSegmentCaches(nil, nil),
+		testReadThroughSegmentCaches(nil),
 		defaultReadThroughSegmentOptions)
 
 	seg.EXPECT().Close().Return(nil)

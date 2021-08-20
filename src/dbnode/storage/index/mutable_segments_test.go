@@ -126,9 +126,6 @@ func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.
 						// Every other is "empty".
 						Return(inserted%2 == 0, true).
 						AnyTimes()
-					onIndexSeries.EXPECT().
-						DecrementReaderWriterCount().
-						AnyTimes()
 
 					batch.Append(WriteBatchEntry{
 						Timestamp:     nowNotBlockStartAligned,
