@@ -44,18 +44,16 @@ func (f FeatureFlagConfigurations) Parse() []FeatureFlagBundleParsed {
 // FeatureFlagConfiguration holds filter and flag combinations. The flags are
 // scoped to metrics with tags that match the filter.
 type FeatureFlagConfiguration struct {
+	// Flags are the flags enabled once the filters are matched.
+	Flags FlagBundle `yaml:"flags"`
 	// Filter is a map of tag keys and values that much match for the flags to
 	// be applied.
 	Filter map[string]string `yaml:"filter"`
-	// Flags are the flags enabled once the filters are matched.
-	Flags FlagBundle `yaml:"flags"`
 }
 
 // FlagBundle contains all aggregator feature flags.
+// nolint:gofumpt
 type FlagBundle struct {
-	// IncreaseWithPrevNaNTranslatesToCurrValueIncrease configures the binary
-	// increase operation to fill in prev NaN values with 0.
-	IncreaseWithPrevNaNTranslatesToCurrValueIncrease bool `yaml:"increaseWithPrevNaNTranslatesToCurrValueIncrease"`
 }
 
 func (f FeatureFlagConfiguration) parse() FeatureFlagBundleParsed {

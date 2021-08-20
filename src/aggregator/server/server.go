@@ -21,7 +21,6 @@
 package server
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -53,6 +52,10 @@ type RunOptions struct {
 	// CustomBuildTags are additional tags to be added to the instrument build
 	// reporter.
 	CustomBuildTags map[string]string
+
+	// InterruptCh is a programmatic interrupt channel to supply to
+	// interrupt and shutdown the server.
+	InterruptCh <-chan error
 }
 
 // AdminOption is an additional option to apply to the aggregator server.
@@ -179,12 +182,12 @@ func Run(opts RunOptions) {
 	}()
 
 	// Handle interrupts.
-	sigC := make(chan os.Signal, 1)
-	signal.Notify(sigC, syscall.SIGINT, syscall.SIGTERM)
-
-	logger.Warn("interrupt", zap.Any("signal", fmt.Errorf("%s", <-sigC)))
+	logger.Warn("interrupt", zap.Error(<-opts.InterruptCh))
 
 	if s := cfg.Aggregator.ShutdownWaitTimeout; s != 0 {
+		sigC := make(chan os.Signal, 1)
+		signal.Notify(sigC, syscall.SIGINT, syscall.SIGTERM)
+
 		logger.Info("waiting intentional shutdown period", zap.Duration("waitTimeout", s))
 		select {
 		case sig := <-sigC:

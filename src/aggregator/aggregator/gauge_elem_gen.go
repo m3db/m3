@@ -449,21 +449,7 @@ func (e *GaugeElem) processValueWithAggregationLock(
 					Value:     value,
 				}
 
-				var useIncreaseWithPrevNaN bool
-
-				for _, flags := range e.opts.FeatureFlagBundlesParsed() {
-					flagsBundle, ok := flags.Match(e.id)
-					if !ok {
-						continue
-					}
-					// Always let the config override on first match.
-					useIncreaseWithPrevNaN = flagsBundle.IncreaseWithPrevNaNTranslatesToCurrValueIncrease
-					break
-				}
-
-				res := binaryOp.Evaluate(prev, curr, transformation.FeatureFlags{
-					IncreaseWithPrevNaNTranslatesToCurrValueIncrease: useIncreaseWithPrevNaN,
-				})
+				res := binaryOp.Evaluate(prev, curr, transformation.FeatureFlags{})
 
 				// NB: we only need to record the value needed for derivative transformations.
 				// We currently only support first-order derivative transformations so we only
