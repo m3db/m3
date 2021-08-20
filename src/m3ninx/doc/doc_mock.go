@@ -306,18 +306,6 @@ func (m *MockOnIndexSeries) EXPECT() *MockOnIndexSeriesMockRecorder {
 	return m.recorder
 }
 
-// DecrementReaderWriterCount mocks base method.
-func (m *MockOnIndexSeries) DecrementReaderWriterCount() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "DecrementReaderWriterCount")
-}
-
-// DecrementReaderWriterCount indicates an expected call of DecrementReaderWriterCount.
-func (mr *MockOnIndexSeriesMockRecorder) DecrementReaderWriterCount() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DecrementReaderWriterCount", reflect.TypeOf((*MockOnIndexSeries)(nil).DecrementReaderWriterCount))
-}
-
 // IfAlreadyIndexedMarkIndexSuccessAndFinalize mocks base method.
 func (m *MockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart time.UnixNano) bool {
 	m.ctrl.T.Helper()
@@ -333,17 +321,17 @@ func (mr *MockOnIndexSeriesMockRecorder) IfAlreadyIndexedMarkIndexSuccessAndFina
 }
 
 // IndexedForBlockStart mocks base method.
-func (m *MockOnIndexSeries) IndexedForBlockStart(indexBlockStart time.UnixNano) bool {
+func (m *MockOnIndexSeries) IndexedForBlockStart(blockStart time.UnixNano) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IndexedForBlockStart", indexBlockStart)
+	ret := m.ctrl.Call(m, "IndexedForBlockStart", blockStart)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // IndexedForBlockStart indicates an expected call of IndexedForBlockStart.
-func (mr *MockOnIndexSeriesMockRecorder) IndexedForBlockStart(indexBlockStart interface{}) *gomock.Call {
+func (mr *MockOnIndexSeriesMockRecorder) IndexedForBlockStart(blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexedForBlockStart", reflect.TypeOf((*MockOnIndexSeries)(nil).IndexedForBlockStart), indexBlockStart)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexedForBlockStart", reflect.TypeOf((*MockOnIndexSeries)(nil).IndexedForBlockStart), blockStart)
 }
 
 // NeedsIndexUpdate mocks base method.
