@@ -48,7 +48,16 @@ func Compile(input string, opts CompileOptions) (Expression, error) {
 func getFirstPathExpression(input string) (string, error) {
 	compiler, closer := newCompiler(input, CompileOptions{})
 	defer closer()
-	return compiler.getFirstPathExpression()
+
+	// NB(r): Ignore any compilation errors, getFirstPathExpression is meant
+	// to be able to compile partial expressions such as "foo.bar, 0.1)" which
+	// might be matched as a result of a regular expression match with aliasSub.
+	_, _ = compiler.compileExpression()
+	if len(compiler.fetches) == 0 {
+		return "", compiler.errorf("no fetch expressions")
+	}
+
+	return compiler.fetches[0].pathArg.path, nil
 }
 
 type closer func()
@@ -176,17 +185,6 @@ func (c *compiler) compileFetchExpression(token string) *fetchExpression {
 	expr := newFetchExpression(token)
 	c.fetches = append(c.fetches, expr)
 	return expr
-}
-
-func (c *compiler) getFirstPathExpression() (string, error) {
-	// NB(r): Ignore any compilation errors, getFirstPathExpression is meant
-	// to be able to compile partial expressions such as "foo.bar, 0.1)" which
-	// might be matched as a result of a regular expression match with aliasSub.
-	_, _ = c.compileExpression()
-	if len(c.fetches) == 0 {
-		return "", c.errorf("no fetch expressions")
-	}
-	return c.fetches[0].pathArg.path, nil
 }
 
 // canCompileAsFetch attempts to see if the given term is a non-delimited
