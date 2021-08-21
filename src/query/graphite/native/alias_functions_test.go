@@ -342,6 +342,9 @@ func TestGroupByNodeAndAliasMetric(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestGroupByNodeAndAliasSubAndScopeMetric ensures that partial expressions
+// that should not be able to be successfully compiled can still have their path
+// expression extracted for use in functions like groupByNode.
 // nolint: dupl
 func TestGroupByNodeAndAliasSubAndScopeMetric(t *testing.T) {
 	ctrl := xgomock.NewController(t)
@@ -360,9 +363,19 @@ func TestGroupByNodeAndAliasSubAndScopeMetric(t *testing.T) {
 			"foo.bar.b.zed",
 		))
 
+	// Note: After the aliasSub call the result will be "a.zed,0.1)" and "b.zed,0.1)"
+	// for each series name, this test ensures that partial expressions can still
+	// successfully have their first fetch expression extracted.
 	expr, err := engine.Compile("groupByNode(aliasSub(scale(foo.bar.*.zed, 0.1), \".*bar.(.*)\", '\\1'),0)")
 	require.NoError(t, err)
 
-	_, err = expr.Execute(ctx)
+	seriesList, err := expr.Execute(ctx)
 	require.NoError(t, err)
+
+	require.Equal(t, 2, seriesList.Len())
+	// Sort before check names.
+	seriesList, err = sortByName(ctx, singlePathSpec(seriesList), false, false)
+	require.NoError(t, err)
+	require.Equal(t, seriesList.Values[0].Name(), "a")
+	require.Equal(t, seriesList.Values[1].Name(), "b")
 }

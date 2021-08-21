@@ -43,15 +43,22 @@ func Compile(input string, opts CompileOptions) (Expression, error) {
 	return compiler.compileExpression()
 }
 
-// ParseGrammar parses the grammar into a set of AST nodes and allows
-// for functions to not exist, etc.
-func ParseGrammar(input string, opts CompileOptions) (ASTNode, error) {
-	compiler, closer := newCompiler(input, opts)
+// getFirstPathExpression extracts the first matching path expression
+// in the input.
+func getFirstPathExpression(input string) (string, error) {
+	compiler, closer := newCompiler(input, CompileOptions{})
 	defer closer()
-	return compiler.parseGrammar()
+	return compiler.getFirstPathExpression()
 }
 
 type closer func()
+
+// A compiler converts an input string into an executable Expression
+type compiler struct {
+	input   string
+	tokens  *tokenLookforward
+	fetches []*fetchExpression
+}
 
 func newCompiler(input string, opts CompileOptions) (*compiler, closer) {
 	booleanLiterals := map[string]lexer.TokenType{
@@ -72,8 +79,9 @@ func newCompiler(input string, opts CompileOptions) (*compiler, closer) {
 	})
 
 	return &compiler{
-		input:  input,
-		tokens: newTokenLookforward(tokens),
+		input:   input,
+		tokens:  newTokenLookforward(tokens),
+		fetches: make([]*fetchExpression, 0, 4),
 	}, cleanup
 }
 
@@ -116,12 +124,6 @@ func (l *tokenLookforward) peek() (*lexer.Token, bool) {
 	return token, true
 }
 
-// A compiler converts an input string into an executable Expression
-type compiler struct {
-	input  string
-	tokens *tokenLookforward
-}
-
 // compileExpression compiles a top level expression
 func (c *compiler) compileExpression() (Expression, error) {
 	token := c.tokens.get()
@@ -132,7 +134,7 @@ func (c *compiler) compileExpression() (Expression, error) {
 	var expr Expression
 	switch token.TokenType() {
 	case lexer.Pattern:
-		expr = newFetchExpression(token.Value())
+		expr = c.compileFetchExpression(token.Value())
 
 	case lexer.Identifier:
 		fc, err := c.compileFunctionCall(token.Value())
@@ -146,7 +148,7 @@ func (c *compiler) compileExpression() (Expression, error) {
 			)
 			if (isNotFuncErr || isNotFoundErr) && c.canCompileAsFetch(token.Value()) {
 				fetchCandidate = true
-				expr = newFetchExpression(token.Value())
+				expr = c.compileFetchExpression(token.Value())
 			} else {
 				return nil, err
 			}
@@ -170,12 +172,21 @@ func (c *compiler) compileExpression() (Expression, error) {
 	return expr, nil
 }
 
-func (c *compiler) parseGrammar() (ASTNode, error) {
-	expr, err := c.compileExpression()
-	if err != nil {
-		return nil, err
+func (c *compiler) compileFetchExpression(token string) *fetchExpression {
+	expr := newFetchExpression(token)
+	c.fetches = append(c.fetches, expr)
+	return expr
+}
+
+func (c *compiler) getFirstPathExpression() (string, error) {
+	// NB(r): Ignore any compilation errors, getFirstPathExpression is meant
+	// to be able to compile partial expressions such as "foo.bar, 0.1)" which
+	// might be matched as a result of a regular expression match with aliasSub.
+	_, _ = c.compileExpression()
+	if len(c.fetches) == 0 {
+		return "", c.errorf("no fetch expressions")
 	}
-	return rootASTNode{expr: expr}, nil
+	return c.fetches[0].pathArg.path, nil
 }
 
 // canCompileAsFetch attempts to see if the given term is a non-delimited
@@ -328,7 +339,7 @@ func (c *compiler) convertTokenToArg(token *lexer.Token, reflectType reflect.Typ
 	case lexer.String:
 		return newStringConst(token.Value()), nil
 	case lexer.Pattern:
-		return newFetchExpression(token.Value()), nil
+		return c.compileFetchExpression(token.Value()), nil
 	case lexer.True, lexer.False:
 		b, err := strconv.ParseBool(token.Value())
 		if err != nil {
@@ -363,7 +374,7 @@ func (c *compiler) convertTokenToArg(token *lexer.Token, reflectType reflect.Typ
 				isNotFoundErr = goerrors.As(err, &notFoundErr)
 			)
 			if (isNotFuncErr || isNotFoundErr) && c.canCompileAsFetch(currentToken) {
-				return newFetchExpression(currentToken), nil
+				return c.compileFetchExpression(currentToken), nil
 			}
 			return nil, err
 		}
