@@ -341,3 +341,28 @@ func TestGroupByNodeAndAliasMetric(t *testing.T) {
 	_, err = expr.Execute(ctx)
 	require.NoError(t, err)
 }
+
+// nolint: dupl
+func TestGroupByNodeAndAliasSubAndScopeMetric(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+
+	engine := NewEngine(store, CompileOptions{})
+
+	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
+
+	stepSize := int((10 * time.Minute) / time.Millisecond)
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize,
+			"foo.bar.a.zed",
+			"foo.bar.b.zed",
+		))
+
+	expr, err := engine.Compile("groupByNode(aliasSub(scale(foo.bar.*.zed, 0.1), \".*bar.(.*)\", '\\1'),0)")
+	require.NoError(t, err)
+
+	_, err = expr.Execute(ctx)
+	require.NoError(t, err)
+}
