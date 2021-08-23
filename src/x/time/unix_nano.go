@@ -30,7 +30,7 @@ type UnixNano int64
 
 // ToTime returns a time.ToTime from a UnixNano.
 func (u UnixNano) ToTime() time.Time {
-	return time.Unix(0, int64(u))
+	return time.Unix(0, int64(u)).UTC()
 }
 
 // ToUnixNano returns a UnixNano from a time.Time.
@@ -124,12 +124,12 @@ func (u UnixNano) IsZero() bool {
 // String returns the time formatted using the format string
 //	"2006-01-02 15:04:05.999999999 -0700 MST"
 func (u UnixNano) String() string {
-	return u.ToTime().UTC().String()
+	return u.ToTime().String()
 }
 
 // Format returns the string representation for the time with the given format.
 func (u UnixNano) Format(blockTimeFormat string) string {
-	return u.ToTime().UTC().Format(blockTimeFormat)
+	return u.ToTime().Format(blockTimeFormat)
 }
 
 // Seconds returns the seconds for time u, as an int64.
