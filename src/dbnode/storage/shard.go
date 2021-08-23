@@ -379,19 +379,17 @@ func (s *dbShard) hasWarmFlushed(blockStart xtime.UnixNano) (bool, error) {
 }
 
 func (s *dbShard) warmStatusIsRetrievable(status warmStatus) bool {
-	// if !statusIsRetrievable(status.DataFlushed) {
-	// 	return false
-	// }
+	if !statusIsRetrievable(status.DataFlushed) {
+		return false
+	}
 
-	// // If the index is disabled, then we only are tracking data flushing.
-	// // Otherwise, warm status requires both data and index flushed.
-	// if !s.namespace.Options().IndexOptions().Enabled() {
-	// 	return true
-	// }
+	// If the index is disabled, then we only are tracking data flushing.
+	// Otherwise, warm status requires both data and index flushed.
+	if !s.namespace.Options().IndexOptions().Enabled() {
+		return true
+	}
 
-	// return statusIsRetrievable(status.IndexFlushed)
-
-	return false
+	return statusIsRetrievable(status.IndexFlushed)
 }
 
 func statusIsRetrievable(status fileOpStatus) bool {
