@@ -57,6 +57,10 @@ type RunOptions struct {
 	// InterruptCh is a programmatic interrupt channel to supply to
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
+
+	// ShutdownCh is an optional channel to supply if interested in receiving
+	// a notification that the server has shutdown.
+	ShutdownCh chan<- struct{}
 }
 
 // AdminOption is an additional option to apply to the aggregator server.
@@ -207,5 +211,14 @@ func Run(opts RunOptions) {
 		logger.Info("server closed clean")
 	case <-time.After(gracefulShutdownTimeout):
 		logger.Info("server closed due to timeout", zap.Duration("timeout", gracefulShutdownTimeout))
+	}
+
+	if opts.ShutdownCh != nil {
+		select {
+		case opts.ShutdownCh <- struct{}{}:
+			break
+		default:
+			logger.Warn("could not send shutdown notification as channel was full")
+		}
 	}
 }

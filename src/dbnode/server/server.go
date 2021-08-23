@@ -147,6 +147,10 @@ type RunOptions struct {
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
 
+	// ShutdownCh is an optional channel to supply if interested in receiving
+	// a notification that the server has shutdown.
+	ShutdownCh chan<- struct{}
+
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
 
@@ -1082,6 +1086,15 @@ func Run(runOpts RunOptions) {
 		logger.Info("server closed")
 	case <-time.After(closeTimeout):
 		logger.Error("server closed after timeout", zap.Duration("timeout", closeTimeout))
+	}
+
+	if runOpts.ShutdownCh != nil {
+		select {
+		case runOpts.ShutdownCh <- struct{}{}:
+			break
+		default:
+			logger.Warn("could not send shutdown notification as channel was full")
+		}
 	}
 }
 
