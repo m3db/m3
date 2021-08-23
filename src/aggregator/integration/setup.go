@@ -33,6 +33,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
@@ -54,7 +55,6 @@ import (
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/producer/buffer"
 	msgwriter "github.com/m3db/m3/src/msg/producer/writer"
-	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/retry"
@@ -185,12 +185,21 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	aggregatorOpts = aggregatorOpts.SetFlushManager(flushManager)
 
 	// Set up admin client.
+	m3msgOpts := aggclient.NewM3MsgOptions()
+	if opts.AggregatorClientType() == aggclient.M3MsgAggregatorClient {
+		producer, err := newM3MsgProducer(opts)
+		require.NoError(t, err)
+		m3msgOpts = m3msgOpts.SetProducer(producer)
+	}
+
 	clientOpts := aggclient.NewOptions().
 		SetClockOptions(clockOpts).
 		SetConnectionOptions(opts.ClientConnectionOptions()).
 		SetShardFn(opts.ShardFn()).
 		SetWatcherOptions(placementWatcherOpts).
-		SetRWOptions(rwOpts)
+		SetRWOptions(rwOpts).
+		SetM3MsgOptions(m3msgOpts).
+		SetAggregatorClientType(opts.AggregatorClientType())
 	c, err := aggclient.NewClient(clientOpts)
 	require.NoError(t, err)
 	adminClient, ok := c.(aggclient.AdminClient)
@@ -263,54 +272,18 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 }
 
 func (ts *testServerSetup) newClient(t *testing.T) *client {
+	iOpts := ts.opts.InstrumentOptions()
+	iOpts = iOpts.SetLogger(iOpts.Logger().With(zap.Bool("client", true)))
+
 	clientType := ts.opts.AggregatorClientType()
-	clientOpts := ts.clientOptions.SetAggregatorClientType(clientType)
+	clientOpts := ts.clientOptions.
+		SetInstrumentOptions(iOpts).
+		SetAggregatorClientType(clientType)
 
 	if clientType == aggclient.M3MsgAggregatorClient {
-		opts := ts.opts
-		topicName := "aggregator_ingest"
-
-		p := opts.Placement()
-		placementSvc := fake.NewM3ClusterPlacementServiceWithPlacement(p)
-		svcs := fake.NewM3ClusterServicesWithPlacementService(placementSvc)
-		clusterClient := fake.NewM3ClusterClient(svcs, opts.KVStore())
-
-		consumerServices := make([]topic.ConsumerService, 0)
-		for _, inst := range p.Instances() {
-			serviceID := services.NewServiceID().SetName(inst.ID())
-			cs := topic.NewConsumerService().SetServiceID(serviceID).SetConsumptionType(topic.Replicated)
-			consumerServices = append(consumerServices, cs)
-		}
-
-		ingestTopic := topic.NewTopic().
-			SetName(topicName).
-			SetNumberOfShards(uint32(p.NumShards())).
-			SetConsumerServices(consumerServices)
-		topicServiceOpts := topic.NewServiceOptions().
-			SetConfigService(clusterClient)
-		topicService, err := topic.NewService(topicServiceOpts)
+		producer, err := newM3MsgProducer(ts.opts)
 		require.NoError(t, err)
-		topicService.CheckAndSet(ingestTopic, 0) //nolint:errcheck
-
-		buffer, err := buffer.NewBuffer(nil)
-		require.NoError(t, err)
-		connectionOpts := msgwriter.NewConnectionOptions().SetFlushInterval(10 * time.Millisecond)
-		writerOpts := msgwriter.NewOptions().
-			SetTopicName(topicName).
-			SetTopicService(topicService).
-			SetServiceDiscovery(svcs).
-			SetTopicWatchInitTimeout(5 * time.Second).
-			SetMessageQueueNewWritesScanInterval(10 * time.Millisecond).
-			SetConnectionOptions(connectionOpts).
-			SetMessageRetryOptions(retry.NewOptions().SetInitialBackoff(5 * time.Second))
-		writer := msgwriter.NewWriter(writerOpts)
-		producerOpts := producer.NewOptions().
-			SetBuffer(buffer).
-			SetWriter(writer)
-		producer := producer.NewProducer(producerOpts)
-		m3msgOpts := aggclient.NewM3MsgOptions().
-			SetProducer(producer)
-
+		m3msgOpts := aggclient.NewM3MsgOptions().SetProducer(producer)
 		clientOpts = clientOpts.SetM3MsgOptions(m3msgOpts)
 	}
 
@@ -440,6 +413,32 @@ func (ts *testServerSetup) stopServer() error {
 
 func (ts *testServerSetup) close() {
 	ts.electionCluster.Close()
+}
+
+func newM3MsgProducer(opts testServerOptions) (producer.Producer, error) {
+	placementSvc := fake.NewM3ClusterPlacementServiceWithPlacement(opts.Placement())
+	svcs := fake.NewM3ClusterServicesWithPlacementService(placementSvc)
+
+	buffer, err := buffer.NewBuffer(nil)
+	if err != nil {
+		return nil, err
+	}
+	connectionOpts := msgwriter.NewConnectionOptions().SetFlushInterval(10 * time.Millisecond)
+	writerOpts := msgwriter.NewOptions().
+		SetInstrumentOptions(opts.InstrumentOptions()).
+		SetTopicName(opts.TopicName()).
+		SetTopicService(opts.TopicService()).
+		SetServiceDiscovery(svcs).
+		SetTopicWatchInitTimeout(5 * time.Second).
+		SetMessageQueueNewWritesScanInterval(10 * time.Millisecond).
+		SetConnectionOptions(connectionOpts).
+		SetMessageRetryOptions(retry.NewOptions().SetInitialBackoff(5 * time.Second))
+	writer := msgwriter.NewWriter(writerOpts)
+	producerOpts := producer.NewOptions().
+		SetBuffer(buffer).
+		SetWriter(writer)
+	producer := producer.NewProducer(producerOpts)
+	return producer, nil
 }
 
 type capturingWriter struct {

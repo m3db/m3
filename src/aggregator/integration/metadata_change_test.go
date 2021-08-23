@@ -75,6 +75,14 @@ func testMetadataChange(t *testing.T, oldMetadataFn, newMetadataFn metadataFn) {
 	require.NoError(t, setPlacement(placementKey, placementStore, placement))
 	serverOpts = serverOpts.SetPlacement(placement)
 
+	// Topic setup
+	m3msgTopicName := defaultTopicName
+	topicService, err := initializeTopic(m3msgTopicName, serverOpts.KVStore(), placement)
+	require.NoError(t, err)
+	serverOpts = serverOpts.
+		SetTopicService(topicService).
+		SetTopicName(m3msgTopicName)
+
 	// Create server.
 	testServer := newTestServerSetup(t, serverOpts)
 	defer testServer.close()

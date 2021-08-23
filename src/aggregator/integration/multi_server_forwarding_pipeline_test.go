@@ -66,10 +66,6 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 
 	aggregatorClientType, err := getAggregatorClientTypeFromEnv()
 	require.NoError(t, err)
-	if aggregatorClientType == aggclient.M3MsgAggregatorClient {
-		// TODO(vilius) update this test to work with m3msg client
-		t.SkipNow()
-	}
 
 	// Clock setup.
 	clock := newTestClock(time.Now().Truncate(time.Hour))
@@ -79,6 +75,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		numTotalShards = 1024
 		placementKey   = "/placement"
 		kvStore        = mem.NewStore()
+
+		m3msgTopicName = "aggregator_ingest"
 	)
 	multiServerSetup := []struct {
 		rawTCPAddr     string
@@ -142,6 +140,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	}
 	initPlacement := newPlacement(numTotalShards, instances)
 	require.NoError(t, setPlacement(placementKey, kvStore, initPlacement))
+	topicService, err := initializeTopic(m3msgTopicName, kvStore, initPlacement)
+	require.NoError(t, err)
 
 	// Election cluster setup.
 	electionCluster := newTestCluster(t)
@@ -180,6 +180,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			SetM3MsgAddr(mss.m3MsgAddr).
 			SetInstanceID(mss.instanceConfig.instanceID).
 			SetKVStore(kvStore).
+			SetTopicService(topicService).
+			SetTopicName(m3msgTopicName).
 			SetPlacement(initPlacement).
 			SetShardFn(shardFn).
 			SetShardSetID(mss.instanceConfig.shardSetID).
@@ -338,6 +340,12 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		clock.SetNow(currTime)
 		time.Sleep(time.Second)
 	}
+
+	// Remove all the topic consumers before closing clients and servers. This allows to close the
+	// connections between servers while they still are running. Otherwise, during server shutdown,
+	// the yet-to-be-closed servers would repeatedly try to reconnect to recently closed ones, which
+	// results in longer shutdown times.
+	require.NoError(t, removeAllTopicConsumers(topicService, m3msgTopicName))
 
 	// Stop the clients.
 	for _, client := range clients {
