@@ -1711,7 +1711,8 @@ func (i *nsIndex) queryWithSpan(
 				// This should never happen since a new iter cannot be Done, but just to be safe.
 				perms.Release(permit)
 			}
-
+			i.metrics.blockPermitWaitTime.RecordDuration(blockIter.waitTime)
+			i.metrics.blockProcessingTime.RecordDuration(blockIter.processingTime)
 			// Close the iterator since it's no longer needed. it's safe to call Close multiple times, here and in the
 			// defer when the function returns.
 			if err := blockIter.iterCloser.Close(); err != nil {
@@ -2411,7 +2412,11 @@ type nsIndexMetrics struct {
 	flushDocsNew                 tally.Counter
 	flushDocsCached              tally.Counter
 
-	loadedDocsPerQuery                 tally.Histogram
+	loadedDocsPerQuery tally.Histogram
+	// Total time that a single query block waits for a permit.
+	blockPermitWaitTime tally.Histogram
+	// Time time that a single query blocks spend processing.
+	blockProcessingTime                tally.Histogram
 	queryExhaustiveSuccess             tally.Counter
 	queryExhaustiveInternalError       tally.Counter
 	queryNonExhaustiveSuccess          tally.Counter
@@ -2485,6 +2490,13 @@ func newNamespaceIndexMetrics(
 		loadedDocsPerQuery: scope.Histogram(
 			"loaded-docs-per-query",
 			tally.MustMakeExponentialValueBuckets(10, 2, 16),
+		),
+		blockPermitWaitTime: scope.Histogram(
+			"block-permit-wait-time",
+			instrument.SparseHistogramTimerHistogramBuckets(),
+		),
+		blockProcessingTime: scope.Histogram("block-processing-time",
+			instrument.SparseHistogramTimerHistogramBuckets(),
 		),
 		queryExhaustiveSuccess: scope.Tagged(map[string]string{
 			"exhaustive": "true",
