@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
+	xos "github.com/m3db/m3/src/x/os"
 
 	"go.uber.org/zap"
 )
@@ -182,7 +183,9 @@ func Run(opts RunOptions) {
 	}()
 
 	// Handle interrupts.
-	logger.Warn("interrupt", zap.Error(<-opts.InterruptCh))
+	xos.WaitForInterrupt(logger, xos.InterruptOptions{
+		InterruptCh: opts.InterruptCh,
+	})
 
 	if s := cfg.Aggregator.ShutdownWaitTimeout; s != 0 {
 		sigC := make(chan os.Signal, 1)
