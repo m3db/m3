@@ -522,7 +522,7 @@ func (b *block) queryWithSpan(
 		}
 
 		// Ensure that the block contains any of the relevant time segments for the query range.
-		// doc := iter.Current()
+		doc := iter.Current()
 		// if md, ok := doc.Metadata(); ok && md.OnIndexSeries != nil {
 		// 	var (
 		// 		inBlock      bool
