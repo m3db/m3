@@ -1574,17 +1574,16 @@ func (i *nsIndex) queryWithSpan(
 		return queryResult{}, errDbIndexUnableToQueryClosed
 	}
 
-	// Track this as an inflight query that needs to finish
-	// when the index is closed.
+	// Track this as an inflight query that needs to finish when the index is closed.
 	i.queriesWg.Add(1)
 	defer i.queriesWg.Done()
 
-	// Enact overrides for query options
+	// Enact overrides for query options.
 	opts = i.overriddenOptsForQueryWithRLock(opts)
 
-	// Retrieve blocks to query, then we can release lock
-	// NB(r): Important not to block ticking, and other tasks by
-	// holding the RLock during a query.
+	// Retrieve blocks to query, then we can release lock.
+	//
+	// NB(r): Important not to block ticking, and other tasks by holding the RLock during a query.
 	blocks, err := i.blocksForQueryWithRLock(xtime.NewRanges(xtime.Range{
 		Start: opts.StartInclusive,
 		End:   opts.EndExclusive,
@@ -1622,7 +1621,7 @@ func (i *nsIndex) queryWithSpan(
 
 	defer func() {
 		for _, iter := range blockIters {
-			// safe to call Close multiple times, so it's fine to eagerly close in the loop below and here.
+			// Safe to call Close multiple times, so it's fine to eagerly close in the loop below and here.
 			_ = iter.iterCloser.Close()
 		}
 	}()
@@ -1643,14 +1642,12 @@ func (i *nsIndex) queryWithSpan(
 		waitTime := time.Since(startWait)
 		var success bool
 		defer func() {
-			// Note: ALWAYS release if we do not successfully return back
-			// the permit and we checked one out.
+			// Note: ALWAYS release if we do not successfully return back the permit and we checked one out.
 			if !success && acquireResult.Permit != nil {
 				perms.Release(acquireResult.Permit)
 			}
 		}()
 		if acquireResult.Waited {
-			// Potentially break an error if require no wait set.
 			if err == nil && opts.RequireNoWait {
 				// Fail iteration if request requires no waiting occurs.
 				err = permits.ErrOperationWaitedOnRequireNoWait
@@ -1662,7 +1659,7 @@ func (i *nsIndex) queryWithSpan(
 			return nil, waitTime
 		}
 
-		// make sure the query hasn't been canceled while waiting for a permit.
+		// Make sure the query hasn't been canceled while waiting for a permit.
 		if queryCanceled() {
 			return nil, waitTime
 		}
@@ -1671,14 +1668,14 @@ func (i *nsIndex) queryWithSpan(
 		return acquireResult.Permit, waitTime
 	}
 
-	// We're looping through all the blocks that we need to query and kicking
-	// off parallel queries which are bounded by the permits maximum
-	// concurrency. It's possible at this point that we've completed querying one or more blocks and already exhausted
-	// the maximum number of results that we're allowed to return. If thats the case, there is no value in kicking off
-	// more parallel queries, so we break out of the loop.
+	// Loop through all the blocks that we need to query, kicking off parallel queries which are bounded by the permits
+	// maximum concurrency.
+	//
+	// It's possible at this point that we've completed querying one or more blocks and already exhausted the maximum
+	// number of results that we're allowed to return. If thats the case, there is no value in kicking off more parallel
+	// queries, so we break out of the loop.
 	for _, blockIter := range blockIters {
-		// Capture for async query execution below.
-		blockIter := blockIter
+		blockIter := blockIter // Capture for async query execution below.
 
 		// acquire a permit before kicking off the goroutine to process the iterator. this limits the number of
 		// concurrent goroutines to # of permits + large queries that needed multiple iterations to finish.
@@ -1689,12 +1686,12 @@ func (i *nsIndex) queryWithSpan(
 		}
 
 		wg.Add(1)
-		// kick off a go routine to process the entire iterator.
+		// Kick off a go routine to process the entire iterator.
 		go func() {
 			defer wg.Done()
 			first := true
 			for !blockIter.iter.Done() {
-				// if this is not the first iteration of the iterator, need to acquire another permit.
+				// If this is not the first iteration of the iterator, need to acquire another permit.
 				if !first {
 					permit, waitTime = waitForPermit()
 					blockIter.waitTime += waitTime
@@ -1712,11 +1709,11 @@ func (i *nsIndex) queryWithSpan(
 				perms.Release(permit)
 			}
 			if first {
-				// this should never happen since a new iter cannot be Done, but just to be safe.
+				// This should never happen since a new iter cannot be Done, but just to be safe.
 				perms.Release(permit)
 			}
 
-			// close the iterator since it's no longer needed. it's safe to call Close multiple times, here and in the
+			// Close the iterator since it's no longer needed. it's safe to call Close multiple times, here and in the
 			// defer when the function returns.
 			if err := blockIter.iterCloser.Close(); err != nil {
 				state.addErr(err)
@@ -1724,14 +1721,14 @@ func (i *nsIndex) queryWithSpan(
 		}()
 	}
 
-	// wait for all workers to finish. if the caller cancels the call, the workers will be interrupted and eventually
+	// Wait for all workers to finish. If the caller cancels the call, the workers will be interrupted and eventually
 	// finish.
 	wg.Wait()
 
 	i.metrics.loadedDocsPerQuery.RecordValue(float64(results.TotalDocsCount()))
 
 	exhaustive := opts.Exhaustive(results.Size(), results.TotalDocsCount())
-	// ok to read state without lock since all parallel queries are done.
+	// Ok to read state without lock since all parallel queries are done.
 	multiErr := state.multiErr
 	err = multiErr.FinalError()
 
