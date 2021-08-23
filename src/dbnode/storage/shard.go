@@ -383,13 +383,15 @@ func (s *dbShard) warmStatusIsRetrievable(status warmStatus) bool {
 		return false
 	}
 
-	// If the index is disabled, then we only are tracking data flushing.
-	// Otherwise, warm status requires both data and index flushed.
-	if !s.namespace.Options().IndexOptions().Enabled() {
-		return true
-	}
+	// // If the index is disabled, then we only are tracking data flushing.
+	// // Otherwise, warm status requires both data and index flushed.
+	// if !s.namespace.Options().IndexOptions().Enabled() {
+	// 	return true
+	// }
 
-	return statusIsRetrievable(status.IndexFlushed)
+	// return statusIsRetrievable(status.IndexFlushed)
+
+	return true
 }
 
 func statusIsRetrievable(status fileOpStatus) bool {
@@ -2222,7 +2224,7 @@ func (s *dbShard) WarmFlush(
 	}
 	prepared, err := flushPreparer.PrepareData(prepareOpts)
 	if err != nil {
-		return err
+		return s.markWarmDataFlushStateSuccessOrError(blockStart, err)
 	}
 
 	var multiErr xerrors.MultiError
@@ -2758,6 +2760,7 @@ func (s *dbShard) finishWriting(
 ) error {
 	if markWarmFlushStateSuccess {
 		s.markWarmDataFlushStateSuccess(blockStart)
+		s.markWarmIndexFlushStateSuccess(blockStart)
 	}
 
 	// After writing the full block successfully update the ColdVersionFlushed number. This will
