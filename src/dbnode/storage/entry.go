@@ -245,7 +245,7 @@ func (entry *Entry) RelookupAndCheckIsEmpty() (bool, bool) {
 	}
 	defer e.DecrementReaderWriterCount()
 
-	return entry.Series.IsEmpty(), true
+	return e.Series.IsEmpty(), true
 }
 
 // Write writes a new value.
