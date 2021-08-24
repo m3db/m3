@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package resources
+package docker
 
 import (
 	"bytes"
@@ -29,13 +29,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/proto"
-	"github.com/golang/snappy"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/integration/resources"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
+	"github.com/golang/snappy"
 	"github.com/ory/dockertest/v3"
 	"github.com/prometheus/common/model"
 	"go.uber.org/zap"
@@ -56,53 +58,6 @@ var (
 	}
 )
 
-// ResponseVerifier is a function that checks if the query response is valid.
-type ResponseVerifier func(int, map[string][]string, string, error) error
-
-// Coordinator is a wrapper for a coordinator. It provides a wrapper on HTTP
-// endpoints that expose cluster management APIs as well as read and write
-// endpoints for series data.
-// TODO: consider having this work on underlying structures.
-type Coordinator interface {
-	Admin
-
-	// ApplyKVUpdate applies a KV update.
-	ApplyKVUpdate(update string) error
-	// WriteCarbon writes a carbon metric datapoint at a given time.
-	WriteCarbon(port int, metric string, v float64, t time.Time) error
-	// WriteProm writes a prometheus metric.
-	WriteProm(name string, tags map[string]string, samples []prompb.Sample) error
-	// RunQuery runs the given query with a given verification function.
-	RunQuery(verifier ResponseVerifier, query string, headers map[string][]string) error
-}
-
-// Admin is a wrapper for admin functions.
-type Admin interface {
-	// GetNamespace gets namespaces.
-	GetNamespace() (admin.NamespaceGetResponse, error)
-	// WaitForNamespace blocks until the given namespace is enabled.
-	// NB: if the name string is empty, this will instead
-	// check for a successful response.
-	WaitForNamespace(name string) error
-	// AddNamespace adds a namespace.
-	AddNamespace(admin.NamespaceAddRequest) (admin.NamespaceGetResponse, error)
-	// UpdateNamespace updates the namespace.
-	UpdateNamespace(admin.NamespaceUpdateRequest) (admin.NamespaceGetResponse, error)
-	// DeleteNamespace removes the namespace.
-	DeleteNamespace(namespaceID string) error
-	// CreateDatabase creates a database.
-	CreateDatabase(admin.DatabaseCreateRequest) (admin.DatabaseCreateResponse, error)
-	// GetPlacement gets placements.
-	GetPlacement() (admin.PlacementGetResponse, error)
-	// WaitForInstances blocks until the given instance is available.
-	WaitForInstances(ids []string) error
-	// WaitForShardsReady waits until all shards gets ready.
-	WaitForShardsReady() error
-	// Close closes the wrapper and releases any held resources, including
-	// deleting docker containers.
-	Close() error
-}
-
 type coordinator struct {
 	resource *dockerResource
 }
@@ -110,7 +65,7 @@ type coordinator struct {
 func newDockerHTTPCoordinator(
 	pool *dockertest.Pool,
 	opts dockerResourceOptions,
-) (Coordinator, error) {
+) (resources.Coordinator, error) {
 	opts = opts.withDefaults(defaultCoordinatorOptions)
 	opts.mounts = []string{"/etc/m3coordinator/"}
 
@@ -548,7 +503,7 @@ func (c *coordinator) ApplyKVUpdate(update string) error {
 }
 
 func (c *coordinator) query(
-	verifier ResponseVerifier, query string, headers map[string][]string,
+	verifier resources.ResponseVerifier, query string, headers map[string][]string,
 ) error {
 	if c.resource.closed {
 		return errClosed
@@ -580,7 +535,7 @@ func (c *coordinator) query(
 }
 
 func (c *coordinator) RunQuery(
-	verifier ResponseVerifier, query string, headers map[string][]string,
+	verifier resources.ResponseVerifier, query string, headers map[string][]string,
 ) error {
 	if c.resource.closed {
 		return errClosed
