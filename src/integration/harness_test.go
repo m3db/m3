@@ -28,14 +28,15 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/integration/resources"
+	"github.com/m3db/m3/src/integration/resources/docker"
 )
 
-var singleDBNodeDockerResources resources.DockerResources
+var singleDBNodeDockerResources resources.M3Resources
 
 func TestMain(m *testing.M) {
 	var err error
-	singleDBNodeDockerResources, err = resources.SetupSingleM3DBNode(
-		resources.WithExistingCluster("dbnode01", "coord01"),
+	singleDBNodeDockerResources, err = docker.SetupSingleM3DBNode(
+		docker.WithExistingCluster("dbnode01", "coord01"),
 	)
 
 	if err != nil {

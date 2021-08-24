@@ -1008,7 +1008,8 @@ db:
 		"ns2": {
 			SchemaFilePath: "file/path/to/ns2/schema",
 			MessageName:    "ns2_msg_name",
-		}}, cfg.DB.Proto.SchemaRegistry)
+		},
+	}, cfg.DB.Proto.SchemaRegistry)
 }
 
 func TestBootstrapCommitLogConfig(t *testing.T) {
@@ -1066,4 +1067,50 @@ db:
 		adminClient,
 	)
 	require.NoError(t, err)
+}
+
+func TestConfigurationComponents(t *testing.T) {
+	testConfDB := `
+db: {}
+`
+	testConfMultiple := `
+coordinator: {}
+db: {}
+`
+	tests := []struct {
+		name       string
+		conf       string
+		components int
+	}{
+		{
+			name:       "db configuration",
+			conf:       testConfDB,
+			components: 1,
+		},
+		{
+			name:       "coordinator and db configuration",
+			conf:       testConfMultiple,
+			components: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fd, err := ioutil.TempFile("", "config.yaml")
+			require.NoError(t, err)
+			defer func() {
+				assert.NoError(t, fd.Close())
+				assert.NoError(t, os.Remove(fd.Name()))
+			}()
+
+			_, err = fd.Write([]byte(tt.conf))
+			require.NoError(t, err)
+
+			var cfg Configuration
+			err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+			require.NoError(t, err)
+
+			require.Equal(t, tt.components, cfg.Components())
+		})
+	}
 }

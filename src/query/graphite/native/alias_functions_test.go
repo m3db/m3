@@ -203,7 +203,6 @@ func TestAliasByNodeWithComposition(t *testing.T) {
 		ts.NewSeries(ctx, "derivative(servers.bob02-foo.cpu.load_5)", now, values),
 		ts.NewSeries(ctx, "derivative(derivative(servers.bob02-foo.cpu.load_5))", now, values),
 		ts.NewSeries(ctx, "fooble", now, values),
-		ts.NewSeries(ctx, "", now, values),
 	}
 	results, err := aliasByNode(ctx, singlePathSpec{
 		Values: series,
@@ -213,7 +212,6 @@ func TestAliasByNodeWithComposition(t *testing.T) {
 	assert.Equal(t, "servers.bob02-foo", results.Values[0].Name())
 	assert.Equal(t, "servers.bob02-foo", results.Values[1].Name())
 	assert.Equal(t, "fooble", results.Values[2].Name())
-	assert.Equal(t, "", results.Values[3].Name())
 }
 
 func TestAliasByNodeWithManyPathExpressions(t *testing.T) {
@@ -340,4 +338,42 @@ func TestGroupByNodeAndAliasMetric(t *testing.T) {
 
 	_, err = expr.Execute(ctx)
 	require.NoError(t, err)
+}
+
+// TestGroupByNodeAndAliasSubAndScopeMetric ensures that partial expressions
+// that should not be able to be successfully compiled can still have their path
+// expression extracted for use in functions like groupByNode.
+// nolint: dupl
+func TestGroupByNodeAndAliasSubAndScopeMetric(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+
+	engine := NewEngine(store, CompileOptions{})
+
+	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
+
+	stepSize := int((10 * time.Minute) / time.Millisecond)
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize,
+			"foo.bar.a.zed",
+			"foo.bar.b.zed",
+		))
+
+	// Note: After the aliasSub call the result will be "a.zed,0.1)" and "b.zed,0.1)"
+	// for each series name, this test ensures that partial expressions can still
+	// successfully have their first fetch expression extracted.
+	expr, err := engine.Compile("groupByNode(aliasSub(scale(foo.bar.*.zed, 0.1), \".*bar.(.*)\", '\\1'),0)")
+	require.NoError(t, err)
+
+	seriesList, err := expr.Execute(ctx)
+	require.NoError(t, err)
+
+	require.Equal(t, 2, seriesList.Len())
+	// Sort before check names.
+	seriesList, err = sortByName(ctx, singlePathSpec(seriesList), false, false)
+	require.NoError(t, err)
+	require.Equal(t, seriesList.Values[0].Name(), "a")
+	require.Equal(t, seriesList.Values[1].Name(), "b")
 }

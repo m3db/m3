@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,12 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+// Package generated is a dummy package to make sure mockgen dependencies are pulled in correctly in vendor mode.
+package generated
 
 import (
-	"golang.org/x/tools/go/analysis/multichecker"
+	// https://github.com/golang/mock/issues/494
+	_ "github.com/golang/mock/mockgen/model"
 )
-
-func main() {
-	multichecker.Main()
-}

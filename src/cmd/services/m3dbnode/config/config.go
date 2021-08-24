@@ -111,6 +111,20 @@ func (c *Configuration) Validate() error {
 	return c.DB.Validate()
 }
 
+// Components returns the number of components configured within the Configuration
+// object.
+func (c *Configuration) Components() int {
+	numComponents := 0
+	if c.DB != nil {
+		numComponents++
+	}
+	if c.Coordinator != nil {
+		numComponents++
+	}
+
+	return numComponents
+}
+
 // DBConfiguration is the configuration for a DB node.
 type DBConfiguration struct {
 	// Index configuration.
