@@ -48,6 +48,13 @@ func TestPlacementChange(t *testing.T) {
 		t.SkipNow()
 	}
 
+	aggregatorClientType, err := getAggregatorClientTypeFromEnv()
+	require.NoError(t, err)
+	if aggregatorClientType == aggclient.M3MsgAggregatorClient {
+		// TODO(vilius) update this test to work with m3msg client
+		t.SkipNow()
+	}
+
 	// Clock setup.
 	clock := newTestClock(time.Now().Truncate(time.Hour))
 
@@ -60,25 +67,26 @@ func TestPlacementChange(t *testing.T) {
 	multiServerSetup := []struct {
 		rawTCPAddr string
 		httpAddr   string
+		m3MsgAddr  string
 	}{
 		{
 			rawTCPAddr: "localhost:6000",
 			httpAddr:   "localhost:16000",
+			m3MsgAddr:  "localhost:26000",
 		},
 		{
 			rawTCPAddr: "localhost:6001",
 			httpAddr:   "localhost:16001",
+			m3MsgAddr:  "localhost:26001",
 		},
 	}
 	initialInstanceConfig := []placementInstanceConfig{
 		{
-			instanceID:          "localhost:6000",
 			shardSetID:          1,
 			shardStartInclusive: 0,
 			shardEndExclusive:   uint32(numTotalShards),
 		},
 		{
-			instanceID:          "localhost:6001",
 			shardSetID:          2,
 			shardStartInclusive: 0,
 			shardEndExclusive:   0,
@@ -86,24 +94,31 @@ func TestPlacementChange(t *testing.T) {
 	}
 	finalInstanceConfig := []placementInstanceConfig{
 		{
-			instanceID:          "localhost:6000",
 			shardSetID:          1,
 			shardStartInclusive: 0,
 			shardEndExclusive:   uint32(numTotalShards / 2),
 		},
 		{
-			instanceID:          "localhost:6001",
 			shardSetID:          2,
 			shardStartInclusive: uint32(numTotalShards / 2),
 			shardEndExclusive:   uint32(numTotalShards),
 		},
 	}
 
+	for i, mss := range multiServerSetup {
+		initialInstanceConfig[i].instanceID = mss.rawTCPAddr
+		finalInstanceConfig[i].instanceID = mss.rawTCPAddr
+		if aggregatorClientType == aggclient.M3MsgAggregatorClient {
+			initialInstanceConfig[i].instanceID = mss.m3MsgAddr
+			finalInstanceConfig[i].instanceID = mss.m3MsgAddr
+		}
+	}
+
 	initialPlacement := makePlacement(initialInstanceConfig, numTotalShards)
 	finalPlacement := makePlacement(finalInstanceConfig, numTotalShards)
 	require.NoError(t, setPlacement(placementKey, kvStore, initialPlacement))
 
-	shardFn := newTestServerOptions().ShardFn()
+	shardFn := newTestServerOptions(t).ShardFn()
 
 	getServerIndex := func(metricId id.RawID, placement placement.Placement) int {
 		instance := placement.InstancesForShard(shardFn(metricId, uint32(numTotalShards)))[0]
@@ -134,17 +149,19 @@ func TestPlacementChange(t *testing.T) {
 			zap.String("serverAddr", mss.rawTCPAddr),
 		)
 		instrumentOpts = instrumentOpts.SetLogger(logger)
-		serverOpts := newTestServerOptions().
+		serverOpts := newTestServerOptions(t).
 			SetClockOptions(clock.Options()).
 			SetInstrumentOptions(instrumentOpts).
 			SetElectionCluster(electionCluster).
+			SetRawTCPAddr(mss.rawTCPAddr).
 			SetHTTPAddr(mss.httpAddr).
+			SetM3MsgAddr(mss.m3MsgAddr).
 			SetInstanceID(initialInstanceConfig[i].instanceID).
 			SetKVStore(kvStore).
-			SetRawTCPAddr(mss.rawTCPAddr).
 			SetShardSetID(initialInstanceConfig[i].shardSetID).
 			SetShardFn(shardFn).
-			SetClientConnectionOptions(connectionOpts)
+			SetClientConnectionOptions(connectionOpts).
+			SetPlacement(initialPlacement)
 		server := newTestServerSetup(t, serverOpts)
 		servers = append(servers, server)
 	}
@@ -159,7 +176,7 @@ func TestPlacementChange(t *testing.T) {
 	// Create clients for writing to the servers.
 	clients := make([]*client, 0, len(servers))
 	for _, server := range servers {
-		client := server.newClient()
+		client := server.newClient(t)
 		require.NoError(t, client.connect())
 		clients = append(clients, client)
 	}
@@ -255,15 +272,15 @@ func TestPlacementChange(t *testing.T) {
 	clock.SetNow(finalTime)
 	time.Sleep(sleepDuration)
 
+	// Stop the clients.
+	for _, client := range clients {
+		require.NoError(t, client.close())
+	}
+
 	// Stop the servers.
 	for i, server := range servers {
 		require.NoError(t, server.stopServer())
 		log.Sugar().Infof("server %d is now down", i)
-	}
-
-	// Stop the clients.
-	for _, client := range clients {
-		client.close()
 	}
 
 	actual := make([]aggregated.MetricWithStoragePolicy, 0)

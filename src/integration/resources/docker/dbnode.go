@@ -18,17 +18,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package resources
+package docker
 
 import (
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/integration"
+	"github.com/m3db/m3/src/integration/resources"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
-	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
@@ -50,72 +49,6 @@ var (
 	}
 )
 
-// GoalStateVerifier verifies that the given results are valid.
-type GoalStateVerifier func(string, error) error
-
-// Nodes is a slice of nodes.
-type Nodes []Node
-
-func (n Nodes) waitForHealthy() error {
-	var (
-		multiErr xerrors.MultiError
-		mu       sync.Mutex
-		wg       sync.WaitGroup
-	)
-
-	for _, node := range n {
-		wg.Add(1)
-		node := node
-		go func() {
-			defer wg.Done()
-			err := node.WaitForBootstrap()
-			if err != nil {
-				mu.Lock()
-				multiErr = multiErr.Add(err)
-				mu.Unlock()
-			}
-		}()
-	}
-
-	wg.Wait()
-	return multiErr.FinalError()
-}
-
-// Node is a wrapper for a db node. It provides a wrapper on HTTP
-// endpoints that expose cluster management APIs as well as read and write
-// endpoints for series data.
-// TODO: consider having this work on underlying structures.
-type Node interface {
-	// HostDetails returns this node's host details on the given port.
-	HostDetails(port int) (*admin.Host, error)
-	// Health gives this node's health.
-	Health() (*rpc.NodeHealthResult_, error)
-	// WaitForBootstrap blocks until the node has bootstrapped.
-	WaitForBootstrap() error
-	// WritePoint writes a datapoint to the node directly.
-	WritePoint(req *rpc.WriteRequest) error
-	// WriteTaggedPoint writes a datapoint with tags to the node directly.
-	WriteTaggedPoint(req *rpc.WriteTaggedRequest) error
-	// AggregateTiles starts tiles aggregation, waits until it will complete
-	// and returns the amount of aggregated tiles.
-	AggregateTiles(req *rpc.AggregateTilesRequest) (int64, error)
-	// Fetch fetches datapoints.
-	Fetch(req *rpc.FetchRequest) (*rpc.FetchResult_, error)
-	// FetchTagged fetches datapoints by tag.
-	FetchTagged(req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error)
-	// Exec executes the given commands on the node container, returning
-	// stdout and stderr from the container.
-	Exec(commands ...string) (string, error)
-	// GoalStateExec executes the given commands on the node container, retrying
-	// until applying the verifier returns no error or the default timeout.
-	GoalStateExec(verifier GoalStateVerifier, commands ...string) error
-	// Restart restarts this container.
-	Restart() error
-	// Close closes the wrapper and releases any held resources, including
-	// deleting docker containers.
-	Close() error
-}
-
 type dbNode struct {
 	tchanClient *integration.TestTChannelClient
 	resource    *dockerResource
@@ -124,7 +57,7 @@ type dbNode struct {
 func newDockerHTTPNode(
 	pool *dockertest.Pool,
 	opts dockerResourceOptions,
-) (Node, error) {
+) (resources.Node, error) {
 	opts = opts.withDefaults(defaultDBNodeOptions)
 	resource, err := newDockerResource(pool, opts)
 	if err != nil {
@@ -311,7 +244,7 @@ func (c *dbNode) Exec(commands ...string) (string, error) {
 }
 
 func (c *dbNode) GoalStateExec(
-	verifier GoalStateVerifier,
+	verifier resources.GoalStateVerifier,
 	commands ...string,
 ) error {
 	if c.resource.closed {

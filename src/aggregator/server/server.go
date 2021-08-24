@@ -21,7 +21,6 @@
 package server
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -34,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
+	xos "github.com/m3db/m3/src/x/os"
 
 	"go.uber.org/zap"
 )
@@ -53,6 +53,14 @@ type RunOptions struct {
 	// CustomBuildTags are additional tags to be added to the instrument build
 	// reporter.
 	CustomBuildTags map[string]string
+
+	// InterruptCh is a programmatic interrupt channel to supply to
+	// interrupt and shutdown the server.
+	InterruptCh <-chan error
+
+	// ShutdownCh is an optional channel to supply if interested in receiving
+	// a notification that the server has shutdown.
+	ShutdownCh chan<- struct{}
 }
 
 // AdminOption is an additional option to apply to the aggregator server.
@@ -179,12 +187,14 @@ func Run(opts RunOptions) {
 	}()
 
 	// Handle interrupts.
-	sigC := make(chan os.Signal, 1)
-	signal.Notify(sigC, syscall.SIGINT, syscall.SIGTERM)
-
-	logger.Warn("interrupt", zap.Any("signal", fmt.Errorf("%s", <-sigC)))
+	xos.WaitForInterrupt(logger, xos.InterruptOptions{
+		InterruptCh: opts.InterruptCh,
+	})
 
 	if s := cfg.Aggregator.ShutdownWaitTimeout; s != 0 {
+		sigC := make(chan os.Signal, 1)
+		signal.Notify(sigC, syscall.SIGINT, syscall.SIGTERM)
+
 		logger.Info("waiting intentional shutdown period", zap.Duration("waitTimeout", s))
 		select {
 		case sig := <-sigC:
@@ -201,5 +211,14 @@ func Run(opts RunOptions) {
 		logger.Info("server closed clean")
 	case <-time.After(gracefulShutdownTimeout):
 		logger.Info("server closed due to timeout", zap.Duration("timeout", gracefulShutdownTimeout))
+	}
+
+	if opts.ShutdownCh != nil {
+		select {
+		case opts.ShutdownCh <- struct{}{}:
+			break
+		default:
+			logger.Warn("could not send shutdown notification as channel was full")
+		}
 	}
 }

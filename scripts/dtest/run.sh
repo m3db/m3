@@ -13,4 +13,4 @@ trap defer EXIT
 
 docker-compose -f "${COMPOSE_FILE}" up --detach
 
-go test -v -tags=dtest ./src/cmd/tools/dtest/docker/harness
+go test -v -tags=dtest ./src/integration/harness

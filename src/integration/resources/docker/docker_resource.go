@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package resources
+package docker
 
 import (
 	"bytes"
@@ -31,6 +31,8 @@ import (
 	dc "github.com/ory/dockertest/v3/docker"
 	"github.com/ory/dockertest/v3/docker/types/mount"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/integration/resources"
 )
 
 type dockerResource struct {
@@ -130,7 +132,6 @@ func (c *dockerResource) exec(commands ...string) (string, error) {
 		Container:    name,
 		Cmd:          commands,
 	})
-
 	if err != nil {
 		logger.Error("failed generating exec", zap.Error(err))
 		return "", err
@@ -166,7 +167,7 @@ func (c *dockerResource) exec(commands ...string) (string, error) {
 }
 
 func (c *dockerResource) goalStateExec(
-	verifier GoalStateVerifier,
+	verifier resources.GoalStateVerifier,
 	commands ...string,
 ) error {
 	if c.closed {

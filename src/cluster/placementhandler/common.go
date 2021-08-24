@@ -167,8 +167,12 @@ func ServiceWithAlgo(
 
 	switch opts.ServiceName {
 	case handleroptions.M3CoordinatorServiceName:
-		pOpts = pOpts.
-			SetIsSharded(false)
+		if pConfig.IsSharded == nil {
+			// When no custom value is set, use shardless placement for m3coordinator.
+			pOpts = pOpts.SetIsSharded(false)
+		} else {
+			pOpts = pOpts.SetIsSharded(*pConfig.IsSharded)
+		}
 	case handleroptions.M3AggregatorServiceName:
 		var (
 			maxAggregationWindowSize = opts.M3Agg.MaxAggregationWindowSize
