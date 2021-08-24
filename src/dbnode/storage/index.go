@@ -1813,9 +1813,10 @@ func (i *nsIndex) queryWithSpan(
 						break
 					}
 				}
+				blockLogFields := append(logFields, xopentracing.Duration("permitWaitTime", waitTime))
 				first = false
 				startProcessing := time.Now()
-				execBlockFn(ctx, blockIter.block, permit, blockIter.iter, opts, state, results, logFields)
+				execBlockFn(ctx, blockIter.block, permit, blockIter.iter, opts, state, results, blockLogFields)
 				processingTime := time.Since(startProcessing)
 				blockIter.processingTime += processingTime
 				permit.Use(int64(processingTime))

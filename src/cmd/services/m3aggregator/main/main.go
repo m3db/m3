@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/configflag"
-	xos "github.com/m3db/m3/src/x/os"
 )
 
 func main() {
@@ -44,7 +43,6 @@ func main() {
 	}
 
 	server.Run(server.RunOptions{
-		Config:      cfg,
-		InterruptCh: xos.NewInterruptChannel(1),
+		Config: cfg,
 	})
 }
