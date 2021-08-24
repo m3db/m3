@@ -304,7 +304,6 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		metadataFn:   metadataFn,
 	})
 
-	writingClients := clients[:2]
 	for _, data := range dataset {
 		clock.SetNow(data.timestamp)
 
