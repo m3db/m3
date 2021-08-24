@@ -57,7 +57,6 @@ import (
 	msgwriter "github.com/m3db/m3/src/msg/producer/writer"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
-	"github.com/m3db/m3/src/x/retry"
 	xserver "github.com/m3db/m3/src/x/server"
 	xsync "github.com/m3db/m3/src/x/sync"
 )
@@ -204,7 +203,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	require.NoError(t, err)
 	adminClient, ok := c.(aggclient.AdminClient)
 	require.True(t, ok)
-	require.NoError(t, adminClient.Init())
+	//require.NoError(t, adminClient.Init())
 	aggregatorOpts = aggregatorOpts.SetAdminClient(adminClient)
 
 	testClientOpts := clientOpts.SetAggregatorClientType(opts.AggregatorClientType())
@@ -423,16 +422,16 @@ func newM3MsgProducer(opts testServerOptions) (producer.Producer, error) {
 	if err != nil {
 		return nil, err
 	}
-	connectionOpts := msgwriter.NewConnectionOptions().SetFlushInterval(10 * time.Millisecond)
+	connectionOpts := msgwriter.NewConnectionOptions().
+		SetNumConnections(1).
+		SetFlushInterval(10 * time.Millisecond)
 	writerOpts := msgwriter.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetTopicName(opts.TopicName()).
 		SetTopicService(opts.TopicService()).
 		SetServiceDiscovery(svcs).
-		SetTopicWatchInitTimeout(5 * time.Second).
 		SetMessageQueueNewWritesScanInterval(10 * time.Millisecond).
-		SetConnectionOptions(connectionOpts).
-		SetMessageRetryOptions(retry.NewOptions().SetInitialBackoff(5 * time.Second))
+		SetConnectionOptions(connectionOpts)
 	writer := msgwriter.NewWriter(writerOpts)
 	producerOpts := producer.NewOptions().
 		SetBuffer(buffer).

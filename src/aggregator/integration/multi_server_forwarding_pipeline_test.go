@@ -200,12 +200,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	}
 
 	// Create clients for writing to the servers.
-	clients := make([]*client, 0, len(servers))
-	for _, server := range servers {
-		client := server.newClient(t)
-		require.NoError(t, client.connect())
-		clients = append(clients, client)
-	}
+	client := servers[0].newClient(t)
+	require.NoError(t, client.connect())
 
 	// Waiting for two leaders to come up.
 	var (
@@ -313,13 +309,9 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		clock.SetNow(data.timestamp)
 
 		for _, mm := range data.metricWithMetadatas {
-			for _, c := range writingClients {
-				require.NoError(t, c.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
-			}
+			require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 		}
-		for _, c := range writingClients {
-			require.NoError(t, c.flush())
-		}
+		require.NoError(t, client.flush())
 
 		// Give server some time to process the incoming packets.
 		time.Sleep(time.Second)
@@ -347,10 +339,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	// results in longer shutdown times.
 	require.NoError(t, removeAllTopicConsumers(topicService, m3msgTopicName))
 
-	// Stop the clients.
-	for _, client := range clients {
-		require.NoError(t, client.close())
-	}
+	// Stop the client.
+	require.NoError(t, client.close())
 
 	// Stop the servers.
 	for i, server := range servers {
