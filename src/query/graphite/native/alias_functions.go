@@ -69,38 +69,6 @@ func aliasByNode(ctx *common.Context, seriesList singlePathSpec, nodes ...int) (
 	return ts.SeriesList(seriesList), nil
 }
 
-func getFirstPathExpression(name string) (string, error) {
-	node, err := ParseGrammar(name, CompileOptions{})
-	if err != nil {
-		return "", err
-	}
-	if path, ok := getFirstPathExpressionDepthFirst(node); ok {
-		return path, nil
-	}
-	return name, nil
-}
-
-func getFirstPathExpressionDepthFirst(node ASTNode) (string, bool) {
-	path, ok := node.PathExpression()
-	if ok {
-		return path, true
-	}
-
-	call, ok := node.CallExpression()
-	if !ok {
-		return "", false
-	}
-
-	for _, arg := range call.Arguments() {
-		path, ok = getFirstPathExpressionDepthFirst(arg)
-		if ok {
-			return path, true
-		}
-	}
-
-	return "", false
-}
-
 // aliasSub runs series names through a regex search/replace.
 func aliasSub(ctx *common.Context, input singlePathSpec, search, replace string) (ts.SeriesList, error) {
 	return common.AliasSub(ctx, ts.SeriesList(input), search, replace)
