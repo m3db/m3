@@ -241,6 +241,9 @@ func (s *handler) Handle(conn net.Conn) {
 					zap.Float64("value", timedMetric.Value),
 					zap.Error(err),
 				)
+			default:
+				// make the linter happy.
+				s.log.Error("unknown message type for error. this cannot happen")
 			}
 		}
 	}

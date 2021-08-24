@@ -28,6 +28,9 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -50,10 +53,6 @@ import (
 	xserver "github.com/m3db/m3/src/x/server"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -276,7 +275,6 @@ func TestRawTCPServerHandleUnaggregatedProtobufEncoding(t *testing.T) {
 }
 
 func TestHandle_Errors(t *testing.T) {
-
 	cases := []struct {
 		name   string
 		msg    encoding.UnaggregatedMessageUnion
@@ -352,6 +350,7 @@ func TestHandle_Errors(t *testing.T) {
 	agg.EXPECT().AddPassthrough(gomock.Any(), gomock.Any()).Return(aggErr).AnyTimes()
 
 	for _, tc := range cases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			core, recorded := observer.New(zapcore.InfoLevel)
 			listener, err := net.Listen("tcp", testListenAddress)
