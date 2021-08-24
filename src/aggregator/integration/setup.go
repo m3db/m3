@@ -203,7 +203,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	require.NoError(t, err)
 	adminClient, ok := c.(aggclient.AdminClient)
 	require.True(t, ok)
-	//require.NoError(t, adminClient.Init())
+	require.NoError(t, adminClient.Init())
 	aggregatorOpts = aggregatorOpts.SetAdminClient(adminClient)
 
 	testClientOpts := clientOpts.SetAggregatorClientType(opts.AggregatorClientType())
