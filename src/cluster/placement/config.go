@@ -79,7 +79,7 @@ func (c Configuration) DeepCopy() (Configuration, error) {
 		return Configuration{}, err
 	}
 	var res Configuration
-	if err := yaml.Unmarshal(b, res); err != nil {
+	if err := yaml.Unmarshal(b, &res); err != nil {
 		return Configuration{}, err
 	}
 	return res, nil
