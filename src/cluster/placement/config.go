@@ -23,6 +23,9 @@ package placement
 import (
 	"time"
 
+	"gopkg.in/yaml.v2"
+
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -67,6 +70,31 @@ func (c *Configuration) NewOptions() Options {
 		opts = opts.SetValidZone(*value)
 	}
 	return opts
+}
+
+// DeepCopy makes a deep copy of the configuration.
+func (c Configuration) DeepCopy() (Configuration, error) {
+	b, err := yaml.Marshal(c)
+	if err != nil {
+		return Configuration{}, err
+	}
+	var res Configuration
+	if err := yaml.Unmarshal(b, &res); err != nil {
+		return Configuration{}, err
+	}
+	return res, nil
+}
+
+// ApplyOverride applys the override values.
+func (c Configuration) ApplyOverride(opts *placementpb.Options) Configuration {
+	if opts == nil {
+		return c
+	}
+	if opts.IsSharded != nil {
+		isShardedValueCopy := opts.IsSharded.Value
+		c.IsSharded = &isShardedValueCopy
+	}
+	return c
 }
 
 // WatcherConfiguration contains placement watcher configuration.
