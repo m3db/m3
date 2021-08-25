@@ -2953,6 +2953,9 @@ func init() {
 		}).
 		WithoutUnaryContextShifterSkipFetchOptimization()
 	MustRegisterFunction(multiplySeries)
+	MustRegisterFunction(multiplySeriesWithWildcards).WithDefaultParams(map[uint8]interface{}{
+		2: -1, // positions
+	})
 	MustRegisterFunction(nonNegativeDerivative).WithDefaultParams(map[uint8]interface{}{
 		2: math.NaN(), // maxValue
 	})

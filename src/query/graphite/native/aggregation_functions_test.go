@@ -570,6 +570,56 @@ func TestSumSeriesWithWildcards(t *testing.T) {
 	}
 }
 
+func TestMultiplySeriesWithWildcards(t *testing.T) {
+	var (
+		start, _ = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
+		end, _   = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
+		ctx      = common.NewContext(common.ContextOptions{Start: start, End: end})
+		inputs   = []*ts.Series{
+			ts.NewSeries(ctx, "servers.foo-1.pod1.status.500", start,
+				ts.NewConstantValues(ctx, 2, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-2.pod1.status.500", start,
+				ts.NewConstantValues(ctx, 4, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-3.pod1.status.500", start,
+				ts.NewConstantValues(ctx, 6, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-1.pod2.status.500", start,
+				ts.NewConstantValues(ctx, 8, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-2.pod2.status.500", start,
+				ts.NewConstantValues(ctx, 10, 12, 10000)),
+
+			ts.NewSeries(ctx, "servers.foo-1.pod1.status.400", start,
+				ts.NewConstantValues(ctx, 20, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-2.pod1.status.400", start,
+				ts.NewConstantValues(ctx, 30, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-3.pod2.status.400", start,
+				ts.NewConstantValues(ctx, 40, 12, 10000)),
+		}
+	)
+	defer ctx.Close()
+
+	outSeries, err := multiplySeriesWithWildcards(ctx, singlePathSpec{
+		Values: inputs,
+	}, 1, 2)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(outSeries.Values))
+
+	outSeries, _ = sortByName(ctx, singlePathSpec(outSeries), false, false)
+
+	expectedOutputs := []struct {
+		name      string
+		sumOfVals float64
+	}{
+		{"servers.status.400", 20 * 30 * 40 * 12},
+		{"servers.status.500", 2 * 4 * 6 * 8 * 10 * 12},
+	}
+
+	for i, expected := range expectedOutputs {
+		series := outSeries.Values[i]
+		assert.Equal(t, expected.name, series.Name())
+		assert.Equal(t, expected.sumOfVals, series.SafeSum())
+	}
+}
+
 func TestApplyByNode(t *testing.T) {
 	var (
 		ctrl          = xgomock.NewController(t)
