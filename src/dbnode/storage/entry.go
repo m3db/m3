@@ -245,7 +245,13 @@ func (entry *Entry) RelookupAndCheckIsEmpty() (bool, bool) {
 	}
 	defer e.DecrementReaderWriterCount()
 
-	return e.Series.IsEmpty() && !e.IndexedOrAttemptedAny(), true
+	// Consider non-empty if the entry is still being held since this could indicate
+	// another thread holding a new series prior to writing to it.
+	if e.ReaderWriterCount() > 1 {
+		return false, true
+	}
+
+	return e.Series.IsEmpty(), true
 }
 
 // Write writes a new value.

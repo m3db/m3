@@ -116,7 +116,7 @@ func (h *GetHandler) Get(
 
 	opts := handleroptions.NewServiceOptions(svc, headers, h.m3AggServiceOptions)
 	service, err := Service(h.clusterClient, opts,
-		h.placement, h.nowFn(), nil)
+		Handler(*h).PlacementConfig(), h.nowFn(), nil)
 	if err != nil {
 		return nil, err
 	}

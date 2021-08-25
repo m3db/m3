@@ -361,7 +361,6 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	blocks := 24
 	nsOpts := defaultTestNs1Opts.SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true))
 	s1 := NewMockdatabaseShard(ctrl)
 	s2 := NewMockdatabaseShard(ctrl)
@@ -376,7 +375,7 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	// Order is important to avoid any edge case where data is GCed from memory without all flushing operations
 	// being completed.
 	gomock.InOrder(
-		ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return(nil).Times(blocks),
+		ns.EXPECT().WarmFlush(gomock.Any(), gomock.Any()).Return(nil).AnyTimes(),
 		ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes(),
 		ns.EXPECT().FlushIndex(gomock.Any()).Return(nil),
 	)

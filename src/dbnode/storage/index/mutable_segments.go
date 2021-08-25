@@ -682,17 +682,11 @@ func (m *mutableSegments) backgroundCompactWithTask(
 				return true
 			}
 
-			isEmpty, ok := d.OnIndexSeries.RelookupAndCheckIsEmpty()
-			if !ok {
-				// Should not happen since shard will not expire until
-				// no more block starts are indexed.
-				// We do not GC this series if shard is missing since
-				// we open up a race condition where the entry is not
-				// in the shard yet and we GC it since we can't find it
-				// due to an asynchronous insert.
-				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
-					l.Error("unexpected checking series entry does not exist")
-				})
+			isEmpty, isPresent := d.OnIndexSeries.RelookupAndCheckIsEmpty()
+			if !isPresent {
+				// Since series insertions + index insertions are done separately async, it is possible for
+				// a series to be in the index but not have data written yet, and so we skip any series
+				// that aren't yet present in the entry lookup.
 				return true
 			}
 
