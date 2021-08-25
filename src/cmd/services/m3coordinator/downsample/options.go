@@ -159,13 +159,9 @@ func NewAutoMappingRules(namespaces []m3.ClusterNamespace) ([]AutoMappingRule, e
 			storagePolicy := policy.NewStoragePolicy(attrs.Resolution,
 				xtime.Second, attrs.Retention)
 			autoMappingRules = append(autoMappingRules, AutoMappingRule{
-				// NB(r): By default we will apply just keep all last values
-				// since coordinator only uses downsampling with Prometheus
-				// remote write endpoint.
-				// More rich static configuration mapping rules can be added
-				// in the future but they are currently not required.
-				Aggregations: []aggregation.Type{aggregation.Last},
-				Policies:     policy.StoragePolicies{storagePolicy},
+				// Do not explicitly set an Aggregation. The default for the metric type will be applied by the
+				// aggregator (e.g LAST for gauges, SUM for counters).
+				Policies: policy.StoragePolicies{storagePolicy},
 			})
 		}
 	}
