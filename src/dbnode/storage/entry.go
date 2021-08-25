@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -244,6 +245,14 @@ func (entry *Entry) RelookupAndCheckIsEmpty() (bool, bool) {
 		return false, false
 	}
 	defer e.DecrementReaderWriterCount()
+
+	// Consider non-empty if the entry is still being held since this could indicate
+	// another thread holding a new series prior to writing to it.
+	count := e.ReaderWriterCount()
+	if count > 1 {
+		fmt.Println("EMPTY CHECK", count, e.Series.IsEmpty())
+		return false, true
+	}
 
 	return e.Series.IsEmpty(), true
 }
