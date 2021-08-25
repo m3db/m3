@@ -1116,6 +1116,7 @@ func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
 func (i *nsIndex) WarmFlushBlockStarts() []xtime.UnixNano {
 	flushed := make([]xtime.UnixNano, 0)
 	infoFiles := i.readInfoFilesAsMap()
+
 	for blockStart := range infoFiles {
 		if i.hasIndexWarmFlushedToDisk(infoFiles, blockStart) {
 			flushed = append(flushed, blockStart)
@@ -1124,16 +1125,17 @@ func (i *nsIndex) WarmFlushBlockStarts() []xtime.UnixNano {
 	return flushed
 }
 
-func (i *nsIndex) readInfoFilesAsMap() map[xtime.UnixNano]fs.ReadIndexInfoFileResult {
+func (i *nsIndex) readInfoFilesAsMap() map[xtime.UnixNano][]fs.ReadIndexInfoFileResult {
 	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
 	infoFiles := i.readIndexInfoFilesFn(fs.ReadIndexInfoFilesOptions{
 		FilePathPrefix:   fsOpts.FilePathPrefix(),
 		Namespace:        i.nsMetadata.ID(),
 		ReaderBufferSize: fsOpts.InfoReaderBufferSize(),
 	})
-	result := make(map[xtime.UnixNano]fs.ReadIndexInfoFileResult)
+	result := make(map[xtime.UnixNano][]fs.ReadIndexInfoFileResult)
 	for _, infoFile := range infoFiles {
-		result[xtime.UnixNano(infoFile.Info.BlockStart)] = infoFile
+		files := result[xtime.UnixNano(infoFile.Info.BlockStart)]
+		result[xtime.UnixNano(infoFile.Info.BlockStart)] = append(files, infoFile)
 	}
 	return result
 }
@@ -1177,7 +1179,7 @@ func (i *nsIndex) flushableBlocks(
 }
 
 func (i *nsIndex) canFlushBlockWithRLock(
-	infoFiles map[xtime.UnixNano]fs.ReadIndexInfoFileResult,
+	infoFiles map[xtime.UnixNano][]fs.ReadIndexInfoFileResult,
 	blockStart xtime.UnixNano,
 	block index.Block,
 	shards []databaseShard,
@@ -1238,7 +1240,7 @@ func (i *nsIndex) blockStartsFromIndexBlockStart(blockStart xtime.UnixNano) []xt
 }
 
 func (i *nsIndex) hasIndexWarmFlushedToDisk(
-	infoFiles map[xtime.UnixNano]fs.ReadIndexInfoFileResult,
+	infoFiles map[xtime.UnixNano][]fs.ReadIndexInfoFileResult,
 	blockStart xtime.UnixNano,
 ) bool {
 	// NB(bodu): We consider the block to have been warm flushed if there are any
@@ -1249,12 +1251,17 @@ func (i *nsIndex) hasIndexWarmFlushedToDisk(
 		return false
 	}
 
-	indexVolumeType := idxpersist.DefaultIndexVolumeType
-	if f.Info.IndexVolumeType != nil {
-		indexVolumeType = idxpersist.IndexVolumeType(f.Info.IndexVolumeType.Value)
+	for _, fileInfo := range f {
+		indexVolumeType := idxpersist.DefaultIndexVolumeType
+		if fileInfo.Info.IndexVolumeType != nil {
+			indexVolumeType = idxpersist.IndexVolumeType(fileInfo.Info.IndexVolumeType.Value)
+		}
+		match := fileInfo.ID.BlockStart == blockStart && indexVolumeType == idxpersist.DefaultIndexVolumeType
+		if match {
+			return true
+		}
 	}
-	match := f.ID.BlockStart == blockStart && indexVolumeType == idxpersist.DefaultIndexVolumeType
-	return match
+	return false
 }
 
 func (i *nsIndex) flushBlock(
