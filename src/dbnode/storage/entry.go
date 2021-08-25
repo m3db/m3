@@ -239,6 +239,11 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 // The first result indicates if the series is empty.
 // The second result indicates if the series can be looked up at all.
 func (entry *Entry) RelookupAndCheckIsEmpty() (bool, bool) {
+	// If the series does not have an ID then it already has been purged and so is eligible for GC.
+	if entry.Series.ID() == nil {
+		return true, true
+	}
+
 	e, _, err := entry.Shard.TryRetrieveSeriesAndIncrementReaderWriterCount(entry.Series.ID())
 	if err != nil || e == nil {
 		return false, false
