@@ -1075,11 +1075,11 @@ func (i *nsIndex) WarmFlush(
 			)
 		}
 
-		// for _, t := range i.blockStartsFromIndexBlockStart(block.StartTime()) {
-		// 	for _, s := range shards {
-		// 		s.MarkWarmIndexFlushStateSuccessOrError(t, err)
-		// 	}
-		// }
+		for _, t := range i.blockStartsFromIndexBlockStart(block.StartTime()) {
+			for _, s := range shards {
+				s.MarkWarmIndexFlushStateSuccessOrError(t, err)
+			}
+		}
 	}
 	i.metrics.blocksEvictedMutableSegments.Inc(int64(evicted))
 	return nil
@@ -1110,6 +1110,18 @@ func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
 		}
 		return multiErr.FinalError()
 	}, nil
+}
+
+// WarmFlushBlockStarts returns all index blockStarts which have been flushed to disk.
+func (i *nsIndex) WarmFlushBlockStarts() []xtime.UnixNano {
+	flushed := make([]xtime.UnixNano, 0)
+	infoFiles := i.readInfoFilesAsMap()
+	for blockStart := range infoFiles {
+		if i.hasIndexWarmFlushedToDisk(infoFiles, blockStart) {
+			flushed = append(flushed, blockStart)
+		}
+	}
+	return flushed
 }
 
 func (i *nsIndex) readInfoFilesAsMap() map[xtime.UnixNano]fs.ReadIndexInfoFileResult {

@@ -1967,17 +1967,8 @@ func (s *dbShard) UpdateFlushStates() {
 		at := xtime.UnixNano(info.BlockStart)
 		currState := s.flushStateNoBootstrapCheck(at)
 
-		// When initializing from disk, the data files being present are sufficient
-		// for considering the data+index are flushed because that distinction is only
-		// needed to account for the raciness surrounding GCing series based on when
-		// data + index flushes have occurred. For the purposes of just initializing
-		// the state of which blocks have been flushed when bootstrapping, we can
-		// just use the data being present as the indicator.
 		if currState.WarmStatus.DataFlushed != fileOpSuccess {
 			s.markWarmDataFlushStateSuccess(at)
-		}
-		if currState.WarmStatus.IndexFlushed != fileOpSuccess {
-			s.markWarmIndexFlushStateSuccess(at)
 		}
 
 		// Cold version needs to get bootstrapped so that the 1:1 relationship
@@ -1990,6 +1981,27 @@ func (s *dbShard) UpdateFlushStates() {
 		if currState.ColdVersionRetrievable < info.VolumeIndex {
 			s.setFlushStateColdVersionRetrievable(at, info.VolumeIndex)
 			s.setFlushStateColdVersionFlushed(at, info.VolumeIndex)
+		}
+	}
+
+	// Populate index flush state only if enabled.
+	if !s.namespace.Options().IndexOptions().Enabled() {
+		return
+	}
+
+	blockSize := s.namespace.Options().RetentionOptions().BlockSize()
+	indexBlockSize := s.namespace.Options().IndexOptions().BlockSize()
+
+	indexFlushedBlockStarts := s.reverseIndex.WarmFlushBlockStarts()
+	for _, blockStart := range indexFlushedBlockStarts {
+		// Index block size is wider than data block size, so we want to set all data blockStarts
+		// within the range of a given index blockStart
+		blockEnd := blockStart.Add(indexBlockSize)
+		for at := blockStart; at < blockEnd; at = at.Add(blockSize) {
+			currState := s.flushStateNoBootstrapCheck(at)
+			if currState.WarmStatus.IndexFlushed != fileOpSuccess {
+				s.markWarmIndexFlushStateSuccess(at)
+			}
 		}
 	}
 }
