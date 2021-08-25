@@ -266,6 +266,10 @@ func NewDatabase(
 	return d, nil
 }
 
+func (d *db) Tick() error {
+	return d.mediator.Tick(force, xtime.ToUnixNano(d.nowFn()))
+}
+
 func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	if newNamespaces == nil {
 		return nil

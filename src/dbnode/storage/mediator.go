@@ -308,8 +308,8 @@ func (m *mediator) ongoingTick() {
 
 			// NB(bodu): We may still hit a db closed error here since the db does not wait upon
 			// completion of ticks.
-			if err := m.Tick(force, mediatorTime); err != nil && err != errDatabaseIsClosed {
-				log.Error("error within tick", zap.Error(err))
+			if err := m.Tick(noForce, mediatorTime); err != nil && err != errDatabaseIsClosed {
+				log.Error("background tick error", zap.Error(err))
 			}
 		}
 	}

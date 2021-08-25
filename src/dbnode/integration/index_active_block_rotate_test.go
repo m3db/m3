@@ -285,6 +285,10 @@ func TestIndexActiveBlockRotate(t *testing.T) {
 		log.Info("verified data has been warm flushed", zap.Duration("took", time.Since(start)))
 		prevWarmFlushes = counter
 
+		// Explicitly run a few ticks.
+		log.Info("running a tick")
+		require.NoError(t, testSetup.DB().Tick())
+
 		start = time.Now()
 		log.Info("waiting for GC of series")
 

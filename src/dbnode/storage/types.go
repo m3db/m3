@@ -250,6 +250,9 @@ type Database interface {
 
 	// AggregateTiles does large tile aggregation from source namespace to target namespace.
 	AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) (int64, error)
+
+	// Tick forces a tick of the database.
+	Tick() error
 }
 
 // database is the internal database interface.
