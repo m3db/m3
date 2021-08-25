@@ -240,11 +240,14 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 // The second result indicates if the series can be looked up at all.
 func (entry *Entry) RelookupAndCheckIsEmpty() (bool, bool) {
 	// If the series does not have an ID then it already has been purged and so is eligible for GC.
-	if entry.Series.ID() == nil {
+	id := entry.Series.ID()
+	if id == nil {
 		return true, true
 	}
 
-	e, _, err := entry.Shard.TryRetrieveSeriesAndIncrementReaderWriterCount(entry.Series.ID())
+	// Lookup the latest entry since there can be duplicate entries async queued for the same ID
+	// and we must be sure we take the latest so we are using the same ref counters as other threads.
+	e, _, err := entry.Shard.TryRetrieveSeriesAndIncrementReaderWriterCount(id)
 	if err != nil || e == nil {
 		return false, false
 	}
