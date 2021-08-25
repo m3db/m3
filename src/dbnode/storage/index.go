@@ -1075,11 +1075,11 @@ func (i *nsIndex) WarmFlush(
 			)
 		}
 
-		for _, t := range i.blockStartsFromIndexBlockStart(block.StartTime()) {
-			for _, s := range shards {
-				s.MarkWarmIndexFlushStateSuccessOrError(t, err)
-			}
-		}
+		// for _, t := range i.blockStartsFromIndexBlockStart(block.StartTime()) {
+		// 	for _, s := range shards {
+		// 		s.MarkWarmIndexFlushStateSuccessOrError(t, err)
+		// 	}
+		// }
 	}
 	i.metrics.blocksEvictedMutableSegments.Inc(int64(evicted))
 	return nil
