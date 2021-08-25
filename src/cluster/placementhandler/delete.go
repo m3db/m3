@@ -94,7 +94,7 @@ func (h *DeleteHandler) ServeHTTP(
 	service, algo, err := ServiceWithAlgo(
 		h.clusterClient,
 		opts,
-		h.placement,
+		Handler(*h).PlacementConfig(),
 		h.nowFn(),
 		nil,
 	)

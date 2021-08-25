@@ -112,6 +112,16 @@ type Handler struct {
 	nowFn func() time.Time
 }
 
+// PlacementConfig returns the placement config.
+func (h Handler) PlacementConfig() placement.Configuration {
+	return h.placement
+}
+
+// PlacementConfigCopy returns a copy of the placement config.
+func (h Handler) PlacementConfigCopy() (placement.Configuration, error) {
+	return h.placement.DeepCopy()
+}
+
 // Service gets a placement service from m3cluster client
 func Service(
 	clusterClient clusterclient.Client,
@@ -172,6 +182,9 @@ func ServiceWithAlgo(
 			pOpts = pOpts.SetIsSharded(false)
 		} else {
 			pOpts = pOpts.SetIsSharded(*pConfig.IsSharded)
+		}
+		if pConfig.ShardStateMode == nil {
+			pOpts = pOpts.SetShardStateMode(placement.StableShardStateOnly)
 		}
 	case handleroptions.M3AggregatorServiceName:
 		var (

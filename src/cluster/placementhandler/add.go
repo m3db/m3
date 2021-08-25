@@ -128,10 +128,15 @@ func (h *AddHandler) Add(
 	if !req.Force {
 		validateFn = validateAllAvailable
 	}
+
+	pcfg, err := Handler(*h).PlacementConfigCopy()
+	if err != nil {
+		return nil, err
+	}
 	service, _, err := ServiceWithAlgo(
 		h.clusterClient,
 		serviceOpts,
-		h.placement,
+		pcfg.ApplyOverride(req.OptionOverride),
 		h.nowFn(),
 		validateFn,
 	)
