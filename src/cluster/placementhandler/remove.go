@@ -56,7 +56,7 @@ var (
 	M3CoordinatorRemoveURL = path.Join(route.Prefix, M3CoordinatorServicePlacementPathName)
 )
 
-// RemoveHandler is the handler for placement adds.
+// RemoveHandler is the handler for placement removes.
 type RemoveHandler Handler
 
 // NewRemoveHandler returns a new instance of RemoveHandler.
@@ -103,15 +103,15 @@ func (h *RemoveHandler) ServeHTTP(
 func (h *RemoveHandler) parseRequest(r *http.Request) (*admin.PlacementRemoveRequest, error) {
 	defer r.Body.Close()
 
-	addReq := new(admin.PlacementRemoveRequest)
-	if err := jsonpb.Unmarshal(r.Body, addReq); err != nil {
+	removeReq := new(admin.PlacementRemoveRequest)
+	if err := jsonpb.Unmarshal(r.Body, removeReq); err != nil {
 		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
-	return addReq, nil
+	return removeReq, nil
 }
 
-// Remove adds a placement.
+// Remove removes an instance.
 func (h *RemoveHandler) Remove(
 	svc handleroptions.ServiceNameAndDefaults,
 	httpReq *http.Request,
