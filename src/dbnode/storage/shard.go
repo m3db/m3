@@ -841,14 +841,10 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*Entry) {
 		}
 		// If there have been datapoints written to the series since its
 		// last empty check, we don't remove it.
-		// Also check if still indexed, if so will be GC'd soon from
-		// index and shouldn't evict here since we need to let the index
-		// know this series definitely should be GC'd (it's ambiguous
-		// if the series is missing from the shard, do not know whether
-		// race to insert or whether it actually expired or not).
-		if !series.IsEmpty() || entry.IndexedOrAttemptedAny() {
+		if !series.IsEmpty() {
 			continue
 		}
+
 		// NB(xichen): if we get here, we are guaranteed that there can be
 		// no more reads/writes to this series while the lock is held, so it's
 		// safe to remove it.
