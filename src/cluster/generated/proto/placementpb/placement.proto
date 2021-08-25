@@ -93,3 +93,8 @@ message PlacementSnapshots {
   CompressMode compress_mode = 2;
   bytes compressed_placement = 3;
 }
+
+message Options {
+  google.protobuf.BoolValue is_sharded = 1;
+  // TODO: cover all the fields in src/cluster/placement/config.go
+}
