@@ -520,12 +520,12 @@ func TestAverageSeriesWithWildcards(t *testing.T) {
 	common.CompareOutputsAndExpected(t, step, start, expected, output.Values)
 }
 
-func TestSumSeriesWithWildcards(t *testing.T) {
+func createTestSeriesForAggregation() (*common.Context, []*ts.Series) {
 	var (
 		start, _ = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
 		end, _   = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
 		ctx      = common.NewContext(common.ContextOptions{Start: start, End: end})
-		inputs   = []*ts.Series{
+		series   = []*ts.Series{
 			ts.NewSeries(ctx, "servers.foo-1.pod1.status.500", start,
 				ts.NewConstantValues(ctx, 2, 12, 10000)),
 			ts.NewSeries(ctx, "servers.foo-2.pod1.status.500", start,
@@ -545,6 +545,11 @@ func TestSumSeriesWithWildcards(t *testing.T) {
 				ts.NewConstantValues(ctx, 40, 12, 10000)),
 		}
 	)
+	return ctx, series
+}
+
+func TestSumSeriesWithWildcards(t *testing.T) {
+	ctx, inputs := createTestSeriesForAggregation()
 	defer ctx.Close()
 
 	outSeries, err := sumSeriesWithWildcards(ctx, singlePathSpec{
@@ -570,32 +575,9 @@ func TestSumSeriesWithWildcards(t *testing.T) {
 	}
 }
 
-//nolint:govet
 func TestMultiplySeriesWithWildcards(t *testing.T) {
-	var (
-		start, _ = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
-		end, _   = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
-		ctx      = common.NewContext(common.ContextOptions{Start: start, End: end})
-		inputs   = []*ts.Series{
-			ts.NewSeries(ctx, "servers.foo-1.pod1.status.500", start,
-				ts.NewConstantValues(ctx, 2, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-2.pod1.status.500", start,
-				ts.NewConstantValues(ctx, 4, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-3.pod1.status.500", start,
-				ts.NewConstantValues(ctx, 6, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-1.pod2.status.500", start,
-				ts.NewConstantValues(ctx, 8, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-2.pod2.status.500", start,
-				ts.NewConstantValues(ctx, 10, 12, 10000)),
+	ctx, inputs := createTestSeriesForAggregation()
 
-			ts.NewSeries(ctx, "servers.foo-1.pod1.status.400", start,
-				ts.NewConstantValues(ctx, 20, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-2.pod1.status.400", start,
-				ts.NewConstantValues(ctx, 30, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-3.pod2.status.400", start,
-				ts.NewConstantValues(ctx, 40, 12, 10000)),
-		}
-	)
 	defer ctx.Close()
 
 	outSeries, err := multiplySeriesWithWildcards(ctx, singlePathSpec{
@@ -726,30 +708,7 @@ func TestApplyByNode(t *testing.T) {
 }
 
 func TestAggregateWithWildcards(t *testing.T) {
-	var (
-		start, _ = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
-		end, _   = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
-		ctx      = common.NewContext(common.ContextOptions{Start: start, End: end})
-		inputs   = []*ts.Series{
-			ts.NewSeries(ctx, "servers.foo-1.pod1.status.500", start,
-				ts.NewConstantValues(ctx, 2, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-2.pod1.status.500", start,
-				ts.NewConstantValues(ctx, 4, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-3.pod1.status.500", start,
-				ts.NewConstantValues(ctx, 6, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-1.pod2.status.500", start,
-				ts.NewConstantValues(ctx, 8, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-2.pod2.status.500", start,
-				ts.NewConstantValues(ctx, 10, 12, 10000)),
-
-			ts.NewSeries(ctx, "servers.foo-1.pod1.status.400", start,
-				ts.NewConstantValues(ctx, 20, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-2.pod1.status.400", start,
-				ts.NewConstantValues(ctx, 30, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-3.pod2.status.400", start,
-				ts.NewConstantValues(ctx, 40, 12, 10000)),
-		}
-	)
+	ctx, inputs := createTestSeriesForAggregation()
 	defer ctx.Close()
 
 	type result struct {
@@ -800,30 +759,7 @@ func TestAggregateWithWildcards(t *testing.T) {
 }
 
 func TestGroupByNode(t *testing.T) {
-	var (
-		start, _ = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
-		end, _   = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
-		ctx      = common.NewContext(common.ContextOptions{Start: start, End: end})
-		inputs   = []*ts.Series{
-			ts.NewSeries(ctx, "servers.foo-1.pod1.status.500", start,
-				ts.NewConstantValues(ctx, 2, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-2.pod1.status.500", start,
-				ts.NewConstantValues(ctx, 4, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-3.pod1.status.500", start,
-				ts.NewConstantValues(ctx, 6, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-1.pod2.status.500", start,
-				ts.NewConstantValues(ctx, 8, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-2.pod2.status.500", start,
-				ts.NewConstantValues(ctx, 10, 12, 10000)),
-
-			ts.NewSeries(ctx, "servers.foo-1.pod1.status.400", start,
-				ts.NewConstantValues(ctx, 20, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-2.pod1.status.400", start,
-				ts.NewConstantValues(ctx, 30, 12, 10000)),
-			ts.NewSeries(ctx, "servers.foo-3.pod2.status.400", start,
-				ts.NewConstantValues(ctx, 40, 12, 10000)),
-		}
-	)
+	ctx, inputs := createTestSeriesForAggregation()
 	defer ctx.Close()
 
 	type result struct {
@@ -894,6 +830,7 @@ func TestGroupByNodes(t *testing.T) {
 				ts.NewConstantValues(ctx, 40, 12, 10000)),
 		}
 	)
+
 	defer ctx.Close()
 
 	type result struct {
