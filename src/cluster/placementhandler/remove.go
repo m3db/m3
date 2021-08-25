@@ -25,6 +25,9 @@ import (
 	"path"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/route"
@@ -32,9 +35,6 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/gogo/protobuf/jsonpb"
-	"go.uber.org/zap"
 )
 
 const (
@@ -64,6 +64,8 @@ func NewRemoveHandler(opts HandlerOptions) *RemoveHandler {
 	return &RemoveHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
+// ServeHTTP serves HTTP requests.
+//nolint: dupl
 func (h *RemoveHandler) ServeHTTP(
 	svc handleroptions.ServiceNameAndDefaults,
 	w http.ResponseWriter,

@@ -53,17 +53,9 @@ func TestPlacementRemoveHandler_Force(t *testing.T) {
 		handler.nowFn = func() time.Time { return time.Unix(0, 0) }
 
 		// Test remove failure
-		var (
-			w   = httptest.NewRecorder()
-			req *http.Request
-		)
-		if serviceName == handleroptions.M3AggregatorServiceName {
-			req = httptest.NewRequest(RemoveHTTPMethod, M3DBRemoveURL,
-				strings.NewReader(`{"force": true, "instanceIds":[]}`))
-		} else {
-			req = httptest.NewRequest(RemoveHTTPMethod, M3DBRemoveURL,
-				strings.NewReader(`{"force": true, "instanceIds":[]}`))
-		}
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(RemoveHTTPMethod, M3DBRemoveURL,
+			strings.NewReader(`{"force": true, "instanceIds":[]}`))
 		require.NotNil(t, req)
 
 		svcDefaults := handleroptions.ServiceNameAndDefaults{
@@ -75,6 +67,8 @@ func TestPlacementRemoveHandler_Force(t *testing.T) {
 		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp := w.Result()
+		defer resp.Body.Close()
+
 		body, _ := ioutil.ReadAll(resp.Body)
 		assert.JSONEq(t,
 			`{"status":"error","error":"no new instances found in the valid zone"}`,
@@ -83,13 +77,8 @@ func TestPlacementRemoveHandler_Force(t *testing.T) {
 
 		// Test remove success
 		w = httptest.NewRecorder()
-		if serviceName == handleroptions.M3AggregatorServiceName {
-			req = httptest.NewRequest(RemoveHTTPMethod, M3DBRemoveURL,
-				strings.NewReader(`{"force": true, "instanceIds":["host2"]}`))
-		} else {
-			req = httptest.NewRequest(RemoveHTTPMethod, M3DBRemoveURL,
-				strings.NewReader(`{"force": true, "instanceIds":["host2"]}`))
-		}
+		req = httptest.NewRequest(RemoveHTTPMethod, M3DBRemoveURL,
+			strings.NewReader(`{"force": true, "instanceIds":["host2"]}`))
 		require.NotNil(t, req)
 
 		mockPlacementService.EXPECT().RemoveInstances(gomock.Not(nil)).
@@ -97,10 +86,12 @@ func TestPlacementRemoveHandler_Force(t *testing.T) {
 		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp = w.Result()
+		defer resp.Body.Close()
+
 		body, _ = ioutil.ReadAll(resp.Body)
+		//nolint: lll
 		assert.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":0}`, string(body))
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-
 	})
 }
 
@@ -117,19 +108,9 @@ func TestPlacementRemoveHandler_SafeOK(t *testing.T) {
 		handler.nowFn = func() time.Time { return time.Unix(0, 0) }
 
 		// Test remove error
-		var (
-			w   = httptest.NewRecorder()
-			req *http.Request
-		)
-
-		switch serviceName {
-		case handleroptions.M3AggregatorServiceName:
-			req = httptest.NewRequest(RemoveHTTPMethod, M3AggRemoveURL,
-				strings.NewReader(`{"instanceIds":["host2"]}`))
-		default:
-			req = httptest.NewRequest(RemoveHTTPMethod, M3DBRemoveURL,
-				strings.NewReader(`{"instanceIds":["host2"]}`))
-		}
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(RemoveHTTPMethod, M3DBRemoveURL,
+			strings.NewReader(`{"instanceIds":["host2"]}`))
 
 		require.NotNil(t, req)
 		var (
@@ -165,6 +146,8 @@ func TestPlacementRemoveHandler_SafeOK(t *testing.T) {
 		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp := w.Result()
+		defer resp.Body.Close()
+
 		body, _ := ioutil.ReadAll(resp.Body)
 		require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 		require.JSONEq(t, `{"status":"error","error":"test err"}`, string(body))
@@ -202,14 +185,19 @@ func TestPlacementRemoveHandler_SafeOK(t *testing.T) {
 		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp = w.Result()
+		defer resp.Body.Close()
+
 		body, _ = ioutil.ReadAll(resp.Body)
 
 		switch serviceName {
 		case handleroptions.M3CoordinatorServiceName:
+			//nolint: lll
 			require.Equal(t, `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"rack1","zone":"test","weight":1,"endpoint":"http://host1:1234","shards":[],"shardSetId":0,"hostname":"host1","port":1234,"metadata":{"debugPort":0}}},"replicaFactor":1,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":1}`, string(body))
 		case handleroptions.M3AggregatorServiceName:
+			//nolint: lll
 			require.Equal(t, `{"placement":{"instances":{},"replicaFactor":1,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":true,"maxShardSetId":0},"version":1}`, string(body))
 		default:
+			//nolint: lll
 			require.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":1}`, string(body))
 		}
 
