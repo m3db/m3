@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,6 @@ import (
 	"path"
 	"time"
 
-	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/route"
@@ -39,32 +38,33 @@ import (
 )
 
 const (
-	initPathName = "init"
+	// RemoveHTTPMethod is the HTTP method used with this resource.
+	RemoveHTTPMethod = http.MethodPost
 )
 
 var (
-	// M3DBInitURL is the url for the placement init handler, (with the POST method).
-	M3DBInitURL = path.Join(route.Prefix, M3DBServicePlacementPathName, initPathName)
+	// M3DBRemoveURL is the url for the placement Remove handler (with the POST method)
+	// for the M3DB service.
+	M3DBRemoveURL = path.Join(route.Prefix, M3DBServicePlacementPathName)
 
-	// M3AggInitURL is the url for the m3agg placement init handler (with the POST method).
-	M3AggInitURL = path.Join(route.Prefix, M3AggServicePlacementPathName, initPathName)
+	// M3AggRemoveURL is the url for the placement Remove handler (with the POST method)
+	// for the M3Agg service.
+	M3AggRemoveURL = path.Join(route.Prefix, M3AggServicePlacementPathName)
 
-	// M3CoordinatorInitURL is the url for the m3agg placement init handler (with the POST method).
-	M3CoordinatorInitURL = path.Join(route.Prefix, M3CoordinatorServicePlacementPathName, initPathName)
-
-	// InitHTTPMethod is the HTTP method used with this resource.
-	InitHTTPMethod = http.MethodPost
+	// M3CoordinatorRemoveURL is the url for the placement Remove handler (with the POST method)
+	// for the M3Coordinator service.
+	M3CoordinatorRemoveURL = path.Join(route.Prefix, M3CoordinatorServicePlacementPathName)
 )
 
-// InitHandler is the handler for placement inits.
-type InitHandler Handler
+// RemoveHandler is the handler for placement adds.
+type RemoveHandler Handler
 
-// NewInitHandler returns a new instance of InitHandler.
-func NewInitHandler(opts HandlerOptions) *InitHandler {
-	return &InitHandler{HandlerOptions: opts, nowFn: time.Now}
+// NewRemoveHandler returns a new instance of RemoveHandler.
+func NewRemoveHandler(opts HandlerOptions) *RemoveHandler {
+	return &RemoveHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *InitHandler) ServeHTTP(
+func (h *RemoveHandler) ServeHTTP(
 	svc handleroptions.ServiceNameAndDefaults,
 	w http.ResponseWriter,
 	r *http.Request,
@@ -78,14 +78,9 @@ func (h *InitHandler) ServeHTTP(
 		return
 	}
 
-	placement, err := h.Init(svc, r, req)
+	placement, err := h.Remove(svc, r, req)
 	if err != nil {
-		if err == kv.ErrAlreadyExists {
-			logger.Error("placement already exists", zap.Error(err))
-			xhttp.WriteError(w, xhttp.NewError(err, http.StatusConflict))
-			return
-		}
-		logger.Error("unable to initialize placement", zap.Error(err))
+		logger.Error("unable to Remove placement", zap.Error(err))
 		xhttp.WriteError(w, err)
 		return
 	}
@@ -99,58 +94,54 @@ func (h *InitHandler) ServeHTTP(
 
 	resp := &admin.PlacementGetResponse{
 		Placement: placementProto,
+		Version:   int32(placement.Version()),
 	}
 
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *InitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, error) {
+func (h *RemoveHandler) parseRequest(r *http.Request) (*admin.PlacementRemoveRequest, error) {
 	defer r.Body.Close()
 
-	initReq := new(admin.PlacementInitRequest)
-	if err := jsonpb.Unmarshal(r.Body, initReq); err != nil {
+	addReq := new(admin.PlacementRemoveRequest)
+	if err := jsonpb.Unmarshal(r.Body, addReq); err != nil {
 		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
-	return initReq, nil
+	return addReq, nil
 }
 
-// Init initializes a placement.
-func (h *InitHandler) Init(
+// Remove adds a placement.
+func (h *RemoveHandler) Remove(
 	svc handleroptions.ServiceNameAndDefaults,
 	httpReq *http.Request,
-	req *admin.PlacementInitRequest,
+	req *admin.PlacementRemoveRequest,
 ) (placement.Placement, error) {
-	instances, err := ConvertInstancesProto(req.Instances)
-	if err != nil {
-		return nil, err
-	}
-
 	serviceOpts := handleroptions.NewServiceOptions(svc, httpReq.Header,
 		h.m3AggServiceOptions)
+	var validateFn placement.ValidateFn
+	if !req.Force {
+		validateFn = validateAllAvailable
+	}
 
 	pcfg, err := Handler(*h).PlacementConfigCopy()
 	if err != nil {
 		return nil, err
 	}
-	service, err := Service(h.clusterClient, serviceOpts,
-		pcfg.ApplyOverride(req.OptionOverride), h.nowFn(), nil)
+	service, _, err := ServiceWithAlgo(
+		h.clusterClient,
+		serviceOpts,
+		pcfg.ApplyOverride(req.OptionOverride),
+		h.nowFn(),
+		validateFn,
+	)
+	if err != nil {
+		return nil, err
+	}
+	newPlacement, err := service.RemoveInstances(req.InstanceIds)
 	if err != nil {
 		return nil, err
 	}
 
-	replicationFactor := int(req.ReplicationFactor)
-	switch svc.ServiceName {
-	case handleroptions.M3CoordinatorServiceName:
-		// M3Coordinator placements are stateless
-		replicationFactor = 1
-	}
-
-	placement, err := service.BuildInitialPlacement(instances,
-		int(req.NumShards), replicationFactor)
-	if err != nil {
-		return nil, err
-	}
-
-	return placement, nil
+	return newPlacement, nil
 }

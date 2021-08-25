@@ -128,8 +128,13 @@ func (h *ReplaceHandler) Replace(
 
 	serviceOpts := handleroptions.NewServiceOptions(svc,
 		httpReq.Header, h.m3AggServiceOptions)
+
+	pcfg, err := Handler(*h).PlacementConfigCopy()
+	if err != nil {
+		return nil, err
+	}
 	service, algo, err := ServiceWithAlgo(h.clusterClient,
-		serviceOpts, h.placement, h.nowFn(), nil)
+		serviceOpts, pcfg.ApplyOverride(req.OptionOverride), h.nowFn(), nil)
 	if err != nil {
 		return nil, err
 	}
