@@ -570,6 +570,7 @@ func TestSumSeriesWithWildcards(t *testing.T) {
 	}
 }
 
+//nolint:govet
 func TestMultiplySeriesWithWildcards(t *testing.T) {
 	var (
 		start, _ = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
