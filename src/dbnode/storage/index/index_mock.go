@@ -856,6 +856,18 @@ func (mr *MockBlockMockRecorder) AggregateWithIter(ctx, iter, opts, results, dea
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateWithIter", reflect.TypeOf((*MockBlock)(nil).AggregateWithIter), ctx, iter, opts, results, deadline, logFields)
 }
 
+// BackgroundCompact mocks base method.
+func (m *MockBlock) BackgroundCompact() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "BackgroundCompact")
+}
+
+// BackgroundCompact indicates an expected call of BackgroundCompact.
+func (mr *MockBlockMockRecorder) BackgroundCompact() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundCompact", reflect.TypeOf((*MockBlock)(nil).BackgroundCompact))
+}
+
 // Close mocks base method.
 func (m *MockBlock) Close() error {
 	m.ctrl.T.Helper()
