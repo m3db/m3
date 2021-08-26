@@ -378,10 +378,8 @@ func writeTestDataToDiskWithIndex(
 	metadata namespace.Metadata,
 	s TestSetup,
 	seriesMaps generate.SeriesBlocksByStart,
-	volume int,
-	generatorOptionsFns ...func(generate.Options) generate.Options,
 ) error {
-	if err := writeTestDataToDisk(metadata, s, seriesMaps, volume, generatorOptionsFns...); err != nil {
+	if err := writeTestDataToDisk(metadata, s, seriesMaps, 0); err != nil {
 		return err
 	}
 	for blockStart, series := range seriesMaps {

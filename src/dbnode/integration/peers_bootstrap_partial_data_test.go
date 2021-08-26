@@ -85,7 +85,7 @@ func TestPeersBootstrapPartialData(t *testing.T) {
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now},
 	}
 	seriesMaps := generate.BlocksByStart(inputData)
-	require.NoError(t, writeTestDataToDiskWithIndex(namesp, setups[0], seriesMaps, 0))
+	require.NoError(t, writeTestDataToDiskWithIndex(namesp, setups[0], seriesMaps))
 
 	// Write a subset of blocks to second node, simulating an incomplete peer bootstrap.
 	partialBlockStarts := map[xtime.UnixNano]struct{}{
