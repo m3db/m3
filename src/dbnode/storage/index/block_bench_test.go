@@ -129,8 +129,4 @@ func (m mockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(_ xtime.U
 }
 func (m mockOnIndexSeries) IndexedForBlockStart(_ xtime.UnixNano) bool { return false }
 func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool                { return false }
-func (m mockOnIndexSeries) RelookupAndCheckIsEmpty() (bool, bool)      { return false, false }
-func (m mockOnIndexSeries) RelookupAndIncrementReaderWriterCount() (doc.OnIndexSeries, bool) {
-	return nil, false
-}
-func (m mockOnIndexSeries) TryMarkIndexGarbageCollected() bool { return false }
+func (m mockOnIndexSeries) TryMarkIndexGarbageCollected() bool         { return false }

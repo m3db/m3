@@ -95,6 +95,8 @@ type mutableSegments struct {
 	writeIndexingConcurrency int
 	cachedSearchesWorkers    xsync.WorkerPool
 
+	seriesActiveFn segment.DocumentsFilter
+
 	metrics mutableSegmentsMetrics
 	logger  *zap.Logger
 
@@ -193,6 +195,7 @@ func newMutableSegments(
 		metrics:               newMutableSegmentsMetrics(iopts.MetricsScope()),
 		logger:                iopts.Logger(),
 	}
+	m.seriesActiveFn = segment.DocumentsFilterFn(m.seriesActive)
 	m.optsListener = namespaceRuntimeOptsMgr.RegisterListener(m)
 	return m
 }
@@ -217,6 +220,19 @@ func (m *mutableSegments) SetNamespaceRuntimeOptions(opts namespace.RuntimeOptio
 	// github.com/twotwotwo/sorts to control this on a per segment builder
 	// basis).
 	builder.SetSortConcurrency(m.writeIndexingConcurrency)
+}
+
+func (m *mutableSegments) seriesActive(d doc.Metadata) bool {
+	// Filter out any documents that only were indexed for
+	// sealed blocks.
+	if d.OnIndexSeries == nil {
+		instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+			l.Error("unexpected nil for document index entry for background compact")
+		})
+		return true
+	}
+
+	return !d.OnIndexSeries.TryMarkIndexGarbageCollected()
 }
 
 func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats, error) {
@@ -455,7 +471,6 @@ func (m *mutableSegments) backgroundCompactWithLock() {
 		gcPlan           = &compaction.Plan{}
 		gcAlreadyRunning = m.compact.compactingBackgroundGarbageCollect
 	)
-
 	if !gcAlreadyRunning {
 		gcRequired = true
 
@@ -471,6 +486,20 @@ func (m *mutableSegments) backgroundCompactWithLock() {
 			}
 			if alreadyHasTask {
 				// Skip needing to check if segment needs filtering.
+				continue
+			}
+
+			// Ensure that segment has some series that need to be GC'd.
+			hasAnyInactiveSeries, err := m.segmentAnyInactiveSeries(seg.Segment())
+			if err != nil {
+				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+					l.Error("error detecting needs background gc segment", zap.Error(err))
+				})
+				continue
+			}
+			if !hasAnyInactiveSeries {
+				// Skip background GC since all series are still active and no
+				// series need to be removed.
 				continue
 			}
 
@@ -533,6 +562,45 @@ func (m *mutableSegments) backgroundCompactWithLock() {
 			m.Unlock()
 		}()
 	}
+}
+
+func (m *mutableSegments) segmentAnyInactiveSeries(seg segment.Segment) (bool, error) {
+	reader, err := seg.Reader()
+	if err != nil {
+		return false, err
+	}
+
+	defer reader.Close()
+
+	docs, err := reader.AllDocs()
+	if err != nil {
+		return false, err
+	}
+
+	docsCloser := x.NewSafeCloser(docs)
+	defer func() {
+		// In case of early return cleanup
+		_ = docsCloser.Close()
+	}()
+
+	var result bool
+	for docs.Next() {
+		d := docs.Current()
+		indexEntry := d.OnIndexSeries
+		if indexEntry == nil {
+			return false, fmt.Errorf("document has no index entry: %s", d.ID)
+		}
+		if indexEntry.NeedsIndexGarbageCollected() {
+			result = true
+			break
+		}
+	}
+
+	if err := docs.Err(); err != nil {
+		return false, err
+	}
+
+	return result, docsCloser.Close()
 }
 
 func (m *mutableSegments) shouldEvictCompactedSegmentsWithLock() bool {
@@ -672,18 +740,7 @@ func (m *mutableSegments) backgroundCompactWithTask(
 	var documentsFilter segment.DocumentsFilter
 	if gcRequired {
 		// Only actively filter out documents if GC is required.
-		documentsFilter = segment.DocumentsFilterFn(func(d doc.Metadata) bool {
-			// Filter out any documents that only were indexed for
-			// sealed blocks.
-			if d.OnIndexSeries == nil {
-				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
-					l.Error("unexpected nil for document index entry for background compact")
-				})
-				return true
-			}
-
-			return !d.OnIndexSeries.TryMarkIndexGarbageCollected()
-		})
+		documentsFilter = m.seriesActiveFn
 	}
 
 	start := time.Now()
