@@ -18,14 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package lookup_test
+package storage
 
 import (
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
@@ -43,7 +42,7 @@ func newTime(n int) xtime.UnixNano {
 }
 
 func TestEntryReaderWriterCount(t *testing.T) {
-	e := lookup.NewEntry(lookup.NewEntryOptions{})
+	e := NewEntry(NewEntryOptions{})
 	require.Equal(t, int32(0), e.ReaderWriterCount())
 
 	e.IncrementReaderWriterCount()
@@ -54,12 +53,12 @@ func TestEntryReaderWriterCount(t *testing.T) {
 }
 
 func TestEntryIndexSuccessPath(t *testing.T) {
-	e := lookup.NewEntry(lookup.NewEntryOptions{})
+	e := NewEntry(NewEntryOptions{})
 	t0 := newTime(0)
 	require.False(t, e.IndexedForBlockStart(t0))
 
 	require.True(t, e.NeedsIndexUpdate(t0))
-	e.OnIndexPrepare()
+	e.OnIndexPrepare(t0)
 	e.OnIndexSuccess(t0)
 	e.OnIndexFinalize(t0)
 
@@ -69,12 +68,12 @@ func TestEntryIndexSuccessPath(t *testing.T) {
 }
 
 func TestEntryIndexFailPath(t *testing.T) {
-	e := lookup.NewEntry(lookup.NewEntryOptions{})
+	e := NewEntry(NewEntryOptions{})
 	t0 := newTime(0)
 	require.False(t, e.IndexedForBlockStart(t0))
 
 	require.True(t, e.NeedsIndexUpdate(t0))
-	e.OnIndexPrepare()
+	e.OnIndexPrepare(t0)
 	e.OnIndexFinalize(t0)
 
 	require.False(t, e.IndexedForBlockStart(t0))
@@ -85,7 +84,7 @@ func TestEntryIndexFailPath(t *testing.T) {
 func TestEntryMultipleGoroutinesRaceIndexUpdate(t *testing.T) {
 	defer leaktest.CheckTimeout(t, time.Second)()
 
-	e := lookup.NewEntry(lookup.NewEntryOptions{})
+	e := NewEntry(NewEntryOptions{})
 	t0 := newTime(0)
 	require.False(t, e.IndexedForBlockStart(t0))
 

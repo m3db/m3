@@ -27,6 +27,8 @@ package doc
 import (
 	"reflect"
 
+	"github.com/m3db/m3/src/x/time"
+
 	"github.com/golang/mock/gomock"
 )
 
@@ -279,4 +281,133 @@ func (m *MockQueryDocIterator) Next() bool {
 func (mr *MockQueryDocIteratorMockRecorder) Next() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockQueryDocIterator)(nil).Next))
+}
+
+// MockOnIndexSeries is a mock of OnIndexSeries interface.
+type MockOnIndexSeries struct {
+	ctrl     *gomock.Controller
+	recorder *MockOnIndexSeriesMockRecorder
+}
+
+// MockOnIndexSeriesMockRecorder is the mock recorder for MockOnIndexSeries.
+type MockOnIndexSeriesMockRecorder struct {
+	mock *MockOnIndexSeries
+}
+
+// NewMockOnIndexSeries creates a new mock instance.
+func NewMockOnIndexSeries(ctrl *gomock.Controller) *MockOnIndexSeries {
+	mock := &MockOnIndexSeries{ctrl: ctrl}
+	mock.recorder = &MockOnIndexSeriesMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockOnIndexSeries) EXPECT() *MockOnIndexSeriesMockRecorder {
+	return m.recorder
+}
+
+// IfAlreadyIndexedMarkIndexSuccessAndFinalize mocks base method.
+func (m *MockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart time.UnixNano) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IfAlreadyIndexedMarkIndexSuccessAndFinalize", blockStart)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IfAlreadyIndexedMarkIndexSuccessAndFinalize indicates an expected call of IfAlreadyIndexedMarkIndexSuccessAndFinalize.
+func (mr *MockOnIndexSeriesMockRecorder) IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IfAlreadyIndexedMarkIndexSuccessAndFinalize", reflect.TypeOf((*MockOnIndexSeries)(nil).IfAlreadyIndexedMarkIndexSuccessAndFinalize), blockStart)
+}
+
+// IndexedForBlockStart mocks base method.
+func (m *MockOnIndexSeries) IndexedForBlockStart(blockStart time.UnixNano) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexedForBlockStart", blockStart)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IndexedForBlockStart indicates an expected call of IndexedForBlockStart.
+func (mr *MockOnIndexSeriesMockRecorder) IndexedForBlockStart(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexedForBlockStart", reflect.TypeOf((*MockOnIndexSeries)(nil).IndexedForBlockStart), blockStart)
+}
+
+// NeedsIndexGarbageCollected mocks base method.
+func (m *MockOnIndexSeries) NeedsIndexGarbageCollected() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NeedsIndexGarbageCollected")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// NeedsIndexGarbageCollected indicates an expected call of NeedsIndexGarbageCollected.
+func (mr *MockOnIndexSeriesMockRecorder) NeedsIndexGarbageCollected() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsIndexGarbageCollected", reflect.TypeOf((*MockOnIndexSeries)(nil).NeedsIndexGarbageCollected))
+}
+
+// NeedsIndexUpdate mocks base method.
+func (m *MockOnIndexSeries) NeedsIndexUpdate(indexBlockStartForWrite time.UnixNano) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NeedsIndexUpdate", indexBlockStartForWrite)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// NeedsIndexUpdate indicates an expected call of NeedsIndexUpdate.
+func (mr *MockOnIndexSeriesMockRecorder) NeedsIndexUpdate(indexBlockStartForWrite interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsIndexUpdate", reflect.TypeOf((*MockOnIndexSeries)(nil).NeedsIndexUpdate), indexBlockStartForWrite)
+}
+
+// OnIndexFinalize mocks base method.
+func (m *MockOnIndexSeries) OnIndexFinalize(blockStart time.UnixNano) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "OnIndexFinalize", blockStart)
+}
+
+// OnIndexFinalize indicates an expected call of OnIndexFinalize.
+func (mr *MockOnIndexSeriesMockRecorder) OnIndexFinalize(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexFinalize", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexFinalize), blockStart)
+}
+
+// OnIndexPrepare mocks base method.
+func (m *MockOnIndexSeries) OnIndexPrepare(blockStart time.UnixNano) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "OnIndexPrepare", blockStart)
+}
+
+// OnIndexPrepare indicates an expected call of OnIndexPrepare.
+func (mr *MockOnIndexSeriesMockRecorder) OnIndexPrepare(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexPrepare", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexPrepare), blockStart)
+}
+
+// OnIndexSuccess mocks base method.
+func (m *MockOnIndexSeries) OnIndexSuccess(blockStart time.UnixNano) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "OnIndexSuccess", blockStart)
+}
+
+// OnIndexSuccess indicates an expected call of OnIndexSuccess.
+func (mr *MockOnIndexSeriesMockRecorder) OnIndexSuccess(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexSuccess", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexSuccess), blockStart)
+}
+
+// TryMarkIndexGarbageCollected mocks base method.
+func (m *MockOnIndexSeries) TryMarkIndexGarbageCollected() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TryMarkIndexGarbageCollected")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// TryMarkIndexGarbageCollected indicates an expected call of TryMarkIndexGarbageCollected.
+func (mr *MockOnIndexSeriesMockRecorder) TryMarkIndexGarbageCollected() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryMarkIndexGarbageCollected", reflect.TypeOf((*MockOnIndexSeries)(nil).TryMarkIndexGarbageCollected))
 }
