@@ -384,17 +384,16 @@ func (mr *MockOnIndexSeriesMockRecorder) OnIndexSuccess(blockStart interface{}) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexSuccess", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexSuccess), blockStart)
 }
 
-// RelookupAndCheckIsEmpty mocks base method.
-func (m *MockOnIndexSeries) RelookupAndCheckIsEmpty() (bool, bool) {
+// TryMarkIndexGarbageCollected mocks base method.
+func (m *MockOnIndexSeries) TryMarkIndexGarbageCollected() bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RelookupAndCheckIsEmpty")
+	ret := m.ctrl.Call(m, "TryMarkIndexGarbageCollected")
 	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
+	return ret0
 }
 
-// RelookupAndCheckIsEmpty indicates an expected call of RelookupAndCheckIsEmpty.
-func (mr *MockOnIndexSeriesMockRecorder) RelookupAndCheckIsEmpty() *gomock.Call {
+// TryMarkIndexGarbageCollected indicates an expected call of TryMarkIndexGarbageCollected.
+func (mr *MockOnIndexSeriesMockRecorder) TryMarkIndexGarbageCollected() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RelookupAndCheckIsEmpty", reflect.TypeOf((*MockOnIndexSeries)(nil).RelookupAndCheckIsEmpty))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryMarkIndexGarbageCollected", reflect.TypeOf((*MockOnIndexSeries)(nil).TryMarkIndexGarbageCollected))
 }

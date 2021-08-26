@@ -151,6 +151,7 @@ type dbShard struct {
 	ticking                  bool
 	shard                    uint32
 	coldWritesEnabled        bool
+	indexEnabled             bool
 }
 
 // NB(r): dbShardRuntimeOptions does not contain its own
@@ -280,6 +281,7 @@ func newDatabaseShard(
 		flushState:           newShardFlushState(),
 		tickWg:               &sync.WaitGroup{},
 		coldWritesEnabled:    namespaceMetadata.Options().ColdWritesEnabled(),
+		indexEnabled:         namespaceMetadata.Options().IndexOptions().Enabled(),
 		logger:               opts.InstrumentOptions().Logger(),
 		metrics:              newDatabaseShardMetrics(shard, scope),
 		tileAggregator:       opts.TileAggregator(),
@@ -385,7 +387,7 @@ func (s *dbShard) warmStatusIsRetrievable(status warmStatus) bool {
 
 	// If the index is disabled, then we only are tracking data flushing.
 	// Otherwise, warm status requires both data and index flushed.
-	if !s.namespace.Options().IndexOptions().Enabled() {
+	if !s.indexEnabled {
 		return true
 	}
 
@@ -817,6 +819,13 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*Entry) {
 	// Remove all expired series from lookup and list.
 	s.Lock()
 	for _, entry := range expiredEntries {
+		// Only purge series after they've been GCed from the index, so that these happen and in order
+		// and there is no raciness around GCing something from the index when the series has already
+		// been removed from memory.
+		if s.indexEnabled && !entry.IndexGarbageCollected.Load() {
+			continue
+		}
+
 		series := entry.Series
 		id := series.ID()
 		elem, exists := s.lookup.Get(id)
@@ -1981,7 +1990,7 @@ func (s *dbShard) UpdateFlushStates() {
 	}
 
 	// Populate index flush state only if enabled.
-	if !s.namespace.Options().IndexOptions().Enabled() {
+	if !s.indexEnabled {
 		return
 	}
 

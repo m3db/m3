@@ -133,5 +133,5 @@ func (m mockOnIndexSeries) RemoveIndexedForBlockStarts(
 ) RemoveIndexedForBlockStartsResult {
 	return RemoveIndexedForBlockStartsResult{}
 }
-func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool           { return false }
-func (m mockOnIndexSeries) RelookupAndCheckIsEmpty() (bool, bool) { return false, false }
+func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool        { return false }
+func (m mockOnIndexSeries) TryMarkIndexGarbageCollected() bool { return false }

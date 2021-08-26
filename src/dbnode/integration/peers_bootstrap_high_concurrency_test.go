@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -130,7 +131,7 @@ func testPeersBootstrapHighConcurrency(
 		},
 	}
 	numPoints := 10
-	seriesMaps := generate.BlocksByStart(blockConfigs(
+	blockConfigs := blockConfigs(
 		generateTaggedBlockConfigs(generateTaggedBlockConfig{
 			series:     numSeries,
 			numPoints:  numPoints,
@@ -155,9 +156,22 @@ func testPeersBootstrapHighConcurrency(
 			commonTags: commonTags,
 			blockStart: now,
 		}),
-	))
+	)
+	seriesMaps := generate.BlocksByStart(blockConfigs)
 	err = writeTestDataToDisk(namesp, setups[0], seriesMaps, 0)
 	require.NoError(t, err)
+
+	for blockStart, series := range seriesMaps {
+		docs := generate.ToDocMetadata(series)
+		require.NoError(t, writeTestIndexDataToDisk(
+			namesp,
+			setups[0].StorageOpts(),
+			idxpersist.DefaultIndexVolumeType,
+			blockStart,
+			setups[0].ShardSet().AllIDs(),
+			docs,
+		))
+	}
 
 	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].StartServer())
