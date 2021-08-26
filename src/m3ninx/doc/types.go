@@ -114,10 +114,9 @@ type OnIndexSeries interface {
 		blockStart xtime.UnixNano,
 	) bool
 
-	// RelookupAndCheckIsEmpty looks up the series and checks if it is empty.
-	// The first result indicates if the series is empty.
-	// The second result indicates if the series can be looked up at all.
-	RelookupAndCheckIsEmpty() (isEmpty bool, isPresent bool)
+	// TryMarkIndexGarbageCollected checks if the entry is eligible to be garbage collected
+	// from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
+	TryMarkIndexGarbageCollected() bool
 
 	// IndexedForBlockStart returns true if the blockStart has been indexed.
 	IndexedForBlockStart(blockStart xtime.UnixNano) bool

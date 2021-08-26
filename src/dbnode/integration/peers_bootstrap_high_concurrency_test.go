@@ -31,7 +31,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -130,7 +132,7 @@ func testPeersBootstrapHighConcurrency(
 		},
 	}
 	numPoints := 10
-	seriesMaps := generate.BlocksByStart(blockConfigs(
+	blockConfigs := blockConfigs(
 		generateTaggedBlockConfigs(generateTaggedBlockConfig{
 			series:     numSeries,
 			numPoints:  numPoints,
@@ -155,9 +157,58 @@ func testPeersBootstrapHighConcurrency(
 			commonTags: commonTags,
 			blockStart: now,
 		}),
-	))
+	)
+	seriesMaps := generate.BlocksByStart(blockConfigs)
 	err = writeTestDataToDisk(namesp, setups[0], seriesMaps, 0)
 	require.NoError(t, err)
+
+	docs := make([]doc.Metadata, 0)
+	for _, id := range blockConfigs[0].IDs {
+		fields := make([]doc.Field, 0)
+		for _, tag := range blockConfigs[0].Tags.Values() {
+			fields = append(fields, doc.Field{
+				Name:  tag.Name.Bytes(),
+				Value: tag.Value.Bytes(),
+			})
+		}
+		docs = append(docs, doc.Metadata{
+			ID:     []byte(id),
+			Fields: fields,
+		})
+	}
+
+	require.NoError(t, writeTestIndexDataToDisk(
+		namesp,
+		setups[0].StorageOpts(),
+		idxpersist.DefaultIndexVolumeType,
+		now.Add(-3*blockSize),
+		setups[0].ShardSet().AllIDs(),
+		docs,
+	))
+	require.NoError(t, writeTestIndexDataToDisk(
+		namesp,
+		setups[0].StorageOpts(),
+		idxpersist.DefaultIndexVolumeType,
+		now.Add(-2*blockSize),
+		setups[0].ShardSet().AllIDs(),
+		docs,
+	))
+	require.NoError(t, writeTestIndexDataToDisk(
+		namesp,
+		setups[0].StorageOpts(),
+		idxpersist.DefaultIndexVolumeType,
+		now.Add(-1*blockSize),
+		setups[0].ShardSet().AllIDs(),
+		docs,
+	))
+	require.NoError(t, writeTestIndexDataToDisk(
+		namesp,
+		setups[0].StorageOpts(),
+		idxpersist.DefaultIndexVolumeType,
+		now,
+		setups[0].ShardSet().AllIDs(),
+		docs,
+	))
 
 	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].StartServer())
