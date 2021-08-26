@@ -74,6 +74,8 @@ type mutableSegmentsState uint
 const (
 	mutableSegmentsStateOpen   mutableSegmentsState = iota
 	mutableSegmentsStateClosed mutableSegmentsState = iota
+
+	segmentCheckInactiveSeriesMinInterval = 5 * time.Minute
 )
 
 // nolint: maligned
@@ -470,11 +472,20 @@ func (m *mutableSegments) backgroundCompactWithLock() {
 		gcRequired       = false
 		gcPlan           = &compaction.Plan{}
 		gcAlreadyRunning = m.compact.compactingBackgroundGarbageCollect
+		nowFn            = m.opts.ClockOptions().NowFn()
+		now              = nowFn()
 	)
 	if !gcAlreadyRunning {
 		gcRequired = true
 
 		for _, seg := range m.backgroundSegments {
+			sinceLastInactiveSeriesCheck := now.Sub(seg.garbageCollectLastCheck)
+			seg.garbageCollectLastCheck = now
+			if sinceLastInactiveSeriesCheck < segmentCheckInactiveSeriesMinInterval {
+				// Only consider for compaction every so often.
+				continue
+			}
+
 			alreadyHasTask := false
 			for _, task := range plan.Tasks {
 				for _, taskSegment := range task.Segments {

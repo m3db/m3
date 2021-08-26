@@ -65,6 +65,7 @@ type Entry struct {
 	Series                   series.DatabaseSeries
 	Index                    uint64
 	IndexGarbageCollected    *xatomic.Bool
+	insertTime               *xatomic.Int64
 	indexWriter              IndexWriter
 	curReadWriters           int32
 	reverseIndex             entryIndexState
@@ -101,6 +102,7 @@ func NewEntry(opts NewEntryOptions) *Entry {
 		Series:                   opts.Series,
 		Index:                    opts.Index,
 		IndexGarbageCollected:    xatomic.NewBool(false),
+		insertTime:               xatomic.NewInt64(0),
 		indexWriter:              opts.IndexWriter,
 		nowFn:                    nowFn,
 		pendingIndexBatchSizeOne: make([]writes.PendingIndexInsert, 1),
@@ -234,16 +236,6 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 // TryMarkIndexGarbageCollected checks if the entry is eligible to be garbage collected
 // from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
 func (entry *Entry) TryMarkIndexGarbageCollected() bool {
-	return entry.checkNeedsIndexGarbageCollected(true)
-}
-
-// NeedsIndexGarbageCollected checks if the entry is eligible to be garbage collected
-// from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
-func (entry *Entry) NeedsIndexGarbageCollected() bool {
-	return entry.checkNeedsIndexGarbageCollected(false)
-}
-
-func (entry *Entry) checkNeedsIndexGarbageCollected(mark bool) bool {
 	// Since series insertions + index insertions are done separately async, it is possible for
 	// a series to be in the index but not have data written yet, and so any series not in the
 	// lookup yet we cannot yet consider empty.
@@ -265,12 +257,29 @@ func (entry *Entry) checkNeedsIndexGarbageCollected(mark bool) bool {
 		return false
 	}
 
-	if mark {
-		// Mark as GCed from index so the entry can be safely cleaned up elsewhere.
-		entry.IndexGarbageCollected.Store(true)
-	}
+	// Mark as GCed from index so the entry can be safely cleaned up elsewhere.
+	entry.IndexGarbageCollected.Store(true)
 
 	return true
+}
+
+// NeedsIndexGarbageCollected checks if the entry is eligible to be garbage collected
+// from the index. Otherwise returns false.
+func (entry *Entry) NeedsIndexGarbageCollected() bool {
+	// This is a cheaper check that loading the entry from the shard again
+	// which makes it cheaper to run frequently.
+	// It may not be as accurate, but it's fine for an approximation since
+	// only a single series in a segment needs to return true to trigger an
+	// index segment to be garbage collected.
+	if entry.insertTime.Load() == 0 {
+		return false // Not inserted, does not need garbage collection.
+	}
+	// Check that a write is not potentially pending and the series is empty.
+	return entry.ReaderWriterCount() == 0 && entry.Series.IsEmpty()
+}
+
+func (entry *Entry) SetInsertTime(t time.Time) {
+	entry.insertTime.Store(t.UnixNano())
 }
 
 // Write writes a new value.
