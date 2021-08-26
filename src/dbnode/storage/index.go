@@ -1125,6 +1125,16 @@ func (i *nsIndex) WarmFlushBlockStarts() []xtime.UnixNano {
 	return flushed
 }
 
+// BackgroundCompact background compacts eligible segments.
+func (i *nsIndex) BackgroundCompact() {
+	if i.activeBlock != nil {
+		i.activeBlock.BackgroundCompact()
+	}
+	for _, b := range i.state.blocksByTime {
+		b.BackgroundCompact()
+	}
+}
+
 func (i *nsIndex) readInfoFilesAsMap() map[xtime.UnixNano][]fs.ReadIndexInfoFileResult {
 	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
 	infoFiles := i.readIndexInfoFilesFn(fs.ReadIndexInfoFilesOptions{

@@ -780,6 +780,9 @@ type NamespaceIndex interface {
 	// DebugMemorySegments allows for debugging memory segments.
 	DebugMemorySegments(opts DebugMemorySegmentsOptions) error
 
+	// BackgroundCompact background compacts eligible segments.
+	BackgroundCompact()
+
 	// Close will release the index resources and close the index.
 	Close() error
 }

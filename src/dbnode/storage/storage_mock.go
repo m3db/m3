@@ -2538,6 +2538,18 @@ func (mr *MockNamespaceIndexMockRecorder) AssignShardSet(shardSet interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MockNamespaceIndex)(nil).AssignShardSet), shardSet)
 }
 
+// BackgroundCompact mocks base method.
+func (m *MockNamespaceIndex) BackgroundCompact() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "BackgroundCompact")
+}
+
+// BackgroundCompact indicates an expected call of BackgroundCompact.
+func (mr *MockNamespaceIndexMockRecorder) BackgroundCompact() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundCompact", reflect.TypeOf((*MockNamespaceIndex)(nil).BackgroundCompact))
+}
+
 // BlockForBlockStart mocks base method.
 func (m *MockNamespaceIndex) BlockForBlockStart(blockStart time0.UnixNano) (index.Block, error) {
 	m.ctrl.T.Helper()
