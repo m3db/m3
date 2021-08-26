@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
@@ -162,53 +161,17 @@ func testPeersBootstrapHighConcurrency(
 	err = writeTestDataToDisk(namesp, setups[0], seriesMaps, 0)
 	require.NoError(t, err)
 
-	docs := make([]doc.Metadata, 0)
-	for _, id := range blockConfigs[0].IDs {
-		fields := make([]doc.Field, 0)
-		for _, tag := range blockConfigs[0].Tags.Values() {
-			fields = append(fields, doc.Field{
-				Name:  tag.Name.Bytes(),
-				Value: tag.Value.Bytes(),
-			})
-		}
-		docs = append(docs, doc.Metadata{
-			ID:     []byte(id),
-			Fields: fields,
-		})
+	for blockStart, series := range seriesMaps {
+		docs := generate.ToDocMetadata(series)
+		require.NoError(t, writeTestIndexDataToDisk(
+			namesp,
+			setups[0].StorageOpts(),
+			idxpersist.DefaultIndexVolumeType,
+			blockStart,
+			setups[0].ShardSet().AllIDs(),
+			docs,
+		))
 	}
-
-	require.NoError(t, writeTestIndexDataToDisk(
-		namesp,
-		setups[0].StorageOpts(),
-		idxpersist.DefaultIndexVolumeType,
-		now.Add(-3*blockSize),
-		setups[0].ShardSet().AllIDs(),
-		docs,
-	))
-	require.NoError(t, writeTestIndexDataToDisk(
-		namesp,
-		setups[0].StorageOpts(),
-		idxpersist.DefaultIndexVolumeType,
-		now.Add(-2*blockSize),
-		setups[0].ShardSet().AllIDs(),
-		docs,
-	))
-	require.NoError(t, writeTestIndexDataToDisk(
-		namesp,
-		setups[0].StorageOpts(),
-		idxpersist.DefaultIndexVolumeType,
-		now.Add(-1*blockSize),
-		setups[0].ShardSet().AllIDs(),
-		docs,
-	))
-	require.NoError(t, writeTestIndexDataToDisk(
-		namesp,
-		setups[0].StorageOpts(),
-		idxpersist.DefaultIndexVolumeType,
-		now,
-		setups[0].ShardSet().AllIDs(),
-		docs,
-	))
 
 	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].StartServer())

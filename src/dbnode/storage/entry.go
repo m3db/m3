@@ -25,6 +25,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	xatomic "go.uber.org/atomic"
+
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -34,8 +36,6 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	xatomic "go.uber.org/atomic"
 )
 
 const (
