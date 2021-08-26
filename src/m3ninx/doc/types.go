@@ -118,6 +118,10 @@ type OnIndexSeries interface {
 	// from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
 	TryMarkIndexGarbageCollected() bool
 
+	// NeedsIndexGarbageCollected returns if the entry is eligible to be garbage collected
+	// from the index.
+	NeedsIndexGarbageCollected() bool
+
 	// IndexedForBlockStart returns true if the blockStart has been indexed.
 	IndexedForBlockStart(blockStart xtime.UnixNano) bool
 }
