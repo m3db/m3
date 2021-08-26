@@ -234,6 +234,16 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 // TryMarkIndexGarbageCollected checks if the entry is eligible to be garbage collected
 // from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
 func (entry *Entry) TryMarkIndexGarbageCollected() bool {
+	return entry.checkNeedsIndexGarbageCollected(true)
+}
+
+// NeedsIndexGarbageCollected checks if the entry is eligible to be garbage collected
+// from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
+func (entry *Entry) NeedsIndexGarbageCollected() bool {
+	return entry.checkNeedsIndexGarbageCollected(false)
+}
+
+func (entry *Entry) checkNeedsIndexGarbageCollected(mark bool) bool {
 	// Since series insertions + index insertions are done separately async, it is possible for
 	// a series to be in the index but not have data written yet, and so any series not in the
 	// lookup yet we cannot yet consider empty.
@@ -255,8 +265,10 @@ func (entry *Entry) TryMarkIndexGarbageCollected() bool {
 		return false
 	}
 
-	// Mark as GCed from index so the entry can be safely cleaned up elsewhere.
-	entry.IndexGarbageCollected.Store(true)
+	if mark {
+		// Mark as GCed from index so the entry can be safely cleaned up elsewhere.
+		entry.IndexGarbageCollected.Store(true)
+	}
 
 	return true
 }
