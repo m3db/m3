@@ -122,9 +122,9 @@ func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.
 				for i := 0; i < 128; i++ {
 					onIndexSeries := doc.NewMockOnIndexSeries(ctrl)
 					onIndexSeries.EXPECT().
-						RelookupAndCheckIsEmpty().
+						TryMarkIndexGarbageCollected().
 						// Every other is "empty".
-						Return(inserted%2 == 0, true).
+						Return(inserted%2 == 0).
 						AnyTimes()
 
 					batch.Append(WriteBatchEntry{
