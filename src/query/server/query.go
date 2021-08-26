@@ -204,6 +204,20 @@ func Run(runOpts RunOptions) RunResult {
 		os.Exit(1)
 	}
 
+	// NB(nate): Register shutdown notification defer function first so that
+	// it's the last defer to fire before terminating. This allows other defer methods
+	// that clean up resources to execute first.
+	if runOpts.ShutdownCh != nil {
+		defer func() {
+			select {
+			case runOpts.ShutdownCh <- struct{}{}:
+				break
+			default:
+				logger.Warn("could not send shutdown notification as channel was full")
+			}
+		}()
+	}
+
 	defer logger.Sync()
 
 	cfg.Debug.SetRuntimeValues(logger)
@@ -658,15 +672,6 @@ func Run(runOpts RunOptions) RunResult {
 	xos.WaitForInterrupt(logger, xos.InterruptOptions{
 		InterruptCh: runOpts.InterruptCh,
 	})
-
-	if runOpts.ShutdownCh != nil {
-		select {
-		case runOpts.ShutdownCh <- struct{}{}:
-			break
-		default:
-			logger.Warn("could not send shutdown notification as channel was full")
-		}
-	}
 
 	return runResult
 }
