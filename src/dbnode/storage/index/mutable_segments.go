@@ -23,11 +23,13 @@ package index
 import (
 	"errors"
 	"fmt"
-	"github.com/m3db/m3/src/m3ninx/x"
 	"math"
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
@@ -37,14 +39,12 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	"github.com/m3db/m3/src/m3ninx/x"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	xresource "github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 var (
@@ -513,7 +513,9 @@ func (m *mutableSegments) segmentAnyInactiveSeries(seg segment.Segment) (bool, e
 		return false, err
 	}
 
-	defer reader.Close()
+	defer func() {
+		_ = reader.Close()
+	}()
 
 	docs, err := reader.AllDocs()
 	if err != nil {
