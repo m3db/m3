@@ -384,6 +384,14 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 	m.backgroundCompactWithLock()
 }
 
+// BackgroundCompact background compacts eligible segments.
+func (m *mutableSegments) BackgroundCompact() {
+	m.Lock()
+	defer m.Unlock()
+
+	m.backgroundCompactWithLock()
+}
+
 func (m *mutableSegments) backgroundCompactWithLock() {
 	// Create a logical plan.
 	segs := make([]compaction.Segment, 0, len(m.backgroundSegments))
