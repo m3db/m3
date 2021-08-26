@@ -374,6 +374,32 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 	}
 }
 
+func writeTestDataToDiskWithIndex(
+	metadata namespace.Metadata,
+	s TestSetup,
+	seriesMaps generate.SeriesBlocksByStart,
+	volume int,
+	generatorOptionsFns ...func(generate.Options) generate.Options,
+) error {
+	if err := writeTestDataToDisk(metadata, s, seriesMaps, volume, generatorOptionsFns...); err != nil {
+		return err
+	}
+	for blockStart, series := range seriesMaps {
+		docs := generate.ToDocMetadata(series)
+		if err := writeTestIndexDataToDisk(
+			metadata,
+			s.StorageOpts(),
+			idxpersist.DefaultIndexVolumeType,
+			blockStart,
+			s.ShardSet().AllIDs(),
+			docs,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func writeTestDataToDisk(
 	metadata namespace.Metadata,
 	setup TestSetup,

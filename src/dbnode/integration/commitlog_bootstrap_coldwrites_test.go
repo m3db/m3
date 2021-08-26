@@ -85,7 +85,7 @@ func testCommitLogBootstrapColdWrites(t *testing.T, setTestOpts setTestOptions, 
 		updateInputConfig(dataFilesData)
 	}
 	dataFilesSeriesMaps := generate.BlocksByStart(dataFilesData)
-	require.NoError(t, writeTestDataToDisk(ns1, setup, dataFilesSeriesMaps, 0))
+	require.NoError(t, writeTestDataToDiskWithIndex(ns1, setup, dataFilesSeriesMaps, 0))
 	log.Info("finished writing data files")
 
 	log.Info("writing commit logs")

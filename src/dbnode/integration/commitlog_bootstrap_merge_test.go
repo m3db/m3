@@ -99,7 +99,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		t0: seriesMaps[t0],
 		t1: seriesMaps[t1],
 	}
-	require.NoError(t, writeTestDataToDisk(ns1, setup, fsSeriesMaps, 0))
+	require.NoError(t, writeTestDataToDiskWithIndex(ns1, setup, fsSeriesMaps, 0))
 
 	log.Info("writing commit logs")
 	commitlogSeriesMaps := generate.SeriesBlocksByStart{

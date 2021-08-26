@@ -195,7 +195,7 @@ func TestNoOpenFilesWhenBootstrapRetriesDueToObsoleteRanges(t *testing.T) {
 		},
 	})
 
-	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps, 0))
+	require.NoError(t, writeTestDataToDiskWithIndex(ns1, setup, seriesMaps, 0))
 	require.NoError(t, setup.StartServer()) // Blocks until bootstrap is complete
 	defer func() {
 		require.NoError(t, setup.StopServerAndVerifyOpenFilesAreClosed())
