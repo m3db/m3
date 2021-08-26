@@ -449,6 +449,9 @@ type Block interface {
 	// MemorySegmentsData returns all in memory segments data.
 	MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error)
 
+	// BackgroundCompact background compacts eligible segments.
+	BackgroundCompact()
+
 	// Close will release any held resources and close the Block.
 	Close() error
 }

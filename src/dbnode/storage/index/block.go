@@ -300,6 +300,11 @@ func (b *block) EndTime() xtime.UnixNano {
 	return b.blockEnd
 }
 
+// BackgroundCompact background compacts eligible segments.
+func (b *block) BackgroundCompact() {
+	b.mutableSegments.BackgroundCompact()
+}
+
 func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 	b.RLock()
 	if !b.writesAcceptedWithRLock() {

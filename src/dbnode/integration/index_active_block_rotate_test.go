@@ -290,6 +290,17 @@ func TestIndexActiveBlockRotate(t *testing.T) {
 
 		expectedNumGCSeries := prevNumGCSeries + numWrites - minCompactSize
 		gcSeries := xclock.WaitUntil(func() bool {
+			// Run background compaction path to check that this path correctly
+			// identifies these series as "empty" post the warm flush above.
+			// Note: typically this path gets called from just WriteBatch calls but
+			// for this test we just explcitly invoke the background compact path.
+			for _, ns := range testSetup.DB().Namespaces() {
+				idx, err := ns.Index()
+				require.NoError(t, err)
+
+				idx.BackgroundCompact()
+			}
+
 			numGCSeries := counterValue(t, scope, metricGCSeries)
 			return numGCSeries >= expectedNumGCSeries
 		}, defaultTimeout)
