@@ -128,10 +128,5 @@ func (m mockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(_ xtime.U
 	return false
 }
 func (m mockOnIndexSeries) IndexedForBlockStart(_ xtime.UnixNano) bool { return false }
-func (m mockOnIndexSeries) RemoveIndexedForBlockStarts(
-	_ map[xtime.UnixNano]struct{},
-) RemoveIndexedForBlockStartsResult {
-	return RemoveIndexedForBlockStartsResult{}
-}
-func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool        { return false }
-func (m mockOnIndexSeries) TryMarkIndexGarbageCollected() bool { return false }
+func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool                { return false }
+func (m mockOnIndexSeries) TryMarkIndexGarbageCollected() bool         { return false }

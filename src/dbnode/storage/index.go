@@ -1134,8 +1134,9 @@ func (i *nsIndex) readInfoFilesAsMap() map[xtime.UnixNano][]fs.ReadIndexInfoFile
 	})
 	result := make(map[xtime.UnixNano][]fs.ReadIndexInfoFileResult)
 	for _, infoFile := range infoFiles {
-		files := result[xtime.UnixNano(infoFile.Info.BlockStart)]
-		result[xtime.UnixNano(infoFile.Info.BlockStart)] = append(files, infoFile)
+		t := xtime.UnixNano(infoFile.Info.BlockStart)
+		files := result[t]
+		result[t] = append(files, infoFile)
 	}
 	return result
 }

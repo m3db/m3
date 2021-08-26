@@ -365,13 +365,6 @@ type AggregateResultsEntry struct {
 	Terms []ident.ID
 }
 
-// RemoveIndexedForBlockStartsResult is the result from calling
-// RemoveIndexedForBlockStarts.
-type RemoveIndexedForBlockStartsResult struct {
-	IndexedBlockStartsRemoved   int
-	IndexedBlockStartsRemaining int
-}
-
 // Block represents a collection of segments. Each `Block` is a complete reverse
 // index for a period of time defined by [StartTime, EndTime).
 type Block interface {

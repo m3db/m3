@@ -334,6 +334,20 @@ func (mr *MockOnIndexSeriesMockRecorder) IndexedForBlockStart(blockStart interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexedForBlockStart", reflect.TypeOf((*MockOnIndexSeries)(nil).IndexedForBlockStart), blockStart)
 }
 
+// NeedsIndexGarbageCollected mocks base method.
+func (m *MockOnIndexSeries) NeedsIndexGarbageCollected() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NeedsIndexGarbageCollected")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// NeedsIndexGarbageCollected indicates an expected call of NeedsIndexGarbageCollected.
+func (mr *MockOnIndexSeriesMockRecorder) NeedsIndexGarbageCollected() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsIndexGarbageCollected", reflect.TypeOf((*MockOnIndexSeries)(nil).NeedsIndexGarbageCollected))
+}
+
 // NeedsIndexUpdate mocks base method.
 func (m *MockOnIndexSeries) NeedsIndexUpdate(indexBlockStartForWrite time.UnixNano) bool {
 	m.ctrl.T.Helper()
