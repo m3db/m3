@@ -33,7 +33,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -119,15 +121,34 @@ func testFilesystemBootstrapIndexWithIndexingEnabled(
 		ID:   ident.StringID("foo"),
 		Tags: ident.NewTags(ident.StringTag("city", "new_york"), ident.StringTag("foo", "foo")),
 	}
+	fooDoc := doc.Metadata{
+		ID: fooSeries.ID.Bytes(),
+		Fields: []doc.Field{
+			{Name: []byte("city"), Value: []byte("new_york")},
+			{Name: []byte("foo"), Value: []byte("foo")},
+		},
+	}
 
 	barSeries := generate.Series{
 		ID:   ident.StringID("bar"),
 		Tags: ident.NewTags(ident.StringTag("city", "new_jersey")),
 	}
+	barDoc := doc.Metadata{
+		ID: barSeries.ID.Bytes(),
+		Fields: []doc.Field{
+			{Name: []byte("city"), Value: []byte("new_jersey")},
+		},
+	}
 
 	bazSeries := generate.Series{
 		ID:   ident.StringID("baz"),
 		Tags: ident.NewTags(ident.StringTag("city", "seattle")),
+	}
+	bazDoc := doc.Metadata{
+		ID: bazSeries.ID.Bytes(),
+		Fields: []doc.Field{
+			{Name: []byte("city"), Value: []byte("seattle")},
+		},
 	}
 
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
@@ -157,8 +178,22 @@ func testFilesystemBootstrapIndexWithIndexingEnabled(
 		},
 	})
 
+	defaultIndexDocs := []doc.Metadata{
+		fooDoc,
+		barDoc,
+		bazDoc,
+	}
+
 	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps, 0))
 	require.NoError(t, writeTestDataToDisk(ns2, setup, nil, 0))
+	require.NoError(t, writeTestIndexDataToDisk(
+		ns1,
+		setup.StorageOpts(),
+		idxpersist.DefaultIndexVolumeType,
+		now.Add(-blockSize),
+		setup.ShardSet().AllIDs(),
+		defaultIndexDocs,
+	))
 
 	// Start the server with filesystem bootstrapper
 	log := setup.StorageOpts().InstrumentOptions().Logger()

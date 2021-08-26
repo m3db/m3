@@ -133,3 +133,4 @@ func (m mockOnIndexSeries) RelookupAndCheckIsEmpty() (bool, bool)      { return 
 func (m mockOnIndexSeries) RelookupAndIncrementReaderWriterCount() (doc.OnIndexSeries, bool) {
 	return nil, false
 }
+func (m mockOnIndexSeries) TryMarkIndexGarbageCollected() bool { return false }

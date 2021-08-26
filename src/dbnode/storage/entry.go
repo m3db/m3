@@ -25,6 +25,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	xatomic "go.uber.org/atomic"
+
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -62,6 +64,7 @@ type Entry struct {
 	Shard                    Shard
 	Series                   series.DatabaseSeries
 	Index                    uint64
+	IndexGarbageCollected    *xatomic.Bool
 	indexWriter              IndexWriter
 	curReadWriters           int32
 	reverseIndex             entryIndexState
@@ -97,6 +100,7 @@ func NewEntry(opts NewEntryOptions) *Entry {
 		Shard:                    opts.Shard,
 		Series:                   opts.Series,
 		Index:                    opts.Index,
+		IndexGarbageCollected:    xatomic.NewBool(false),
 		indexWriter:              opts.IndexWriter,
 		nowFn:                    nowFn,
 		pendingIndexBatchSizeOne: make([]writes.PendingIndexInsert, 1),
@@ -235,23 +239,34 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 	return successAlready
 }
 
-// RelookupAndCheckIsEmpty looks up the series and checks if it is empty.
-// The first result indicates if the series is empty.
-// The second result indicates if the series can be looked up at all.
-func (entry *Entry) RelookupAndCheckIsEmpty() (bool, bool) {
+// TryMarkIndexGarbageCollected checks if the entry is eligible to be garbage collected
+// from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
+func (entry *Entry) TryMarkIndexGarbageCollected() bool {
+	// Since series insertions + index insertions are done separately async, it is possible for
+	// a series to be in the index but not have data written yet, and so any series not in the
+	// lookup yet we cannot yet consider empty.
 	e, _, err := entry.Shard.TryRetrieveSeriesAndIncrementReaderWriterCount(entry.Series.ID())
 	if err != nil || e == nil {
-		return false, false
+		return false
 	}
 	defer e.DecrementReaderWriterCount()
 
 	// Consider non-empty if the entry is still being held since this could indicate
 	// another thread holding a new series prior to writing to it.
 	if e.ReaderWriterCount() > 1 {
-		return false, true
+		return false
 	}
 
-	return e.Series.IsEmpty(), true
+	// Series must be empty to be GCed. This happens when the data and index are flushed to disk and
+	// so the series no longer has in-mem data.
+	if !e.Series.IsEmpty() {
+		return false
+	}
+
+	// Mark as GCed from index so the entry can be safely cleaned up elsewhere.
+	entry.IndexGarbageCollected.Store(true)
+
+	return true
 }
 
 // Write writes a new value.

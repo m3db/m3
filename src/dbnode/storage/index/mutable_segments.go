@@ -682,16 +682,7 @@ func (m *mutableSegments) backgroundCompactWithTask(
 				return true
 			}
 
-			isEmpty, isPresent := d.OnIndexSeries.RelookupAndCheckIsEmpty()
-			if !isPresent {
-				// Since series insertions + index insertions are done separately async, it is possible for
-				// a series to be in the index but not have data written yet, and so we skip any series
-				// that aren't yet present in the entry lookup.
-				return true
-			}
-
-			// Keep if not yet empty (i.e. there is still in-memory data associated with the series).
-			return !isEmpty
+			return !d.OnIndexSeries.TryMarkIndexGarbageCollected()
 		})
 	}
 

@@ -44,7 +44,6 @@ message PlacementSetRequest {
   bool confirm = 3;
   // Force will skip validating the placement.
   bool force = 4;
-  placementpb.Options option_override = 99;
 }
 
 message PlacementSetResponse {
