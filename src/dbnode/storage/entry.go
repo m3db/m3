@@ -278,6 +278,7 @@ func (entry *Entry) NeedsIndexGarbageCollected() bool {
 	return entry.ReaderWriterCount() == 0 && entry.Series.IsEmpty()
 }
 
+// SetInsertTime marks the entry as having been inserted into the shard at a given timestamp.
 func (entry *Entry) SetInsertTime(t time.Time) {
 	entry.insertTime.Store(t.UnixNano())
 }
