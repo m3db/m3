@@ -126,6 +126,11 @@ func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.
 						// Every other is "empty".
 						Return(inserted%2 == 0).
 						AnyTimes()
+					onIndexSeries.EXPECT().
+						NeedsIndexGarbageCollected().
+						// Every other is "empty".
+						Return(inserted%2 == 0).
+						AnyTimes()
 
 					batch.Append(WriteBatchEntry{
 						Timestamp:     nowNotBlockStartAligned,
