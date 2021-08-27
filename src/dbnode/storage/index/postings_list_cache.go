@@ -21,30 +21,40 @@
 package index
 
 import (
-	"sync"
+	"errors"
+	"math"
 	"time"
 
+	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+)
+
+var (
+	errInstrumentOptions = errors.New("no instrument options set")
 )
 
 // PatternType is an enum for the various pattern types. It allows us
 // separate them logically within the cache.
-type PatternType int
+type PatternType string
 
 // Closer represents a function that will close managed resources.
 type Closer func()
 
 const (
 	// PatternTypeRegexp indicates that the pattern is of type regexp.
-	PatternTypeRegexp PatternType = iota
+	PatternTypeRegexp PatternType = "regexp"
 	// PatternTypeTerm indicates that the pattern is of type term.
-	PatternTypeTerm
+	PatternTypeTerm PatternType = "term"
 	// PatternTypeField indicates that the pattern is of type field.
-	PatternTypeField
+	PatternTypeField PatternType = "field"
+	// PatternTypeSearch indicates that the pattern is of type search.
+	PatternTypeSearch PatternType = "search"
 
 	reportLoopInterval = 10 * time.Second
 	emptyPattern       = ""
@@ -55,20 +65,40 @@ type PostingsListCacheOptions struct {
 	InstrumentOptions instrument.Options
 }
 
+// Validate will return an error if the options are not valid.
+func (o PostingsListCacheOptions) Validate() error {
+	if o.InstrumentOptions == nil {
+		return errInstrumentOptions
+	}
+	return nil
+}
+
 // PostingsListCache implements an LRU for caching queries and their results.
 type PostingsListCache struct {
-	sync.Mutex
-
 	lru *postingsListLRU
 
 	size    int
 	opts    PostingsListCacheOptions
 	metrics *postingsListCacheMetrics
+
+	logger *zap.Logger
 }
 
 // NewPostingsListCache creates a new query cache.
-func NewPostingsListCache(size int, opts PostingsListCacheOptions) (*PostingsListCache, error) {
-	lru, err := newPostingsListLRU(size)
+func NewPostingsListCache(
+	size int,
+	opts PostingsListCacheOptions,
+) (*PostingsListCache, error) {
+	err := opts.Validate()
+	if err != nil {
+		return nil, err
+	}
+
+	lru, err := newPostingsListLRU(postingsListLRUOptions{
+		size: size,
+		// Use ~1000 items per shard.
+		shards: int(math.Ceil(float64(size) / 1000)),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +108,7 @@ func NewPostingsListCache(size int, opts PostingsListCacheOptions) (*PostingsLis
 		size:    size,
 		opts:    opts,
 		metrics: newPostingsListCacheMetrics(opts.InstrumentOptions.MetricsScope()),
+		logger:  opts.InstrumentOptions.Logger(),
 	}
 
 	return plc, nil
@@ -114,24 +145,40 @@ func (q *PostingsListCache) GetField(
 	return q.get(segmentUUID, field, emptyPattern, PatternTypeField)
 }
 
+// GetSearch returns the cached results for the provided search query, if any.
+func (q *PostingsListCache) GetSearch(
+	segmentUUID uuid.UUID,
+	query string,
+) (postings.List, bool) {
+	return q.get(segmentUUID, query, emptyPattern, PatternTypeSearch)
+}
+
 func (q *PostingsListCache) get(
 	segmentUUID uuid.UUID,
 	field string,
 	pattern string,
 	patternType PatternType,
 ) (postings.List, bool) {
-	// No RLock because a Get() operation mutates the LRU.
-	q.Lock()
-	p, ok := q.lru.Get(segmentUUID, field, pattern, patternType)
-	q.Unlock()
-
+	entry, ok := q.lru.Get(segmentUUID, field, pattern, patternType)
 	q.emitCacheGetMetrics(patternType, ok)
-
 	if !ok {
 		return nil, false
 	}
 
-	return p, ok
+	return entry.postings, ok
+}
+
+type cachedPostings struct {
+	// key
+	segmentUUID uuid.UUID
+	field       string
+	pattern     string
+	patternType PatternType
+
+	// value
+	postings postings.List
+	// searchQuery is only set for search queries.
+	searchQuery *querypb.Query
 }
 
 // PutRegexp updates the LRU with the result of the regexp query.
@@ -141,7 +188,7 @@ func (q *PostingsListCache) PutRegexp(
 	pattern string,
 	pl postings.List,
 ) {
-	q.put(segmentUUID, field, pattern, PatternTypeRegexp, pl)
+	q.put(segmentUUID, field, pattern, PatternTypeRegexp, nil, pl)
 }
 
 // PutTerm updates the LRU with the result of the term query.
@@ -151,7 +198,7 @@ func (q *PostingsListCache) PutTerm(
 	pattern string,
 	pl postings.List,
 ) {
-	q.put(segmentUUID, field, pattern, PatternTypeTerm, pl)
+	q.put(segmentUUID, field, pattern, PatternTypeTerm, nil, pl)
 }
 
 // PutField updates the LRU with the result of the field query.
@@ -160,7 +207,17 @@ func (q *PostingsListCache) PutField(
 	field string,
 	pl postings.List,
 ) {
-	q.put(segmentUUID, field, emptyPattern, PatternTypeField, pl)
+	q.put(segmentUUID, field, emptyPattern, PatternTypeField, nil, pl)
+}
+
+// PutSearch updates the LRU with the result of a search query.
+func (q *PostingsListCache) PutSearch(
+	segmentUUID uuid.UUID,
+	queryStr string,
+	query search.Query,
+	pl postings.List,
+) {
+	q.put(segmentUUID, queryStr, emptyPattern, PatternTypeSearch, query, pl)
 }
 
 func (q *PostingsListCache) put(
@@ -168,26 +225,31 @@ func (q *PostingsListCache) put(
 	field string,
 	pattern string,
 	patternType PatternType,
+	searchQuery search.Query,
 	pl postings.List,
 ) {
-	q.Lock()
-	q.lru.Add(
-		segmentUUID,
-		field,
-		pattern,
-		patternType,
-		pl,
-	)
-	q.Unlock()
+	var searchQueryProto *querypb.Query
+	if searchQuery != nil {
+		searchQueryProto = searchQuery.ToProto()
+	}
+
+	value := &cachedPostings{
+		segmentUUID: segmentUUID,
+		field:       field,
+		pattern:     pattern,
+		patternType: patternType,
+		searchQuery: searchQueryProto,
+		postings:    pl,
+	}
+	q.lru.Add(segmentUUID, field, pattern, patternType, value)
+
 	q.emitCachePutMetrics(patternType)
 }
 
 // PurgeSegment removes all postings lists associated with the specified
 // segment from the cache.
 func (q *PostingsListCache) PurgeSegment(segmentUUID uuid.UUID) {
-	q.Lock()
 	q.lru.PurgeSegment(segmentUUID)
-	q.Unlock()
 }
 
 // startReportLoop starts a background process that will call Report()
@@ -212,20 +274,73 @@ func (q *PostingsListCache) startReportLoop() Closer {
 	return func() { close(doneCh) }
 }
 
+type CachedPattern struct {
+	CacheKey    PostingsListCacheKey
+	SearchQuery *querypb.Query
+	Postings    postings.List
+}
+
+type CachedPatternsResult struct {
+	InRegistry      bool
+	TotalPatterns   int
+	MatchedPatterns int
+}
+
+type CachedPatternForEachFn func(CachedPattern)
+
+type CachedPatternsQuery struct {
+	PatternType *PatternType
+}
+
+func (q *PostingsListCache) CachedPatterns(
+	uuid uuid.UUID,
+	query CachedPatternsQuery,
+	fn CachedPatternForEachFn,
+) CachedPatternsResult {
+	var result CachedPatternsResult
+
+	for _, shard := range q.lru.shards {
+		shard.RLock()
+		result = shardCachedPatternsWithRLock(uuid, query, fn, shard, result)
+		shard.RUnlock()
+	}
+
+	return result
+}
+
+func shardCachedPatternsWithRLock(
+	uuid uuid.UUID,
+	query CachedPatternsQuery,
+	fn CachedPatternForEachFn,
+	shard *postingsListLRUShard,
+	result CachedPatternsResult,
+) CachedPatternsResult {
+	segmentPostings, ok := shard.items[uuid.Array()]
+	if !ok {
+		return result
+	}
+
+	result.InRegistry = true
+	result.TotalPatterns += len(segmentPostings)
+	for key, value := range segmentPostings {
+		if v := query.PatternType; v != nil && *v != key.PatternType {
+			continue
+		}
+
+		fn(CachedPattern{
+			CacheKey:    key,
+			SearchQuery: value.Value.(*entry).cachedPostings.searchQuery,
+			Postings:    value.Value.(*entry).cachedPostings.postings,
+		})
+		result.MatchedPatterns++
+	}
+
+	return result
+}
+
 // Report will emit metrics about the status of the cache.
 func (q *PostingsListCache) Report() {
-	var (
-		size     float64
-		capacity float64
-	)
-
-	q.Lock()
-	size = float64(q.lru.Len())
-	capacity = float64(q.size)
-	q.Unlock()
-
-	q.metrics.size.Update(size)
-	q.metrics.capacity.Update(capacity)
+	q.metrics.capacity.Update(float64(q.size))
 }
 
 func (q *PostingsListCache) emitCacheGetMetrics(patternType PatternType, hit bool) {
@@ -237,6 +352,8 @@ func (q *PostingsListCache) emitCacheGetMetrics(patternType PatternType, hit boo
 		method = q.metrics.term
 	case PatternTypeField:
 		method = q.metrics.field
+	case PatternTypeSearch:
+		method = q.metrics.search
 	default:
 		method = q.metrics.unknown // should never happen
 	}
@@ -255,6 +372,8 @@ func (q *PostingsListCache) emitCachePutMetrics(patternType PatternType) {
 		q.metrics.term.puts.Inc(1)
 	case PatternTypeField:
 		q.metrics.field.puts.Inc(1)
+	case PatternTypeSearch:
+		q.metrics.search.puts.Inc(1)
 	default:
 		q.metrics.unknown.puts.Inc(1) // should never happen
 	}
@@ -264,10 +383,16 @@ type postingsListCacheMetrics struct {
 	regexp  *postingsListCacheMethodMetrics
 	term    *postingsListCacheMethodMetrics
 	field   *postingsListCacheMethodMetrics
+	search  *postingsListCacheMethodMetrics
 	unknown *postingsListCacheMethodMetrics
 
 	size     tally.Gauge
 	capacity tally.Gauge
+
+	pooledGet              tally.Counter
+	pooledGetErrAddIter    tally.Counter
+	pooledPut              tally.Counter
+	pooledPutErrNotMutable tally.Counter
 }
 
 func newPostingsListCacheMetrics(scope tally.Scope) *postingsListCacheMetrics {
@@ -281,12 +406,22 @@ func newPostingsListCacheMetrics(scope tally.Scope) *postingsListCacheMetrics {
 		field: newPostingsListCacheMethodMetrics(scope.Tagged(map[string]string{
 			"query_type": "field",
 		})),
+		search: newPostingsListCacheMethodMetrics(scope.Tagged(map[string]string{
+			"query_type": "search",
+		})),
 		unknown: newPostingsListCacheMethodMetrics(scope.Tagged(map[string]string{
 			"query_type": "unknown",
 		})),
-
-		size:     scope.Gauge("size"),
-		capacity: scope.Gauge("capacity"),
+		size:      scope.Gauge("size"),
+		capacity:  scope.Gauge("capacity"),
+		pooledGet: scope.Counter("pooled_get"),
+		pooledGetErrAddIter: scope.Tagged(map[string]string{
+			"error_type": "add_iter",
+		}).Counter("pooled_get_error"),
+		pooledPut: scope.Counter("pooled_put"),
+		pooledPutErrNotMutable: scope.Tagged(map[string]string{
+			"error_type": "not_mutable",
+		}).Counter("pooled_put_error"),
 	}
 }
 

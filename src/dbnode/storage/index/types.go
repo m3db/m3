@@ -1088,6 +1088,12 @@ type Options interface {
 	// PostingsListCache returns the postings list cache.
 	PostingsListCache() *PostingsListCache
 
+	// SetSearchPostingsListCache sets the postings list cache.
+	SetSearchPostingsListCache(value *PostingsListCache) Options
+
+	// SearchPostingsListCache returns the postings list cache.
+	SearchPostingsListCache() *PostingsListCache
+
 	// SetReadThroughSegmentOptions sets the read through segment cache options.
 	SetReadThroughSegmentOptions(value ReadThroughSegmentOptions) Options
 
