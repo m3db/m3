@@ -41,11 +41,17 @@ const EndpointContextKey Key = "endpoint"
 type Endpoint int
 
 const (
+	// AggregateRaw represents the AggregateRaw endpoint.
 	AggregateRaw Endpoint = iota
+	// Fetch represents the Fetch endpoint.
 	Fetch
+	// FetchBatchRaw represents the FetchBatchRaw endpoint.
 	FetchBatchRaw
+	// FetchBatchRawV2 represents the FetchBatchRawV2 endpoint.
 	FetchBatchRawV2
+	// FetchTagged represents the FetchTagged endpoint.
 	FetchTagged
+	// Query represents the Query endpoint.
 	Query
 )
 
