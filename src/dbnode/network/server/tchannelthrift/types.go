@@ -31,6 +31,12 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 )
 
+// Key is a specific string type for context setting.
+type Key string
+
+// EndpointContextKey is the key for setting and retrieving the endpoint from context.
+const EndpointContextKey Key = "endpoint"
+
 // Options controls server behavior
 type Options interface {
 	// SetClockOptions sets the clock options.
