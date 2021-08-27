@@ -28,10 +28,11 @@ import (
 )
 
 type readableSeg struct {
-	nowFn             clock.NowFn
-	createdAt         time.Time
-	segment           segment.Segment
-	garbageCollecting bool
+	nowFn                   clock.NowFn
+	createdAt               time.Time
+	segment                 segment.Segment
+	garbageCollectLastCheck time.Time
+	garbageCollecting       bool
 }
 
 func newReadableSeg(

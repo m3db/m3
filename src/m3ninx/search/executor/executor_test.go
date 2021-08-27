@@ -51,17 +51,13 @@ func TestExecutor(t *testing.T) {
 		r  = index.NewMockReader(mockCtrl)
 		rs = index.Readers{r}
 	)
-	gomock.InOrder(
-		q.EXPECT().Searcher().Return(nil, nil),
-
-		r.EXPECT().Close().Return(nil),
-	)
+	r.EXPECT().Close().Return(nil)
 
 	e := NewExecutor(rs).(*executor)
 
 	// Override newIteratorFn to return test iterator.
-	e.newIteratorFn = func(_ context.Context, _ search.Searcher, _ index.Readers) doc.QueryDocIterator {
-		return newTestIterator()
+	e.newIteratorFn = func(_ context.Context, _ search.Query, _ index.Readers) (doc.QueryDocIterator, error) {
+		return newTestIterator(), nil
 	}
 
 	it, err := e.Execute(context.NewBackground(), q)

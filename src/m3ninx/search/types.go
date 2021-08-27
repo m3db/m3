@@ -62,3 +62,9 @@ type Searcher interface {
 
 // Searchers is a slice of Searcher.
 type Searchers []Searcher
+
+// ReadThroughSegmentSearcher searches a read through segment
+// and potentially caches the result.
+type ReadThroughSegmentSearcher interface {
+	Search(query Query, searcher Searcher) (postings.List, error)
+}
