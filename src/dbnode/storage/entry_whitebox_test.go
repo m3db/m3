@@ -25,18 +25,23 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestEntryIndexAttemptRotatesSlice(t *testing.T) {
-	e := NewEntry(NewEntryOptions{})
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	e := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
 	for i := 0; i < 10; i++ {
 		ti := newTime(i)
 		require.True(t, e.NeedsIndexUpdate(ti))
@@ -52,6 +57,8 @@ func TestEntryIndexAttemptRotatesSlice(t *testing.T) {
 
 func TestEntryIndexSeriesRef(t *testing.T) {
 	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	now := time.Now()
 	blockStart := newTime(0)
 	mockIndexWriter := NewMockIndexWriter(ctrl)
@@ -60,6 +67,7 @@ func TestEntryIndexSeriesRef(t *testing.T) {
 		Times(2)
 
 	mockSeries := series.NewMockDatabaseSeries(ctrl)
+	mockSeries.EXPECT().ID().Return(ident.StringID("foo"))
 	mockSeries.EXPECT().Metadata().Return(doc.Metadata{})
 	mockSeries.EXPECT().Write(
 		context.NewBackground(),

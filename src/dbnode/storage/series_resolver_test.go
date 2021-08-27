@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 )
 
 func TestResolveError(t *testing.T) {
@@ -51,11 +52,15 @@ func TestResolveNilEntry(t *testing.T) {
 }
 
 func TestResolve(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
 	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
 		return NewEntry(NewEntryOptions{
-			Index: 11,
+			Series: newMockSeries(ctrl),
+			Index:  11,
 		}), nil
 	})
 	seriesRef, err := sut.SeriesRef()
@@ -66,11 +71,15 @@ func TestResolve(t *testing.T) {
 }
 
 func TestSecondResolveWontWait(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
 	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
 		return NewEntry(NewEntryOptions{
-			Index: 11,
+			Series: newMockSeries(ctrl),
+			Index:  11,
 		}), nil
 	})
 	seriesRef, err := sut.SeriesRef()
@@ -88,10 +97,13 @@ func TestSecondResolveWontWait(t *testing.T) {
 }
 
 func TestReleaseRef(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
 	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
-		entry := NewEntry(NewEntryOptions{})
+		entry := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
 		entry.IncrementReaderWriterCount()
 		return entry, nil
 	})
@@ -117,10 +129,13 @@ func TestReleaseRefError(t *testing.T) {
 }
 
 func TestReleaseRefWithoutSeriesRef(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
 	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
-		entry := NewEntry(NewEntryOptions{})
+		entry := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
 		entry.IncrementReaderWriterCount()
 		return entry, nil
 	})
