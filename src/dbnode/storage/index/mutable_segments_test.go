@@ -171,7 +171,7 @@ func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.
 			// Explicitly background compact and make sure that background segment
 			// is GC'd of series no longer present.
 			segs.Lock()
-			segs.backgroundCompactWithLock()
+			segs.backgroundCompactWithLock(false)
 			compactingBackgroundStandard := segs.compact.compactingBackgroundStandard
 			compactingBackgroundGarbageCollect := segs.compact.compactingBackgroundGarbageCollect
 			segs.Unlock()

@@ -440,7 +440,7 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 		return
 	}
 
-	m.backgroundCompactWithLock()
+	m.backgroundCompactWithLock(false)
 }
 
 // BackgroundCompact background compacts eligible segments.
@@ -448,10 +448,10 @@ func (m *mutableSegments) BackgroundCompact() {
 	m.Lock()
 	defer m.Unlock()
 
-	m.backgroundCompactWithLock()
+	m.backgroundCompactWithLock(true)
 }
 
-func (m *mutableSegments) backgroundCompactWithLock() {
+func (m *mutableSegments) backgroundCompactWithLock(force bool) {
 	// Create a logical plan.
 	segs := make([]compaction.Segment, 0, len(m.backgroundSegments))
 	for _, seg := range m.backgroundSegments {
@@ -489,7 +489,7 @@ func (m *mutableSegments) backgroundCompactWithLock() {
 		for _, seg := range m.backgroundSegments {
 			sinceLastInactiveSeriesCheck := now.Sub(seg.garbageCollectLastCheck)
 			seg.garbageCollectLastCheck = now
-			if sinceLastInactiveSeriesCheck < segmentCheckInactiveSeriesMinInterval {
+			if !force && sinceLastInactiveSeriesCheck < segmentCheckInactiveSeriesMinInterval {
 				// Only consider for compaction every so often.
 				continue
 			}
