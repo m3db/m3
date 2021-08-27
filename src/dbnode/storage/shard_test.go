@@ -2067,3 +2067,34 @@ func getMockReader(
 
 	return reader, latestSourceVolume
 }
+
+func TestShardEntryTryMarkIndexGarbageCollectedAfterSeriesClose(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := DefaultTestOptions()
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	shard := testDatabaseShard(t, opts)
+	defer shard.Close()
+
+	id := ident.StringID("foo")
+
+	series := series.NewMockDatabaseSeries(ctrl)
+	series.EXPECT().ID().Return(id)
+
+	entry := NewEntry(NewEntryOptions{
+		Shard:  shard,
+		Series: series,
+	})
+
+	// Make sure when ID is returned nil to emulate series being closed
+	// and TryMarkIndexGarbageCollected calling back into shard with a nil ID.
+	series.EXPECT().ID().Return(nil).AnyTimes()
+	series.EXPECT().IsEmpty().Return(false).AnyTimes()
+	require.NotPanics(t, func() {
+		// Make sure doesn't panic.
+		require.False(t, entry.TryMarkIndexGarbageCollected())
+	})
+}

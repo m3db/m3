@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -61,6 +62,7 @@ type IndexWriter interface {
 // members to track lifecycle and minimize indexing overhead.
 // NB: users are expected to use `NewEntry` to construct these objects.
 type Entry struct {
+	ID                       ident.ID
 	Shard                    Shard
 	Series                   series.DatabaseSeries
 	Index                    uint64
@@ -98,6 +100,7 @@ func NewEntry(opts NewEntryOptions) *Entry {
 		nowFn = opts.NowFn
 	}
 	entry := &Entry{
+		ID:                       opts.Series.ID(),
 		Shard:                    opts.Shard,
 		Series:                   opts.Series,
 		Index:                    opts.Index,
@@ -239,7 +242,7 @@ func (entry *Entry) TryMarkIndexGarbageCollected() bool {
 	// Since series insertions + index insertions are done separately async, it is possible for
 	// a series to be in the index but not have data written yet, and so any series not in the
 	// lookup yet we cannot yet consider empty.
-	e, _, err := entry.Shard.TryRetrieveSeriesAndIncrementReaderWriterCount(entry.Series.ID())
+	e, _, err := entry.Shard.TryRetrieveSeriesAndIncrementReaderWriterCount(entry.ID)
 	if err != nil || e == nil {
 		return false
 	}
