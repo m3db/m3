@@ -377,7 +377,8 @@ func TestServiceQuery(t *testing.T) {
 		}
 	}
 
-	require.Equal(t, query, ctx.GoContext().Value(tchannelthrift.EndpointContextKey))
+	require.Equal(t, "Query",
+		ctx.GoContext().Value(tchannelthrift.EndpointContextKey).(tchannelthrift.Endpoint).String())
 }
 
 func TestServiceSetMetadata(t *testing.T) {
@@ -616,7 +617,8 @@ func TestServiceFetch(t *testing.T) {
 		assert.Equal(t, v.v, r.Datapoints[i].Value)
 	}
 
-	require.Equal(t, fetch, ctx.GoContext().Value(tchannelthrift.EndpointContextKey))
+	require.Equal(t, "Fetch",
+		ctx.GoContext().Value(tchannelthrift.EndpointContextKey).(tchannelthrift.Endpoint).String())
 }
 
 func TestServiceFetchIsOverloaded(t *testing.T) {
@@ -814,7 +816,8 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 		assert.Equal(t, expectTail, seg.Merged.Tail)
 	}
 
-	require.Equal(t, fetchBatchRaw, ctx.GoContext().Value(tchannelthrift.EndpointContextKey))
+	require.Equal(t, "FetchBatchRaw",
+		ctx.GoContext().Value(tchannelthrift.EndpointContextKey).(tchannelthrift.Endpoint).String())
 }
 
 func TestServiceFetchBatchRawV2MultiNS(t *testing.T) {
@@ -933,7 +936,8 @@ func TestServiceFetchBatchRawV2MultiNS(t *testing.T) {
 		assert.Equal(t, expectTail, seg.Merged.Tail)
 	}
 
-	require.Equal(t, fetchBatchRawV2, ctx.GoContext().Value(tchannelthrift.EndpointContextKey))
+	require.Equal(t, "FetchBatchRawV2",
+		ctx.GoContext().Value(tchannelthrift.EndpointContextKey).(tchannelthrift.Endpoint).String())
 }
 
 // TestServiceFetchBatchRawOverMaxOutstandingRequests tests that the FetchBatchRaw endpoint
@@ -1794,7 +1798,8 @@ func TestServiceFetchTagged(t *testing.T) {
 			assert.Equal(t, tracepoint.FetchTagged, spans[0].OperationName)
 			assert.Equal(t, "root", spans[1].OperationName)
 
-			require.Equal(t, fetchTagged, ctx.GoContext().Value(tchannelthrift.EndpointContextKey))
+			require.Equal(t, "FetchTagged",
+				ctx.GoContext().Value(tchannelthrift.EndpointContextKey).(tchannelthrift.Endpoint).String())
 		})
 	}
 }
@@ -2262,7 +2267,8 @@ func TestServiceAggregate(t *testing.T) {
 	require.Equal(t, "foo", string(r.Results[1].TagName))
 	require.Equal(t, 0, len(r.Results[1].TagValues))
 
-	require.Equal(t, aggregateRaw, ctx.GoContext().Value(tchannelthrift.EndpointContextKey))
+	require.Equal(t, "AggregateRaw",
+		ctx.GoContext().Value(tchannelthrift.EndpointContextKey).(tchannelthrift.Endpoint).String())
 }
 
 func TestServiceAggregateNameOnly(t *testing.T) {

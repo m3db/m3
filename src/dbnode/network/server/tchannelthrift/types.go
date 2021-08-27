@@ -37,6 +37,38 @@ type Key string
 // EndpointContextKey is the key for setting and retrieving the endpoint from context.
 const EndpointContextKey Key = "endpoint"
 
+// Endpoint is a type representing an API endpoint
+type Endpoint int
+
+const (
+	AggregateRaw Endpoint = iota
+	Fetch
+	FetchBatchRaw
+	FetchBatchRawV2
+	FetchTagged
+	Query
+)
+
+// String returns the string value of Endpoint enum.
+func (e Endpoint) String() string {
+	switch e {
+	case AggregateRaw:
+		return "AggregateRaw"
+	case Fetch:
+		return "Fetch"
+	case FetchBatchRaw:
+		return "FetchBatchRaw"
+	case FetchBatchRawV2:
+		return "FetchBatchRawV2"
+	case FetchTagged:
+		return "FetchTagged"
+	case Query:
+		return "Query"
+	default:
+		return "Unknown"
+	}
+}
+
 // Options controls server behavior
 type Options interface {
 	// SetClockOptions sets the clock options.
