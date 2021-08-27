@@ -25,10 +25,14 @@ import (
 	"testing"
 	"time"
 
-	xtime "github.com/m3db/m3/src/x/time"
-
 	"github.com/fortytw2/leaktest"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -41,8 +45,18 @@ func newTime(n int) xtime.UnixNano {
 	return xtime.ToUnixNano(t)
 }
 
+func newMockSeries(ctrl *gomock.Controller) series.DatabaseSeries {
+	id := ident.StringID("foo")
+	series := series.NewMockDatabaseSeries(ctrl)
+	series.EXPECT().ID().Return(id).AnyTimes()
+	return series
+}
+
 func TestEntryReaderWriterCount(t *testing.T) {
-	e := NewEntry(NewEntryOptions{})
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	e := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
 	require.Equal(t, int32(0), e.ReaderWriterCount())
 
 	e.IncrementReaderWriterCount()
@@ -53,7 +67,10 @@ func TestEntryReaderWriterCount(t *testing.T) {
 }
 
 func TestEntryIndexSuccessPath(t *testing.T) {
-	e := NewEntry(NewEntryOptions{})
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	e := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
 	t0 := newTime(0)
 	require.False(t, e.IndexedForBlockStart(t0))
 
@@ -68,7 +85,10 @@ func TestEntryIndexSuccessPath(t *testing.T) {
 }
 
 func TestEntryIndexFailPath(t *testing.T) {
-	e := NewEntry(NewEntryOptions{})
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	e := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
 	t0 := newTime(0)
 	require.False(t, e.IndexedForBlockStart(t0))
 
@@ -82,9 +102,12 @@ func TestEntryIndexFailPath(t *testing.T) {
 }
 
 func TestEntryMultipleGoroutinesRaceIndexUpdate(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
 	defer leaktest.CheckTimeout(t, time.Second)()
 
-	e := NewEntry(NewEntryOptions{})
+	e := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
 	t0 := newTime(0)
 	require.False(t, e.IndexedForBlockStart(t0))
 
@@ -108,4 +131,37 @@ func TestEntryMultipleGoroutinesRaceIndexUpdate(t *testing.T) {
 
 	require.False(t, r1 && r2)
 	require.True(t, r1 || r2)
+}
+
+func TestEntryTryMarkIndexGarbageCollectedAfterSeriesClose(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := DefaultTestOptions()
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	shard := testDatabaseShard(t, opts)
+	defer func() {
+		require.NoError(t, shard.Close())
+	}()
+
+	id := ident.StringID("foo")
+
+	series := series.NewMockDatabaseSeries(ctrl)
+	series.EXPECT().ID().Return(id)
+
+	entry := NewEntry(NewEntryOptions{
+		Shard:  shard,
+		Series: series,
+	})
+
+	// Make sure when ID is returned nil to emulate series being closed
+	// and TryMarkIndexGarbageCollected calling back into shard with a nil ID.
+	series.EXPECT().ID().Return(nil).AnyTimes()
+	series.EXPECT().IsEmpty().Return(false).AnyTimes()
+	require.NotPanics(t, func() {
+		// Make sure doesn't panic.
+		require.False(t, entry.TryMarkIndexGarbageCollected())
+	})
 }
