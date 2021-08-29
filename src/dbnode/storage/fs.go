@@ -39,12 +39,17 @@ const (
 	fileOpFailed
 )
 
+type warmStatus struct {
+	DataFlushed  fileOpStatus
+	IndexFlushed fileOpStatus
+}
+
 type fileOpState struct {
 	// WarmStatus is the status of data persistence for WarmWrites only.
 	// Each block will only be warm-flushed once, so not keeping track of a
 	// version here is okay. This is used in the buffer Tick to determine when
 	// a warm bucket is evictable from memory.
-	WarmStatus fileOpStatus
+	WarmStatus warmStatus
 	// ColdVersionRetrievable keeps track of data persistence for ColdWrites only.
 	// Each block can be cold-flushed multiple times, so this tracks which
 	// version of the flush completed successfully. This is ultimately used in

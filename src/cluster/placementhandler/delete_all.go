@@ -74,7 +74,7 @@ func (h *DeleteAllHandler) ServeHTTP(
 	)
 
 	service, err := Service(h.clusterClient, opts,
-		h.placement, h.nowFn(), nil)
+		Handler(*h).PlacementConfig(), h.nowFn(), nil)
 	if err != nil {
 		xhttp.WriteError(w, err)
 		return

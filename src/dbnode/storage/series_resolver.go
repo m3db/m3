@@ -25,12 +25,11 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/x/ident"
 )
 
 // retrieveWritableSeriesFn represents the function to retrieve series entry.
-type retrieveWritableSeriesFn func(id ident.ID) (*lookup.Entry, error)
+type retrieveWritableSeriesFn func(id ident.ID) (*Entry, error)
 
 type seriesResolver struct {
 	sync.RWMutex
@@ -41,7 +40,7 @@ type seriesResolver struct {
 
 	resolved    bool
 	resolvedErr error
-	entry       *lookup.Entry
+	entry       *Entry
 }
 
 // NewSeriesResolver creates new series ref resolver.

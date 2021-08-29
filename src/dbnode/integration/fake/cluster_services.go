@@ -119,6 +119,14 @@ func NewM3ClusterServices() M3ClusterServices {
 	}
 }
 
+// NewM3ClusterServicesWithPlacementService creates a new fake m3cluster services with given placement service.
+func NewM3ClusterServicesWithPlacementService(placementSvc M3ClusterPlacementService) M3ClusterServices {
+	return &m3ClusterServices{
+		services:         make(map[string]*m3RegisteredService),
+		placementService: placementSvc,
+	}
+}
+
 type m3ClusterServices struct {
 	sync.RWMutex
 	services         map[string]*m3RegisteredService
@@ -243,9 +251,18 @@ func NewM3ClusterPlacementService() M3ClusterPlacementService {
 	}
 }
 
+// NewM3ClusterPlacementServiceWithPlacement creates a fake m3cluster placement service with given placement.
+func NewM3ClusterPlacementServiceWithPlacement(placement placement.Placement) M3ClusterPlacementService {
+	return &m3ClusterPlacementService{
+		placement:       placement,
+		markedAvailable: make(map[string][]uint32),
+	}
+}
+
 type m3ClusterPlacementService struct {
 	placement.Service
 
+	placement       placement.Placement
 	markedAvailable map[string][]uint32
 }
 
@@ -257,6 +274,31 @@ func (s *m3ClusterPlacementService) MarkShardsAvailable(
 ) (placement.Placement, error) {
 	s.markedAvailable[instanceID] = append(s.markedAvailable[instanceID], shardIDs...)
 	return nil, nil
+}
+
+func (s *m3ClusterPlacementService) Watch() (placement.Watch, error) {
+	return &m3clusterPlacementWatch{
+		placement: s.placement,
+	}, nil
+}
+
+type m3clusterPlacementWatch struct {
+	placement.Watch
+
+	placement placement.Placement
+}
+
+func (w *m3clusterPlacementWatch) C() <-chan struct{} {
+	c := make(chan struct{})
+	close(c)
+	return c
+}
+
+func (w *m3clusterPlacementWatch) Get() (placement.Placement, error) {
+	return w.placement, nil
+}
+
+func (w *m3clusterPlacementWatch) Close() {
 }
 
 // NewM3ClusterService creates a new fake m3cluster service

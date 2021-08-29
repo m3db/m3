@@ -18,20 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package lookup
+package storage
 
 import (
 	"sync"
 	"sync/atomic"
 	"time"
 
+	xatomic "go.uber.org/atomic"
+
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -58,8 +62,12 @@ type IndexWriter interface {
 // members to track lifecycle and minimize indexing overhead.
 // NB: users are expected to use `NewEntry` to construct these objects.
 type Entry struct {
+	ID                       ident.ID
+	Shard                    Shard
 	Series                   series.DatabaseSeries
 	Index                    uint64
+	IndexGarbageCollected    *xatomic.Bool
+	insertTime               *xatomic.Int64
 	indexWriter              IndexWriter
 	curReadWriters           int32
 	reverseIndex             entryIndexState
@@ -67,8 +75,8 @@ type Entry struct {
 	pendingIndexBatchSizeOne []writes.PendingIndexInsert
 }
 
-// ensure Entry satisfies the `index.OnIndexSeries` interface.
-var _ index.OnIndexSeries = &Entry{}
+// ensure Entry satisfies the `doc.OnIndexSeries` interface.
+var _ doc.OnIndexSeries = &Entry{}
 
 // ensure Entry satisfies the `bootstrap.SeriesRef` interface.
 var _ bootstrap.SeriesRef = &Entry{}
@@ -78,6 +86,7 @@ var _ bootstrap.SeriesRefResolver = &Entry{}
 
 // NewEntryOptions supplies options for a new entry.
 type NewEntryOptions struct {
+	Shard       Shard
 	Series      series.DatabaseSeries
 	Index       uint64
 	IndexWriter IndexWriter
@@ -91,13 +100,17 @@ func NewEntry(opts NewEntryOptions) *Entry {
 		nowFn = opts.NowFn
 	}
 	entry := &Entry{
+		ID:                       opts.Series.ID(),
+		Shard:                    opts.Shard,
 		Series:                   opts.Series,
 		Index:                    opts.Index,
+		IndexGarbageCollected:    xatomic.NewBool(false),
+		insertTime:               xatomic.NewInt64(0),
 		indexWriter:              opts.IndexWriter,
 		nowFn:                    nowFn,
 		pendingIndexBatchSizeOne: make([]writes.PendingIndexInsert, 1),
+		reverseIndex:             newEntryIndexState(),
 	}
-	entry.reverseIndex.states = entry.reverseIndex._staticAloc[:0]
 	return entry
 }
 
@@ -114,6 +127,14 @@ func (entry *Entry) IncrementReaderWriterCount() {
 // DecrementReaderWriterCount decrements the ref count on the Entry.
 func (entry *Entry) DecrementReaderWriterCount() {
 	atomic.AddInt32(&entry.curReadWriters, -1)
+}
+
+// IndexedBlockCount returns the count of indexed block states.
+func (entry *Entry) IndexedBlockCount() int {
+	entry.reverseIndex.RLock()
+	count := len(entry.reverseIndex.states)
+	entry.reverseIndex.RUnlock()
+	return count
 }
 
 // IndexedForBlockStart returns a bool to indicate if the Entry has been successfully
@@ -166,7 +187,10 @@ func (entry *Entry) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) boo
 // NB(prateek): we retain the ref count on the entry while the indexing is pending,
 // the callback executed on the entry once the indexing is completed releases this
 // reference.
-func (entry *Entry) OnIndexPrepare() {
+func (entry *Entry) OnIndexPrepare(blockStartNanos xtime.UnixNano) {
+	entry.reverseIndex.Lock()
+	entry.reverseIndex.setAttemptWithWLock(blockStartNanos, true)
+	entry.reverseIndex.Unlock()
 	entry.IncrementReaderWriterCount()
 }
 
@@ -185,6 +209,81 @@ func (entry *Entry) OnIndexFinalize(blockStartNanos xtime.UnixNano) {
 	entry.reverseIndex.Unlock()
 	// indicate the index has released held reference for provided write
 	entry.DecrementReaderWriterCount()
+}
+
+// IfAlreadyIndexedMarkIndexSuccessAndFinalize marks the entry as successfully
+// indexed if already indexed and returns true. Otherwise returns false.
+func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
+	blockStart xtime.UnixNano,
+) bool {
+	successAlready := false
+	entry.reverseIndex.Lock()
+	for _, state := range entry.reverseIndex.states {
+		if state.success {
+			successAlready = true
+			break
+		}
+	}
+	if successAlready {
+		entry.reverseIndex.setSuccessWithWLock(blockStart)
+		entry.reverseIndex.setAttemptWithWLock(blockStart, false)
+	}
+	entry.reverseIndex.Unlock()
+	if successAlready {
+		// indicate the index has released held reference for provided write
+		entry.DecrementReaderWriterCount()
+	}
+	return successAlready
+}
+
+// TryMarkIndexGarbageCollected checks if the entry is eligible to be garbage collected
+// from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
+func (entry *Entry) TryMarkIndexGarbageCollected() bool {
+	// Since series insertions + index insertions are done separately async, it is possible for
+	// a series to be in the index but not have data written yet, and so any series not in the
+	// lookup yet we cannot yet consider empty.
+	e, _, err := entry.Shard.TryRetrieveSeriesAndIncrementReaderWriterCount(entry.ID)
+	if err != nil || e == nil {
+		return false
+	}
+	defer e.DecrementReaderWriterCount()
+
+	// Consider non-empty if the entry is still being held since this could indicate
+	// another thread holding a new series prior to writing to it.
+	if e.ReaderWriterCount() > 1 {
+		return false
+	}
+
+	// Series must be empty to be GCed. This happens when the data and index are flushed to disk and
+	// so the series no longer has in-mem data.
+	if !e.Series.IsEmpty() {
+		return false
+	}
+
+	// Mark as GCed from index so the entry can be safely cleaned up elsewhere.
+	entry.IndexGarbageCollected.Store(true)
+
+	return true
+}
+
+// NeedsIndexGarbageCollected checks if the entry is eligible to be garbage collected
+// from the index. Otherwise returns false.
+func (entry *Entry) NeedsIndexGarbageCollected() bool {
+	// This is a cheaper check that loading the entry from the shard again
+	// which makes it cheaper to run frequently.
+	// It may not be as accurate, but it's fine for an approximation since
+	// only a single series in a segment needs to return true to trigger an
+	// index segment to be garbage collected.
+	if entry.insertTime.Load() == 0 {
+		return false // Not inserted, does not need garbage collection.
+	}
+	// Check that a write is not potentially pending and the series is empty.
+	return entry.ReaderWriterCount() == 0 && entry.Series.IsEmpty()
+}
+
+// SetInsertTime marks the entry as having been inserted into the shard at a given timestamp.
+func (entry *Entry) SetInsertTime(t time.Time) {
+	entry.insertTime.Store(t.UnixNano())
 }
 
 // Write writes a new value.
@@ -243,7 +342,7 @@ func (entry *Entry) maybeIndex(timestamp xtime.UnixNano) error {
 		},
 		Document: entry.Series.Metadata(),
 	}
-	entry.OnIndexPrepare()
+	entry.OnIndexPrepare(idx.BlockStartForWriteTime(timestamp))
 	return idx.WritePending(entry.pendingIndexBatchSizeOne)
 }
 
@@ -271,96 +370,64 @@ func (entry *Entry) ReleaseRef() error {
 // have a write for the 12-2p block from the 2-4p block, or we'd drop the late write.
 type entryIndexState struct {
 	sync.RWMutex
-	states []entryIndexBlockState
-
-	// NB(prateek): we alloc an array (not slice) of size 3, as that is
-	// the most we will need (only 3 blocks should ever be written to
-	// simultaneously in the worst case). We allocate it like we're doing
-	// to ensure it's along side the rest of the struct in memory. But
-	// we only access it through `states`, to ensure that it can be
-	// grown/shrunk as needed. Do not acccess it directly.
-	_staticAloc [3]entryIndexBlockState
+	states map[xtime.UnixNano]entryIndexBlockState
 }
 
 // entryIndexBlockState is used to capture the state of indexing for a single shard
 // entry for a given index block start. It's used to prevent attempts at double indexing
 // for the same block start.
 type entryIndexBlockState struct {
-	blockStart xtime.UnixNano
-	attempt    bool
-	success    bool
+	attempt bool
+	success bool
+}
+
+func newEntryIndexState() entryIndexState {
+	return entryIndexState{
+		states: make(map[xtime.UnixNano]entryIndexBlockState, 4),
+	}
 }
 
 func (s *entryIndexState) indexedWithRLock(t xtime.UnixNano) bool {
-	for i := range s.states {
-		if s.states[i].blockStart.Equal(t) {
-			return s.states[i].success
-		}
+	v, ok := s.states[t]
+	if ok {
+		return v.success
 	}
 	return false
 }
 
 func (s *entryIndexState) indexedOrAttemptedWithRLock(t xtime.UnixNano) bool {
-	for i := range s.states {
-		if s.states[i].blockStart.Equal(t) {
-			return s.states[i].success || s.states[i].attempt
-		}
+	v, ok := s.states[t]
+	if ok {
+		return v.success || v.attempt
 	}
 	return false
 }
 
 func (s *entryIndexState) setSuccessWithWLock(t xtime.UnixNano) {
-	for i := range s.states {
-		if s.states[i].blockStart.Equal(t) {
-			s.states[i].success = true
-			return
-		}
+	if s.indexedWithRLock(t) {
+		return
 	}
 
 	// NB(r): If not inserted state yet that means we need to make an insertion,
 	// this will happen if synchronously indexing and we haven't called
 	// NeedIndexUpdate before we indexed the series.
-	s.insertBlockState(entryIndexBlockState{
-		blockStart: t,
-		success:    true,
-	})
+	s.states[t] = entryIndexBlockState{
+		success: true,
+	}
 }
 
 func (s *entryIndexState) setAttemptWithWLock(t xtime.UnixNano, attempt bool) {
-	// first check if we have the block start in the slice already
-	for i := range s.states {
-		if s.states[i].blockStart.Equal(t) {
-			s.states[i].attempt = attempt
-			return
+	v, ok := s.states[t]
+	if ok {
+		if v.success {
+			return // Attempt is not relevant if success.
 		}
-	}
-
-	s.insertBlockState(entryIndexBlockState{
-		blockStart: t,
-		attempt:    attempt,
-	})
-}
-
-func (s *entryIndexState) insertBlockState(newState entryIndexBlockState) {
-	// i.e. we don't have the block start in the slice
-	// if we have less than 3 elements, we can just insert an element to the slice.
-	if len(s.states) < 3 {
-		s.states = append(s.states, newState)
+		v.attempt = attempt
+		s.states[t] = v
 		return
 	}
 
-	// i.e. len(s.states) == 3, in this case, we update the entry with the lowest block start
-	// as we know only 3 writes can be active at any point. Think of this as a lazy compaction.
-	var (
-		minIdx        = -1
-		minBlockStart = xtime.UnixNano(maxInt64)
-	)
-	for idx, blockState := range s.states {
-		if blockState.blockStart < minBlockStart {
-			minIdx = idx
-			minBlockStart = blockState.blockStart
-		}
+	s.states[t] = entryIndexBlockState{
+		attempt: attempt,
 	}
-
-	s.states[minIdx] = newState
 }

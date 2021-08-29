@@ -147,6 +147,10 @@ type RunOptions struct {
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
 
+	// ShutdownCh is an optional channel to supply if interested in receiving
+	// a notification that the server has shutdown.
+	ShutdownCh chan<- struct{}
+
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
 
@@ -466,12 +470,20 @@ func Run(runOpts RunOptions) {
 	maxIdxConcurrency := int(math.Ceil(float64(runtime.NumCPU()) / 2))
 	if cfg.Index.MaxQueryIDsConcurrency > 0 {
 		maxIdxConcurrency = cfg.Index.MaxQueryIDsConcurrency
+		logger.Info("max index query IDs concurrency set",
+			zap.Int("maxIdxConcurrency", maxIdxConcurrency))
 	} else {
-		logger.Warn("max index query IDs concurrency was not set, falling back to default value")
+		logger.Info("max index query IDs concurrency was not set, falling back to default value",
+			zap.Int("maxIdxConcurrency", maxIdxConcurrency))
 	}
 	maxWorkerTime := time.Second
 	if cfg.Index.MaxWorkerTime > 0 {
 		maxWorkerTime = cfg.Index.MaxWorkerTime
+		logger.Info("max index worker time set",
+			zap.Duration("maxWorkerTime", maxWorkerTime))
+	} else {
+		logger.Info("max index worker time was not set, falling back to default value",
+			zap.Duration("maxWorkerTime", maxWorkerTime))
 	}
 	opts = opts.SetPermitsOptions(permitOptions.SetIndexQueryPermitsManager(
 		permits.NewFixedPermitsManager(maxIdxConcurrency, int64(maxWorkerTime), iOpts)))
@@ -485,10 +497,21 @@ func Run(runOpts RunOptions) {
 				SetMetricsScope(scope.SubScope("postings-list-cache")),
 		}
 	)
-	postingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	segmentPostingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
 	if err != nil {
-		logger.Fatal("could not construct postings list cache", zap.Error(err))
+		logger.Fatal("could not construct segment postings list cache", zap.Error(err))
 	}
+
+	segmentStopReporting := segmentPostingsListCache.Start()
+	defer segmentStopReporting()
+
+	searchPostingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	if err != nil {
+		logger.Fatal("could not construct searches postings list cache", zap.Error(err))
+	}
+
+	searchStopReporting := searchPostingsListCache.Start()
+	defer searchStopReporting()
 
 	// Setup index regexp compilation cache.
 	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
@@ -509,7 +532,6 @@ func Run(runOpts RunOptions) {
 	defer queryLimits.Stop()
 	seriesReadPermits.Start()
 	defer seriesReadPermits.Stop()
-	defer postingsListCache.Start()()
 
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
@@ -519,10 +541,12 @@ func Run(runOpts RunOptions) {
 		insertMode = index.InsertAsync
 	}
 	indexOpts = indexOpts.SetInsertMode(insertMode).
-		SetPostingsListCache(postingsListCache).
+		SetPostingsListCache(segmentPostingsListCache).
+		SetSearchPostingsListCache(searchPostingsListCache).
 		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{
-			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
-			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
+			CacheRegexp:   plCacheConfig.CacheRegexpOrDefault(),
+			CacheTerms:    plCacheConfig.CacheTermsOrDefault(),
+			CacheSearches: plCacheConfig.CacheSearchOrDefault(),
 		}).
 		SetMmapReporter(mmapReporter).
 		SetQueryLimits(queryLimits)
@@ -1074,6 +1098,15 @@ func Run(runOpts RunOptions) {
 		logger.Info("server closed")
 	case <-time.After(closeTimeout):
 		logger.Error("server closed after timeout", zap.Duration("timeout", closeTimeout))
+	}
+
+	if runOpts.ShutdownCh != nil {
+		select {
+		case runOpts.ShutdownCh <- struct{}{}:
+			break
+		default:
+			logger.Warn("could not send shutdown notification as channel was full")
+		}
 	}
 }
 

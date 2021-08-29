@@ -38,15 +38,45 @@ func ToUnixNano(t time.Time) UnixNano {
 	return UnixNano(t.UnixNano())
 }
 
+const (
+	secondsPerDay = 60 * 60 * 24
+	// NB:Number of seconds from epoch to timeZero.
+	unixToInternal int64 = (1969*365 + 1969/4 - 1969/100 + 1969/400) * secondsPerDay
+)
+
 // Truncate returns the result of rounding u down to a multiple of d.
-// If d <= 0, Truncate returns u unchanged.
+// If d <= 1, Truncate returns u unchanged.
 func (u UnixNano) Truncate(d time.Duration) UnixNano {
-	if d <= 0 {
+	if d <= 1 {
 		return u
 	}
 
-	duration := UnixNano(d)
-	return (u / duration) * duration
+	if d < time.Second && time.Second%(d+d) == 0 {
+		return u - UnixNano((time.Duration(u)%time.Second)%d)
+	}
+
+	if d%time.Second != 0 {
+		// NB: the time.Truncate implementation for non-rounded durations is fairly
+		// complex; considering that it is unlikely that xtime.UnixNanos would be
+		// truncated by durations that are neither composed of seconds, or divisors
+		// of seconds, this defers to time.Time's implementation of truncation.
+		return ToUnixNano(time.Unix(0, int64(u)).Truncate(d))
+	}
+
+	// time.Truncate calculates truncation duration based on timeZero; i.e. from
+	// the date: January 1, year 1, 00:00:00.000000000 UTC; so here, the seconds
+	// from epoch will need to be converted to this timeframe to calculate the
+	// truncation duration.
+	var (
+		i                   = int64(u)
+		sec                 = int64(time.Second)
+		nanosToTruncate     = i % sec
+		secondsFromTimeZero = i/int64(time.Second) + unixToInternal
+		duration            = int64(d / time.Second)
+		secondsToTruncate   = (secondsFromTimeZero % duration) * int64(time.Second)
+	)
+
+	return u - UnixNano(secondsToTruncate+nanosToTruncate)
 }
 
 // Sub returns the duration u-o. If the result exceeds the maximum (or minimum)
@@ -99,7 +129,7 @@ func (u UnixNano) String() string {
 
 // Format returns the string representation for the time with the given format.
 func (u UnixNano) Format(blockTimeFormat string) string {
-	return u.ToTime().Format(blockTimeFormat)
+	return u.ToTime().UTC().Format(blockTimeFormat)
 }
 
 // Seconds returns the seconds for time u, as an int64.

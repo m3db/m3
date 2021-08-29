@@ -144,37 +144,37 @@ func (s *handler) Handle(conn net.Conn) {
 			untimedMetric = current.CounterWithMetadatas.Counter.ToUnion()
 			untimedMetric.Annotation = current.CounterWithMetadatas.Annotation
 			stagedMetadatas = current.CounterWithMetadatas.StagedMetadatas
-			err = addUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
+			err = s.aggregator.AddUntimed(untimedMetric, stagedMetadatas)
 		case encoding.BatchTimerWithMetadatasType:
 			untimedMetric = current.BatchTimerWithMetadatas.BatchTimer.ToUnion()
 			untimedMetric.Annotation = current.BatchTimerWithMetadatas.Annotation
 			stagedMetadatas = current.BatchTimerWithMetadatas.StagedMetadatas
-			err = addUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
+			err = s.aggregator.AddUntimed(untimedMetric, stagedMetadatas)
 		case encoding.GaugeWithMetadatasType:
 			untimedMetric = current.GaugeWithMetadatas.Gauge.ToUnion()
 			untimedMetric.Annotation = current.GaugeWithMetadatas.Annotation
 			stagedMetadatas = current.GaugeWithMetadatas.StagedMetadatas
-			err = addUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
+			err = s.aggregator.AddUntimed(untimedMetric, stagedMetadatas)
 		case encoding.ForwardedMetricWithMetadataType:
 			forwardedMetric = current.ForwardedMetricWithMetadata.ForwardedMetric
 			untimedMetric.Annotation = current.ForwardedMetricWithMetadata.Annotation
 			forwardMetadata = current.ForwardedMetricWithMetadata.ForwardMetadata
-			err = addForwardedError(s.aggregator.AddForwarded(forwardedMetric, forwardMetadata))
+			err = s.aggregator.AddForwarded(forwardedMetric, forwardMetadata)
 		case encoding.TimedMetricWithMetadataType:
 			timedMetric = current.TimedMetricWithMetadata.Metric
 			timedMetric.Annotation = current.TimedMetricWithMetadata.Annotation
 			timedMetadata = current.TimedMetricWithMetadata.TimedMetadata
-			err = addTimedError(s.aggregator.AddTimed(timedMetric, timedMetadata))
+			err = s.aggregator.AddTimed(timedMetric, timedMetadata)
 		case encoding.TimedMetricWithMetadatasType:
 			timedMetric = current.TimedMetricWithMetadatas.Metric
 			timedMetric.Annotation = current.TimedMetricWithMetadatas.Annotation
 			stagedMetadatas = current.TimedMetricWithMetadatas.StagedMetadatas
-			err = addTimedError(s.aggregator.AddTimedWithStagedMetadatas(timedMetric, stagedMetadatas))
+			err = s.aggregator.AddTimedWithStagedMetadatas(timedMetric, stagedMetadatas)
 		case encoding.PassthroughMetricWithMetadataType:
 			passthroughMetric = current.PassthroughMetricWithMetadata.Metric
 			passthroughMetric.Annotation = current.PassthroughMetricWithMetadata.Annotation
 			passthroughMetadata = current.PassthroughMetricWithMetadata.StoragePolicy
-			err = addPassthroughError(s.aggregator.AddPassthrough(passthroughMetric, passthroughMetadata))
+			err = s.aggregator.AddPassthrough(passthroughMetric, passthroughMetadata)
 		default:
 			err = newUnknownMessageTypeError(current.Type)
 		}
@@ -196,48 +196,55 @@ func (s *handler) Handle(conn net.Conn) {
 				zap.String("remoteAddress", remoteAddress),
 				zap.Error(err),
 			)
-		case addUntimedError:
-			s.metrics.addUntimedErrors.Inc(1)
-			s.log.Error("error adding untimed metric",
-				zap.String("remoteAddress", remoteAddress),
-				zap.Stringer("type", untimedMetric.Type),
-				zap.Stringer("id", untimedMetric.ID),
-				zap.Any("metadatas", stagedMetadatas),
-				zap.Error(err),
-			)
-		case addForwardedError:
-			s.metrics.addForwardedErrors.Inc(1)
-			s.log.Error("error adding forwarded metric",
-				zap.String("remoteAddress", remoteAddress),
-				zap.Stringer("id", forwardedMetric.ID),
-				zap.Time("timestamp", time.Unix(0, forwardedMetric.TimeNanos)),
-				zap.Float64s("values", forwardedMetric.Values),
-				zap.Error(err),
-			)
-		case addTimedError:
-			s.metrics.addTimedErrors.Inc(1)
-			s.log.Error("error adding timed metric",
-				zap.String("remoteAddress", remoteAddress),
-				zap.Stringer("id", timedMetric.ID),
-				zap.Time("timestamp", time.Unix(0, timedMetric.TimeNanos)),
-				zap.Float64("value", timedMetric.Value),
-				zap.Error(err),
-			)
-		case addPassthroughError:
-			s.metrics.addPassthroughErrors.Inc(1)
-			s.log.Error("error adding passthrough metric",
-				zap.String("remoteAddress", remoteAddress),
-				zap.Stringer("id", timedMetric.ID),
-				zap.Time("timestamp", time.Unix(0, timedMetric.TimeNanos)),
-				zap.Float64("value", timedMetric.Value),
-				zap.Error(err),
-			)
 		default:
-			s.metrics.unknownErrorTypeErrors.Inc(1)
-			s.log.Error("unknown error type",
-				zap.String("errorType", fmt.Sprintf("%T", err)),
-				zap.Error(err),
-			)
+			switch current.Type {
+			case encoding.CounterWithMetadatasType:
+				fallthrough
+			case encoding.BatchTimerWithMetadatasType:
+				fallthrough
+			case encoding.GaugeWithMetadatasType:
+				s.metrics.addUntimedErrors.Inc(1)
+				s.log.Error("error adding untimed metric",
+					zap.String("remoteAddress", remoteAddress),
+					zap.Stringer("type", untimedMetric.Type),
+					zap.Stringer("id", untimedMetric.ID),
+					zap.Any("metadatas", stagedMetadatas),
+					zap.Error(err),
+				)
+			case encoding.ForwardedMetricWithMetadataType:
+				s.metrics.addForwardedErrors.Inc(1)
+				s.log.Error("error adding forwarded metric",
+					zap.String("remoteAddress", remoteAddress),
+					zap.Stringer("id", forwardedMetric.ID),
+					zap.Time("timestamp", time.Unix(0, forwardedMetric.TimeNanos)),
+					zap.Float64s("values", forwardedMetric.Values),
+					zap.Error(err),
+				)
+			case encoding.TimedMetricWithMetadataType:
+				fallthrough
+			case encoding.TimedMetricWithMetadatasType:
+				s.metrics.addTimedErrors.Inc(1)
+				s.log.Error("error adding timed metric",
+					zap.String("remoteAddress", remoteAddress),
+					zap.Stringer("id", timedMetric.ID),
+					zap.Time("timestamp", time.Unix(0, timedMetric.TimeNanos)),
+					zap.Float64("value", timedMetric.Value),
+					zap.Any("metadatas", stagedMetadatas),
+					zap.Error(err),
+				)
+			case encoding.PassthroughMetricWithMetadataType:
+				s.metrics.addPassthroughErrors.Inc(1)
+				s.log.Error("error adding passthrough metric",
+					zap.String("remoteAddress", remoteAddress),
+					zap.Stringer("id", timedMetric.ID),
+					zap.Time("timestamp", time.Unix(0, timedMetric.TimeNanos)),
+					zap.Float64("value", timedMetric.Value),
+					zap.Error(err),
+				)
+			default:
+				// make the linter happy.
+				s.log.Error("unknown message type for error. this cannot happen")
+			}
 		}
 	}
 
@@ -271,11 +278,3 @@ func newUnknownMessageTypeError(
 func (e unknownMessageTypeError) Error() string {
 	return fmt.Sprintf("unknown message type %v", e.msgType)
 }
-
-type addForwardedError error
-
-type addPassthroughError error
-
-type addTimedError error
-
-type addUntimedError error

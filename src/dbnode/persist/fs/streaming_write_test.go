@@ -46,7 +46,15 @@ type testStreamingEntry struct {
 	values []float64
 }
 
-func newTestStreamingWriter(
+func newTestStreamingWriter(t *testing.T, filePathPrefix string) StreamingWriter {
+	writer, err := NewStreamingWriter(testDefaultOpts.
+		SetFilePathPrefix(filePathPrefix).
+		SetWriterBufferSize(testWriterBufferSize))
+	require.NoError(t, err)
+	return writer
+}
+
+func newOpenTestStreamingWriter(
 	t *testing.T,
 	filePathPrefix string,
 	shard uint32,
@@ -54,10 +62,7 @@ func newTestStreamingWriter(
 	nextVersion int,
 	plannedEntries uint,
 ) StreamingWriter {
-	writer, err := NewStreamingWriter(testDefaultOpts.
-		SetFilePathPrefix(filePathPrefix).
-		SetWriterBufferSize(testWriterBufferSize))
-	require.NoError(t, err)
+	writer := newTestStreamingWriter(t, filePathPrefix)
 
 	writerOpenOpts := StreamingWriterOpenOptions{
 		NamespaceID: testNs1ID,
@@ -68,7 +73,7 @@ func newTestStreamingWriter(
 		VolumeIndex:         nextVersion,
 		PlannedRecordsCount: plannedEntries,
 	}
-	err = writer.Open(writerOpenOpts)
+	err := writer.Open(writerOpenOpts)
 	require.NoError(t, err)
 
 	return writer
@@ -84,7 +89,7 @@ func TestIdsMustBeSorted(t *testing.T) {
 		{testEntry{"bar", nil, nil}, []float64{4.8, 5.2, 6}},
 	}
 
-	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 5)
+	w := newOpenTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 5)
 	defer w.Close()
 	err := streamingWriteTestData(t, w, testWriterStart, entries)
 	require.Error(t, err)
@@ -102,7 +107,7 @@ func TestDoubleWritesAreNotAllowed(t *testing.T) {
 		{testEntry{"baz", nil, nil}, []float64{4.8, 5.2, 6}},
 	}
 
-	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 5)
+	w := newOpenTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 5)
 	defer w.Close()
 	err := streamingWriteTestData(t, w, testWriterStart, entries)
 	require.Error(t, err)
@@ -126,47 +131,78 @@ func TestSimpleReadStreamingWrite(t *testing.T) {
 		}, nil}, []float64{7, 8, 9}},
 	}
 
-	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 5)
+	w := newOpenTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 5)
 	err := streamingWriteTestData(t, w, testWriterStart, entries)
 	require.NoError(t, err)
 	err = w.Close()
 	require.NoError(t, err)
 
-	expectEntries := make([]testEntry, 0, len(entries))
-	for _, e := range entries {
-		expectEntries = append(expectEntries, e.testEntry)
-	}
-
 	r := newTestReader(t, filePathPrefix)
-	readTestData(t, r, 0, testWriterStart, expectEntries)
+	readTestData(t, r, 0, testWriterStart, toTestEntries(entries))
+
+	verifyInfoFile(t, filePathPrefix, testNs1ID, 0, len(entries))
 }
 
-func TestInfoReadStreamingWrite(t *testing.T) {
+func TestReuseStreamingWriter(t *testing.T) {
 	dir := createTempDir(t)
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	entries := []testStreamingEntry{
+	entries1 := []testStreamingEntry{
 		{testEntry{"bar", nil, nil}, []float64{4.8, 5.2, 6}},
 		{testEntry{"baz", nil, nil}, []float64{65536}},
 		{testEntry{"cat", nil, nil}, []float64{100000}},
 		{testEntry{"foo", nil, nil}, []float64{1, 2, 3}},
 	}
 
-	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 12)
-	err := streamingWriteTestData(t, w, testWriterStart, entries)
+	entries2 := []testStreamingEntry{
+		{testEntry{"bar2", nil, nil}, []float64{24.8, 25.2, 26}},
+		{testEntry{"baz2", nil, nil}, []float64{265536}},
+		{testEntry{"cat2", nil, nil}, []float64{200000}},
+	}
+
+	w := newTestStreamingWriter(t, filePathPrefix)
+
+	writerOpenOpts1 := StreamingWriterOpenOptions{
+		NamespaceID:         testNs1ID,
+		ShardID:             1,
+		BlockStart:          testWriterStart,
+		BlockSize:           testBlockSize,
+		VolumeIndex:         0,
+		PlannedRecordsCount: uint(len(entries1)),
+	}
+	err := w.Open(writerOpenOpts1)
+	require.NoError(t, err)
+
+	err = streamingWriteTestData(t, w, testWriterStart, entries1)
 	require.NoError(t, err)
 	err = w.Close()
 	require.NoError(t, err)
 
-	readInfoFileResults := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil, persist.FileSetFlushType)
-	require.Equal(t, 1, len(readInfoFileResults))
-	require.NoError(t, readInfoFileResults[0].Err.Error())
+	verifyInfoFile(t, filePathPrefix, testNs1ID, 1, len(entries1))
 
-	infoFile := readInfoFileResults[0].Info
-	require.Equal(t, int64(testWriterStart), infoFile.BlockStart)
-	require.Equal(t, testBlockSize, time.Duration(infoFile.BlockSize))
-	require.Equal(t, int64(len(entries)), infoFile.Entries)
+	r := newTestReader(t, filePathPrefix)
+	readTestData(t, r, 1, testWriterStart, toTestEntries(entries1))
+
+	writerOpenOpts2 := StreamingWriterOpenOptions{
+		NamespaceID:         testNs1ID,
+		ShardID:             2,
+		BlockStart:          testWriterStart,
+		BlockSize:           testBlockSize,
+		VolumeIndex:         0,
+		PlannedRecordsCount: uint(len(entries2)),
+	}
+	err = w.Open(writerOpenOpts2)
+	require.NoError(t, err)
+
+	err = streamingWriteTestData(t, w, testWriterStart, entries2)
+	require.NoError(t, err)
+	err = w.Close()
+	require.NoError(t, err)
+
+	verifyInfoFile(t, filePathPrefix, testNs1ID, 2, len(entries2))
+
+	readTestData(t, r, 2, testWriterStart, toTestEntries(entries2))
 }
 
 func TestReadStreamingWriteEmptyFileset(t *testing.T) {
@@ -174,7 +210,7 @@ func TestReadStreamingWriteEmptyFileset(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 1)
+	w := newOpenTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 1)
 	err := streamingWriteTestData(t, w, testWriterStart, nil)
 	require.NoError(t, err)
 	err = w.Close()
@@ -208,7 +244,7 @@ func TestStreamingWriterAbort(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 1)
+	w := newOpenTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 1)
 	err := streamingWriteTestData(t, w, testWriterStart, nil)
 	require.NoError(t, err)
 	err = w.Abort()
@@ -289,4 +325,23 @@ func streamingWriteWithVolume(
 		}
 	}
 	return nil
+}
+
+func verifyInfoFile(t *testing.T, filePathPrefix string, namespace ident.ID, shard uint32, expectedEntries int) {
+	readInfoFileResults := ReadInfoFiles(filePathPrefix, namespace, shard, 16, nil, persist.FileSetFlushType)
+	require.Equal(t, 1, len(readInfoFileResults))
+	require.NoError(t, readInfoFileResults[0].Err.Error())
+
+	infoFile := readInfoFileResults[0].Info
+	require.Equal(t, int64(testWriterStart), infoFile.BlockStart)
+	require.Equal(t, testBlockSize, time.Duration(infoFile.BlockSize))
+	require.Equal(t, int64(expectedEntries), infoFile.Entries)
+}
+
+func toTestEntries(streamingEntries []testStreamingEntry) []testEntry {
+	testEntries := make([]testEntry, 0, len(streamingEntries))
+	for _, e := range streamingEntries {
+		testEntries = append(testEntries, e.testEntry)
+	}
+	return testEntries
 }

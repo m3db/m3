@@ -18,40 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package lookup
+package storage
 
 import (
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/require"
 )
-
-var (
-	initTime      = time.Date(2018, time.May, 12, 15, 55, 0, 0, time.UTC)
-	testBlockSize = 24 * time.Hour
-)
-
-func newTime(n int) xtime.UnixNano {
-	t := initTime.Truncate(testBlockSize).Add(time.Duration(n) * testBlockSize)
-	return xtime.ToUnixNano(t)
-}
 
 func TestEntryIndexAttemptRotatesSlice(t *testing.T) {
-	e := NewEntry(NewEntryOptions{})
-	require.Equal(t, 3, cap(e.reverseIndex.states))
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	e := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
 	for i := 0; i < 10; i++ {
 		ti := newTime(i)
 		require.True(t, e.NeedsIndexUpdate(ti))
-		require.Equal(t, 3, cap(e.reverseIndex.states))
+		require.Equal(t, i+1, e.IndexedBlockCount())
 	}
 
 	// ensure only the latest ones are held on to
@@ -63,12 +57,17 @@ func TestEntryIndexAttemptRotatesSlice(t *testing.T) {
 
 func TestEntryIndexSeriesRef(t *testing.T) {
 	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	now := time.Now()
 	blockStart := newTime(0)
 	mockIndexWriter := NewMockIndexWriter(ctrl)
-	mockIndexWriter.EXPECT().BlockStartForWriteTime(blockStart).Return(blockStart)
+	mockIndexWriter.EXPECT().BlockStartForWriteTime(blockStart).
+		Return(blockStart).
+		Times(2)
 
 	mockSeries := series.NewMockDatabaseSeries(ctrl)
+	mockSeries.EXPECT().ID().Return(ident.StringID("foo"))
 	mockSeries.EXPECT().Metadata().Return(doc.Metadata{})
 	mockSeries.EXPECT().Write(
 		context.NewBackground(),

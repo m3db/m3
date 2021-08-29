@@ -572,25 +572,3 @@ func TestParsePipelineTransformationDerivativeOrderTooHigh(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "transformation derivative order is 2 higher than supported 1"))
 }
-
-func TestAddToRestOption(t *testing.T) {
-	p := applied.NewPipeline([]applied.OpUnion{
-		{
-			Type:           pipeline.TransformationOpType,
-			Transformation: pipeline.TransformationOp{Type: transformation.Add},
-		},
-		{
-			Type:           pipeline.TransformationOpType,
-			Transformation: pipeline.TransformationOp{Type: transformation.Increase},
-		},
-	})
-	e := newElemBase(newTestOptions().SetAddToReset(false))
-	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, p, 3, WithPrefixWithSuffix)
-	require.Equal(t, transformation.Add, e.parsedPipeline.Transformations[0].Type())
-	require.Equal(t, transformation.Increase, e.parsedPipeline.Transformations[1].Type())
-
-	e = newElemBase(newTestOptions().SetAddToReset(true))
-	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, p, 3, WithPrefixWithSuffix)
-	require.Equal(t, transformation.Reset, e.parsedPipeline.Transformations[0].Type())
-	require.Equal(t, transformation.Increase, e.parsedPipeline.Transformations[1].Type())
-}

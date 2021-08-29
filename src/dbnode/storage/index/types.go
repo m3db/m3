@@ -365,38 +365,6 @@ type AggregateResultsEntry struct {
 	Terms []ident.ID
 }
 
-// OnIndexSeries provides a set of callback hooks to allow the reverse index
-// to do lifecycle management of any resources retained during indexing.
-type OnIndexSeries interface {
-	// OnIndexSuccess is executed when an entry is successfully indexed. The
-	// provided value for `blockStart` is the blockStart for which the write
-	// was indexed.
-	OnIndexSuccess(blockStart xtime.UnixNano)
-
-	// OnIndexFinalize is executed when the index no longer holds any references
-	// to the provided resources. It can be used to cleanup any resources held
-	// during the course of indexing. `blockStart` is the startTime of the index
-	// block for which the write was attempted.
-	OnIndexFinalize(blockStart xtime.UnixNano)
-
-	// OnIndexPrepare prepares the Entry to be handed off to the indexing sub-system.
-	// NB(prateek): we retain the ref count on the entry while the indexing is pending,
-	// the callback executed on the entry once the indexing is completed releases this
-	// reference.
-	OnIndexPrepare()
-
-	// NeedsIndexUpdate returns a bool to indicate if the Entry needs to be indexed
-	// for the provided blockStart. It only allows a single index attempt at a time
-	// for a single entry.
-	// NB(prateek): NeedsIndexUpdate is a CAS, i.e. when this method returns true, it
-	// also sets state on the entry to indicate that a write for the given blockStart
-	// is going to be sent to the index, and other go routines should not attempt the
-	// same write. Callers are expected to ensure they follow this guideline.
-	// Further, every call to NeedsIndexUpdate which returns true needs to have a corresponding
-	// OnIndexFinalze() call. This is required for correct lifecycle maintenance.
-	NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool
-}
-
 // Block represents a collection of segments. Each `Block` is a complete reverse
 // index for a period of time defined by [StartTime, EndTime).
 type Block interface {
@@ -444,6 +412,9 @@ type Block interface {
 	// Stats returns block stats.
 	Stats(reporter BlockStatsReporter) error
 
+	// IsOpen returns true if open and not sealed yet.
+	IsOpen() bool
+
 	// Seal prevents the block from taking any more writes, but, it still permits
 	// addition of segments via Bootstrap().
 	Seal() error
@@ -473,10 +444,13 @@ type Block interface {
 
 	// RotateColdMutableSegments rotates the currently active cold mutable segment out for a
 	// new cold mutable segment to write to.
-	RotateColdMutableSegments()
+	RotateColdMutableSegments() error
 
 	// MemorySegmentsData returns all in memory segments data.
 	MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error)
+
+	// BackgroundCompact background compacts eligible segments.
+	BackgroundCompact()
 
 	// Close will release any held resources and close the Block.
 	Close() error
@@ -553,8 +527,29 @@ const (
 
 // WriteBatchResult returns statistics about the WriteBatch execution.
 type WriteBatchResult struct {
-	NumSuccess int64
-	NumError   int64
+	NumSuccess           int64
+	NumError             int64
+	MutableSegmentsStats MutableSegmentsStats
+}
+
+// MutableSegmentsStats contains metadata about
+// an insertion into mutable segments.
+type MutableSegmentsStats struct {
+	Foreground MutableSegmentsSegmentStats
+	Background MutableSegmentsSegmentStats
+}
+
+// MutableSegmentsSegmentStats contains metadata about
+// a set of mutable segments segment type.
+type MutableSegmentsSegmentStats struct {
+	NumSegments int64
+	NumDocs     int64
+}
+
+// Empty returns whether stats is empty or not.
+func (s MutableSegmentsStats) Empty() bool {
+	return s.Foreground == MutableSegmentsSegmentStats{} &&
+		s.Background == MutableSegmentsSegmentStats{}
 }
 
 // BlockTickResult returns statistics about tick.
@@ -728,6 +723,11 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 	}
 }
 
+// PendingAny returns whether there are any pending documents to be inserted.
+func (b *WriteBatch) PendingAny() bool {
+	return len(b.PendingDocs()) > 0
+}
+
 func (b *WriteBatch) numPending() int {
 	numUnmarked := 0
 	for i := range b.entries {
@@ -794,12 +794,31 @@ func (b *WriteBatch) SortByEnqueued() {
 // MarkUnmarkedEntriesSuccess marks all unmarked entries as success.
 func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
 	for idx := range b.entries {
+		b.MarkEntrySuccess(idx)
+	}
+}
+
+// MarkEntrySuccess marks an entry as success.
+func (b *WriteBatch) MarkEntrySuccess(idx int) {
+	if !b.entries[idx].result.Done {
+		blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
+		b.entries[idx].OnIndexSeries.OnIndexSuccess(blockStart)
+		b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
+		b.entries[idx].result.Done = true
+		b.entries[idx].result.Err = nil
+	}
+}
+
+// MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize marks an entry as success.
+func (b *WriteBatch) MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize() {
+	for idx := range b.entries {
 		if !b.entries[idx].result.Done {
 			blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
-			b.entries[idx].OnIndexSeries.OnIndexSuccess(blockStart)
-			b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
-			b.entries[idx].result.Done = true
-			b.entries[idx].result.Err = nil
+			r := b.entries[idx].OnIndexSeries.IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart)
+			if r {
+				b.entries[idx].result.Done = true
+				b.entries[idx].result.Err = nil
+			}
 		}
 	}
 }
@@ -870,7 +889,7 @@ type WriteBatchEntry struct {
 	Timestamp xtime.UnixNano
 	// OnIndexSeries is a listener/callback for when this entry is marked done
 	// it is set to nil when the entry is marked done
-	OnIndexSeries OnIndexSeries
+	OnIndexSeries doc.OnIndexSeries
 	// EnqueuedAt is the timestamp that this entry was enqueued for indexing
 	// so that we can calculate the latency it takes to index the entry
 	EnqueuedAt time.Time
@@ -1068,6 +1087,12 @@ type Options interface {
 
 	// PostingsListCache returns the postings list cache.
 	PostingsListCache() *PostingsListCache
+
+	// SetSearchPostingsListCache sets the postings list cache.
+	SetSearchPostingsListCache(value *PostingsListCache) Options
+
+	// SearchPostingsListCache returns the postings list cache.
+	SearchPostingsListCache() *PostingsListCache
 
 	// SetReadThroughSegmentOptions sets the read through segment cache options.
 	SetReadThroughSegmentOptions(value ReadThroughSegmentOptions) Options

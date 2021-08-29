@@ -18,5 +18,5 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package harness contains tests that are run against docker containers
-package harness
+// Package integration contains tests that are run against docker containers
+package integration

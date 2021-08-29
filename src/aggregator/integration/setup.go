@@ -29,6 +29,10 @@ import (
 	"sort"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
@@ -41,16 +45,21 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
+	"github.com/m3db/m3/src/dbnode/integration/fake"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/msg/consumer"
+	"github.com/m3db/m3/src/msg/producer"
+	"github.com/m3db/m3/src/msg/producer/buffer"
+	msgwriter "github.com/m3db/m3/src/msg/producer/writer"
+	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
+	"github.com/m3db/m3/src/x/retry"
+	xserver "github.com/m3db/m3/src/x/server"
 	xsync "github.com/m3db/m3/src/x/sync"
-
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 var (
@@ -63,6 +72,7 @@ type testServerSetup struct {
 	m3msgAddr        string
 	rawTCPAddr       string
 	httpAddr         string
+	clientOptions    aggclient.Options
 	m3msgServerOpts  m3msgserver.Options
 	rawTCPServerOpts rawtcpserver.Options
 	httpServerOpts   httpserver.Options
@@ -84,7 +94,7 @@ type testServerSetup struct {
 
 func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	if opts == nil {
-		opts = newTestServerOptions()
+		opts = newTestServerOptions(t)
 	}
 
 	// TODO: based on environment variable, use M3MSG aggregator as default
@@ -98,7 +108,10 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	// Create the server options.
 	rwOpts := xio.NewOptions()
 	rawTCPServerOpts := rawtcpserver.NewOptions().SetRWOptions(rwOpts)
-	m3msgServerOpts := m3msgserver.NewOptions()
+	m3msgServerOpts := m3msgserver.NewOptions().
+		SetInstrumentOptions(opts.InstrumentOptions()).
+		SetServerOptions(xserver.NewOptions()).
+		SetConsumerOptions(consumer.NewOptions())
 	httpServerOpts := httpserver.NewOptions().
 		// use a new mux per test to avoid collisions registering the same handlers between tests.
 		SetMux(http.NewServeMux())
@@ -114,19 +127,23 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 
 	// Set up placement manager.
 	placementWatcherOpts := placement.NewWatcherOptions().
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetStagedPlacementKey(opts.PlacementKVKey()).
 		SetStagedPlacementStore(opts.KVStore())
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetInstanceID(opts.InstanceID()).
 		SetWatcherOptions(placementWatcherOpts)
 	placementManager := aggregator.NewPlacementManager(placementManagerOpts)
 	aggregatorOpts = aggregatorOpts.
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetShardFn(opts.ShardFn()).
 		SetPlacementManager(placementManager)
 
 	// Set up flush times manager.
 	flushTimesManagerOpts := aggregator.NewFlushTimesManagerOptions().
 		SetClockOptions(clockOpts).
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFlushTimesKeyFmt(opts.FlushTimesKeyFmt()).
 		SetFlushTimesStore(opts.KVStore())
 	flushTimesManager := aggregator.NewFlushTimesManager(flushTimesManagerOpts)
@@ -145,6 +162,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	leaderService := electionCluster.LeaderService()
 	electionManagerOpts := aggregator.NewElectionManagerOptions().
 		SetClockOptions(clockOpts).
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetCampaignOptions(campaignOpts).
 		SetElectionKeyFmt(opts.ElectionKeyFmt()).
 		SetLeaderService(leaderService).
@@ -156,6 +174,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	// Set up flush manager.
 	flushManagerOpts := aggregator.NewFlushManagerOptions().
 		SetClockOptions(clockOpts).
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionManager).
@@ -178,6 +197,8 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	require.True(t, ok)
 	require.NoError(t, adminClient.Init())
 	aggregatorOpts = aggregatorOpts.SetAdminClient(adminClient)
+
+	testClientOpts := clientOpts.SetAggregatorClientType(opts.AggregatorClientType())
 
 	// Set up the handler.
 	var (
@@ -222,6 +243,8 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		opts:             opts,
 		rawTCPAddr:       opts.RawTCPAddr(),
 		httpAddr:         opts.HTTPAddr(),
+		m3msgAddr:        opts.M3MsgAddr(),
+		clientOptions:    testClientOpts,
 		rawTCPServerOpts: rawTCPServerOpts,
 		m3msgServerOpts:  m3msgServerOpts,
 		httpServerOpts:   httpServerOpts,
@@ -239,9 +262,63 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	}
 }
 
-func (ts *testServerSetup) newClient() *client {
-	connectTimeout := ts.opts.ClientConnectionOptions().ConnectionTimeout()
-	return newClient(ts.rawTCPAddr, ts.opts.ClientBatchSize(), connectTimeout)
+func (ts *testServerSetup) newClient(t *testing.T) *client {
+	clientType := ts.opts.AggregatorClientType()
+	clientOpts := ts.clientOptions.SetAggregatorClientType(clientType)
+
+	if clientType == aggclient.M3MsgAggregatorClient {
+		opts := ts.opts
+		topicName := "aggregator_ingest"
+
+		p := opts.Placement()
+		placementSvc := fake.NewM3ClusterPlacementServiceWithPlacement(p)
+		svcs := fake.NewM3ClusterServicesWithPlacementService(placementSvc)
+		clusterClient := fake.NewM3ClusterClient(svcs, opts.KVStore())
+
+		consumerServices := make([]topic.ConsumerService, 0)
+		for _, inst := range p.Instances() {
+			serviceID := services.NewServiceID().SetName(inst.ID())
+			cs := topic.NewConsumerService().SetServiceID(serviceID).SetConsumptionType(topic.Replicated)
+			consumerServices = append(consumerServices, cs)
+		}
+
+		ingestTopic := topic.NewTopic().
+			SetName(topicName).
+			SetNumberOfShards(uint32(p.NumShards())).
+			SetConsumerServices(consumerServices)
+		topicServiceOpts := topic.NewServiceOptions().
+			SetConfigService(clusterClient)
+		topicService, err := topic.NewService(topicServiceOpts)
+		require.NoError(t, err)
+		topicService.CheckAndSet(ingestTopic, 0) //nolint:errcheck
+
+		buffer, err := buffer.NewBuffer(nil)
+		require.NoError(t, err)
+		connectionOpts := msgwriter.NewConnectionOptions().SetFlushInterval(10 * time.Millisecond)
+		writerOpts := msgwriter.NewOptions().
+			SetTopicName(topicName).
+			SetTopicService(topicService).
+			SetServiceDiscovery(svcs).
+			SetTopicWatchInitTimeout(5 * time.Second).
+			SetMessageQueueNewWritesScanInterval(10 * time.Millisecond).
+			SetConnectionOptions(connectionOpts).
+			SetMessageRetryOptions(retry.NewOptions().SetInitialBackoff(5 * time.Second))
+		writer := msgwriter.NewWriter(writerOpts)
+		producerOpts := producer.NewOptions().
+			SetBuffer(buffer).
+			SetWriter(writer)
+		producer := producer.NewProducer(producerOpts)
+		m3msgOpts := aggclient.NewM3MsgOptions().
+			SetProducer(producer)
+
+		clientOpts = clientOpts.SetM3MsgOptions(m3msgOpts)
+	}
+
+	testClient, err := aggclient.NewClient(clientOpts)
+	require.NoError(t, err)
+	testAdminClient, ok := testClient.(aggclient.AdminClient)
+	require.True(t, ok)
+	return newClient(testAdminClient)
 }
 
 func (ts *testServerSetup) getStatusResponse(path string, response interface{}) error {

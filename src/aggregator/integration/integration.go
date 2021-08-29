@@ -22,7 +22,12 @@
 package integration
 
 import (
+	"fmt"
+	"os"
+	"strings"
 	"time"
+
+	aggclient "github.com/m3db/m3/src/aggregator/client"
 )
 
 type conditionFn func() bool
@@ -36,4 +41,16 @@ func waitUntil(fn conditionFn, timeout time.Duration) bool {
 		time.Sleep(10 * time.Millisecond)
 	}
 	return false
+}
+
+func getAggregatorClientTypeFromEnv() (aggclient.AggregatorClientType, error) {
+	clientType := strings.ToLower(os.Getenv("TEST_AGGREGATOR_CLIENT_TYPE"))
+	switch clientType {
+	case "", "tcp":
+		return aggclient.TCPAggregatorClient, nil
+	case "m3msg":
+		return aggclient.M3MsgAggregatorClient, nil
+	default:
+		return aggclient.AggregatorClientType(0), fmt.Errorf("unrecognized aggregator client type %v", clientType)
+	}
 }

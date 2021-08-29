@@ -31,8 +31,9 @@ M3 stores its cluster placements and runtime metadata in [etcd](https://etcd.io)
 
 We have example services and stateful sets you can use, but feel free to use your own configuration and change any later instructions accordingly.
 
+
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/example/etcd/etcd-basic.yaml
+kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/{{% operator-version %}}/example/etcd/etcd-basic.yaml
 ```
 
 {{% notice tip %}}
@@ -50,7 +51,7 @@ kubectl exec etcd-0 -- env ETCDCTL_API=3 etcdctl endpoint health
 Install the bundled operator manifests in the current namespace:
 
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/bundle.yaml
+kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/{{% operator-version %}}/bundle.yaml
 ```
 
 ## Create an M3 Cluster
@@ -66,7 +67,7 @@ The cluster derives pod identity from the `podIdentityConfig` parameter, which i
 [Read more details on all the parameters in the Operator API docs](https://operator.m3db.io/api/).
 
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/example/m3db-local.yaml
+kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/{{% operator-version %}}/example/m3db-local.yaml
 ```
 
 Verify that the cluster is running with something like the Kubernetes dashboard, or the command below:

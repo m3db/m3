@@ -128,8 +128,13 @@ func (h *InitHandler) Init(
 
 	serviceOpts := handleroptions.NewServiceOptions(svc, httpReq.Header,
 		h.m3AggServiceOptions)
+
+	pcfg, err := Handler(*h).PlacementConfigCopy()
+	if err != nil {
+		return nil, err
+	}
 	service, err := Service(h.clusterClient, serviceOpts,
-		h.placement, h.nowFn(), nil)
+		pcfg.ApplyOverride(req.OptionOverride), h.nowFn(), nil)
 	if err != nil {
 		return nil, err
 	}

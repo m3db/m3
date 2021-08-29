@@ -22,7 +22,7 @@ package query
 
 import (
 	"bytes"
-	"fmt"
+	"strings"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -31,14 +31,17 @@ import (
 
 // FieldQuery finds document which have the given field exactly.
 type FieldQuery struct {
+	str   string
 	field []byte
 }
 
 // NewFieldQuery constructs a new FieldQuery for the given field.
 func NewFieldQuery(field []byte) search.Query {
-	return &FieldQuery{
+	q := &FieldQuery{
 		field: field,
 	}
+	q.str = q.string()
+	return q
 }
 
 // Field returns the field []byte.
@@ -78,5 +81,13 @@ func (q *FieldQuery) ToProto() *querypb.Query {
 }
 
 func (q *FieldQuery) String() string {
-	return fmt.Sprintf("field(%s)", q.field)
+	return q.str
+}
+
+func (q *FieldQuery) string() string {
+	var str strings.Builder
+	str.WriteString("field(")
+	str.Write(q.field)
+	str.WriteRune(')')
+	return str.String()
 }
