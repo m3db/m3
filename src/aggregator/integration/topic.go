@@ -21,6 +21,10 @@
 package integration
 
 import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
@@ -72,4 +76,13 @@ func removeAllTopicConsumers(topicService topic.Service, topicName string) error
 	}
 	_, err = topicService.CheckAndSet(topic, topic.Version())
 	return err
+}
+
+func setupTopic(t *testing.T, serverOpts testServerOptions, placement placement.Placement) testServerOptions {
+	m3msgTopicName := defaultTopicName
+	topicService, err := initializeTopic(m3msgTopicName, serverOpts.KVStore(), placement)
+	require.NoError(t, err)
+	return serverOpts.
+		SetTopicService(topicService).
+		SetTopicName(m3msgTopicName)
 }
