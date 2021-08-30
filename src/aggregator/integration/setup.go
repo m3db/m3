@@ -33,7 +33,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
@@ -272,12 +271,8 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 }
 
 func (ts *testServerSetup) newClient(t *testing.T) *client {
-	iOpts := ts.opts.InstrumentOptions()
-	iOpts = iOpts.SetLogger(iOpts.Logger().With(zap.Bool("client", true)))
-
 	clientType := ts.opts.AggregatorClientType()
 	clientOpts := ts.clientOptions.
-		SetInstrumentOptions(iOpts).
 		SetAggregatorClientType(clientType)
 
 	if clientType == aggclient.M3MsgAggregatorClient {
@@ -420,6 +415,8 @@ func newM3MsgProducer(opts testServerOptions) (producer.Producer, error) {
 	svcs := fake.NewM3ClusterServicesWithPlacementService(placementSvc)
 
 	bufferOpts := buffer.NewOptions().
+		// NB: the default values of cleanup retry options causes very slow m3msg client shutdowns
+		// in some of the tests. The values below were set to avoid that.
 		SetCleanupRetryOptions(retry.NewOptions().SetInitialBackoff(100).SetMaxRetries(0))
 	buffer, err := buffer.NewBuffer(bufferOpts)
 	if err != nil {

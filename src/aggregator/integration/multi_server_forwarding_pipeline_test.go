@@ -75,8 +75,6 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		numTotalShards = 1024
 		placementKey   = "/placement"
 		kvStore        = mem.NewStore()
-
-		m3msgTopicName = "aggregator_ingest"
 	)
 	multiServerSetup := []struct {
 		rawTCPAddr     string
@@ -140,7 +138,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	}
 	initPlacement := newPlacement(numTotalShards, instances)
 	require.NoError(t, setPlacement(placementKey, kvStore, initPlacement))
-	topicService, err := initializeTopic(m3msgTopicName, kvStore, initPlacement)
+	topicService, err := initializeTopic(defaultTopicName, kvStore, initPlacement)
 	require.NoError(t, err)
 
 	// Election cluster setup.
@@ -181,7 +179,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			SetInstanceID(mss.instanceConfig.instanceID).
 			SetKVStore(kvStore).
 			SetTopicService(topicService).
-			SetTopicName(m3msgTopicName).
+			SetTopicName(defaultTopicName).
 			SetPlacement(initPlacement).
 			SetShardFn(shardFn).
 			SetShardSetID(mss.instanceConfig.shardSetID).
@@ -336,7 +334,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	// connections between servers while they still are running. Otherwise, during server shutdown,
 	// the yet-to-be-closed servers would repeatedly try to reconnect to recently closed ones, which
 	// results in longer shutdown times.
-	require.NoError(t, removeAllTopicConsumers(topicService, m3msgTopicName))
+	require.NoError(t, removeAllTopicConsumers(topicService, defaultTopicName))
 
 	// Stop the client.
 	require.NoError(t, client.close())

@@ -79,10 +79,9 @@ func removeAllTopicConsumers(topicService topic.Service, topicName string) error
 }
 
 func setupTopic(t *testing.T, serverOpts testServerOptions, placement placement.Placement) testServerOptions {
-	m3msgTopicName := defaultTopicName
-	topicService, err := initializeTopic(m3msgTopicName, serverOpts.KVStore(), placement)
+	topicService, err := initializeTopic(defaultTopicName, serverOpts.KVStore(), placement)
 	require.NoError(t, err)
 	return serverOpts.
 		SetTopicService(topicService).
-		SetTopicName(m3msgTopicName)
+		SetTopicName(defaultTopicName)
 }
