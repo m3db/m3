@@ -30,17 +30,24 @@ import (
 
 type workerPool struct {
 	workCh chan struct{}
+	initialized bool
 }
 
 // NewWorkerPool creates a new worker pool.
 func NewWorkerPool(size int) WorkerPool {
-	return &workerPool{workCh: make(chan struct{}, size)}
+	wp := &workerPool{workCh: make(chan struct{}, size)}
+	wp.Init()
+	return wp
 }
 
 func (p *workerPool) Init() {
+	if p.initialized {
+		return
+	}
 	for i := 0; i < cap(p.workCh); i++ {
 		p.workCh <- struct{}{}
 	}
+	p.initialized = true
 }
 
 func (p *workerPool) Go(work Work) {
