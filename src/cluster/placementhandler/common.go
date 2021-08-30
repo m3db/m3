@@ -324,6 +324,21 @@ func MakeRoutes(
 		Methods: []string{DeleteHTTPMethod},
 	})
 
+	// Remove
+	var (
+		removeHandler = NewRemoveHandler(opts)
+		removeFn      = applyMiddleware(removeHandler.ServeHTTP, defaults)
+	)
+	routes = append(routes, Route{
+		Paths: []string{
+			M3DBRemoveURL,
+			M3AggRemoveURL,
+			M3CoordinatorRemoveURL,
+		},
+		Handler: removeFn,
+		Methods: []string{RemoveHTTPMethod},
+	})
+
 	// Replace
 	var (
 		replaceHandler = NewReplaceHandler(opts)
