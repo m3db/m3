@@ -57,6 +57,7 @@ import (
 	msgwriter "github.com/m3db/m3/src/msg/producer/writer"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
+	"github.com/m3db/m3/src/x/retry"
 	xserver "github.com/m3db/m3/src/x/server"
 	xsync "github.com/m3db/m3/src/x/sync"
 )
@@ -418,7 +419,9 @@ func newM3MsgProducer(opts testServerOptions) (producer.Producer, error) {
 	placementSvc := fake.NewM3ClusterPlacementServiceWithPlacement(opts.Placement())
 	svcs := fake.NewM3ClusterServicesWithPlacementService(placementSvc)
 
-	buffer, err := buffer.NewBuffer(nil)
+	bufferOpts := buffer.NewOptions().
+		SetCleanupRetryOptions(retry.NewOptions().SetInitialBackoff(100).SetMaxRetries(0))
+	buffer, err := buffer.NewBuffer(bufferOpts)
 	if err != nil {
 		return nil, err
 	}
