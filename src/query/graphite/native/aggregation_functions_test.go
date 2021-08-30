@@ -577,8 +577,7 @@ func TestSumSeriesWithWildcards(t *testing.T) {
 
 func TestMultiplySeriesWithWildcards(t *testing.T) {
 	ctx, inputs := createTestSeriesForAggregation()
-
-	defer ctx.Close()
+	defer func() { _ = ctx.Close() }()
 
 	outSeries, err := multiplySeriesWithWildcards(ctx, singlePathSpec{
 		Values: inputs,

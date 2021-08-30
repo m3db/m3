@@ -358,7 +358,7 @@ func multiplySeriesWithWildcards(
 	series singlePathSpec,
 	positions ...int,
 ) (ts.SeriesList, error) {
-	return combineSeriesWithWildcards(ctx, series, positions, sumSpecificationFunc, ts.Mul)
+	return combineSeriesWithWildcards(ctx, series, positions, multiplyWithWildcardsSpecificationFunc, ts.Mul)
 }
 
 // aggregateWithWildcards splits the given set of series into sub-groupings
