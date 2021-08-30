@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package tchannelthrift contains code for servicing RPC requests via
+// tchannel.
 package tchannelthrift
 
 import (
@@ -41,8 +43,10 @@ const EndpointContextKey Key = "endpoint"
 type Endpoint int
 
 const (
+	// Unknown represents an unknown endpoint.
+	Unknown Endpoint = iota
 	// AggregateRaw represents the AggregateRaw endpoint.
-	AggregateRaw Endpoint = iota
+	AggregateRaw
 	// Fetch represents the Fetch endpoint.
 	Fetch
 	// FetchBatchRaw represents the FetchBatchRaw endpoint.
@@ -54,26 +58,6 @@ const (
 	// Query represents the Query endpoint.
 	Query
 )
-
-// String returns the string value of Endpoint enum.
-func (e Endpoint) String() string {
-	switch e {
-	case AggregateRaw:
-		return "AggregateRaw"
-	case Fetch:
-		return "Fetch"
-	case FetchBatchRaw:
-		return "FetchBatchRaw"
-	case FetchBatchRawV2:
-		return "FetchBatchRawV2"
-	case FetchTagged:
-		return "FetchTagged"
-	case Query:
-		return "Query"
-	default:
-		return "Unknown"
-	}
-}
 
 // Options controls server behavior
 type Options interface {
