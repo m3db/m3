@@ -181,3 +181,7 @@ func sumSpecificationFunc(series ts.SeriesList) string {
 func averageSpecificationFunc(series ts.SeriesList) string {
 	return wrapPathExpr("averageSeries", series)
 }
+
+func multiplyWithWildcardsSpecificationFunc(series ts.SeriesList) string {
+	return wrapPathExpr("multiplySeriesWithWildcards", series)
+}
