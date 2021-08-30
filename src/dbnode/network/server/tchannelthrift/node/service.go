@@ -476,7 +476,7 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 	}
 	defer s.readRPCCompleted(tctx)
 
-	ctx := addSourceToContext(tctx, req.Source)
+	ctx := addRequestDataToContext(tctx, req.Source, tchannelthrift.Query)
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.Query)
 	if sampled {
 		sp.LogFields(
@@ -650,7 +650,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 
 	var (
 		callStart = s.nowFn()
-		ctx       = addSourceToContext(tctx, req.Source)
+		ctx       = addRequestDataToContext(tctx, req.Source, tchannelthrift.Fetch)
 
 		start, rangeStartErr = convert.ToTime(req.RangeStart, req.RangeType)
 		end, rangeEndErr     = convert.ToTime(req.RangeEnd, req.RangeType)
@@ -788,7 +788,7 @@ func (s *service) fetchTaggedResult(ctx context.Context,
 
 func (s *service) FetchTaggedIter(ctx context.Context, req *rpc.FetchTaggedRequest) (FetchTaggedResultsIter, error) {
 	callStart := s.nowFn()
-	ctx = addSourceToM3Context(ctx, req.Source)
+	ctx = addRequestDataToM3Context(ctx, req.Source, tchannelthrift.FetchTagged)
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchTagged)
 	if sampled {
 		sp.LogFields(
@@ -1207,7 +1207,7 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 	defer s.readRPCCompleted(tctx)
 
 	callStart := s.nowFn()
-	ctx := addSourceToContext(tctx, req.Source)
+	ctx := addRequestDataToContext(tctx, req.Source, tchannelthrift.AggregateRaw)
 
 	ns, query, opts, err := convert.FromRPCAggregateQueryRawRequest(req, s.pools)
 	if err != nil {
@@ -1285,7 +1285,7 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 	defer s.readRPCCompleted(tctx)
 
 	callStart := s.nowFn()
-	ctx := addSourceToContext(tctx, req.Source)
+	ctx := addRequestDataToContext(tctx, req.Source, tchannelthrift.FetchBatchRaw)
 
 	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeTimeType)
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeTimeType)
@@ -1370,7 +1370,7 @@ func (s *service) FetchBatchRawV2(tctx thrift.Context, req *rpc.FetchBatchRawV2R
 
 	var (
 		callStart          = s.nowFn()
-		ctx                = addSourceToContext(tctx, req.Source)
+		ctx                = addRequestDataToContext(tctx, req.Source, tchannelthrift.FetchBatchRawV2)
 		nsIDs              = make([]ident.ID, 0, len(req.Elements))
 		result             = rpc.NewFetchBatchRawResult_()
 		success            int
@@ -2893,13 +2893,30 @@ func finalizeAnnotationFn(b []byte) {
 	apachethrift.BytesPoolPut(b)
 }
 
-func addSourceToContext(tctx thrift.Context, source []byte) context.Context {
-	return addSourceToM3Context(tchannelthrift.Context(tctx), source)
+func addRequestDataToContext(
+	tctx thrift.Context,
+	source []byte,
+	endpoint tchannelthrift.Endpoint,
+) context.Context {
+	return addRequestDataToM3Context(tchannelthrift.Context(tctx), source, endpoint)
 }
 
-func addSourceToM3Context(ctx context.Context, source []byte) context.Context {
-	if len(source) > 0 {
-		ctx.SetGoContext(goctx.WithValue(ctx.GoContext(), limits.SourceContextKey, source))
+func addRequestDataToM3Context(
+	ctx context.Context,
+	source []byte,
+	endpoint tchannelthrift.Endpoint,
+) context.Context {
+	if ctx.GoContext() == nil {
+		return ctx
 	}
+
+	goCtx := goctx.WithValue(ctx.GoContext(), tchannelthrift.EndpointContextKey, endpoint)
+
+	if len(source) > 0 {
+		goCtx = goctx.WithValue(ctx.GoContext(), limits.SourceContextKey, source)
+	}
+
+	ctx.SetGoContext(goCtx)
+
 	return ctx
 }
