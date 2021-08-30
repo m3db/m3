@@ -83,10 +83,14 @@ func TestIterator(t *testing.T) {
 		searcher.EXPECT().Search(secondReader).Return(secondPL, nil),
 	)
 
+	query := search.NewMockQuery(mockCtrl)
+	query.EXPECT().Searcher().Return(searcher, nil)
+
 	readers := index.Readers{firstReader, secondReader}
 
 	// Construct iterator and run tests.
-	iter := newIterator(context.NewBackground(), searcher, readers)
+	iter, err := newIterator(context.NewBackground(), query, readers)
+	require.NoError(t, err)
 
 	require.False(t, iter.Done())
 	require.True(t, iter.Next())
@@ -146,10 +150,14 @@ func TestCloseEarly(t *testing.T) {
 		searcher.EXPECT().Search(secondReader).Return(secondPL, nil),
 	)
 
+	query := search.NewMockQuery(mockCtrl)
+	query.EXPECT().Searcher().Return(searcher, nil)
+
 	readers := index.Readers{firstReader, secondReader}
 
 	// Construct iterator and run tests.
-	iter := newIterator(context.NewBackground(), searcher, readers)
+	iter, err := newIterator(context.NewBackground(), query, readers)
+	require.NoError(t, err)
 
 	require.True(t, iter.Next())
 	require.Equal(t, docs[0], iter.Current())
@@ -195,10 +203,14 @@ func TestErrIterating(t *testing.T) {
 		searcher.EXPECT().Search(secondReader).Return(secondPL, nil),
 	)
 
+	query := search.NewMockQuery(mockCtrl)
+	query.EXPECT().Searcher().Return(searcher, nil)
+
 	readers := index.Readers{firstReader, secondReader}
 
 	// Construct iterator and run tests.
-	iter := newIterator(context.NewBackground(), searcher, readers)
+	iter, err := newIterator(context.NewBackground(), query, readers)
+	require.NoError(t, err)
 
 	require.False(t, iter.Done())
 	require.True(t, iter.Next())
@@ -211,12 +223,24 @@ func TestErrIterating(t *testing.T) {
 }
 
 func TestCloseBeforeNext(t *testing.T) {
-	iter := newIterator(context.NewBackground(), nil, nil)
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	query := search.NewMockQuery(mockCtrl)
+	query.EXPECT().Searcher().Return(nil, nil)
+
+	iter, err := newIterator(context.NewBackground(), query, nil)
+	require.NoError(t, err)
 	require.NoError(t, iter.Close())
 }
 
 func TestNoReaders(t *testing.T) {
-	iter := newIterator(context.NewBackground(), nil, index.Readers{})
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	query := search.NewMockQuery(mockCtrl)
+	query.EXPECT().Searcher().Return(nil, nil)
+
+	iter, err := newIterator(context.NewBackground(), query, index.Readers{})
+	require.NoError(t, err)
 	require.False(t, iter.Done())
 	require.False(t, iter.Next())
 	require.True(t, iter.Done())
@@ -257,10 +281,14 @@ func TestEmptyReaders(t *testing.T) {
 		searcher.EXPECT().Search(secondReader).Return(secondPL, nil),
 	)
 
+	query := search.NewMockQuery(mockCtrl)
+	query.EXPECT().Searcher().Return(searcher, nil)
+
 	readers := index.Readers{firstReader, secondReader}
 
 	// Construct iterator and run tests.
-	iter := newIterator(context.NewBackground(), searcher, readers)
+	iter, err := newIterator(context.NewBackground(), query, readers)
+	require.NoError(t, err)
 	require.False(t, iter.Done())
 	require.False(t, iter.Next())
 	require.True(t, iter.Done())

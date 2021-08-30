@@ -21,7 +21,8 @@
 package query
 
 import (
-	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -30,6 +31,7 @@ import (
 
 // ConjuctionQuery finds documents which match at least one of the given queries.
 type ConjuctionQuery struct {
+	str       string
 	queries   []search.Query
 	negations []search.Query
 }
@@ -59,10 +61,23 @@ func NewConjunctionQuery(queries []search.Query) search.Query {
 		ns = ns[1:]
 	}
 
-	return &ConjuctionQuery{
+	// Cause a sort of the queries/negations for deterministic cache key.
+	sort.Slice(qs, func(i, j int) bool {
+		return qs[i].String() < qs[j].String()
+	})
+	sort.Slice(ns, func(i, j int) bool {
+		return ns[i].String() < ns[j].String()
+	})
+
+	q := &ConjuctionQuery{
 		queries:   qs,
 		negations: ns,
 	}
+	// NB(r): Calculate string value up front so
+	// not allocated every time String() is called to determine
+	// the cache key.
+	q.str = q.string()
+	return q
 }
 
 // Searcher returns a searcher over the provided readers.
@@ -151,10 +166,17 @@ func (q *ConjuctionQuery) ToProto() *querypb.Query {
 }
 
 func (q *ConjuctionQuery) String() string {
-	if len(q.negations) > 0 {
-		return fmt.Sprintf("conjunction(%s,%s)",
-			join(q.queries), joinNegation(q.negations))
-	}
+	return q.str
+}
 
-	return fmt.Sprintf("conjunction(%s)", join(q.queries))
+func (q *ConjuctionQuery) string() string {
+	var str strings.Builder
+	str.WriteString("conjunction(")
+	join(&str, q.queries)
+	if len(q.negations) > 0 {
+		str.WriteRune(',')
+		joinNegation(&str, q.negations)
+	}
+	str.WriteRune(')')
+	return str.String()
 }

@@ -114,6 +114,11 @@ func TestShardAsyncInsertMarkIndexedForBlockStart(t *testing.T) {
 	now := xtime.Now()
 	nextWriteTime := now.Truncate(blockSize)
 	idx := NewMockNamespaceIndex(ctrl)
+	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).
+		DoAndReturn(func(t xtime.UnixNano) xtime.UnixNano {
+			return t.Truncate(blockSize)
+		}).
+		AnyTimes()
 	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
 	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
 	defer shard.Close()
@@ -135,7 +140,7 @@ func TestShardAsyncInsertMarkIndexedForBlockStart(t *testing.T) {
 
 	start := time.Now()
 	for time.Since(start) < 10*time.Second {
-		entry, _, err := shard.tryRetrieveWritableSeries(ident.StringID("foo"))
+		entry, _, err := shard.TryRetrieveSeriesAndIncrementReaderWriterCount(ident.StringID("foo"))
 		require.NoError(t, err)
 		if entry == nil {
 			time.Sleep(10 * time.Millisecond)
@@ -185,7 +190,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	// make sure next block not marked as indexed
 	start := time.Now()
 	for time.Since(start) < 10*time.Second {
-		entry, _, err := shard.tryRetrieveWritableSeries(ident.StringID("foo"))
+		entry, _, err := shard.TryRetrieveSeriesAndIncrementReaderWriterCount(ident.StringID("foo"))
 		require.NoError(t, err)
 		if entry == nil {
 			time.Sleep(10 * time.Millisecond)

@@ -144,7 +144,7 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 	// will attempt to snapshot blocks w/ unflushed data which would be wasteful if
 	// the block is already flushable.
 	multiErr := xerrors.NewMultiError()
-	if err = m.dataWarmFlush(namespaces, startTime); err != nil {
+	if err := m.dataWarmFlush(namespaces, startTime); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
@@ -159,7 +159,7 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 		multiErr = multiErr.Add(fmt.Errorf("error rotating commitlog in mediator tick: %v", err))
 	}
 
-	if err = m.indexFlush(namespaces); err != nil {
+	if err := m.indexFlush(namespaces); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
@@ -187,8 +187,7 @@ func (m *flushManager) dataWarmFlush(
 			multiErr = multiErr.Add(err)
 			continue
 		}
-		err = m.flushNamespaceWithTimes(ns, flushTimes, flushPersist)
-		if err != nil {
+		if err := m.flushNamespaceWithTimes(ns, flushTimes, flushPersist); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -272,7 +271,10 @@ func (m *flushManager) indexFlush(
 		if !indexEnabled {
 			continue
 		}
-		multiErr = multiErr.Add(ns.FlushIndex(indexFlush))
+
+		if err := ns.FlushIndex(indexFlush); err != nil {
+			multiErr = multiErr.Add(err)
+		}
 	}
 	multiErr = multiErr.Add(indexFlush.DoneIndex())
 

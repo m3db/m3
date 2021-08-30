@@ -24,6 +24,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
+	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/errors"
@@ -40,6 +41,7 @@ import (
 // doc iterators. for each posting in the list, the encoded document is retrieved.
 type iterator struct {
 	// immutable state
+	query    search.Query
 	searcher search.Searcher
 	readers  index.Readers
 	ctx      context.Context
@@ -55,12 +57,18 @@ type iterator struct {
 	err     error
 }
 
-func newIterator(ctx context.Context, s search.Searcher, rs index.Readers) doc.QueryDocIterator {
+func newIterator(ctx context.Context, q search.Query, rs index.Readers) (doc.QueryDocIterator, error) {
+	s, err := q.Searcher()
+	if err != nil {
+		return nil, err
+	}
+
 	return &iterator{
 		ctx:      ctx,
+		query:    q,
 		searcher: s,
 		readers:  rs,
-	}
+	}, nil
 }
 
 func (it *iterator) Done() bool {
@@ -148,15 +156,26 @@ func (it *iterator) initIters() error {
 	it.iters = make([]doc.Iterator, len(it.readers))
 	for i, reader := range it.readers {
 		_, sp := it.ctx.StartTraceSpan(tracepoint.SearchExecutorIndexSearch)
-		pl, err := it.searcher.Search(reader)
+
+		var (
+			pl  postings.List
+			err error
+		)
+		if readThrough, ok := reader.(search.ReadThroughSegmentSearcher); ok {
+			pl, err = readThrough.Search(it.query, it.searcher)
+		} else {
+			pl, err = it.searcher.Search(reader)
+		}
 		sp.Finish()
 		if err != nil {
 			return err
 		}
+
 		iter, err := reader.Docs(pl)
 		if err != nil {
 			return err
 		}
+
 		it.iters[i] = iter
 	}
 	return nil

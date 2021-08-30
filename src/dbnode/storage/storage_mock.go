@@ -1949,6 +1949,22 @@ func (mr *MockShardMockRecorder) OpenStreamingReader(blockStart interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenStreamingReader", reflect.TypeOf((*MockShard)(nil).OpenStreamingReader), blockStart)
 }
 
+// TryRetrieveSeriesAndIncrementReaderWriterCount mocks base method.
+func (m *MockShard) TryRetrieveSeriesAndIncrementReaderWriterCount(id ident.ID) (*Entry, WritableSeriesOptions, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TryRetrieveSeriesAndIncrementReaderWriterCount", id)
+	ret0, _ := ret[0].(*Entry)
+	ret1, _ := ret[1].(WritableSeriesOptions)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// TryRetrieveSeriesAndIncrementReaderWriterCount indicates an expected call of TryRetrieveSeriesAndIncrementReaderWriterCount.
+func (mr *MockShardMockRecorder) TryRetrieveSeriesAndIncrementReaderWriterCount(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryRetrieveSeriesAndIncrementReaderWriterCount", reflect.TypeOf((*MockShard)(nil).TryRetrieveSeriesAndIncrementReaderWriterCount), id)
+}
+
 // MockdatabaseShard is a mock of databaseShard interface.
 type MockdatabaseShard struct {
 	ctrl     *gomock.Controller
@@ -2221,6 +2237,18 @@ func (mr *MockdatabaseShardMockRecorder) LoadBlocks(series interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBlocks", reflect.TypeOf((*MockdatabaseShard)(nil).LoadBlocks), series)
 }
 
+// MarkWarmIndexFlushStateSuccessOrError mocks base method.
+func (m *MockdatabaseShard) MarkWarmIndexFlushStateSuccessOrError(blockStart time0.UnixNano, err error) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "MarkWarmIndexFlushStateSuccessOrError", blockStart, err)
+}
+
+// MarkWarmIndexFlushStateSuccessOrError indicates an expected call of MarkWarmIndexFlushStateSuccessOrError.
+func (mr *MockdatabaseShardMockRecorder) MarkWarmIndexFlushStateSuccessOrError(blockStart, err interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkWarmIndexFlushStateSuccessOrError", reflect.TypeOf((*MockdatabaseShard)(nil).MarkWarmIndexFlushStateSuccessOrError), blockStart, err)
+}
+
 // NumSeries mocks base method.
 func (m *MockdatabaseShard) NumSeries() int64 {
 	m.ctrl.T.Helper()
@@ -2349,6 +2377,22 @@ func (m *MockdatabaseShard) Tick(c context.Cancellable, startTime time0.UnixNano
 func (mr *MockdatabaseShardMockRecorder) Tick(c, startTime, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseShard)(nil).Tick), c, startTime, nsCtx)
+}
+
+// TryRetrieveSeriesAndIncrementReaderWriterCount mocks base method.
+func (m *MockdatabaseShard) TryRetrieveSeriesAndIncrementReaderWriterCount(id ident.ID) (*Entry, WritableSeriesOptions, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TryRetrieveSeriesAndIncrementReaderWriterCount", id)
+	ret0, _ := ret[0].(*Entry)
+	ret1, _ := ret[1].(WritableSeriesOptions)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// TryRetrieveSeriesAndIncrementReaderWriterCount indicates an expected call of TryRetrieveSeriesAndIncrementReaderWriterCount.
+func (mr *MockdatabaseShardMockRecorder) TryRetrieveSeriesAndIncrementReaderWriterCount(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryRetrieveSeriesAndIncrementReaderWriterCount", reflect.TypeOf((*MockdatabaseShard)(nil).TryRetrieveSeriesAndIncrementReaderWriterCount), id)
 }
 
 // UpdateFlushStates mocks base method.
@@ -2492,6 +2536,18 @@ func (m *MockNamespaceIndex) AssignShardSet(shardSet sharding.ShardSet) {
 func (mr *MockNamespaceIndexMockRecorder) AssignShardSet(shardSet interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MockNamespaceIndex)(nil).AssignShardSet), shardSet)
+}
+
+// BackgroundCompact mocks base method.
+func (m *MockNamespaceIndex) BackgroundCompact() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "BackgroundCompact")
+}
+
+// BackgroundCompact indicates an expected call of BackgroundCompact.
+func (mr *MockNamespaceIndexMockRecorder) BackgroundCompact() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundCompact", reflect.TypeOf((*MockNamespaceIndex)(nil).BackgroundCompact))
 }
 
 // BlockForBlockStart mocks base method.
@@ -2678,6 +2734,20 @@ func (m *MockNamespaceIndex) WarmFlush(flush persist.IndexFlush, shards []databa
 func (mr *MockNamespaceIndexMockRecorder) WarmFlush(flush, shards interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockNamespaceIndex)(nil).WarmFlush), flush, shards)
+}
+
+// WarmFlushBlockStarts mocks base method.
+func (m *MockNamespaceIndex) WarmFlushBlockStarts() []time0.UnixNano {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WarmFlushBlockStarts")
+	ret0, _ := ret[0].([]time0.UnixNano)
+	return ret0
+}
+
+// WarmFlushBlockStarts indicates an expected call of WarmFlushBlockStarts.
+func (mr *MockNamespaceIndexMockRecorder) WarmFlushBlockStarts() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushBlockStarts", reflect.TypeOf((*MockNamespaceIndex)(nil).WarmFlushBlockStarts))
 }
 
 // WideQuery mocks base method.

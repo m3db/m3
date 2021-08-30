@@ -45,10 +45,11 @@ func Unmarshal(data []byte) (search.Query, error) {
 		return nil, err
 	}
 
-	return unmarshal(&pb)
+	return UnmarshalProto(&pb)
 }
 
-func unmarshal(q *querypb.Query) (search.Query, error) {
+// UnmarshalProto will unmarshal a proto query.
+func UnmarshalProto(q *querypb.Query) (search.Query, error) {
 	switch q := q.Query.(type) {
 
 	case *querypb.Query_All:
@@ -64,7 +65,7 @@ func unmarshal(q *querypb.Query) (search.Query, error) {
 		return NewRegexpQuery(q.Regexp.Field, q.Regexp.Regexp)
 
 	case *querypb.Query_Negation:
-		inner, err := unmarshal(q.Negation.Query)
+		inner, err := UnmarshalProto(q.Negation.Query)
 		if err != nil {
 			return nil, err
 		}
@@ -73,7 +74,7 @@ func unmarshal(q *querypb.Query) (search.Query, error) {
 	case *querypb.Query_Conjunction:
 		qs := make([]search.Query, 0, len(q.Conjunction.Queries))
 		for _, qry := range q.Conjunction.Queries {
-			sqry, err := unmarshal(qry)
+			sqry, err := UnmarshalProto(qry)
 			if err != nil {
 				return nil, err
 			}
@@ -84,7 +85,7 @@ func unmarshal(q *querypb.Query) (search.Query, error) {
 	case *querypb.Query_Disjunction:
 		qs := make([]search.Query, 0, len(q.Disjunction.Queries))
 		for _, qry := range q.Disjunction.Queries {
-			sqry, err := unmarshal(qry)
+			sqry, err := UnmarshalProto(qry)
 			if err != nil {
 				return nil, err
 			}

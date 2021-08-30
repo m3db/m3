@@ -1767,7 +1767,7 @@ func hitCountImpl(
 				}
 			}
 		}
-		newName := fmt.Sprintf("hitcount(%s,%q)", series.Name(), intervalString)
+		newName := fmt.Sprintf("hitcount(%s, %q)", series.Name(), intervalString)
 		newSeries := ts.NewSeries(ctx, newName, newStart, buckets)
 		resultSeries = append(resultSeries, newSeries)
 	}

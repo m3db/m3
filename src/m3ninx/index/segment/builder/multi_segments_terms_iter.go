@@ -21,8 +21,6 @@
 package builder
 
 import (
-	"errors"
-
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -32,10 +30,6 @@ import (
 
 const (
 	defaultBitmapContainerPooling = 128
-)
-
-var (
-	errPostingsListNotRoaring = errors.New("postings list not a roaring postings list")
 )
 
 // Ensure for our use case that the terms iter from segments we return
@@ -141,44 +135,51 @@ func (i *termsIterFromSegments) Next() bool {
 		termsKeyIter := iter.(*termsKeyIter)
 		_, list := termsKeyIter.iter.Current()
 
-		if termsKeyIter.segment.offset == 0 {
+		if termsKeyIter.segment.offset == 0 && termsKeyIter.segment.skips == 0 {
 			// No offset, which means is first segment we are combining from
-			// so can just direct union
-			i.currPostingsList.Union(list)
-			continue
-		}
-
-		// We have to taken into account the offset and duplicates
-		var (
-			iter           = i.bitmapIter
-			duplicates     = termsKeyIter.segment.duplicatesAsc
-			negativeOffset postings.ID
-		)
-		bitmap, ok := roaring.BitmapFromPostingsList(list)
-		if !ok {
-			i.err = errPostingsListNotRoaring
-			return false
-		}
-
-		iter.Reset(bitmap)
-		for v, eof := iter.Next(); !eof; v, eof = iter.Next() {
-			curr := postings.ID(v)
-			for len(duplicates) > 0 && curr > duplicates[0] {
-				duplicates = duplicates[1:]
-				negativeOffset++
-			}
-			if len(duplicates) > 0 && curr == duplicates[0] {
-				duplicates = duplicates[1:]
-				negativeOffset++
-				// Also skip this value, as itself is a duplicate
-				continue
-			}
-			value := curr + termsKeyIter.segment.offset - negativeOffset
-			if err := i.currPostingsList.Insert(value); err != nil {
+			// so can just direct union.
+			if err := i.currPostingsList.Union(list); err != nil {
 				i.err = err
 				return false
 			}
+			continue
 		}
+
+		// We have to take into account offset and duplicates/skips.
+		var (
+			iter            = list.Iterator()
+			negativeOffsets = termsKeyIter.segment.negativeOffsets
+			multiErr        = xerrors.NewMultiError()
+		)
+		for iter.Next() {
+			curr := iter.Current()
+			negativeOffset := negativeOffsets[curr]
+			// Then skip the individual if matches.
+			if negativeOffset == -1 {
+				// Skip this value, as itself is a duplicate.
+				continue
+			}
+			value := curr + termsKeyIter.segment.offset - postings.ID(negativeOffset)
+			if err := i.currPostingsList.Insert(value); err != nil {
+				multiErr = multiErr.Add(err)
+				multiErr = multiErr.Add(iter.Close())
+				i.err = multiErr.FinalError()
+				return false
+			}
+		}
+
+		multiErr = multiErr.Add(iter.Err())
+		multiErr = multiErr.Add(iter.Close())
+		i.err = multiErr.FinalError()
+		if i.err != nil {
+			return false
+		}
+	}
+
+	if i.currPostingsList.IsEmpty() {
+		// Everything skipped or term is empty.
+		// TODO: make this non-stack based (i.e. not recursive).
+		return i.Next()
 	}
 
 	return true
