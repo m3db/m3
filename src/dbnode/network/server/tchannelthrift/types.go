@@ -41,8 +41,10 @@ const EndpointContextKey Key = "endpoint"
 type Endpoint int
 
 const (
+	// Unknown represents an unknown endpoint.
+	Unknown Endpoint = iota
 	// AggregateRaw represents the AggregateRaw endpoint.
-	AggregateRaw Endpoint = iota
+	AggregateRaw
 	// Fetch represents the Fetch endpoint.
 	Fetch
 	// FetchBatchRaw represents the FetchBatchRaw endpoint.
@@ -70,6 +72,8 @@ func (e Endpoint) String() string {
 		return "FetchTagged"
 	case Query:
 		return "Query"
+	case Unknown:
+		fallthrough
 	default:
 		return "Unknown"
 	}
