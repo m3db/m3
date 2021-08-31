@@ -220,6 +220,8 @@ func bucketQuantile(q float64, buckets []bucketValue) float64 {
 		return math.NaN()
 	}
 
+	sort.Sort(buckets)
+
 	// NB: similar situation here if the max bound bucket does not have a value
 	// at this point, it is necessary to re-check.
 	if !math.IsInf(buckets[len(buckets)-1].upperBound, 1) {
