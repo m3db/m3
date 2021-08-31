@@ -96,6 +96,13 @@ func TestIntOverflow(t *testing.T) {
 	testRoundTrip(t, generateOverflowDatapoints())
 }
 
+func TestConstantValuesRoundTrip(t *testing.T) {
+	numIterations := 100
+	for i := 1; i < numIterations; i++ {
+		testRoundTrip(t, generateConstDatapoints(i))
+	}
+}
+
 func testRoundTrip(t *testing.T, input []ts.Datapoint) {
 	validateRoundTrip(t, input, true)
 	validateRoundTrip(t, input, false)
@@ -264,6 +271,18 @@ func generateOverflowDatapoints() []ts.Datapoint {
 	for i, val := range vals {
 		res[i] = ts.Datapoint{TimestampNanos: currentTime, Value: val}
 		currentTime = currentTime.Add(time.Second)
+	}
+
+	return res
+}
+
+func generateConstDatapoints(numPoints int) []ts.Datapoint {
+	currentTime := xtime.FromSeconds(1630436128)
+	res := make([]ts.Datapoint, 0, numPoints)
+
+	for i := 0; i < numPoints; i++ {
+		currentTime = currentTime.Add(time.Second)
+		res = append(res, ts.Datapoint{TimestampNanos: currentTime, Value: 5})
 	}
 
 	return res

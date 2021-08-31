@@ -83,6 +83,49 @@ func (it *readerIterator) Next() bool {
 		return false
 	}
 
+	if it.tsIterator.PrevTime != 0 && !it.tsIterator.TimeUnitChanged {
+		if it.intOptimized {
+			// This is the fast path to read the shortest encoding possible (001 binary) which
+			// represents an unchanged datapoint value and unchanged delta (deltaOfDelta = 0).
+			//  Breakdown of 001 opcode sequence:
+			// 0: TimeEncodingScheme.ZeroBucket().Opcode()
+			// 0: opcodeUpdate
+			// 1: opcodeRepeat
+			if it.peekBits(3) == 0b001 {
+				if it.err != nil {
+					return false
+				}
+
+				it.tsIterator.PrevTime += xtime.UnixNano(it.tsIterator.PrevTimeDelta)
+				it.curr.TimestampNanos = it.tsIterator.PrevTime
+				it.tsIterator.PrevAnt = nil
+
+				it.readBits(3) // consume the bits that were checked with peekBits
+
+				return it.hasNext()
+			}
+		} else { // non-int optimized
+			// This is the fast path to read the shortest encoding possible (00 binary) which
+			// represents an unchanged datapoint value and unchanged delta (deltaOfDelta = 0).
+			//  Breakdown of 00 opcode sequence:
+			// 0: TimeEncodingScheme.ZeroBucket().Opcode()
+			// 0: opcodeZeroValueXOR
+			if it.peekBits(2) == 0b00 {
+				if it.err != nil {
+					return false
+				}
+
+				it.tsIterator.PrevTime += xtime.UnixNano(it.tsIterator.PrevTimeDelta)
+				it.curr.TimestampNanos = it.tsIterator.PrevTime
+				it.tsIterator.PrevAnt = nil
+
+				it.readBits(2) // consume the bits that were checked with peekBits
+
+				return it.hasNext()
+			}
+		}
+	}
+
 	first, done, err := it.tsIterator.ReadTimestamp(it.is)
 	if err != nil || done {
 		it.err = err
@@ -220,6 +263,11 @@ func (it *readerIterator) readIntValDiffSlow() {
 
 func (it *readerIterator) readBits(numBits uint8) (res uint64) {
 	res, it.err = it.is.ReadBits(numBits)
+	return
+}
+
+func (it *readerIterator) peekBits(numBits uint8) (res uint64) {
+	res, it.err = it.is.PeekBits(numBits)
 	return
 }
 
