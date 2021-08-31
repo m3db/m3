@@ -417,7 +417,7 @@ func newM3MsgProducer(opts testServerOptions) (producer.Producer, error) {
 	bufferOpts := buffer.NewOptions().
 		// NB: the default values of cleanup retry options causes very slow m3msg client shutdowns
 		// in some of the tests. The values below were set to avoid that.
-		SetCleanupRetryOptions(retry.NewOptions().SetInitialBackoff(100).SetMaxRetries(0))
+		SetCleanupRetryOptions(retry.NewOptions().SetInitialBackoff(100 * time.Millisecond).SetMaxRetries(0))
 	buffer, err := buffer.NewBuffer(bufferOpts)
 	if err != nil {
 		return nil, err
@@ -431,6 +431,7 @@ func newM3MsgProducer(opts testServerOptions) (producer.Producer, error) {
 		SetTopicService(opts.TopicService()).
 		SetServiceDiscovery(svcs).
 		SetMessageQueueNewWritesScanInterval(10 * time.Millisecond).
+		SetMessageQueueFullScanInterval(100 * time.Millisecond).
 		SetConnectionOptions(connectionOpts)
 	writer := msgwriter.NewWriter(writerOpts)
 	producerOpts := producer.NewOptions().
