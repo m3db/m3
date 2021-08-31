@@ -896,6 +896,12 @@ func (d *db) QueryIDs(
 		return index.QueryResult{}, err
 	}
 
+	if !d.IsBootstrapped() {
+		err := errDatabaseNotBootstrapped
+		sp.LogFields(opentracinglog.Error(err))
+		return index.QueryResult{}, xerrors.NewRetryableError(err)
+	}
+
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
@@ -912,12 +918,6 @@ func (d *db) AggregateQuery(
 	query index.Query,
 	aggResultOpts index.AggregationOptions,
 ) (index.AggregateQueryResult, error) {
-	n, err := d.namespaceFor(namespace)
-	if err != nil {
-		d.metrics.unknownNamespaceQueryIDs.Inc(1)
-		return index.AggregateQueryResult{}, err
-	}
-
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateQuery)
 	if sampled {
 		sp.LogFields(
@@ -929,8 +929,21 @@ func (d *db) AggregateQuery(
 			xopentracing.Time("end", aggResultOpts.QueryOptions.EndExclusive.ToTime()),
 		)
 	}
-
 	defer sp.Finish()
+
+	if !d.IsBootstrapped() {
+		err := errDatabaseNotBootstrapped
+		sp.LogFields(opentracinglog.Error(err))
+		return index.AggregateQueryResult{}, xerrors.NewRetryableError(err)
+	}
+
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+		d.metrics.unknownNamespaceQueryIDs.Inc(1)
+		return index.AggregateQueryResult{}, err
+	}
+
 	return n.AggregateQuery(ctx, query, aggResultOpts)
 }
 

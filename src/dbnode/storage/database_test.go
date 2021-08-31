@@ -827,7 +827,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := defaultTestDatabase(t, ctrl, BootstrapNotStarted)
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
