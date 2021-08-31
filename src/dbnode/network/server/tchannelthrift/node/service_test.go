@@ -1733,6 +1733,7 @@ func TestServiceFetchTagged(t *testing.T) {
 					EndExclusive:   end,
 					SeriesLimit:    int(seriesLimit),
 					DocsLimit:      int(docsLimit),
+					Source:         []byte("foo"),
 				}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 			startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
@@ -1750,6 +1751,7 @@ func TestServiceFetchTagged(t *testing.T) {
 				FetchData:   true,
 				SeriesLimit: &seriesLimit,
 				DocsLimit:   &docsLimit,
+				Source:      []byte("foo"),
 			})
 			if tc.fetchErrMsg != "" {
 				require.Error(t, err)
@@ -1800,6 +1802,8 @@ func TestServiceFetchTagged(t *testing.T) {
 
 			require.Equal(t, "FetchTagged",
 				ctx.GoContext().Value(tchannelthrift.EndpointContextKey).(tchannelthrift.Endpoint).String())
+			require.Equal(t, "foo",
+				string(ctx.GoContext().Value(limits.SourceContextKey).([]byte)))
 		})
 	}
 }
