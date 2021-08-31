@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding/testgen"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -103,6 +104,25 @@ func ToPointsByTime(seriesMaps SeriesBlocksByStart) SeriesDataPointsByTime {
 	}
 	sort.Sort(pointsByTime)
 	return pointsByTime
+}
+
+// ToDocMetadata converts a SeriesBlock to []doc.Metadata
+func ToDocMetadata(seriesBlock SeriesBlock) []doc.Metadata {
+	docs := make([]doc.Metadata, 0)
+	for _, series := range seriesBlock {
+		fields := make([]doc.Field, 0)
+		for _, t := range series.Tags.Values() {
+			fields = append(fields, doc.Field{
+				Name:  t.Name.Bytes(),
+				Value: t.Value.Bytes(),
+			})
+		}
+		docs = append(docs, doc.Metadata{
+			ID:     series.ID.Bytes(),
+			Fields: fields,
+		})
+	}
+	return docs
 }
 
 // Dearrange de-arranges the list by the defined percent.

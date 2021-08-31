@@ -116,6 +116,10 @@ type RunOptions struct {
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
 
+	// ShutdownCh is an optional channel to supply if interested in receiving
+	// a notification that the server has shutdown.
+	ShutdownCh chan<- struct{}
+
 	// ListenerCh is a programmatic channel to receive the server listener
 	// on once it has opened.
 	ListenerCh chan<- net.Listener
@@ -198,6 +202,20 @@ func Run(runOpts RunOptions) RunResult {
 		// sending stdlib "log" to black hole. Don't remove unless with good reason.
 		fmt.Fprintf(os.Stderr, "unable to create logger: %v", err)
 		os.Exit(1)
+	}
+
+	// NB(nate): Register shutdown notification defer function first so that
+	// it's the last defer to fire before terminating. This allows other defer methods
+	// that clean up resources to execute first.
+	if runOpts.ShutdownCh != nil {
+		defer func() {
+			select {
+			case runOpts.ShutdownCh <- struct{}{}:
+				break
+			default:
+				logger.Warn("could not send shutdown notification as channel was full")
+			}
+		}()
 	}
 
 	defer logger.Sync()

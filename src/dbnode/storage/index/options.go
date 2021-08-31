@@ -112,7 +112,7 @@ func init() {
 }
 
 // nolint: maligned
-type opts struct {
+type options struct {
 	forwardIndexThreshold           float64
 	forwardIndexProbability         float64
 	insertMode                      InsertMode
@@ -132,6 +132,7 @@ type opts struct {
 	foregroundCompactionPlannerOpts compaction.PlannerOptions
 	backgroundCompactionPlannerOpts compaction.PlannerOptions
 	postingsListCache               *PostingsListCache
+	searchPostingsListCache         *PostingsListCache
 	readThroughSegmentOptions       ReadThroughSegmentOptions
 	mmapReporter                    mmap.Reporter
 	queryLimits                     limits.QueryLimits
@@ -177,7 +178,7 @@ func NewOptions() Options {
 	aggResultsEntryArrayPool.Init()
 
 	instrumentOpts := instrument.NewOptions()
-	opts := &opts{
+	opts := &options{
 		insertMode:                      defaultIndexInsertMode,
 		clockOpts:                       clock.NewOptions(),
 		instrumentOpts:                  instrumentOpts,
@@ -206,7 +207,7 @@ func NewOptions() Options {
 	return opts
 }
 
-func (o *opts) Validate() error {
+func (o *options) Validate() error {
 	if o.idPool == nil {
 		return errOptionsIdentifierPoolUnspecified
 	}
@@ -237,27 +238,27 @@ func (o *opts) Validate() error {
 	return nil
 }
 
-func (o *opts) SetInsertMode(value InsertMode) Options {
+func (o *options) SetInsertMode(value InsertMode) Options {
 	opts := *o
 	opts.insertMode = value
 	return &opts
 }
 
-func (o *opts) InsertMode() InsertMode {
+func (o *options) InsertMode() InsertMode {
 	return o.insertMode
 }
 
-func (o *opts) SetClockOptions(value clock.Options) Options {
+func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value
 	return &opts
 }
 
-func (o *opts) ClockOptions() clock.Options {
+func (o *options) ClockOptions() clock.Options {
 	return o.clockOpts
 }
 
-func (o *opts) SetInstrumentOptions(value instrument.Options) Options {
+func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 	opts := *o
 	memOpts := opts.MemSegmentOptions().SetInstrumentOptions(value)
 	fstOpts := opts.FSTSegmentOptions().SetInstrumentOptions(value)
@@ -267,196 +268,206 @@ func (o *opts) SetInstrumentOptions(value instrument.Options) Options {
 	return &opts
 }
 
-func (o *opts) InstrumentOptions() instrument.Options {
+func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *opts) SetSegmentBuilderOptions(value builder.Options) Options {
+func (o *options) SetSegmentBuilderOptions(value builder.Options) Options {
 	opts := *o
 	opts.builderOpts = value
 	return &opts
 }
 
-func (o *opts) SegmentBuilderOptions() builder.Options {
+func (o *options) SegmentBuilderOptions() builder.Options {
 	return o.builderOpts
 }
 
-func (o *opts) SetMemSegmentOptions(value mem.Options) Options {
+func (o *options) SetMemSegmentOptions(value mem.Options) Options {
 	opts := *o
 	opts.memOpts = value
 	return &opts
 }
 
-func (o *opts) MemSegmentOptions() mem.Options {
+func (o *options) MemSegmentOptions() mem.Options {
 	return o.memOpts
 }
 
-func (o *opts) SetFSTSegmentOptions(value fst.Options) Options {
+func (o *options) SetFSTSegmentOptions(value fst.Options) Options {
 	opts := *o
 	opts.fstOpts = value
 	return &opts
 }
 
-func (o *opts) FSTSegmentOptions() fst.Options {
+func (o *options) FSTSegmentOptions() fst.Options {
 	return o.fstOpts
 }
 
-func (o *opts) SetIdentifierPool(value ident.Pool) Options {
+func (o *options) SetIdentifierPool(value ident.Pool) Options {
 	opts := *o
 	opts.idPool = value
 	return &opts
 }
 
-func (o *opts) IdentifierPool() ident.Pool {
+func (o *options) IdentifierPool() ident.Pool {
 	return o.idPool
 }
 
-func (o *opts) SetCheckedBytesPool(value pool.CheckedBytesPool) Options {
+func (o *options) SetCheckedBytesPool(value pool.CheckedBytesPool) Options {
 	opts := *o
 	opts.bytesPool = value
 	return &opts
 }
 
-func (o *opts) CheckedBytesPool() pool.CheckedBytesPool {
+func (o *options) CheckedBytesPool() pool.CheckedBytesPool {
 	return o.bytesPool
 }
 
-func (o *opts) SetQueryResultsPool(value QueryResultsPool) Options {
+func (o *options) SetQueryResultsPool(value QueryResultsPool) Options {
 	opts := *o
 	opts.resultsPool = value
 	return &opts
 }
 
-func (o *opts) QueryResultsPool() QueryResultsPool {
+func (o *options) QueryResultsPool() QueryResultsPool {
 	return o.resultsPool
 }
 
-func (o *opts) SetAggregateResultsPool(value AggregateResultsPool) Options {
+func (o *options) SetAggregateResultsPool(value AggregateResultsPool) Options {
 	opts := *o
 	opts.aggResultsPool = value
 	return &opts
 }
 
-func (o *opts) AggregateResultsPool() AggregateResultsPool {
+func (o *options) AggregateResultsPool() AggregateResultsPool {
 	return o.aggResultsPool
 }
 
-func (o *opts) SetAggregateValuesPool(value AggregateValuesPool) Options {
+func (o *options) SetAggregateValuesPool(value AggregateValuesPool) Options {
 	opts := *o
 	opts.aggValuesPool = value
 	return &opts
 }
 
-func (o *opts) AggregateValuesPool() AggregateValuesPool {
+func (o *options) AggregateValuesPool() AggregateValuesPool {
 	return o.aggValuesPool
 }
 
-func (o *opts) SetDocumentArrayPool(value doc.DocumentArrayPool) Options {
+func (o *options) SetDocumentArrayPool(value doc.DocumentArrayPool) Options {
 	opts := *o
 	opts.docArrayPool = value
 	return &opts
 }
 
-func (o *opts) DocumentArrayPool() doc.DocumentArrayPool {
+func (o *options) DocumentArrayPool() doc.DocumentArrayPool {
 	return o.docArrayPool
 }
 
-func (o *opts) SetMetadataArrayPool(value doc.MetadataArrayPool) Options {
+func (o *options) SetMetadataArrayPool(value doc.MetadataArrayPool) Options {
 	opts := *o // nolint:govet
 	opts.metadataArrayPool = value
 	return &opts
 }
 
-func (o *opts) MetadataArrayPool() doc.MetadataArrayPool {
+func (o *options) MetadataArrayPool() doc.MetadataArrayPool {
 	return o.metadataArrayPool
 }
 
-func (o *opts) SetAggregateResultsEntryArrayPool(value AggregateResultsEntryArrayPool) Options {
+func (o *options) SetAggregateResultsEntryArrayPool(value AggregateResultsEntryArrayPool) Options {
 	opts := *o
 	opts.aggResultsEntryArrayPool = value
 	return &opts
 }
 
-func (o *opts) AggregateResultsEntryArrayPool() AggregateResultsEntryArrayPool {
+func (o *options) AggregateResultsEntryArrayPool() AggregateResultsEntryArrayPool {
 	return o.aggResultsEntryArrayPool
 }
 
-func (o *opts) SetForegroundCompactionPlannerOptions(value compaction.PlannerOptions) Options {
+func (o *options) SetForegroundCompactionPlannerOptions(value compaction.PlannerOptions) Options {
 	opts := *o
 	opts.foregroundCompactionPlannerOpts = value
 	return &opts
 }
 
-func (o *opts) ForegroundCompactionPlannerOptions() compaction.PlannerOptions {
+func (o *options) ForegroundCompactionPlannerOptions() compaction.PlannerOptions {
 	return o.foregroundCompactionPlannerOpts
 }
 
-func (o *opts) SetBackgroundCompactionPlannerOptions(value compaction.PlannerOptions) Options {
+func (o *options) SetBackgroundCompactionPlannerOptions(value compaction.PlannerOptions) Options {
 	opts := *o
 	opts.backgroundCompactionPlannerOpts = value
 	return &opts
 }
 
-func (o *opts) BackgroundCompactionPlannerOptions() compaction.PlannerOptions {
+func (o *options) BackgroundCompactionPlannerOptions() compaction.PlannerOptions {
 	return o.backgroundCompactionPlannerOpts
 }
 
-func (o *opts) SetPostingsListCache(value *PostingsListCache) Options {
+func (o *options) SetPostingsListCache(value *PostingsListCache) Options {
 	opts := *o
 	opts.postingsListCache = value
 	return &opts
 }
 
-func (o *opts) PostingsListCache() *PostingsListCache {
+func (o *options) PostingsListCache() *PostingsListCache {
 	return o.postingsListCache
 }
 
-func (o *opts) SetReadThroughSegmentOptions(value ReadThroughSegmentOptions) Options {
+func (o *options) SetSearchPostingsListCache(value *PostingsListCache) Options {
+	opts := *o
+	opts.searchPostingsListCache = value
+	return &opts
+}
+
+func (o *options) SearchPostingsListCache() *PostingsListCache {
+	return o.searchPostingsListCache
+}
+
+func (o *options) SetReadThroughSegmentOptions(value ReadThroughSegmentOptions) Options {
 	opts := *o
 	opts.readThroughSegmentOptions = value
 	return &opts
 }
 
-func (o *opts) ReadThroughSegmentOptions() ReadThroughSegmentOptions {
+func (o *options) ReadThroughSegmentOptions() ReadThroughSegmentOptions {
 	return o.readThroughSegmentOptions
 }
 
-func (o *opts) SetForwardIndexProbability(value float64) Options {
+func (o *options) SetForwardIndexProbability(value float64) Options {
 	opts := *o
 	opts.forwardIndexProbability = value
 	return &opts
 }
 
-func (o *opts) ForwardIndexProbability() float64 {
+func (o *options) ForwardIndexProbability() float64 {
 	return o.forwardIndexProbability
 }
 
-func (o *opts) SetForwardIndexThreshold(value float64) Options {
+func (o *options) SetForwardIndexThreshold(value float64) Options {
 	opts := *o
 	opts.forwardIndexThreshold = value
 	return &opts
 }
 
-func (o *opts) ForwardIndexThreshold() float64 {
+func (o *options) ForwardIndexThreshold() float64 {
 	return o.forwardIndexThreshold
 }
 
-func (o *opts) SetMmapReporter(mmapReporter mmap.Reporter) Options {
+func (o *options) SetMmapReporter(mmapReporter mmap.Reporter) Options {
 	opts := *o
 	opts.mmapReporter = mmapReporter
 	return &opts
 }
 
-func (o *opts) MmapReporter() mmap.Reporter {
+func (o *options) MmapReporter() mmap.Reporter {
 	return o.mmapReporter
 }
 
-func (o *opts) SetQueryLimits(value limits.QueryLimits) Options {
+func (o *options) SetQueryLimits(value limits.QueryLimits) Options {
 	opts := *o
 	opts.queryLimits = value
 	return &opts
 }
 
-func (o *opts) QueryLimits() limits.QueryLimits {
+func (o *options) QueryLimits() limits.QueryLimits {
 	return o.queryLimits
 }

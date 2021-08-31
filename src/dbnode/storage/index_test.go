@@ -644,12 +644,15 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 	mockShard := NewMockdatabaseShard(ctrl)
 	mockShard.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	mockShard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{WarmStatus: fileOpFailed}, nil).AnyTimes()
+	mockShard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{WarmStatus: warmStatus{
+		IndexFlushed: fileOpFailed,
+	}}, nil).AnyTimes()
 	shards := []databaseShard{mockShard}
 
 	mockFlush := persist.NewMockIndexFlush(ctrl)
 
-	require.NoError(t, idx.WarmFlush(mockFlush, shards))
+	err := idx.WarmFlush(mockFlush, shards)
+	require.NoError(t, err)
 }
 
 func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
@@ -789,7 +792,7 @@ func TestNamespaceIndexFlushSkipBootstrappingShards(t *testing.T) {
 	mockBlock.EXPECT().StartTime().Return(blockTime).AnyTimes()
 	mockBlock.EXPECT().EndTime().Return(blockTime.Add(test.indexBlockSize)).AnyTimes()
 	mockBlock.EXPECT().NeedsColdMutableSegmentsEvicted().Return(true).AnyTimes()
-	mockBlock.EXPECT().RotateColdMutableSegments().Return().AnyTimes()
+	mockBlock.EXPECT().RotateColdMutableSegments().Return(nil).AnyTimes()
 	mockBlock.EXPECT().EvictColdMutableSegments().Return(nil).AnyTimes()
 	idx.state.blocksByTime[blockTime] = mockBlock
 
@@ -811,7 +814,9 @@ func TestNamespaceIndexFlushSkipBootstrappingShards(t *testing.T) {
 		mockShard.EXPECT().IsBootstrapped().Return(shardInfo.isBootstrapped).AnyTimes()
 		mockShard.EXPECT().ID().Return(shardInfo.id).AnyTimes()
 		if shardInfo.isBootstrapped {
-			mockShard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{WarmStatus: fileOpSuccess}, nil).AnyTimes()
+			mockShard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{WarmStatus: warmStatus{
+				IndexFlushed: fileOpSuccess,
+			}}, nil).AnyTimes()
 		}
 		shards = append(shards, mockShard)
 	}
@@ -902,8 +907,14 @@ func verifyFlushForShards(
 
 		for _, mockShard := range mockShards {
 			mockShard.EXPECT().IsBootstrapped().Return(true)
-			mockShard.EXPECT().FlushState(blockStart).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
-			mockShard.EXPECT().FlushState(blockStart.Add(blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
+			mockShard.EXPECT().FlushState(blockStart).Return(fileOpState{WarmStatus: warmStatus{
+				// Index flushing requires data flush already happened.
+				DataFlushed: fileOpSuccess,
+			}}, nil)
+			mockShard.EXPECT().FlushState(blockStart.Add(blockSize)).Return(fileOpState{WarmStatus: warmStatus{
+				// Index flushing requires data flush already happened.
+				DataFlushed: fileOpSuccess,
+			}}, nil)
 
 			resultsTags1 := ident.NewTagsIterator(ident.NewTags())
 			resultsTags2 := ident.NewTagsIterator(ident.NewTags())
@@ -925,13 +936,19 @@ func verifyFlushForShards(
 
 			mockShard.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockStart, blockStart.Add(idx.blockSize),
 				gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results, nil, nil)
+
+			// For a given index block, which in this test is 2x the size of a block, we expect that
+			// we mark as flushed 2 blockStarts that fall within the index block.
+			mockShard.EXPECT().MarkWarmIndexFlushStateSuccessOrError(blockStart, nil)
+			mockShard.EXPECT().MarkWarmIndexFlushStateSuccessOrError(blockStart.Add(blockSize), nil)
 		}
 
 		mockBlock.EXPECT().IsSealed().Return(true)
 		mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
 		mockBlock.EXPECT().EvictMutableSegments().Return(nil)
 	}
-	require.NoError(t, idx.WarmFlush(mockFlush, dbShards))
+	err := idx.WarmFlush(mockFlush, dbShards)
+	require.NoError(t, err)
 	require.Equal(t, numBlocks, persistClosedTimes)
 	require.Equal(t, numBlocks, persistCalledTimes)
 	require.Equal(t, expectedDocs, actualDocs)

@@ -21,11 +21,21 @@
 package rawtcp
 
 import (
+	"errors"
 	"net"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/capture"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/encoding"
@@ -37,13 +47,12 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 	xserver "github.com/m3db/m3/src/x/server"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -165,6 +174,10 @@ var (
 		Metric:        testTimed,
 		TimedMetadata: testTimedMetadata,
 	}
+	testTimedMetricWithMetadatas = aggregated.TimedMetricWithMetadatas{
+		Metric:          testTimed,
+		StagedMetadatas: testDefaultMetadatas,
+	}
 	testForwardedMetricWithMetadata = aggregated.ForwardedMetricWithMetadata{
 		ForwardedMetric: testForwarded,
 		ForwardMetadata: testForwardMetadata,
@@ -259,6 +272,114 @@ func TestRawTCPServerHandleUnaggregatedProtobufEncoding(t *testing.T) {
 	// Assert the snapshot match expectations.
 	snapshot := agg.Snapshot()
 	require.True(t, cmp.Equal(expectedResult, snapshot, testCmpOpts...), expectedResult, snapshot)
+}
+
+func TestHandle_Errors(t *testing.T) {
+	cases := []struct {
+		name   string
+		msg    encoding.UnaggregatedMessageUnion
+		logMsg string
+	}{
+		{
+			name: "timed with staged metadata",
+			msg: encoding.UnaggregatedMessageUnion{
+				Type:                     encoding.TimedMetricWithMetadatasType,
+				TimedMetricWithMetadatas: testTimedMetricWithMetadatas,
+			},
+			logMsg: "error adding timed metric",
+		},
+		{
+			name: "timed with metadata",
+			msg: encoding.UnaggregatedMessageUnion{
+				Type:                    encoding.TimedMetricWithMetadataType,
+				TimedMetricWithMetadata: testTimedMetricWithMetadata,
+			},
+			logMsg: "error adding timed metric",
+		},
+		{
+			name: "gauge untimed",
+			msg: encoding.UnaggregatedMessageUnion{
+				Type:               encoding.GaugeWithMetadatasType,
+				GaugeWithMetadatas: testGaugeWithMetadatas,
+			},
+			logMsg: "error adding untimed metric",
+		},
+		{
+			name: "counter untimed",
+			msg: encoding.UnaggregatedMessageUnion{
+				Type:                 encoding.CounterWithMetadatasType,
+				CounterWithMetadatas: testCounterWithMetadatas,
+			},
+			logMsg: "error adding untimed metric",
+		},
+		{
+			name: "timer untimed",
+			msg: encoding.UnaggregatedMessageUnion{
+				Type:                    encoding.BatchTimerWithMetadatasType,
+				BatchTimerWithMetadatas: testBatchTimerWithMetadatas,
+			},
+			logMsg: "error adding untimed metric",
+		},
+		{
+			name: "forward",
+			msg: encoding.UnaggregatedMessageUnion{
+				Type:                        encoding.ForwardedMetricWithMetadataType,
+				ForwardedMetricWithMetadata: testForwardedMetricWithMetadata,
+			},
+			logMsg: "error adding forwarded metric",
+		},
+		{
+			name: "passthrough",
+			msg: encoding.UnaggregatedMessageUnion{
+				Type:                          encoding.PassthroughMetricWithMetadataType,
+				PassthroughMetricWithMetadata: testPassthroughMetricWithMetadata,
+			},
+			logMsg: "error adding passthrough metric",
+		},
+	}
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+	agg := aggregator.NewMockAggregator(ctrl)
+
+	aggErr := errors.New("boom")
+	agg.EXPECT().AddTimedWithStagedMetadatas(gomock.Any(), gomock.Any()).Return(aggErr).AnyTimes()
+	agg.EXPECT().AddUntimed(gomock.Any(), gomock.Any()).Return(aggErr).AnyTimes()
+	agg.EXPECT().AddForwarded(gomock.Any(), gomock.Any()).Return(aggErr).AnyTimes()
+	agg.EXPECT().AddTimed(gomock.Any(), gomock.Any()).Return(aggErr).AnyTimes()
+	agg.EXPECT().AddPassthrough(gomock.Any(), gomock.Any()).Return(aggErr).AnyTimes()
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			core, recorded := observer.New(zapcore.InfoLevel)
+			listener, err := net.Listen("tcp", testListenAddress)
+			require.NoError(t, err)
+
+			h := NewHandler(agg, testServerOptions().SetInstrumentOptions(instrument.NewOptions().
+				SetLogger(zap.New(core))))
+			s := xserver.NewServer(testListenAddress, h, xserver.NewOptions())
+			// Start server.
+			require.NoError(t, s.Serve(listener))
+
+			conn, err := net.Dial("tcp", listener.Addr().String())
+			encoder := protobuf.NewUnaggregatedEncoder(protobuf.NewUnaggregatedOptions())
+			require.NoError(t, err)
+
+			require.NoError(t, encoder.EncodeMessage(tc.msg))
+
+			_, err = conn.Write(encoder.Relinquish().Bytes())
+			require.NoError(t, err)
+			res := clock.WaitUntil(func() bool {
+				return len(recorded.FilterMessage(tc.logMsg).All()) == 1
+			}, time.Second*5)
+			if !res {
+				require.Fail(t,
+					"failed to find expected log message",
+					"expected=%v logs=%v", tc.logMsg, recorded.All())
+			}
+		})
+	}
 }
 
 func testServerOptions() Options {

@@ -116,7 +116,7 @@ func TestConjunctionQueryEqual(t *testing.T) {
 				NewTermQuery([]byte("fruit"), []byte("banana")),
 				NewTermQuery([]byte("fruit"), []byte("apple")),
 			}),
-			expected: false,
+			expected: true,
 		},
 	}
 

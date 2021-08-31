@@ -28,12 +28,17 @@ import (
 )
 
 type readableSeg struct {
-	nowFn     clock.NowFn
-	createdAt time.Time
-	segment   segment.Segment
+	nowFn                   clock.NowFn
+	createdAt               time.Time
+	segment                 segment.Segment
+	garbageCollectLastCheck time.Time
+	garbageCollecting       bool
 }
 
-func newReadableSeg(seg segment.Segment, opts Options) *readableSeg {
+func newReadableSeg(
+	seg segment.Segment,
+	opts Options,
+) *readableSeg {
 	nowFn := opts.ClockOptions().NowFn()
 	return &readableSeg{
 		nowFn:     nowFn,

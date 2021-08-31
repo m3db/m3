@@ -57,6 +57,10 @@ type RunOptions struct {
 	// InterruptCh is a programmatic interrupt channel to supply to
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
+
+	// ShutdownCh is an optional channel to supply if interested in receiving
+	// a notification that the server has shutdown.
+	ShutdownCh chan<- struct{}
 }
 
 // AdminOption is an additional option to apply to the aggregator server.
@@ -71,6 +75,21 @@ func Run(opts RunOptions) {
 	if err != nil {
 		log.Fatalf("error creating logger: %v", err)
 	}
+
+	// NB(nate): Register shutdown notification defer function first so that
+	// it's the last defer to fire before terminating. This allows other defer methods
+	// that clean up resources to execute first.
+	if opts.ShutdownCh != nil {
+		defer func() {
+			select {
+			case opts.ShutdownCh <- struct{}{}:
+				break
+			default:
+				logger.Warn("could not send shutdown notification as channel was full")
+			}
+		}()
+	}
+
 	defer logger.Sync()
 
 	cfg.Debug.SetRuntimeValues(logger)

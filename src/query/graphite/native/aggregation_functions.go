@@ -350,6 +350,17 @@ func sumSeriesWithWildcards(
 	return combineSeriesWithWildcards(ctx, series, positions, sumSpecificationFunc, ts.Sum)
 }
 
+// multiplySeriesWithWildcards splits the given set of series into sub-groupings
+// based on wildcard matches in the hierarchy, then multiply the values in each
+// grouping
+func multiplySeriesWithWildcards(
+	ctx *common.Context,
+	series singlePathSpec,
+	positions ...int,
+) (ts.SeriesList, error) {
+	return combineSeriesWithWildcards(ctx, series, positions, multiplyWithWildcardsSpecificationFunc, ts.Mul)
+}
+
 // aggregateWithWildcards splits the given set of series into sub-groupings
 // based on wildcard matches in the hierarchy, then aggregate the values in
 // each grouping based on the given function.
@@ -579,7 +590,6 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 			go func() {
 				defer wg.Done()
 				resultSeriesList, err := evaluateTarget(ctx, newTarget)
-
 				if err != nil {
 					mu.Lock()
 					multiErr = multiErr.Add(err)

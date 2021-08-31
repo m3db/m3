@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package tchannelthrift contains code for servicing RPC requests via
+// tchannel.
 package tchannelthrift
 
 import (
@@ -29,6 +31,32 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/serialize"
+)
+
+// Key is a specific string type for context setting.
+type Key string
+
+// EndpointContextKey is the key for setting and retrieving the endpoint from context.
+const EndpointContextKey Key = "endpoint"
+
+// Endpoint is a type representing an API endpoint
+type Endpoint int
+
+const (
+	// Unknown represents an unknown endpoint.
+	Unknown Endpoint = iota
+	// AggregateRaw represents the AggregateRaw endpoint.
+	AggregateRaw
+	// Fetch represents the Fetch endpoint.
+	Fetch
+	// FetchBatchRaw represents the FetchBatchRaw endpoint.
+	FetchBatchRaw
+	// FetchBatchRawV2 represents the FetchBatchRawV2 endpoint.
+	FetchBatchRawV2
+	// FetchTagged represents the FetchTagged endpoint.
+	FetchTagged
+	// Query represents the Query endpoint.
+	Query
 )
 
 // Options controls server behavior

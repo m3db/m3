@@ -3343,7 +3343,7 @@ func TestHitcount(t *testing.T) {
 			series := ts.NewSeries(ctx, input.name, input.startTime,
 				common.NewTestSeriesValues(ctx, input.stepInMilli, input.values))
 
-			target := fmt.Sprintf("hitcount(%s,%q,false)", input.name, input.intervalString)
+			target := fmt.Sprintf("hitcount(%s, %q, false)", input.name, input.intervalString)
 			testSeriesFn := func(
 				*common.Context,
 				string,
@@ -3361,7 +3361,7 @@ func TestHitcount(t *testing.T) {
 			res, err := expr.Execute(ctx)
 			require.NoError(t, err)
 			expected := common.TestSeries{
-				Name: fmt.Sprintf("hitcount(%s,%q)", input.name, input.intervalString),
+				Name: fmt.Sprintf("hitcount(%s, %q)", input.name, input.intervalString),
 				Data: input.output,
 			}
 			require.NoError(t, err)

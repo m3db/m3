@@ -1221,7 +1221,7 @@ func (n *dbNamespace) WarmFlush(
 			return err
 		}
 		// skip flushing if the shard has already flushed data for the `blockStart`
-		if flushState.WarmStatus == fileOpSuccess {
+		if flushState.WarmStatus.DataFlushed == fileOpSuccess {
 			continue
 		}
 
@@ -1499,7 +1499,7 @@ func (n *dbNamespace) needsFlushWithLock(
 			if err != nil {
 				return false, err
 			}
-			if flushState.WarmStatus != fileOpSuccess {
+			if flushState.WarmStatus.DataFlushed != fileOpSuccess {
 				return true, nil
 			}
 		}

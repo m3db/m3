@@ -72,3 +72,7 @@ func (p *fastWorkerPool) GoWithContext(ctx context.Context, work Work) ScheduleR
 func (p *fastWorkerPool) FastContextCheck(batchSize int) WorkerPool {
 	return &fastWorkerPool{workerPool: p.workerPool, batchSize: batchSize}
 }
+
+func (p *fastWorkerPool) Size() int {
+	return p.workerPool.Size()
+}

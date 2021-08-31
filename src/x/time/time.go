@@ -29,7 +29,8 @@ const (
 	nanosPerMillis = int64(time.Millisecond)
 )
 
-// Now returns the current local time.
+// Now returns the current local time, in nanoseconds elapsed since January 1,
+// 1970 UTC. NB: This is independent of location.
 func Now() UnixNano {
 	return ToUnixNano(time.Now())
 }
