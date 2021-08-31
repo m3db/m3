@@ -86,9 +86,13 @@ func AddDBResultResponseHeaders(
 		WaitedSeriesRead: meta.WaitedSeriesRead,
 	}
 
-	// NB: only add series count header if there are series present.
+	// NB: only add count headers if present.
 	if meta.FetchedSeriesCount > 0 {
 		w.Header().Add(headers.FetchedSeriesCount, fmt.Sprint(meta.FetchedSeriesCount))
+	}
+
+	if meta.FetchedMetadataCount > 0 {
+		w.Header().Add(headers.FetchedMetadataCount, fmt.Sprint(meta.FetchedMetadataCount))
 	}
 
 	if waiting.WaitedAny() {

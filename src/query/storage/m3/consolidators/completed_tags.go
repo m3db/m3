@@ -109,6 +109,7 @@ func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
 				Values: [][]byte{},
 			})
 		}
+		b.metadata.FetchedMetadataCount = len(result)
 
 		sort.Sort(completedTagsByName(result))
 		return CompleteTagsResult{
@@ -119,10 +120,12 @@ func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
 	}
 
 	for name, builder := range b.tagBuilders {
+		values := builder.build()
 		result = append(result, CompletedTag{
 			Name:   []byte(name),
-			Values: builder.build(),
+			Values: values,
 		})
+		b.metadata.FetchedMetadataCount += len(values)
 	}
 
 	sort.Sort(completedTagsByName(result))
