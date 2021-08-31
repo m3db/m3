@@ -67,8 +67,8 @@ func BenchmarkM3TSZDecodeVarying(b *testing.B) {
 
 func benchmarkM3TSZDecodeSingleSeries(b *testing.B, seriesBase64 string) {
 	var (
-		encodingOpts      = encoding.NewOptions()
-		reader            = xio.NewBytesReader64(nil)
+		encodingOpts = encoding.NewOptions()
+		reader       = xio.NewBytesReader64(nil)
 	)
 
 	data, err := base64.StdEncoding.DecodeString(seriesBase64)
