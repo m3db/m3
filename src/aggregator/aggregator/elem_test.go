@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/willf/bitset"
+
 	raggregation "github.com/m3db/m3/src/aggregator/aggregation"
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
@@ -302,9 +304,9 @@ func TestCounterElemAddUnique(t *testing.T) {
 	require.Equal(t, int64(1), e.values[0].lockedAgg.aggregation.Count())
 	require.Equal(t, int64(0), e.values[0].lockedAgg.aggregation.SumSq())
 	require.Nil(t, e.values[0].lockedAgg.aggregation.Annotation())
-	v, seen := e.values[0].lockedAgg.sourcesSeen[source1]
+	versions, seen := e.values[0].lockedAgg.sourcesSeen[source1]
 	require.True(t, seen)
-	require.Zero(t, v)
+	require.True(t, versions.Test(0))
 
 	// Add another metric at slightly different time but still within the
 	// same aggregation interval with a different source.
@@ -318,9 +320,9 @@ func TestCounterElemAddUnique(t *testing.T) {
 	require.Equal(t, int64(2), e.values[0].lockedAgg.aggregation.Count())
 	require.Equal(t, int64(0), e.values[0].lockedAgg.aggregation.SumSq())
 	require.Equal(t, testAnnot, e.values[0].lockedAgg.aggregation.Annotation())
-	v, seen = e.values[0].lockedAgg.sourcesSeen[source2]
+	versions, seen = e.values[0].lockedAgg.sourcesSeen[source2]
 	require.True(t, seen)
-	require.Zero(t, v)
+	require.True(t, versions.Test(0))
 
 	// Add the counter metric in the next aggregation interval.
 	require.NoError(t, e.AddUnique(testTimestamps[2],
@@ -333,9 +335,9 @@ func TestCounterElemAddUnique(t *testing.T) {
 	require.Equal(t, int64(278), e.values[1].lockedAgg.aggregation.Sum())
 	require.Equal(t, int64(1), e.values[1].lockedAgg.aggregation.Count())
 	require.Equal(t, int64(0), e.values[1].lockedAgg.aggregation.SumSq())
-	v, seen = e.values[1].lockedAgg.sourcesSeen[source1]
+	versions, seen = e.values[1].lockedAgg.sourcesSeen[source1]
 	require.True(t, seen)
-	require.Zero(t, v)
+	require.True(t, versions.Test(0))
 	require.Equal(t, testAnnot, e.values[0].lockedAgg.aggregation.Annotation())
 
 	// Add the counter metric in the same aggregation interval with the same
@@ -350,9 +352,9 @@ func TestCounterElemAddUnique(t *testing.T) {
 	require.Equal(t, int64(278), e.values[1].lockedAgg.aggregation.Sum())
 	require.Equal(t, int64(1), e.values[1].lockedAgg.aggregation.Count())
 	require.Equal(t, int64(0), e.values[1].lockedAgg.aggregation.SumSq())
-	v, seen = e.values[1].lockedAgg.sourcesSeen[source1]
+	versions, seen = e.values[1].lockedAgg.sourcesSeen[source1]
 	require.True(t, seen)
-	require.Zero(t, v)
+	require.True(t, versions.Test(0))
 
 	// Adding the counter metric to a closed element results in an error.
 	e.closed = true
@@ -377,9 +379,9 @@ func TestCounterElemAddUniqueWithCustomAggregation(t *testing.T) {
 	require.Equal(t, int64(12), e.values[0].lockedAgg.aggregation.Sum())
 	require.Equal(t, int64(12), e.values[0].lockedAgg.aggregation.Max())
 	require.Equal(t, int64(144), e.values[0].lockedAgg.aggregation.SumSq())
-	v, seen := e.values[0].lockedAgg.sourcesSeen[source1]
+	versions, seen := e.values[0].lockedAgg.sourcesSeen[source1]
 	require.True(t, seen)
-	require.Zero(t, v)
+	require.True(t, versions.Test(0))
 
 	// Add the counter metric at slightly different time
 	// but still within the same aggregation interval.
@@ -416,9 +418,9 @@ func TestCounterElemAddUniqueWithCustomAggregation(t *testing.T) {
 	require.Equal(t, int64(20), e.values[1].lockedAgg.aggregation.Sum())
 	require.Equal(t, int64(1), e.values[1].lockedAgg.aggregation.Count())
 	require.Equal(t, int64(400), e.values[1].lockedAgg.aggregation.SumSq())
-	v, seen = e.values[1].lockedAgg.sourcesSeen[source1]
+	versions, seen = e.values[1].lockedAgg.sourcesSeen[source1]
 	require.True(t, seen)
-	require.Zero(t, v)
+	require.True(t, versions.Test(0))
 
 	// Adding the counter metric to a closed element results in an error.
 	e.closed = true
@@ -606,9 +608,10 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 2, len(e.values))
 	require.Len(t, e.consumedValues, 1)
-	require.Len(t, e.consumedValues[0], 1)
-	require.Equal(t, 123.0, e.consumedValues[0][0].Value)
-	require.Equal(t, time.Unix(220, 0).UnixNano(), e.consumedValues[0][0].TimeNanos)
+	consumedVal := e.consumedValues[expectedForwardedRes[0].timeNanos]
+	require.Len(t, consumedVal, 1)
+	require.Equal(t, 123.0, consumedVal[0].Value)
+	require.Equal(t, time.Unix(220, 0).UnixNano(), consumedVal[0].TimeNanos)
 
 	// Consume all values.
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
@@ -632,9 +635,10 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(e.values))
 	require.Len(t, e.consumedValues, 1)
-	require.Len(t, e.consumedValues[0], 1)
-	require.Equal(t, 589.0, e.consumedValues[0][0].Value)
-	require.Equal(t, time.Unix(240, 0).UnixNano(), e.consumedValues[0][0].TimeNanos)
+	consumedVal = e.consumedValues[expectedForwardedRes[1].timeNanos]
+	require.Len(t, consumedVal, 1)
+	require.Equal(t, 589.0, consumedVal[0].Value)
+	require.Equal(t, time.Unix(240, 0).UnixNano(), consumedVal[0].TimeNanos)
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true
@@ -710,7 +714,7 @@ func TestCounterFindOrCreateNoSourceSet(t *testing.T) {
 func TestCounterFindOrCreateWithSourceSet(t *testing.T) {
 	e, err := NewCounterElem(testCounterElemData, newTestOptions())
 	require.NoError(t, err)
-	e.cachedSourceSets = make([]map[uint32]int64, 0)
+	e.cachedSourceSets = make([]map[uint32]*bitset.BitSet, 0)
 
 	inputs := []int64{10, 20}
 	expected := []testIndexData{
@@ -859,7 +863,7 @@ func TestTimerElemAddUnion(t *testing.T) {
 	require.Equal(t, errElemClosed, e.AddUnion(testTimestamps[2], testBatchTimer))
 }
 
-func TestTimerElemAddUnique2(t *testing.T) {
+func TestTimerElemAddUnique(t *testing.T) {
 	e, err := NewTimerElem(testTimerElemData, newTestOptions())
 	require.NoError(t, err)
 
@@ -915,9 +919,9 @@ func TestTimerElemAddUnique2(t *testing.T) {
 	require.Equal(t, 20.0, e.values[1].lockedAgg.aggregation.Sum())
 	require.Equal(t, int64(1), e.values[1].lockedAgg.aggregation.Count())
 	require.InEpsilon(t, 400.0, e.values[1].lockedAgg.aggregation.SumSq(), 1e-10)
-	v, seen := e.values[1].lockedAgg.sourcesSeen[1]
+	versions, seen := e.values[1].lockedAgg.sourcesSeen[1]
 	require.True(t, seen)
-	require.Zero(t, v)
+	require.True(t, versions.Test(0))
 
 	// Adding the timer metric to a closed element results in an error.
 	e.closed = true
@@ -1118,9 +1122,10 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 2, len(e.values))
 	require.Len(t, e.consumedValues, 1)
-	require.Len(t, e.consumedValues[0], 1)
-	require.Equal(t, 123.0, e.consumedValues[0][0].Value)
-	require.Equal(t, time.Unix(220, 0).UnixNano(), e.consumedValues[0][0].TimeNanos)
+	consumedVal := e.consumedValues[expectedForwardedRes[0].timeNanos]
+	require.Len(t, consumedVal, 1)
+	require.Equal(t, 123.0, consumedVal[0].Value)
+	require.Equal(t, time.Unix(220, 0).UnixNano(), consumedVal[0].TimeNanos)
 
 	// Consume all values.
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
@@ -1144,9 +1149,10 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(e.values))
 	require.Len(t, e.consumedValues, 1)
-	require.Len(t, e.consumedValues[0], 1)
-	require.Equal(t, 589.0, e.consumedValues[0][0].Value)
-	require.Equal(t, time.Unix(240, 0).UnixNano(), e.consumedValues[0][0].TimeNanos)
+	consumedVal = e.consumedValues[expectedForwardedRes[1].timeNanos]
+	require.Len(t, consumedVal, 1)
+	require.Equal(t, 589.0, consumedVal[0].Value)
+	require.Equal(t, time.Unix(240, 0).UnixNano(), consumedVal[0].TimeNanos)
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true
@@ -1226,7 +1232,7 @@ func TestTimerFindOrCreateNoSourceSet(t *testing.T) {
 func TestTimerFindOrCreateWithSourceSet(t *testing.T) {
 	e, err := NewTimerElem(testTimerElemData, newTestOptions())
 	require.NoError(t, err)
-	e.cachedSourceSets = make([]map[uint32]int64, 0)
+	e.cachedSourceSets = make([]map[uint32]*bitset.BitSet, 0)
 
 	inputs := []int64{10, 20}
 	expected := []testIndexData{
@@ -1391,9 +1397,9 @@ func TestGaugeElemAddUnique(t *testing.T) {
 	require.Equal(t, int64(2), e.values[0].lockedAgg.aggregation.Count())
 	require.Equal(t, 0.0, e.values[0].lockedAgg.aggregation.SumSq())
 	require.Nil(t, e.values[0].lockedAgg.aggregation.Annotation())
-	v, seen := e.values[0].lockedAgg.sourcesSeen[source1]
+	versions, seen := e.values[0].lockedAgg.sourcesSeen[source1]
 	require.True(t, seen)
-	require.Zero(t, v)
+	require.True(t, versions.Test(0))
 
 	// Add another metric at slightly different time but still within the
 	// same aggregation interval with a different source.
@@ -1407,9 +1413,9 @@ func TestGaugeElemAddUnique(t *testing.T) {
 	require.Equal(t, int64(3), e.values[0].lockedAgg.aggregation.Count())
 	require.Equal(t, 0.0, e.values[0].lockedAgg.aggregation.SumSq())
 	require.Equal(t, testAnnot, e.values[0].lockedAgg.aggregation.Annotation())
-	v, seen = e.values[0].lockedAgg.sourcesSeen[source2]
+	versions, seen = e.values[0].lockedAgg.sourcesSeen[source2]
 	require.True(t, seen)
-	require.Zero(t, v)
+	require.True(t, versions.Test(0))
 
 	// Add the metric in the next aggregation interval.
 	require.NoError(t, e.AddUnique(testTimestamps[2],
@@ -1423,9 +1429,9 @@ func TestGaugeElemAddUnique(t *testing.T) {
 	require.Equal(t, 27.8, e.values[1].lockedAgg.aggregation.Sum())
 	require.Equal(t, int64(1), e.values[1].lockedAgg.aggregation.Count())
 	require.Equal(t, 0.0, e.values[1].lockedAgg.aggregation.SumSq())
-	v, seen = e.values[1].lockedAgg.sourcesSeen[source1]
+	versions, seen = e.values[1].lockedAgg.sourcesSeen[source1]
 	require.True(t, seen)
-	require.Zero(t, v)
+	require.True(t, versions.Test(0))
 
 	// Add the gauge metric in the same aggregation interval with the same
 	// source results in an error.
@@ -1439,22 +1445,27 @@ func TestGaugeElemAddUnique(t *testing.T) {
 	require.Equal(t, 27.8, e.values[1].lockedAgg.aggregation.Sum())
 	require.Equal(t, int64(1), e.values[1].lockedAgg.aggregation.Count())
 	require.Equal(t, 0.0, e.values[1].lockedAgg.aggregation.SumSq())
-	v, seen = e.values[1].lockedAgg.sourcesSeen[source1]
+	versions, seen = e.values[1].lockedAgg.sourcesSeen[source1]
 	require.True(t, seen)
-	require.Zero(t, v)
+	require.True(t, versions.Test(0))
 
 	// Update the value from the previous aggregation interval
+	// ensure out of order versions are handled correctly.
+	require.NoError(t, e.AddUnique(testTimestamps[0],
+		aggregated.ForwardedMetric{Values: []float64{11.0, 33.0}, PrevValues: []float64{12.0, 34.0}, Version: 2},
+		metadata.ForwardMetadata{SourceID: source1}))
 	require.NoError(t, e.AddUnique(testTimestamps[0],
 		aggregated.ForwardedMetric{Values: []float64{12.0, 34.0}, PrevValues: []float64{12.3, 34.5}, Version: 1},
 		metadata.ForwardMetadata{SourceID: source1}))
-	// sum changes from 96.8 -> 96.0
-	require.Equal(t, 96.0, e.values[0].lockedAgg.aggregation.Sum())
+	// sum changes from 96.8 -> 94.0
+	require.Equal(t, 94.0, e.values[0].lockedAgg.aggregation.Sum())
 	require.Equal(t, int64(3), e.values[0].lockedAgg.aggregation.Count())
 	require.Equal(t, 0.0, e.values[0].lockedAgg.aggregation.SumSq())
 	require.Equal(t, testAnnot, e.values[0].lockedAgg.aggregation.Annotation())
-	v, seen = e.values[0].lockedAgg.sourcesSeen[source1]
+	versions, seen = e.values[0].lockedAgg.sourcesSeen[source1]
 	require.True(t, seen)
-	require.Equal(t, int64(1), v)
+	require.True(t, versions.Test(1))
+	require.True(t, versions.Test(2))
 
 	// Adding the gauge metric to a closed element results in an error.
 	e.closed = true
@@ -1479,9 +1490,9 @@ func TestGaugeElemAddUniqueWithCustomAggregation(t *testing.T) {
 	require.Equal(t, 1.2, e.values[0].lockedAgg.aggregation.Sum())
 	require.Equal(t, 1.2, e.values[0].lockedAgg.aggregation.Max())
 	require.Equal(t, 1.44, e.values[0].lockedAgg.aggregation.SumSq())
-	v, seen := e.values[0].lockedAgg.sourcesSeen[source1]
+	versions, seen := e.values[0].lockedAgg.sourcesSeen[source1]
 	require.True(t, seen)
-	require.Zero(t, v)
+	require.True(t, versions.Test(0))
 
 	// Add the gauge metric at slightly different time
 	// but still within the same aggregation interval.
@@ -1518,9 +1529,9 @@ func TestGaugeElemAddUniqueWithCustomAggregation(t *testing.T) {
 	require.Equal(t, 2.0, e.values[1].lockedAgg.aggregation.Sum())
 	require.Equal(t, 2.0, e.values[1].lockedAgg.aggregation.Max())
 	require.Equal(t, 4.0, e.values[1].lockedAgg.aggregation.SumSq())
-	v, seen = e.values[1].lockedAgg.sourcesSeen[source1]
+	versions, seen = e.values[1].lockedAgg.sourcesSeen[source1]
 	require.True(t, seen)
-	require.Zero(t, v)
+	require.True(t, versions.Test(0))
 
 	// Adding the gauge metric to a closed element results in an error.
 	e.closed = true
@@ -1810,9 +1821,10 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 2, len(e.values))
 	require.Len(t, e.consumedValues, 1)
-	require.Len(t, e.consumedValues[0], 1)
-	require.Equal(t, 123.0, e.consumedValues[0][0].Value)
-	require.Equal(t, time.Unix(220, 0).UnixNano(), e.consumedValues[0][0].TimeNanos)
+	consumedVal := e.consumedValues[expectedForwardedRes[0].timeNanos]
+	require.Len(t, consumedVal, 1)
+	require.Equal(t, 123.0, consumedVal[0].Value)
+	require.Equal(t, time.Unix(220, 0).UnixNano(), consumedVal[0].TimeNanos)
 
 	// Consume all values.
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
@@ -1836,9 +1848,10 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(e.values))
 	require.Len(t, e.consumedValues, 1)
-	require.Len(t, e.consumedValues[0], 1)
-	require.Equal(t, 589.0, e.consumedValues[0][0].Value)
-	require.Equal(t, time.Unix(240, 0).UnixNano(), e.consumedValues[0][0].TimeNanos)
+	consumedVal = e.consumedValues[expectedForwardedRes[1].timeNanos]
+	require.Len(t, consumedVal, 1)
+	require.Equal(t, 589.0, consumedVal[0].Value)
+	require.Equal(t, time.Unix(240, 0).UnixNano(), consumedVal[0].TimeNanos)
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true
@@ -2012,11 +2025,12 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
 	require.Len(t, e.consumedValues, 1)
-	require.Len(t, e.consumedValues[0], 1)
+	consumedVal := e.consumedValues[expectedForwardedRes[0].timeNanos]
+	require.Len(t, consumedVal, 1)
 	require.Equal(t, transformation.Datapoint{
 		Value:     123.0,
 		TimeNanos: time.Unix(220, 0).UnixNano(),
-	}, e.consumedValues[0][0])
+	}, consumedVal[0])
 
 	// Consume all values.
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
@@ -2044,15 +2058,15 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	require.Equal(t, transformation.Datapoint{
 		Value:     123.0,
 		TimeNanos: time.Unix(220, 0).UnixNano(),
-	}, e.consumedValues[0][0])
+	}, e.consumedValues[time.Unix(220, 0).UnixNano()][0])
 	require.Equal(t, transformation.Datapoint{
 		Value:     456.0,
 		TimeNanos: time.Unix(230, 0).UnixNano(),
-	}, e.consumedValues[1][0])
+	}, e.consumedValues[time.Unix(230, 0).UnixNano()][0])
 	require.Equal(t, transformation.Datapoint{
 		Value:     589.0,
 		TimeNanos: time.Unix(240, 0).UnixNano(),
-	}, e.consumedValues[2][0])
+	}, e.consumedValues[time.Unix(240, 0).UnixNano()][0])
 
 	// Update a previous value
 	require.NoError(t, e.AddValue(time.Unix(210, 0), 124.0, nil))
@@ -2081,15 +2095,15 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	require.Equal(t, transformation.Datapoint{
 		Value:     124.0,
 		TimeNanos: time.Unix(220, 0).UnixNano(),
-	}, e.consumedValues[0][0])
+	}, e.consumedValues[time.Unix(220, 0).UnixNano()][0])
 	require.Equal(t, transformation.Datapoint{
 		Value:     456.0,
 		TimeNanos: time.Unix(230, 0).UnixNano(),
-	}, e.consumedValues[1][0])
+	}, e.consumedValues[time.Unix(230, 0).UnixNano()][0])
 	require.Equal(t, transformation.Datapoint{
 		Value:     589.0,
 		TimeNanos: time.Unix(240, 0).UnixNano(),
-	}, e.consumedValues[2][0])
+	}, e.consumedValues[time.Unix(240, 0).UnixNano()][0])
 }
 
 func TestGaugeElemReset(t *testing.T) {
@@ -2230,7 +2244,7 @@ func TestGaugeFindOrCreateNoSourceSet(t *testing.T) {
 func TestGaugeFindOrCreateWithSourceSet(t *testing.T) {
 	e, err := NewGaugeElem(testGaugeElemData, newTestOptions())
 	require.NoError(t, err)
-	e.cachedSourceSets = make([]map[uint32]int64, 0)
+	e.cachedSourceSets = make([]map[uint32]*bitset.BitSet, 0)
 
 	inputs := []int64{10, 20}
 	expected := []testIndexData{
@@ -2427,7 +2441,7 @@ func testGaugeElemWithData(
 		gauge := &lockedGaugeAggregation{
 			aggregation: newGaugeAggregation(raggregation.NewGauge(e.aggOpts)),
 			prevValues:  make([]float64, len(e.aggTypes)),
-			sourcesSeen: make(map[uint32]int64),
+			sourcesSeen: make(map[uint32]*bitset.BitSet),
 		}
 		gauge.dirty = true
 		// offset the timestamp by 1 so the gauge value can be updated using the aligned timestamp later.

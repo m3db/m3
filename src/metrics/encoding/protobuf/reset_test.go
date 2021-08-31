@@ -80,7 +80,7 @@ var (
 		Metadatas: []metricpb.StagedMetadata{
 			{
 				CutoverNanos: 1234,
-				Metadata: metricpb.Metadata {
+				Metadata: metricpb.Metadata{
 					Pipelines: []metricpb.PipelineMetadata{
 						{
 							ResendEnabled: true,

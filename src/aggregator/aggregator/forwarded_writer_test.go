@@ -145,7 +145,7 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 	require.Equal(t, int64(1234), agg.byKey[0].buckets[1234].timeNanos)
 	require.Equal(t, []float64{5.67}, agg.byKey[0].buckets[1234].values)
 	require.Equal(t, []float64{5.0}, agg.byKey[0].buckets[1234].prevValues)
-	require.Equal(t, int64(0), agg.byKey[0].buckets[1234].version)
+	require.Equal(t, uint32(0), agg.byKey[0].buckets[1234].version)
 	require.Nil(t, agg.byKey[0].buckets[0].annotation)
 
 	writeFn(aggKey, 1234, 1.78, 1.0, testAnnot)
@@ -153,7 +153,7 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 	require.Equal(t, int64(1234), agg.byKey[0].buckets[1234].timeNanos)
 	require.Equal(t, []float64{5.67, 1.78}, agg.byKey[0].buckets[1234].values)
 	require.Equal(t, []float64{5.0, 1.0}, agg.byKey[0].buckets[1234].prevValues)
-	require.Equal(t, int64(0), agg.byKey[0].buckets[1234].version)
+	require.Equal(t, uint32(0), agg.byKey[0].buckets[1234].version)
 	require.Equal(t, testAnnot, agg.byKey[0].buckets[1234].annotation)
 
 	writeFn(aggKey, 1240, -2.95, 0.0, nil)
@@ -161,7 +161,7 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 	require.Equal(t, int64(1240), agg.byKey[0].buckets[1240].timeNanos)
 	require.Equal(t, []float64{-2.95}, agg.byKey[0].buckets[1240].values)
 	require.Equal(t, []float64{0.0}, agg.byKey[0].buckets[1240].prevValues)
-	require.Equal(t, int64(0), agg.byKey[0].buckets[1240].version)
+	require.Equal(t, uint32(0), agg.byKey[0].buckets[1240].version)
 
 	// Validate that onDoneFn can be used to flush data out.
 	expectedMetric1 := aggregated.ForwardedMetric{

@@ -153,7 +153,7 @@ type ForwardedMetric struct {
 	Values     []float64
 	PrevValues []float64
 	Annotation []byte
-	Version    int64
+	Version    uint32
 }
 
 // ToProto converts the forwarded metric to a protobuf message in place.

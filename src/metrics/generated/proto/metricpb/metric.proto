@@ -66,7 +66,7 @@ message ForwardedMetric {
   repeated double values = 4;
   repeated double prev_values = 6;
   bytes annotation = 5;
-  int64 version = 7;
+  uint32 version = 7;
 }
 
 

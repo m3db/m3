@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/uber-go/tally"
+	"github.com/willf/bitset"
 	"go.uber.org/zap"
 
 	raggregation "github.com/m3db/m3/src/aggregator/aggregation"
@@ -50,6 +51,9 @@ const (
 
 	// Default initial number of sources.
 	defaultNumSources = 1024
+
+	// Default number of versions.
+	defaultNumVersions = 4
 
 	// Maximum transformation derivative order that is supported.
 	// A default value of 1 means we currently only support transformations that
@@ -169,14 +173,12 @@ type elemBase struct {
 	// Mutable states.
 	tombstoned           bool
 	closed               bool
-	cachedSourceSetsLock sync.Mutex         // nolint: structcheck
-	cachedSourceSets     []map[uint32]int64 // nolint: structcheck
+	cachedSourceSetsLock sync.Mutex                  // nolint: structcheck
+	cachedSourceSets     []map[uint32]*bitset.BitSet // nolint: structcheck
 }
 
 type elemMetrics struct {
-	updatedValues  tally.Counter
-	discardedNans  tally.Counter
-	resendNoChange tally.Counter
+	updatedValues tally.Counter
 }
 
 func newElemBase(opts Options) elemBase {
@@ -186,9 +188,7 @@ func newElemBase(opts Options) elemBase {
 		aggTypesOpts: opts.AggregationTypesOptions(),
 		aggOpts:      raggregation.NewOptions(opts.InstrumentOptions()),
 		metrics: elemMetrics{
-			updatedValues:  scope.Counter("updated-values"),
-			discardedNans:  scope.Counter("discarded-nans"),
-			resendNoChange: scope.Counter("resend-no-change"),
+			updatedValues: scope.Counter("updated-values"),
 		},
 	}
 }

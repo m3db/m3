@@ -277,7 +277,7 @@ type forwardedAggregationBucket struct {
 	timeNanos  int64
 	values     []float64
 	prevValues []float64
-	version    int64
+	version    uint32
 	annotation []byte
 }
 

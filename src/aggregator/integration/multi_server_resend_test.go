@@ -59,10 +59,6 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 
 	aggregatorClientType, err := getAggregatorClientTypeFromEnv()
 	require.NoError(t, err)
-	if aggregatorClientType == aggclient.M3MsgAggregatorClient {
-		// TODO(vilius) update this test to work with m3msg client
-		t.SkipNow()
-	}
 
 	// Clock setup.
 	clock := newTestClock(time.Now().Truncate(time.Hour))
@@ -124,6 +120,14 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 			},
 		},
 	}
+
+	for i, mss := range multiServerSetup {
+		multiServerSetup[i].instanceConfig.instanceID = mss.rawTCPAddr
+		if aggregatorClientType == aggclient.M3MsgAggregatorClient {
+			multiServerSetup[i].instanceConfig.instanceID = mss.m3MsgAddr
+		}
+	}
+
 	instances := make([]placement.Instance, 0, len(multiServerSetup))
 	for _, mss := range multiServerSetup {
 		instance := mss.instanceConfig.newPlacementInstance()
@@ -131,6 +135,8 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 	}
 	initPlacement := newPlacement(numTotalShards, instances)
 	require.NoError(t, setPlacement(placementKey, kvStore, initPlacement))
+	topicService, err := initializeTopic(defaultTopicName, kvStore, initPlacement)
+	require.NoError(t, err)
 
 	// Election cluster setup.
 	electionCluster := newTestCluster(t)
@@ -166,10 +172,12 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 			SetInstrumentOptions(instrumentOpts).
 			SetElectionCluster(electionCluster).
 			SetHTTPAddr(mss.httpAddr).
-			SetInstanceID(mss.instanceConfig.instanceID).
-			SetKVStore(kvStore).
 			SetRawTCPAddr(mss.rawTCPAddr).
 			SetM3MsgAddr(mss.m3MsgAddr).
+			SetInstanceID(mss.instanceConfig.instanceID).
+			SetKVStore(kvStore).
+			SetTopicService(topicService).
+			SetTopicName(defaultTopicName).
 			SetPlacement(initPlacement).
 			SetShardFn(shardFn).
 			SetShardSetID(mss.instanceConfig.shardSetID).
@@ -188,12 +196,8 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 	}
 
 	// Create clients for writing to the servers.
-	clients := make([]*client, 0, len(servers))
-	for _, server := range servers {
-		client := server.newClient(t)
-		require.NoError(t, client.connect())
-		clients = append(clients, client)
-	}
+	client := servers[0].newClient(t)
+	require.NoError(t, client.connect())
 
 	// Waiting for two leaders to come up.
 	var (
@@ -306,7 +310,6 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 		metadataFn:   metadataFn,
 	})
 
-	writingClients := clients[:2]
 	for i, data := range dataset {
 		if i == 3 {
 			// send this datapoint later
@@ -314,13 +317,10 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 		}
 
 		for _, mm := range data.metricWithMetadatas {
-			for _, c := range writingClients {
-				require.NoError(t, c.writeTimedMetricWithMetadatas(mm.metric.timed, mm.metadata.stagedMetadatas))
-			}
+			require.NoError(t, client.writeTimedMetricWithMetadatas(mm.metric.timed, mm.metadata.stagedMetadatas))
 		}
-		for _, c := range writingClients {
-			require.NoError(t, c.flush())
-		}
+		require.NoError(t, client.flush())
+
 		// Give server some time to process the incoming packets.
 		time.Sleep(time.Second)
 	}
@@ -344,13 +344,9 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 	// send a datapoint late
 	data := dataset[3]
 	for _, mm := range data.metricWithMetadatas {
-		for _, c := range writingClients {
-			require.NoError(t, c.writeTimedMetricWithMetadatas(mm.metric.timed, mm.metadata.stagedMetadatas))
-		}
+		require.NoError(t, client.writeTimedMetricWithMetadatas(mm.metric.timed, mm.metadata.stagedMetadatas))
 	}
-	for _, c := range writingClients {
-		require.NoError(t, c.flush())
-	}
+	require.NoError(t, client.flush())
 
 	// Give server some time to process the incoming packets.
 	time.Sleep(time.Second)
@@ -365,15 +361,19 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 	clock.SetNow(flushTime)
 	time.Sleep(time.Second)
 
+	// Remove all the topic consumers before closing clients and servers. This allows to close the
+	// connections between servers while they still are running. Otherwise, during server shutdown,
+	// the yet-to-be-closed servers would repeatedly try to reconnect to recently closed ones, which
+	// results in longer shutdown times.
+	require.NoError(t, removeAllTopicConsumers(topicService, defaultTopicName))
+
+	// Stop the client.
+	require.NoError(t, client.close())
+
 	// Stop the servers.
 	for i, server := range servers {
 		require.NoError(t, server.stopServer())
 		log.Sugar().Infof("server %d is now down", i)
-	}
-
-	// Stop the clients.
-	for _, client := range clients {
-		require.NoError(t, client.close())
 	}
 
 	// Validate results.
@@ -464,7 +464,7 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 		expectedResultsFlattened = append(expectedResultsFlattened, expectedResults...)
 	}
 	sort.Sort(byTimeIDPolicyAscending(expectedResultsFlattened))
-	actual := destinationServer.sortedLastResults()
+	actual := destinationServer.sortedResults()
 	if !cmp.Equal(expectedResultsFlattened, actual, testCmpOpts...) {
 		require.Fail(t, "results differ", cmp.Diff(expectedResultsFlattened, actual, testCmpOpts...))
 	}
