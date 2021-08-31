@@ -2913,7 +2913,7 @@ func addRequestDataToM3Context(
 	goCtx := tchannelthrift.NewContextWithEndpoint(ctx.GoContext(), endpoint)
 
 	if len(source) > 0 {
-		goCtx = goctx.WithValue(ctx.GoContext(), limits.SourceContextKey, source)
+		goCtx = goctx.WithValue(goCtx, limits.SourceContextKey, source)
 	}
 
 	ctx.SetGoContext(goCtx)
