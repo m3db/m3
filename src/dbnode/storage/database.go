@@ -75,6 +75,9 @@ var (
 	// errDatabaseIsClosed raised when trying to perform an action that requires an open database.
 	errDatabaseIsClosed = errors.New("database is closed")
 
+	// errDatabaseNotBootstrapped raised when trying to perform an action that requires a bootstrapped database.
+	errDatabaseNotBootstrapped = errors.New("database is not bootstrapped")
+
 	// errWriterDoesNotImplementWriteBatch is raised when the provided ts.BatchWriter does not implement
 	// ts.WriteBatch.
 	errWriterDoesNotImplementWriteBatch = errors.New("provided writer does not implement ts.WriteBatch")
@@ -896,6 +899,12 @@ func (d *db) QueryIDs(
 		return index.QueryResult{}, err
 	}
 
+	if !d.IsBootstrapped() {
+		err := errDatabaseNotBootstrapped
+		sp.LogFields(opentracinglog.Error(err))
+		return index.QueryResult{}, xerrors.NewRetryableError(err)
+	}
+
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
@@ -912,12 +921,6 @@ func (d *db) AggregateQuery(
 	query index.Query,
 	aggResultOpts index.AggregationOptions,
 ) (index.AggregateQueryResult, error) {
-	n, err := d.namespaceFor(namespace)
-	if err != nil {
-		d.metrics.unknownNamespaceQueryIDs.Inc(1)
-		return index.AggregateQueryResult{}, err
-	}
-
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateQuery)
 	if sampled {
 		sp.LogFields(
@@ -929,8 +932,21 @@ func (d *db) AggregateQuery(
 			xopentracing.Time("end", aggResultOpts.QueryOptions.EndExclusive.ToTime()),
 		)
 	}
-
 	defer sp.Finish()
+
+	if !d.IsBootstrapped() {
+		err := errDatabaseNotBootstrapped
+		sp.LogFields(opentracinglog.Error(err))
+		return index.AggregateQueryResult{}, xerrors.NewRetryableError(err)
+	}
+
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+		d.metrics.unknownNamespaceQueryIDs.Inc(1)
+		return index.AggregateQueryResult{}, err
+	}
+
 	return n.AggregateQuery(ctx, query, aggResultOpts)
 }
 
