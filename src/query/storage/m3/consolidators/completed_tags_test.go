@@ -193,6 +193,7 @@ var testMergeCompletedTags = []struct {
 func TestMergeCompletedTagResult(t *testing.T) {
 	nameOnlyVals := []bool{true, false}
 	for _, nameOnly := range nameOnlyVals {
+		nameOnly := nameOnly
 		for _, tt := range testMergeCompletedTags {
 			t.Run(fmt.Sprintf("%s_%t", tt.name, nameOnly), func(t *testing.T) {
 				builder := NewCompleteTagsResultBuilder(nameOnly, models.NewTagOptions())
