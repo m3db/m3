@@ -278,7 +278,7 @@ func Run(runOpts RunOptions) {
 			Sampler: &jaegercfg.SamplerConfig{
 				Type: "probabilistic",
 				// 10% sampling
-				Param: 0.1,
+				Param: 1.0,
 			},
 		},
 	}
