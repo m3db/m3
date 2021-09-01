@@ -276,8 +276,9 @@ func Run(runOpts RunOptions) {
 				LocalAgentHostPort: "chronocollector-deployment:6831",
 			},
 			Sampler: &jaegercfg.SamplerConfig{
-				Type:              "remote",
-				SamplingServerURL: "http://jaeger-collector:5778/sampling",
+				Type: "probabilistic",
+				// 10% sampling
+				Param: 0.1,
 			},
 		},
 	}
