@@ -77,6 +77,9 @@ type ResultMetadata struct {
 	// FetchedSeriesCount is the total number of series that were fetched to compute
 	// this result.
 	FetchedSeriesCount int
+	// FetchedMetadataCount is the total amount of metadata that was fetched to compute
+	// this result.
+	FetchedMetadataCount int
 }
 
 // NewResultMetadata creates a new result metadata.
@@ -158,19 +161,24 @@ func (m ResultMetadata) Equals(n ResultMetadata) bool {
 		return false
 	}
 
-	return m.FetchedSeriesCount == n.FetchedSeriesCount
+	if m.FetchedSeriesCount != n.FetchedSeriesCount {
+		return false
+	}
+
+	return m.FetchedMetadataCount == n.FetchedMetadataCount
 }
 
 // CombineMetadata combines two result metadatas.
 func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
 	return ResultMetadata{
-		LocalOnly:          m.LocalOnly && other.LocalOnly,
-		Exhaustive:         m.Exhaustive && other.Exhaustive,
-		Warnings:           combineWarnings(m.Warnings, other.Warnings),
-		Resolutions:        combineResolutions(m.Resolutions, other.Resolutions),
-		WaitedIndex:        m.WaitedIndex + other.WaitedIndex,
-		WaitedSeriesRead:   m.WaitedSeriesRead + other.WaitedSeriesRead,
-		FetchedSeriesCount: m.FetchedSeriesCount + other.FetchedSeriesCount,
+		LocalOnly:            m.LocalOnly && other.LocalOnly,
+		Exhaustive:           m.Exhaustive && other.Exhaustive,
+		Warnings:             combineWarnings(m.Warnings, other.Warnings),
+		Resolutions:          combineResolutions(m.Resolutions, other.Resolutions),
+		WaitedIndex:          m.WaitedIndex + other.WaitedIndex,
+		WaitedSeriesRead:     m.WaitedSeriesRead + other.WaitedSeriesRead,
+		FetchedSeriesCount:   m.FetchedSeriesCount + other.FetchedSeriesCount,
+		FetchedMetadataCount: m.FetchedMetadataCount + other.FetchedMetadataCount,
 	}
 }
 

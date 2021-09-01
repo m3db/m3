@@ -66,10 +66,6 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 
 	aggregatorClientType, err := getAggregatorClientTypeFromEnv()
 	require.NoError(t, err)
-	if aggregatorClientType == aggclient.M3MsgAggregatorClient {
-		// TODO(vilius) update this test to work with m3msg client
-		t.SkipNow()
-	}
 
 	// Clock setup.
 	clock := newTestClock(time.Now().Truncate(time.Hour))
@@ -142,6 +138,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	}
 	initPlacement := newPlacement(numTotalShards, instances)
 	require.NoError(t, setPlacement(placementKey, kvStore, initPlacement))
+	topicService, err := initializeTopic(defaultTopicName, kvStore, initPlacement)
+	require.NoError(t, err)
 
 	// Election cluster setup.
 	electionCluster := newTestCluster(t)
@@ -180,6 +178,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			SetM3MsgAddr(mss.m3MsgAddr).
 			SetInstanceID(mss.instanceConfig.instanceID).
 			SetKVStore(kvStore).
+			SetTopicService(topicService).
+			SetTopicName(defaultTopicName).
 			SetPlacement(initPlacement).
 			SetShardFn(shardFn).
 			SetShardSetID(mss.instanceConfig.shardSetID).
@@ -198,12 +198,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	}
 
 	// Create clients for writing to the servers.
-	clients := make([]*client, 0, len(servers))
-	for _, server := range servers {
-		client := server.newClient(t)
-		require.NoError(t, client.connect())
-		clients = append(clients, client)
-	}
+	client := servers[0].newClient(t)
+	require.NoError(t, client.connect())
 
 	// Waiting for two leaders to come up.
 	var (
@@ -306,18 +302,13 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		metadataFn:   metadataFn,
 	})
 
-	writingClients := clients[:2]
 	for _, data := range dataset {
 		clock.SetNow(data.timestamp)
 
 		for _, mm := range data.metricWithMetadatas {
-			for _, c := range writingClients {
-				require.NoError(t, c.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
-			}
+			require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 		}
-		for _, c := range writingClients {
-			require.NoError(t, c.flush())
-		}
+		require.NoError(t, client.flush())
 
 		// Give server some time to process the incoming packets.
 		time.Sleep(time.Second)
@@ -339,10 +330,14 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		time.Sleep(time.Second)
 	}
 
-	// Stop the clients.
-	for _, client := range clients {
-		require.NoError(t, client.close())
-	}
+	// Remove all the topic consumers before closing clients and servers. This allows to close the
+	// connections between servers while they still are running. Otherwise, during server shutdown,
+	// the yet-to-be-closed servers would repeatedly try to reconnect to recently closed ones, which
+	// results in longer shutdown times.
+	require.NoError(t, removeAllTopicConsumers(topicService, defaultTopicName))
+
+	// Stop the client.
+	require.NoError(t, client.close())
 
 	// Stop the servers.
 	for i, server := range servers {
