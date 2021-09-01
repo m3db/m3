@@ -236,10 +236,10 @@ func TestPlacementChange(t *testing.T) {
 	for _, data := range datasets[0] {
 		clock.SetNow(data.timestamp)
 
-		for _, mm := range data.metricWithMetadatas {
+		applyConcurrently(data.metricWithMetadatas, func(mm metricWithMetadataUnion) {
 			idx := getServerIndex(mm.metric.ID(), initialPlacement)
 			require.NoError(t, clients[idx].writeTimedMetricWithMetadata(mm.metric.timed, mm.metadata.timedMetadata))
-		}
+		})
 		for _, c := range clients {
 			require.NoError(t, c.flush())
 		}

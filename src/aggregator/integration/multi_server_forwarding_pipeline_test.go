@@ -305,9 +305,9 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	for _, data := range dataset {
 		clock.SetNow(data.timestamp)
 
-		for _, mm := range data.metricWithMetadatas {
+		applyConcurrently(data.metricWithMetadatas, func(mm metricWithMetadataUnion) {
 			require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
-		}
+		})
 		require.NoError(t, client.flush())
 
 		// Give server some time to process the incoming packets.
@@ -429,5 +429,5 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	}
 	sort.Sort(byTimeIDPolicyAscending(expectedResultsFlattened))
 	actual := destinationServer.sortedResults()
-	require.True(t, cmp.Equal(expectedResultsFlattened, actual, testCmpOpts...))
+	require.True(t, cmp.Equal(expectedResultsFlattened, actual, testCmpOpts...), cmp.Diff(expectedResultsFlattened, actual, testCmpOpts...))
 }

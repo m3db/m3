@@ -111,11 +111,11 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 	})
 	for _, data := range dataset {
 		clock.SetNow(data.timestamp)
-		for _, mm := range data.metricWithMetadatas {
+		applyConcurrently(data.metricWithMetadatas, func(mm metricWithMetadataUnion) {
 			// Randomly pick one client to write the metric.
 			client := clients[rand.Int63n(int64(numClients))]
 			require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
-		}
+		})
 		for _, client := range clients {
 			require.NoError(t, client.flush())
 		}

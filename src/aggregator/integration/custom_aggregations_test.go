@@ -167,9 +167,9 @@ func testCustomAggregations(t *testing.T, metadataFns [4]metadataFn) {
 	for _, dataset := range inputs {
 		for _, data := range dataset {
 			clock.SetNow(data.timestamp)
-			for _, mm := range data.metricWithMetadatas {
+			applyConcurrently(data.metricWithMetadatas, func(mm metricWithMetadataUnion) {
 				require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
-			}
+			})
 			require.NoError(t, client.flush())
 
 			// Give server some time to process the incoming packets.

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	aggclient "github.com/m3db/m3/src/aggregator/client"
@@ -53,4 +54,22 @@ func getAggregatorClientTypeFromEnv() (aggclient.AggregatorClientType, error) {
 	default:
 		return aggclient.AggregatorClientType(0), fmt.Errorf("unrecognized aggregator client type %v", clientType)
 	}
+}
+
+func applyConcurrently(metrics []metricWithMetadataUnion, fn func(metric metricWithMetadataUnion)) {
+	startSignal := make(chan struct{})
+	wg := sync.WaitGroup{}
+
+	for _, m := range metrics {
+		m := m
+		wg.Add(1)
+		go func() {
+			<-startSignal
+			fn(m)
+			wg.Done()
+		}()
+	}
+
+	close(startSignal)
+	wg.Wait()
 }

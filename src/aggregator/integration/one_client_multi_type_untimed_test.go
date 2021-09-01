@@ -103,9 +103,9 @@ func testOneClientMultiType(t *testing.T, metadataFn metadataFn) {
 	})
 	for _, data := range dataset {
 		clock.SetNow(data.timestamp)
-		for _, mm := range data.metricWithMetadatas {
+		applyConcurrently(data.metricWithMetadatas, func(mm metricWithMetadataUnion) {
 			require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
-		}
+		})
 		require.NoError(t, client.flush())
 
 		// Give server some time to process the incoming packets.
