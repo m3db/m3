@@ -340,7 +340,8 @@ type WithBorrowConnectionResult struct {
 
 // DedicatedConnectionOptions are options used for getting a dedicated connection.
 type DedicatedConnectionOptions struct {
-	ShardStateFilter shard.State
+	ShardStateFilter      shard.State
+	BootstrappedNodesOnly bool
 }
 
 // Options is a set of client options.
