@@ -24,8 +24,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/util/runtime"
 	"github.com/m3db/m3/src/metrics/aggregation"
@@ -196,14 +194,6 @@ func (r *ruleSet) toRuleSet(value kv.Value) (interface{}, error) {
 	r.proto.Reset()
 	if err := value.Unmarshal(r.proto); err != nil {
 		return nil, err
-	}
-	for _, rr := range r.proto.RollupRules {
-		for _, s := range rr.Snapshots {
-			for _, t := range s.TargetsV2 {
-				r.opts.InstrumentOptions().Logger().Info("adding rollup rule",
-					zap.String("name", s.Name), zap.Bool("resendEnabled", t.ResendEnabled))
-			}
-		}
 	}
 	return rules.NewRuleSetFromProto(value.Version(), r.proto, r.ruleSetOpts)
 }

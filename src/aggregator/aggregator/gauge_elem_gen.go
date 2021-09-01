@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/transformation"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/willf/bitset"
 )
@@ -65,11 +66,13 @@ type GaugeElem struct {
 	elemBase
 	gaugeElemBase
 
-	values    []timedGauge // metric aggregations sorted by time in ascending order
+	values []timedGauge // metric aggregations sorted by time in ascending order
+
+	// internal consume state that does not need to be synchronized.
 	toConsume []timedGauge // small buffer to avoid memory allocations during consumption
 	// map of the previous consumed values for each timestamp in the buffer. needed to support binary transforms that
 	// need the value from the previous timestamp.
-	consumedValues map[int64][]transformation.Datapoint
+	consumedValues valuesByTime
 }
 
 // NewGaugeElem returns a new GaugeElem.
@@ -104,11 +107,6 @@ func (e *GaugeElem) ResetSetData(data ElemData) error {
 	}
 	if err := e.gaugeElemBase.ResetSetData(e.aggTypesOpts, data.AggTypes, useDefaultAggregation); err != nil {
 		return err
-	}
-	// If the pipeline contains derivative transformations, we need to store past
-	// values in order to compute the derivatives.
-	if !e.parsedPipeline.HasDerivativeTransform {
-		return nil
 	}
 	return nil
 }
@@ -237,7 +235,7 @@ func (e *GaugeElem) Consume(
 		if e.resendEnabled {
 			// If resend is enabled, we only expire if the value is now outside the buffer past. It is safe to expire
 			// since any metrics intended for this value are rejected for being too late.
-			expiredNanos := targetNanos - e.opts.BufferForPastTimedMetricFn()(resolution).Nanoseconds()
+			expiredNanos := targetNanos - e.bufferForPastTimedMetricFn(resolution).Nanoseconds()
 			expired = value.startAtNanos < expiredNanos
 		}
 
@@ -256,19 +254,15 @@ func (e *GaugeElem) Consume(
 
 	var (
 		cascadeDirty  bool
-		prevTimeNanos int64
+		prevTimeNanos xtime.UnixNano
 	)
 	// Process the aggregations that are ready for consumption.
 	for i := range e.toConsume {
 		expired := e.toConsume[i].onConsumeExpired
-		timeNanos := timestampNanosFn(e.toConsume[i].startAtNanos, resolution)
+		timeNanos := xtime.UnixNano(timestampNanosFn(e.toConsume[i].startAtNanos, resolution))
 		// seed the previous timestamp if this is first consumed value.
 		if prevTimeNanos == 0 {
-			for k := range e.consumedValues {
-				if k > prevTimeNanos && k < timeNanos {
-					prevTimeNanos = k
-				}
-			}
+			prevTimeNanos = e.consumedValues.previousTimestamp(timeNanos)
 		}
 
 		e.toConsume[i].lockedAgg.Lock()
@@ -346,12 +340,14 @@ func (e *GaugeElem) Close() {
 		e.values[idx].Release()
 	}
 	e.values = e.values[:0]
-	e.toConsume = e.toConsume[:0]
-	e.consumedValues = nil
 	e.gaugeElemBase.Close()
 	aggTypesPool := e.aggTypesOpts.TypesPool()
 	pool := e.ElemPool(e.opts)
 	e.Unlock()
+
+	// internal consumption state that doesn't need to be synchronized.
+	e.toConsume = e.toConsume[:0]
+	e.consumedValues = nil
 
 	if !e.useDefaultAggregation {
 		aggTypesPool.Put(e.aggTypes)
@@ -454,8 +450,8 @@ func (e *GaugeElem) indexOfWithLock(alignedStart int64) (int, bool) {
 
 // returns true if a datapoint is emitted.
 func (e *GaugeElem) processValueWithAggregationLock(
-	timeNanos int64,
-	prevTimeNanos int64,
+	timeNanos xtime.UnixNano,
+	prevTimeNanos xtime.UnixNano,
 	lockedAgg *lockedGaugeAggregation,
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
@@ -475,7 +471,7 @@ func (e *GaugeElem) processValueWithAggregationLock(
 			switch {
 			case isUnaryOp:
 				curr := transformation.Datapoint{
-					TimeNanos: timeNanos,
+					TimeNanos: int64(timeNanos),
 					Value:     value,
 				}
 
@@ -489,13 +485,13 @@ func (e *GaugeElem) processValueWithAggregationLock(
 				}
 				// lazily construct consumedValues since they are only needed by binary transforms.
 				if e.consumedValues == nil {
-					e.consumedValues = make(map[int64][]transformation.Datapoint)
+					e.consumedValues = make(valuesByTime)
 				}
 				if _, ok := e.consumedValues[prevTimeNanos]; ok {
 					prev = e.consumedValues[prevTimeNanos][aggTypeIdx]
 				}
 				curr := transformation.Datapoint{
-					TimeNanos: timeNanos,
+					TimeNanos: int64(timeNanos),
 					Value:     value,
 				}
 				res := binaryOp.Evaluate(prev, curr, transformation.FeatureFlags{})
@@ -514,7 +510,7 @@ func (e *GaugeElem) processValueWithAggregationLock(
 				value = res.Value
 			case isUnaryMultiOp:
 				curr := transformation.Datapoint{
-					TimeNanos: timeNanos,
+					TimeNanos: int64(timeNanos),
 					Value:     value,
 				}
 
@@ -543,7 +539,7 @@ func (e *GaugeElem) processValueWithAggregationLock(
 		if !e.parsedPipeline.HasRollup {
 			toFlush := make([]transformation.Datapoint, 0, 2)
 			toFlush = append(toFlush, transformation.Datapoint{
-				TimeNanos: timeNanos,
+				TimeNanos: int64(timeNanos),
 				Value:     value,
 			})
 			if extraDp.TimeNanos != 0 {
@@ -561,7 +557,7 @@ func (e *GaugeElem) processValueWithAggregationLock(
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
-				timeNanos, value, prevValue, lockedAgg.aggregation.Annotation())
+				int64(timeNanos), value, prevValue, lockedAgg.aggregation.Annotation())
 		}
 	}
 	return emitted

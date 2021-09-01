@@ -188,14 +188,19 @@ func (w *forwardedWriter) Register(metric Registerable) (writeForwardedMetricFn,
 		w.metrics.registerWriterClosed.Inc(1)
 		return nil, nil, errForwardedWriterClosed
 	}
-	metricID, _ := metric.ForwardedID()
+	metricID, ok := metric.ForwardedID()
+	if !ok {
+		return nil, nil, errors.New("not a forwarded metric")
+	}
 	key := newIDKey(metric.Type(), metricID)
 	fa, exists := w.aggregations[key]
 	if !exists {
 		fa = w.newForwardedAggregation(metric.Type(), metricID)
 		w.aggregations[key] = fa
 	}
-	fa.add(metric)
+	if err := fa.add(metric); err != nil {
+		return nil, nil, err
+	}
 	w.metrics.registerSuccess.Inc(1)
 	return fa.writeForwardedMetricFn(), fa.onAggregationKeyDoneFn(), nil
 }
@@ -433,12 +438,15 @@ func (agg *forwardedAggregation) reset() {
 
 // add adds the aggregation key to the set of aggregations. If the aggregation
 // key already exists, its ref count is incremented. Otherwise, a new aggregation
-// bucket is created and added to the set of aggregtaions.
-func (agg *forwardedAggregation) add(metric Registerable) {
-	key, _ := metric.ForwardedAggregationKey()
+// bucket is created and added to the set of aggregations.
+func (agg *forwardedAggregation) add(metric Registerable) error {
+	key, ok := metric.ForwardedAggregationKey()
+	if !ok {
+		return errors.New("not a forwarded metric")
+	}
 	if idx := agg.index(key); idx >= 0 {
 		agg.byKey[idx].totalRefCnt++
-		return
+		return nil
 	}
 	aggregation := forwardedAggregationWithKey{
 		key:                      key,
@@ -451,6 +459,7 @@ func (agg *forwardedAggregation) add(metric Registerable) {
 	}
 	agg.byKey = append(agg.byKey, aggregation)
 	agg.metrics.added.Inc(1)
+	return nil
 }
 
 // remove removes the aggregation key from the set of aggregations, returning

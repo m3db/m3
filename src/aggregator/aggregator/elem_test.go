@@ -608,7 +608,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 2, len(e.values))
 	require.Len(t, e.consumedValues, 1)
-	consumedVal := e.consumedValues[expectedForwardedRes[0].timeNanos]
+	consumedVal := e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0].Value)
 	require.Equal(t, time.Unix(220, 0).UnixNano(), consumedVal[0].TimeNanos)
@@ -635,7 +635,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(e.values))
 	require.Len(t, e.consumedValues, 1)
-	consumedVal = e.consumedValues[expectedForwardedRes[1].timeNanos]
+	consumedVal = e.consumedValues[xtime.UnixNano(expectedForwardedRes[1].timeNanos)]
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 589.0, consumedVal[0].Value)
 	require.Equal(t, time.Unix(240, 0).UnixNano(), consumedVal[0].TimeNanos)
@@ -1122,7 +1122,7 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 2, len(e.values))
 	require.Len(t, e.consumedValues, 1)
-	consumedVal := e.consumedValues[expectedForwardedRes[0].timeNanos]
+	consumedVal := e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0].Value)
 	require.Equal(t, time.Unix(220, 0).UnixNano(), consumedVal[0].TimeNanos)
@@ -1149,7 +1149,7 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(e.values))
 	require.Len(t, e.consumedValues, 1)
-	consumedVal = e.consumedValues[expectedForwardedRes[1].timeNanos]
+	consumedVal = e.consumedValues[xtime.UnixNano(expectedForwardedRes[1].timeNanos)]
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 589.0, consumedVal[0].Value)
 	require.Equal(t, time.Unix(240, 0).UnixNano(), consumedVal[0].TimeNanos)
@@ -1821,7 +1821,7 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 2, len(e.values))
 	require.Len(t, e.consumedValues, 1)
-	consumedVal := e.consumedValues[expectedForwardedRes[0].timeNanos]
+	consumedVal := e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0].Value)
 	require.Equal(t, time.Unix(220, 0).UnixNano(), consumedVal[0].TimeNanos)
@@ -1848,7 +1848,7 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(e.values))
 	require.Len(t, e.consumedValues, 1)
-	consumedVal = e.consumedValues[expectedForwardedRes[1].timeNanos]
+	consumedVal = e.consumedValues[xtime.UnixNano(expectedForwardedRes[1].timeNanos)]
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 589.0, consumedVal[0].Value)
 	require.Equal(t, time.Unix(240, 0).UnixNano(), consumedVal[0].TimeNanos)
@@ -2025,7 +2025,7 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
 	require.Len(t, e.consumedValues, 1)
-	consumedVal := e.consumedValues[expectedForwardedRes[0].timeNanos]
+	consumedVal := e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, transformation.Datapoint{
 		Value:     123.0,
@@ -2058,15 +2058,15 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	require.Equal(t, transformation.Datapoint{
 		Value:     123.0,
 		TimeNanos: time.Unix(220, 0).UnixNano(),
-	}, e.consumedValues[time.Unix(220, 0).UnixNano()][0])
+	}, e.consumedValues[xtime.ToUnixNano(time.Unix(220, 0))][0])
 	require.Equal(t, transformation.Datapoint{
 		Value:     456.0,
 		TimeNanos: time.Unix(230, 0).UnixNano(),
-	}, e.consumedValues[time.Unix(230, 0).UnixNano()][0])
+	}, e.consumedValues[xtime.ToUnixNano(time.Unix(230, 0))][0])
 	require.Equal(t, transformation.Datapoint{
 		Value:     589.0,
 		TimeNanos: time.Unix(240, 0).UnixNano(),
-	}, e.consumedValues[time.Unix(240, 0).UnixNano()][0])
+	}, e.consumedValues[xtime.ToUnixNano(time.Unix(240, 0))][0])
 
 	// Update a previous value
 	require.NoError(t, e.AddValue(time.Unix(210, 0), 124.0, nil))
@@ -2095,15 +2095,15 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	require.Equal(t, transformation.Datapoint{
 		Value:     124.0,
 		TimeNanos: time.Unix(220, 0).UnixNano(),
-	}, e.consumedValues[time.Unix(220, 0).UnixNano()][0])
+	}, e.consumedValues[xtime.ToUnixNano(time.Unix(220, 0))][0])
 	require.Equal(t, transformation.Datapoint{
 		Value:     456.0,
 		TimeNanos: time.Unix(230, 0).UnixNano(),
-	}, e.consumedValues[time.Unix(230, 0).UnixNano()][0])
+	}, e.consumedValues[xtime.ToUnixNano(time.Unix(230, 0))][0])
 	require.Equal(t, transformation.Datapoint{
 		Value:     589.0,
 		TimeNanos: time.Unix(240, 0).UnixNano(),
-	}, e.consumedValues[time.Unix(240, 0).UnixNano()][0])
+	}, e.consumedValues[xtime.ToUnixNano(time.Unix(240, 0))][0])
 }
 
 func TestGaugeElemReset(t *testing.T) {
