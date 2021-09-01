@@ -105,10 +105,7 @@ func (e *CounterElem) ResetSetData(data ElemData) error {
 	if err := e.elemBase.resetSetData(data, useDefaultAggregation); err != nil {
 		return err
 	}
-	if err := e.counterElemBase.ResetSetData(e.aggTypesOpts, data.AggTypes, useDefaultAggregation); err != nil {
-		return err
-	}
-	return nil
+	return e.counterElemBase.ResetSetData(e.aggTypesOpts, data.AggTypes, useDefaultAggregation)
 }
 
 // ResendEnabled returns true if resends are enabled for the element.

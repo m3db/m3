@@ -105,10 +105,7 @@ func (e *GaugeElem) ResetSetData(data ElemData) error {
 	if err := e.elemBase.resetSetData(data, useDefaultAggregation); err != nil {
 		return err
 	}
-	if err := e.gaugeElemBase.ResetSetData(e.aggTypesOpts, data.AggTypes, useDefaultAggregation); err != nil {
-		return err
-	}
-	return nil
+	return e.gaugeElemBase.ResetSetData(e.aggTypesOpts, data.AggTypes, useDefaultAggregation)
 }
 
 // ResendEnabled returns true if resends are enabled for the element.

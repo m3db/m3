@@ -105,10 +105,7 @@ func (e *TimerElem) ResetSetData(data ElemData) error {
 	if err := e.elemBase.resetSetData(data, useDefaultAggregation); err != nil {
 		return err
 	}
-	if err := e.timerElemBase.ResetSetData(e.aggTypesOpts, data.AggTypes, useDefaultAggregation); err != nil {
-		return err
-	}
-	return nil
+	return e.timerElemBase.ResetSetData(e.aggTypesOpts, data.AggTypes, useDefaultAggregation)
 }
 
 // ResendEnabled returns true if resends are enabled for the element.
