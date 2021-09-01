@@ -45,6 +45,7 @@ const (
 var (
 	errConnectionPoolClosed           = errors.New("connection pool closed")
 	errConnectionPoolHasNoConnections = newHostNotAvailableError(errors.New("connection pool has no connections"))
+	errNodeNotBootstrapped            = errors.New("node not bootstrapped")
 )
 
 type connPool struct {
@@ -76,7 +77,7 @@ type NewConnectionFn func(
 	channelName string, addr string, opts Options,
 ) (Channel, rpc.TChanNode, error)
 
-type healthCheckFn func(client rpc.TChanNode, opts Options) error
+type healthCheckFn func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error
 
 type sleepFn func(t time.Duration)
 
@@ -193,7 +194,7 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 				}
 
 				// Health check the connection
-				if err := p.healthCheckNewConn(client, p.opts); err != nil {
+				if err := p.healthCheckNewConn(client, p.opts, false); err != nil {
 					p.maybeEmitHealthStatus(healthStatusCheckFailed)
 					log.Debug("could not connect, failed health check", zap.String("host", address), zap.Error(err))
 					channel.Close()
@@ -252,7 +253,7 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 					checkErr error
 				)
 				for j := 0; j < attempts; j++ {
-					if err := p.healthCheck(client, p.opts); err != nil {
+					if err := p.healthCheck(client, p.opts, false); err != nil {
 						checkErr = err
 						failed++
 						throttleDuration := time.Duration(math.Max(
@@ -309,7 +310,7 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 	}
 }
 
-func healthCheck(client rpc.TChanNode, opts Options) error {
+func healthCheck(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
 	tctx, _ := thrift.NewContext(opts.HostConnectTimeout())
 	result, err := client.Health(tctx)
 	if err != nil {
@@ -317,6 +318,9 @@ func healthCheck(client rpc.TChanNode, opts Options) error {
 	}
 	if !result.Ok {
 		return fmt.Errorf("status not ok: %s", result.Status)
+	}
+	if checkBootstrapped && !result.Bootstrapped {
+		return errNodeNotBootstrapped
 	}
 	return nil
 }
