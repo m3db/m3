@@ -22,9 +22,9 @@ package storage
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
-	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 )
@@ -70,23 +70,23 @@ func (o *RestrictByTag) GetMatchers() models.Matchers {
 func (o *RestrictByType) Validate() error {
 	switch o.MetricsType {
 	case storagemetadata.UnaggregatedMetricsType:
-		if o.StoragePolicy != policy.EmptyStoragePolicy {
-			return fmt.Errorf(
-				"expected no storage policy for unaggregated metrics type, "+
-					"instead got: %v", o.StoragePolicy.String())
+		if len(o.StoragePolicies) != 0 {
+			return errors.New("expected no storage policy for unaggregated metrics type")
 		}
 	case storagemetadata.AggregatedMetricsType:
-		if v := o.StoragePolicy.Resolution().Window; v <= 0 {
-			return fmt.Errorf(
-				"expected positive resolution window, instead got: %v", v)
-		}
-		if v := o.StoragePolicy.Resolution().Precision; v <= 0 {
-			return fmt.Errorf(
-				"expected positive resolution precision, instead got: %v", v)
-		}
-		if v := o.StoragePolicy.Retention().Duration(); v <= 0 {
-			return fmt.Errorf(
-				"expected positive retention, instead got: %v", v)
+		for _, policy := range o.StoragePolicies {
+			if v := policy.Resolution().Window; v <= 0 {
+				return fmt.Errorf(
+					"expected positive resolution window, instead got: %v", v)
+			}
+			if v := policy.Resolution().Precision; v <= 0 {
+				return fmt.Errorf(
+					"expected positive resolution precision, instead got: %v", v)
+			}
+			if v := policy.Retention().Duration(); v <= 0 {
+				return fmt.Errorf(
+					"expected positive retention, instead got: %v", v)
+			}
 		}
 	default:
 		return fmt.Errorf(

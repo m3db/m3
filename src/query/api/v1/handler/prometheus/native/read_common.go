@@ -25,6 +25,7 @@ import (
 	"math"
 	"net/http"
 
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
@@ -137,9 +138,13 @@ func parseRequest(
 
 	restrictOpts := fetchOpts.RestrictQueryOptions.GetRestrictByType()
 	if restrictOpts != nil {
+		policy := policy.EmptyStoragePolicy
+		if len(restrictOpts.StoragePolicies) > 0 {
+			policy = restrictOpts.StoragePolicies[0]
+		}
 		restrict := &models.RestrictFetchTypeQueryContextOptions{
 			MetricsType:   uint(restrictOpts.MetricsType),
-			StoragePolicy: restrictOpts.StoragePolicy,
+			StoragePolicy: policy,
 		}
 
 		queryOpts.QueryContextOptions.RestrictFetchType = restrict

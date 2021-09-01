@@ -346,7 +346,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
 		fetchOpts.RestrictQueryOptions.RestrictByType =
 			newOrExistingRestrictQueryOptionsRestrictByType(fetchOpts)
-		fetchOpts.RestrictQueryOptions.RestrictByType.StoragePolicy = sp
+		fetchOpts.RestrictQueryOptions.RestrictByType.StoragePolicies = policy.StoragePolicies{sp}
 	}
 
 	if str := req.Header.Get(headers.RestrictByTagsJSONHeader); str != "" {

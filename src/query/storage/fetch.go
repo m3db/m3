@@ -23,6 +23,7 @@ package storage
 import (
 	"time"
 
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 
@@ -73,8 +74,8 @@ func (o *FetchOptions) QueryFetchOptions(
 		queryCtx.Options.RestrictFetchType != nil {
 		v := queryCtx.Options.RestrictFetchType
 		restrict := &RestrictByType{
-			MetricsType:   storagemetadata.MetricsType(v.MetricsType),
-			StoragePolicy: v.StoragePolicy,
+			MetricsType:     storagemetadata.MetricsType(v.MetricsType),
+			StoragePolicies: []policy.StoragePolicy{v.StoragePolicy},
 		}
 
 		if err := restrict.Validate(); err != nil {

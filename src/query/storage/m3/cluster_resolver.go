@@ -357,44 +357,56 @@ func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
 	})
 
 	result := func(
-		namespace ClusterNamespace,
+		namespaces ClusterNamespaces,
 		err error,
 	) (consolidators.QueryFanoutType, ClusterNamespaces, error) {
 		if err != nil {
 			return 0, nil, err
 		}
 
-		if coversRangeFilter(namespace) {
-			return consolidators.NamespaceCoversAllQueryRange,
-				ClusterNamespaces{namespace}, nil
+		for _, ns := range namespaces {
+			if !coversRangeFilter(ns) {
+				return consolidators.NamespaceCoversPartialQueryRange,
+					namespaces, nil
+			}
 		}
 
-		return consolidators.NamespaceCoversPartialQueryRange,
-			ClusterNamespaces{namespace}, nil
+		return consolidators.NamespaceCoversAllQueryRange,
+			namespaces, nil
 	}
 
 	switch restrict.MetricsType {
 	case storagemetadata.UnaggregatedMetricsType:
+		if len(restrict.StoragePolicies) > 1 {
+			return result(nil,
+				fmt.Errorf("unaggregated namespace must request for a single storage policy"))
+		} else if len(restrict.StoragePolicies) == 0 {
+			return result(nil,
+				fmt.Errorf("at least one storage policy must be present"))
+		}
 		ns, ok := clusters.UnaggregatedClusterNamespace()
 		if !ok {
 			return result(nil,
 				fmt.Errorf("could not find unaggregated namespace for storage policy: %v",
-					restrict.StoragePolicy.String()))
+					restrict.StoragePolicies[0].String()))
 		}
-		return result(ns, nil)
+		return result(ClusterNamespaces{ns}, nil)
 	case storagemetadata.AggregatedMetricsType:
-		ns, ok := clusters.AggregatedClusterNamespace(RetentionResolution{
-			Retention:  restrict.StoragePolicy.Retention().Duration(),
-			Resolution: restrict.StoragePolicy.Resolution().Window,
-		})
-		if !ok {
-			err := xerrors.NewInvalidParamsError(
-				fmt.Errorf("could not find namespace for storage policy: %v",
-					restrict.StoragePolicy.String()))
-			return result(nil, err)
+		var namespaces ClusterNamespaces
+		for _, policy := range restrict.StoragePolicies {
+			ns, ok := clusters.AggregatedClusterNamespace(RetentionResolution{
+				Retention:  policy.Retention().Duration(),
+				Resolution: policy.Resolution().Window,
+			})
+			if !ok {
+				err := xerrors.NewInvalidParamsError(
+					fmt.Errorf("could not find namespace for storage policy: %v",
+						policy.String()))
+				return result(nil, err)
+			}
+			namespaces = append(namespaces, ns)
 		}
-
-		return result(ns, nil)
+		return result(namespaces, nil)
 	default:
 		err := xerrors.NewInvalidParamsError(
 			fmt.Errorf("unrecognized metrics type: %v", restrict.MetricsType))

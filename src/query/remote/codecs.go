@@ -222,7 +222,11 @@ func encodeRestrictQueryOptionsByType(
 	case storagemetadata.AggregatedMetricsType:
 		result.MetricsType = rpcpb.MetricsType_AGGREGATED_METRICS_TYPE
 
-		storagePolicyProto, err := o.StoragePolicy.Proto()
+		policy := policy.EmptyStoragePolicy
+		if len(o.StoragePolicies) > 0 {
+			policy = o.StoragePolicies[0]
+		}
+		storagePolicyProto, err := policy.Proto()
 		if err != nil {
 			return nil, err
 		}
@@ -405,7 +409,7 @@ func decodeRestrictQueryOptionsByType(
 			return result, err
 		}
 
-		result.StoragePolicy = storagePolicy
+		result.StoragePolicies = policy.StoragePolicies{storagePolicy}
 	}
 
 	if err := result.Validate(); err != nil {

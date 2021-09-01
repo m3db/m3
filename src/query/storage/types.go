@@ -179,9 +179,9 @@ const (
 type RestrictByType struct {
 	// MetricsType restricts the type of metrics being returned.
 	MetricsType storagemetadata.MetricsType
-	// StoragePolicy is required if metrics type is not unaggregated
+	// StoragePolicies is required if metrics type is not unaggregated
 	// to specify which storage policy metrics should be returned from.
-	StoragePolicy policy.StoragePolicy
+	StoragePolicies []policy.StoragePolicy
 }
 
 // RestrictByTag are specific restrictions to enforce behavior for given
