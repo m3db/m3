@@ -136,6 +136,7 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		noopWriter = ioutil.Discard
 		renderOpts = prometheus.RenderSeriesMetadataOptions{
 			ReturnedSeriesMetadataLimit: opts.ReturnedSeriesMetadataLimit,
+			Strip:                       opts.RestrictQueryOptions.GetRestrictByTag().GetFilterByNames(),
 		}
 	)
 	renderResult, err := prometheus.RenderListTagResultsJSON(noopWriter, result, renderOpts)
