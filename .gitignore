@@ -20,7 +20,7 @@ vendor/
 # Build binaries
 bin/
 
-# retool dependencies
+# go tool binaries installed via `go install`
 _tools/
 
 # Debug binaries

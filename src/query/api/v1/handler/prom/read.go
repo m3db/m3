@@ -196,13 +196,13 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = Respond(w, &QueryData{
+	if err := Respond(w, &QueryData{
 		Result:     res.Value,
 		ResultType: res.Value.Type(),
-	}, res.Warnings)
-	if err != nil {
+	}, res.Warnings); err != nil {
 		h.logger.Error("error writing prom response",
-			zap.Error(res.Err), zap.String("query", params.Query),
+			zap.Error(err),
+			zap.String("query", params.Query),
 			zap.Bool("instant", h.opts.instant))
 	}
 }

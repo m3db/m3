@@ -287,6 +287,18 @@ func (p Pipeline) IsMappingRule() bool {
 	return true
 }
 
+// WithResets returns a new Pipeline with Add transformations replaced with Reset transformations.
+// See transformReset for why Reset should be used instead of Add.
+func (p Pipeline) WithResets() Pipeline {
+	for i, o := range p.Operations {
+		if o.Transformation.Type == transformation.Add {
+			o.Transformation.Type = transformation.Reset
+			p.Operations[i] = o
+		}
+	}
+	return p
+}
+
 // OperationsFromProto converts a list of protobuf AppliedPipelineOps, used in optimized staged metadata methods.
 func OperationsFromProto(pb []pipelinepb.AppliedPipelineOp, ops []OpUnion) error {
 	numOps := len(pb)

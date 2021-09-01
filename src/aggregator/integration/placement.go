@@ -60,7 +60,8 @@ func newPlacement(numShards int, instances []placement.Instance) placement.Place
 	}
 	return placement.NewPlacement().
 		SetInstances(instances).
-		SetShards(shards)
+		SetShards(shards).
+		SetIsSharded(true)
 }
 
 func setPlacement(

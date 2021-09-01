@@ -24,15 +24,9 @@ import (
 	"flag"
 	"log"
 	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
-	"os/signal"
-	"syscall"
 
-	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
-	"github.com/m3db/m3/src/dbnode/client"
-	dbserver "github.com/m3db/m3/src/dbnode/server"
-	coordinatorserver "github.com/m3db/m3/src/query/server"
+	"github.com/m3db/m3/src/cmd/services/m3dbnode/server"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/configflag"
 	xos "github.com/m3db/m3/src/x/os"
@@ -53,53 +47,8 @@ func main() {
 		log.Fatalf("error validating config: %v", err)
 	}
 
-	var (
-		numComponents     int
-		dbClientCh        chan client.Client
-		clusterClientCh   chan clusterclient.Client
-		coordinatorDoneCh chan struct{}
-	)
-	if cfg.DB != nil {
-		numComponents++
-	}
-	if cfg.Coordinator != nil {
-		numComponents++
-	}
-
-	interruptCh := xos.NewInterruptChannel(numComponents)
-	if cfg.DB != nil {
-		dbClientCh = make(chan client.Client, 1)
-		clusterClientCh = make(chan clusterclient.Client, 1)
-	}
-
-	if cfg.Coordinator != nil {
-		coordinatorDoneCh = make(chan struct{}, 1)
-		go func() {
-			coordinatorserver.Run(coordinatorserver.RunOptions{
-				Config:        *cfg.Coordinator,
-				DBConfig:      cfg.DB,
-				DBClient:      dbClientCh,
-				ClusterClient: clusterClientCh,
-				InterruptCh:   interruptCh,
-			})
-			coordinatorDoneCh <- struct{}{}
-		}()
-	}
-
-	if cfg.DB != nil {
-		dbserver.Run(dbserver.RunOptions{
-			Config:          *cfg.DB,
-			ClientCh:        dbClientCh,
-			ClusterClientCh: clusterClientCh,
-			InterruptCh:     interruptCh,
-		})
-	} else if cfg.Coordinator != nil {
-		<-coordinatorDoneCh
-	}
-}
-
-func interrupt() <-chan os.Signal {
-	c := make(chan os.Signal)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-	return c
+	server.RunComponents(server.Options{
+		Configuration: cfg,
+		InterruptCh:   xos.NewInterruptChannel(cfg.Components()),
+	})
 }

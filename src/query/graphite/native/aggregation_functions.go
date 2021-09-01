@@ -261,6 +261,19 @@ func divideSeriesLists(ctx *common.Context, dividendSeriesList, divisorSeriesLis
 			"divideSeriesLists both SeriesLists must have exactly the same length"))
 		return ts.NewSeriesList(), err
 	}
+
+	// If either list is not sorted yet then apply a default sort for deterministic results.
+	if !dividendSeriesList.SortApplied {
+		// Use sort.Stable for deterministic output.
+		sort.Stable(ts.SeriesByName(dividendSeriesList.Values))
+		dividendSeriesList.SortApplied = true
+	}
+	if !divisorSeriesList.SortApplied {
+		// Use sort.Stable for deterministic output.
+		sort.Stable(ts.SeriesByName(divisorSeriesList.Values))
+		divisorSeriesList.SortApplied = true
+	}
+
 	results := make([]*ts.Series, len(dividendSeriesList.Values))
 	for idx, dividendSeries := range dividendSeriesList.Values {
 		divisorSeries := divisorSeriesList.Values[idx]
@@ -273,6 +286,8 @@ func divideSeriesLists(ctx *common.Context, dividendSeriesList, divisorSeriesLis
 	}
 
 	r := ts.SeriesList(dividendSeriesList)
+	// Set sorted as we sorted any input that wasn't already sorted.
+	r.SortApplied = true
 	r.Values = results
 	return r, nil
 }
@@ -333,6 +348,17 @@ func sumSeriesWithWildcards(
 	positions ...int,
 ) (ts.SeriesList, error) {
 	return combineSeriesWithWildcards(ctx, series, positions, sumSpecificationFunc, ts.Sum)
+}
+
+// multiplySeriesWithWildcards splits the given set of series into sub-groupings
+// based on wildcard matches in the hierarchy, then multiply the values in each
+// grouping
+func multiplySeriesWithWildcards(
+	ctx *common.Context,
+	series singlePathSpec,
+	positions ...int,
+) (ts.SeriesList, error) {
+	return combineSeriesWithWildcards(ctx, series, positions, multiplyWithWildcardsSpecificationFunc, ts.Mul)
 }
 
 // aggregateWithWildcards splits the given set of series into sub-groupings
@@ -558,12 +584,12 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 		}
 
 		for _, prefix := range prefixChunk {
+			prefix := prefix // Capture for lambda.
 			newTarget := strings.ReplaceAll(templateFunction, "%", prefix)
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				resultSeriesList, err := evaluateTarget(ctx, newTarget)
-
 				if err != nil {
 					mu.Lock()
 					multiErr = multiErr.Add(err)
@@ -604,29 +630,15 @@ func groupByNode(ctx *common.Context, series singlePathSpec, node int, fname str
 	return groupByNodes(ctx, series, fname, []int{node}...)
 }
 
-func findFirstMetricExpression(seriesName string) (string, bool) {
-	idxOfRightParen := strings.Index(seriesName, ")")
-	if idxOfRightParen == -1 {
-		return "", false
-	}
-	substring := seriesName[:idxOfRightParen]
-	idxOfLeftParen := strings.LastIndex(substring, "(")
-	if idxOfLeftParen == -1 {
-		return "", false
-	}
-	return seriesName[idxOfLeftParen+1 : idxOfRightParen], true
-}
-
-func getParts(series *ts.Series) []string {
+func getAggregationKey(series *ts.Series, nodes []int) (string, error) {
 	seriesName := series.Name()
-	if metricExpr, ok := findFirstMetricExpression(seriesName); ok {
-		seriesName = metricExpr
+	metricsPath, err := getFirstPathExpression(seriesName)
+	if err != nil {
+		return "", err
 	}
-	return strings.Split(seriesName, ".")
-}
+	seriesName = metricsPath
 
-func getAggregationKey(series *ts.Series, nodes []int) string {
-	parts := getParts(series)
+	parts := strings.Split(seriesName, ".")
 
 	keys := make([]string, 0, len(nodes))
 	for _, n := range nodes {
@@ -640,20 +652,23 @@ func getAggregationKey(series *ts.Series, nodes []int) string {
 			keys = append(keys, "")
 		}
 	}
-	return strings.Join(keys, ".")
+	return strings.Join(keys, "."), nil
 }
 
-func getMetaSeriesGrouping(seriesList singlePathSpec, nodes []int) map[string][]*ts.Series {
+func getMetaSeriesGrouping(seriesList singlePathSpec, nodes []int) (map[string][]*ts.Series, error) {
 	metaSeries := make(map[string][]*ts.Series)
 
 	if len(nodes) > 0 {
 		for _, s := range seriesList.Values {
-			key := getAggregationKey(s, nodes)
+			key, err := getAggregationKey(s, nodes)
+			if err != nil {
+				return metaSeries, err
+			}
 			metaSeries[key] = append(metaSeries[key], s)
 		}
 	}
 
-	return metaSeries
+	return metaSeries, nil
 }
 
 // Takes a serieslist and maps a callback to subgroups within as defined by multiple nodes
@@ -668,7 +683,10 @@ func getMetaSeriesGrouping(seriesList singlePathSpec, nodes []int) map[string][]
 //
 // NOTE: if len(nodes) = 0, aggregate all series into 1 series.
 func groupByNodes(ctx *common.Context, seriesList singlePathSpec, fname string, nodes ...int) (ts.SeriesList, error) {
-	metaSeries := getMetaSeriesGrouping(seriesList, nodes)
+	metaSeries, err := getMetaSeriesGrouping(seriesList, nodes)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
 
 	if len(metaSeries) == 0 {
 		// if nodes is an empty slice or every node in nodes exceeds the number

@@ -570,8 +570,10 @@ func (h *Handler) registerHealthEndpoints() error {
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(struct {
 				Uptime string `json:"uptime"`
+				Now    string `json:"now"`
 			}{
 				Uptime: time.Since(h.options.CreatedAt()).String(),
+				Now:    time.Now().String(),
 			})
 		}),
 		Methods: methods(http.MethodGet),

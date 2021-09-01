@@ -84,6 +84,13 @@ func TestAddDBResultResponseHeaders(t *testing.T) {
 	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, nil))
 	assert.Equal(t, 1, len(recorder.Header()))
 	assert.Equal(t, "42", recorder.Header().Get(headers.FetchedSeriesCount))
+
+	recorder = httptest.NewRecorder()
+	meta = block.NewResultMetadata()
+	meta.FetchedMetadataCount = 42
+	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, nil))
+	assert.Equal(t, 1, len(recorder.Header()))
+	assert.Equal(t, "42", recorder.Header().Get(headers.FetchedMetadataCount))
 }
 
 func TestAddReturnedLimitResponseHeaders(t *testing.T) {

@@ -73,8 +73,7 @@ func testCustomAggregations(t *testing.T, metadataFns [4]metadataFn) {
 		SetCounterTypeStringTransformFn(aggregation.SuffixTransform).
 		SetTimerTypeStringTransformFn(aggregation.SuffixTransform).
 		SetGaugeTypeStringTransformFn(aggregation.SuffixTransform)
-	serverOpts := newTestServerOptions().
-		SetAggregationTypesOptions(aggTypesOpts)
+	serverOpts := newTestServerOptions(t).SetAggregationTypesOptions(aggTypesOpts)
 
 	// Clock setup.
 	clock := newTestClock(time.Now().Truncate(time.Hour))
@@ -93,6 +92,9 @@ func testCustomAggregations(t *testing.T, metadataFns [4]metadataFn) {
 	placementKey := serverOpts.PlacementKVKey()
 	placementStore := serverOpts.KVStore()
 	require.NoError(t, setPlacement(placementKey, placementStore, placement))
+	serverOpts = serverOpts.SetPlacement(placement)
+
+	serverOpts = setupTopic(t, serverOpts, placement)
 
 	// Create server.
 	testServer := newTestServerSetup(t, serverOpts)
@@ -116,9 +118,8 @@ func testCustomAggregations(t *testing.T, metadataFns [4]metadataFn) {
 		end      = start.Add(8 * time.Second)
 		interval = time.Second
 	)
-	client := testServer.newClient()
+	client := testServer.newClient(t)
 	require.NoError(t, client.connect())
-	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
 	inputs := []testDataset{
@@ -178,9 +179,11 @@ func testCustomAggregations(t *testing.T, metadataFns [4]metadataFn) {
 
 	// Move time forward and wait for ticking to happen. The sleep time
 	// must be the longer than the lowest resolution across all policies.
-	finalTime := end.Add(time.Second)
+	finalTime := end.Add(6 * time.Second)
 	clock.SetNow(finalTime)
 	time.Sleep(6 * time.Second)
+
+	require.NoError(t, client.close())
 
 	// Stop the server.
 	require.NoError(t, testServer.stopServer())

@@ -64,6 +64,9 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		t.SkipNow()
 	}
 
+	aggregatorClientType, err := getAggregatorClientTypeFromEnv()
+	require.NoError(t, err)
+
 	// Clock setup.
 	clock := newTestClock(time.Now().Truncate(time.Hour))
 
@@ -76,13 +79,14 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	multiServerSetup := []struct {
 		rawTCPAddr     string
 		httpAddr       string
+		m3MsgAddr      string
 		instanceConfig placementInstanceConfig
 	}{
 		{
 			rawTCPAddr: "localhost:6000",
 			httpAddr:   "localhost:16000",
+			m3MsgAddr:  "localhost:26000",
 			instanceConfig: placementInstanceConfig{
-				instanceID:          "localhost:6000",
 				shardSetID:          1,
 				shardStartInclusive: 0,
 				shardEndExclusive:   512,
@@ -91,8 +95,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		{
 			rawTCPAddr: "localhost:6001",
 			httpAddr:   "localhost:16001",
+			m3MsgAddr:  "localhost:26001",
 			instanceConfig: placementInstanceConfig{
-				instanceID:          "localhost:6001",
 				shardSetID:          1,
 				shardStartInclusive: 0,
 				shardEndExclusive:   512,
@@ -101,8 +105,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		{
 			rawTCPAddr: "localhost:6002",
 			httpAddr:   "localhost:16002",
+			m3MsgAddr:  "localhost:26002",
 			instanceConfig: placementInstanceConfig{
-				instanceID:          "localhost:6002",
 				shardSetID:          2,
 				shardStartInclusive: 512,
 				shardEndExclusive:   1024,
@@ -111,14 +115,22 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		{
 			rawTCPAddr: "localhost:6003",
 			httpAddr:   "localhost:16003",
+			m3MsgAddr:  "localhost:26003",
 			instanceConfig: placementInstanceConfig{
-				instanceID:          "localhost:6003",
 				shardSetID:          2,
 				shardStartInclusive: 512,
 				shardEndExclusive:   1024,
 			},
 		},
 	}
+
+	for i, mss := range multiServerSetup {
+		multiServerSetup[i].instanceConfig.instanceID = mss.rawTCPAddr
+		if aggregatorClientType == aggclient.M3MsgAggregatorClient {
+			multiServerSetup[i].instanceConfig.instanceID = mss.m3MsgAddr
+		}
+	}
+
 	instances := make([]placement.Instance, 0, len(multiServerSetup))
 	for _, mss := range multiServerSetup {
 		instance := mss.instanceConfig.newPlacementInstance()
@@ -126,6 +138,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	}
 	initPlacement := newPlacement(numTotalShards, instances)
 	require.NoError(t, setPlacement(placementKey, kvStore, initPlacement))
+	topicService, err := initializeTopic(defaultTopicName, kvStore, initPlacement)
+	require.NoError(t, err)
 
 	// Election cluster setup.
 	electionCluster := newTestCluster(t)
@@ -155,14 +169,18 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			zap.String("serverAddr", mss.rawTCPAddr),
 		)
 		instrumentOpts = instrumentOpts.SetLogger(logger)
-		serverOpts := newTestServerOptions().
+		serverOpts := newTestServerOptions(t).
 			SetClockOptions(clock.Options()).
 			SetInstrumentOptions(instrumentOpts).
 			SetElectionCluster(electionCluster).
+			SetRawTCPAddr(mss.rawTCPAddr).
 			SetHTTPAddr(mss.httpAddr).
+			SetM3MsgAddr(mss.m3MsgAddr).
 			SetInstanceID(mss.instanceConfig.instanceID).
 			SetKVStore(kvStore).
-			SetRawTCPAddr(mss.rawTCPAddr).
+			SetTopicService(topicService).
+			SetTopicName(defaultTopicName).
+			SetPlacement(initPlacement).
 			SetShardFn(shardFn).
 			SetShardSetID(mss.instanceConfig.shardSetID).
 			SetClientConnectionOptions(connectionOpts).
@@ -180,12 +198,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	}
 
 	// Create clients for writing to the servers.
-	clients := make([]*client, 0, len(servers))
-	for _, server := range servers {
-		client := server.newClient()
-		require.NoError(t, client.connect())
-		clients = append(clients, client)
-	}
+	client := servers[0].newClient(t)
+	require.NoError(t, client.connect())
 
 	// Waiting for two leaders to come up.
 	var (
@@ -288,18 +302,13 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		metadataFn:   metadataFn,
 	})
 
-	writingClients := clients[:2]
 	for _, data := range dataset {
 		clock.SetNow(data.timestamp)
 
 		for _, mm := range data.metricWithMetadatas {
-			for _, c := range writingClients {
-				require.NoError(t, c.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
-			}
+			require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 		}
-		for _, c := range writingClients {
-			require.NoError(t, c.flush())
-		}
+		require.NoError(t, client.flush())
 
 		// Give server some time to process the incoming packets.
 		time.Sleep(time.Second)
@@ -321,15 +330,19 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		time.Sleep(time.Second)
 	}
 
+	// Remove all the topic consumers before closing clients and servers. This allows to close the
+	// connections between servers while they still are running. Otherwise, during server shutdown,
+	// the yet-to-be-closed servers would repeatedly try to reconnect to recently closed ones, which
+	// results in longer shutdown times.
+	require.NoError(t, removeAllTopicConsumers(topicService, defaultTopicName))
+
+	// Stop the client.
+	require.NoError(t, client.close())
+
 	// Stop the servers.
 	for i, server := range servers {
 		require.NoError(t, server.stopServer())
 		log.Sugar().Infof("server %d is now down", i)
-	}
-
-	// Stop the clients.
-	for _, client := range clients {
-		client.close()
 	}
 
 	// Validate results.

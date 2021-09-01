@@ -166,7 +166,6 @@ type elemBase struct {
 	idPrefixSuffixType              IDPrefixSuffixType
 	writeForwardedMetricFn          writeForwardedMetricFn
 	onForwardedAggregationWrittenFn onForwardedAggregationDoneFn
-	addToReset                      bool
 
 	// Mutable states.
 	tombstoned           bool
@@ -180,7 +179,6 @@ func newElemBase(opts Options) elemBase {
 		opts:         opts,
 		aggTypesOpts: opts.AggregationTypesOptions(),
 		aggOpts:      raggregation.NewOptions(opts.InstrumentOptions()),
-		addToReset:   opts.AddToReset(),
 	}
 }
 
@@ -199,13 +197,6 @@ func (e *elemBase) resetSetData(
 		l := e.opts.InstrumentOptions().Logger()
 		l.Error("error parsing pipeline", zap.Error(err))
 		return err
-	}
-	if e.addToReset {
-		for i := range parsed.Transformations {
-			if parsed.Transformations[i].Type() == transformation.Add {
-				parsed.Transformations[i], _ = transformation.Reset.NewOp()
-			}
-		}
 	}
 	e.id = id
 	e.sp = sp

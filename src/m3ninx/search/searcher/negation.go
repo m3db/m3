@@ -21,10 +21,14 @@
 package searcher
 
 import (
+	"errors"
+
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/search"
 )
+
+var errNotMutable = errors.New("match all postings list for negation immmutable")
 
 type negationSearcher struct {
 	searcher search.Searcher
@@ -44,11 +48,19 @@ func (s *negationSearcher) Search(r index.Reader) (postings.List, error) {
 		return nil, err
 	}
 
-	sPl, err := s.searcher.Search(r)
+	negatePl, err := s.searcher.Search(r)
 	if err != nil {
 		return nil, err
 	}
 
-	pl.Difference(sPl)
-	return pl, nil
+	mutable, ok := pl.(postings.MutableList)
+	if !ok {
+		return nil, errNotMutable
+	}
+
+	result := mutable.Clone()
+	if err := result.Difference(negatePl); err != nil {
+		return nil, err
+	}
+	return result, nil
 }

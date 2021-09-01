@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -116,7 +115,7 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 	require.NoError(t, err)
 
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(lookup.NewEntry(lookup.NewEntryOptions{
+	shard.insertNewShardEntryWithLock(NewEntry(NewEntryOptions{
 		Series: seriesEntry,
 	}))
 	shard.Unlock()

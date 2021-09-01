@@ -62,7 +62,7 @@ func summarize(
 
 	results := make([]*ts.Series, len(series.Values))
 	for i, series := range series.Values {
-		name := fmt.Sprintf("summarize(%s, \"%s\", \"%s\"%s)", series.Name(), intervalS, fname, alignString)
+		name := fmt.Sprintf("summarize(%s, %q, %q%s)", series.Name(), intervalS, fname, alignString)
 		results[i] = summarizeTimeSeries(ctx, name, series, interval, safeAggFn, alignToFrom)
 	}
 
@@ -180,4 +180,8 @@ func sumSpecificationFunc(series ts.SeriesList) string {
 
 func averageSpecificationFunc(series ts.SeriesList) string {
 	return wrapPathExpr("averageSeries", series)
+}
+
+func multiplyWithWildcardsSpecificationFunc(series ts.SeriesList) string {
+	return wrapPathExpr("multiplySeriesWithWildcards", series)
 }

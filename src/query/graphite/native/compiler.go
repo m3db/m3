@@ -43,15 +43,31 @@ func Compile(input string, opts CompileOptions) (Expression, error) {
 	return compiler.compileExpression()
 }
 
-// ParseGrammar parses the grammar into a set of AST nodes and allows
-// for functions to not exist, etc.
-func ParseGrammar(input string, opts CompileOptions) (ASTNode, error) {
-	compiler, closer := newCompiler(input, opts)
+// getFirstPathExpression extracts the first matching path expression
+// in the input.
+func getFirstPathExpression(input string) (string, error) {
+	compiler, closer := newCompiler(input, CompileOptions{})
 	defer closer()
-	return compiler.parseGrammar()
+
+	// NB(r): Ignore any compilation errors, getFirstPathExpression is meant
+	// to be able to compile partial expressions such as "foo.bar, 0.1)" which
+	// might be matched as a result of a regular expression match with aliasSub.
+	_, _ = compiler.compileExpression()
+	if len(compiler.fetches) == 0 {
+		return "", compiler.errorf("no fetch expressions")
+	}
+
+	return compiler.fetches[0].pathArg.path, nil
 }
 
 type closer func()
+
+// A compiler converts an input string into an executable Expression
+type compiler struct {
+	input   string
+	tokens  *tokenLookforward
+	fetches []*fetchExpression
+}
 
 func newCompiler(input string, opts CompileOptions) (*compiler, closer) {
 	booleanLiterals := map[string]lexer.TokenType{
@@ -72,8 +88,9 @@ func newCompiler(input string, opts CompileOptions) (*compiler, closer) {
 	})
 
 	return &compiler{
-		input:  input,
-		tokens: newTokenLookforward(tokens),
+		input:   input,
+		tokens:  newTokenLookforward(tokens),
+		fetches: make([]*fetchExpression, 0, 4),
 	}, cleanup
 }
 
@@ -116,12 +133,6 @@ func (l *tokenLookforward) peek() (*lexer.Token, bool) {
 	return token, true
 }
 
-// A compiler converts an input string into an executable Expression
-type compiler struct {
-	input  string
-	tokens *tokenLookforward
-}
-
 // compileExpression compiles a top level expression
 func (c *compiler) compileExpression() (Expression, error) {
 	token := c.tokens.get()
@@ -132,16 +143,21 @@ func (c *compiler) compileExpression() (Expression, error) {
 	var expr Expression
 	switch token.TokenType() {
 	case lexer.Pattern:
-		expr = newFetchExpression(token.Value())
+		expr = c.compileFetchExpression(token.Value())
 
 	case lexer.Identifier:
 		fc, err := c.compileFunctionCall(token.Value())
 		fetchCandidate := false
 		if err != nil {
-			var notFoundErr *errFuncNotFound
-			if goerrors.As(err, &notFoundErr) && c.canCompileAsFetch(token.Value()) {
+			var (
+				notFuncErr    *errNotFuncCall
+				notFoundErr   *errFuncNotFound
+				isNotFuncErr  = goerrors.As(err, &notFuncErr)
+				isNotFoundErr = goerrors.As(err, &notFoundErr)
+			)
+			if (isNotFuncErr || isNotFoundErr) && c.canCompileAsFetch(token.Value()) {
 				fetchCandidate = true
-				expr = newFetchExpression(token.Value())
+				expr = c.compileFetchExpression(token.Value())
 			} else {
 				return nil, err
 			}
@@ -165,12 +181,10 @@ func (c *compiler) compileExpression() (Expression, error) {
 	return expr, nil
 }
 
-func (c *compiler) parseGrammar() (ASTNode, error) {
-	expr, err := c.compileExpression()
-	if err != nil {
-		return nil, err
-	}
-	return rootASTNode{expr: expr}, nil
+func (c *compiler) compileFetchExpression(token string) *fetchExpression {
+	expr := newFetchExpression(token)
+	c.fetches = append(c.fetches, expr)
+	return expr
 }
 
 // canCompileAsFetch attempts to see if the given term is a non-delimited
@@ -187,6 +201,10 @@ type errFuncNotFound struct{ err error }
 
 func (e *errFuncNotFound) Error() string { return e.err.Error() }
 
+type errNotFuncCall struct{ err error }
+
+func (e *errNotFuncCall) Error() string { return e.err.Error() }
+
 // compileFunctionCall compiles a function call
 func (c *compiler) compileFunctionCall(fname string) (*functionCall, error) {
 	fn := findFunction(fname)
@@ -195,7 +213,9 @@ func (c *compiler) compileFunctionCall(fname string) (*functionCall, error) {
 	}
 
 	if _, err := c.expectToken(lexer.LParenthesis); err != nil {
-		return nil, err
+		// This could be just a pattern or fetch expression, so return
+		// with context that there was no opening parenthesis.
+		return nil, &errNotFuncCall{err}
 	}
 
 	argTypes := fn.in
@@ -284,11 +304,20 @@ func (c *compiler) compileArg(
 	}
 
 	if !arg.CompatibleWith(reflectType) {
-		return nil, false, c.errorf("invalid function call %s, arg %d: expected a %s, received '%s'",
-			fname, index, reflectType.Name(), arg)
+		return nil, false, c.errorf("invalid function call %s, arg %d: expected a %s, received a %s '%s'",
+			fname, index, reflectTypeName(reflectType), reflectTypeName(arg.Type()), arg)
 	}
 
 	return arg, false, nil
+}
+
+// reflectTypeName will dereference any pointer types to their base name
+// so that function call or fetch expression can be referenced by their name.
+func reflectTypeName(reflectType reflect.Type) string {
+	for reflectType.Kind() == reflect.Ptr {
+		reflectType = reflectType.Elem()
+	}
+	return reflectType.Name()
 }
 
 // convertTokenToArg converts the given token into the corresponding argument
@@ -308,7 +337,7 @@ func (c *compiler) convertTokenToArg(token *lexer.Token, reflectType reflect.Typ
 	case lexer.String:
 		return newStringConst(token.Value()), nil
 	case lexer.Pattern:
-		return newFetchExpression(token.Value()), nil
+		return c.compileFetchExpression(token.Value()), nil
 	case lexer.True, lexer.False:
 		b, err := strconv.ParseBool(token.Value())
 		if err != nil {
@@ -336,9 +365,14 @@ func (c *compiler) convertTokenToArg(token *lexer.Token, reflectType reflect.Typ
 
 		fc, err := c.compileFunctionCall(currentToken)
 		if err != nil {
-			var notFoundErr *errFuncNotFound
-			if goerrors.As(err, &notFoundErr) && c.canCompileAsFetch(currentToken) {
-				return newFetchExpression(currentToken), nil
+			var (
+				notFuncErr    *errNotFuncCall
+				notFoundErr   *errFuncNotFound
+				isNotFuncErr  = goerrors.As(err, &notFuncErr)
+				isNotFoundErr = goerrors.As(err, &notFoundErr)
+			)
+			if (isNotFuncErr || isNotFoundErr) && c.canCompileAsFetch(currentToken) {
+				return c.compileFetchExpression(currentToken), nil
 			}
 			return nil, err
 		}
@@ -351,8 +385,8 @@ func (c *compiler) convertTokenToArg(token *lexer.Token, reflectType reflect.Typ
 
 // expectToken reads the next token and confirms it is the expected type before returning it
 func (c *compiler) expectToken(expectedType lexer.TokenType) (*lexer.Token, error) {
-	token := c.tokens.get()
-	if token == nil {
+	token, ok := c.tokens.peek()
+	if !ok || token == nil {
 		return nil, c.errorf("expected %v but encountered eof", expectedType)
 	}
 
@@ -360,6 +394,8 @@ func (c *compiler) expectToken(expectedType lexer.TokenType) (*lexer.Token, erro
 		return nil, c.errorf("expected %v but encountered %s", expectedType, token.Value())
 	}
 
+	// Consume the token as it matches.
+	_ = c.tokens.get()
 	return token, nil
 }
 

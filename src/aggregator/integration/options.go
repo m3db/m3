@@ -21,14 +21,19 @@
 package integration
 
 import (
+	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -36,6 +41,7 @@ import (
 const (
 	defaultRawTCPAddr                 = "localhost:6000"
 	defaultHTTPAddr                   = "localhost:6001"
+	defaultM3MsgAddr                  = "localhost:6002"
 	defaultServerStateChangeTimeout   = 5 * time.Second
 	defaultClientBatchSize            = 1440
 	defaultWorkerPoolSize             = 4
@@ -43,6 +49,7 @@ const (
 	defaultPlacementKVKey             = "/placement"
 	defaultElectionKeyFmt             = "/shardset/%d/lock"
 	defaultFlushTimesKeyFmt           = "/shardset/%d/flush"
+	defaultTopicName                  = "aggregator_ingest"
 	defaultShardSetID                 = 0
 	defaultElectionStateChangeTimeout = 10 * time.Second
 	defaultEntryCheckInterval         = time.Second
@@ -81,6 +88,12 @@ type testServerOptions interface {
 	// HTTPAddr returns the http server address.
 	HTTPAddr() string
 
+	// SetM3MsgAddr sets the M3msg server address.
+	SetM3MsgAddr(value string) testServerOptions
+
+	// M3MsgAddr returns the M3msg server address.
+	M3MsgAddr() string
+
 	// SetInstanceID sets the instance id.
 	SetInstanceID(value string) testServerOptions
 
@@ -111,6 +124,12 @@ type testServerOptions interface {
 	// ShardFn returns the sharding function.
 	ShardFn() sharding.ShardFn
 
+	// SetPlacement sets the placement.
+	SetPlacement(value placement.Placement) testServerOptions
+
+	// Placement returns the placement.
+	Placement() placement.Placement
+
 	// SetPlacementKVKey sets the placement kv key.
 	SetPlacementKVKey(value string) testServerOptions
 
@@ -128,6 +147,24 @@ type testServerOptions interface {
 
 	// KVStore returns the key value store.
 	KVStore() kv.Store
+
+	// SetTopicService sets the topic service.
+	SetTopicService(value topic.Service) testServerOptions
+
+	// TopicService returns the topic service.
+	TopicService() topic.Service
+
+	// SetTopicName sets the topic name.
+	SetTopicName(value string) testServerOptions
+
+	// TopicName return the topic name.
+	TopicName() string
+
+	// SetAggregatorClientType sets the aggregator client type.
+	SetAggregatorClientType(value aggclient.AggregatorClientType) testServerOptions
+
+	// AggregatorClientType returns the agggregator client type.
+	AggregatorClientType() aggclient.AggregatorClientType
 
 	// SetClientBatchSize sets the client-side batch size.
 	SetClientBatchSize(value int) testServerOptions
@@ -197,16 +234,21 @@ type serverOptions struct {
 	aggTypesOpts                aggregation.TypesOptions
 	rawTCPAddr                  string
 	httpAddr                    string
+	m3MsgAddr                   string
 	instanceID                  string
 	electionKeyFmt              string
 	electionCluster             *testCluster
 	shardSetID                  uint32
 	shardFn                     sharding.ShardFn
+	placement                   placement.Placement
 	placementKVKey              string
 	flushTimesKeyFmt            string
 	kvStore                     kv.Store
+	topicService                topic.Service
+	topicName                   string
 	serverStateChangeTimeout    time.Duration
 	workerPoolSize              int
+	clientType                  aggclient.AggregatorClientType
 	clientBatchSize             int
 	clientConnectionOpts        aggclient.ConnectionOptions
 	electionStateChangeTimeout  time.Duration
@@ -217,28 +259,41 @@ type serverOptions struct {
 	discardNaNAggregatedValues  bool
 }
 
-func newTestServerOptions() testServerOptions {
+func newTestServerOptions(t *testing.T) testServerOptions {
+	clientType, err := getAggregatorClientTypeFromEnv()
+	require.NoError(t, err)
+	instanceID := defaultRawTCPAddr
+	if clientType == aggclient.M3MsgAggregatorClient {
+		instanceID = defaultM3MsgAddr
+	}
+
 	aggTypesOpts := aggregation.NewTypesOptions().
 		SetCounterTypeStringTransformFn(aggregation.EmptyTransform).
 		SetTimerTypeStringTransformFn(aggregation.SuffixTransform).
 		SetGaugeTypeStringTransformFn(aggregation.EmptyTransform)
+	connOpts := aggclient.NewConnectionOptions().SetWriteTimeout(time.Second)
 	return &serverOptions{
 		rawTCPAddr:                  defaultRawTCPAddr,
 		httpAddr:                    defaultHTTPAddr,
+		m3MsgAddr:                   defaultM3MsgAddr,
 		clockOpts:                   clock.NewOptions(),
 		instrumentOpts:              instrument.NewOptions(),
 		aggTypesOpts:                aggTypesOpts,
-		instanceID:                  defaultInstanceID,
+		instanceID:                  instanceID,
 		electionKeyFmt:              defaultElectionKeyFmt,
 		shardSetID:                  defaultShardSetID,
 		shardFn:                     sharding.Murmur32Hash.MustShardFn(),
+		placement:                   nil,
 		placementKVKey:              defaultPlacementKVKey,
 		flushTimesKeyFmt:            defaultFlushTimesKeyFmt,
 		kvStore:                     mem.NewStore(),
+		topicService:                nil,
+		topicName:                   defaultTopicName,
 		serverStateChangeTimeout:    defaultServerStateChangeTimeout,
 		workerPoolSize:              defaultWorkerPoolSize,
+		clientType:                  clientType,
 		clientBatchSize:             defaultClientBatchSize,
-		clientConnectionOpts:        aggclient.NewConnectionOptions(),
+		clientConnectionOpts:        connOpts,
 		electionStateChangeTimeout:  defaultElectionStateChangeTimeout,
 		jitterEnabled:               defaultJitterEnabled,
 		entryCheckInterval:          defaultEntryCheckInterval,
@@ -291,6 +346,16 @@ func (o *serverOptions) RawTCPAddr() string {
 func (o *serverOptions) SetHTTPAddr(value string) testServerOptions {
 	opts := *o
 	opts.httpAddr = value
+	return &opts
+}
+
+func (o *serverOptions) M3MsgAddr() string {
+	return o.m3MsgAddr
+}
+
+func (o *serverOptions) SetM3MsgAddr(value string) testServerOptions {
+	opts := *o
+	opts.m3MsgAddr = value
 	return &opts
 }
 
@@ -348,6 +413,16 @@ func (o *serverOptions) ShardFn() sharding.ShardFn {
 	return o.shardFn
 }
 
+func (o *serverOptions) SetPlacement(value placement.Placement) testServerOptions {
+	opts := *o
+	opts.placement = value
+	return &opts
+}
+
+func (o *serverOptions) Placement() placement.Placement {
+	return o.placement
+}
+
 func (o *serverOptions) SetPlacementKVKey(value string) testServerOptions {
 	opts := *o
 	opts.placementKVKey = value
@@ -376,6 +451,36 @@ func (o *serverOptions) SetKVStore(value kv.Store) testServerOptions {
 
 func (o *serverOptions) KVStore() kv.Store {
 	return o.kvStore
+}
+
+func (o *serverOptions) SetTopicService(value topic.Service) testServerOptions {
+	opts := *o
+	opts.topicService = value
+	return &opts
+}
+
+func (o *serverOptions) TopicService() topic.Service {
+	return o.topicService
+}
+
+func (o *serverOptions) SetTopicName(value string) testServerOptions {
+	opts := *o
+	opts.topicName = value
+	return &opts
+}
+
+func (o *serverOptions) TopicName() string {
+	return o.topicName
+}
+
+func (o *serverOptions) SetAggregatorClientType(value aggclient.AggregatorClientType) testServerOptions {
+	opts := *o
+	opts.clientType = value
+	return &opts
+}
+
+func (o *serverOptions) AggregatorClientType() aggclient.AggregatorClientType {
+	return o.clientType
 }
 
 func (o *serverOptions) SetClientBatchSize(value int) testServerOptions {
