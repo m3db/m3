@@ -307,13 +307,20 @@ func (agg *forwardedAggregationWithKey) reset() {
 	for k, v := range agg.buckets {
 		v.values = v.values[:0]
 		v.prevValues = v.prevValues[:0]
-		agg.cachedValueArrays = append(agg.cachedValueArrays, v.values, v.prevValues)
+		// buckets are kept around to support resending. only add back the arrays if they weren't already niled out in
+		// a previous iteration.
+		if v.values != nil {
+			agg.cachedValueArrays = append(agg.cachedValueArrays, v.values)
+		}
+		if v.prevValues != nil {
+			agg.cachedValueArrays = append(agg.cachedValueArrays, v.prevValues)
+		}
 		v.values = nil
 		v.prevValues = nil
+		agg.buckets[k] = v
 		// keep buckets around for the buffer period.
 		if agg.resendEnabled {
 			if agg.nowFn().UnixNano()-k <= agg.bufferForPastTimedMetric {
-				agg.buckets[k] = v
 				continue
 			}
 		}

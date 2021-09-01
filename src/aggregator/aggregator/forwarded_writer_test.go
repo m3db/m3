@@ -45,6 +45,31 @@ var testForwardedWriterAggregationKey = aggregationKey{
 	numForwardedTimes: 1,
 }
 
+func TestCachedValuesGrowth(t *testing.T) {
+	timeNanos := time.Now().UnixNano()
+	key := forwardedAggregationWithKey{
+		key:                      aggregationKey{},
+		totalRefCnt:              1,
+		currRefCnt:               0,
+		buckets:                  make(map[int64]forwardedAggregationBucket),
+		bufferForPastTimedMetric: int64(time.Minute * 5),
+		nowFn:                    time.Now,
+		resendEnabled:            true,
+	}
+	for i := 0; i < 100; i++ {
+		for n := 0; n < 3; n++ {
+			timeNanos++
+			key.add(timeNanos, 1.0, 0.5, nil)
+		}
+		key.reset()
+	}
+	// 3 calls to add, each call adds 2 slices to the cache arrays.
+	require.Equal(t, 3*2, len(key.cachedValueArrays))
+	// go might increase the underlying array more than 1 when appending, so the capacity is > 6. Just need to make sure
+	// it doesn't grow on the order of calls to reset.
+	require.Equal(t, 8, cap(key.cachedValueArrays))
+}
+
 func TestForwardedWriterRegisterWriterClosed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

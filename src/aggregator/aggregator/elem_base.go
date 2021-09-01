@@ -99,6 +99,7 @@ type metricElem interface {
 	// ID returns the metric id.
 	ID() id.RawID
 
+	// ResetSetData resets the element and sets data.
 	ResetSetData(data ElemData) error
 
 	// SetForwardedCallbacks sets the callback functions to write forwarded
@@ -115,7 +116,7 @@ type metricElem interface {
 	AddValue(timestamp time.Time, value float64, annotation []byte) error
 
 	// AddUnique adds a metric value from a given source at a given timestamp.
-	// If previous values from the same source have already been added to the
+	// If previous values from the same source/version have already been added to the
 	// same aggregation, the incoming value is discarded.
 	AddUnique(timestamp time.Time, metric aggregated.ForwardedMetric, metadata metadata.ForwardMetadata) error
 
