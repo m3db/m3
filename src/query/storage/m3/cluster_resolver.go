@@ -78,7 +78,7 @@ func resolveUnaggregatedNamespaceForQuery(
 // fanned out to depending on the query time and the namespaces configured.
 func resolveClusterNamespacesForQuery(
 	now, start, end xtime.UnixNano,
-	clusters Clusters,
+	clusters ClusterNamespaceResolver,
 	opts *storage.FanoutOptions,
 	restrict *storage.RestrictQueryOptions,
 ) (consolidators.QueryFanoutType, ClusterNamespaces, error) {
@@ -113,19 +113,29 @@ func resolveClusterNamespacesForQuery(
 	return fanout, filtered, nil
 }
 
+type clusterNamespaceRestrictedResolver struct {
+	RestrictByTypes []*storage.RestrictByType
+}
+
 // resolveClusterNamespacesForQueryLogicalPlan resolves the logical plan
 // for namespaces to query.
 // nolint: unparam
 func resolveClusterNamespacesForQueryLogicalPlan(
 	now, start, end xtime.UnixNano,
-	clusters Clusters,
+	clusters ClusterNamespaceResolver,
 	opts *storage.FanoutOptions,
 	restrict *storage.RestrictQueryOptions,
 ) (consolidators.QueryFanoutType, ClusterNamespaces, error) {
-	if typeRestrict := restrict.GetRestrictByType(); typeRestrict != nil {
+	if typeRestrict := restrict.RestrictByType; typeRestrict != nil {
 		// If a specific restriction is set, then attempt to satisfy.
 		return resolveClusterNamespacesForQueryWithRestrictQueryOptions(now,
 			start, clusters, *typeRestrict)
+	}
+
+	if typeRestricts := restrict.RestrictByTypes; len(typeRestricts) > 0 {
+		// Use a mocked out version of "clusters".
+
+		// Flow through to existing logic.
 	}
 
 	// First check if the unaggregated cluster can fully satisfy the query range.

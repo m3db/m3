@@ -202,6 +202,8 @@ type RestrictByTag struct {
 type RestrictQueryOptions struct {
 	// RestrictByType are specific restrictions to stick to a single data type.
 	RestrictByType *RestrictByType
+	// RestrictByTypes are specific restrictions to stick to a single data type.
+	RestrictByTypes []*RestrictByType
 	// RestrictByTag are specific restrictions to enforce behavior for given
 	// tags.
 	RestrictByTag *RestrictByTag

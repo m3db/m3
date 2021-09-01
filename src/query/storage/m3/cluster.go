@@ -55,16 +55,7 @@ const (
 	ClusterConfigTypeDynamic
 )
 
-// Clusters is a flattened collection of local storage clusters and namespaces.
-type Clusters interface {
-	io.Closer
-
-	// ClusterNamespaces returns all known and ready cluster namespaces.
-	ClusterNamespaces() ClusterNamespaces
-
-	// NonReadyClusterNamespaces returns all cluster namespaces not in the ready state.
-	NonReadyClusterNamespaces() ClusterNamespaces
-
+type ClusterNamespaceResolver interface {
 	// UnaggregatedClusterNamespace returns the valid unaggregated
 	// cluster namespace. If the namespace is not yet initialized, returns false.
 	UnaggregatedClusterNamespace() (ClusterNamespace, bool)
@@ -72,6 +63,18 @@ type Clusters interface {
 	// AggregatedClusterNamespace returns an aggregated cluster namespace
 	// at a specific retention and resolution.
 	AggregatedClusterNamespace(attrs RetentionResolution) (ClusterNamespace, bool)
+}
+
+// Clusters is a flattened collection of local storage clusters and namespaces.
+type Clusters interface {
+	ClusterNamespaceResolver
+	io.Closer
+
+	// ClusterNamespaces returns all known and ready cluster namespaces.
+	ClusterNamespaces() ClusterNamespaces
+
+	// NonReadyClusterNamespaces returns all cluster namespaces not in the ready state.
+	NonReadyClusterNamespaces() ClusterNamespaces
 
 	// ConfigType returns the type of configuration used to create this Clusters
 	// object.
