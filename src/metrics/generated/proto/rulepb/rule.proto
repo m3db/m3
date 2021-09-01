@@ -60,6 +60,7 @@ message RollupTarget {
 message RollupTargetV2 {
   pipelinepb.Pipeline pipeline = 1;
   repeated policypb.StoragePolicy storage_policies = 2;
+  bool resend_enabled = 3;
 }
 
 message RollupRuleSnapshot {

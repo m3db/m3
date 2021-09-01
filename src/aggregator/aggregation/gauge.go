@@ -52,6 +52,34 @@ func NewGauge(opts Options) Gauge {
 
 // Update updates the gauge value.
 func (g *Gauge) Update(timestamp time.Time, value float64, annotation []byte) {
+	g.annotation = maybeReplaceAnnotation(g.annotation, annotation)
+	g.updateTotals(timestamp, value)
+	// min/max cannot be updated by an update to a value.
+	if math.IsNaN(g.max) || g.max < value {
+		g.max = value
+	}
+	if math.IsNaN(g.min) || g.min > value {
+		g.min = value
+	}
+}
+
+// UpdatePrevious removes the prevValue from the aggregation and updates with the new value. This does not update
+// min/max since it's not possible to recalculate those.
+func (g *Gauge) UpdatePrevious(timestamp time.Time, value float64, prevValue float64) {
+	// remove the prevValue from the totals.
+	if !math.IsNaN(prevValue) {
+		g.sum -= prevValue
+		if g.HasExpensiveAggregations {
+			g.sumSq -= prevValue * prevValue
+		}
+	}
+	g.count--
+	// add the new value to the totals.
+	g.updateTotals(timestamp, value)
+}
+
+// update the set of aggregated values that are shared between Update and UpdatePrevious.
+func (g *Gauge) updateTotals(timestamp time.Time, value float64) {
 	if g.lastAt.IsZero() || timestamp.After(g.lastAt) {
 		// NB(r): Only set the last value if this value arrives
 		// after the wall clock timestamp of previous values, not
@@ -64,19 +92,11 @@ func (g *Gauge) Update(timestamp time.Time, value float64, annotation []byte) {
 
 	g.count++
 
-	g.annotation = maybeReplaceAnnotation(g.annotation, annotation)
-
 	if math.IsNaN(value) {
 		return
 	}
 
 	g.sum += value
-	if math.IsNaN(g.max) || g.max < value {
-		g.max = value
-	}
-	if math.IsNaN(g.min) || g.min > value {
-		g.min = value
-	}
 
 	if g.HasExpensiveAggregations {
 		g.sumSq += value * value

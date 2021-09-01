@@ -46,9 +46,7 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	"github.com/m3db/m3/src/dbnode/integration/fake"
-	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
-	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3/src/msg/producer"
@@ -83,7 +81,7 @@ type testServerSetup struct {
 	leaderService    services.LeaderService
 	electionCluster  *testCluster
 	workerPool       xsync.WorkerPool
-	results          *[]aggregated.MetricWithStoragePolicy
+	results          map[resultKey]aggregated.MetricWithStoragePolicy
 	resultLock       *sync.Mutex
 
 	// Signals.
@@ -122,6 +120,10 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetAggregationTypesOptions(opts.AggregationTypesOptions()).
 		SetEntryCheckInterval(opts.EntryCheckInterval()).
 		SetMaxAllowedForwardingDelayFn(opts.MaxAllowedForwardingDelayFn()).
+		SetBufferForPastTimedMetric(opts.BufferForPastTimedMetric()).
+		SetBufferForPastTimedMetricFn(func(resolution time.Duration) time.Duration {
+			return resolution + opts.BufferForPastTimedMetric()
+		}).
 		SetDiscardNaNAggregatedValues(opts.DiscardNaNAggregatedValues())
 
 	// Set up placement manager.
@@ -210,10 +212,11 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 
 	// Set up the handler.
 	var (
-		results    []aggregated.MetricWithStoragePolicy
+		results    map[resultKey]aggregated.MetricWithStoragePolicy
 		resultLock sync.Mutex
 	)
-	handler := &capturingHandler{results: &results, resultLock: &resultLock}
+	results = make(map[resultKey]aggregated.MetricWithStoragePolicy)
+	handler := &capturingHandler{results: results, resultLock: &resultLock}
 	pw, err := handler.NewWriter(tally.NoopScope)
 	if err != nil {
 		panic(err.Error())
@@ -232,19 +235,19 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	counterElemPool := aggregator.NewCounterElemPool(nil)
 	aggregatorOpts = aggregatorOpts.SetCounterElemPool(counterElemPool)
 	counterElemPool.Init(func() *aggregator.CounterElem {
-		return aggregator.MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregator.NoPrefixNoSuffix, aggregatorOpts)
+		return aggregator.MustNewCounterElem(aggregator.ElemData{}, aggregatorOpts)
 	})
 
 	timerElemPool := aggregator.NewTimerElemPool(nil)
 	aggregatorOpts = aggregatorOpts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem {
-		return aggregator.MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregator.NoPrefixNoSuffix, aggregatorOpts)
+		return aggregator.MustNewTimerElem(aggregator.ElemData{}, aggregatorOpts)
 	})
 
 	gaugeElemPool := aggregator.NewGaugeElemPool(nil)
 	aggregatorOpts = aggregatorOpts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem {
-		return aggregator.MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregator.NoPrefixNoSuffix, aggregatorOpts)
+		return aggregator.MustNewGaugeElem(aggregator.ElemData{}, aggregatorOpts)
 	})
 
 	return &testServerSetup{
@@ -263,7 +266,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		leaderService:    leaderService,
 		electionCluster:  electionCluster,
 		workerPool:       workerPool,
-		results:          &results,
+		results:          results,
 		resultLock:       &resultLock,
 		doneCh:           make(chan struct{}),
 		closedCh:         make(chan struct{}),
@@ -390,9 +393,53 @@ func (ts *testServerSetup) waitUntilLeader() error {
 	return errLeaderElectionTimeout
 }
 
+// return the metric value for the provided params.
+func (ts *testServerSetup) value(timeNanos int64, metricID string, sp policy.StoragePolicy) float64 {
+	ts.resultLock.Lock()
+	defer ts.resultLock.Unlock()
+	return ts.results[resultKey{
+		timeNanos:     timeNanos,
+		metricID:      metricID,
+		storagePolicy: sp,
+	}].Value
+}
+
+// remove the value from the results if it matches the provided value.
+func (ts *testServerSetup) removeIf(timeNanos int64, metricID string, sp policy.StoragePolicy, value float64) bool {
+	ts.resultLock.Lock()
+	defer ts.resultLock.Unlock()
+
+	key := resultKey{
+		timeNanos:     timeNanos,
+		metricID:      metricID,
+		storagePolicy: sp,
+	}
+	m, ok := ts.results[key]
+	if !ok {
+		return false
+	}
+	if m.Value != value {
+		return false
+	}
+	delete(ts.results, key)
+	return true
+}
+
+type resultKey struct {
+	timeNanos     int64
+	metricID      string
+	storagePolicy policy.StoragePolicy
+}
+
 func (ts *testServerSetup) sortedResults() []aggregated.MetricWithStoragePolicy {
-	sort.Sort(byTimeIDPolicyAscending(*ts.results))
-	return *ts.results
+	ts.resultLock.Lock()
+	defer ts.resultLock.Unlock()
+	metrics := make([]aggregated.MetricWithStoragePolicy, 0, len(ts.results))
+	for _, r := range ts.results {
+		metrics = append(metrics, r)
+	}
+	sort.Sort(byTimeIDPolicyAscending(metrics))
+	return metrics
 }
 
 func (ts *testServerSetup) stopServer() error {
@@ -424,7 +471,7 @@ func newM3MsgProducer(opts testServerOptions) (producer.Producer, error) {
 	}
 	connectionOpts := msgwriter.NewConnectionOptions().
 		SetNumConnections(1).
-		SetFlushInterval(10 * time.Millisecond)
+		SetFlushInterval(1 * time.Millisecond)
 	writerOpts := msgwriter.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetTopicName(opts.TopicName()).
@@ -442,12 +489,13 @@ func newM3MsgProducer(opts testServerOptions) (producer.Producer, error) {
 }
 
 type capturingWriter struct {
-	results    *[]aggregated.MetricWithStoragePolicy
+	results    map[resultKey]aggregated.MetricWithStoragePolicy
 	resultLock *sync.Mutex
 }
 
 func (w *capturingWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) error {
 	w.resultLock.Lock()
+	defer w.resultLock.Unlock()
 	var fullID []byte
 	fullID = append(fullID, mp.ChunkedID.Prefix...)
 	fullID = append(fullID, mp.ChunkedID.Data...)
@@ -460,11 +508,15 @@ func (w *capturingWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) er
 		Value:      mp.Value,
 		Annotation: clonedAnnotation,
 	}
-	*w.results = append(*w.results, aggregated.MetricWithStoragePolicy{
+	key := resultKey{
+		timeNanos:     metric.TimeNanos,
+		metricID:      string(fullID),
+		storagePolicy: mp.StoragePolicy,
+	}
+	w.results[key] = aggregated.MetricWithStoragePolicy{
 		Metric:        metric,
 		StoragePolicy: mp.StoragePolicy,
-	})
-	w.resultLock.Unlock()
+	}
 	return nil
 }
 
@@ -472,7 +524,7 @@ func (w *capturingWriter) Flush() error { return nil }
 func (w *capturingWriter) Close() error { return nil }
 
 type capturingHandler struct {
-	results    *[]aggregated.MetricWithStoragePolicy
+	results    map[resultKey]aggregated.MetricWithStoragePolicy
 	resultLock *sync.Mutex
 }
 

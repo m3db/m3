@@ -21,6 +21,7 @@
 package aggregator
 
 import (
+	"errors"
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregation"
@@ -40,6 +41,10 @@ func (a *counterAggregation) Add(t time.Time, value float64, annotation []byte) 
 	a.Counter.Update(t, int64(value), annotation)
 }
 
+func (a *counterAggregation) UpdateVal(t time.Time, value float64, prevValue float64) error {
+	return errors.New("counters do not support updating values")
+}
+
 func (a *counterAggregation) AddUnion(t time.Time, mu unaggregated.MetricUnion) {
 	a.Counter.Update(t, mu.CounterVal, mu.Annotation)
 }
@@ -57,6 +62,10 @@ func (a *timerAggregation) Add(timestamp time.Time, value float64, annotation []
 	a.Timer.Add(timestamp, value, annotation)
 }
 
+func (a *timerAggregation) UpdateVal(t time.Time, value float64, prevValue float64) error {
+	return errors.New("timers do not support updating values")
+}
+
 func (a *timerAggregation) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) {
 	a.Timer.AddBatch(timestamp, mu.BatchTimerVal, mu.Annotation)
 }
@@ -72,6 +81,11 @@ func newGaugeAggregation(g aggregation.Gauge) gaugeAggregation {
 
 func (a *gaugeAggregation) Add(t time.Time, value float64, annotation []byte) {
 	a.Gauge.Update(t, value, annotation)
+}
+
+func (a *gaugeAggregation) UpdateVal(t time.Time, value float64, prevValue float64) error {
+	a.Gauge.UpdatePrevious(t, value, prevValue)
+	return nil
 }
 
 func (a *gaugeAggregation) AddUnion(t time.Time, mu unaggregated.MetricUnion) {
