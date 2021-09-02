@@ -452,7 +452,12 @@ func (s *m3WrappedStore) FetchByQuery(
 		defer cancel()
 	}
 
-	fetchOptions := fetchOpts.QueryFetchOpts.Clone()
+	var fetchOptions *storage.FetchOptions
+	if fetchOpts.QueryFetchOpts != nil {
+		fetchOptions = fetchOpts.QueryFetchOpts.Clone()
+	} else {
+		fetchOptions = storage.NewFetchOptions()
+	}
 
 	// NB: ensure single block return.
 	fetchOptions.BlockType = models.TypeSingleBlock
