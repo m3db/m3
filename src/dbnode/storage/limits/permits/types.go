@@ -98,4 +98,7 @@ type Permit interface {
 	// PreAcquire is called by the Manager before giving the permit to the caller.
 	// Provides a hook for the Manager. Clients should not call this method.
 	PreAcquire()
+
+	// Source returns the source associated with the permit.
+	Source() string
 }

@@ -138,3 +138,7 @@ func (l limitPermit) QuotaRemaining() int64 {
 
 func (l limitPermit) Use(_ int64) {
 }
+
+func (l limitPermit) Source() string {
+	return ""
+}
