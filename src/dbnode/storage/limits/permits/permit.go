@@ -81,8 +81,3 @@ func (p *permit) QuotaRemaining() int64 {
 func (p *permit) Use(quota int64) {
 	p.quotaUsed += quota
 }
-
-// Source returns the source associated with the permit.
-func (p *permit) Source() string {
-	return ""
-}

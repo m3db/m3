@@ -1815,7 +1815,7 @@ func (i *nsIndex) queryWithSpan(
 
 		sp.SetTag("allowedQuota", acquireResult.Permit.AllowedQuota())
 		sp.SetTag("quotaRemaining", acquireResult.Permit.QuotaRemaining())
-		sp.SetTag("source", acquireResult.Permit.Source())
+		sp.SetTag("source", acquireResult.Source)
 
 		return acquireResult.Permit, waitTime
 	}

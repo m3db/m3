@@ -76,6 +76,8 @@ type AcquireResult struct {
 	// Waited is true if the acquire called waited before being granted permits.
 	// If false, the permits were granted immediately.
 	Waited bool
+	// Source is the source of the permit.
+	Source string
 }
 
 // Permit is granted to a caller which is allowed to consume some amount of quota.
@@ -98,7 +100,4 @@ type Permit interface {
 	// PreAcquire is called by the Manager before giving the permit to the caller.
 	// Provides a hook for the Manager. Clients should not call this method.
 	PreAcquire()
-
-	// Source returns the source associated with the permit.
-	Source() string
 }
