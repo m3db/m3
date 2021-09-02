@@ -23,6 +23,7 @@ package permits
 
 import (
 	"errors"
+	"time"
 
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -75,7 +76,10 @@ type AcquireResult struct {
 	Permit Permit
 	// Waited is true if the acquire called waited before being granted permits.
 	// If false, the permits were granted immediately.
-	Waited bool
+	Throttled     bool
+	Waited        bool
+	ThrottledTime time.Duration
+	WaitedTime    time.Duration
 	// Source is the source of the permit.
 	Source string
 }

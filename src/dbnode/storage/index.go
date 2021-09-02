@@ -1775,6 +1775,7 @@ func (i *nsIndex) queryWithSpan(
 	// waitForPermit waits for a permit. returns non-nil if the permit was acquired and the wait time.
 	waitForPermit := func(ctx context.Context) (permits.Permit, time.Duration) {
 		ctx, sp := ctx.StartTraceSpan("storage.nsIndex.waitForPermit")
+		sp.LogFields(logFields...)
 		defer sp.Finish()
 
 		// make sure the query hasn't been canceled before waiting for a permit.
@@ -1815,7 +1816,7 @@ func (i *nsIndex) queryWithSpan(
 
 		sp.LogKV("allowedQuota", acquireResult.Permit.AllowedQuota(),
 			"quotaRemaining", acquireResult.Permit.QuotaRemaining(),
-			"waited", acquireResult.Waited,
+			"throttled", acquireResult.Waited,
 			"source", acquireResult.Source)
 
 		return acquireResult.Permit, waitTime
