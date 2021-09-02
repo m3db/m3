@@ -199,8 +199,7 @@ func newBaseMetricList(
 	if err != nil {
 		return nil, err
 	}
-	forwardedWriterScope := scope.Tagged(map[string]string{"writer-type": "forwarded"}).SubScope("writer")
-	forwardedWriter := newForwardedWriter(shard, opts.AdminClient(), forwardedWriterScope)
+	forwardedWriter := newForwardedWriter(shard, opts)
 	l := &baseMetricList{
 		shard:            shard,
 		opts:             opts,
@@ -251,9 +250,7 @@ func (l *baseMetricList) Len() int {
 // need to switch to a custom type-specific list implementation.
 func (l *baseMetricList) PushBack(value metricElem) (*list.Element, error) {
 	var (
-		forwardedMetricType         = value.Type()
-		forwardedID, hasForwardedID = value.ForwardedID()
-		forwardedAggregationKey, _  = value.ForwardedAggregationKey()
+		_, hasForwardedID = value.ForwardedID()
 	)
 	l.Lock()
 	if l.closed {
@@ -265,11 +262,7 @@ func (l *baseMetricList) PushBack(value metricElem) (*list.Element, error) {
 		l.Unlock()
 		return elem, nil
 	}
-	writeForwardedFn, onForwardedWrittenFn, err := l.forwardedWriter.Register(
-		forwardedMetricType,
-		forwardedID,
-		forwardedAggregationKey,
-	)
+	writeForwardedFn, onForwardedWrittenFn, err := l.forwardedWriter.Register(value)
 	if err != nil {
 		l.Unlock()
 		return nil, err
@@ -479,9 +472,10 @@ func (l *baseMetricList) consumeForwardedMetric(
 	aggregationKey aggregationKey,
 	timeNanos int64,
 	value float64,
+	prevValue float64,
 	annotation []byte,
 ) {
-	writeFn(aggregationKey, timeNanos, value, annotation)
+	writeFn(aggregationKey, timeNanos, value, prevValue, annotation)
 	l.metrics.flushForwarded.metricConsumed.Inc(1)
 }
 
@@ -491,6 +485,7 @@ func (l *baseMetricList) discardForwardedMetric(
 	aggregationKey aggregationKey,
 	timeNanos int64,
 	value float64,
+	prevValue float64,
 	annotation []byte,
 ) {
 	l.metrics.flushForwarded.metricDiscarded.Inc(1)

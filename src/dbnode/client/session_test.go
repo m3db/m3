@@ -435,11 +435,11 @@ func TestDedicatedConnection(t *testing.T) {
 			callback(1, initializingShard, remote1)
 			callback(2, availableShard, remote2)
 			return nil
-		}).Times(3)
+		}).Times(4)
 
 	s := session{origin: local}
 	s.opts = NewOptions().SetNewConnectionFn(noopNewConnection)
-	s.healthCheckNewConnFn = testHealthCheck(nil)
+	s.healthCheckNewConnFn = testHealthCheck(nil, false)
 	s.state.status = statusOpen
 	s.state.topoMap = topoMap
 
@@ -451,8 +451,13 @@ func TestDedicatedConnection(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, &noopPooledChannel{"remote2"}, ch2)
 
+	s.healthCheckNewConnFn = testHealthCheck(nil, true)
+	_, ch3, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{BootstrappedNodesOnly: true})
+	require.NoError(t, err)
+	assert.Equal(t, &noopPooledChannel{"remote1"}, ch3)
+
 	healthErr := errors.New("unhealthy")
-	s.healthCheckNewConnFn = testHealthCheck(healthErr)
+	s.healthCheckNewConnFn = testHealthCheck(healthErr, false)
 
 	_, _, err = s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
 	require.NotNil(t, err)
@@ -605,8 +610,12 @@ func mockHost(ctrl *gomock.Controller, id, address string) topology.Host {
 	return host
 }
 
-func testHealthCheck(err error) func(rpc.TChanNode, Options) error {
-	return func(rpc.TChanNode, Options) error {
+func testHealthCheck(err error, bootstrappedNodesOnly bool) func(rpc.TChanNode, Options, bool) error {
+	return func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
+		if checkBootstrapped != bootstrappedNodesOnly {
+			return fmt.Errorf("checkBootstrapped value (%t) != expected (%t)",
+				checkBootstrapped, bootstrappedNodesOnly)
+		}
 		return err
 	}
 }

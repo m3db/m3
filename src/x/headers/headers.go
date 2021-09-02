@@ -164,6 +164,10 @@ const (
 	// series that were fetched by the query, before computation.
 	FetchedSeriesCount = M3HeaderPrefix + "Series-Count"
 
+	// FetchedMetadataCount is the header added that tracks the total amount of
+	// metadata that was fetched by the query, before computation.
+	FetchedMetadataCount = M3HeaderPrefix + "Metadata-Count"
+
 	// RenderFormat is used to switch result format for query results rendering.
 	RenderFormat = M3HeaderPrefix + "Render-Format"
 

@@ -39,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
-	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
 
 	"github.com/golang/mock/gomock"
@@ -52,7 +51,7 @@ func TestBaseMetricListPushBackElemWithDefaultPipeline(t *testing.T) {
 
 	l, err := newBaseMetricList(testShard, time.Second, nil, nil, nil, testOptions(ctrl))
 	require.NoError(t, err)
-	elem, err := NewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, NoPrefixNoSuffix, l.opts)
+	elem, err := NewCounterElem(ElemData{}, l.opts)
 	require.NoError(t, err)
 
 	// Push a counter to the list.
@@ -78,7 +77,7 @@ func TestBaseMetricListPushBackElemWithForwardingPipeline(t *testing.T) {
 
 	l, err := newBaseMetricList(testShard, time.Second, nil, nil, nil, testOptions(ctrl))
 	require.NoError(t, err)
-	elem, err := NewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, testPipeline, 0, NoPrefixNoSuffix, l.opts)
+	elem, err := NewCounterElem(testCounterElemData, l.opts)
 	require.NoError(t, err)
 
 	// Push a counter to the list.
@@ -328,15 +327,24 @@ func TestStandardMetricListFlushConsumingAndCollectingLocalMetrics(t *testing.T)
 		metric unaggregated.MetricUnion
 	}{
 		{
-			elem:   MustNewCounterElem(testCounterID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, WithPrefixWithSuffix, opts),
+			elem: MustNewCounterElem(ElemData{
+				ID:            testCounterID,
+				StoragePolicy: testStoragePolicy,
+			}, opts),
 			metric: testCounter,
 		},
 		{
-			elem:   MustNewTimerElem(testBatchTimerID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, WithPrefixWithSuffix, opts),
+			elem: MustNewTimerElem(ElemData{
+				ID:            testBatchTimerID,
+				StoragePolicy: testStoragePolicy,
+			}, opts),
 			metric: testBatchTimer,
 		},
 		{
-			elem:   MustNewGaugeElem(testGaugeID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, WithPrefixWithSuffix, opts),
+			elem: MustNewGaugeElem(ElemData{
+				ID:            testGaugeID,
+				StoragePolicy: testStoragePolicy,
+			}, opts),
 			metric: testGauge,
 		},
 	}
@@ -582,7 +590,11 @@ func TestTimedMetricListFlushConsumingAndCollectingTimedMetrics(t *testing.T) {
 		metric aggregated.Metric
 	}{
 		{
-			elem: MustNewCounterElem([]byte("testTimedCounter"), testStoragePolicy, aggregation.DefaultTypes, applied.Pipeline{}, testNumForwardedTimes, NoPrefixNoSuffix, opts),
+			elem: MustNewCounterElem(ElemData{
+				ID:                 []byte("testTimedCounter"),
+				StoragePolicy:      testStoragePolicy,
+				IDPrefixSuffixType: NoPrefixNoSuffix,
+			}, opts),
 			metric: aggregated.Metric{
 				Type:      metric.CounterType,
 				ID:        []byte("testTimedCounter"),
@@ -591,7 +603,11 @@ func TestTimedMetricListFlushConsumingAndCollectingTimedMetrics(t *testing.T) {
 			},
 		},
 		{
-			elem: MustNewGaugeElem([]byte("testTimedGauge"), testStoragePolicy, aggregation.DefaultTypes, applied.Pipeline{}, testNumForwardedTimes, NoPrefixNoSuffix, opts),
+			elem: MustNewGaugeElem(ElemData{
+				ID:                 []byte("testTimedGauge"),
+				StoragePolicy:      testStoragePolicy,
+				IDPrefixSuffixType: NoPrefixNoSuffix,
+			}, opts),
 			metric: aggregated.Metric{
 				Type:      metric.GaugeType,
 				ID:        []byte("testTimedGauge"),
@@ -867,7 +883,12 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 		metric aggregated.ForwardedMetric
 	}{
 		{
-			elem: MustNewCounterElem([]byte("testForwardedCounter"), testStoragePolicy, aggregation.DefaultTypes, pipeline, testNumForwardedTimes, NoPrefixNoSuffix, opts),
+			elem: MustNewCounterElem(ElemData{
+				ID:                 []byte("testForwardedCounter"),
+				StoragePolicy:      testStoragePolicy,
+				Pipeline:           pipeline,
+				IDPrefixSuffixType: NoPrefixNoSuffix,
+			}, opts),
 			metric: aggregated.ForwardedMetric{
 				Type:      metric.CounterType,
 				ID:        []byte("testForwardedCounter"),
@@ -876,7 +897,12 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 			},
 		},
 		{
-			elem: MustNewGaugeElem([]byte("testForwardedGauge"), testStoragePolicy, aggregation.DefaultTypes, pipeline, testNumForwardedTimes, NoPrefixNoSuffix, opts),
+			elem: MustNewGaugeElem(ElemData{
+				ID:                 []byte("testForwardedGauge"),
+				StoragePolicy:      testStoragePolicy,
+				Pipeline:           pipeline,
+				IDPrefixSuffixType: NoPrefixNoSuffix,
+			}, opts),
 			metric: aggregated.ForwardedMetric{
 				Type:      metric.GaugeType,
 				ID:        []byte("testForwardedGauge"),
@@ -887,9 +913,12 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 	}
 
 	for _, ep := range elemPairs {
-		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos), ep.metric.Values, nil, sourceID))
-		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos).
-			Add(l.resolution), ep.metric.Values, nil, sourceID))
+		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos),
+			aggregated.ForwardedMetric{Values: ep.metric.Values},
+			metadata.ForwardMetadata{SourceID: sourceID}))
+		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos).Add(l.resolution),
+			aggregated.ForwardedMetric{Values: ep.metric.Values},
+			metadata.ForwardMetadata{SourceID: sourceID}))
 		_, err := l.PushBack(ep.elem)
 		require.NoError(t, err)
 	}
@@ -922,10 +951,11 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 		alignedStart := (nowTs.Add(-maxLatenessAllowed)).Truncate(l.resolution).UnixNano()
 		for _, ep := range elemPairs {
 			expectedMetric := aggregated.ForwardedMetric{
-				Type:      ep.metric.Type,
-				ID:        []byte("foo.bar"),
-				TimeNanos: alignedStart,
-				Values:    ep.metric.Values,
+				Type:       ep.metric.Type,
+				ID:         []byte("foo.bar"),
+				TimeNanos:  alignedStart,
+				Values:     ep.metric.Values,
+				PrevValues: []float64{0.0},
 			}
 			metadata := metadata.ForwardMetadata{
 				AggregationID:     aggregation.MustCompressTypes(aggregation.Max),
@@ -1053,7 +1083,10 @@ func TestForwardedMetricListLastStepLocalFlush(t *testing.T) {
 		metric         aggregated.ForwardedMetric
 	}{
 		{
-			elem:           MustNewCounterElem([]byte("testForwardedCounter"), testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, WithPrefixWithSuffix, opts),
+			elem: MustNewCounterElem(ElemData{
+				ID:            []byte("testForwardedCounter"),
+				StoragePolicy: testStoragePolicy,
+			}, opts),
 			expectedPrefix: opts.FullCounterPrefix(),
 			metric: aggregated.ForwardedMetric{
 				Type:      metric.CounterType,
@@ -1063,7 +1096,10 @@ func TestForwardedMetricListLastStepLocalFlush(t *testing.T) {
 			},
 		},
 		{
-			elem:           MustNewGaugeElem([]byte("testForwardedGauge"), testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, WithPrefixWithSuffix, opts),
+			elem: MustNewGaugeElem(ElemData{
+				ID:            []byte("testForwardedGauge"),
+				StoragePolicy: testStoragePolicy,
+			}, opts),
 			expectedPrefix: opts.FullGaugePrefix(),
 			metric: aggregated.ForwardedMetric{
 				Type:      metric.GaugeType,
@@ -1075,9 +1111,12 @@ func TestForwardedMetricListLastStepLocalFlush(t *testing.T) {
 	}
 
 	for _, ep := range elemPairs {
-		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos), ep.metric.Values, nil, sourceID))
-		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos).
-			Add(l.resolution), ep.metric.Values, nil, sourceID))
+		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos),
+			aggregated.ForwardedMetric{Values: ep.metric.Values},
+			metadata.ForwardMetadata{SourceID: sourceID}))
+		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos).Add(l.resolution),
+			aggregated.ForwardedMetric{Values: ep.metric.Values},
+			metadata.ForwardMetadata{SourceID: sourceID}))
 		_, err := l.PushBack(ep.elem)
 		require.NoError(t, err)
 	}

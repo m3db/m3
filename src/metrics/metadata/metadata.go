@@ -22,6 +22,7 @@ package metadata
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
@@ -91,6 +92,16 @@ type PipelineMetadata struct {
 
 	// GraphitePrefix is the list of graphite prefixes to apply.
 	GraphitePrefix [][]byte `json:"graphitePrefix,omitempty"`
+
+	// ResendEnabled is true if the Pipeline supports resending aggregate values after the initial flush.
+	ResendEnabled bool
+}
+
+func (m PipelineMetadata) String() string {
+	var b bytes.Buffer
+	b.WriteString(fmt.Sprintf("ResendEnabled: %v, StoragePolicies: %v, Pipeline: %v",
+		m.ResendEnabled, m.StoragePolicies, m.Pipeline))
+	return b.String()
 }
 
 // Equal returns true if two pipeline metadata are considered equal.
@@ -98,7 +109,8 @@ func (m PipelineMetadata) Equal(other PipelineMetadata) bool {
 	return m.AggregationID.Equal(other.AggregationID) &&
 		m.StoragePolicies.Equal(other.StoragePolicies) &&
 		m.Pipeline.Equal(other.Pipeline) &&
-		m.DropPolicy == other.DropPolicy
+		m.DropPolicy == other.DropPolicy &&
+		m.ResendEnabled == other.ResendEnabled
 }
 
 // IsDefault returns whether this is the default standard pipeline metadata.
@@ -106,7 +118,8 @@ func (m PipelineMetadata) IsDefault() bool {
 	return m.AggregationID == aggregation.DefaultID &&
 		len(m.StoragePolicies) == 0 &&
 		m.Pipeline.IsEmpty() &&
-		m.DropPolicy == policy.DefaultDropPolicy
+		m.DropPolicy == policy.DefaultDropPolicy &&
+		!m.ResendEnabled
 }
 
 // IsMappingRule returns whether this is a mapping rule.
@@ -140,6 +153,7 @@ func (m PipelineMetadata) Clone() PipelineMetadata {
 		AggregationID:   m.AggregationID,
 		StoragePolicies: m.StoragePolicies.Clone(),
 		Pipeline:        m.Pipeline.Clone(),
+		ResendEnabled:   m.ResendEnabled,
 	}
 }
 
@@ -161,6 +175,7 @@ func (m PipelineMetadata) ToProto(pb *metricpb.PipelineMetadata) error {
 		}
 	}
 	pb.DropPolicy = policypb.DropPolicy(m.DropPolicy)
+	pb.ResendEnabled = m.ResendEnabled
 	return nil
 }
 
@@ -182,6 +197,7 @@ func (m *PipelineMetadata) FromProto(pb metricpb.PipelineMetadata) error {
 		}
 	}
 	m.DropPolicy = policy.DropPolicy(pb.DropPolicy)
+	m.ResendEnabled = pb.ResendEnabled
 	return nil
 }
 
@@ -390,6 +406,9 @@ type ForwardMetadata struct {
 
 	// Number of times this metric has been forwarded.
 	NumForwardedTimes int
+
+	// ResendEnabled is true if the Pipeline supports resending aggregate values after the initial flush.
+	ResendEnabled bool
 }
 
 // ToProto converts the forward metadata to a protobuf message in place.
@@ -403,6 +422,7 @@ func (m ForwardMetadata) ToProto(pb *metricpb.ForwardMetadata) error {
 	}
 	pb.SourceId = m.SourceID
 	pb.NumForwardedTimes = int32(m.NumForwardedTimes)
+	pb.ResendEnabled = m.ResendEnabled
 	return nil
 }
 
@@ -417,6 +437,7 @@ func (m *ForwardMetadata) FromProto(pb metricpb.ForwardMetadata) error {
 	}
 	m.SourceID = pb.SourceId
 	m.NumForwardedTimes = int(pb.NumForwardedTimes)
+	m.ResendEnabled = pb.ResendEnabled
 	return nil
 }
 
@@ -472,6 +493,14 @@ func (sm *StagedMetadata) FromProto(pb metricpb.StagedMetadata) error {
 	sm.CutoverNanos = pb.CutoverNanos
 	sm.Tombstoned = pb.Tombstoned
 	return nil
+}
+
+func (sm StagedMetadata) String() string {
+	var b bytes.Buffer
+	for _, p := range sm.Pipelines {
+		b.WriteString(p.String())
+	}
+	return b.String()
 }
 
 // StagedMetadatas contains a list of staged metadatas.
@@ -563,6 +592,7 @@ func (sms *StagedMetadatas) FromProto(pb metricpb.StagedMetadatas) error {
 
 			pipeline.AggregationID[0] = pipelinePb.AggregationId.Id
 			pipeline.DropPolicy = policy.DropPolicy(pipelinePb.DropPolicy)
+			pipeline.ResendEnabled = pipelinePb.ResendEnabled
 
 			if len(pipeline.Tags) > 0 {
 				pipeline.Tags = pipeline.Tags[:0]

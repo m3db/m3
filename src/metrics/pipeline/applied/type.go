@@ -218,17 +218,20 @@ func (p Pipeline) Equal(other Pipeline) bool {
 
 // Clone clones the pipeline.
 func (p Pipeline) Clone() Pipeline {
-	clone := make([]OpUnion, len(p.Operations))
+	clone := p
+	clone.Operations = make([]OpUnion, len(p.Operations))
 	for i := range p.Operations {
-		clone[i] = p.Operations[i].Clone()
+		clone.Operations[i] = p.Operations[i].Clone()
 	}
-	return Pipeline{Operations: clone}
+	return clone
 }
 
 // SubPipeline returns a sub-pipeline containing Operations between step `startInclusive`
 // and step `endExclusive` of the current pipeline.
 func (p Pipeline) SubPipeline(startInclusive int, endExclusive int) Pipeline {
-	return Pipeline{Operations: p.Operations[startInclusive:endExclusive]}
+	sub := p
+	sub.Operations = p.Operations[startInclusive:endExclusive]
+	return sub
 }
 
 func (p Pipeline) String() string {

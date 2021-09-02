@@ -24,12 +24,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
-
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -68,6 +68,7 @@ var (
 		Id:        []byte("testForwardedMetric"),
 		TimeNanos: 1234,
 		Values:    []float64{1.23, -4.56},
+		Version:   1,
 	}
 	testForwardedMetricAfterResetProto = metricpb.ForwardedMetric{
 		Type:      metricpb.MetricType_UNKNOWN,
@@ -79,6 +80,13 @@ var (
 		Metadatas: []metricpb.StagedMetadata{
 			{
 				CutoverNanos: 1234,
+				Metadata: metricpb.Metadata{
+					Pipelines: []metricpb.PipelineMetadata{
+						{
+							ResendEnabled: true,
+						},
+					},
+				},
 			},
 			{
 				CutoverNanos: 5678,
@@ -89,6 +97,7 @@ var (
 		Metadatas: []metricpb.StagedMetadata{},
 	}
 	testForwardMetadataBeforeResetProto = metricpb.ForwardMetadata{
+		ResendEnabled: true,
 		Pipeline: pipelinepb.AppliedPipeline{
 			Ops: []pipelinepb.AppliedPipelineOp{
 				{
