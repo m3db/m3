@@ -30,6 +30,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/aggregator/aggregation"
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/cluster/kv/mem"
@@ -45,21 +49,10 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
-func TestMultiServerForwardingPipelineKeepNaNAggregatedValues(t *testing.T) {
-	testMultiServerForwardingPipeline(t, false)
-}
-
-func TestMultiServerForwardingPipelineDiscardNaNAggregatedValues(t *testing.T) {
-	testMultiServerForwardingPipeline(t, true)
-}
-
-func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues bool) {
+//nolint:dupl
+func TestMultiServerResendAggregatedValues(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -87,6 +80,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			httpAddr:   "localhost:16000",
 			m3MsgAddr:  "localhost:26000",
 			instanceConfig: placementInstanceConfig{
+				instanceID:          "localhost:6000",
 				shardSetID:          1,
 				shardStartInclusive: 0,
 				shardEndExclusive:   512,
@@ -97,6 +91,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			httpAddr:   "localhost:16001",
 			m3MsgAddr:  "localhost:26001",
 			instanceConfig: placementInstanceConfig{
+				instanceID:          "localhost:6001",
 				shardSetID:          1,
 				shardStartInclusive: 0,
 				shardEndExclusive:   512,
@@ -107,6 +102,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			httpAddr:   "localhost:16002",
 			m3MsgAddr:  "localhost:26002",
 			instanceConfig: placementInstanceConfig{
+				instanceID:          "localhost:6002",
 				shardSetID:          2,
 				shardStartInclusive: 512,
 				shardEndExclusive:   1024,
@@ -117,6 +113,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			httpAddr:   "localhost:16003",
 			m3MsgAddr:  "localhost:26003",
 			instanceConfig: placementInstanceConfig{
+				instanceID:          "localhost:6003",
 				shardSetID:          2,
 				shardStartInclusive: 512,
 				shardEndExclusive:   1024,
@@ -170,11 +167,12 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		)
 		instrumentOpts = instrumentOpts.SetLogger(logger)
 		serverOpts := newTestServerOptions(t).
+			SetBufferForPastTimedMetric(time.Minute).
 			SetClockOptions(clock.Options()).
 			SetInstrumentOptions(instrumentOpts).
 			SetElectionCluster(electionCluster).
-			SetRawTCPAddr(mss.rawTCPAddr).
 			SetHTTPAddr(mss.httpAddr).
+			SetRawTCPAddr(mss.rawTCPAddr).
 			SetM3MsgAddr(mss.m3MsgAddr).
 			SetInstanceID(mss.instanceConfig.instanceID).
 			SetKVStore(kvStore).
@@ -184,7 +182,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			SetShardFn(shardFn).
 			SetShardSetID(mss.instanceConfig.shardSetID).
 			SetClientConnectionOptions(connectionOpts).
-			SetDiscardNaNAggregatedValues(discardNaNAggregatedValues)
+			SetDiscardNaNAggregatedValues(false)
 		server := newTestServerSetup(t, serverOpts)
 		servers = append(servers, server)
 	}
@@ -252,10 +250,11 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 					{
 						AggregationID:   maggregation.DefaultID,
 						StoragePolicies: storagePolicies,
+						ResendEnabled:   true,
 						Pipeline: applied.NewPipeline([]applied.OpUnion{
 							{
 								Type:           pipeline.TransformationOpType,
-								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+								Transformation: pipeline.TransformationOp{Type: transformation.Increase},
 							},
 							{
 								Type: pipeline.RollupOpType,
@@ -264,6 +263,10 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 									AggregationID: maggregation.MustCompressTypes(maggregation.Sum),
 								},
 							},
+							{
+								Type:           pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{Type: transformation.Reset},
+							},
 						}),
 					},
 				},
@@ -271,17 +274,17 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		},
 	}
 	metricTypeFn := constantMetricTypeFnFactory(metric.GaugeType)
-	valueGenOpts := valueGenOpts{
-		untimed: untimedValueGenOpts{
-			gaugeValueGenFn: func(intervalIdx, idIdx int) float64 {
+	genOpts := valueGenOpts{
+		timed: timedValueGenOpts{
+			timedValueGenFn: func(intervalIdx, idIdx int) float64 {
 				// Each gauge will have two datapoints within the same aggregation window.
 				// The first value is 0.0 and should be ignored, and the second value will
-				// be used for computing the `PerSecond` value and should result in a `PerSecond`
-				// value of 1 that is then forwarded to the next aggregation server.
+				// be used for computing the `Increase` value and should result in a `Increase`
+				// value of 2 that is then forwarded to the next aggregation server.
 				if intervalIdx%2 == 0 {
 					return 0.0
 				}
-				return float64(intervalIdx + idIdx)
+				return float64(intervalIdx + 1)
 			},
 		},
 	}
@@ -291,22 +294,30 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			stagedMetadatas: stagedMetadatas,
 		}
 	}
+	// 2 metrics (foo0 and foo1)
+	// 12 datapoints per metric.
+	// 1 datapoint every second, for an interval of 12.
+	// alternates between 0 and a value. 2 per datapoints per aggregation window (2s)
+	// values per metric: (0, 2, 0, 4, 0, 6, 0, 8, 0, 10, 0, 12)
 	dataset := mustGenerateTestDataset(t, datasetGenOpts{
 		start:        start,
 		stop:         stop,
 		interval:     interval,
 		ids:          ids,
-		category:     untimedMetric,
+		category:     timedMetric,
 		typeFn:       metricTypeFn,
-		valueGenOpts: valueGenOpts,
+		valueGenOpts: genOpts,
 		metadataFn:   metadataFn,
 	})
 
-	for _, data := range dataset {
-		clock.SetNow(data.timestamp)
+	for i, data := range dataset {
+		if i == 3 {
+			// send this datapoint later
+			continue
+		}
 
 		for _, mm := range data.metricWithMetadatas {
-			require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
+			require.NoError(t, client.writeTimedMetricWithMetadatas(mm.metric.timed, mm.metadata.stagedMetadatas))
 		}
 		require.NoError(t, client.flush())
 
@@ -316,19 +327,39 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 
 	// Move time forward using the larger resolution and wait for flushing to happen
 	// at the originating server (where the raw metrics are aggregated).
-	originatingServerflushTime := stop.Add(2 * storagePolicies[1].Resolution().Window)
-	for currTime := stop; !currTime.After(originatingServerflushTime); currTime = currTime.Add(time.Second) {
+	orgServerflushTime := stop.Add(2 * storagePolicies[1].Resolution().Window)
+	for currTime := stop; !currTime.After(orgServerflushTime); currTime = currTime.Add(time.Second) {
 		clock.SetNow(currTime)
 		time.Sleep(time.Second)
 	}
 
 	// Move time forward using the larger resolution again and wait for flushing to
 	// happen at the destination server (where the rollup metrics are aggregated).
-	destinationServerflushTime := originatingServerflushTime.Add(2 * storagePolicies[1].Resolution().Window)
-	for currTime := originatingServerflushTime; !currTime.After(destinationServerflushTime); currTime = currTime.Add(time.Second) {
+	dstServerflushTime := orgServerflushTime.Add(2 * storagePolicies[1].Resolution().Window)
+	for currTime := orgServerflushTime; !currTime.After(dstServerflushTime); currTime = currTime.Add(time.Second) {
 		clock.SetNow(currTime)
 		time.Sleep(time.Second)
 	}
+
+	// send a datapoint late
+	data := dataset[3]
+	for _, mm := range data.metricWithMetadatas {
+		require.NoError(t, client.writeTimedMetricWithMetadatas(mm.metric.timed, mm.metadata.stagedMetadatas))
+	}
+	require.NoError(t, client.flush())
+
+	// Give server some time to process the incoming packets.
+	time.Sleep(time.Second)
+
+	// Flush the late raw metrics
+	flushTime := dstServerflushTime.Add(2 * storagePolicies[1].Resolution().Window)
+	clock.SetNow(flushTime)
+	time.Sleep(time.Second)
+
+	// Flush the late aggregated metrics
+	flushTime = flushTime.Add(2 * storagePolicies[1].Resolution().Window)
+	clock.SetNow(flushTime)
+	time.Sleep(time.Second)
 
 	// Remove all the topic consumers before closing clients and servers. This allows to close the
 	// connections between servers while they still are running. Otherwise, during server shutdown,
@@ -375,25 +406,26 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		make(valuesByTime),
 		make(valuesByTime),
 	}
+	// expected values per storage policy
 	expectedValuesList := [][]float64{
 		{
-			math.NaN(),
-			float64(numIDs),
-			float64(numIDs),
-			float64(numIDs),
-			float64(numIDs),
-			float64(numIDs),
+			4,
+			4,
+			4,
+			4,
+			4,
+			4,
 		},
 		{
-			math.NaN(),
-			float64(numIDs),
-			float64(numIDs),
+			8,
+			8,
+			8,
 		},
 	}
 	for spIdx := 0; spIdx < len(storagePolicies); spIdx++ {
 		storagePolicy := storagePolicies[spIdx]
 		for i := 0; i < len(expectedValuesList[spIdx]); i++ {
-			if discardNaNAggregatedValues && math.IsNaN(expectedValuesList[spIdx][i]) {
+			if math.IsNaN(expectedValuesList[spIdx][i]) {
 				continue
 			}
 			currTime := start.Add(time.Duration(i+1) * storagePolicy.Resolution().Window)
@@ -402,6 +434,10 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			expectedAnnotation := generateAnnotation(metric.GaugeType, numIDs-1)
 			agg.Update(time.Now(), expectedValuesList[spIdx][i], expectedAnnotation)
 			expectedValuesByTimeList[spIdx][currTime.UnixNano()] = agg
+			zero := aggregation.NewGauge(aggregation.NewOptions(instrumentOpts))
+			zero.Update(time.Now(), 0.0, expectedAnnotation)
+			resetTime := currTime.UnixNano() + int64(storagePolicy.Resolution().Window/2)
+			expectedValuesByTimeList[spIdx][resetTime] = zero
 		}
 	}
 
@@ -420,7 +456,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			},
 		}
 		expectedResults, err := computeExpectedAggregationOutput(
-			destinationServerflushTime,
+			dstServerflushTime,
 			expectedBuckets,
 			aggregatorOpts,
 		)
@@ -429,5 +465,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	}
 	sort.Sort(byTimeIDPolicyAscending(expectedResultsFlattened))
 	actual := destinationServer.sortedResults()
-	require.True(t, cmp.Equal(expectedResultsFlattened, actual, testCmpOpts...))
+	if !cmp.Equal(expectedResultsFlattened, actual, testCmpOpts...) {
+		require.Fail(t, "results differ", cmp.Diff(expectedResultsFlattened, actual, testCmpOpts...))
+	}
 }

@@ -112,16 +112,19 @@ func TestMergeEmptyCompletedTagResult(t *testing.T) {
 }
 
 var testMergeCompletedTags = []struct {
-	name             string
-	incoming         []map[string][]string
-	expected         map[string][]string
-	expectedNameOnly map[string][]string
+	name                         string
+	incoming                     []map[string][]string
+	expected                     map[string][]string
+	expectedNameOnly             map[string][]string
+	expectedMetdataCount         int
+	expectedNameOnlyMetdataCount int
 }{
 	{
 		"no tag",
 		[]map[string][]string{},
 		map[string][]string{},
 		map[string][]string{},
+		0, 0,
 	},
 	{
 		"single tag",
@@ -134,6 +137,7 @@ var testMergeCompletedTags = []struct {
 		map[string][]string{
 			"a": {},
 		},
+		3, 1,
 	},
 	{
 		"multiple distinct tags",
@@ -149,6 +153,7 @@ var testMergeCompletedTags = []struct {
 			"a": {},
 			"b": {},
 		},
+		6, 2,
 	},
 	{
 		"multiple tags with distinct values",
@@ -162,6 +167,7 @@ var testMergeCompletedTags = []struct {
 		map[string][]string{
 			"a": {},
 		},
+		6, 1,
 	},
 	{
 		"multiple tags with same values",
@@ -180,12 +186,14 @@ var testMergeCompletedTags = []struct {
 			"a": {},
 			"b": {},
 		},
+		9, 2,
 	},
 }
 
 func TestMergeCompletedTagResult(t *testing.T) {
 	nameOnlyVals := []bool{true, false}
 	for _, nameOnly := range nameOnlyVals {
+		nameOnly := nameOnly
 		for _, tt := range testMergeCompletedTags {
 			t.Run(fmt.Sprintf("%s_%t", tt.name, nameOnly), func(t *testing.T) {
 				builder := NewCompleteTagsResultBuilder(nameOnly, models.NewTagOptions())
@@ -202,6 +210,12 @@ func TestMergeCompletedTagResult(t *testing.T) {
 				}
 
 				expected := mapToCompletedTag(nameOnly, exResult)
+				if nameOnly {
+					expected.Metadata.FetchedMetadataCount = tt.expectedNameOnlyMetdataCount
+				} else {
+					expected.Metadata.FetchedMetadataCount = tt.expectedMetdataCount
+				}
+
 				assert.Equal(t, expected, actual)
 			})
 		}

@@ -61,9 +61,14 @@ message ForwardedMetric {
   MetricType type = 1;
   bytes id = 2;
   int64 time_nanos = 3;
+  // values and prev_values are the same length. a given index to the arrays
+  // gives the tuple (value, prev_value) for a given forwarded value.
   repeated double values = 4;
+  repeated double prev_values = 6;
   bytes annotation = 5;
+  uint32 version = 7;
 }
+
 
 message Tag {
   bytes name = 1;

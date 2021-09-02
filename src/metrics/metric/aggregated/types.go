@@ -151,7 +151,9 @@ type ForwardedMetric struct {
 	ID         id.RawID
 	TimeNanos  int64
 	Values     []float64
+	PrevValues []float64
 	Annotation []byte
+	Version    uint32
 }
 
 // ToProto converts the forwarded metric to a protobuf message in place.
@@ -162,7 +164,9 @@ func (m ForwardedMetric) ToProto(pb *metricpb.ForwardedMetric) error {
 	pb.Id = m.ID
 	pb.TimeNanos = m.TimeNanos
 	pb.Values = m.Values
+	pb.PrevValues = m.PrevValues
 	pb.Annotation = m.Annotation
+	pb.Version = m.Version
 	return nil
 }
 
@@ -174,17 +178,20 @@ func (m *ForwardedMetric) FromProto(pb metricpb.ForwardedMetric) error {
 	m.ID = pb.Id
 	m.TimeNanos = pb.TimeNanos
 	m.Values = pb.Values
+	m.PrevValues = pb.PrevValues
 	m.Annotation = pb.Annotation
+	m.Version = pb.Version
 	return nil
 }
 
 // String is a string representation of the forwarded metric.
 func (m ForwardedMetric) String() string {
 	return fmt.Sprintf(
-		"{id:%s,timestamp:%s,values:%v}",
+		"{id:%s,timestamp:%s,values:%v,prev_values:%v}",
 		m.ID.String(),
 		time.Unix(0, m.TimeNanos).String(),
 		m.Values,
+		m.PrevValues,
 	)
 }
 

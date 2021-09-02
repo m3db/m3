@@ -153,7 +153,9 @@ func resetForwardedMetric(pb *metricpb.ForwardedMetric) {
 	pb.Id = pb.Id[:0]
 	pb.TimeNanos = 0
 	pb.Values = pb.Values[:0]
+	pb.PrevValues = pb.PrevValues[:0]
 	pb.Annotation = pb.Annotation[:0]
+	pb.Version = 0
 }
 
 func resetTimedMetric(pb *metricpb.TimedMetric) {
@@ -183,6 +185,7 @@ func resetForwardMetadata(pb *metricpb.ForwardMetadata) {
 	pb.Pipeline.Ops = pb.Pipeline.Ops[:0]
 	pb.SourceId = 0
 	pb.NumForwardedTimes = 0
+	pb.ResendEnabled = false
 }
 
 func resetTimedMetadata(pb *metricpb.TimedMetadata) {

@@ -51,7 +51,6 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/pipeline"
-	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules"
 	ruleskv "github.com/m3db/m3/src/metrics/rules/store/kv"
@@ -920,15 +919,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	counterElemPool := aggregator.NewCounterElemPool(counterElemPoolOpts)
 	aggregatorOpts = aggregatorOpts.SetCounterElemPool(counterElemPool)
 	counterElemPool.Init(func() *aggregator.CounterElem {
-		return aggregator.MustNewCounterElem(
-			nil,
-			policy.EmptyStoragePolicy,
-			aggregation.DefaultTypes,
-			applied.DefaultPipeline,
-			0,
-			aggregator.WithPrefixWithSuffix,
-			aggregatorOpts,
-		)
+		return aggregator.MustNewCounterElem(aggregator.ElemData{}, aggregatorOpts)
 	})
 
 	// Set timer elem pool.
@@ -938,15 +929,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	timerElemPool := aggregator.NewTimerElemPool(timerElemPoolOpts)
 	aggregatorOpts = aggregatorOpts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem {
-		return aggregator.MustNewTimerElem(
-			nil,
-			policy.EmptyStoragePolicy,
-			aggregation.DefaultTypes,
-			applied.DefaultPipeline,
-			0,
-			aggregator.WithPrefixWithSuffix,
-			aggregatorOpts,
-		)
+		return aggregator.MustNewTimerElem(aggregator.ElemData{}, aggregatorOpts)
 	})
 
 	// Set gauge elem pool.
@@ -956,15 +939,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	gaugeElemPool := aggregator.NewGaugeElemPool(gaugeElemPoolOpts)
 	aggregatorOpts = aggregatorOpts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem {
-		return aggregator.MustNewGaugeElem(
-			nil,
-			policy.EmptyStoragePolicy,
-			aggregation.DefaultTypes,
-			applied.DefaultPipeline,
-			0,
-			aggregator.WithPrefixWithSuffix,
-			aggregatorOpts,
-		)
+		return aggregator.MustNewGaugeElem(aggregator.ElemData{}, aggregatorOpts)
 	})
 
 	adminAggClient := newAggregatorLocalAdminClient()

@@ -42,6 +42,7 @@ var (
 type rollupTarget struct {
 	Pipeline        pipeline.Pipeline
 	StoragePolicies policy.StoragePolicies
+	ResendEnabled   bool
 }
 
 // newRollupTargetFromV1Proto creates a new rollup target from v1 proto
@@ -88,6 +89,7 @@ func newRollupTargetFromV2Proto(pb *rulepb.RollupTargetV2) (rollupTarget, error)
 	return rollupTarget{
 		Pipeline:        pipeline,
 		StoragePolicies: storagePolicies,
+		ResendEnabled:   pb.ResendEnabled,
 	}, nil
 }
 
@@ -110,6 +112,7 @@ func (t *rollupTarget) clone() rollupTarget {
 	return rollupTarget{
 		Pipeline:        t.Pipeline.Clone(),
 		StoragePolicies: t.StoragePolicies.Clone(),
+		ResendEnabled:   t.ResendEnabled,
 	}
 }
 
@@ -126,6 +129,7 @@ func (t *rollupTarget) proto() (*rulepb.RollupTargetV2, error) {
 	return &rulepb.RollupTargetV2{
 		Pipeline:        pipeline,
 		StoragePolicies: storagePolicies,
+		ResendEnabled:   t.ResendEnabled,
 	}, nil
 }
 
