@@ -85,17 +85,16 @@ func ResponseMetrics(opts Options) mux.MiddlewareFunc {
 			}
 
 			m := custom.getOrCreate(metricsType)
-			queryMetrics := m.query
+			classificationMetrics := m.classification
 			metrics := m.route
-			querySize := inspectQuerySize(w, r, queryMetrics, opts, start)
+			tags := classifyRequest(w, r, classificationMetrics, opts, start, path)
 
 			addLatencyStatus := false
 			if cfg.AddStatusToLatencies {
 				addLatencyStatus = true
 			}
 
-			counter, timer := metrics.metric(
-				path, statusCodeTracking.Status, addLatencyStatus, querySize)
+			counter, timer := metrics.metric(path, statusCodeTracking.Status, addLatencyStatus, tags)
 			counter.Inc(1)
 			timer.Record(d)
 		})
@@ -103,8 +102,8 @@ func ResponseMetrics(opts Options) mux.MiddlewareFunc {
 }
 
 type responseMetrics struct {
-	route *routeMetrics
-	query *queryInspectionMetrics
+	route          *routeMetrics
+	classification *classificationMetrics
 }
 
 type customMetrics struct {
@@ -132,8 +131,8 @@ func (c *customMetrics) getOrCreate(value string) *responseMetrics {
 		metricsTypeTagName: value,
 	})
 	m := responseMetrics{
-		route: newRouteMetrics(subscope),
-		query: newQueryInspectionMetrics(subscope),
+		route:          newRouteMetrics(subscope),
+		classification: newClassificationMetrics(subscope),
 	}
 
 	c.metrics[value] = m
@@ -148,9 +147,23 @@ type routeMetrics struct {
 }
 
 type routeMetricKey struct {
-	path   string
-	size   string
-	status int
+	path                   string
+	status                 int
+	resultsClassification  string
+	durationClassification string
+}
+
+func newRouteMetricKey(
+	path string,
+	status int,
+	tags classificationTags,
+) routeMetricKey {
+	return routeMetricKey{
+		path:                   path,
+		status:                 status,
+		resultsClassification:  tags[resultsClassification],
+		durationClassification: tags[durationClassification],
+	}
 }
 
 type routeMetric struct {
@@ -169,10 +182,9 @@ func (m *routeMetrics) metric(
 	path string,
 	status int,
 	addLatencyStatus bool,
-	querySize querySize,
+	tags classificationTags,
 ) (tally.Counter, tally.Timer) {
-	querySize.toTags()
-	metricKey := querySize.toRouteMetricKey(path, status)
+	metricKey := newRouteMetricKey(path, status, tags)
 	// NB: use 0 as the status for all latency operations unless status should be
 	// explicitly included in written metrics.
 	latencyStatus := 0
@@ -180,7 +192,7 @@ func (m *routeMetrics) metric(
 		latencyStatus = status
 	}
 
-	timerKey := querySize.toRouteMetricKey(path, latencyStatus)
+	timerKey := newRouteMetricKey(path, latencyStatus, tags)
 	m.RLock()
 	metric, ok1 := m.metrics[metricKey]
 	timer, ok2 := m.timers[timerKey]
@@ -198,9 +210,13 @@ func (m *routeMetrics) metric(
 		return metric.status, timer
 	}
 
-	tags := querySize.toTags()
-	tags["path"] = path
-	scopePath := m.scope.Tagged(tags)
+	allTags := make(map[string]string)
+	for k, v := range tags {
+		allTags[k] = v
+	}
+	allTags["path"] = path
+
+	scopePath := m.scope.Tagged(allTags)
 	scopePathAndStatus := scopePath.Tagged(map[string]string{
 		"status": strconv.Itoa(status),
 	})

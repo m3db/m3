@@ -506,20 +506,33 @@ type LoggingMiddlewareConfiguration struct {
 
 // MetricsMiddlewareConfiguration configures the metrics middleware.
 type MetricsMiddlewareConfiguration struct {
-	// LargeSeriesCountThreshold is the minimum number of series fetched by
-	// a query necessary to classify it as large.
-	LargeSeriesCountThreshold int `yaml:"largeSeriesCountThreshold"`
-	// LargeSeriesRangeThreshold is the minimum query range for a query necessary
-	// to classify it as large.
-	LargeSeriesRangeThreshold time.Duration `yaml:"largeSeriesRangeThreshold"`
-	// InspectQuerySize will tag query metrics as large if they exceed both of the
-	// given thresholds.
-	InspectQuerySize bool `yaml:"inspectQueries"`
+	// QueryEndpointsClassification contains the configuration for sizing queries to
+	// the query and query_range Prometheus endpoints.
+	QueryEndpointsClassification QueryClassificationConfig `yaml:"queryEndpointsClassification"`
+	// LabelEndpointsClassification contains the configuration for sizing queries to
+	// the label names and label values Prometheus endpoints.
+	LabelEndpointsClassification QueryClassificationConfig `yaml:"labelEndpointsClassification"`
 	// AddStatusToLatencies will add a tag with the query's response code to
 	// middleware latency metrics.
 	// NB: Setting this to true will increase cardinality by the number of
 	// expected response codes (likely around ~10).
 	AddStatusToLatencies bool `yaml:"addStatusToLatencies"`
+}
+
+// QueryClassificationConfig contains the buckets used to group a query into a bucket for
+// the sake of understanding the size of the query based on a specific dimension. Currently,
+// we have two sets of buckets: results and duration. The results buckets help us understand
+// the size of the query based on the number of results returned whereas the duration buckets help
+// us understand the size of the query based on the time range of the query. Dimension values are
+// rounded down to the nearest bucket. If the value is smaller than all buckets, then it is
+// allocated to the first bucket. Buckets are expected to be ordered in ascending order.
+type QueryClassificationConfig struct {
+	// ResultsBuckets contains the buckets to be compared with the number of results (e.g. number of
+	// time series or labels) returned by a specific endpoint.
+	ResultsBuckets []int `yaml:"resultsBuckets"`
+	// DurationBuckets contains the buckets to be compared with time range of a query for a
+	// specific endpoint.
+	DurationBuckets []time.Duration `yaml:"durationBuckets"`
 }
 
 // PrometheusMiddlewareConfiguration configures the range rewriting middleware.
