@@ -1773,7 +1773,11 @@ func (i *nsIndex) queryWithSpan(
 		return opts.LimitsExceeded(results.Size(), results.TotalDocsCount()) || state.hasErr()
 	}
 	// waitForPermit waits for a permit. returns non-nil if the permit was acquired and the wait time.
-	waitForPermit := func() (permits.Permit, time.Duration) {
+	waitForPermit := func(ctx context.Context) (permits.Permit, time.Duration) {
+		ctx, sp := ctx.StartTraceSpan("storage.nsIndex.waitForPermit")
+		sp.LogFields(logFields...)
+		defer sp.Finish()
+
 		// make sure the query hasn't been canceled before waiting for a permit.
 		if queryCanceled() {
 			return nil, 0
@@ -1823,7 +1827,7 @@ func (i *nsIndex) queryWithSpan(
 
 		// acquire a permit before kicking off the goroutine to process the iterator. this limits the number of
 		// concurrent goroutines to # of permits + large queries that needed multiple iterations to finish.
-		permit, waitTime := waitForPermit()
+		permit, waitTime := waitForPermit(ctx)
 		blockIter.waitTime += waitTime
 		if permit == nil {
 			break
@@ -1844,7 +1848,7 @@ func (i *nsIndex) queryWithSpan(
 			for !blockIter.iter.Done() {
 				// if this is not the first iteration of the iterator, need to acquire another permit.
 				if !first {
-					permit, waitTime = waitForPermit()
+					permit, waitTime = waitForPermit(ctx)
 					blockIter.waitTime += waitTime
 					if permit == nil {
 						break
