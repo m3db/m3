@@ -1816,7 +1816,11 @@ func (i *nsIndex) queryWithSpan(
 
 		sp.LogKV("allowedQuota", acquireResult.Permit.AllowedQuota(),
 			"quotaRemaining", acquireResult.Permit.QuotaRemaining(),
-			"throttled", acquireResult.Waited,
+			"waited", acquireResult.Waited,
+			"throttled", acquireResult.Throttled,
+			"waitedTime", acquireResult.WaitedTime,
+			"throttledTime", acquireResult.ThrottledTime,
+			"acquireTime", waitTime,
 			"source", acquireResult.Source)
 
 		return acquireResult.Permit, waitTime
