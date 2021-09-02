@@ -454,8 +454,12 @@ func (s *m3WrappedStore) FetchByQuery(
 
 	fetchOptions := fetchOpts.QueryFetchOpts
 
-	fmt.Printf("fetch options are %v\n", fetchOptions)
-	fmt.Printf("restrict query options are %v\n", fetchOptions.RestrictQueryOptions)
+	fmt.Printf("fetch options are %+v\n", fetchOptions)
+	if fetchOptions.RestrictQueryOptions != nil {
+		for _, option := range fetchOptions.RestrictQueryOptions.RestrictByTypes {
+			fmt.Printf("restrict query options are %+v\n", option)
+		}
+	}
 
 	// NB: ensure single block return.
 	fetchOptions.BlockType = models.TypeSingleBlock
