@@ -452,7 +452,7 @@ func (s *m3WrappedStore) FetchByQuery(
 		defer cancel()
 	}
 
-	fetchOptions := fetchOpts.QueryFetchOpts
+	fetchOptions := fetchOpts.QueryFetchOpts.Clone()
 
 	// NB: ensure single block return.
 	fetchOptions.BlockType = models.TypeSingleBlock
