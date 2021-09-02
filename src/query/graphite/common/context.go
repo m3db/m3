@@ -55,9 +55,6 @@ type contextBase struct {
 	// specify zero to indicate default timeout or a positive value
 	Timeout time.Duration
 
-	// Limit provides a cap on the number of results returned from the database.
-	Limit int
-
 	// Source is the query source.
 	Source []byte
 
@@ -84,7 +81,6 @@ type ContextOptions struct {
 	End           time.Time
 	Engine        QueryEngine
 	Timeout       time.Duration
-	Limit         int
 	MaxDataPoints int64
 	FetchOpts     *storage.FetchOptions
 }
@@ -108,7 +104,6 @@ func NewContext(options ContextOptions) *Context {
 			Engine:         options.Engine,
 			storageContext: context.New(),
 			Timeout:        options.Timeout,
-			Limit:          options.Limit,
 			MaxDataPoints:  options.MaxDataPoints,
 			FetchOpts:      options.FetchOpts,
 		},

@@ -41,7 +41,6 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
@@ -112,12 +111,6 @@ func (h *renderHandler) serveHTTP(
 		return xhttp.NewError(err, http.StatusBadRequest)
 	}
 
-	limit, err := handleroptions.ParseLimit(r, headers.LimitMaxSeriesHeader,
-		"limit", h.queryContextOpts.LimitMaxTimeseries)
-	if err != nil {
-		return xhttp.NewError(err, http.StatusBadRequest)
-	}
-
 	var (
 		results = make([]ts.SeriesList, len(p.Targets))
 		errorCh = make(chan error, 1)
@@ -129,7 +122,6 @@ func (h *renderHandler) serveHTTP(
 		Start:         p.From,
 		End:           p.Until,
 		Timeout:       p.Timeout,
-		Limit:         limit,
 		MaxDataPoints: p.MaxDataPoints,
 		FetchOpts:     fetchOpts,
 	})
@@ -160,10 +152,6 @@ func (h *renderHandler) serveHTTP(
 				_ = childCtx.Close()
 				wg.Done()
 			}()
-
-			if source := r.Header.Get(headers.SourceHeader); len(source) > 0 {
-				childCtx.Source = []byte(source)
-			}
 
 			exp, err := h.engine.Compile(target)
 			if err != nil {

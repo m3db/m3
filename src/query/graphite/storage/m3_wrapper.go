@@ -453,8 +453,6 @@ func (s *m3WrappedStore) FetchByQuery(
 	}
 
 	fetchOptions := fetchOpts.QueryFetchOpts
-	fetchOptions.SeriesLimit = fetchOpts.Limit
-	fetchOptions.Source = fetchOpts.Source
 
 	fmt.Printf("fetch options are %v\n", fetchOptions)
 	fmt.Printf("restrict query options are %v\n", fetchOptions.RestrictQueryOptions)
