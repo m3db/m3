@@ -117,6 +117,7 @@ func (it *readerIterator) Next() bool {
 
 				it.tsIterator.PrevTime += xtime.UnixNano(it.tsIterator.PrevTimeDelta)
 				it.curr.TimestampNanos = it.tsIterator.PrevTime
+				it.floatIter.PrevXOR = 0
 				it.tsIterator.PrevAnt = nil
 
 				it.readBits(2) // consume the bits that were checked with peekBits
