@@ -372,7 +372,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 			sp, err := policy.ParseStoragePolicy(policyStr)
 			if err != nil {
 				err = fmt.Errorf(
-					"could not parse storage policy: input=%s, err=%v", str, err)
+					"could not parse storage policy: input=%s, err=%w", str, err)
 				return nil, nil, err
 			}
 			restrictByTypes = append(
