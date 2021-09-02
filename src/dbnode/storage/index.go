@@ -1832,6 +1832,13 @@ func (i *nsIndex) queryWithSpan(
 		wg.Add(1)
 		// kick off a go routine to process the entire iterator.
 		go func() {
+			ctx, sp := ctx.StartTraceSpan("storage.nsIndex.blockIter")
+			series, docs := blockIter.iter.Counts()
+			currLogFields := append(logFields,
+				opentracinglog.Int("seriesCount", series),
+				opentracinglog.Int("docsCount", docs))
+			sp.LogFields(currLogFields...)
+			defer sp.Finish()
 			defer wg.Done()
 			first := true
 			for !blockIter.iter.Done() {
@@ -1843,7 +1850,7 @@ func (i *nsIndex) queryWithSpan(
 						break
 					}
 				}
-				blockLogFields := append(logFields, xopentracing.Duration("permitWaitTime", waitTime))
+				blockLogFields := append(logFields, opentracinglog.Float64("permitWaitTimeSeconds", waitTime.Seconds()))
 				first = false
 				startProcessing := time.Now()
 				execBlockFn(ctx, blockIter.block, permit, blockIter.iter, opts, state, results, blockLogFields)
