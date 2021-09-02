@@ -35,18 +35,21 @@ message Counter {
   bytes id = 1;
   int64 value = 2;
   bytes annotation = 3;
+  int64 client_time_nanos = 4;
 }
 
 message BatchTimer {
   bytes id = 1;
   repeated double values = 2;
   bytes annotation = 3;
+  int64 client_time_nanos = 4;
 }
 
 message Gauge {
   bytes id = 1;
   double value = 2;
   bytes annotation = 3;
+  int64 client_time_nanos = 4;
 }
 
 message TimedMetric {

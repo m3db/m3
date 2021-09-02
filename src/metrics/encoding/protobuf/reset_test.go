@@ -36,6 +36,7 @@ var (
 	testCounterBeforeResetProto = metricpb.Counter{
 		Id:    []byte("testCounter"),
 		Value: 1234,
+		ClientTimeNanos: 10,
 	}
 	testCounterAfterResetProto = metricpb.Counter{
 		Id:    []byte{},
@@ -44,6 +45,7 @@ var (
 	testBatchTimerBeforeResetProto = metricpb.BatchTimer{
 		Id:     []byte("testBatchTimer"),
 		Values: []float64{13.45, 98.23},
+		ClientTimeNanos: 10,
 	}
 	testBatchTimerAfterResetProto = metricpb.BatchTimer{
 		Id:     []byte{},
@@ -52,6 +54,7 @@ var (
 	testGaugeBeforeResetProto = metricpb.Gauge{
 		Id:    []byte("testGauge"),
 		Value: 3.48,
+		ClientTimeNanos: 10,
 	}
 	testGaugeAfterResetProto = metricpb.Gauge{
 		Id:    []byte{},

@@ -278,7 +278,7 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 
 	for _, dp := range datapoints {
 		if result.ShouldDropTimestamp {
-			err = result.SamplesAppender.AppendUntimedGaugeSample(dp.Value, annotation)
+			err = result.SamplesAppender.AppendUntimedGaugeSample(dp.Timestamp, dp.Value, annotation)
 		} else {
 			err = result.SamplesAppender.AppendGaugeSample(
 				dp.Timestamp, dp.Value, annotation,
@@ -507,7 +507,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 			switch value.Attributes.M3Type {
 			case ts.M3MetricTypeGauge:
 				if result.ShouldDropTimestamp {
-					err = result.SamplesAppender.AppendUntimedGaugeSample(dp.Value, value.Annotation)
+					err = result.SamplesAppender.AppendUntimedGaugeSample(dp.Timestamp, dp.Value, value.Annotation)
 				} else {
 					err = result.SamplesAppender.AppendGaugeSample(
 						dp.Timestamp, dp.Value, value.Annotation,
@@ -516,7 +516,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 			case ts.M3MetricTypeCounter:
 				if result.ShouldDropTimestamp {
 					err = result.SamplesAppender.AppendUntimedCounterSample(
-						int64(dp.Value), value.Annotation)
+						dp.Timestamp, int64(dp.Value), value.Annotation)
 				} else {
 					err = result.SamplesAppender.AppendCounterSample(
 						dp.Timestamp, int64(dp.Value), value.Annotation,
@@ -524,7 +524,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 				}
 			case ts.M3MetricTypeTimer:
 				if result.ShouldDropTimestamp {
-					err = result.SamplesAppender.AppendUntimedTimerSample(dp.Value, value.Annotation)
+					err = result.SamplesAppender.AppendUntimedTimerSample(dp.Timestamp, dp.Value, value.Annotation)
 				} else {
 					err = result.SamplesAppender.AppendTimerSample(
 						dp.Timestamp, dp.Value, value.Annotation,

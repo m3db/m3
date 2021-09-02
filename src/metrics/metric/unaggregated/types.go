@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/pool"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -40,18 +41,20 @@ var (
 
 // Counter is a counter containing the counter ID and the counter value.
 type Counter struct {
-	ID         id.RawID
-	Value      int64
-	Annotation []byte
+	ID              id.RawID
+	Value           int64
+	Annotation      []byte
+	ClientTimeNanos xtime.UnixNano
 }
 
 // ToUnion converts the counter to a metric union.
 func (c Counter) ToUnion() MetricUnion {
 	return MetricUnion{
-		Type:       metric.CounterType,
-		ID:         c.ID,
-		CounterVal: c.Value,
-		Annotation: c.Annotation,
+		Type:            metric.CounterType,
+		ID:              c.ID,
+		CounterVal:      c.Value,
+		Annotation:      c.Annotation,
+		ClientTimeNanos: c.ClientTimeNanos,
 	}
 }
 
@@ -60,6 +63,7 @@ func (c Counter) ToProto(pb *metricpb.Counter) {
 	pb.Id = c.ID
 	pb.Value = c.Value
 	pb.Annotation = c.Annotation
+	pb.ClientTimeNanos = int64(c.ClientTimeNanos)
 }
 
 // FromProto converts the protobuf message to a counter in place.
@@ -67,22 +71,25 @@ func (c *Counter) FromProto(pb metricpb.Counter) {
 	c.ID = pb.Id
 	c.Value = pb.Value
 	c.Annotation = pb.Annotation
+	c.ClientTimeNanos = xtime.UnixNano(pb.ClientTimeNanos)
 }
 
 // BatchTimer is a timer containing the timer ID and a list of timer values.
 type BatchTimer struct {
-	ID         id.RawID
-	Values     []float64
-	Annotation []byte
+	ID              id.RawID
+	Values          []float64
+	Annotation      []byte
+	ClientTimeNanos xtime.UnixNano
 }
 
 // ToUnion converts the batch timer to a metric union.
 func (t BatchTimer) ToUnion() MetricUnion {
 	return MetricUnion{
-		Type:          metric.TimerType,
-		ID:            t.ID,
-		BatchTimerVal: t.Values,
-		Annotation:    t.Annotation,
+		Type:            metric.TimerType,
+		ID:              t.ID,
+		BatchTimerVal:   t.Values,
+		Annotation:      t.Annotation,
+		ClientTimeNanos: t.ClientTimeNanos,
 	}
 }
 
@@ -91,6 +98,7 @@ func (t BatchTimer) ToProto(pb *metricpb.BatchTimer) {
 	pb.Id = t.ID
 	pb.Values = t.Values
 	pb.Annotation = t.Annotation
+	pb.ClientTimeNanos = int64(t.ClientTimeNanos)
 }
 
 // FromProto converts the protobuf message to a batch timer in place.
@@ -102,18 +110,20 @@ func (t *BatchTimer) FromProto(pb metricpb.BatchTimer) {
 
 // Gauge is a gauge containing the gauge ID and the value at certain time.
 type Gauge struct {
-	ID         id.RawID
-	Value      float64
-	Annotation []byte
+	ID              id.RawID
+	Value           float64
+	Annotation      []byte
+	ClientTimeNanos xtime.UnixNano
 }
 
 // ToUnion converts the gauge to a metric union.
 func (g Gauge) ToUnion() MetricUnion {
 	return MetricUnion{
-		Type:       metric.GaugeType,
-		ID:         g.ID,
-		GaugeVal:   g.Value,
-		Annotation: g.Annotation,
+		Type:            metric.GaugeType,
+		ID:              g.ID,
+		GaugeVal:        g.Value,
+		Annotation:      g.Annotation,
+		ClientTimeNanos: g.ClientTimeNanos,
 	}
 }
 
@@ -122,6 +132,7 @@ func (g Gauge) ToProto(pb *metricpb.Gauge) {
 	pb.Id = g.ID
 	pb.Value = g.Value
 	pb.Annotation = g.Annotation
+	pb.ClientTimeNanos = int64(g.ClientTimeNanos)
 }
 
 // FromProto converts the protobuf message to a gauge in place.
@@ -129,6 +140,7 @@ func (g *Gauge) FromProto(pb metricpb.Gauge) {
 	g.ID = pb.Id
 	g.Value = pb.Value
 	g.Annotation = pb.Annotation
+	g.ClientTimeNanos = xtime.UnixNano(pb.ClientTimeNanos)
 }
 
 // CounterWithPoliciesList is a counter with applicable policies list.
@@ -236,13 +248,14 @@ func (gm *GaugeWithMetadatas) FromProto(pb *metricpb.GaugeWithMetadatas) error {
 // allocated from a pool, the TimerValPool should be set to the originating pool,
 // and the caller is responsible for returning the timer values to the pool.
 type MetricUnion struct {
-	Type          metric.Type
-	ID            id.RawID
-	CounterVal    int64
-	BatchTimerVal []float64
-	GaugeVal      float64
-	TimerValPool  pool.FloatsPool
-	Annotation    []byte
+	Type            metric.Type
+	ID              id.RawID
+	CounterVal      int64
+	BatchTimerVal   []float64
+	GaugeVal        float64
+	TimerValPool    pool.FloatsPool
+	Annotation      []byte
+	ClientTimeNanos xtime.UnixNano
 }
 
 var emptyMetricUnion MetricUnion

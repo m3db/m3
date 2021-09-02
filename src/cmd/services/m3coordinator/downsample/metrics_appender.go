@@ -424,14 +424,6 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			dropTimestamp = true
 		}
 	}
-
-	// Do not drop the timestamp if a pipeline supports resending aggregated values.
-	for _, p := range a.curr.Pipelines {
-		if p.ResendEnabled {
-			dropTimestamp = false
-		}
-	}
-
 	dropPolicyApplied := dropApplyResult != metadata.NoDropPolicyPresentResult
 	return SamplesAppenderResult{
 		SamplesAppender:     a.multiSamplesAppender,
