@@ -1813,10 +1813,10 @@ func (i *nsIndex) queryWithSpan(
 
 		success = true
 
-		sp = sp.SetTag("allowedQuota", acquireResult.Permit.AllowedQuota()).
-			SetTag("quotaRemaining", acquireResult.Permit.QuotaRemaining()).
-			SetTag("waited", acquireResult.Waited).
-			SetTag("source", acquireResult.Source)
+		sp.LogKV("allowedQuota", acquireResult.Permit.AllowedQuota(),
+			"quotaRemaining", acquireResult.Permit.QuotaRemaining(),
+			"waited", acquireResult.Waited,
+			"source", acquireResult.Source)
 
 		return acquireResult.Permit, waitTime
 	}
