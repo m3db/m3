@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/graphite/context"
+	"github.com/m3db/m3/src/query/storage"
 )
 
 // contextBase are the real content of a Context, minus the lock so that we
@@ -63,6 +64,9 @@ type contextBase struct {
 	// MaxDataPoints is the max datapoints for the query.
 	MaxDataPoints int64
 
+	// FetchOpts are the fetch options to use for the query.
+	FetchOpts *storage.FetchOptions
+
 	parent         *Context
 	reqCtx         ctx.Context
 	storageContext context.Context
@@ -82,6 +86,7 @@ type ContextOptions struct {
 	Timeout       time.Duration
 	Limit         int
 	MaxDataPoints int64
+	FetchOpts     *storage.FetchOptions
 }
 
 // TimeRangeAdjustment is an applied time range adjustment.
@@ -105,6 +110,7 @@ func NewContext(options ContextOptions) *Context {
 			Timeout:        options.Timeout,
 			Limit:          options.Limit,
 			MaxDataPoints:  options.MaxDataPoints,
+			FetchOpts:      options.FetchOpts,
 		},
 	}
 }

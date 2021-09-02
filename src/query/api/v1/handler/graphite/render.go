@@ -131,6 +131,7 @@ func (h *renderHandler) serveHTTP(
 		Timeout:       p.Timeout,
 		Limit:         limit,
 		MaxDataPoints: p.MaxDataPoints,
+		FetchOpts:     fetchOpts,
 	})
 
 	// Set the request context.

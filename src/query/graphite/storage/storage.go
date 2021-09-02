@@ -42,6 +42,8 @@ type FetchOptions struct {
 	DataOptions
 	// Source is the query source.
 	Source []byte
+	// QueryFetchOpts are the query storage fetch options.
+	QueryFetchOpts *querystorage.FetchOptions
 }
 
 // DataOptions provide data context.
