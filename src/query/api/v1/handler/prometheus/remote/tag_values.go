@@ -46,11 +46,9 @@ import (
 )
 
 const (
-	// NameReplace is the parameter that gets replaced.
-	NameReplace = "name"
 
 	// TagValuesURL is the url for tag values.
-	TagValuesURL = route.Prefix + "/label/{" + NameReplace + "}/values"
+	TagValuesURL = route.LabelValuesURL
 
 	// TagValuesHTTPMethod is the HTTP method used with this resource.
 	TagValuesHTTPMethod = http.MethodGet
@@ -155,7 +153,7 @@ func (h *TagValuesHandler) parseTagValuesToQuery(
 	r *http.Request,
 ) (*storage.CompleteTagsQuery, error) {
 	vars := mux.Vars(r)
-	name, ok := vars[NameReplace]
+	name, ok := vars[route.NameReplace]
 	if !ok || len(name) == 0 {
 		return nil, xhttp.NewError(errors.ErrNoName, http.StatusBadRequest)
 	}
