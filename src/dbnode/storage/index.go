@@ -1857,6 +1857,7 @@ func (i *nsIndex) queryWithSpan(
 					}
 				}
 				blockLogFields := append(logFields, opentracinglog.Float64("permitWaitTimeSeconds", waitTime.Seconds()))
+				sp.SetTag("permitWaitSeconds", waitTime.Seconds())
 				first = false
 				startProcessing := time.Now()
 				execBlockFn(ctx, blockIter.block, permit, blockIter.iter, opts, state, results, blockLogFields)
