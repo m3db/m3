@@ -34,11 +34,9 @@ func (o *RestrictQueryOptions) Validate() error {
 	if o.RestrictByType != nil {
 		return o.RestrictByType.Validate()
 	}
-	if len(o.RestrictByTypes) > 0 {
-		for _, r := range o.RestrictByTypes {
-			if err := r.Validate(); err != nil {
-				return err
-			}
+	for _, r := range o.RestrictByTypes {
+		if err := r.Validate(); err != nil {
+			return err
 		}
 	}
 	return nil
