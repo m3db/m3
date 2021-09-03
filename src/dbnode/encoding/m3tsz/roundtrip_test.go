@@ -106,6 +106,36 @@ func TestConstantValuesRoundTrip(t *testing.T) {
 	}
 }
 
+func TestMostlyConstantValuesRoundTrip(t *testing.T) {
+	var (
+		currentTime = xtime.FromSeconds(1630436128)
+		dps         []ts.Datapoint
+	)
+
+	dps, currentTime = addDP(dps, currentTime, time.Second, 1)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 1)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 1)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 2)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 3)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 3)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 3)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 3)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 0)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 1)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 3)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 3)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 3)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 4)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 4)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 4)
+	dps, currentTime = addDP(dps, currentTime, 2*time.Second, 4)
+	dps, currentTime = addDP(dps, currentTime, 3*time.Second, 4)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 0)
+	dps, currentTime = addDP(dps, currentTime, time.Second, 0)
+
+	testRoundTrip(t, dps)
+}
+
 func testRoundTrip(t *testing.T, input []ts.Datapoint) {
 	validateRoundTrip(t, input, true)
 	validateRoundTrip(t, input, false)
@@ -280,13 +310,21 @@ func generateOverflowDatapoints() []ts.Datapoint {
 }
 
 func generateConstDatapoints(numPoints int, value float64) []ts.Datapoint {
-	currentTime := xtime.FromSeconds(1630436128)
-	res := make([]ts.Datapoint, 0, numPoints)
+	var (
+		currentTime = xtime.FromSeconds(1630436128)
+		res         = make([]ts.Datapoint, 0, numPoints)
+	)
 
 	for i := 0; i < numPoints; i++ {
-		currentTime = currentTime.Add(time.Second)
-		res = append(res, ts.Datapoint{TimestampNanos: currentTime, Value: value})
+		res, currentTime = addDP(res, currentTime, time.Second, value)
 	}
 
 	return res
+}
+
+func addDP(res []ts.Datapoint, currentTime xtime.UnixNano, delta time.Duration, value float64) ([]ts.Datapoint, xtime.UnixNano) {
+	res = append(res, ts.Datapoint{TimestampNanos: currentTime, Value: value})
+	currentTime = currentTime.Add(delta)
+
+	return res, currentTime
 }
