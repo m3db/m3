@@ -243,6 +243,7 @@ func (agg *aggregator) AddUntimed(
 		}
 	}
 	sw := agg.metrics.addUntimed.SuccessLatencyStopwatch()
+	agg.updateStagedMetadatas(metadatas)
 	if err := agg.checkMetricType(union); err != nil {
 		agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
 		return err
@@ -286,6 +287,7 @@ func (agg *aggregator) AddTimedWithStagedMetadatas(
 	metas metadata.StagedMetadatas,
 ) error {
 	sw := agg.metrics.addTimed.SuccessLatencyStopwatch()
+	agg.updateStagedMetadatas(metas)
 	agg.metrics.timed.Inc(1)
 	shard, err := agg.shardFor(metric.ID)
 	if err != nil {
@@ -299,6 +301,16 @@ func (agg *aggregator) AddTimedWithStagedMetadatas(
 	agg.metrics.addTimed.ReportSuccess()
 	sw.Stop()
 	return nil
+}
+
+func (agg *aggregator) updateStagedMetadatas(sms metadata.StagedMetadatas) {
+	for s := range sms {
+		for p := range sms[s].Pipelines {
+			if agg.opts.AddToReset() {
+				sms[s].Pipelines[p].Pipeline = sms[s].Pipelines[p].Pipeline.WithResets()
+			}
+		}
+	}
 }
 
 func (agg *aggregator) AddForwarded(
