@@ -30,6 +30,7 @@ import (
 	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/x/headers"
 )
@@ -133,20 +134,16 @@ func classifyRequest(
 		tags = newClassificationTags()
 	)
 
-	if opts.Metrics.ParseQueryParams == nil {
-		metrics.notClassifiable.Inc(1)
-		return tags
-	}
-	params, err := opts.Metrics.ParseQueryParams(r, requestStart)
-	if err != nil {
-		metrics.badParams.Inc(1)
-		return tags
-	}
-
 	// NB(nate): have to check for /label/*/values this way since the URL is templated
 	labelValues := strings.Contains(path, "/label/") && strings.Contains(path, "/values")
 	if path == route.QueryRangeURL || path == route.QueryURL {
-		if params.Query == "" {
+		if opts.Metrics.ParseQueryParams == nil {
+			metrics.notClassifiable.Inc(1)
+			return tags
+		}
+
+		params, err := opts.Metrics.ParseQueryParams(r, requestStart)
+		if err != nil || params.Query == "" {
 			metrics.badParams.Inc(1)
 			return tags
 		}
@@ -158,8 +155,13 @@ func classifyRequest(
 			return tags
 		}
 	} else if path == route.LabelNamesURL || labelValues {
+		start, end, err := prometheus.ParseStartAndEnd(r, opts.Metrics.ParseOptions)
+		if err != nil {
+			metrics.badParams.Inc(1)
+			return tags
+		}
 		if tags, err = classifyForLabelEndpoints(
-			cfg.LabelEndpointsClassification, params, w, metrics,
+			cfg.LabelEndpointsClassification, start, end, w, metrics,
 		); err != nil {
 			metrics.error.Inc(1)
 			return tags
@@ -218,7 +220,8 @@ func classifyForQueryEndpoints(
 
 func classifyForLabelEndpoints(
 	cfg config.QueryClassificationConfig,
-	params QueryParams,
+	start time.Time,
+	end time.Time,
 	w http.ResponseWriter,
 	metrics *classificationMetrics,
 ) (classificationTags, error) {
@@ -242,7 +245,7 @@ func classifyForLabelEndpoints(
 
 	durationBuckets := cfg.DurationBuckets
 	if len(durationBuckets) > 0 {
-		duration := params.Range()
+		duration := end.Sub(start)
 		tags[durationClassification] = durationBuckets[0].String()
 		for _, bucket := range durationBuckets {
 			if duration >= bucket {

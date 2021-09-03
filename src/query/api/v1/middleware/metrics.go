@@ -30,6 +30,7 @@ import (
 	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/http"
 	"github.com/m3db/m3/src/x/instrument"
@@ -50,6 +51,7 @@ var histogramTimerOptions = instrument.NewHistogramTimerOptions(
 type MetricsOptions struct {
 	Config           config.MetricsMiddlewareConfiguration
 	ParseQueryParams ParseQueryParams
+	ParseOptions     promql.ParseOptions
 }
 
 // ResponseMetrics records metrics for the http response.
@@ -87,7 +89,11 @@ func ResponseMetrics(opts Options) mux.MiddlewareFunc {
 			m := custom.getOrCreate(metricsType)
 			classificationMetrics := m.classification
 			metrics := m.route
-			tags := classifyRequest(w, r, classificationMetrics, opts, start, path)
+
+			var tags classificationTags
+			if cfg.LabelEndpointsClassification.Enabled() || cfg.QueryEndpointsClassification.Enabled() {
+				tags = classifyRequest(w, r, classificationMetrics, opts, start, path)
+			}
 
 			addLatencyStatus := false
 			if cfg.AddStatusToLatencies {

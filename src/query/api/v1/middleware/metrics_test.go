@@ -33,6 +33,7 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/route"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/tallytest"
@@ -63,11 +64,9 @@ func TestResponseMetrics(t *testing.T) {
 
 	snapshot := scope.Snapshot()
 	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
-		"path":                 "/test",
-		"status":               "200",
-		"type":                 "coordinator",
-		resultsClassification:  "unclassified",
-		durationClassification: "unclassified",
+		"path":   "/test",
+		"status": "200",
+		"type":   "coordinator",
 	})
 
 	hist := snapshot.Histograms()
@@ -75,10 +74,8 @@ func TestResponseMetrics(t *testing.T) {
 	for _, h := range hist {
 		require.Equal(t, "latency", h.Name())
 		require.Equal(t, map[string]string{
-			"path":                 "/test",
-			"type":                 "coordinator",
-			resultsClassification:  "unclassified",
-			durationClassification: "unclassified",
+			"path": "/test",
+			"type": "coordinator",
 		}, h.Tags())
 	}
 }
@@ -109,11 +106,9 @@ func TestResponseMetricsCustomMetricType(t *testing.T) {
 
 	snapshot := scope.Snapshot()
 	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
-		"path":                 "/test",
-		"status":               "200",
-		"type":                 "foo",
-		resultsClassification:  "unclassified",
-		durationClassification: "unclassified",
+		"path":   "/test",
+		"status": "200",
+		"type":   "foo",
 	})
 
 	hist := snapshot.Histograms()
@@ -121,10 +116,8 @@ func TestResponseMetricsCustomMetricType(t *testing.T) {
 	for _, h := range hist {
 		require.Equal(t, "latency", h.Name())
 		require.Equal(t, map[string]string{
-			"path":                 "/test",
-			"type":                 "foo",
-			resultsClassification:  "unclassified",
-			durationClassification: "unclassified",
+			"path": "/test",
+			"type": "foo",
 		}, h.Tags())
 	}
 }
@@ -379,7 +372,7 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 }
 
 func TestRequestClassificationByEndpoints(t *testing.T) {
-	config := config.MetricsMiddlewareConfiguration{
+	defaultConfig := config.MetricsMiddlewareConfiguration{
 		QueryEndpointsClassification: config.QueryClassificationConfig{
 			ResultsBuckets:  []int{1, 10, 100, 1000},
 			DurationBuckets: []time.Duration{1 * time.Minute, 10 * time.Minute, 100 * time.Minute},
@@ -392,55 +385,77 @@ func TestRequestClassificationByEndpoints(t *testing.T) {
 	tests := []struct {
 		name             string
 		path             string
+		config           config.MetricsMiddlewareConfiguration
 		isQueryEndpoint  bool
 		query            string
-		fetchedValue     string
-		expectedValue    string
+		fetchedResult    string
+		expectedResult   string
 		expectedDuration string
 	}{
 		{
 			name:             "query_range",
 			path:             route.QueryRangeURL,
+			config:           defaultConfig,
 			isQueryEndpoint:  true,
 			query:            "query=sum(rate(coordinator_http_handler_http_handler_request[1m]))&start=1&end=660",
-			fetchedValue:     "25",
-			expectedValue:    "10",
+			fetchedResult:    "25",
+			expectedResult:   "10",
 			expectedDuration: "10m0s",
 		},
 		{
 			name:             "query",
 			path:             route.QueryURL,
+			config:           defaultConfig,
 			isQueryEndpoint:  true,
 			query:            "query=sum(rate(coordinator_http_handler_http_handler_request[1m]))&time=1630611461",
-			fetchedValue:     "1",
-			expectedValue:    "1",
+			fetchedResult:    "1",
+			expectedResult:   "1",
 			expectedDuration: "1m0s",
 		},
 		{
 			name:             "label_values",
 			path:             route.Prefix + "/label/__name__/values",
+			config:           defaultConfig,
 			isQueryEndpoint:  false,
 			query:            "start=0&end=1800",
-			fetchedValue:     "30000",
-			expectedValue:    "2000",
+			fetchedResult:    "30000",
+			expectedResult:   "2000",
 			expectedDuration: "20m0s",
+		},
+		{
+			name:             "label_values -- max time",
+			path:             route.Prefix + "/label/__name__/values",
+			config:           defaultConfig,
+			isQueryEndpoint:  false,
+			fetchedResult:    "30000",
+			expectedResult:   "2000",
+			expectedDuration: "3h20m0s",
 		},
 		{
 			name:             "label_names",
 			path:             route.LabelNamesURL,
+			config:           defaultConfig,
 			isQueryEndpoint:  false,
 			query:            "start=0&end=21600",
-			fetchedValue:     "300",
-			expectedValue:    "200",
+			fetchedResult:    "300",
+			expectedResult:   "200",
 			expectedDuration: "3h20m0s",
 		},
 		{
 			name:             "non-classifiable endpoint",
 			path:             "/foo",
+			config:           defaultConfig,
 			isQueryEndpoint:  false,
 			query:            "start=0&end=21600",
-			expectedValue:    "unclassified",
+			expectedResult:   "unclassified",
 			expectedDuration: "unclassified",
+		},
+		{
+			name:            "disabled",
+			path:            "/foo",
+			config:          config.MetricsMiddlewareConfiguration{},
+			isQueryEndpoint: false,
+			query:           "start=0&end=21600",
 		},
 	}
 
@@ -455,16 +470,19 @@ func TestRequestClassificationByEndpoints(t *testing.T) {
 				InstrumentOpts: iOpts,
 				Route:          route,
 				Metrics: MetricsOptions{
-					Config:           config,
+					Config:           tt.config,
 					ParseQueryParams: parseQueryParams,
+					ParseOptions: promql.NewParseOptions().
+						SetRequireStartEndTime(false).
+						SetNowFn(time.Now),
 				},
 			}
 
 			h := ResponseMetrics(opts).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if tt.isQueryEndpoint {
-					w.Header().Add(headers.FetchedSeriesCount, tt.fetchedValue)
+					w.Header().Add(headers.FetchedSeriesCount, tt.fetchedResult)
 				} else {
-					w.Header().Add(headers.FetchedMetadataCount, tt.fetchedValue)
+					w.Header().Add(headers.FetchedMetadataCount, tt.fetchedResult)
 				}
 				w.WriteHeader(200)
 			}))
@@ -483,8 +501,14 @@ func TestRequestClassificationByEndpoints(t *testing.T) {
 				"path":                 tt.path,
 				"status":               "200",
 				"type":                 "coordinator",
-				resultsClassification:  tt.expectedValue,
+				resultsClassification:  tt.expectedResult,
 				durationClassification: tt.expectedDuration,
+			}
+			if tt.expectedResult == "" {
+				delete(tags, resultsClassification)
+			}
+			if tt.expectedDuration == "" {
+				delete(tags, durationClassification)
 			}
 			tallytest.AssertCounterValue(t, 1, snapshot, "request", tags)
 
@@ -494,7 +518,7 @@ func TestRequestClassificationByEndpoints(t *testing.T) {
 			for _, hist = range snapshot.Histograms() {
 			}
 
-			if !config.AddStatusToLatencies {
+			if !tt.config.AddStatusToLatencies {
 				delete(tags, "status")
 			}
 			require.Equal(t, tags, hist.Tags())

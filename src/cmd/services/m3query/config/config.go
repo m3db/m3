@@ -535,6 +535,11 @@ type QueryClassificationConfig struct {
 	DurationBuckets []time.Duration `yaml:"durationBuckets"`
 }
 
+// Enabled returns true if classification buckets were specified.
+func (q *QueryClassificationConfig) Enabled() bool {
+	return len(q.DurationBuckets) > 0 || len(q.ResultsBuckets) > 0
+}
+
 // PrometheusMiddlewareConfiguration configures the range rewriting middleware.
 type PrometheusMiddlewareConfiguration struct {
 	// ResolutionMultiplier is the multiple that will be applied to the range if it's determined
