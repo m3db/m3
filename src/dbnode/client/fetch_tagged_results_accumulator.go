@@ -162,8 +162,9 @@ func (accum *fetchTaggedResultAccumulator) accumulatedResult(
 
 	accum.numHostsPending--
 
+	ignoreErr := false
 	if strings.Contains(resultErr.Error(), "query exceeded limit") {
-		resultErr = nil
+		ignoreErr = true
 	}
 	if resultErr != nil {
 		accum.errors = append(accum.errors, xerrors.NewRenamedError(resultErr,
@@ -186,7 +187,7 @@ func (accum *fetchTaggedResultAccumulator) accumulatedResult(
 			// a shard that's not available if we tracked response pairs from
 			// a LEAVING+INITIALIZING shard; this would help during node replaces.
 			shardResult.errors++
-		} else if resultErr == nil {
+		} else if resultErr == nil || ignoreErr {
 			shardResult.success++
 		} else {
 			shardResult.errors++
@@ -211,7 +212,7 @@ func (accum *fetchTaggedResultAccumulator) accumulatedResult(
 	// success case, sufficient responses for each shard
 	if accum.numShardsPending == 0 {
 		doneAccumulating := true
-		return doneAccumulating, nil
+		return doneAccumulating, resultErr
 	}
 
 	// failure case - we've received all responses but still weren't able to satisfy
