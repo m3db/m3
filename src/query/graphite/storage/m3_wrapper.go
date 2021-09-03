@@ -29,6 +29,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/query/block"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
@@ -42,8 +44,6 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"go.uber.org/zap"
 )
 
 var errSeriesNoResolution = errors.New("series has no resolution set")
@@ -452,9 +452,12 @@ func (s *m3WrappedStore) FetchByQuery(
 		defer cancel()
 	}
 
-	fetchOptions := storage.NewFetchOptions()
-	fetchOptions.SeriesLimit = fetchOpts.Limit
-	fetchOptions.Source = fetchOpts.Source
+	var fetchOptions *storage.FetchOptions
+	if fetchOpts.QueryFetchOpts != nil {
+		fetchOptions = fetchOpts.QueryFetchOpts.Clone()
+	} else {
+		fetchOptions = storage.NewFetchOptions()
+	}
 
 	// NB: ensure single block return.
 	fetchOptions.BlockType = models.TypeSingleBlock

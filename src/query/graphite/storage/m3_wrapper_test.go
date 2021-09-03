@@ -234,6 +234,7 @@ func TestFetchByQuery(t *testing.T) {
 		DataOptions: DataOptions{
 			Timeout: time.Minute,
 		},
+		QueryFetchOpts: storage.NewFetchOptions(),
 	}
 
 	query := "a*b"

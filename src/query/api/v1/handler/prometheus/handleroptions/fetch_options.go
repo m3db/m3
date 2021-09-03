@@ -321,7 +321,12 @@ func (b fetchOptionsBuilder) newFetchOptions(
 
 	fetchOpts.RequireNoWait = requireNoWait
 
+	var (
+		metricsTypeHeaderFound          bool
+		metricsStoragePolicyHeaderFound bool
+	)
 	if str := req.Header.Get(headers.MetricsTypeHeader); str != "" {
+		metricsTypeHeaderFound = true
 		mt, err := storagemetadata.ParseMetricsType(str)
 		if err != nil {
 			err = fmt.Errorf(
@@ -336,6 +341,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	}
 
 	if str := req.Header.Get(headers.MetricsStoragePolicyHeader); str != "" {
+		metricsStoragePolicyHeaderFound = true
 		sp, err := policy.ParseStoragePolicy(str)
 		if err != nil {
 			err = fmt.Errorf(
@@ -347,6 +353,42 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		fetchOpts.RestrictQueryOptions.RestrictByType =
 			newOrExistingRestrictQueryOptionsRestrictByType(fetchOpts)
 		fetchOpts.RestrictQueryOptions.RestrictByType.StoragePolicy = sp
+	}
+
+	if str := req.Header.Get(headers.MetricsRestrictByPoliciesHeader); str != "" {
+		if metricsTypeHeaderFound || metricsStoragePolicyHeaderFound {
+			err = fmt.Errorf(
+				"restrict by policies is incompatible with M3-Metrics-Type and M3-Storage-Policy headers")
+			return nil, nil, err
+		}
+		policyStrs := strings.Split(str, ";")
+		if len(policyStrs) == 0 {
+			err = fmt.Errorf(
+				"no policies specified with restrict by policies header")
+			return nil, nil, err
+		}
+		restrictByTypes := make([]*storage.RestrictByType, 0, len(policyStrs))
+		for _, policyStr := range policyStrs {
+			sp, err := policy.ParseStoragePolicy(policyStr)
+			if err != nil {
+				err = fmt.Errorf(
+					"could not parse storage policy: input=%s, err=%w", str, err)
+				return nil, nil, err
+			}
+			restrictByTypes = append(
+				restrictByTypes,
+				&storage.RestrictByType{
+					MetricsType:   storagemetadata.AggregatedMetricsType,
+					StoragePolicy: sp,
+				})
+		}
+
+		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
+		fetchOpts.RestrictQueryOptions.RestrictByTypes =
+			newOrExistingRestrictQueryOptionsRestrictByTypes(fetchOpts)
+		fetchOpts.RestrictQueryOptions.RestrictByTypes = append(
+			fetchOpts.RestrictQueryOptions.RestrictByTypes, restrictByTypes...,
+		)
 	}
 
 	if str := req.Header.Get(headers.RestrictByTagsJSONHeader); str != "" {
@@ -420,6 +462,15 @@ func newOrExistingRestrictQueryOptionsRestrictByType(
 		return v
 	}
 	return &storage.RestrictByType{}
+}
+
+func newOrExistingRestrictQueryOptionsRestrictByTypes(
+	fetchOpts *storage.FetchOptions,
+) []*storage.RestrictByType {
+	if v := fetchOpts.RestrictQueryOptions.RestrictByTypes; v != nil {
+		return v
+	}
+	return make([]*storage.RestrictByType, 0)
 }
 
 // contextWithRequestAndTimeout sets up a context with the request's context
