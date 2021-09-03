@@ -224,9 +224,9 @@ func (agg *aggregator) AddUntimed(
 	metadatas metadata.StagedMetadatas,
 ) error {
 	if agg.opts.TimedForResendEnabled() {
-		for _, m := range metadatas {
-			for _, p := range m.Pipelines {
-				if p.ResendEnabled {
+		for m := range metadatas {
+			for p := range metadatas[m].Pipelines {
+				if metadatas[m].Pipelines[p].ResendEnabled {
 					if union.Type != metric.GaugeType {
 						return fmt.Errorf("cannot convert a %s to a timed metric", union.Type)
 					}
