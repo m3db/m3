@@ -44,7 +44,7 @@ import (
 
 const (
 	// ListTagsURL is the url for listing tags.
-	ListTagsURL = route.Prefix + "/labels"
+	ListTagsURL = route.LabelNamesURL
 )
 
 // ListTagsHTTPMethods are the HTTP methods for this handler.

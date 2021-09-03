@@ -257,7 +257,7 @@ func TestTagValueTimeout(t *testing.T) {
 	h := NewTagValuesHandler(storageSetup(t, ctrl, 1*time.Millisecond, expectTimeout))
 	router := mux.NewRouter()
 	router.HandleFunc(
-		fmt.Sprintf("%s/label/{%s}/values", route.Prefix, NameReplace),
+		fmt.Sprintf("%s/label/{%s}/values", route.Prefix, route.NameReplace),
 		h.ServeHTTP,
 	)
 	router.ServeHTTP(w, req)
@@ -278,7 +278,7 @@ func TestTagValueUseRequestContext(t *testing.T) {
 	h := NewTagValuesHandler(storageSetup(t, ctrl, 15*time.Second, expectCancellation))
 	router := mux.NewRouter()
 	router.HandleFunc(
-		fmt.Sprintf("%s/label/{%s}/values", route.Prefix, NameReplace),
+		fmt.Sprintf("%s/label/{%s}/values", route.Prefix, route.NameReplace),
 		h.ServeHTTP,
 	)
 	router.ServeHTTP(w, req)
