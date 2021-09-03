@@ -34,7 +34,11 @@ func (o *RestrictQueryOptions) Validate() error {
 	if o.RestrictByType != nil {
 		return o.RestrictByType.Validate()
 	}
-
+	for _, r := range o.RestrictByTypes {
+		if err := r.Validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -45,6 +49,15 @@ func (o *RestrictQueryOptions) GetRestrictByType() *RestrictByType {
 	}
 
 	return o.RestrictByType
+}
+
+// GetRestrictByTypes provides the types restrictions if present; nil otherwise.
+func (o *RestrictQueryOptions) GetRestrictByTypes() []*RestrictByType {
+	if o == nil {
+		return nil
+	}
+
+	return o.RestrictByTypes
 }
 
 // GetRestrictByTag provides the tag restrictions if present; nil otherwise.

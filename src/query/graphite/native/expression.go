@@ -117,9 +117,8 @@ func (f *fetchExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 		EndTime:   ctx.EndTime,
 		DataOptions: storage.DataOptions{
 			Timeout: ctx.Timeout,
-			Limit:   ctx.Limit,
 		},
-		Source: ctx.Source,
+		QueryFetchOpts: ctx.FetchOpts,
 	}
 
 	result, err := ctx.Engine.FetchByQuery(ctx, f.pathArg.path, opts)
