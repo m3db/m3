@@ -70,6 +70,12 @@ var (
 		ID:         []byte("foo"),
 		CounterVal: 1234,
 	}
+	testUntimedGauge = unaggregated.MetricUnion{
+		Type:            metric.GaugeType,
+		ID:              []byte("foo"),
+		GaugeVal:        1234,
+		ClientTimeNanos: xtime.Now(),
+	}
 	testTimedMetric = aggregated.Metric{
 		Type:      metric.CounterType,
 		ID:        []byte("testTimed"),
@@ -408,6 +414,26 @@ func TestAggregatorAddUntimedSuccessNoPlacementUpdate(t *testing.T) {
 	err := agg.AddUntimed(testUntimedMetric, testStagedMetadatas)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(agg.shards[1].metricMap.entries))
+}
+
+func TestAggregatorAddUntimedToTimed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
+	agg.opts = agg.opts.SetTimedForResendEnabled(true)
+	testStagedMetadatas[0].Pipelines[0].ResendEnabled = true
+	require.NoError(t, agg.Open())
+	agg.shardFn = func([]byte, uint32) uint32 { return 1 }
+	err := agg.AddUntimed(testUntimedGauge, testStagedMetadatas)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(agg.shards[1].metricMap.entries))
+	for _, v := range agg.shards[1].metricMap.entries {
+		entry := v.Value.(hashedEntry).entry
+		for _, l := range entry.lists.lists {
+			require.IsType(t, &timedMetricList{}, l)
+		}
+	}
 }
 
 func TestAggregatorAddUntimedSuccessWithPlacementUpdate(t *testing.T) {

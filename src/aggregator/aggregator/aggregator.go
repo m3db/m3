@@ -23,6 +23,7 @@ package aggregator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"strconv"
 	"sync"
@@ -219,21 +220,40 @@ func (agg *aggregator) placementTick() {
 }
 
 func (agg *aggregator) AddUntimed(
-	metric unaggregated.MetricUnion,
+	union unaggregated.MetricUnion,
 	metadatas metadata.StagedMetadatas,
 ) error {
+	if agg.opts.TimedForResendEnabled() {
+		for m := range metadatas {
+			for p := range metadatas[m].Pipelines {
+				if metadatas[m].Pipelines[p].ResendEnabled {
+					if union.Type != metric.GaugeType {
+						return fmt.Errorf("cannot convert a %s to a timed metric", union.Type)
+					}
+					timedMetric := aggregated.Metric{
+						Type:       metric.GaugeType,
+						ID:         union.ID,
+						TimeNanos:  int64(union.ClientTimeNanos),
+						Value:      union.GaugeVal,
+						Annotation: union.Annotation,
+					}
+					return agg.AddTimedWithStagedMetadatas(timedMetric, metadatas)
+				}
+			}
+		}
+	}
 	sw := agg.metrics.addUntimed.SuccessLatencyStopwatch()
 	agg.updateStagedMetadatas(metadatas)
-	if err := agg.checkMetricType(metric); err != nil {
+	if err := agg.checkMetricType(union); err != nil {
 		agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
 		return err
 	}
-	shard, err := agg.shardFor(metric.ID)
+	shard, err := agg.shardFor(union.ID)
 	if err != nil {
 		agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
 		return err
 	}
-	if err = shard.AddUntimed(metric, metadatas); err != nil {
+	if err = shard.AddUntimed(union, metadatas); err != nil {
 		agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
 		return err
 	}

@@ -48,14 +48,16 @@ type samplesAppender struct {
 // Ensure samplesAppender implements SamplesAppender.
 var _ SamplesAppender = (*samplesAppender)(nil)
 
-func (a samplesAppender) AppendUntimedCounterSample(value int64, annotation []byte) error {
+// nolint:dupl
+func (a samplesAppender) AppendUntimedCounterSample(t xtime.UnixNano, value int64, annotation []byte) error {
 	a.emitMetrics()
 	if a.clientRemote != nil {
 		// Remote client write instead of local aggregation.
 		sample := unaggregated.Counter{
-			ID:         a.unownedID,
-			Value:      value,
-			Annotation: annotation,
+			ID:              a.unownedID,
+			Value:           value,
+			Annotation:      annotation,
+			ClientTimeNanos: t,
 		}
 		return a.clientRemote.WriteUntimedCounter(sample, a.stagedMetadatas)
 	}
@@ -69,14 +71,16 @@ func (a samplesAppender) AppendUntimedCounterSample(value int64, annotation []by
 	return a.agg.AddUntimed(sample, a.stagedMetadatas)
 }
 
-func (a samplesAppender) AppendUntimedGaugeSample(value float64, annotation []byte) error {
+// nolint:dupl
+func (a samplesAppender) AppendUntimedGaugeSample(t xtime.UnixNano, value float64, annotation []byte) error {
 	a.emitMetrics()
 	if a.clientRemote != nil {
 		// Remote client write instead of local aggregation.
 		sample := unaggregated.Gauge{
-			ID:         a.unownedID,
-			Value:      value,
-			Annotation: annotation,
+			ID:              a.unownedID,
+			Value:           value,
+			Annotation:      annotation,
+			ClientTimeNanos: t,
 		}
 		return a.clientRemote.WriteUntimedGauge(sample, a.stagedMetadatas)
 	}
@@ -90,14 +94,15 @@ func (a samplesAppender) AppendUntimedGaugeSample(value float64, annotation []by
 	return a.agg.AddUntimed(sample, a.stagedMetadatas)
 }
 
-func (a samplesAppender) AppendUntimedTimerSample(value float64, annotation []byte) error {
+func (a samplesAppender) AppendUntimedTimerSample(t xtime.UnixNano, value float64, annotation []byte) error {
 	a.emitMetrics()
 	if a.clientRemote != nil {
 		// Remote client write instead of local aggregation.
 		sample := unaggregated.BatchTimer{
-			ID:         a.unownedID,
-			Values:     []float64{value},
-			Annotation: annotation,
+			ID:              a.unownedID,
+			Values:          []float64{value},
+			Annotation:      annotation,
+			ClientTimeNanos: t,
 		}
 		return a.clientRemote.WriteUntimedBatchTimer(sample, a.stagedMetadatas)
 	}
@@ -201,26 +206,26 @@ func (a *multiSamplesAppender) addSamplesAppender(v samplesAppender) {
 	a.appenders = append(a.appenders, v)
 }
 
-func (a *multiSamplesAppender) AppendUntimedCounterSample(value int64, annotation []byte) error {
+func (a *multiSamplesAppender) AppendUntimedCounterSample(t xtime.UnixNano, value int64, annotation []byte) error {
 	var multiErr xerrors.MultiError
 	for _, appender := range a.appenders {
-		multiErr = multiErr.Add(appender.AppendUntimedCounterSample(value, annotation))
+		multiErr = multiErr.Add(appender.AppendUntimedCounterSample(t, value, annotation))
 	}
 	return multiErr.LastError()
 }
 
-func (a *multiSamplesAppender) AppendUntimedGaugeSample(value float64, annotation []byte) error {
+func (a *multiSamplesAppender) AppendUntimedGaugeSample(t xtime.UnixNano, value float64, annotation []byte) error {
 	var multiErr xerrors.MultiError
 	for _, appender := range a.appenders {
-		multiErr = multiErr.Add(appender.AppendUntimedGaugeSample(value, annotation))
+		multiErr = multiErr.Add(appender.AppendUntimedGaugeSample(t, value, annotation))
 	}
 	return multiErr.LastError()
 }
 
-func (a *multiSamplesAppender) AppendUntimedTimerSample(value float64, annotation []byte) error {
+func (a *multiSamplesAppender) AppendUntimedTimerSample(t xtime.UnixNano, value float64, annotation []byte) error {
 	var multiErr xerrors.MultiError
 	for _, appender := range a.appenders {
-		multiErr = multiErr.Add(appender.AppendUntimedTimerSample(value, annotation))
+		multiErr = multiErr.Add(appender.AppendUntimedTimerSample(t, value, annotation))
 	}
 	return multiErr.LastError()
 }
