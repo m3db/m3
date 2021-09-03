@@ -38,6 +38,8 @@ func testClient(t *testing.T, ctrl *gomock.Controller) Client {
 	assert.NoError(t, err)
 	assert.NotNil(t, client)
 
+	s, _ := client.NewSession()
+	s.FetchTaggedIDs()
 	return client
 }
 

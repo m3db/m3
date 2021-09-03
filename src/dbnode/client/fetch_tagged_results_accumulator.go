@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -160,6 +161,10 @@ func (accum *fetchTaggedResultAccumulator) accumulatedResult(
 	}
 
 	accum.numHostsPending--
+
+	if strings.Contains(resultErr.Error(), "query exceeded limit") {
+		resultErr = nil
+	}
 	if resultErr != nil {
 		accum.errors = append(accum.errors, xerrors.NewRenamedError(resultErr,
 			fmt.Errorf("error fetching tagged from host %s: %v", host.ID(), resultErr)))
