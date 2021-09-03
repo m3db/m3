@@ -188,6 +188,9 @@ func classifyForQueryEndpoints(
 	tags := newClassificationTags()
 	if len(resultsBuckets) > 0 {
 		fetchedCount := w.Header().Get(headers.FetchedSeriesCount)
+		if fetchedCount == "" {
+			fetchedCount = "0"
+		}
 		fetched, err := strconv.Atoi(fetchedCount)
 		if err != nil {
 			return newClassificationTags(), err
@@ -236,6 +239,9 @@ func classifyForLabelEndpoints(
 	tags := newClassificationTags()
 	if len(resultsBuckets) > 0 {
 		fetchedCount := w.Header().Get(headers.FetchedMetadataCount)
+		if fetchedCount == "" {
+			fetchedCount = "0"
+		}
 		fetched, err := strconv.Atoi(fetchedCount)
 		if err != nil {
 			return newClassificationTags(), err

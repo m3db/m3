@@ -403,6 +403,16 @@ func TestRequestClassificationByEndpoints(t *testing.T) {
 			expectedDuration: "10m0s",
 		},
 		{
+			name:             "query_range - no results",
+			path:             route.QueryRangeURL,
+			config:           defaultConfig,
+			isQueryEndpoint:  true,
+			query:            "query=sum(rate(coordinator_http_handler_http_handler_request[1m]))&start=1&end=660",
+			fetchedResult:    "",
+			expectedResult:   "1",
+			expectedDuration: "10m0s",
+		},
+		{
 			name:             "query",
 			path:             route.QueryURL,
 			config:           defaultConfig,
@@ -439,6 +449,16 @@ func TestRequestClassificationByEndpoints(t *testing.T) {
 			query:            "start=0&end=21600",
 			fetchedResult:    "300",
 			expectedResult:   "200",
+			expectedDuration: "3h20m0s",
+		},
+		{
+			name:             "label_names - no results",
+			path:             route.LabelNamesURL,
+			config:           defaultConfig,
+			isQueryEndpoint:  false,
+			query:            "start=0&end=21600",
+			fetchedResult:    "",
+			expectedResult:   "2",
 			expectedDuration: "3h20m0s",
 		},
 		{
