@@ -243,37 +243,37 @@ func TestFetchOptionsBuilder(t *testing.T) {
 		{
 			name: "restrict by policies with metrics type",
 			headers: map[string]string{
-				headers.MetricsTypeHeader:               "aggregated",
-				headers.MetricsRestrictByPoliciesHeader: "10m:60d",
+				headers.MetricsTypeHeader:                      "aggregated",
+				headers.MetricsRestrictByStoragePoliciesHeader: "10m:60d",
 			},
 			expectedErr: true,
 		},
 		{
 			name: "restrict by policies with storage policy",
 			headers: map[string]string{
-				headers.MetricsStoragePolicyHeader:      "10m:60d",
-				headers.MetricsRestrictByPoliciesHeader: "10m:60d",
+				headers.MetricsStoragePolicyHeader:             "10m:60d",
+				headers.MetricsRestrictByStoragePoliciesHeader: "10m:60d",
 			},
 			expectedErr: true,
 		},
 		{
 			name: "restrict by policies - invalid policy",
 			headers: map[string]string{
-				headers.MetricsRestrictByPoliciesHeader: "10m",
+				headers.MetricsRestrictByStoragePoliciesHeader: "10m",
 			},
 			expectedErr: true,
 		},
 		{
 			name: "restrict by policies - invalid delimiter",
 			headers: map[string]string{
-				headers.MetricsRestrictByPoliciesHeader: "10m:60d,5m:30d",
+				headers.MetricsRestrictByStoragePoliciesHeader: "10m:60d,5m:30d",
 			},
 			expectedErr: true,
 		},
 		{
 			name: "restrict by policies - single policy",
 			headers: map[string]string{
-				headers.MetricsRestrictByPoliciesHeader: "10m:60d",
+				headers.MetricsRestrictByStoragePoliciesHeader: "10m:60d",
 			},
 			expectedRestrict: &storage.RestrictQueryOptions{
 				RestrictByTypes: []*storage.RestrictByType{
@@ -287,7 +287,7 @@ func TestFetchOptionsBuilder(t *testing.T) {
 		{
 			name: "restrict by policies - multiple policy",
 			headers: map[string]string{
-				headers.MetricsRestrictByPoliciesHeader: "10m:60d;5m:30d",
+				headers.MetricsRestrictByStoragePoliciesHeader: "10m:60d;5m:30d",
 			},
 			expectedRestrict: &storage.RestrictQueryOptions{
 				RestrictByTypes: []*storage.RestrictByType{

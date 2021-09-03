@@ -355,7 +355,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		fetchOpts.RestrictQueryOptions.RestrictByType.StoragePolicy = sp
 	}
 
-	if str := req.Header.Get(headers.MetricsRestrictByPoliciesHeader); str != "" {
+	if str := req.Header.Get(headers.MetricsRestrictByStoragePoliciesHeader); str != "" {
 		if metricsTypeHeaderFound || metricsStoragePolicyHeaderFound {
 			err = fmt.Errorf(
 				"restrict by policies is incompatible with M3-Metrics-Type and M3-Storage-Policy headers")
@@ -364,7 +364,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		policyStrs := strings.Split(str, ";")
 		if len(policyStrs) == 0 {
 			err = fmt.Errorf(
-				"no policies specified with restrict by policies header")
+				"no policies specified with restrict by storage policies header")
 			return nil, nil, err
 		}
 		restrictByTypes := make([]*storage.RestrictByType, 0, len(policyStrs))
