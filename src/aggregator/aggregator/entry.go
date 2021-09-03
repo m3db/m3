@@ -646,9 +646,6 @@ func (e *Entry) updateStagedMetadatasWithLock(
 
 	// Update the metadatas.
 	for _, p := range sm.Pipelines {
-		if e.opts.AddToReset() {
-			p.Pipeline = p.Pipeline.WithResets()
-		}
 		storagePolicies := e.storagePolicies(p.StoragePolicies)
 		for j := range storagePolicies {
 			key := aggregationKey{
