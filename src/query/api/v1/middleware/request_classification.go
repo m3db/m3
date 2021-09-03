@@ -28,6 +28,7 @@ import (
 
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -151,6 +152,9 @@ func classifyRequest(
 		if tags, err = classifyForQueryEndpoints(
 			cfg.QueryEndpointsClassification, params, w, metrics,
 		); err != nil {
+			opts.InstrumentOpts.Logger().Error(
+				"failed to classify query endpoint request", zap.Error(err),
+			)
 			metrics.error.Inc(1)
 			return tags
 		}
@@ -163,6 +167,9 @@ func classifyRequest(
 		if tags, err = classifyForLabelEndpoints(
 			cfg.LabelEndpointsClassification, start, end, w, metrics,
 		); err != nil {
+			opts.InstrumentOpts.Logger().Error(
+				"failed to classify label endpoint request", zap.Error(err),
+			)
 			metrics.error.Inc(1)
 			return tags
 		}
