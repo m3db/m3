@@ -282,15 +282,15 @@ func (m *MetricUnion) Reset() { *m = emptyMetricUnion }
 
 // Counter returns the counter metric.
 func (m *MetricUnion) Counter() Counter {
-	return Counter{ID: m.ID, Value: m.CounterVal, Annotation: m.Annotation}
+	return Counter{ID: m.ID, Value: m.CounterVal, Annotation: m.Annotation, ClientTimeNanos: m.ClientTimeNanos}
 }
 
 // BatchTimer returns the batch timer metric.
 func (m *MetricUnion) BatchTimer() BatchTimer {
-	return BatchTimer{ID: m.ID, Values: m.BatchTimerVal, Annotation: m.Annotation}
+	return BatchTimer{ID: m.ID, Values: m.BatchTimerVal, Annotation: m.Annotation, ClientTimeNanos: m.ClientTimeNanos}
 }
 
 // Gauge returns the gauge metric.
 func (m *MetricUnion) Gauge() Gauge {
-	return Gauge{ID: m.ID, Value: m.GaugeVal, Annotation: m.Annotation}
+	return Gauge{ID: m.ID, Value: m.GaugeVal, Annotation: m.Annotation, ClientTimeNanos: m.ClientTimeNanos}
 }
