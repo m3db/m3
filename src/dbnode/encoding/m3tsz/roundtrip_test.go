@@ -131,7 +131,7 @@ func TestMostlyConstantValuesRoundTrip(t *testing.T) {
 	dps, currentTime = addDP(dps, currentTime, 2*time.Second, 4)
 	dps, currentTime = addDP(dps, currentTime, 3*time.Second, 4)
 	dps, currentTime = addDP(dps, currentTime, time.Second, 0)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 0)
+	dps, _ = addDP(dps, currentTime, time.Second, 0)
 
 	testRoundTrip(t, dps)
 }
@@ -322,7 +322,12 @@ func generateConstDatapoints(numPoints int, value float64) []ts.Datapoint {
 	return res
 }
 
-func addDP(res []ts.Datapoint, currentTime xtime.UnixNano, delta time.Duration, value float64) ([]ts.Datapoint, xtime.UnixNano) {
+func addDP(
+	res []ts.Datapoint,
+	currentTime xtime.UnixNano,
+	delta time.Duration,
+	value float64,
+) ([]ts.Datapoint, xtime.UnixNano) {
 	res = append(res, ts.Datapoint{TimestampNanos: currentTime, Value: value})
 	currentTime = currentTime.Add(delta)
 
