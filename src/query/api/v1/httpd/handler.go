@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
 	"github.com/m3db/m3/src/query/api/v1/middleware"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	xdebug "github.com/m3db/m3/src/x/debug"
 	extdebug "github.com/m3db/m3/src/x/debug/ext"
@@ -498,6 +499,9 @@ func (h *Handler) RegisterRoutes() error {
 			Logging:        middleware.NewLoggingOptions(h.middlewareConfig.Logging),
 			Metrics: middleware.MetricsOptions{
 				Config: h.middlewareConfig.Metrics,
+				ParseOptions: promql.NewParseOptions().
+					SetRequireStartEndTime(h.options.Config().Query.RequireLabelsEndpointStartEndTime).
+					SetNowFn(h.options.NowFn()),
 			},
 			PrometheusRangeRewrite: middleware.PrometheusRangeRewriteOptions{
 				FetchOptionsBuilder:  h.options.FetchOptionsBuilder(),
