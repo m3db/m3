@@ -75,9 +75,6 @@ var (
 	// errDatabaseIsClosed raised when trying to perform an action that requires an open database.
 	errDatabaseIsClosed = errors.New("database is closed")
 
-	// errDatabaseNotBootstrapped raised when trying to perform an action that requires a bootstrapped database.
-	errDatabaseNotBootstrapped = errors.New("database is not bootstrapped")
-
 	// errWriterDoesNotImplementWriteBatch is raised when the provided ts.BatchWriter does not implement
 	// ts.WriteBatch.
 	errWriterDoesNotImplementWriteBatch = errors.New("provided writer does not implement ts.WriteBatch")
