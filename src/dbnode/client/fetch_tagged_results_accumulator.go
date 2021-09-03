@@ -163,7 +163,7 @@ func (accum *fetchTaggedResultAccumulator) accumulatedResult(
 	accum.numHostsPending--
 
 	ignoreErr := false
-	if strings.Contains(resultErr.Error(), "query exceeded limit") {
+	if resultErr != nil && strings.Contains(resultErr.Error(), "query exceeded limit") {
 		ignoreErr = true
 	}
 	if resultErr != nil {
