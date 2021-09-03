@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/metrics/transformation"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -232,6 +233,62 @@ func TestAggregatorOpenSuccess(t *testing.T) {
 	}
 	require.NotNil(t, agg.currPlacement)
 	require.Equal(t, int64(testPlacementCutover), agg.currPlacement.CutoverNanos())
+}
+
+func TestAggregatorUpdateStagedMetadatas(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cases := []struct {
+		name       string
+		addToReset bool
+	}{
+		{
+			name:       "enabled",
+			addToReset: true,
+		},
+		{
+			name:       "disabled",
+			addToReset: false,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			agg, _ := testAggregator(t, ctrl)
+			agg.opts = agg.opts.SetAddToReset(tc.addToReset)
+			require.NoError(t, agg.Open())
+			agg.shardFn = func([]byte, uint32) uint32 { return 1 }
+			sms := metadata.StagedMetadatas{
+				{
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type:           pipeline.TransformationOpType,
+										Transformation: pipeline.TransformationOp{Type: transformation.Add},
+									},
+								}),
+							},
+						},
+					},
+				},
+			}
+			err := agg.AddUntimed(testUntimedMetric, sms)
+			require.NoError(t, err)
+			require.Equal(t, 1, len(agg.shards[1].metricMap.entries))
+			for _, e := range agg.shards[1].metricMap.entries {
+				actual := e.Value.(hashedEntry).entry.aggregations[0].key.pipeline
+				if tc.addToReset {
+					require.Equal(t, transformation.Reset, actual.Operations[0].Transformation.Type)
+				} else {
+					require.Equal(t, transformation.Add, actual.Operations[0].Transformation.Type)
+				}
+			}
+		})
+	}
 }
 
 func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
