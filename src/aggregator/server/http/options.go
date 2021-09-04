@@ -64,7 +64,7 @@ func NewOptions() Options {
 	return &options{
 		readTimeout:  defaultReadTimeout,
 		writeTimeout: defaultWriteTimeout,
-		mux:          http.DefaultServeMux,
+		mux:          http.NewServeMux(),
 	}
 }
 
@@ -96,5 +96,4 @@ func (o *options) SetMux(value *http.ServeMux) Options {
 	opts := *o
 	opts.mux = value
 	return &opts
-
 }

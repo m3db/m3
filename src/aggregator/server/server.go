@@ -22,6 +22,7 @@ package server
 
 import (
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -96,7 +97,11 @@ func Run(opts RunOptions) {
 
 	xconfig.WarnOnDeprecation(cfg, logger)
 
-	scope, closer, err := cfg.Metrics.NewRootScope()
+	defaultServeMux := http.NewServeMux()
+	scope, closer, _, err := cfg.Metrics.NewRootScopeAndReporters(
+		instrument.NewRootScopeAndReportersOptions{
+			PrometheusDefaultServeMux: defaultServeMux,
+		})
 	if err != nil {
 		logger.Fatal("error creating metrics root scope", zap.Error(err))
 	}
@@ -148,7 +153,7 @@ func Run(opts RunOptions) {
 		// Create the http server options.
 		serverOptions = serverOptions.
 			SetHTTPAddr(cfg.HTTP.ListenAddress).
-			SetHTTPServerOpts(cfg.HTTP.NewServerOptions())
+			SetHTTPServerOpts(cfg.HTTP.NewServerOptions().SetMux(defaultServeMux))
 	}
 
 	for i, transform := range opts.AdminOptions {
