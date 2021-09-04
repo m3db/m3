@@ -264,7 +264,11 @@ func Run(runOpts RunOptions) {
 	go bgValidateProcessLimits(logger)
 	debug.SetGCPercent(cfg.GCPercentageOrDefault())
 
-	scope, _, err := cfg.MetricsOrDefault().NewRootScope()
+	defaultServeMux := http.NewServeMux()
+	scope, _, _, err := cfg.MetricsOrDefault().NewRootScopeAndReporters(
+		instrument.NewRootScopeAndReportersOptions{
+			PrometheusDefaultServeMux: defaultServeMux,
+		})
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
 	}
@@ -865,7 +869,7 @@ func Run(runOpts RunOptions) {
 			}
 		}
 
-		debugClose := startDebugServer(debugWriter, logger, debugListenAddress)
+		debugClose := startDebugServer(debugWriter, logger, debugListenAddress, defaultServeMux)
 		defer debugClose()
 	}
 
@@ -1106,8 +1110,8 @@ func startDebugServer(
 	debugWriter xdebug.ZipWriter,
 	logger *zap.Logger,
 	debugListenAddress string,
+	mux *http.ServeMux,
 ) func() {
-	mux := http.DefaultServeMux
 	server := http.Server{Addr: debugListenAddress, Handler: mux}
 
 	if debugWriter != nil {
