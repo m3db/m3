@@ -48,8 +48,6 @@ type Options interface {
 	Mux() *http.ServeMux
 
 	// SetMux sets the http mux for the server.
-	// This option exists to allow overriding in tests. Prod code should not set this and use the
-	// http.DefaultServerMux instead. std pkgs like pprof assume the default mux.
 	SetMux(value *http.ServeMux) Options
 }
 

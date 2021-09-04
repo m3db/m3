@@ -1112,6 +1112,7 @@ func startDebugServer(
 	debugListenAddress string,
 	mux *http.ServeMux,
 ) func() {
+	xdebug.RegisterPProfHandlers(mux)
 	server := http.Server{Addr: debugListenAddress, Handler: mux}
 
 	if debugWriter != nil {
