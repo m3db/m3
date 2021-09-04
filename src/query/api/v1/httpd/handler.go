@@ -574,7 +574,7 @@ func (h *Handler) registerHealthEndpoints() error {
 func (h *Handler) registerProfileEndpoints() error {
 	return h.registry.Register(queryhttp.RegisterOptions{
 		PathPrefix: "/debug/pprof",
-		Handler:    http.DefaultServeMux,
+		Handler:    http.NewServeMux(),
 	})
 }
 
