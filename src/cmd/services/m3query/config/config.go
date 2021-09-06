@@ -182,8 +182,9 @@ type Configuration struct {
 	// ResultOptions are the results options for query.
 	ResultOptions ResultOptions `yaml:"resultOptions"`
 
-	// Experimental is the configuration for the experimental API group.
-	Experimental ExperimentalAPIConfiguration `yaml:"experimental"`
+	// DeprecatedExperimental is the configuration for the experimental API group. It is not used anymore
+	// and only kept for backwards-support with older configuration files.
+	DeprecatedExperimental ExperimentalAPIConfiguration `yaml:"experimental"`
 
 	// StoreMetricsType controls if metrics type is stored or not.
 	StoreMetricsType *bool `yaml:"storeMetricsType"`
