@@ -2690,7 +2690,7 @@ func (s *dbShard) AggregateTiles(
 		// has been created. This will block until all leasers have relinquished their
 		// leases.
 		// NB: markWarmFlushStateSuccess=true because there are no flushes happening in this
-		// flow and we need to set WarmStatus to fileOpSuccess explicitly in order to make
+		// flow, and we need to set WarmStatus to fileOpSuccess explicitly in order to make
 		// the new blocks readable.
 		if err = s.finishWriting(opts.Start, nextVolume, true); err != nil {
 			multiErr = multiErr.Add(err)
