@@ -202,11 +202,6 @@ release-snapshot: check-for-goreleaser-github-token
 	@echo Creating snapshot release
 	make release GO_RELEASER_RELEASE_ARGS="--snapshot --rm-dist"
 
-# NB(schallert): if updating this target, be sure to update the commands used in
-# the .buildkite/docs_push.sh. We can't share the make targets because our
-# Makefile assumes its running under bash and the container is alpine (ash
-# shell).
-
 .PHONY: docs-build
 docs-build:
 	@HUGO_DOCKER=true ./scripts/site-build.sh
