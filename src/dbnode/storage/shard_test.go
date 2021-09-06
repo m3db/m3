@@ -1944,6 +1944,12 @@ func TestShardAggregateTiles(t *testing.T) {
 		ctx, sourceNs, targetNs, targetShard.ID(), noOpColdFlushNs, opts)
 	require.NoError(t, err)
 	assert.Equal(t, expectedProcessedTileCount, processedTileCount)
+
+	flushState, ok := targetShard.flushState.statesByTime[start]
+	require.True(t, ok)
+	assert.Equal(t, fileOpSuccess, flushState.WarmStatus.DataFlushed)
+	assert.Equal(t, fileOpSuccess, flushState.WarmStatus.IndexFlushed)
+	assert.Zero(t, flushState.NumFailures)
 }
 
 func TestOpenStreamingReader(t *testing.T) {
