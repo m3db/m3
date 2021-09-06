@@ -182,9 +182,6 @@ type Configuration struct {
 	// ResultOptions are the results options for query.
 	ResultOptions ResultOptions `yaml:"resultOptions"`
 
-	// Experimental is the configuration for the experimental API group.
-	Experimental ExperimentalAPIConfiguration `yaml:"experimental"`
-
 	// StoreMetricsType controls if metrics type is stored or not.
 	StoreMetricsType *bool `yaml:"storeMetricsType"`
 
@@ -834,11 +831,6 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 	opts = opts.SetAllowTagValueEmpty(cfg.AllowTagValueEmpty)
 
 	return opts, nil
-}
-
-// ExperimentalAPIConfiguration is the configuration for the experimental API group.
-type ExperimentalAPIConfiguration struct {
-	Enabled bool `yaml:"enabled"`
 }
 
 // MultiProcessConfiguration is the multi-process configuration which

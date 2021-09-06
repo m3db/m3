@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/cluster/placementhandler"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/experimental/annotated"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/database"
 	"github.com/m3db/m3/src/query/api/v1/handler/graphite"
@@ -68,8 +67,7 @@ var (
 	remoteSource = map[string]string{"source": "remote"}
 	nativeSource = map[string]string{"source": "native"}
 
-	v1APIGroup           = map[string]string{"api_group": "v1"}
-	experimentalAPIGroup = map[string]string{"api_group": "experimental"}
+	v1APIGroup = map[string]string{"api_group": "v1"}
 )
 
 // Handler represents the top-level HTTP handler.
@@ -419,24 +417,6 @@ func (h *Handler) RegisterRoutes() error {
 		err = topic.RegisterRoutes(h.registry, clusterClient, config, instrumentOpts)
 		if err != nil {
 			return err
-		}
-
-		// Experimental endpoints.
-		if config.Experimental.Enabled {
-			experimentalAnnotatedWriteHandler := annotated.NewHandler(
-				h.options.DownsamplerAndWriter(),
-				h.options.TagOptions(),
-				instrumentOpts.MetricsScope().
-					Tagged(remoteSource).
-					Tagged(experimentalAPIGroup),
-			)
-			if err := h.registry.Register(queryhttp.RegisterOptions{
-				Path:    annotated.WriteURL,
-				Handler: experimentalAnnotatedWriteHandler,
-				Methods: methods(annotated.WriteHTTPMethod),
-			}); err != nil {
-				return err
-			}
 		}
 	}
 
