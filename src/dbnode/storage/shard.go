@@ -2776,6 +2776,7 @@ func (s *dbShard) finishWriting(
 ) error {
 	if markWarmFlushStateSuccess {
 		s.markWarmDataFlushStateSuccess(blockStart)
+		s.markWarmIndexFlushStateSuccess(blockStart)
 	}
 
 	// After writing the full block successfully update the ColdVersionFlushed number. This will
