@@ -18,56 +18,52 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package httpd contains http routers.
 package httpd
 
 import (
+	"context"
 	"net/http"
-	"strings"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/query/api/v1/options"
-	"github.com/m3db/m3/src/x/headers"
 )
 
-type router struct {
-	promqlHandler      func(http.ResponseWriter, *http.Request)
-	m3QueryHandler     func(http.ResponseWriter, *http.Request)
-	defaultQueryEngine options.QueryEngine
+func TestGraphiteRenderHandler(t *testing.T) {
+	called := 0
+	renderHandler := func(w http.ResponseWriter, req *http.Request) {
+		called++
+	}
+
+	router := NewGraphiteRenderRouter()
+	router.Setup(options.GraphiteRenderRouterOptions{
+		RenderHandler: renderHandler,
+	})
+	rr := httptest.NewRecorder()
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/render?target=sum(metric)", nil)
+	require.NoError(t, err)
+	router.ServeHTTP(rr, req)
+	assert.Equal(t, 1, called)
 }
 
-func NewQueryRouter() options.QueryRouter {
-	return &router{}
-}
-
-func (r *router) Setup(opts options.QueryRouterOptions) {
-	defaultEngine := opts.DefaultQueryEngine
-	if defaultEngine != options.PrometheusEngine && defaultEngine != options.M3QueryEngine {
-		defaultEngine = options.PrometheusEngine
+func TestGraphiteFindHandler(t *testing.T) {
+	called := 0
+	findHandler := func(w http.ResponseWriter, req *http.Request) {
+		called++
 	}
 
-	r.defaultQueryEngine = defaultEngine
-	r.promqlHandler = opts.PromqlHandler
-	r.m3QueryHandler = opts.M3QueryHandler
-}
+	router := NewGraphiteFindRouter()
+	router.Setup(options.GraphiteFindRouterOptions{
+		FindHandler: findHandler,
+	})
+	rr := httptest.NewRecorder()
 
-func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	engine := strings.ToLower(req.Header.Get(headers.EngineHeaderName))
-	urlParam := req.URL.Query().Get(EngineURLParam)
-
-	if len(urlParam) > 0 {
-		engine = strings.ToLower(urlParam)
-	}
-
-	if !options.IsQueryEngineSet(engine) {
-		engine = string(r.defaultQueryEngine)
-	}
-
-	w.Header().Add(headers.EngineHeaderName, engine)
-
-	if engine == string(options.M3QueryEngine) {
-		r.m3QueryHandler(w, req)
-		return
-	}
-
-	r.promqlHandler(w, req)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/find?target=sum(metric)", nil)
+	require.NoError(t, err)
+	router.ServeHTTP(rr, req)
+	assert.Equal(t, 1, called)
 }

@@ -580,7 +580,7 @@ func Run(runOpts RunOptions) RunResult {
 		runOpts.DBConfig, fetchOptsBuilder, graphiteFindFetchOptsBuilder, graphiteRenderFetchOptsBuilder,
 		queryCtxOpts, instrumentOptions, cpuProfileDuration, []string{handleroptions3.M3DBServiceName},
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
-		graphiteStorageOpts, tsdbOpts)
+		graphiteStorageOpts, tsdbOpts, httpd.NewGraphiteRenderRouter(), httpd.NewGraphiteFindRouter())
 	if err != nil {
 		logger.Fatal("unable to set up handler options", zap.Error(err))
 	}

@@ -18,56 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package httpd contains http routers.
 package httpd
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/m3db/m3/src/query/api/v1/options"
-	"github.com/m3db/m3/src/x/headers"
 )
 
-type router struct {
-	promqlHandler      func(http.ResponseWriter, *http.Request)
-	m3QueryHandler     func(http.ResponseWriter, *http.Request)
-	defaultQueryEngine options.QueryEngine
+type renderRouter struct {
+	renderHandler func(http.ResponseWriter, *http.Request)
 }
 
-func NewQueryRouter() options.QueryRouter {
-	return &router{}
+// NewGraphiteRenderRouter returns a new graphite render router.
+func NewGraphiteRenderRouter() options.GraphiteRenderRouter {
+	return &renderRouter{}
 }
 
-func (r *router) Setup(opts options.QueryRouterOptions) {
-	defaultEngine := opts.DefaultQueryEngine
-	if defaultEngine != options.PrometheusEngine && defaultEngine != options.M3QueryEngine {
-		defaultEngine = options.PrometheusEngine
-	}
-
-	r.defaultQueryEngine = defaultEngine
-	r.promqlHandler = opts.PromqlHandler
-	r.m3QueryHandler = opts.M3QueryHandler
+func (r *renderRouter) Setup(opts options.GraphiteRenderRouterOptions) {
+	r.renderHandler = opts.RenderHandler
 }
 
-func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	engine := strings.ToLower(req.Header.Get(headers.EngineHeaderName))
-	urlParam := req.URL.Query().Get(EngineURLParam)
+func (r *renderRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	r.renderHandler(w, req)
+}
 
-	if len(urlParam) > 0 {
-		engine = strings.ToLower(urlParam)
-	}
+type findRouter struct {
+	findHandler func(http.ResponseWriter, *http.Request)
+}
 
-	if !options.IsQueryEngineSet(engine) {
-		engine = string(r.defaultQueryEngine)
-	}
+// NewGraphiteFindRouter returns a new graphite find router.
+func NewGraphiteFindRouter() options.GraphiteFindRouter {
+	return &findRouter{}
+}
 
-	w.Header().Add(headers.EngineHeaderName, engine)
+func (r *findRouter) Setup(opts options.GraphiteFindRouterOptions) {
+	r.findHandler = opts.FindHandler
+}
 
-	if engine == string(options.M3QueryEngine) {
-		r.m3QueryHandler(w, req)
-		return
-	}
-
-	r.promqlHandler(w, req)
+func (r *findRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	r.findHandler(w, req)
 }
