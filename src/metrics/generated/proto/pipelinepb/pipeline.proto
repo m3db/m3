@@ -87,5 +87,7 @@ message AppliedPipelineOp {
 // AppliedPipelineOp is a pipeline containing operations
 // that have been applied against a metric.
 message AppliedPipeline {
+  // A custom Unmarshal function exists in custom_unmarshal.go to allow reusing slices.
+  option (gogoproto.unmarshaler) = false;
   repeated AppliedPipelineOp ops = 1 [(gogoproto.nullable) = false];
 }
