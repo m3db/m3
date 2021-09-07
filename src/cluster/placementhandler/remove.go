@@ -40,20 +40,22 @@ import (
 const (
 	// RemoveHTTPMethod is the HTTP method used with this resource.
 	RemoveHTTPMethod = http.MethodPost
+
+	removePathName = "remove"
 )
 
 var (
 	// M3DBRemoveURL is the url for the placement Remove handler (with the POST method)
 	// for the M3DB service.
-	M3DBRemoveURL = path.Join(route.Prefix, M3DBServicePlacementPathName)
+	M3DBRemoveURL = path.Join(route.Prefix, M3DBServicePlacementPathName, removePathName)
 
 	// M3AggRemoveURL is the url for the placement Remove handler (with the POST method)
 	// for the M3Agg service.
-	M3AggRemoveURL = path.Join(route.Prefix, M3AggServicePlacementPathName)
+	M3AggRemoveURL = path.Join(route.Prefix, M3AggServicePlacementPathName, removePathName)
 
 	// M3CoordinatorRemoveURL is the url for the placement Remove handler (with the POST method)
 	// for the M3Coordinator service.
-	M3CoordinatorRemoveURL = path.Join(route.Prefix, M3CoordinatorServicePlacementPathName)
+	M3CoordinatorRemoveURL = path.Join(route.Prefix, M3CoordinatorServicePlacementPathName, removePathName)
 )
 
 // RemoveHandler is the handler for placement removes.
