@@ -140,8 +140,8 @@ type RunOptions struct {
 	// ClockOptions is an optional clock to use instead of the default one.
 	ClockOptions clock.Options
 
-	// CustomHandlerOptions contains custom handler options.
-	CustomHandlerOptions options.CustomHandlerOptions
+	// CustomHandlerOptions creates custom handler options.
+	CustomHandlerOptions CustomHandlerOptionsFn
 
 	// CustomPromQLParseFunction is a custom PromQL parsing function.
 	CustomPromQLParseFunction promql.ParseFn
@@ -150,7 +150,7 @@ type RunOptions struct {
 	ApplyCustomTSDBOptions CustomTSDBOptionsFn
 
 	// BackendStorageTransform is a custom backend storage transform.
-	BackendStorageTransform BackendStorageTransform
+	BackendStorageTransform BackendStorageTransformFn
 
 	// AggregatorServerOptions are server options for aggregator.
 	AggregatorServerOptions []server.AdminOption
@@ -171,10 +171,13 @@ type InstrumentOptionsReady struct {
 }
 
 // CustomTSDBOptionsFn is a transformation function for TSDB Options.
-type CustomTSDBOptionsFn func(m3.Options) m3.Options
+type CustomTSDBOptionsFn func(m3.Options, instrument.Options) m3.Options
 
-// BackendStorageTransform is a transformation function for backend storage.
-type BackendStorageTransform func(
+// CustomHandlerOptionsFn is a factory for options.CustomHandlerOptions.
+type CustomHandlerOptionsFn func(instrument.Options) options.CustomHandlerOptions
+
+// BackendStorageTransformFn is a transformation function for backend storage.
+type BackendStorageTransformFn func(
 	storage.Storage,
 	m3.Options,
 	instrument.Options,
@@ -389,7 +392,7 @@ func Run(runOpts RunOptions) RunResult {
 		SetSeriesConsolidationMatchOptions(matchOptions)
 
 	if runOpts.ApplyCustomTSDBOptions != nil {
-		tsdbOpts = runOpts.ApplyCustomTSDBOptions(tsdbOpts)
+		tsdbOpts = runOpts.ApplyCustomTSDBOptions(tsdbOpts, instrumentOptions)
 	}
 
 	serveOptions := serve.NewOptions(instrumentOptions)
@@ -585,11 +588,17 @@ func Run(runOpts RunOptions) RunResult {
 		logger.Fatal("unable to set up handler options", zap.Error(err))
 	}
 
-	if fn := runOpts.CustomHandlerOptions.OptionTransformFn; fn != nil {
+	var customHandlerOpts options.CustomHandlerOptions
+	if runOpts.CustomHandlerOptions != nil {
+		// Create the options with the instrument passed in.
+		customHandlerOpts = runOpts.CustomHandlerOptions(instrumentOptions)
+	}
+
+	if fn := customHandlerOpts.OptionTransformFn; fn != nil {
 		handlerOptions = fn(handlerOptions)
 	}
 
-	customHandlers := runOpts.CustomHandlerOptions.CustomHandlers
+	customHandlers := customHandlerOpts.CustomHandlers
 	handler := httpd.NewHandler(handlerOptions, cfg.Middleware, customHandlers...)
 	if err := handler.RegisterRoutes(); err != nil {
 		logger.Fatal("unable to register routes", zap.Error(err))
