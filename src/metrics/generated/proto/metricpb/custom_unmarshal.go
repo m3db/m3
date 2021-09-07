@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
 )
 
@@ -113,7 +114,11 @@ func (m *PipelineMetadata) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.StoragePolicies = append(m.StoragePolicies, policypb.StoragePolicy{})
+			if cap(m.StoragePolicies) > len(m.StoragePolicies) {
+				m.StoragePolicies = m.StoragePolicies[0 : len(m.StoragePolicies)+1]
+			} else {
+				m.StoragePolicies = append(m.StoragePolicies, policypb.StoragePolicy{})
+			}
 			if err := m.StoragePolicies[len(m.StoragePolicies)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
@@ -265,7 +270,11 @@ func (m *Metadata) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Pipelines = append(m.Pipelines, PipelineMetadata{})
+			if cap(m.Pipelines) > len(m.Pipelines) {
+				m.Pipelines = m.Pipelines[0 : len(m.Pipelines)+1]
+			} else {
+				m.Pipelines = append(m.Pipelines, PipelineMetadata{})
+			}
 			if err := m.Pipelines[len(m.Pipelines)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
@@ -348,7 +357,11 @@ func (m *StagedMetadatas) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Metadatas = append(m.Metadatas, StagedMetadata{})
+			if cap(m.Metadatas) > len(m.Metadatas) {
+				m.Metadatas = m.Metadatas[0 : len(m.Metadatas)+1]
+			} else {
+				m.Metadatas = append(m.Metadatas, StagedMetadata{})
+			}
 			if err := m.Metadatas[len(m.Metadatas)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
@@ -373,4 +386,47 @@ func (m *StagedMetadatas) Unmarshal(dAtA []byte) error {
 		return io.ErrUnexpectedEOF
 	}
 	return nil
+}
+
+func (m *StagedMetadatas) Reuse() {
+	if m == nil {
+		return
+	}
+	for i := range m.Metadatas {
+		m.Metadatas[i].reuse()
+	}
+	m.Metadatas = m.Metadatas[:0]
+}
+
+func (m *StagedMetadata) reuse() {
+	if m == nil {
+		return
+	}
+	m.Tombstoned = false
+	m.CutoverNanos = 0
+	m.Metadata.reuse()
+}
+
+func (m *Metadata) reuse() {
+	if m == nil {
+		return
+	}
+	for i := range m.Pipelines {
+		m.Pipelines[i].reuse()
+	}
+	m.Pipelines = m.Pipelines[:0]
+}
+
+func (m *PipelineMetadata) reuse() {
+	if m == nil {
+		return
+	}
+	m.AggregationId = aggregationpb.AggregationID{}
+	for i := range m.StoragePolicies {
+		m.StoragePolicies[i] = policypb.StoragePolicy{}
+	}
+	m.StoragePolicies = m.StoragePolicies[:0]
+	m.Pipeline.Reuse()
+	m.DropPolicy = 0
+	m.ResendEnabled = false
 }

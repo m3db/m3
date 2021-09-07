@@ -23,6 +23,8 @@ package pipelinepb
 import (
 	"fmt"
 	"io"
+
+	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
 )
 
 // Unmarshal is a manual copy of the generated Unmarshal that allows reusing slices.
@@ -81,7 +83,11 @@ func (m *AppliedPipeline) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Ops = append(m.Ops, AppliedPipelineOp{})
+			if cap(m.Ops) > len(m.Ops) {
+				m.Ops = m.Ops[0 : len(m.Ops)+1]
+			} else {
+				m.Ops = append(m.Ops, AppliedPipelineOp{})
+			}
 			if err := m.Ops[len(m.Ops)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
@@ -106,4 +112,25 @@ func (m *AppliedPipeline) Unmarshal(dAtA []byte) error {
 		return io.ErrUnexpectedEOF
 	}
 	return nil
+}
+
+func (m *AppliedPipeline) Reuse() {
+	if m == nil {
+		return
+	}
+	for i := range m.Ops {
+		m.Ops[i].reuse()
+	}
+	m.Ops = m.Ops[:0]
+}
+
+func (m *AppliedPipelineOp) reuse() {
+	m.Type = 0
+	m.Transformation = TransformationOp{}
+	m.Rollup.reuse()
+}
+
+func (m *AppliedRollupOp) reuse() {
+	m.Id = m.Id[:0]
+	m.AggregationId = aggregationpb.AggregationID{}
 }

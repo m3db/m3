@@ -11,6 +11,8 @@ if [[ "$2" = *"generated/mocks"* ]]; then
     remove_matching_files $1 "*_mock.go"
 elif [[ "$2" = *"generated/generics"* ]]; then
     remove_matching_files $1 "*_gen.go"
+elif [[ "$2" = *"generated/proto"* ]]; then
+    remove_matching_files $1 "*.pb.go"
 else
     autogen_clear $1
 fi
