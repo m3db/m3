@@ -30,6 +30,7 @@ import "github.com/m3db/m3/src/metrics/generated/proto/policypb/policy.proto";
 import "github.com/m3db/m3/src/metrics/generated/proto/pipelinepb/pipeline.proto";
 
 message PipelineMetadata {
+  option (gogoproto.unmarshaler) = false;
   aggregationpb.AggregationID aggregation_id = 1 [(gogoproto.nullable) = false];
   repeated policypb.StoragePolicy storage_policies = 2 [(gogoproto.nullable) = false];
   pipelinepb.AppliedPipeline pipeline = 3 [(gogoproto.nullable) = false];
@@ -38,16 +39,19 @@ message PipelineMetadata {
 }
 
 message Metadata {
+  option (gogoproto.unmarshaler) = false;
   repeated PipelineMetadata pipelines = 1 [(gogoproto.nullable) = false];
 }
 
 message StagedMetadata {
+  option (gogoproto.unmarshaler) = false;
   int64 cutover_nanos = 1;
   bool tombstoned = 2;
   Metadata metadata = 3 [(gogoproto.nullable) = false];
 }
 
 message StagedMetadatas {
+  option (gogoproto.unmarshaler) = false;
   repeated StagedMetadata metadatas = 1 [(gogoproto.nullable) = false];
 }
 
