@@ -1870,6 +1870,7 @@ func (i *nsIndex) queryWithSpan(
 				startProcessing := time.Now()
 				execBlockFn(ctx, blockIter.block, permit, blockIter.iter, opts, state, results, blockLogFields)
 				processingTime := time.Since(startProcessing)
+				i.metrics.permitHeldDuration.RecordDuration(processingTime)
 				blockIter.processingTime += processingTime
 				permit.Use(int64(processingTime))
 				perms.Release(permit)
@@ -2573,6 +2574,8 @@ type nsIndexMetrics struct {
 	latestBlockNumSegmentsBackground tally.Gauge
 	latestBlockNumDocsBackground     tally.Gauge
 
+	permitHeldDuration tally.Histogram
+
 	loadedDocsPerQuery                 tally.Histogram
 	queryExhaustiveSuccess             tally.Counter
 	queryExhaustiveInternalError       tally.Counter
@@ -2657,6 +2660,10 @@ func newNamespaceIndexMetrics(
 		latestBlockNumDocsBackground: scope.Tagged(map[string]string{
 			"segment_type": "background",
 		}).Gauge("latest-block-num-docs"),
+		permitHeldDuration: scope.Histogram(
+			"permit-held",
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond, 1.25, 50),
+		),
 		loadedDocsPerQuery: scope.Histogram(
 			"loaded-docs-per-query",
 			tally.MustMakeExponentialValueBuckets(10, 2, 16),
