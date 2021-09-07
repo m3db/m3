@@ -171,17 +171,17 @@ type InstrumentOptionsReady struct {
 }
 
 // CustomTSDBOptionsFn is a transformation function for TSDB Options.
-type CustomTSDBOptionsFn func(m3.Options, instrument.Options) m3.Options
+type CustomTSDBOptionsFn func(m3.Options, instrument.Options) (m3.Options, error)
 
 // CustomHandlerOptionsFn is a factory for options.CustomHandlerOptions.
-type CustomHandlerOptionsFn func(instrument.Options) options.CustomHandlerOptions
+type CustomHandlerOptionsFn func(instrument.Options) (options.CustomHandlerOptions, error)
 
 // BackendStorageTransformFn is a transformation function for backend storage.
 type BackendStorageTransformFn func(
 	storage.Storage,
 	m3.Options,
 	instrument.Options,
-) storage.Storage
+) (storage.Storage, error)
 
 // RunResult returns metadata about the process run.
 type RunResult struct {
@@ -392,7 +392,10 @@ func Run(runOpts RunOptions) RunResult {
 		SetSeriesConsolidationMatchOptions(matchOptions)
 
 	if runOpts.ApplyCustomTSDBOptions != nil {
-		tsdbOpts = runOpts.ApplyCustomTSDBOptions(tsdbOpts, instrumentOptions)
+		tsdbOpts, err = runOpts.ApplyCustomTSDBOptions(tsdbOpts, instrumentOptions)
+		if err != nil {
+			logger.Fatal("could not apply ApplyCustomTSDBOptions", zap.Error(err))
+		}
 	}
 
 	serveOptions := serve.NewOptions(instrumentOptions)
@@ -473,7 +476,10 @@ func Run(runOpts RunOptions) RunResult {
 	}
 
 	if fn := runOpts.BackendStorageTransform; fn != nil {
-		backendStorage = fn(backendStorage, tsdbOpts, instrumentOptions)
+		backendStorage, err = fn(backendStorage, tsdbOpts, instrumentOptions)
+		if err != nil {
+			logger.Fatal("could not apply BackendStorageTransform", zap.Error(err))
+		}
 	}
 
 	engineOpts := executor.NewEngineOptions().
@@ -590,10 +596,12 @@ func Run(runOpts RunOptions) RunResult {
 
 	var customHandlerOpts options.CustomHandlerOptions
 	if runOpts.CustomHandlerOptions != nil {
-		// Create the options with the instrument passed in.
-		customHandlerOpts = runOpts.CustomHandlerOptions(instrumentOptions)
+		customHandlerOpts, err = runOpts.CustomHandlerOptions(instrumentOptions)
+		if err != nil {
+			logger.Fatal("could not create custom handlers", zap.Error(err))
+		}
 	}
-
+	
 	if fn := customHandlerOpts.OptionTransformFn; fn != nil {
 		handlerOptions = fn(handlerOptions)
 	}
