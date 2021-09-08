@@ -105,7 +105,7 @@ var (
 			Ops: []pipelinepb.AppliedPipelineOp{
 				{
 					Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-					Rollup: &pipelinepb.AppliedRollupOp{
+					Rollup: pipelinepb.AppliedRollupOp{
 						Id: []byte("foo"),
 						AggregationId: aggregationpb.AggregationID{
 							Id: 12,
