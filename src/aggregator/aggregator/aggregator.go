@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -223,24 +224,41 @@ func (agg *aggregator) AddUntimed(
 	union unaggregated.MetricUnion,
 	metadatas metadata.StagedMetadatas,
 ) error {
-	if agg.opts.TimedForResendEnabled() {
-		for m := range metadatas {
-			for p := range metadatas[m].Pipelines {
-				if metadatas[m].Pipelines[p].ResendEnabled {
-					if union.Type != metric.GaugeType {
-						return fmt.Errorf("cannot convert a %s to a timed metric", union.Type)
-					}
-					timedMetric := aggregated.Metric{
-						Type:       metric.GaugeType,
-						ID:         union.ID,
-						TimeNanos:  int64(union.ClientTimeNanos),
-						Value:      union.GaugeVal,
-						Annotation: union.Annotation,
-					}
-					return agg.AddTimedWithStagedMetadatas(timedMetric, metadatas)
-				}
+	if agg.opts.TimedForResendEnabled() && len(metadatas) == 1 {
+		// automatically migrate pipelines that support resending aggregate values to use AddTimed.
+		sort.Slice(metadatas[0].Pipelines, func(i, j int) bool {
+			return metadatas[0].Pipelines[i].ResendEnabled
+		})
+		var p int
+		for p = 0; p < len(metadatas[0].Pipelines); p++ {
+			if !metadatas[0].Pipelines[p].ResendEnabled {
+				break
 			}
 		}
+		timedPipelines := metadatas[0].Pipelines[0:p]
+		untimedPipelines := metadatas[0].Pipelines[p:]
+
+		if len(timedPipelines) > 0 {
+			metadatas[0].Pipelines = timedPipelines
+			if union.Type != metric.GaugeType {
+				return fmt.Errorf("cannot convert a %s to a timed metric", union.Type)
+			}
+			timedMetric := aggregated.Metric{
+				Type:       metric.GaugeType,
+				ID:         union.ID,
+				TimeNanos:  int64(union.ClientTimeNanos),
+				Value:      union.GaugeVal,
+				Annotation: union.Annotation,
+			}
+			err := agg.AddTimedWithStagedMetadatas(timedMetric, metadatas)
+			if err != nil {
+				return err
+			}
+		}
+		if len(untimedPipelines) == 0 {
+			return nil
+		}
+		metadatas[0].Pipelines = untimedPipelines
 	}
 	sw := agg.metrics.addUntimed.SuccessLatencyStopwatch()
 	agg.updateStagedMetadatas(metadatas)

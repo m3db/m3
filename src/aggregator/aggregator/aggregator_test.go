@@ -422,16 +422,30 @@ func TestAggregatorAddUntimedToTimed(t *testing.T) {
 
 	agg, _ := testAggregator(t, ctrl)
 	agg.opts = agg.opts.SetTimedForResendEnabled(true)
-	testStagedMetadatas[0].Pipelines[0].ResendEnabled = true
+	metas := metadata.StagedMetadatas{testStagedMetadatas[0]}
+	metas[0].Pipelines = append(metas[0].Pipelines, metas[0].Pipelines[0])
+	metas[0].Pipelines[0].ResendEnabled = true
+	metas[0].Pipelines[1].ResendEnabled = false
 	require.NoError(t, agg.Open())
 	agg.shardFn = func([]byte, uint32) uint32 { return 1 }
-	err := agg.AddUntimed(testUntimedGauge, testStagedMetadatas)
+	err := agg.AddUntimed(testUntimedGauge, metas)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(agg.shards[1].metricMap.entries))
+	require.Equal(t, 2, len(agg.shards[1].metricMap.entries))
 	for _, v := range agg.shards[1].metricMap.entries {
 		entry := v.Value.(hashedEntry).entry
+		// 2 storage policies
+		require.Equal(t, 2, entry.lists.Len())
 		for _, l := range entry.lists.lists {
-			require.IsType(t, &timedMetricList{}, l)
+			require.IsType(t, &standardMetricList{}, l)
+			sl := l.(*standardMetricList)
+			// 2 pipelines
+			require.Equal(t, 2, sl.aggregations.Len())
+			g, ok := sl.aggregations.Front().Value.(*GaugeElem)
+			require.True(t, ok)
+			require.True(t, g.ResendEnabled())
+			g, ok = sl.aggregations.Front().Next().Value.(*GaugeElem)
+			require.True(t, ok)
+			require.False(t, g.ResendEnabled())
 		}
 	}
 }
