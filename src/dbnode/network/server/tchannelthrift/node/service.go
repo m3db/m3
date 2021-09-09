@@ -1094,6 +1094,7 @@ func (i *fetchTaggedResultsIter) Close(err error) {
 	i.instrumentClose(err)
 	for _, p := range i.permits {
 		i.blockPermits.Release(p)
+		i.blockPermits.Close()
 	}
 }
 

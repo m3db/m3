@@ -1746,6 +1746,7 @@ func (i *nsIndex) queryWithSpan(
 	if err != nil {
 		return queryResult{}, err
 	}
+	defer perms.Close()
 
 	var blockIters []*blockIter
 	for b, ok := blocks.Next(); ok; b, ok = b.Next() {
@@ -1773,7 +1774,11 @@ func (i *nsIndex) queryWithSpan(
 		return opts.LimitsExceeded(results.Size(), results.TotalDocsCount()) || state.hasErr()
 	}
 	// waitForPermit waits for a permit. returns non-nil if the permit was acquired and the wait time.
-	waitForPermit := func() (permits.Permit, time.Duration) {
+	waitForPermit := func(ctx context.Context) (permits.Permit, time.Duration) {
+		ctx, sp := ctx.StartTraceSpan("storage.nsIndex.waitForPermit")
+		sp.LogFields(logFields...)
+		defer sp.Finish()
+
 		// make sure the query hasn't been canceled before waiting for a permit.
 		if queryCanceled() {
 			return nil, 0
@@ -1809,6 +1814,16 @@ func (i *nsIndex) queryWithSpan(
 		}
 
 		success = true
+
+		sp.LogKV("allowedQuota", acquireResult.Permit.AllowedQuota(),
+			"quotaRemaining", acquireResult.Permit.QuotaRemaining(),
+			"waited", acquireResult.Waited,
+			"throttled", acquireResult.Throttled,
+			"waitedTime", acquireResult.WaitedTime,
+			"throttledTime", acquireResult.ThrottledTime,
+			"acquireTime", waitTime,
+			"source", acquireResult.Source)
+
 		return acquireResult.Permit, waitTime
 	}
 
@@ -1823,7 +1838,7 @@ func (i *nsIndex) queryWithSpan(
 
 		// acquire a permit before kicking off the goroutine to process the iterator. this limits the number of
 		// concurrent goroutines to # of permits + large queries that needed multiple iterations to finish.
-		permit, waitTime := waitForPermit()
+		permit, waitTime := waitForPermit(ctx)
 		blockIter.waitTime += waitTime
 		if permit == nil {
 			break
@@ -1832,22 +1847,31 @@ func (i *nsIndex) queryWithSpan(
 		wg.Add(1)
 		// kick off a go routine to process the entire iterator.
 		go func() {
+			ctx, sp := ctx.StartTraceSpan("storage.nsIndex.blockIter")
+			series, docs := blockIter.iter.Counts()
+			currLogFields := append(logFields,
+				opentracinglog.Int("seriesCount", series),
+				opentracinglog.Int("docsCount", docs))
+			sp.LogFields(currLogFields...)
+			defer sp.Finish()
 			defer wg.Done()
 			first := true
 			for !blockIter.iter.Done() {
 				// if this is not the first iteration of the iterator, need to acquire another permit.
 				if !first {
-					permit, waitTime = waitForPermit()
+					permit, waitTime = waitForPermit(ctx)
 					blockIter.waitTime += waitTime
 					if permit == nil {
 						break
 					}
 				}
-				blockLogFields := append(logFields, xopentracing.Duration("permitWaitTime", waitTime))
+				blockLogFields := append(logFields, opentracinglog.Float64("permitWaitTimeSeconds", waitTime.Seconds()))
+				sp.SetTag("permitWaitSeconds", waitTime.Seconds())
 				first = false
 				startProcessing := time.Now()
 				execBlockFn(ctx, blockIter.block, permit, blockIter.iter, opts, state, results, blockLogFields)
 				processingTime := time.Since(startProcessing)
+				i.metrics.permitHeldDuration.RecordDuration(processingTime)
 				blockIter.processingTime += processingTime
 				permit.Use(int64(processingTime))
 				perms.Release(permit)
@@ -2551,6 +2575,8 @@ type nsIndexMetrics struct {
 	latestBlockNumSegmentsBackground tally.Gauge
 	latestBlockNumDocsBackground     tally.Gauge
 
+	permitHeldDuration tally.Histogram
+
 	loadedDocsPerQuery                 tally.Histogram
 	queryExhaustiveSuccess             tally.Counter
 	queryExhaustiveInternalError       tally.Counter
@@ -2635,6 +2661,30 @@ func newNamespaceIndexMetrics(
 		latestBlockNumDocsBackground: scope.Tagged(map[string]string{
 			"segment_type": "background",
 		}).Gauge("latest-block-num-docs"),
+		permitHeldDuration: scope.Histogram(
+			"permit-held",
+			tally.DurationBuckets{
+				time.Millisecond,
+				5 * time.Millisecond,
+				10 * time.Millisecond,
+				25 * time.Millisecond,
+				50 * time.Millisecond,
+				75 * time.Millisecond,
+				100 * time.Millisecond,
+				250 * time.Millisecond,
+				500 * time.Millisecond,
+				750 * time.Millisecond,
+				time.Second,
+				2500 * time.Millisecond,
+				5 * time.Second,
+				7500 * time.Millisecond,
+				10 * time.Second,
+				25 * time.Second,
+				50 * time.Second,
+				75 * time.Second,
+				120 * time.Second,
+			},
+		),
 		loadedDocsPerQuery: scope.Histogram(
 			"loaded-docs-per-query",
 			tally.MustMakeExponentialValueBuckets(10, 2, 16),

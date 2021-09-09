@@ -23,6 +23,7 @@ package permits
 
 import (
 	"errors"
+	"time"
 
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -67,6 +68,9 @@ type Permits interface {
 	// Release gives back one acquired permit from the specific permits instance.
 	// Cannot release more permits than have been acquired.
 	Release(permit Permit)
+
+	// Close closes the Permits.
+	Close()
 }
 
 // AcquireResult contains metadata about acquiring a permit.
@@ -75,7 +79,12 @@ type AcquireResult struct {
 	Permit Permit
 	// Waited is true if the acquire called waited before being granted permits.
 	// If false, the permits were granted immediately.
-	Waited bool
+	Throttled     bool
+	Waited        bool
+	ThrottledTime time.Duration
+	WaitedTime    time.Duration
+	// Source is the source of the permit.
+	Source string
 }
 
 // Permit is granted to a caller which is allowed to consume some amount of quota.

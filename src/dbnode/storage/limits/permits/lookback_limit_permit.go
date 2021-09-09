@@ -111,6 +111,9 @@ func (p *LookbackLimitPermit) TryAcquire(context.Context) (Permit, error) {
 func (p *LookbackLimitPermit) Release(_ Permit) {
 }
 
+func (p *LookbackLimitPermit) Close() {
+}
+
 func sourceFromContext(ctx context.Context) []byte {
 	val := ctx.GoContext().Value(limits.SourceContextKey)
 	parsed, ok := val.([]byte)

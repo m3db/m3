@@ -89,6 +89,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
+	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -99,6 +100,7 @@ import (
 	"github.com/m3dbx/vellum/regexp"
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
+	jaegercfg "github.com/uber/jaeger-client-go/config"
 	"github.com/uber/tchannel-go"
 	"go.etcd.io/etcd/embed"
 	"go.uber.org/zap"
@@ -278,6 +280,24 @@ func Run(runOpts RunOptions) {
 		tracer      opentracing.Tracer
 		traceCloser io.Closer
 	)
+
+	cfg.Tracing = &xopentracing.TracingConfiguration{
+		ServiceName: "m3dbnode",
+		Backend:     "jaeger",
+		Jaeger: jaegercfg.Configuration{
+			ServiceName: "m3dbnode",
+			Reporter: &jaegercfg.ReporterConfig{
+				QueueSize:          100000,
+				LogSpans:           false,
+				LocalAgentHostPort: "chronocollector-deployment:6831",
+			},
+			Sampler: &jaegercfg.SamplerConfig{
+				Type: "probabilistic",
+				// 10% sampling
+				Param: 1.0,
+			},
+		},
+	}
 
 	if cfg.Tracing == nil {
 		tracer = opentracing.NoopTracer{}
