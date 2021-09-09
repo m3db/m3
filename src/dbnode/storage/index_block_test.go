@@ -27,6 +27,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -594,8 +596,33 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		defer nowLock.Unlock()
 		return now.ToTime()
 	}
+
 	opts := DefaultTestOptions()
-	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+
+	permitOpts := opts.PermitsOptions()
+	permitManager := opts.PermitsOptions().IndexQueryPermitsManager()
+	mockPermitManager := permits.NewMockManager(ctrl)
+	mockPermitManager.EXPECT().NewPermits(gomock.Any()).DoAndReturn(func(ctx context.Context) (permits.Permits, error) {
+		p, err := permitManager.NewPermits(ctx)
+		if err != nil {
+			return nil, err
+		}
+		mockPermits := permits.NewMockPermits(ctrl)
+		mockPermits.EXPECT().Acquire(ctx).DoAndReturn(func(ctx context.Context) (permits.AcquireResult, error) {
+			return p.Acquire(ctx)
+		}).AnyTimes()
+		mockPermits.EXPECT().Release(gomock.Any()).DoAndReturn(func(toRelease permits.Permit) {
+			p.Release(toRelease)
+		}).AnyTimes()
+		mockPermits.EXPECT().Close().DoAndReturn(func() {
+			p.Close()
+		}).Times(1) // close once per NewPermits(...) call
+
+		return mockPermits, nil
+	}).Times(6) // 3 blocks per test below
+	permitOpts = permitOpts.SetIndexQueryPermitsManager(mockPermitManager)
+
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn)).SetPermitsOptions(permitOpts)
 
 	bActive := index.NewMockBlock(ctrl)
 	bActive.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
