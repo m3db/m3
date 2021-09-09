@@ -505,13 +505,15 @@ func (b *block) queryWithSpan(
 	deadline time.Time,
 ) error {
 	var (
-		err       error
-		source    = opts.Source
-		size      = results.Size()
-		docsCount = results.TotalDocsCount()
-		docsPool  = b.opts.DocumentArrayPool()
-		batch     = docsPool.Get()
-		batchSize = cap(batch)
+		err             error
+		source          = opts.Source
+		sizeBefore      = results.Size()
+		docsCountBefore = results.TotalDocsCount()
+		size            = sizeBefore
+		docsCount       = docsCountBefore
+		docsPool        = b.opts.DocumentArrayPool()
+		batch           = docsPool.Get()
+		batchSize       = cap(batch)
 	)
 	if batchSize == 0 {
 		batchSize = defaultQueryDocsBatchSize
@@ -580,8 +582,8 @@ func (b *block) queryWithSpan(
 		}
 	}
 
-	iter.AddSeries(size)
-	iter.AddDocs(docsCount)
+	iter.AddSeries(size - sizeBefore)
+	iter.AddDocs(docsCount - docsCountBefore)
 
 	return nil
 }
@@ -1161,7 +1163,7 @@ func (b *block) NeedsMutableSegmentsEvicted() bool {
 	// Check any mutable segments that can be evicted after a flush.
 	anyMutableSegmentNeedsEviction := b.mutableSegments.NeedsEviction()
 
-	// Check boostrapped segments and to see if any of them need an eviction.
+	// Check bootstrapped segments and to see if any of them need an eviction.
 	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
 		if mutableSeg, ok := seg.(segment.MutableSegment); ok {
 			anyMutableSegmentNeedsEviction = anyMutableSegmentNeedsEviction || mutableSeg.Size() > 0
