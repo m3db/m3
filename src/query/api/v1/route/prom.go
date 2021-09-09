@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
+// Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,10 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package route stores common HTTP route handling code
 package route
 
 const (
-	// Prefix is the v1 prefix for all coordinator routes.
-	Prefix = "/api/v1"
+	// NameReplace is the parameter that gets replaced.
+	NameReplace = "name"
+
+	// LabelValuesURL returns the url for the label values endpoint.
+	LabelValuesURL = Prefix + "/label/{" + NameReplace + "}/values"
+
+	// LabelNamesURL returns the url for the label names endpoint.
+	LabelNamesURL = Prefix + "/labels"
+
+	// QueryRangeURL return the url for the query range endpoint.
+	QueryRangeURL = Prefix + "/query_range"
+
+	// QueryURL return the url for the query endpoint.
+	QueryURL = Prefix + "/query"
 )

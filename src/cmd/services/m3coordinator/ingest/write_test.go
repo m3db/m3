@@ -679,7 +679,7 @@ func TestDownsampleAndWriteBatchDropTimestamp(t *testing.T) {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
 	for _, dp := range testDatapoints1 {
-		mockSamplesAppender.EXPECT().AppendUntimedGaugeSample(dp.Value, testAnnotation1)
+		mockSamplesAppender.EXPECT().AppendUntimedGaugeSample(dp.Timestamp, dp.Value, testAnnotation1)
 	}
 	for _, tag := range testTags2.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)

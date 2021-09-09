@@ -30,13 +30,18 @@ import "github.com/m3db/m3/src/metrics/generated/proto/policypb/policy.proto";
 import "github.com/m3db/m3/src/metrics/generated/proto/pipelinepb/pipeline.proto";
 
 message PipelineMetadata {
+  // A custom Unmarshal function exists in custom_unmarshal.go to allow reusing slices.
+  option (gogoproto.unmarshaler) = false;
   aggregationpb.AggregationID aggregation_id = 1 [(gogoproto.nullable) = false];
   repeated policypb.StoragePolicy storage_policies = 2 [(gogoproto.nullable) = false];
   pipelinepb.AppliedPipeline pipeline = 3 [(gogoproto.nullable) = false];
   policypb.DropPolicy drop_policy = 4;
+  bool resend_enabled = 5;
 }
 
 message Metadata {
+  // A custom Unmarshal function exists in custom_unmarshal.go to allow reusing slices.
+  option (gogoproto.unmarshaler) = false;
   repeated PipelineMetadata pipelines = 1 [(gogoproto.nullable) = false];
 }
 
@@ -47,6 +52,8 @@ message StagedMetadata {
 }
 
 message StagedMetadatas {
+  // A custom Unmarshal function exists in custom_unmarshal.go to allow reusing slices.
+  option (gogoproto.unmarshaler) = false;
   repeated StagedMetadata metadatas = 1 [(gogoproto.nullable) = false];
 }
 
@@ -56,6 +63,7 @@ message ForwardMetadata {
   pipelinepb.AppliedPipeline pipeline = 3 [(gogoproto.nullable) = false];
   uint32 source_id = 4;
   int32 num_forwarded_times = 5;
+  bool resend_enabled = 6;
 }
 
 message TimedMetadata {

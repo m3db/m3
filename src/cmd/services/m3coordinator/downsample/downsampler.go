@@ -80,10 +80,12 @@ type SamplesAppenderOverrideRules struct {
 
 // SamplesAppender is a downsampling samples appender,
 // that can only be called by a single caller at a time.
+// The client timestamp provided to Untimed methods is only used to monitor ingestion latency on the server. It is
+// dropped and a server-side timestamp is used for the metric.
 type SamplesAppender interface {
-	AppendUntimedCounterSample(value int64, annotation []byte) error
-	AppendUntimedGaugeSample(value float64, annotation []byte) error
-	AppendUntimedTimerSample(value float64, annotation []byte) error
+	AppendUntimedCounterSample(t xtime.UnixNano, value int64, annotation []byte) error
+	AppendUntimedGaugeSample(t xtime.UnixNano, value float64, annotation []byte) error
+	AppendUntimedTimerSample(t xtime.UnixNano, value float64, annotation []byte) error
 	AppendCounterSample(t xtime.UnixNano, value int64, annotation []byte) error
 	AppendGaugeSample(t xtime.UnixNano, value float64, annotation []byte) error
 	AppendTimerSample(t xtime.UnixNano, value float64, annotation []byte) error

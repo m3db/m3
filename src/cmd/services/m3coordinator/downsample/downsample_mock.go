@@ -224,43 +224,43 @@ func (mr *MockSamplesAppenderMockRecorder) AppendTimerSample(arg0, arg1, arg2 in
 }
 
 // AppendUntimedCounterSample mocks base method.
-func (m *MockSamplesAppender) AppendUntimedCounterSample(arg0 int64, arg1 []byte) error {
+func (m *MockSamplesAppender) AppendUntimedCounterSample(arg0 time.UnixNano, arg1 int64, arg2 []byte) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AppendUntimedCounterSample", arg0, arg1)
+	ret := m.ctrl.Call(m, "AppendUntimedCounterSample", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AppendUntimedCounterSample indicates an expected call of AppendUntimedCounterSample.
-func (mr *MockSamplesAppenderMockRecorder) AppendUntimedCounterSample(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockSamplesAppenderMockRecorder) AppendUntimedCounterSample(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendUntimedCounterSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendUntimedCounterSample), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendUntimedCounterSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendUntimedCounterSample), arg0, arg1, arg2)
 }
 
 // AppendUntimedGaugeSample mocks base method.
-func (m *MockSamplesAppender) AppendUntimedGaugeSample(arg0 float64, arg1 []byte) error {
+func (m *MockSamplesAppender) AppendUntimedGaugeSample(arg0 time.UnixNano, arg1 float64, arg2 []byte) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AppendUntimedGaugeSample", arg0, arg1)
+	ret := m.ctrl.Call(m, "AppendUntimedGaugeSample", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AppendUntimedGaugeSample indicates an expected call of AppendUntimedGaugeSample.
-func (mr *MockSamplesAppenderMockRecorder) AppendUntimedGaugeSample(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockSamplesAppenderMockRecorder) AppendUntimedGaugeSample(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendUntimedGaugeSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendUntimedGaugeSample), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendUntimedGaugeSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendUntimedGaugeSample), arg0, arg1, arg2)
 }
 
 // AppendUntimedTimerSample mocks base method.
-func (m *MockSamplesAppender) AppendUntimedTimerSample(arg0 float64, arg1 []byte) error {
+func (m *MockSamplesAppender) AppendUntimedTimerSample(arg0 time.UnixNano, arg1 float64, arg2 []byte) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AppendUntimedTimerSample", arg0, arg1)
+	ret := m.ctrl.Call(m, "AppendUntimedTimerSample", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AppendUntimedTimerSample indicates an expected call of AppendUntimedTimerSample.
-func (mr *MockSamplesAppenderMockRecorder) AppendUntimedTimerSample(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockSamplesAppenderMockRecorder) AppendUntimedTimerSample(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendUntimedTimerSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendUntimedTimerSample), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendUntimedTimerSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendUntimedTimerSample), arg0, arg1, arg2)
 }

@@ -125,6 +125,7 @@ func resetCounter(pb *metricpb.Counter) {
 	pb.Id = pb.Id[:0]
 	pb.Value = 0
 	pb.Annotation = pb.Annotation[:0]
+	pb.ClientTimeNanos = 0
 }
 
 func resetBatchTimer(pb *metricpb.BatchTimer) {
@@ -134,6 +135,7 @@ func resetBatchTimer(pb *metricpb.BatchTimer) {
 	pb.Id = pb.Id[:0]
 	pb.Values = pb.Values[:0]
 	pb.Annotation = pb.Annotation[:0]
+	pb.ClientTimeNanos = 0
 }
 
 func resetGauge(pb *metricpb.Gauge) {
@@ -143,6 +145,7 @@ func resetGauge(pb *metricpb.Gauge) {
 	pb.Id = pb.Id[:0]
 	pb.Value = 0.0
 	pb.Annotation = pb.Annotation[:0]
+	pb.ClientTimeNanos = 0
 }
 
 func resetForwardedMetric(pb *metricpb.ForwardedMetric) {
@@ -153,7 +156,9 @@ func resetForwardedMetric(pb *metricpb.ForwardedMetric) {
 	pb.Id = pb.Id[:0]
 	pb.TimeNanos = 0
 	pb.Values = pb.Values[:0]
+	pb.PrevValues = pb.PrevValues[:0]
 	pb.Annotation = pb.Annotation[:0]
+	pb.Version = 0
 }
 
 func resetTimedMetric(pb *metricpb.TimedMetric) {
@@ -168,10 +173,7 @@ func resetTimedMetric(pb *metricpb.TimedMetric) {
 }
 
 func resetMetadatas(pb *metricpb.StagedMetadatas) {
-	if pb == nil {
-		return
-	}
-	pb.Metadatas = pb.Metadatas[:0]
+	pb.Reuse()
 }
 
 func resetForwardMetadata(pb *metricpb.ForwardMetadata) {
@@ -183,6 +185,7 @@ func resetForwardMetadata(pb *metricpb.ForwardMetadata) {
 	pb.Pipeline.Ops = pb.Pipeline.Ops[:0]
 	pb.SourceId = 0
 	pb.NumForwardedTimes = 0
+	pb.ResendEnabled = false
 }
 
 func resetTimedMetadata(pb *metricpb.TimedMetadata) {

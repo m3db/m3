@@ -225,6 +225,12 @@ type testServerOptions interface {
 
 	// DiscardNaNAggregatedValues determines whether NaN aggregated values are discarded.
 	DiscardNaNAggregatedValues() bool
+
+	// SetBufferForPastTimedMetric sets the BufferForPastTimedMetric.
+	SetBufferForPastTimedMetric(value time.Duration) testServerOptions
+
+	// BufferForPastTimedMetric is how long to wait for timed metrics to arrive.
+	BufferForPastTimedMetric() time.Duration
 }
 
 // nolint: maligned
@@ -257,6 +263,7 @@ type serverOptions struct {
 	maxJitterFn                 aggregator.FlushJitterFn
 	maxAllowedForwardingDelayFn aggregator.MaxAllowedForwardingDelayFn
 	discardNaNAggregatedValues  bool
+	resendBufferForPastTimeMetric time.Duration
 }
 
 func newTestServerOptions(t *testing.T) testServerOptions {
@@ -571,6 +578,16 @@ func (o *serverOptions) SetMaxAllowedForwardingDelayFn(value aggregator.MaxAllow
 
 func (o *serverOptions) MaxAllowedForwardingDelayFn() aggregator.MaxAllowedForwardingDelayFn {
 	return o.maxAllowedForwardingDelayFn
+}
+
+func (o *serverOptions) SetBufferForPastTimedMetric(value time.Duration) testServerOptions {
+	opts := *o
+	opts.resendBufferForPastTimeMetric = value
+	return &opts
+}
+
+func (o *serverOptions) BufferForPastTimedMetric() time.Duration {
+	return o.resendBufferForPastTimeMetric
 }
 
 func (o *serverOptions) SetDiscardNaNAggregatedValues(value bool) testServerOptions {

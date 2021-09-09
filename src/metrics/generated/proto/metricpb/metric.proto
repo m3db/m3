@@ -35,18 +35,21 @@ message Counter {
   bytes id = 1;
   int64 value = 2;
   bytes annotation = 3;
+  int64 client_time_nanos = 4;
 }
 
 message BatchTimer {
   bytes id = 1;
   repeated double values = 2;
   bytes annotation = 3;
+  int64 client_time_nanos = 4;
 }
 
 message Gauge {
   bytes id = 1;
   double value = 2;
   bytes annotation = 3;
+  int64 client_time_nanos = 4;
 }
 
 message TimedMetric {
@@ -61,9 +64,14 @@ message ForwardedMetric {
   MetricType type = 1;
   bytes id = 2;
   int64 time_nanos = 3;
+  // values and prev_values are the same length. a given index to the arrays
+  // gives the tuple (value, prev_value) for a given forwarded value.
   repeated double values = 4;
+  repeated double prev_values = 6;
   bytes annotation = 5;
+  uint32 version = 7;
 }
+
 
 message Tag {
   bytes name = 1;

@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/metrics/transformation"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -68,6 +69,12 @@ var (
 		Type:       metric.CounterType,
 		ID:         []byte("foo"),
 		CounterVal: 1234,
+	}
+	testUntimedGauge = unaggregated.MetricUnion{
+		Type:            metric.GaugeType,
+		ID:              []byte("foo"),
+		GaugeVal:        1234,
+		ClientTimeNanos: xtime.Now(),
 	}
 	testTimedMetric = aggregated.Metric{
 		Type:      metric.CounterType,
@@ -234,6 +241,62 @@ func TestAggregatorOpenSuccess(t *testing.T) {
 	require.Equal(t, int64(testPlacementCutover), agg.currPlacement.CutoverNanos())
 }
 
+func TestAggregatorUpdateStagedMetadatas(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cases := []struct {
+		name       string
+		addToReset bool
+	}{
+		{
+			name:       "enabled",
+			addToReset: true,
+		},
+		{
+			name:       "disabled",
+			addToReset: false,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			agg, _ := testAggregator(t, ctrl)
+			agg.opts = agg.opts.SetAddToReset(tc.addToReset)
+			require.NoError(t, agg.Open())
+			agg.shardFn = func([]byte, uint32) uint32 { return 1 }
+			sms := metadata.StagedMetadatas{
+				{
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type:           pipeline.TransformationOpType,
+										Transformation: pipeline.TransformationOp{Type: transformation.Add},
+									},
+								}),
+							},
+						},
+					},
+				},
+			}
+			err := agg.AddUntimed(testUntimedMetric, sms)
+			require.NoError(t, err)
+			require.Equal(t, 1, len(agg.shards[1].metricMap.entries))
+			for _, e := range agg.shards[1].metricMap.entries {
+				actual := e.Value.(hashedEntry).entry.aggregations[0].key.pipeline
+				if tc.addToReset {
+					require.Equal(t, transformation.Reset, actual.Operations[0].Transformation.Type)
+				} else {
+					require.Equal(t, transformation.Add, actual.Operations[0].Transformation.Type)
+				}
+			}
+		})
+	}
+}
+
 func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -351,6 +414,40 @@ func TestAggregatorAddUntimedSuccessNoPlacementUpdate(t *testing.T) {
 	err := agg.AddUntimed(testUntimedMetric, testStagedMetadatas)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(agg.shards[1].metricMap.entries))
+}
+
+func TestAggregatorAddUntimedToTimed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
+	agg.opts = agg.opts.SetTimedForResendEnabled(true)
+	metas := metadata.StagedMetadatas{testStagedMetadatas[0]}
+	metas[0].Pipelines = append(metas[0].Pipelines, metas[0].Pipelines[0])
+	metas[0].Pipelines[0].ResendEnabled = true
+	metas[0].Pipelines[1].ResendEnabled = false
+	require.NoError(t, agg.Open())
+	agg.shardFn = func([]byte, uint32) uint32 { return 1 }
+	err := agg.AddUntimed(testUntimedGauge, metas)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(agg.shards[1].metricMap.entries))
+	for _, v := range agg.shards[1].metricMap.entries {
+		entry := v.Value.(hashedEntry).entry
+		// 2 storage policies
+		require.Equal(t, 2, entry.lists.Len())
+		for _, l := range entry.lists.lists {
+			require.IsType(t, &standardMetricList{}, l)
+			sl := l.(*standardMetricList)
+			// 2 pipelines
+			require.Equal(t, 2, sl.aggregations.Len())
+			g, ok := sl.aggregations.Front().Value.(*GaugeElem)
+			require.True(t, ok)
+			require.True(t, g.ResendEnabled())
+			g, ok = sl.aggregations.Front().Next().Value.(*GaugeElem)
+			require.True(t, ok)
+			require.False(t, g.ResendEnabled())
+		}
+	}
 }
 
 func TestAggregatorAddUntimedSuccessWithPlacementUpdate(t *testing.T) {
@@ -1230,6 +1327,79 @@ func TestAggregatorAddForwardedMetrics(t *testing.T) {
 		h, exists := histograms[id]
 		require.True(t, exists, "missing series id %v", id)
 		h.Durations()[100*time.Millisecond] = 1
+	}
+}
+
+func TestPartitionResendEnabled(t *testing.T) {
+	p1, p2 := partitionResendEnabled(metadata.PipelineMetadatas{
+		newPipeline("1", false),
+		newPipeline("2", true),
+		newPipeline("3", false),
+		newPipeline("4", true),
+	})
+	expected1 := metadata.PipelineMetadatas{
+		newPipeline("4", true),
+		newPipeline("2", true),
+	}
+	expected2 := metadata.PipelineMetadatas{
+		newPipeline("3", false),
+		newPipeline("1", false),
+	}
+	require.Equal(t, expected1, p1)
+	require.Equal(t, expected2, p2)
+
+	p1, p2 = partitionResendEnabled(metadata.PipelineMetadatas{
+		newPipeline("1", true),
+		newPipeline("2", true),
+		newPipeline("3", false),
+		newPipeline("4", false),
+	})
+	expected1 = metadata.PipelineMetadatas{
+		newPipeline("1", true),
+		newPipeline("2", true),
+	}
+	expected2 = metadata.PipelineMetadatas{
+		newPipeline("4", false),
+		newPipeline("3", false),
+	}
+	require.Equal(t, expected1, p1)
+	require.Equal(t, expected2, p2)
+
+	p1, p2 = partitionResendEnabled(metadata.PipelineMetadatas{
+		newPipeline("1", true),
+	})
+	expected1 = metadata.PipelineMetadatas{
+		newPipeline("1", true),
+	}
+	require.Equal(t, expected1, p1)
+	require.Empty(t, p2)
+
+	p1, p2 = partitionResendEnabled(metadata.PipelineMetadatas{
+		newPipeline("1", false),
+	})
+	expected2 = metadata.PipelineMetadatas{
+		newPipeline("1", false),
+	}
+	require.Equal(t, expected2, p2)
+	require.Empty(t, p1)
+
+	p1, p2 = partitionResendEnabled(metadata.PipelineMetadatas{})
+	require.Empty(t, p1)
+	require.Empty(t, p2)
+}
+
+func newPipeline(id string, resendEnabled bool) metadata.PipelineMetadata {
+	return metadata.PipelineMetadata{
+		Pipeline: applied.Pipeline{
+			Operations: []applied.OpUnion{
+				{
+					Rollup: applied.RollupOp{
+						ID: []byte(id),
+					},
+				},
+			},
+		},
+		ResendEnabled: resendEnabled,
 	}
 }
 

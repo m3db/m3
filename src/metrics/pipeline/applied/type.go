@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
+	"github.com/m3db/m3/src/metrics/generated/proto/transformationpb"
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/transformation"
 )
@@ -73,10 +74,7 @@ func (op RollupOp) ToProto(pb *pipelinepb.AppliedRollupOp) error {
 }
 
 // FromProto converts the protobuf message to an applied rollup op in place.
-func (op *RollupOp) FromProto(pb *pipelinepb.AppliedRollupOp) error {
-	if pb == nil {
-		return errNilAppliedRollupOpProto
-	}
+func (op *RollupOp) FromProto(pb pipelinepb.AppliedRollupOp) error {
 	op.AggregationID.FromProto(pb.AggregationId)
 	op.ID = pb.Id
 	return nil
@@ -136,12 +134,10 @@ func (u OpUnion) ToProto(pb *pipelinepb.AppliedPipelineOp) error {
 	switch u.Type {
 	case pipeline.TransformationOpType:
 		pb.Type = pipelinepb.AppliedPipelineOp_TRANSFORMATION
-		pb.Transformation = &pipelinepb.TransformationOp{}
-		return u.Transformation.ToProto(pb.Transformation)
+		return u.Transformation.ToProto(&pb.Transformation)
 	case pipeline.RollupOpType:
 		pb.Type = pipelinepb.AppliedPipelineOp_ROLLUP
-		pb.Rollup = &pipelinepb.AppliedRollupOp{}
-		return u.Rollup.ToProto(pb.Rollup)
+		return u.Rollup.ToProto(&pb.Rollup)
 	default:
 		return errUnknownOpType
 	}
@@ -218,17 +214,20 @@ func (p Pipeline) Equal(other Pipeline) bool {
 
 // Clone clones the pipeline.
 func (p Pipeline) Clone() Pipeline {
-	clone := make([]OpUnion, len(p.Operations))
+	clone := p
+	clone.Operations = make([]OpUnion, len(p.Operations))
 	for i := range p.Operations {
-		clone[i] = p.Operations[i].Clone()
+		clone.Operations[i] = p.Operations[i].Clone()
 	}
-	return Pipeline{Operations: clone}
+	return clone
 }
 
 // SubPipeline returns a sub-pipeline containing Operations between step `startInclusive`
 // and step `endExclusive` of the current pipeline.
 func (p Pipeline) SubPipeline(startInclusive int, endExclusive int) Pipeline {
-	return Pipeline{Operations: p.Operations[startInclusive:endExclusive]}
+	sub := p
+	sub.Operations = p.Operations[startInclusive:endExclusive]
+	return sub
 }
 
 func (p Pipeline) String() string {
@@ -314,7 +313,7 @@ func OperationsFromProto(pb []pipelinepb.AppliedPipelineOp, ops []OpUnion) error
 				u.Rollup.ID = u.Rollup.ID[:0]
 			}
 			u.Rollup.AggregationID[0] = aggregation.DefaultID[0]
-			if pb[i].Transformation == nil {
+			if pb[i].Transformation.Type == transformationpb.TransformationType_UNKNOWN {
 				return errNilTransformationOpProto
 			}
 			if err := u.Transformation.Type.FromProto(pb[i].Transformation.Type); err != nil {

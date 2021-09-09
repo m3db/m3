@@ -18,10 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package route stores common HTTP route handling code
-package route
+package metricpb
 
-const (
-	// Prefix is the v1 prefix for all coordinator routes.
-	Prefix = "/api/v1"
+import (
+	"testing"
+
+	"github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
+	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
 )
+
+func TestCatchNewFields(t *testing.T) {
+	verifyFields(t, &StagedMetadatas{}, 1)
+	verifyFields(t, &StagedMetadata{}, 3)
+	verifyFields(t, &Metadata{}, 1)
+	verifyFields(t, &PipelineMetadata{}, 5)
+	verifyFields(t, &pipelinepb.AppliedPipeline{}, 1)
+	verifyFields(t, &pipelinepb.AppliedPipelineOp{}, 3)
+	verifyFields(t, &pipelinepb.AppliedRollupOp{}, 2)
+}
+
+func verifyFields(t *testing.T, m descriptor.Message, expectedFieldCount int) {
+	_, d := descriptor.ForMessage(m)
+	require.Len(t, d.Field, expectedFieldCount, "Unexpected number of fields for %s. "+
+		"If you added a new field you need to update the reuse() function in custom_unmarshal.go to reset the field "+
+		"for reuse. After that you can update the expected number of fields in this test.", *d.Name)
+}
