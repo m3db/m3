@@ -173,10 +173,7 @@ func resetTimedMetric(pb *metricpb.TimedMetric) {
 }
 
 func resetMetadatas(pb *metricpb.StagedMetadatas) {
-	if pb == nil {
-		return
-	}
-	pb.Metadatas = pb.Metadatas[:0]
+	pb.Reuse()
 }
 
 func resetForwardMetadata(pb *metricpb.ForwardMetadata) {
