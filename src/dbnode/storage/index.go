@@ -1746,6 +1746,7 @@ func (i *nsIndex) queryWithSpan(
 	if err != nil {
 		return queryResult{}, err
 	}
+	defer perms.Close()
 
 	var blockIters []*blockIter
 	for b, ok := blocks.Next(); ok; b, ok = b.Next() {

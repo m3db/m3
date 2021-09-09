@@ -68,6 +68,9 @@ type Permits interface {
 	// Release gives back one acquired permit from the specific permits instance.
 	// Cannot release more permits than have been acquired.
 	Release(permit Permit)
+
+	// Close closes the Permits.
+	Close()
 }
 
 // AcquireResult contains metadata about acquiring a permit.
