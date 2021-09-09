@@ -750,7 +750,7 @@ func newM3DBStorage(cfg config.Configuration, clusters m3.Clusters, poolWrapper 
 }
 
 func setupDownsampler(
-	cfg downsample.Configuration, etcdCfg *etcdclient.Configuration, storage storage.Storage,
+	cfg downsample.Configuration, etcdCfg *etcdclient.Configuration, storage storage.Appender,
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher, tagOptions models.TagOptions, clockOpts clock.Options,
 	instrumentOptions instrument.Options, rwOpts xio.Options, applyCustomRuleStore downsample.CustomRuleStoreFn,
 	clusterClientCh <-chan clusterclient.Client, downsamplerReadyCh chan<- struct{},
@@ -817,7 +817,7 @@ func setupDownsampler(
 func newDownsampler(
 	cfg downsample.Configuration,
 	clusterManagementClient clusterclient.Client,
-	storage storage.Storage,
+	storage storage.Appender,
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	tagOptions models.TagOptions,
 	clockOpts clock.Options,

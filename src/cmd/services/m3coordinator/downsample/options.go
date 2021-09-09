@@ -115,7 +115,7 @@ type CustomRuleStoreFn func(clusterclient.Client, instrument.Options) (kv.TxnSto
 
 // DownsamplerOptions is a set of required downsampler options.
 type DownsamplerOptions struct {
-	Storage                    storage.Storage
+	Storage                    storage.Appender
 	StorageFlushConcurrency    int
 	ClusterClient              clusterclient.Client
 	RulesKVStore               kv.Store
