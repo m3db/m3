@@ -76,6 +76,7 @@ func TestFetchResultIterTest(t *testing.T) {
 	// after the block is processed, so a block might be eagerly processed and then permit acquisition fails.
 	require.Equal(t, 19, blockPermits.acquired)
 	require.Equal(t, 19, blockPermits.released)
+	require.Equal(t, 1, blockPermits.closed)
 }
 
 func TestFetchResultIterTestNoReleaseWithoutAcquire(t *testing.T) {
@@ -96,6 +97,7 @@ func TestFetchResultIterTestNoReleaseWithoutAcquire(t *testing.T) {
 
 	require.Equal(t, 0, blockPermits.acquired)
 	require.Equal(t, 0, blockPermits.released)
+	require.Equal(t, 1, blockPermits.closed)
 }
 
 func requireSeriesBlockMetric(t *testing.T, scope tally.TestScope) {
@@ -143,6 +145,7 @@ type fakePermits struct {
 	released       int
 	available      int
 	quotaPerPermit int64
+	closed         int
 }
 
 func (p *fakePermits) Acquire(_ context.Context) (permits.AcquireResult, error) {
@@ -168,4 +171,8 @@ func (p *fakePermits) TryAcquire(_ context.Context) (permits.Permit, error) {
 func (p *fakePermits) Release(_ permits.Permit) {
 	p.released++
 	p.available++
+}
+
+func (p *fakePermits) Close() {
+	p.closed++
 }
