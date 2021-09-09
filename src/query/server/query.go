@@ -477,9 +477,8 @@ func Run(runOpts RunOptions) RunResult {
 		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
 			zap.Int("numAggregatedClusterNamespaces", len(m3dbClusters.ClusterNamespaces())))
 
-		downsampler, clusterClient, err = setupDownsampler(cfg.Downsample, etcdConfig, backendStorage,
-			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts,
-			runOpts.ApplyCustomRuleStore, runOpts.ClusterClient, runOpts.DownsamplerReadyCh,
+		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, etcdConfig, backendStorage,
+			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
 		)
 
 		if err != nil {
@@ -749,18 +748,17 @@ func newM3DBStorage(cfg config.Configuration, clusters m3.Clusters, poolWrapper 
 	return fanoutStorage, cleanup, etcdConfig, err
 }
 
-func setupDownsampler(
+func newDownsamplerAsync(
 	cfg downsample.Configuration, etcdCfg *etcdclient.Configuration, storage storage.Appender,
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher, tagOptions models.TagOptions, clockOpts clock.Options,
-	instrumentOptions instrument.Options, rwOpts xio.Options, applyCustomRuleStore downsample.CustomRuleStoreFn,
-	clusterClientCh <-chan clusterclient.Client, downsamplerReadyCh chan<- struct{},
+	instrumentOptions instrument.Options, rwOpts xio.Options, runOpts RunOptions,
 ) (downsample.Downsampler, clusterclient.Client, error) {
 	var (
 		clusterClient       clusterclient.Client
 		clusterClientWaitCh <-chan struct{}
 		err                 error
 	)
-	if clusterClientCh := clusterClientCh; clusterClientCh != nil {
+	if clusterClientCh := runOpts.ClusterClient; clusterClientCh != nil {
 		// Only use a cluster client if we are going to receive one, that
 		// way passing nil to httpd NewHandler disables the endpoints entirely
 		clusterClientDoneCh := make(chan struct{}, 1)
@@ -784,15 +782,15 @@ func setupDownsampler(
 		ds, err := newDownsampler(
 			cfg, clusterClient,
 			storage, clusterNamespacesWatcher,
-			tagOptions, clockOpts, instrumentOptions, rwOpts, applyCustomRuleStore)
+			tagOptions, clockOpts, instrumentOptions, rwOpts, runOpts.ApplyCustomRuleStore)
 		if err != nil {
 			return nil, err
 		}
 
 		// Notify the downsampler ready channel that
 		// the downsampler has now been created and is ready.
-		if downsamplerReadyCh != nil {
-			downsamplerReadyCh <- struct{}{}
+		if runOpts.DownsamplerReadyCh != nil {
+			runOpts.DownsamplerReadyCh <- struct{}{}
 		}
 
 		return ds, nil
