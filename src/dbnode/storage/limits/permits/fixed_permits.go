@@ -101,3 +101,6 @@ func (f *fixedPermits) Release(permit Permit) {
 		})
 	}
 }
+
+func (f *fixedPermits) Close() {
+}
