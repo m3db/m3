@@ -1330,6 +1330,79 @@ func TestAggregatorAddForwardedMetrics(t *testing.T) {
 	}
 }
 
+func TestPartitionResendEnabled(t *testing.T) {
+	p1, p2 := partitionResendEnabled(metadata.PipelineMetadatas{
+		newPipeline("1", false),
+		newPipeline("2", true),
+		newPipeline("3", false),
+		newPipeline("4", true),
+	})
+	expected1 := metadata.PipelineMetadatas{
+		newPipeline("4", true),
+		newPipeline("2", true),
+	}
+	expected2 := metadata.PipelineMetadatas{
+		newPipeline("3", false),
+		newPipeline("1", false),
+	}
+	require.Equal(t, expected1, p1)
+	require.Equal(t, expected2, p2)
+
+	p1, p2 = partitionResendEnabled(metadata.PipelineMetadatas{
+		newPipeline("1", true),
+		newPipeline("2", true),
+		newPipeline("3", false),
+		newPipeline("4", false),
+	})
+	expected1 = metadata.PipelineMetadatas{
+		newPipeline("1", true),
+		newPipeline("2", true),
+	}
+	expected2 = metadata.PipelineMetadatas{
+		newPipeline("4", false),
+		newPipeline("3", false),
+	}
+	require.Equal(t, expected1, p1)
+	require.Equal(t, expected2, p2)
+
+	p1, p2 = partitionResendEnabled(metadata.PipelineMetadatas{
+		newPipeline("1", true),
+	})
+	expected1 = metadata.PipelineMetadatas{
+		newPipeline("1", true),
+	}
+	require.Equal(t, expected1, p1)
+	require.Empty(t, p2)
+
+	p1, p2 = partitionResendEnabled(metadata.PipelineMetadatas{
+		newPipeline("1", false),
+	})
+	expected2 = metadata.PipelineMetadatas{
+		newPipeline("1", false),
+	}
+	require.Equal(t, expected2, p2)
+	require.Empty(t, p1)
+
+	p1, p2 = partitionResendEnabled(metadata.PipelineMetadatas{})
+	require.Empty(t, p1)
+	require.Empty(t, p2)
+}
+
+func newPipeline(id string, resendEnabled bool) metadata.PipelineMetadata {
+	return metadata.PipelineMetadata{
+		Pipeline: applied.Pipeline{
+			Operations: []applied.OpUnion{
+				{
+					Rollup: applied.RollupOp{
+						ID: []byte(id),
+					},
+				},
+			},
+		},
+		ResendEnabled: resendEnabled,
+	}
+}
+
 func TestAggregatorUpdateShardsIgnoreCutoffCutover(t *testing.T) {
 	testAggregatorUpdateShards(t, true)
 }

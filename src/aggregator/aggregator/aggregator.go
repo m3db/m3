@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -220,24 +219,43 @@ func (agg *aggregator) placementTick() {
 	}
 }
 
+func partitionResendEnabled(pipelines metadata.PipelineMetadatas) (
+	metadata.PipelineMetadatas, metadata.PipelineMetadatas) {
+	if len(pipelines) == 0 {
+		return nil, nil
+	}
+	s := 0
+	e := len(pipelines) - 1
+	for s <= e {
+		if pipelines[s].ResendEnabled {
+			s++
+		} else {
+			pipelines[s], pipelines[e] = pipelines[e], pipelines[s]
+			e--
+		}
+	}
+	return pipelines[0:s], pipelines[s:]
+}
+
 func (agg *aggregator) AddUntimed(
 	union unaggregated.MetricUnion,
 	metadatas metadata.StagedMetadatas,
 ) error {
+	sw := agg.metrics.addUntimed.SuccessLatencyStopwatch()
+	agg.updateStagedMetadatas(metadatas)
+	if err := agg.checkMetricType(union); err != nil {
+		agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
+		return err
+	}
+	shard, err := agg.shardFor(union.ID)
+	if err != nil {
+		agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
+		return err
+	}
+	// automatically migrate pipelines that support resending aggregate values to use AddTimed.
 	if agg.opts.TimedForResendEnabled() && len(metadatas) == 1 {
-		// automatically migrate pipelines that support resending aggregate values to use AddTimed.
-		sort.Slice(metadatas[0].Pipelines, func(i, j int) bool {
-			return metadatas[0].Pipelines[i].ResendEnabled
-		})
-		var p int
-		for p = 0; p < len(metadatas[0].Pipelines); p++ {
-			if !metadatas[0].Pipelines[p].ResendEnabled {
-				break
-			}
-		}
-		timedPipelines := metadatas[0].Pipelines[0:p]
-		untimedPipelines := metadatas[0].Pipelines[p:]
-
+		prevPipelines := metadatas[0].Pipelines
+		timedPipelines, untimedPipelines := partitionResendEnabled(metadatas[0].Pipelines)
 		if len(timedPipelines) > 0 {
 			metadatas[0].Pipelines = timedPipelines
 			if union.Type != metric.GaugeType {
@@ -250,28 +268,22 @@ func (agg *aggregator) AddUntimed(
 				Value:      union.GaugeVal,
 				Annotation: union.Annotation,
 			}
-			err := agg.AddTimedWithStagedMetadatas(timedMetric, metadatas)
-			if err != nil {
+			agg.metrics.untimedToTimed.Inc(1)
+			if err = shard.AddTimedWithStagedMetadatas(timedMetric, metadatas); err != nil {
+				agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
 				return err
 			}
 		}
-		if len(untimedPipelines) == 0 {
-			return nil
+		if len(untimedPipelines) > 0 {
+			metadatas[0].Pipelines = untimedPipelines
+			if err = shard.AddUntimed(union, metadatas); err != nil {
+				agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
+				return err
+			}
 		}
-		metadatas[0].Pipelines = untimedPipelines
-	}
-	sw := agg.metrics.addUntimed.SuccessLatencyStopwatch()
-	agg.updateStagedMetadatas(metadatas)
-	if err := agg.checkMetricType(union); err != nil {
-		agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
-		return err
-	}
-	shard, err := agg.shardFor(union.ID)
-	if err != nil {
-		agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
-		return err
-	}
-	if err = shard.AddUntimed(union, metadatas); err != nil {
+		// reset initial pipelines so the slice can be reused on the next request (i.e restore cap).
+		metadatas[0].Pipelines = prevPipelines
+	} else if err = shard.AddUntimed(union, metadatas); err != nil {
 		agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
 		return err
 	}
@@ -1192,6 +1204,7 @@ type aggregatorMetrics struct {
 	forwarded      tally.Counter
 	timed          tally.Counter
 	passthrough    tally.Counter
+	untimedToTimed tally.Counter
 	addUntimed     aggregatorAddUntimedMetrics
 	addTimed       aggregatorAddTimedMetrics
 	addForwarded   aggregatorAddForwardedMetrics
@@ -1223,6 +1236,7 @@ func newAggregatorMetrics(
 		forwarded:      scope.Counter("forwarded"),
 		timed:          scope.Counter("timed"),
 		passthrough:    scope.Counter("passthrough"),
+		untimedToTimed: scope.Counter("untimed-to-timed"),
 		addUntimed:     newAggregatorAddUntimedMetrics(addUntimedScope, opts),
 		addTimed:       newAggregatorAddTimedMetrics(addTimedScope, opts),
 		addForwarded:   newAggregatorAddForwardedMetrics(addForwardedScope, opts, maxAllowedForwardingDelayFn),
