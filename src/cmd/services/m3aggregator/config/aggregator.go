@@ -44,7 +44,6 @@ import (
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	"github.com/m3db/m3/src/metrics/aggregation"
-	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/config/hostid"
@@ -184,6 +183,10 @@ type AggregatorConfiguration struct {
 	// WritesIgnoreCutoffCutover allows accepting writes ignoring cutoff/cutover timestamp.
 	// Must be in sync with m3msg WriterConfiguration.IgnoreCutoffCutover.
 	WritesIgnoreCutoffCutover bool `yaml:"writesIgnoreCutoffCutover"`
+
+	// TimedForResendEnabled is a feature flag that gracefully transitions AddUntimed to AddTimed for pipelines
+	// that support resending aggregate values.
+	TimedForResendEnabled bool `yaml:"timedForResendEnabled"`
 }
 
 // InstanceIDType is the instance ID type that defines how the
@@ -459,7 +462,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	counterElemPool := aggregator.NewCounterElemPool(counterElemPoolOpts)
 	opts = opts.SetCounterElemPool(counterElemPool)
 	counterElemPool.Init(func() *aggregator.CounterElem {
-		return aggregator.MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregator.NoPrefixNoSuffix, opts)
+		return aggregator.MustNewCounterElem(aggregator.ElemData{}, opts)
 	})
 
 	// Set timer elem pool.
@@ -468,7 +471,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	timerElemPool := aggregator.NewTimerElemPool(timerElemPoolOpts)
 	opts = opts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem {
-		return aggregator.MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregator.NoPrefixNoSuffix, opts)
+		return aggregator.MustNewTimerElem(aggregator.ElemData{}, opts)
 	})
 
 	// Set gauge elem pool.
@@ -477,7 +480,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	gaugeElemPool := aggregator.NewGaugeElemPool(gaugeElemPoolOpts)
 	opts = opts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem {
-		return aggregator.MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregator.NoPrefixNoSuffix, opts)
+		return aggregator.MustNewGaugeElem(aggregator.ElemData{}, opts)
 	})
 
 	// Set entry pool.
@@ -492,7 +495,9 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		return aggregator.NewEntryWithMetrics(nil, metrics, runtimeOpts, opts)
 	})
 
-	opts = opts.SetWritesIgnoreCutoffCutover(c.WritesIgnoreCutoffCutover)
+	opts = opts.
+		SetWritesIgnoreCutoffCutover(c.WritesIgnoreCutoffCutover).
+		SetTimedForResendEnabled(c.TimedForResendEnabled)
 
 	return opts, nil
 }

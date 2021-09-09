@@ -27,10 +27,13 @@ import (
 	_ "net/http/pprof" // needed for pprof handler registration
 	"time"
 
+	"github.com/gorilla/mux"
+	"github.com/jonboulle/clockwork"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/placementhandler"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/experimental/annotated"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/database"
 	"github.com/m3db/m3/src/query/api/v1/handler/graphite"
@@ -44,14 +47,11 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
 	"github.com/m3db/m3/src/query/api/v1/middleware"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	xdebug "github.com/m3db/m3/src/x/debug"
 	extdebug "github.com/m3db/m3/src/x/debug/ext"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/gorilla/mux"
-	"github.com/jonboulle/clockwork"
-	"go.uber.org/zap"
 )
 
 const (
@@ -67,8 +67,7 @@ var (
 	remoteSource = map[string]string{"source": "remote"}
 	nativeSource = map[string]string{"source": "native"}
 
-	v1APIGroup           = map[string]string{"api_group": "v1"}
-	experimentalAPIGroup = map[string]string{"api_group": "experimental"}
+	v1APIGroup = map[string]string{"api_group": "v1"}
 )
 
 // Handler represents the top-level HTTP handler.
@@ -332,17 +331,23 @@ func (h *Handler) RegisterRoutes() error {
 		return err
 	}
 
-	// Graphite endpoints.
+	// Graphite routable endpoints.
+	h.options.GraphiteRenderRouter().Setup(options.GraphiteRenderRouterOptions{
+		RenderHandler: graphite.NewRenderHandler(h.options).ServeHTTP,
+	})
+	h.options.GraphiteFindRouter().Setup(options.GraphiteFindRouterOptions{
+		FindHandler: graphite.NewFindHandler(h.options).ServeHTTP,
+	})
 	if err := h.registry.Register(queryhttp.RegisterOptions{
 		Path:    graphite.ReadURL,
-		Handler: graphite.NewRenderHandler(h.options),
+		Handler: h.options.GraphiteRenderRouter(),
 		Methods: graphite.ReadHTTPMethods,
 	}); err != nil {
 		return err
 	}
 	if err := h.registry.Register(queryhttp.RegisterOptions{
 		Path:    graphite.FindURL,
-		Handler: graphite.NewFindHandler(h.options),
+		Handler: h.options.GraphiteFindRouter(),
 		Methods: graphite.FindHTTPMethods,
 	}); err != nil {
 		return err
@@ -419,24 +424,6 @@ func (h *Handler) RegisterRoutes() error {
 		if err != nil {
 			return err
 		}
-
-		// Experimental endpoints.
-		if config.Experimental.Enabled {
-			experimentalAnnotatedWriteHandler := annotated.NewHandler(
-				h.options.DownsamplerAndWriter(),
-				h.options.TagOptions(),
-				instrumentOpts.MetricsScope().
-					Tagged(remoteSource).
-					Tagged(experimentalAPIGroup),
-			)
-			if err := h.registry.Register(queryhttp.RegisterOptions{
-				Path:    annotated.WriteURL,
-				Handler: experimentalAnnotatedWriteHandler,
-				Methods: methods(annotated.WriteHTTPMethod),
-			}); err != nil {
-				return err
-			}
-		}
 	}
 
 	if err := h.registerHealthEndpoints(); err != nil {
@@ -498,6 +485,9 @@ func (h *Handler) RegisterRoutes() error {
 			Logging:        middleware.NewLoggingOptions(h.middlewareConfig.Logging),
 			Metrics: middleware.MetricsOptions{
 				Config: h.middlewareConfig.Metrics,
+				ParseOptions: promql.NewParseOptions().
+					SetRequireStartEndTime(h.options.Config().Query.RequireLabelsEndpointStartEndTime).
+					SetNowFn(h.options.NowFn()),
 			},
 			PrometheusRangeRewrite: middleware.PrometheusRangeRewriteOptions{
 				FetchOptionsBuilder:  h.options.FetchOptionsBuilder(),

@@ -124,8 +124,14 @@ func resolveClusterNamespacesForQueryLogicalPlan(
 ) (consolidators.QueryFanoutType, ClusterNamespaces, error) {
 	if typeRestrict := restrict.GetRestrictByType(); typeRestrict != nil {
 		// If a specific restriction is set, then attempt to satisfy.
-		return resolveClusterNamespacesForQueryWithRestrictQueryOptions(now,
+		return resolveClusterNamespacesForQueryWithTypeRestrictQueryOptions(now,
 			start, clusters, *typeRestrict)
+	}
+
+	if typesRestrict := restrict.GetRestrictByTypes(); typesRestrict != nil {
+		// If a specific restriction is set, then attempt to satisfy.
+		return resolveClusterNamespacesForQueryWithTypesRestrictQueryOptions(now,
+			start, clusters, typesRestrict)
 	}
 
 	// First check if the unaggregated cluster can fully satisfy the query range.
@@ -343,10 +349,10 @@ func aggregatedNamespaces(
 	return slices
 }
 
-// resolveClusterNamespacesForQueryWithRestrictQueryOptions returns the cluster
+// resolveClusterNamespacesForQueryWithTypeRestrictQueryOptions returns the cluster
 // namespace referred to by the restrict fetch options or an error if it
 // cannot be found.
-func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
+func resolveClusterNamespacesForQueryWithTypeRestrictQueryOptions(
 	now, start xtime.UnixNano,
 	clusters Clusters,
 	restrict storage.RestrictByType,
@@ -400,6 +406,34 @@ func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
 			fmt.Errorf("unrecognized metrics type: %v", restrict.MetricsType))
 		return result(nil, err)
 	}
+}
+
+// resolveClusterNamespacesForQueryWithTypesRestrictQueryOptions returns the cluster
+// namespace referred to by the array of restrict fetch options or an error if it
+// cannot be found.
+func resolveClusterNamespacesForQueryWithTypesRestrictQueryOptions(
+	now, start xtime.UnixNano,
+	clusters Clusters,
+	restricts []*storage.RestrictByType,
+) (consolidators.QueryFanoutType, ClusterNamespaces, error) {
+	var (
+		namespaces []ClusterNamespace
+		fanoutType consolidators.QueryFanoutType
+	)
+	for _, restrict := range restricts {
+		t, ns, err := resolveClusterNamespacesForQueryWithTypeRestrictQueryOptions(now, start, clusters, *restrict)
+		if err != nil {
+			return consolidators.NamespaceInvalid, nil, err
+		}
+		namespaces = append(namespaces, ns...)
+		if t == consolidators.NamespaceCoversPartialQueryRange ||
+			fanoutType == consolidators.NamespaceCoversPartialQueryRange {
+			fanoutType = consolidators.NamespaceCoversPartialQueryRange
+		} else {
+			fanoutType = consolidators.NamespaceCoversAllQueryRange
+		}
+	}
+	return fanoutType, namespaces, nil
 }
 
 type coversRangeFilterOptions struct {

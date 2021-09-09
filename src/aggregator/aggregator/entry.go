@@ -112,6 +112,7 @@ type timedEntryMetrics struct {
 	rateLimit             rateLimitEntryMetrics
 	tooFarInTheFuture     tally.Counter
 	tooFarInThePast       tally.Counter
+	ingestDelay           tally.Histogram
 	noPipelinesInMetadata tally.Counter
 	tombstonedMetadata    tally.Counter
 	metadataUpdates       tally.Counter
@@ -127,6 +128,20 @@ func newTimedEntryMetrics(scope tally.Scope) timedEntryMetrics {
 		tombstonedMetadata:    scope.Counter("tombstoned-metadata"),
 		metadataUpdates:       scope.Counter("metadata-updates"),
 		metadatasUpdates:      scope.Counter("metadatas-updates"),
+		ingestDelay: scope.Histogram("ingest-delay", tally.DurationBuckets{
+			time.Millisecond,
+			time.Millisecond * 10,
+			time.Millisecond * 100,
+			time.Second,
+			time.Second * 5,
+			time.Second * 10,
+			time.Second * 30,
+			time.Minute,
+			time.Minute * 2,
+			time.Minute * 3,
+			time.Minute * 5,
+			time.Minute * 10,
+		}),
 	}
 }
 
@@ -559,6 +574,7 @@ func (e *Entry) addNewAggregationKeyWithLock(
 	key aggregationKey,
 	listID metricListID,
 	newAggregations aggregationValues,
+	resendEnabled bool,
 ) (aggregationValues, error) {
 	// Remove duplicate aggregation pipelines.
 	if newAggregations.contains(key) {
@@ -585,7 +601,15 @@ func (e *Entry) addNewAggregationKeyWithLock(
 	}
 	// NB: The pipeline may not be owned by us and as such we need to make a copy here.
 	key.pipeline = key.pipeline.Clone()
-	if err = newElem.ResetSetData(metricID, key.storagePolicy, aggTypes, key.pipeline, key.numForwardedTimes, key.idPrefixSuffixType); err != nil {
+	if err = newElem.ResetSetData(ElemData{
+		ID:                 metricID,
+		StoragePolicy:      key.storagePolicy,
+		AggTypes:           aggTypes,
+		Pipeline:           key.pipeline,
+		NumForwardedTimes:  key.numForwardedTimes,
+		IDPrefixSuffixType: key.idPrefixSuffixType,
+		ResendEnabled:      resendEnabled,
+	}); err != nil {
 		return nil, err
 	}
 	list, err := e.lists.FindOrCreate(listID)
@@ -622,9 +646,6 @@ func (e *Entry) updateStagedMetadatasWithLock(
 
 	// Update the metadatas.
 	for _, p := range sm.Pipelines {
-		if e.opts.AddToReset() {
-			p.Pipeline = p.Pipeline.WithResets()
-		}
 		storagePolicies := e.storagePolicies(p.StoragePolicies)
 		for j := range storagePolicies {
 			key := aggregationKey{
@@ -634,7 +655,7 @@ func (e *Entry) updateStagedMetadatasWithLock(
 				idPrefixSuffixType: WithPrefixWithSuffix,
 			}
 			var listID metricListID
-			if timed {
+			if timed && !p.ResendEnabled {
 				listID = timedMetricListID{
 					resolution: storagePolicies[j].Resolution().Window,
 				}.toMetricListID()
@@ -644,7 +665,8 @@ func (e *Entry) updateStagedMetadatasWithLock(
 				}.toMetricListID()
 			}
 			var err error
-			newAggregations, err = e.addNewAggregationKeyWithLock(metricType, elemID, key, listID, newAggregations)
+			newAggregations, err = e.addNewAggregationKeyWithLock(metricType, elemID, key, listID, newAggregations,
+				p.ResendEnabled)
 			if err != nil {
 				return err
 			}
@@ -821,6 +843,7 @@ func (e *Entry) checkTimestampForTimedMetric(
 	resolution time.Duration,
 ) error {
 	metricTimeNanos := metric.TimeNanos
+	e.metrics.timed.ingestDelay.RecordDuration(time.Duration(e.nowFn().UnixNano() - metricTimeNanos))
 	timedBufferFuture := e.opts.BufferForFutureTimedMetric()
 	if metricTimeNanos-currNanos > timedBufferFuture.Nanoseconds() {
 		e.metrics.timed.tooFarInTheFuture.Inc(1)
@@ -879,7 +902,7 @@ func (e *Entry) updateTimedMetadataWithLock(
 	listID := timedMetricListID{
 		resolution: metadata.StoragePolicy.Resolution().Window,
 	}.toMetricListID()
-	newAggregations, err := e.addNewAggregationKeyWithLock(metric.Type, elemID, key, listID, e.aggregations)
+	newAggregations, err := e.addNewAggregationKeyWithLock(metric.Type, elemID, key, listID, e.aggregations, false)
 	if err != nil {
 		return err
 	}
@@ -944,6 +967,7 @@ func (e *Entry) addForwarded(
 	// Reject datapoints that arrive too late.
 	if err := e.checkLatenessForForwardedMetric(
 		metric,
+		metadata,
 		currTime.UnixNano(),
 		metadata.StoragePolicy.Resolution().Window,
 		metadata.NumForwardedTimes,
@@ -962,7 +986,7 @@ func (e *Entry) addForwarded(
 		idPrefixSuffixType: WithPrefixWithSuffix,
 	}
 	if idx := e.aggregations.index(key); idx >= 0 {
-		err := e.addForwardedWithLock(e.aggregations[idx], metric, metadata.SourceID)
+		err := e.addForwardedWithLock(e.aggregations[idx], metric, metadata)
 		e.RUnlock()
 		timeLock.RUnlock()
 		return err
@@ -977,7 +1001,7 @@ func (e *Entry) addForwarded(
 	}
 
 	if idx := e.aggregations.index(key); idx >= 0 {
-		err := e.addForwardedWithLock(e.aggregations[idx], metric, metadata.SourceID)
+		err := e.addForwardedWithLock(e.aggregations[idx], metric, metadata)
 		e.Unlock()
 		timeLock.RUnlock()
 		return err
@@ -990,7 +1014,7 @@ func (e *Entry) addForwarded(
 		return err
 	}
 	idx := e.aggregations.index(key)
-	err := e.addForwardedWithLock(e.aggregations[idx], metric, metadata.SourceID)
+	err := e.addForwardedWithLock(e.aggregations[idx], metric, metadata)
 	e.Unlock()
 	timeLock.RUnlock()
 	return err
@@ -998,6 +1022,7 @@ func (e *Entry) addForwarded(
 
 func (e *Entry) checkLatenessForForwardedMetric(
 	metric aggregated.ForwardedMetric,
+	metadata metadata.ForwardMetadata,
 	currNanos int64,
 	resolution time.Duration,
 	numForwardedTimes int,
@@ -1005,6 +1030,9 @@ func (e *Entry) checkLatenessForForwardedMetric(
 	metricTimeNanos := metric.TimeNanos
 	maxAllowedForwardingDelayFn := e.opts.MaxAllowedForwardingDelayFn()
 	maxLatenessAllowed := maxAllowedForwardingDelayFn(resolution, numForwardedTimes)
+	if metadata.ResendEnabled {
+		maxLatenessAllowed = e.opts.BufferForPastTimedMetricFn()(resolution)
+	}
 	if currNanos-metricTimeNanos <= maxLatenessAllowed.Nanoseconds() {
 		return nil
 	}
@@ -1049,7 +1077,8 @@ func (e *Entry) updateForwardMetadataWithLock(
 		resolution:        metadata.StoragePolicy.Resolution().Window,
 		numForwardedTimes: metadata.NumForwardedTimes,
 	}.toMetricListID()
-	newAggregations, err := e.addNewAggregationKeyWithLock(metric.Type, elemID, key, listID, e.aggregations)
+	newAggregations, err := e.addNewAggregationKeyWithLock(metric.Type, elemID, key, listID, e.aggregations,
+		metadata.ResendEnabled)
 	if err != nil {
 		return err
 	}
@@ -1062,10 +1091,10 @@ func (e *Entry) updateForwardMetadataWithLock(
 func (e *Entry) addForwardedWithLock(
 	value aggregationValue,
 	metric aggregated.ForwardedMetric,
-	sourceID uint32,
+	metadata metadata.ForwardMetadata,
 ) error {
 	timestamp := time.Unix(0, metric.TimeNanos)
-	err := value.elem.Value.(metricElem).AddUnique(timestamp, metric.Values, metric.Annotation, sourceID)
+	err := value.elem.Value.(metricElem).AddUnique(timestamp, metric, metadata)
 	if err == errDuplicateForwardingSource {
 		// Duplicate forwarding sources may occur during a leader re-election and is not
 		// considered an external facing error. Hence, we record it and move on.

@@ -140,8 +140,8 @@ type RunOptions struct {
 	// ClockOptions is an optional clock to use instead of the default one.
 	ClockOptions clock.Options
 
-	// CustomHandlerOptions contains custom handler options.
-	CustomHandlerOptions options.CustomHandlerOptions
+	// CustomHandlerOptions creates custom handler options.
+	CustomHandlerOptions CustomHandlerOptionsFn
 
 	// CustomPromQLParseFunction is a custom PromQL parsing function.
 	CustomPromQLParseFunction promql.ParseFn
@@ -150,7 +150,7 @@ type RunOptions struct {
 	ApplyCustomTSDBOptions CustomTSDBOptionsFn
 
 	// BackendStorageTransform is a custom backend storage transform.
-	BackendStorageTransform BackendStorageTransform
+	BackendStorageTransform BackendStorageTransformFn
 
 	// AggregatorServerOptions are server options for aggregator.
 	AggregatorServerOptions []server.AdminOption
@@ -171,14 +171,17 @@ type InstrumentOptionsReady struct {
 }
 
 // CustomTSDBOptionsFn is a transformation function for TSDB Options.
-type CustomTSDBOptionsFn func(m3.Options) m3.Options
+type CustomTSDBOptionsFn func(m3.Options, instrument.Options) (m3.Options, error)
 
-// BackendStorageTransform is a transformation function for backend storage.
-type BackendStorageTransform func(
+// CustomHandlerOptionsFn is a factory for options.CustomHandlerOptions.
+type CustomHandlerOptionsFn func(instrument.Options) (options.CustomHandlerOptions, error)
+
+// BackendStorageTransformFn is a transformation function for backend storage.
+type BackendStorageTransformFn func(
 	storage.Storage,
 	m3.Options,
 	instrument.Options,
-) storage.Storage
+) (storage.Storage, error)
 
 // RunResult returns metadata about the process run.
 type RunResult struct {
@@ -202,6 +205,20 @@ func Run(runOpts RunOptions) RunResult {
 		// sending stdlib "log" to black hole. Don't remove unless with good reason.
 		fmt.Fprintf(os.Stderr, "unable to create logger: %v", err)
 		os.Exit(1)
+	}
+
+	// NB(nate): Register shutdown notification defer function first so that
+	// it's the last defer to fire before terminating. This allows other defer methods
+	// that clean up resources to execute first.
+	if runOpts.ShutdownCh != nil {
+		defer func() {
+			select {
+			case runOpts.ShutdownCh <- struct{}{}:
+				break
+			default:
+				logger.Warn("could not send shutdown notification as channel was full")
+			}
+		}()
 	}
 
 	defer logger.Sync()
@@ -375,7 +392,10 @@ func Run(runOpts RunOptions) RunResult {
 		SetSeriesConsolidationMatchOptions(matchOptions)
 
 	if runOpts.ApplyCustomTSDBOptions != nil {
-		tsdbOpts = runOpts.ApplyCustomTSDBOptions(tsdbOpts)
+		tsdbOpts, err = runOpts.ApplyCustomTSDBOptions(tsdbOpts, instrumentOptions)
+		if err != nil {
+			logger.Fatal("could not apply ApplyCustomTSDBOptions", zap.Error(err))
+		}
 	}
 
 	serveOptions := serve.NewOptions(instrumentOptions)
@@ -456,7 +476,10 @@ func Run(runOpts RunOptions) RunResult {
 	}
 
 	if fn := runOpts.BackendStorageTransform; fn != nil {
-		backendStorage = fn(backendStorage, tsdbOpts, instrumentOptions)
+		backendStorage, err = fn(backendStorage, tsdbOpts, instrumentOptions)
+		if err != nil {
+			logger.Fatal("could not apply BackendStorageTransform", zap.Error(err))
+		}
 	}
 
 	engineOpts := executor.NewEngineOptions().
@@ -566,16 +589,24 @@ func Run(runOpts RunOptions) RunResult {
 		runOpts.DBConfig, fetchOptsBuilder, graphiteFindFetchOptsBuilder, graphiteRenderFetchOptsBuilder,
 		queryCtxOpts, instrumentOptions, cpuProfileDuration, []string{handleroptions3.M3DBServiceName},
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
-		graphiteStorageOpts, tsdbOpts)
+		graphiteStorageOpts, tsdbOpts, httpd.NewGraphiteRenderRouter(), httpd.NewGraphiteFindRouter())
 	if err != nil {
 		logger.Fatal("unable to set up handler options", zap.Error(err))
 	}
 
-	if fn := runOpts.CustomHandlerOptions.OptionTransformFn; fn != nil {
+	var customHandlerOpts options.CustomHandlerOptions
+	if runOpts.CustomHandlerOptions != nil {
+		customHandlerOpts, err = runOpts.CustomHandlerOptions(instrumentOptions)
+		if err != nil {
+			logger.Fatal("could not create custom handlers", zap.Error(err))
+		}
+	}
+
+	if fn := customHandlerOpts.OptionTransformFn; fn != nil {
 		handlerOptions = fn(handlerOptions)
 	}
 
-	customHandlers := runOpts.CustomHandlerOptions.CustomHandlers
+	customHandlers := customHandlerOpts.CustomHandlers
 	handler := httpd.NewHandler(handlerOptions, cfg.Middleware, customHandlers...)
 	if err := handler.RegisterRoutes(); err != nil {
 		logger.Fatal("unable to register routes", zap.Error(err))
@@ -658,15 +689,6 @@ func Run(runOpts RunOptions) RunResult {
 	xos.WaitForInterrupt(logger, xos.InterruptOptions{
 		InterruptCh: runOpts.InterruptCh,
 	})
-
-	if runOpts.ShutdownCh != nil {
-		select {
-		case runOpts.ShutdownCh <- struct{}{}:
-			break
-		default:
-			logger.Warn("could not send shutdown notification as channel was full")
-		}
-	}
 
 	return runResult
 }
