@@ -123,9 +123,12 @@ func (w *streamingWriter) Open(opts StreamingWriterOpenOptions) error {
 	if err := w.writer.Open(writerOpts); err != nil {
 		return err
 	}
+
+	w.currIdx = 0
 	w.indexOffset = 0
 	w.summaries = 0
 	w.prevIDBytes = nil
+
 	return nil
 }
 

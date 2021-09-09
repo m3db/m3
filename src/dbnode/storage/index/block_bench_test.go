@@ -115,11 +115,19 @@ func BenchmarkBlockWrite(b *testing.B) {
 // useless to use in benchmarks
 type mockOnIndexSeries struct{}
 
-var _ OnIndexSeries = mockOnIndexSeries{}
+var _ doc.OnIndexSeries = mockOnIndexSeries{}
 
-func (m mockOnIndexSeries) OnIndexSuccess(blockStart xtime.UnixNano)  {}
-func (m mockOnIndexSeries) OnIndexFinalize(blockStart xtime.UnixNano) {}
-func (m mockOnIndexSeries) OnIndexPrepare()                           {}
-func (m mockOnIndexSeries) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool {
+func (m mockOnIndexSeries) OnIndexSuccess(_ xtime.UnixNano)  {}
+func (m mockOnIndexSeries) OnIndexFinalize(_ xtime.UnixNano) {}
+func (m mockOnIndexSeries) OnIndexPrepare(_ xtime.UnixNano)  {}
+func (m mockOnIndexSeries) NeedsIndexUpdate(_ xtime.UnixNano) bool {
 	return false
 }
+func (m mockOnIndexSeries) DecrementReaderWriterCount() {}
+func (m mockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(_ xtime.UnixNano) bool {
+	return false
+}
+func (m mockOnIndexSeries) IndexedForBlockStart(_ xtime.UnixNano) bool { return false }
+func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool                { return false }
+func (m mockOnIndexSeries) TryMarkIndexGarbageCollected() bool         { return false }
+func (m mockOnIndexSeries) NeedsIndexGarbageCollected() bool           { return false }

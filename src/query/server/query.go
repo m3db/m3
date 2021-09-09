@@ -116,6 +116,10 @@ type RunOptions struct {
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
 
+	// ShutdownCh is an optional channel to supply if interested in receiving
+	// a notification that the server has shutdown.
+	ShutdownCh chan<- struct{}
+
 	// ListenerCh is a programmatic channel to receive the server listener
 	// on once it has opened.
 	ListenerCh chan<- net.Listener
@@ -654,6 +658,15 @@ func Run(runOpts RunOptions) RunResult {
 	xos.WaitForInterrupt(logger, xos.InterruptOptions{
 		InterruptCh: runOpts.InterruptCh,
 	})
+
+	if runOpts.ShutdownCh != nil {
+		select {
+		case runOpts.ShutdownCh <- struct{}{}:
+			break
+		default:
+			logger.Warn("could not send shutdown notification as channel was full")
+		}
+	}
 
 	return runResult
 }

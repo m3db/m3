@@ -657,3 +657,42 @@ func TestPipelineRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestPipeline_WithResets(t *testing.T) {
+	p := Pipeline{
+		Operations: []OpUnion{
+			{
+				Type: pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{
+					Type: transformation.Add,
+				},
+			},
+			{
+				Type: pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{
+					Type: transformation.PerSecond,
+				},
+			},
+		},
+	}
+	copyP := p
+	expected := Pipeline{
+		Operations: []OpUnion{
+			{
+				Type: pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{
+					Type: transformation.Reset,
+				},
+			},
+			{
+				Type: pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{
+					Type: transformation.PerSecond,
+				},
+			},
+		},
+	}
+	require.Equal(t, expected, p.WithResets())
+	// make sure the original pipeline doesn't change.
+	require.Equal(t, copyP, p)
+}

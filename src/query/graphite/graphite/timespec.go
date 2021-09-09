@@ -166,7 +166,7 @@ func ParseTime(s string, now time.Time, absoluteOffset time.Duration) (time.Time
 
 	n, err := strconv.ParseInt(s, 10, 64)
 	if err == nil {
-		return time.Unix(n, 0).UTC(), nil
+		return time.Unix(n, 0), nil
 	}
 
 	s = strings.Replace(strings.Replace(strings.ToLower(s), ",", "", -1), " ", "", -1)

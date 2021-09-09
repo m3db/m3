@@ -359,12 +359,12 @@ func TestCompileErrors(t *testing.T) {
 		{
 			"aliasByNode(10)",
 			"invalid expression 'aliasByNode(10)': invalid function call aliasByNode," +
-				" arg 0: expected a singlePathSpec, received '10'",
+				" arg 0: expected a singlePathSpec, received a float64 '10'",
 		},
 		{
 			"sortByName(hello())",
 			"invalid expression 'sortByName(hello())': invalid function call " +
-				"sortByName, arg 0: expected a singlePathSpec, received 'hello()'",
+				"sortByName, arg 0: expected a singlePathSpec, received a functionCall 'hello()'",
 		},
 		{
 			"aliasByNode()",
@@ -374,7 +374,7 @@ func TestCompileErrors(t *testing.T) {
 		{
 			"aliasByNode(foo.*.zed, 2, false)",
 			"invalid expression 'aliasByNode(foo.*.zed, 2, false)': invalid function call " +
-				"aliasByNode, arg 2: expected a int, received 'false'",
+				"aliasByNode, arg 2: expected a int, received a bool 'false'",
 		},
 		{
 			"aliasByNode(foo.*.bar,",
@@ -452,7 +452,7 @@ func TestCompileErrors(t *testing.T) {
 			"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, e)",
 			"invalid expression 'scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, e)': " +
 				"invalid function call scale, " +
-				"arg 1: expected a float64, received 'fetch(e)'",
+				"arg 1: expected a float64, received a fetchExpression 'fetch(e)'",
 		},
 		{
 			"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.2ee)",

@@ -22,7 +22,7 @@ package query
 
 import (
 	"bytes"
-	"fmt"
+	"strings"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -31,16 +31,22 @@ import (
 
 // TermQuery finds document which match the given term exactly.
 type TermQuery struct {
+	str   string
 	field []byte
 	term  []byte
 }
 
 // NewTermQuery constructs a new TermQuery for the given field and term.
 func NewTermQuery(field, term []byte) search.Query {
-	return &TermQuery{
+	q := &TermQuery{
 		field: field,
 		term:  term,
 	}
+	// NB(r): Calculate string value up front so
+	// not allocated every time String() is called to determine
+	// the cache key.
+	q.str = q.string()
+	return q
 }
 
 // Searcher returns a searcher over the provided readers.
@@ -76,5 +82,15 @@ func (q *TermQuery) ToProto() *querypb.Query {
 }
 
 func (q *TermQuery) String() string {
-	return fmt.Sprintf("term(%s, %s)", q.field, q.term)
+	return q.str
+}
+
+func (q *TermQuery) string() string {
+	var str strings.Builder
+	str.WriteString("term(")
+	str.Write(q.field)
+	str.WriteRune(',')
+	str.Write(q.term)
+	str.WriteRune(')')
+	return str.String()
 }

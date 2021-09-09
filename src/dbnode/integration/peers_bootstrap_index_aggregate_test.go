@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -121,6 +122,18 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 		},
 	})
 	require.NoError(t, writeTestDataToDisk(ns1, setups[0], seriesMaps, 0))
+
+	for blockStart, series := range seriesMaps {
+		docs := generate.ToDocMetadata(series)
+		require.NoError(t, writeTestIndexDataToDisk(
+			ns1,
+			setups[0].StorageOpts(),
+			idxpersist.DefaultIndexVolumeType,
+			blockStart,
+			setups[0].ShardSet().AllIDs(),
+			docs,
+		))
+	}
 
 	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].StartServer())

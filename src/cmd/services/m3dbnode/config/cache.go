@@ -23,10 +23,11 @@ package config
 import "github.com/m3db/m3/src/dbnode/storage/series"
 
 var (
-	defaultPostingsListCacheSize   = 2 << 11 // 4096
+	defaultPostingsListCacheSize   = 2 << 15 // ~65k
 	defaultPostingsListCacheRegexp = true
 	defaultPostingsListCacheTerms  = true
-	defaultRegexpCacheSize         = 256
+	defaultPostingsListCacheSearch = true
+	defaultRegexpCacheSize         = 1024
 )
 
 // CacheConfigurations is the cache configurations.
@@ -87,6 +88,7 @@ type PostingsListCacheConfiguration struct {
 	Size        *int  `yaml:"size"`
 	CacheRegexp *bool `yaml:"cacheRegexp"`
 	CacheTerms  *bool `yaml:"cacheTerms"`
+	CacheSearch *bool `yaml:"cacheSearch"`
 }
 
 // SizeOrDefault returns the provided size or the default value is none is
@@ -117,6 +119,16 @@ func (p PostingsListCacheConfiguration) CacheTermsOrDefault() bool {
 	}
 
 	return *p.CacheTerms
+}
+
+// CacheSearchOrDefault returns the provided cache search configuration value
+// or the default value is none is provided.
+func (p PostingsListCacheConfiguration) CacheSearchOrDefault() bool {
+	if p.CacheSearch == nil {
+		return defaultPostingsListCacheSearch
+	}
+
+	return *p.CacheSearch
 }
 
 // RegexpCacheConfiguration is a compiled regexp cache for query regexps.

@@ -90,7 +90,7 @@ func testShardWriteSyncRefCount(t *testing.T, opts Options) {
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
 		shard.Lock()
-		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		entry, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
 		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
@@ -114,7 +114,7 @@ func testShardWriteSyncRefCount(t *testing.T, opts Options) {
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
 		shard.Lock()
-		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		entry, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
 		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
@@ -213,7 +213,7 @@ func testShardWriteTaggedSyncRefCount(t *testing.T, idx NamespaceIndex) {
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
 		shard.Lock()
-		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		entry, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
 		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
@@ -240,7 +240,7 @@ func testShardWriteTaggedSyncRefCount(t *testing.T, idx NamespaceIndex) {
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
 		shard.Lock()
-		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		entry, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
 		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
@@ -293,7 +293,7 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
 		shard.Lock()
-		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		entry, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
 		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
@@ -317,7 +317,7 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
 		shard.Lock()
-		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		entry, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
 		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
@@ -459,7 +459,7 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx NamespaceIndex, nowFn f
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
 		shard.Lock()
-		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		entry, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
 		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
@@ -486,7 +486,7 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx NamespaceIndex, nowFn f
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
 		shard.Lock()
-		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		entry, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
 		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)

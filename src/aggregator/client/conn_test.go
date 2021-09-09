@@ -60,7 +60,10 @@ func TestConnectionDontReconnectProperties(t *testing.T) {
 	  - increment the number of failures`,
 		prop.ForAll(
 			func(numFailures int32) (bool, error) {
-				conn := newConnection(testFakeServerAddr, testConnectionOptions())
+				conn := newConnection(testFakeServerAddr,
+					testConnectionOptions().
+						SetMaxReconnectDuration(time.Duration(math.MaxInt64)),
+				)
 				conn.connectWithLockFn = func() error { return errTestConnect }
 				conn.numFailures = int(numFailures)
 				conn.threshold = testReconnectThreshold
@@ -136,6 +139,7 @@ func TestConnectionNumFailuresThresholdReconnectProperty(t *testing.T) {
 				// Exhausted max threshold
 				conn.threshold = int(threshold)
 				conn.maxThreshold = conn.threshold
+				conn.maxDuration = math.MaxInt64
 				conn.numFailures = conn.maxThreshold + 1
 
 				if err := conn.Write(nil); !errors.Is(err, errNoActiveConnection) {
