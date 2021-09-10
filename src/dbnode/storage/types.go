@@ -1493,6 +1493,7 @@ type AggregateTilesOptions struct {
 	// Step is the downsampling step.
 	Step       time.Duration
 	InsOptions instrument.Options
+	Backfill   bool
 }
 
 // TileAggregator is the interface for AggregateTiles.
