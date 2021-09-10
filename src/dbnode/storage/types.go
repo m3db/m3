@@ -22,6 +22,7 @@ package storage
 
 import (
 	"bytes"
+	"fmt"
 	"sync"
 	"time"
 
@@ -1486,6 +1487,33 @@ type newFSMergeWithMemFn func(
 // NewBackgroundProcessFn is a function that creates and returns a new BackgroundProcess.
 type NewBackgroundProcessFn func(Database, Options) (BackgroundProcess, error)
 
+// AggregateTilesProcess identifies the process used for the aggregation.
+type AggregateTilesProcess uint8
+
+const (
+	// AggregateTilesRegular indicates regular process.
+	AggregateTilesRegular AggregateTilesProcess = iota
+
+	// AggregateTilesBackfill indicates backfill.
+	AggregateTilesBackfill
+
+	// AggregateTilesAPI indicates invocation via API call.
+	AggregateTilesAPI
+)
+
+func (p AggregateTilesProcess) String() string {
+	switch p {
+	case AggregateTilesRegular:
+		return "regular"
+	case AggregateTilesBackfill:
+		return "backfill"
+	case AggregateTilesAPI:
+		return "api"
+	default:
+		return fmt.Sprintf("unknown (%d)", p)
+	}
+}
+
 // AggregateTilesOptions is the options for large tile aggregation.
 type AggregateTilesOptions struct {
 	// Start and End specify the aggregation window.
@@ -1493,7 +1521,7 @@ type AggregateTilesOptions struct {
 	// Step is the downsampling step.
 	Step       time.Duration
 	InsOptions instrument.Options
-	Backfill   bool
+	Process    AggregateTilesProcess
 }
 
 // TileAggregator is the interface for AggregateTiles.

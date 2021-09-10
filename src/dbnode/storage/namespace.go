@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"math"
 	"runtime"
-	"strconv"
 	"sync"
 	"time"
 
@@ -1829,9 +1828,7 @@ func (n *dbNamespace) aggregateTiles(
 		sourceBlockSize    = sourceNs.Options().RetentionOptions().BlockSize()
 		lastSourceBlockEnd = opts.End.Truncate(sourceBlockSize)
 
-		scope = opts.InsOptions.MetricsScope().Tagged(map[string]string{
-			"backfill": strconv.FormatBool(opts.Backfill),
-		})
+		scope           = opts.InsOptions.MetricsScope()
 		processedShards = scope.Counter("processed-shards")
 	)
 
@@ -1892,8 +1889,8 @@ func (n *dbNamespace) aggregateTiles(
 	}
 
 	n.log.Info("finished large tiles aggregation for namespace",
-		zap.String("sourceNs", sourceNs.ID().String()),
-		zap.Bool("backfill", opts.Backfill),
+		zap.Stringer("sourceNs", sourceNs.ID()),
+		zap.Stringer("process", opts.Process),
 		zap.Time("targetBlockStart", targetBlockStart.ToTime()),
 		zap.Time("lastSourceBlockEnd", lastSourceBlockEnd.ToTime()),
 		zap.Duration("step", opts.Step),
