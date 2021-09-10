@@ -58,6 +58,9 @@ const (
 	// coordinators used only to serve m3admin APIs.
 	NoopEtcdStorageType BackendStorageType = "noop-etcd"
 
+	// PromRemoteWriteStorageType is a type of storage that is backed by Prometheus Remote Write compatible API.
+	PromRemoteWriteStorageType BackendStorageType = "prom-remote-write"
+
 	defaultListenAddress = "0.0.0.0:7201"
 
 	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
@@ -130,6 +133,10 @@ type Configuration struct {
 	// ClusterManagement for placement, namespaces and database management
 	// endpoints.
 	ClusterManagement ClusterManagementConfiguration `yaml:"clusterManagement"`
+
+	// PrometheusRemoteWriteBackend configures prometheus remote write backend.
+	// Used only when backend property is "prom-remote-write"
+	PrometheusRemoteWriteBackend PrometheusRemoteWriteBackendConfiguration `yaml:"prometheusRemoteWriteBackend"`
 
 	// ListenAddress is the server listen address.
 	ListenAddress *string `yaml:"listenAddress"`
@@ -744,6 +751,24 @@ type RPCConfiguration struct {
 	// ReflectionEnabled will enable reflection on the GRPC server, useful
 	// for testing connectivity with grpcurl, etc.
 	ReflectionEnabled bool `yaml:"reflectionEnabled"`
+}
+
+// PrometheusRemoteWriteBackendConfiguration configures prometheus remote write backend.
+type PrometheusRemoteWriteBackendConfiguration struct {
+	Endpoints       []PrometheusRemoteWriteBackendEndpointConfiguration `yaml:"endpoints"`
+	RequestTimeout  time.Duration                                       `yaml:"requestTimeout"`
+	ConnectTimeout  time.Duration                                       `yaml:"connectTimeout"`
+	KeepAlive       time.Duration                                       `yaml:"keepAlive"`
+	IdleConnTimeout time.Duration                                       `yaml:"idleConnTimeout"`
+	MaxIdleConns    int                                                 `yaml:"maxIdleConns"`
+}
+
+// PrometheusRemoteWriteBackendEndpointConfiguration configures single endpoint.
+type PrometheusRemoteWriteBackendEndpointConfiguration struct {
+	Address    string                      `yaml:"address"`
+	Retention  time.Duration               `yaml:"retention"`
+	Resolution time.Duration               `yaml:"resolution"`
+	Type       storagemetadata.MetricsType `yaml:"type"`
 }
 
 // HTTPConfiguration is the HTTP configuration for configuring

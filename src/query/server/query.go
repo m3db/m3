@@ -57,6 +57,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/fanout"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/promremotewrite"
 	"github.com/m3db/m3/src/query/storage/remote"
 	"github.com/m3db/m3/src/query/stores/m3db"
 	"github.com/m3db/m3/src/x/clock"
@@ -484,6 +485,19 @@ func Run(runOpts RunOptions) RunResult {
 		if err != nil {
 			logger.Fatal("unable to setup downsampler for m3db backend", zap.Error(err))
 		}
+	case config.PromRemoteWriteStorageType:
+		var cleanup func()
+		backendStorage, cleanup, err = promremotewrite.NewStorage(
+			promremotewrite.NewFromConfiguration(cfg.PrometheusRemoteWriteBackend),
+		)
+		if err != nil {
+			logger.Fatal("unable to setup prom remote write backend", zap.Error(err))
+		}
+		defer cleanup()
+
+		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, cfg.ClusterManagement.Etcd, backendStorage,
+			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
+		)
 	default:
 		logger.Fatal("unrecognized backend", zap.String("backend", string(cfg.Backend)))
 	}
