@@ -1491,8 +1491,13 @@ type NewBackgroundProcessFn func(Database, Options) (BackgroundProcess, error)
 type AggregateTilesProcess uint8
 
 const (
+	// AggregateTilesRegular indicates regular process.
 	AggregateTilesRegular AggregateTilesProcess = iota
+
+	// AggregateTilesBackfill indicates backfill.
 	AggregateTilesBackfill
+
+	// AggregateTilesAPI indicates invocation via API call.
 	AggregateTilesAPI
 )
 
