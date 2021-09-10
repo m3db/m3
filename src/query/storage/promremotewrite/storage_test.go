@@ -2,6 +2,7 @@ package promremotewrite
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"testing"
@@ -18,47 +19,83 @@ import (
 )
 
 func TestWrite(t *testing.T) {
-	server, closeFn := newFakePromRemoteWriteServer(t)
-	defer closeFn()
+	tcs := []struct {
+		name       string
+		tags       []models.Tag
+		datapoints ts.Datapoints
 
-	appender, err := NewAppender(Options{endpoint: "http://" + server.Addr() + "/"})
-	require.NoError(t, err)
-
-	wq, err := storage.NewWriteQuery(storage.WriteQueryOptions{
-		Tags: models.Tags{
-			Opts: models.NewTagOptions(),
-			Tags: []models.Tag{{
+		expectedLabels  []prompb.Label
+		expectedSamples []prompb.Sample
+	}{
+		{
+			name: "write single datapoint with labels",
+			tags: []models.Tag{{
 				Name:  []byte("test_tag_name"),
 				Value: []byte("test_tag_value"),
 			}},
-		},
-		Datapoints: ts.Datapoints{{
-			Timestamp: xtime.UnixNano(time.Second),
-			Value:     42,
-		}},
-		// TODO what is the meaning of this?
-		Unit: xtime.Millisecond,
-	})
-	require.NoError(t, err)
-	err = appender.Write(context.TODO(), wq)
-	require.NoError(t, err)
+			datapoints: ts.Datapoints{{
+				Timestamp: xtime.UnixNano(time.Second),
+				Value:     42,
+			}},
 
-	promWrite := server.lastWriteRequest
-	require.Len(t, promWrite.Timeseries, 1)
-	require.Len(t, promWrite.Timeseries[0].Labels, 1)
-	require.Len(t, promWrite.Timeseries[0].Samples, 1)
-	assert.Equal(t, promWrite.Timeseries[0].Labels[0], prompb.Label{
-		Name:  "test_tag_name",
-		Value: "test_tag_value",
-	})
-	assert.Equal(t, promWrite.Timeseries[0].Samples[0], prompb.Sample{
-		Value:     42,
-		Timestamp: int64(1000),
-	})
+			expectedLabels: []prompb.Label{{
+				Name:  "test_tag_name",
+				Value: "test_tag_value",
+			}},
+			expectedSamples: []prompb.Sample{{
+				Value:     42,
+				Timestamp: int64(1000),
+			}},
+		},
+	}
+
+	server, closeFn := newFakePromRemoteWriteServer(t)
+	defer closeFn()
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			appender, err := NewAppender(Options{endpoint: fmt.Sprintf("http://%s", server.Addr())})
+			require.NoError(t, err)
+
+			wq, err := storage.NewWriteQuery(storage.WriteQueryOptions{
+				Tags: models.Tags{
+					Opts: models.NewTagOptions(),
+					Tags: tc.tags,
+				},
+				Datapoints: tc.datapoints,
+				// TODO what is the meaning of this?
+				Unit: xtime.Millisecond,
+			})
+			require.NoError(t, err)
+			err = appender.Write(context.TODO(), wq)
+			require.NoError(t, err)
+
+			promWrite := server.lastWriteRequest
+			require.Len(t, promWrite.Timeseries, 1)
+			require.Len(t, promWrite.Timeseries[0].Labels, len(tc.expectedLabels))
+			require.Len(t, promWrite.Timeseries[0].Samples, len(tc.expectedSamples))
+
+			for i := 0; i < len(tc.expectedLabels); i++ {
+				assert.Equal(t, promWrite.Timeseries[0].Labels[i], tc.expectedLabels[i])
+			}
+			for i := 0; i < len(tc.expectedSamples); i++ {
+				assert.Equal(t, promWrite.Timeseries[0].Samples[i], tc.expectedSamples[i])
+			}
+			assertRemoteWriteHeadersSetCorrectly(t, server.lastHTTPRequest)
+		})
+	}
+
+}
+
+func assertRemoteWriteHeadersSetCorrectly(t *testing.T, r *http.Request) {
+	assert.Equal(t, r.Header.Get("content-encoding"), "snappy")
+	assert.Equal(t, r.Header.Get("content-type"), "application/x-protobuf")
 }
 
 type fakePromRemoteWriteServer struct {
 	lastWriteRequest *prompb.WriteRequest
+	lastHTTPRequest *http.Request
 	addr             string
 }
 
@@ -68,6 +105,7 @@ func newFakePromRemoteWriteServer(t *testing.T) (*fakePromRemoteWriteServer, fun
 	require.NoError(t, err)
 	go func() {
 		err = http.Serve(listener, http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+			server.lastHTTPRequest = request
 			req, err := remote.DecodeWriteRequest(request.Body)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -79,7 +117,6 @@ func newFakePromRemoteWriteServer(t *testing.T) (*fakePromRemoteWriteServer, fun
 			require.NoError(t, err)
 		}
 	}()
-	time.Sleep(1 *time.Second)
 	server.addr = listener.Addr().String()
 	return server, func() { _ = listener.Close() }
 }

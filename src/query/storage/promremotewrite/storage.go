@@ -7,18 +7,19 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/query/storage"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
-type Options struct {
-	endpoint string
-}
-
 func NewAppender(opts Options) (storage.Appender, error) {
-	return &appender{opts: opts}, nil
+	return &appender{
+		opts:   opts,
+		client: xhttp.NewHTTPClient(opts.HTTPClientOptions()),
+	}, nil
 }
 
 type appender struct {
-	opts Options
+	opts   Options
+	client *http.Client
 }
 
 func (a *appender) Write(ctx context.Context, query *storage.WriteQuery) error {
@@ -26,12 +27,13 @@ func (a *appender) Write(ctx context.Context, query *storage.WriteQuery) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", a.opts.endpoint, bytes.NewBuffer(encoded))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.opts.endpoint, bytes.NewBuffer(encoded))
 	if err != nil {
 		return err
 	}
-	// TODO which client should I use?
-	resp, err := http.DefaultClient.Do(req)
+	req.Header.Set("content-encoding", "snappy")
+	req.Header.Set("content-type", "application/x-protobuf")
+	resp, err := a.client.Do(req)
 	if err != nil {
 		return err
 	}

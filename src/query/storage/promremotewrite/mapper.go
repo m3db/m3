@@ -34,9 +34,7 @@ func mapWriteQuery(query *storage.WriteQuery) *prompb.WriteRequest {
 			Value: dp.Value,
 			Timestamp: dp.Timestamp.ToNormalizedTime(time.Millisecond),
 		}
-		println("zzzzz", dp.Timestamp)
 	}
-
 
 	return &prompb.WriteRequest{
 		Timeseries: []prompb.TimeSeries{
