@@ -460,19 +460,20 @@ func Run(runOpts RunOptions) RunResult {
 			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
 
-		var (
-			cleanup    cleanupFn
-			etcdConfig *etcdclient.Configuration
-		)
-		backendStorage, cleanup, etcdConfig, err = newM3DBStorage(
+		var cleanup cleanupFn
+		backendStorage, cleanup, err = newM3DBStorage(
 			cfg, m3dbClusters, m3dbPoolWrapper, queryCtxOpts, tsdbOpts, clusterNamespacesWatcher, instrumentOptions,
 		)
-
 		if err != nil {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
 		}
 
 		defer cleanup()
+
+		etcdConfig, err := resolveEtcdForM3DB(cfg)
+		if err != nil {
+			logger.Fatal("unable to resolve etcd config for m3db backend", zap.Error(err))
+		}
 
 		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
 			zap.Int("numAggregatedClusterNamespaces", len(m3dbClusters.ClusterNamespaces())))
@@ -480,7 +481,6 @@ func Run(runOpts RunOptions) RunResult {
 		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, etcdConfig, backendStorage,
 			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
 		)
-
 		if err != nil {
 			logger.Fatal("unable to setup downsampler for m3db backend", zap.Error(err))
 		}
@@ -710,11 +710,11 @@ func Run(runOpts RunOptions) RunResult {
 func newM3DBStorage(cfg config.Configuration, clusters m3.Clusters, poolWrapper *pools.PoolWrapper,
 	queryContextOptions models.QueryContextOptions, tsdbOpts m3.Options,
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher, instrumentOptions instrument.Options,
-) (storage.Storage, cleanupFn, *etcdclient.Configuration, error) {
+) (storage.Storage, cleanupFn, error) {
 	fanoutStorage, storageCleanup, err := newStorages(clusters, cfg,
 		poolWrapper, queryContextOptions, tsdbOpts, instrumentOptions)
 	if err != nil {
-		return nil, nil, nil, errors.Wrap(err, "unable to set up storages")
+		return nil, nil, errors.Wrap(err, "unable to set up storages")
 	}
 	logger := instrumentOptions.Logger()
 	cleanup := func() error {
@@ -735,17 +735,20 @@ func newM3DBStorage(cfg config.Configuration, clusters m3.Clusters, poolWrapper 
 		return lastErr
 	}
 
+	return fanoutStorage, cleanup, err
+}
+
+func resolveEtcdForM3DB(cfg config.Configuration) (*etcdclient.Configuration, error) {
 	etcdConfig := cfg.ClusterManagement.Etcd
 	if etcdConfig == nil && len(cfg.Clusters) == 1 &&
 		cfg.Clusters[0].Client.EnvironmentConfig != nil {
 		syncCfg, err := cfg.Clusters[0].Client.EnvironmentConfig.Services.SyncCluster()
 		if err != nil {
-			return nil, nil, nil, errors.Wrap(err, "unable to get etcd sync cluster config")
+			return nil, errors.Wrap(err, "unable to get etcd sync cluster config")
 		}
 		etcdConfig = syncCfg.Service
 	}
-
-	return fanoutStorage, cleanup, etcdConfig, err
+	return etcdConfig, nil
 }
 
 func newDownsamplerAsync(
