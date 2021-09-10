@@ -131,7 +131,7 @@ type TransformationOp struct {
 // NewTransformationOpFromProto creates a new transformation op from proto.
 func NewTransformationOpFromProto(pb *pipelinepb.TransformationOp) (TransformationOp, error) {
 	var tf TransformationOp
-	if err := tf.FromProto(pb); err != nil {
+	if err := tf.FromProto(*pb); err != nil {
 		return TransformationOp{}, err
 	}
 	return tf, nil
@@ -166,10 +166,7 @@ func (op TransformationOp) ToProto(pb *pipelinepb.TransformationOp) error {
 }
 
 // FromProto converts the protobuf message to a transformation in place.
-func (op *TransformationOp) FromProto(pb *pipelinepb.TransformationOp) error {
-	if pb == nil {
-		return errNilTransformationOpProto
-	}
+func (op *TransformationOp) FromProto(pb pipelinepb.TransformationOp) error {
 	return op.Type.FromProto(pb.Type)
 }
 

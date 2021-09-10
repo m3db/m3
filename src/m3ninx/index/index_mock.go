@@ -116,10 +116,10 @@ func (mr *MockReaderMockRecorder) Docs(arg0 interface{}) *gomock.Call {
 }
 
 // MatchAll mocks base method.
-func (m *MockReader) MatchAll() (postings.MutableList, error) {
+func (m *MockReader) MatchAll() (postings.List, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MatchAll")
-	ret0, _ := ret[0].(postings.MutableList)
+	ret0, _ := ret[0].(postings.List)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

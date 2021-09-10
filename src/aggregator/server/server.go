@@ -75,6 +75,21 @@ func Run(opts RunOptions) {
 	if err != nil {
 		log.Fatalf("error creating logger: %v", err)
 	}
+
+	// NB(nate): Register shutdown notification defer function first so that
+	// it's the last defer to fire before terminating. This allows other defer methods
+	// that clean up resources to execute first.
+	if opts.ShutdownCh != nil {
+		defer func() {
+			select {
+			case opts.ShutdownCh <- struct{}{}:
+				break
+			default:
+				logger.Warn("could not send shutdown notification as channel was full")
+			}
+		}()
+	}
+
 	defer logger.Sync()
 
 	cfg.Debug.SetRuntimeValues(logger)
@@ -211,14 +226,5 @@ func Run(opts RunOptions) {
 		logger.Info("server closed clean")
 	case <-time.After(gracefulShutdownTimeout):
 		logger.Info("server closed due to timeout", zap.Duration("timeout", gracefulShutdownTimeout))
-	}
-
-	if opts.ShutdownCh != nil {
-		select {
-		case opts.ShutdownCh <- struct{}{}:
-			break
-		default:
-			logger.Warn("could not send shutdown notification as channel was full")
-		}
 	}
 }

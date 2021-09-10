@@ -40,12 +40,12 @@ import (
 const (
 	// PromReadURL is the URL for native prom read handler, this matches the
 	// default URL for the query range endpoint found on a Prometheus server.
-	PromReadURL = route.Prefix + "/query_range"
+	PromReadURL = route.QueryRangeURL
 
 	// PromReadInstantURL is the URL for native instantaneous prom read
 	// handler, this matches the  default URL for the query endpoint
 	// found on a Prometheus server.
-	PromReadInstantURL = route.Prefix + "/query"
+	PromReadInstantURL = route.QueryURL
 
 	// PrometheusReadURL is the URL for native prom read handler.
 	PrometheusReadURL = "/prometheus" + PromReadURL

@@ -502,6 +502,11 @@ type Shard interface {
 	// OpenStreamingDataReader creates and opens a streaming fs.DataFileSetReader
 	// on the latest volume of the given block.
 	OpenStreamingReader(blockStart xtime.UnixNano) (fs.DataFileSetReader, error)
+
+	// TryRetrieveSeriesAndIncrementReaderWriterCount attempts to retrieve a writable series.
+	// This increments the reader/writer count and so should be decremented when the series
+	// is no longer held.
+	TryRetrieveSeriesAndIncrementReaderWriterCount(id ident.ID) (*Entry, WritableSeriesOptions, error)
 }
 
 type databaseShard interface {
@@ -610,6 +615,10 @@ type databaseShard interface {
 		flush persist.FlushPreparer,
 		nsCtx namespace.Context,
 	) error
+
+	// MarkWarmIndexFlushStateSuccessOrError marks the blockStart as
+	// success or fail based on the provided err.
+	MarkWarmIndexFlushStateSuccessOrError(blockStart xtime.UnixNano, err error)
 
 	// ColdFlush flushes the unflushed ColdWrites in this shard.
 	ColdFlush(
@@ -760,6 +769,9 @@ type NamespaceIndex interface {
 		shards []databaseShard,
 	) error
 
+	// WarmFlushBlockStarts returns all index blockStarts which have been flushed to disk.
+	WarmFlushBlockStarts() []xtime.UnixNano
+
 	// ColdFlush performs any cold flushes that the index has outstanding using
 	// the owned shards of the database. Also returns a callback to be called when
 	// cold flushing completes to perform houskeeping.
@@ -767,6 +779,9 @@ type NamespaceIndex interface {
 
 	// DebugMemorySegments allows for debugging memory segments.
 	DebugMemorySegments(opts DebugMemorySegmentsOptions) error
+
+	// BackgroundCompact background compacts eligible segments.
+	BackgroundCompact()
 
 	// Close will release the index resources and close the index.
 	Close() error
@@ -1478,6 +1493,7 @@ type AggregateTilesOptions struct {
 	// Step is the downsampling step.
 	Step       time.Duration
 	InsOptions instrument.Options
+	Backfill   bool
 }
 
 // TileAggregator is the interface for AggregateTiles.

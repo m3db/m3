@@ -1767,7 +1767,7 @@ func hitCountImpl(
 				}
 			}
 		}
-		newName := fmt.Sprintf("hitcount(%s,%q)", series.Name(), intervalString)
+		newName := fmt.Sprintf("hitcount(%s, %q)", series.Name(), intervalString)
 		newSeries := ts.NewSeries(ctx, newName, newStart, buckets)
 		resultSeries = append(resultSeries, newSeries)
 	}
@@ -2953,6 +2953,9 @@ func init() {
 		}).
 		WithoutUnaryContextShifterSkipFetchOptimization()
 	MustRegisterFunction(multiplySeries)
+	MustRegisterFunction(multiplySeriesWithWildcards).WithDefaultParams(map[uint8]interface{}{
+		2: -1, // positions
+	})
 	MustRegisterFunction(nonNegativeDerivative).WithDefaultParams(map[uint8]interface{}{
 		2: math.NaN(), // maxValue
 	})

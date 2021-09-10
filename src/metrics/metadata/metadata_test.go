@@ -251,7 +251,7 @@ var (
 			Ops: []pipelinepb.AppliedPipelineOp{
 				{
 					Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-					Rollup: &pipelinepb.AppliedRollupOp{
+					Rollup: pipelinepb.AppliedRollupOp{
 						Id:            []byte("foo"),
 						AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Count)[0]},
 					},
@@ -276,13 +276,13 @@ var (
 			Ops: []pipelinepb.AppliedPipelineOp{
 				{
 					Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
-					Transformation: &pipelinepb.TransformationOp{
+					Transformation: pipelinepb.TransformationOp{
 						Type: transformationpb.TransformationType_ABSOLUTE,
 					},
 				},
 				{
 					Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-					Rollup: &pipelinepb.AppliedRollupOp{
+					Rollup: pipelinepb.AppliedRollupOp{
 						Id:            []byte("bar"),
 						AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum)[0]},
 					},
@@ -310,7 +310,7 @@ var (
 			Ops: []pipelinepb.AppliedPipelineOp{
 				{
 					Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
-					Transformation: &pipelinepb.TransformationOp{
+					Transformation: pipelinepb.TransformationOp{
 						Type: transformationpb.TransformationType_PERSECOND,
 					},
 				},
@@ -343,13 +343,13 @@ var (
 			Ops: []pipelinepb.AppliedPipelineOp{
 				{
 					Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
-					Transformation: &pipelinepb.TransformationOp{
+					Transformation: pipelinepb.TransformationOp{
 						Type: transformationpb.TransformationType_ABSOLUTE,
 					},
 				},
 				{
 					Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-					Rollup: &pipelinepb.AppliedRollupOp{
+					Rollup: pipelinepb.AppliedRollupOp{
 						Id:            []byte("foo"),
 						AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum)[0]},
 					},
@@ -400,7 +400,7 @@ var (
 								Ops: []pipelinepb.AppliedPipelineOp{
 									{
 										Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-										Rollup: &pipelinepb.AppliedRollupOp{
+										Rollup: pipelinepb.AppliedRollupOp{
 											Id:            []byte("baz"),
 											AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Mean)[0]},
 										},
@@ -526,13 +526,13 @@ var (
 								Ops: []pipelinepb.AppliedPipelineOp{
 									{
 										Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
-										Transformation: &pipelinepb.TransformationOp{
+										Transformation: pipelinepb.TransformationOp{
 											Type: transformationpb.TransformationType_ABSOLUTE,
 										},
 									},
 									{
 										Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-										Rollup: &pipelinepb.AppliedRollupOp{
+										Rollup: pipelinepb.AppliedRollupOp{
 											Id:            []byte("foo"),
 											AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum)[0]},
 										},
@@ -554,13 +554,13 @@ var (
 								Ops: []pipelinepb.AppliedPipelineOp{
 									{
 										Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
-										Transformation: &pipelinepb.TransformationOp{
+										Transformation: pipelinepb.TransformationOp{
 											Type: transformationpb.TransformationType_PERSECOND,
 										},
 									},
 									{
 										Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-										Rollup: &pipelinepb.AppliedRollupOp{
+										Rollup: pipelinepb.AppliedRollupOp{
 											Id:            []byte("bar"),
 											AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.P99)[0]},
 										},
@@ -1131,6 +1131,7 @@ func TestVersionedStagedMetadatasMarshalJSON(t *testing.T) {
 				Metadata: Metadata{
 					Pipelines: []PipelineMetadata{
 						{
+							ResendEnabled: true,
 							AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
 							StoragePolicies: []policy.StoragePolicy{
 								policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
@@ -1155,8 +1156,8 @@ func TestVersionedStagedMetadatasMarshalJSON(t *testing.T) {
 		`{"version":12,` +
 			`"stagedMetadatas":` +
 			`[{"metadata":{"pipelines":[` +
-			`{"aggregation":["Sum"],"storagePolicies":["1s:1h","1m:12h"]},` +
-			`{"aggregation":null,"storagePolicies":["10s:1h"]}]},` +
+			`{"aggregation":["Sum"],"storagePolicies":["1s:1h","1m:12h"],"ResendEnabled":true},` +
+			`{"aggregation":null,"storagePolicies":["10s:1h"],"ResendEnabled":false}]},` +
 			`"cutoverNanos":4567,` +
 			`"tombstoned":true}]}`
 	require.Equal(t, expected, string(res))

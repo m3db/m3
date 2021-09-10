@@ -199,18 +199,13 @@ func TestTransformationOpToProto(t *testing.T) {
 
 func TestTransformationOpFromProto(t *testing.T) {
 	var res TransformationOp
-	require.NoError(t, res.FromProto(&testTransformationOpProto))
+	require.NoError(t, res.FromProto(testTransformationOpProto))
 	require.Equal(t, testTransformationOp, res)
-}
-
-func TestTransformationOpFromProtoNilProto(t *testing.T) {
-	var res TransformationOp
-	require.Equal(t, errNilTransformationOpProto, res.FromProto(nil))
 }
 
 func TestTransformationOpFromProtoBadProto(t *testing.T) {
 	var res TransformationOp
-	require.Error(t, res.FromProto(&testBadTransformationOpProto))
+	require.Error(t, res.FromProto(testBadTransformationOpProto))
 }
 
 func TestTransformationOpRoundTrip(t *testing.T) {
@@ -219,7 +214,7 @@ func TestTransformationOpRoundTrip(t *testing.T) {
 		res TransformationOp
 	)
 	require.NoError(t, testTransformationOp.ToProto(&pb))
-	require.NoError(t, res.FromProto(&pb))
+	require.NoError(t, res.FromProto(pb))
 	require.Equal(t, testTransformationOp, res)
 }
 

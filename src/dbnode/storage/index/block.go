@@ -25,8 +25,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
+	"runtime"
 	"sync"
 	"time"
+
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -44,11 +50,8 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xresource "github.com/m3db/m3/src/x/resource"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 var (
@@ -133,6 +136,8 @@ type block struct {
 
 	state blockState
 
+	cachedSearchesWorkers xsync.WorkerPool
+
 	mutableSegments                 *mutableSegments
 	coldMutableSegments             []*mutableSegments
 	shardRangesSegmentsByVolumeType shardRangesSegmentsByVolumeType
@@ -206,6 +211,7 @@ type blockShardRangesSegments struct {
 type BlockOptions struct {
 	ForegroundCompactorMmapDocsData bool
 	BackgroundCompactorMmapDocsData bool
+	ActiveBlock                     bool
 }
 
 // NewBlockFn is a new block constructor.
@@ -233,32 +239,42 @@ func NewBlock(
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("index").SubScope("block")
 	iopts = iopts.SetMetricsScope(scope)
+
+	cpus := int(math.Max(1, math.Ceil(0.25*float64(runtime.NumCPU()))))
+	cachedSearchesWorkers := xsync.NewWorkerPool(cpus)
+	cachedSearchesWorkers.Init()
+
 	segs := newMutableSegments(
+		md,
 		blockStart,
 		opts,
 		blockOpts,
+		cachedSearchesWorkers,
+		namespaceRuntimeOptsMgr,
+		iopts,
+	)
+
+	coldSegs := newMutableSegments(
+		md,
+		blockStart,
+		opts,
+		blockOpts,
+		cachedSearchesWorkers,
 		namespaceRuntimeOptsMgr,
 		iopts,
 	)
 
 	// NB(bodu): The length of coldMutableSegments is always at least 1.
-	coldSegs := []*mutableSegments{
-		newMutableSegments(
-			blockStart,
-			opts,
-			blockOpts,
-			namespaceRuntimeOptsMgr,
-			iopts,
-		),
-	}
+	coldMutableSegments := []*mutableSegments{coldSegs}
 	b := &block{
 		state:                           blockStateOpen,
 		blockStart:                      blockStart,
 		blockEnd:                        blockStart.Add(blockSize),
 		blockSize:                       blockSize,
 		blockOpts:                       blockOpts,
+		cachedSearchesWorkers:           cachedSearchesWorkers,
 		mutableSegments:                 segs,
-		coldMutableSegments:             coldSegs,
+		coldMutableSegments:             coldMutableSegments,
 		shardRangesSegmentsByVolumeType: make(shardRangesSegmentsByVolumeType),
 		opts:                            opts,
 		iopts:                           iopts,
@@ -284,29 +300,41 @@ func (b *block) EndTime() xtime.UnixNano {
 	return b.blockEnd
 }
 
+// BackgroundCompact background compacts eligible segments.
+func (b *block) BackgroundCompact() {
+	b.mutableSegments.BackgroundCompact()
+}
+
 func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 	b.RLock()
 	if !b.writesAcceptedWithRLock() {
 		b.RUnlock()
-		return b.writeBatchResult(inserts, b.writeBatchErrorInvalidState(b.state))
+		return b.writeBatchResult(inserts, MutableSegmentsStats{},
+			b.writeBatchErrorInvalidState(b.state))
 	}
 	if b.state == blockStateSealed {
 		coldBlock := b.coldMutableSegments[len(b.coldMutableSegments)-1]
 		b.RUnlock()
-		return b.writeBatchResult(inserts, coldBlock.WriteBatch(inserts))
+		_, err := coldBlock.WriteBatch(inserts)
+		// Don't pass stats back from insertion into a cold block,
+		// we only care about warm mutable segments stats.
+		return b.writeBatchResult(inserts, MutableSegmentsStats{}, err)
 	}
 	b.RUnlock()
-	return b.writeBatchResult(inserts, b.mutableSegments.WriteBatch(inserts))
+	stats, err := b.mutableSegments.WriteBatch(inserts)
+	return b.writeBatchResult(inserts, stats, err)
 }
 
 func (b *block) writeBatchResult(
 	inserts *WriteBatch,
+	stats MutableSegmentsStats,
 	err error,
 ) (WriteBatchResult, error) {
 	if err == nil {
 		inserts.MarkUnmarkedEntriesSuccess()
 		return WriteBatchResult{
-			NumSuccess: int64(inserts.Len()),
+			NumSuccess:           int64(inserts.Len()),
+			MutableSegmentsStats: stats,
 		}, nil
 	}
 
@@ -314,7 +342,10 @@ func (b *block) writeBatchResult(
 	if !ok {
 		// NB: marking all the inserts as failure, cause we don't know which ones failed.
 		inserts.MarkUnmarkedEntriesError(err)
-		return WriteBatchResult{NumError: int64(inserts.Len())}, err
+		return WriteBatchResult{
+			NumError:             int64(inserts.Len()),
+			MutableSegmentsStats: stats,
+		}, err
 	}
 
 	numErr := len(partialErr.Errs())
@@ -326,8 +357,9 @@ func (b *block) writeBatchResult(
 	// Mark all non-error inserts success, so we don't repeatedly index them.
 	inserts.MarkUnmarkedEntriesSuccess()
 	return WriteBatchResult{
-		NumSuccess: int64(inserts.Len() - numErr),
-		NumError:   int64(numErr),
+		NumSuccess:           int64(inserts.Len() - numErr),
+		NumError:             int64(numErr),
+		MutableSegmentsStats: stats,
 	}, partialErr
 }
 
@@ -473,13 +505,15 @@ func (b *block) queryWithSpan(
 	deadline time.Time,
 ) error {
 	var (
-		err       error
-		source    = opts.Source
-		size      = results.Size()
-		docsCount = results.TotalDocsCount()
-		docsPool  = b.opts.DocumentArrayPool()
-		batch     = docsPool.Get()
-		batchSize = cap(batch)
+		err             error
+		source          = opts.Source
+		sizeBefore      = results.Size()
+		docsCountBefore = results.TotalDocsCount()
+		size            = sizeBefore
+		docsCount       = docsCountBefore
+		docsPool        = b.opts.DocumentArrayPool()
+		batch           = docsPool.Get()
+		batchSize       = cap(batch)
 	)
 	if batchSize == 0 {
 		batchSize = defaultQueryDocsBatchSize
@@ -506,7 +540,27 @@ func (b *block) queryWithSpan(
 			}
 		}
 
-		batch = append(batch, iter.Current())
+		// Ensure that the block contains any of the relevant time segments for the query range.
+		doc := iter.Current()
+		if md, ok := doc.Metadata(); ok && md.OnIndexSeries != nil {
+			var (
+				inBlock      bool
+				currentBlock = opts.StartInclusive.Truncate(b.blockSize)
+			)
+			for !inBlock {
+				inBlock = md.OnIndexSeries.IndexedForBlockStart(currentBlock)
+				currentBlock = currentBlock.Add(b.blockSize)
+				if !currentBlock.Before(opts.EndExclusive) {
+					break
+				}
+			}
+
+			if !inBlock {
+				continue
+			}
+		}
+
+		batch = append(batch, doc)
 		if len(batch) < batchSize {
 			continue
 		}
@@ -528,8 +582,8 @@ func (b *block) queryWithSpan(
 		}
 	}
 
-	iter.AddSeries(size)
-	iter.AddDocs(docsCount)
+	iter.AddSeries(size - sizeBefore)
+	iter.AddDocs(docsCount - docsCountBefore)
 
 	return nil
 }
@@ -942,7 +996,10 @@ func (b *block) addResults(
 	}
 
 	var (
-		plCache         = b.opts.PostingsListCache()
+		plCaches = ReadThroughSegmentCaches{
+			SegmentPostingsListCache: b.opts.PostingsListCache(),
+			SearchPostingsListCache:  b.opts.SearchPostingsListCache(),
+		}
 		readThroughOpts = b.opts.ReadThroughSegmentOptions()
 		segments        = results.Segments()
 	)
@@ -951,7 +1008,7 @@ func (b *block) addResults(
 		elem := seg.Segment()
 		if immSeg, ok := elem.(segment.ImmutableSegment); ok {
 			// only wrap the immutable segments with a read through cache.
-			elem = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
+			elem = NewReadThroughSegment(immSeg, plCaches, readThroughOpts)
 		}
 		readThroughSegments = append(readThroughSegments, elem)
 	}
@@ -1083,6 +1140,12 @@ func (b *block) Stats(reporter BlockStatsReporter) error {
 	return nil
 }
 
+func (b *block) IsOpen() bool {
+	b.RLock()
+	defer b.RUnlock()
+	return b.state == blockStateOpen
+}
+
 func (b *block) IsSealedWithRLock() bool {
 	return b.state == blockStateSealed
 }
@@ -1100,7 +1163,7 @@ func (b *block) NeedsMutableSegmentsEvicted() bool {
 	// Check any mutable segments that can be evicted after a flush.
 	anyMutableSegmentNeedsEviction := b.mutableSegments.NeedsEviction()
 
-	// Check boostrapped segments and to see if any of them need an eviction.
+	// Check bootstrapped segments and to see if any of them need an eviction.
 	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
 		if mutableSeg, ok := seg.(segment.MutableSegment); ok {
 			anyMutableSegmentNeedsEviction = anyMutableSegmentNeedsEviction || mutableSeg.Size() > 0
@@ -1171,16 +1234,20 @@ func (b *block) EvictColdMutableSegments() error {
 	return nil
 }
 
-func (b *block) RotateColdMutableSegments() {
+func (b *block) RotateColdMutableSegments() error {
 	b.Lock()
 	defer b.Unlock()
-	b.coldMutableSegments = append(b.coldMutableSegments, newMutableSegments(
+	coldSegs := newMutableSegments(
+		b.nsMD,
 		b.blockStart,
 		b.opts,
 		b.blockOpts,
+		b.cachedSearchesWorkers,
 		b.namespaceRuntimeOptsMgr,
 		b.iopts,
-	))
+	)
+	b.coldMutableSegments = append(b.coldMutableSegments, coldSegs)
+	return nil
 }
 
 func (b *block) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {

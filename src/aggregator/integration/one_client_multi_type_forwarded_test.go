@@ -61,6 +61,8 @@ func TestOneClientMultiTypeForwardedMetrics(t *testing.T) {
 	require.NoError(t, setPlacement(placementKey, placementStore, placement))
 	serverOpts = serverOpts.SetPlacement(placement)
 
+	serverOpts = setupTopic(t, serverOpts, placement)
+
 	// Create server.
 	testServer := newTestServerSetup(t, serverOpts)
 	defer testServer.close()

@@ -107,6 +107,7 @@ import (
 const (
 	bootstrapConfigInitTimeout       = 10 * time.Second
 	serverGracefulCloseTimeout       = 10 * time.Second
+	debugServerGracefulCloseTimeout  = 2 * time.Second
 	bgProcessLimitInterval           = 10 * time.Second
 	maxBgProcessLimitMonitorDuration = 5 * time.Minute
 	cpuProfileDuration               = 5 * time.Second
@@ -198,6 +199,21 @@ func Run(runOpts RunOptions) {
 		fmt.Fprintf(os.Stderr, "unable to create logger: %v", err)
 		os.Exit(1)
 	}
+
+	// NB(nate): Register shutdown notification defer function first so that
+	// it's the last defer to fire before terminating. This allows other defer methods
+	// that clean up resources to execute first.
+	if runOpts.ShutdownCh != nil {
+		defer func() {
+			select {
+			case runOpts.ShutdownCh <- struct{}{}:
+				break
+			default:
+				logger.Warn("could not send shutdown notification as channel was full")
+			}
+		}()
+	}
+
 	defer logger.Sync()
 
 	cfg.Debug.SetRuntimeValues(logger)
@@ -497,10 +513,21 @@ func Run(runOpts RunOptions) {
 				SetMetricsScope(scope.SubScope("postings-list-cache")),
 		}
 	)
-	postingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	segmentPostingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
 	if err != nil {
-		logger.Fatal("could not construct postings list cache", zap.Error(err))
+		logger.Fatal("could not construct segment postings list cache", zap.Error(err))
 	}
+
+	segmentStopReporting := segmentPostingsListCache.Start()
+	defer segmentStopReporting()
+
+	searchPostingsListCache, err := index.NewPostingsListCache(plCacheSize, plCacheOptions)
+	if err != nil {
+		logger.Fatal("could not construct searches postings list cache", zap.Error(err))
+	}
+
+	searchStopReporting := searchPostingsListCache.Start()
+	defer searchStopReporting()
 
 	// Setup index regexp compilation cache.
 	m3ninxindex.SetRegexpCacheOptions(m3ninxindex.RegexpCacheOptions{
@@ -521,7 +548,6 @@ func Run(runOpts RunOptions) {
 	defer queryLimits.Stop()
 	seriesReadPermits.Start()
 	defer seriesReadPermits.Stop()
-	defer postingsListCache.Start()()
 
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
@@ -531,10 +557,12 @@ func Run(runOpts RunOptions) {
 		insertMode = index.InsertAsync
 	}
 	indexOpts = indexOpts.SetInsertMode(insertMode).
-		SetPostingsListCache(postingsListCache).
+		SetPostingsListCache(segmentPostingsListCache).
+		SetSearchPostingsListCache(searchPostingsListCache).
 		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{
-			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
-			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
+			CacheRegexp:   plCacheConfig.CacheRegexpOrDefault(),
+			CacheTerms:    plCacheConfig.CacheTermsOrDefault(),
+			CacheSearches: plCacheConfig.CacheSearchOrDefault(),
 		}).
 		SetMmapReporter(mmapReporter).
 		SetQueryLimits(queryLimits)
@@ -837,23 +865,8 @@ func Run(runOpts RunOptions) {
 			}
 		}
 
-		go func() {
-			mux := http.DefaultServeMux
-			if debugWriter != nil {
-				if err := debugWriter.RegisterHandler(xdebug.DebugURL, mux); err != nil {
-					logger.Error("unable to register debug writer endpoint", zap.Error(err))
-				}
-			}
-
-			if err := http.ListenAndServe(debugListenAddress, mux); err != nil {
-				logger.Error("debug server could not listen",
-					zap.String("address", debugListenAddress), zap.Error(err))
-			} else {
-				logger.Info("debug server listening",
-					zap.String("address", debugListenAddress),
-				)
-			}
-		}()
+		debugClose := startDebugServer(debugWriter, logger, debugListenAddress)
+		defer debugClose()
 	}
 
 	topo, err := syncCfg.TopologyInitializer.Init()
@@ -1087,13 +1100,36 @@ func Run(runOpts RunOptions) {
 	case <-time.After(closeTimeout):
 		logger.Error("server closed after timeout", zap.Duration("timeout", closeTimeout))
 	}
+}
 
-	if runOpts.ShutdownCh != nil {
-		select {
-		case runOpts.ShutdownCh <- struct{}{}:
-			break
-		default:
-			logger.Warn("could not send shutdown notification as channel was full")
+func startDebugServer(
+	debugWriter xdebug.ZipWriter,
+	logger *zap.Logger,
+	debugListenAddress string,
+) func() {
+	mux := http.DefaultServeMux
+	server := http.Server{Addr: debugListenAddress, Handler: mux}
+
+	if debugWriter != nil {
+		if err := debugWriter.RegisterHandler(xdebug.DebugURL, mux); err != nil {
+			logger.Error("unable to register debug writer endpoint", zap.Error(err))
+		}
+	}
+
+	go func() {
+		if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("debug server could not listen",
+				zap.String("address", debugListenAddress), zap.Error(err))
+		}
+	}()
+
+	return func() {
+		ctx, cancel := context.WithTimeout(context.Background(), debugServerGracefulCloseTimeout)
+		defer cancel()
+		if err := server.Shutdown(ctx); err != nil {
+			logger.Warn("debug server failed to shutdown gracefully")
+		} else {
+			logger.Info("debug server closed")
 		}
 	}
 }

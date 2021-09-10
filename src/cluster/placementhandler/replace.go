@@ -25,6 +25,9 @@ import (
 	"path"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/route"
@@ -32,9 +35,6 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/gogo/protobuf/jsonpb"
-	"go.uber.org/zap"
 )
 
 const (
@@ -128,8 +128,13 @@ func (h *ReplaceHandler) Replace(
 
 	serviceOpts := handleroptions.NewServiceOptions(svc,
 		httpReq.Header, h.m3AggServiceOptions)
+
+	pcfg, err := Handler(*h).PlacementConfigCopy()
+	if err != nil {
+		return nil, err
+	}
 	service, algo, err := ServiceWithAlgo(h.clusterClient,
-		serviceOpts, h.placement, h.nowFn(), nil)
+		serviceOpts, pcfg.ApplyOverride(req.OptionOverride), h.nowFn(), nil)
 	if err != nil {
 		return nil, err
 	}

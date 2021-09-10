@@ -205,3 +205,41 @@ func (mr *MockSearcherMockRecorder) Search(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Search", reflect.TypeOf((*MockSearcher)(nil).Search), arg0)
 }
+
+// MockReadThroughSegmentSearcher is a mock of ReadThroughSegmentSearcher interface.
+type MockReadThroughSegmentSearcher struct {
+	ctrl     *gomock.Controller
+	recorder *MockReadThroughSegmentSearcherMockRecorder
+}
+
+// MockReadThroughSegmentSearcherMockRecorder is the mock recorder for MockReadThroughSegmentSearcher.
+type MockReadThroughSegmentSearcherMockRecorder struct {
+	mock *MockReadThroughSegmentSearcher
+}
+
+// NewMockReadThroughSegmentSearcher creates a new mock instance.
+func NewMockReadThroughSegmentSearcher(ctrl *gomock.Controller) *MockReadThroughSegmentSearcher {
+	mock := &MockReadThroughSegmentSearcher{ctrl: ctrl}
+	mock.recorder = &MockReadThroughSegmentSearcherMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockReadThroughSegmentSearcher) EXPECT() *MockReadThroughSegmentSearcherMockRecorder {
+	return m.recorder
+}
+
+// Search mocks base method.
+func (m *MockReadThroughSegmentSearcher) Search(query Query, searcher Searcher) (postings.List, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Search", query, searcher)
+	ret0, _ := ret[0].(postings.List)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Search indicates an expected call of Search.
+func (mr *MockReadThroughSegmentSearcherMockRecorder) Search(query, searcher interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Search", reflect.TypeOf((*MockReadThroughSegmentSearcher)(nil).Search), query, searcher)
+}

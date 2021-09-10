@@ -119,6 +119,9 @@ type WorkerPool interface {
 	// This should only be used for code that can guarantee the wait time for a worker is low since if the ctx is not
 	// checked the calling goroutine blocks waiting for a worker.
 	FastContextCheck(batchSize int) WorkerPool
+
+	// Size returns the size of the worker pool.
+	Size() int
 }
 
 // ScheduleResult is the result of scheduling a goroutine in the worker pool.

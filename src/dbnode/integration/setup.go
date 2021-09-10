@@ -32,6 +32,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+	"github.com/uber/tchannel-go"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -60,14 +66,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
-	"github.com/uber/tchannel-go"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -105,6 +106,7 @@ type testSetup struct {
 
 	db                cluster.Database
 	storageOpts       storage.Options
+	instrumentOpts    instrument.Options
 	serverStorageOpts server.StorageOptions
 	fsOpts            fs.Options
 	blockLeaseManager block.LeaseManager
@@ -275,8 +277,8 @@ func NewTestSetup(
 		zap.Stringer("cache-policy", storageOpts.SeriesCachePolicy()),
 	}
 	logger = logger.With(fields...)
-	iOpts := storageOpts.InstrumentOptions()
-	storageOpts = storageOpts.SetInstrumentOptions(iOpts.SetLogger(logger))
+	instrumentOpts := storageOpts.InstrumentOptions().SetLogger(logger)
+	storageOpts = storageOpts.SetInstrumentOptions(instrumentOpts)
 
 	indexMode := index.InsertSync
 	if opts.WriteNewSeriesAsync() {
@@ -284,7 +286,7 @@ func NewTestSetup(
 	}
 
 	plCache, err := index.NewPostingsListCache(10, index.PostingsListCacheOptions{
-		InstrumentOptions: iOpts,
+		InstrumentOptions: instrumentOpts,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create postings list cache: %v", err)
@@ -332,7 +334,8 @@ func NewTestSetup(
 		}
 	}
 
-	adminClient, verificationAdminClient, err := newClients(topoInit, opts, schemaReg, id, tchannelNodeAddr)
+	adminClient, verificationAdminClient, err := newClients(topoInit, opts,
+		schemaReg, id, tchannelNodeAddr, instrumentOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -492,6 +495,7 @@ func NewTestSetup(
 		scope:                       scope,
 		storageOpts:                 storageOpts,
 		blockLeaseManager:           blockLeaseManager,
+		instrumentOpts:              instrumentOpts,
 		fsOpts:                      fsOpts,
 		hostID:                      id,
 		origin:                      newOrigin(id, tchannelNodeAddr),
@@ -944,8 +948,9 @@ func (ts *testSetup) httpDebugAddr() string {
 func (ts *testSetup) MaybeResetClients() error {
 	if ts.m3dbClient == nil {
 		// Recreate the clients as their session was destroyed by StopServer()
-		adminClient, verificationAdminClient, err := newClients(
-			ts.topoInit, ts.opts, ts.schemaReg, ts.hostID, ts.tchannelNodeAddr())
+		adminClient, verificationAdminClient, err := newClients(ts.topoInit,
+			ts.opts, ts.schemaReg, ts.hostID, ts.tchannelNodeAddr(),
+			ts.instrumentOpts)
 		if err != nil {
 			return err
 		}
@@ -1013,7 +1018,8 @@ func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions
 			SetIndexOptions(storageIdxOpts).
 			SetPersistManager(persistMgr).
 			SetIndexClaimsManager(storageOpts.IndexClaimsManager()).
-			SetCompactor(compactor)
+			SetCompactor(compactor).
+			SetInstrumentOptions(storageOpts.InstrumentOptions())
 		bs, err = bfs.NewFileSystemBootstrapperProvider(bfsOpts, bs)
 		if err != nil {
 			return err
@@ -1049,8 +1055,8 @@ func newClients(
 	topoInit topology.Initializer,
 	opts TestOptions,
 	schemaReg namespace.SchemaRegistry,
-	id,
-	tchannelNodeAddr string,
+	id, tchannelNodeAddr string,
+	instrumentOpts instrument.Options,
 ) (client.AdminClient, client.AdminClient, error) {
 	var (
 		clientOpts = defaultClientOptions(topoInit).SetClusterConnectTimeout(
@@ -1058,7 +1064,8 @@ func newClients(
 			SetFetchRequestTimeout(opts.FetchRequestTimeout()).
 			SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
 			SetTopologyInitializer(topoInit).
-			SetUseV2BatchAPIs(true)
+			SetUseV2BatchAPIs(true).
+			SetInstrumentOptions(instrumentOpts)
 
 		origin             = newOrigin(id, tchannelNodeAddr)
 		verificationOrigin = newOrigin(id+"-verification", tchannelNodeAddr)

@@ -70,6 +70,13 @@ func (c *client) writeTimedMetricWithMetadata(
 	return c.aggClient.WriteTimed(metric, metadata)
 }
 
+func (c *client) writeTimedMetricWithMetadatas(
+	metric aggregated.Metric,
+	metadata metadata.StagedMetadatas,
+) error {
+	return c.aggClient.WriteTimedWithStagedMetadatas(metric, metadata)
+}
+
 func (c *client) writeForwardedMetricWithMetadata(
 	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,

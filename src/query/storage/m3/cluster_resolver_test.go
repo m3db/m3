@@ -373,6 +373,51 @@ var testCases = []struct {
 		expectedErrContains:      "could not find namespace for storage policy:",
 		expectedErrInvalidParams: true,
 	},
+	{
+		name:        "restrict to multiple aggregate",
+		queryLength: time.Hour * 1000,
+		restrict: &storage.RestrictQueryOptions{
+			RestrictByTypes: []*storage.RestrictByType{
+				{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					StoragePolicy: policy.MustParseStoragePolicy(
+						genResolution.String() + ":" + genRetentionFiltered.String()),
+				},
+				{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					StoragePolicy: policy.MustParseStoragePolicy(
+						(genResolution + time.Second).String() + ":" + genRetentionUnfiltered.String()),
+				},
+			},
+		},
+		expectedType:         consolidators.NamespaceCoversPartialQueryRange,
+		expectedClusterNames: []string{"AGG_FILTERED", "AGG_NO_FILTER_COMPLETE"},
+	},
+	{
+		name:        "restrict to multiple aggregate all range",
+		queryLength: time.Minute,
+		opts: &storage.FanoutOptions{
+			FanoutUnaggregated:        storage.FanoutForceDisable,
+			FanoutAggregated:          storage.FanoutDefault,
+			FanoutAggregatedOptimized: storage.FanoutForceDisable,
+		},
+		restrict: &storage.RestrictQueryOptions{
+			RestrictByTypes: []*storage.RestrictByType{
+				{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					StoragePolicy: policy.MustParseStoragePolicy(
+						(genResolution + time.Second).String() + ":" + genRetentionFiltered.String()),
+				},
+				{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					StoragePolicy: policy.MustParseStoragePolicy(
+						(genResolution + time.Second).String() + ":" + genRetentionUnfiltered.String()),
+				},
+			},
+		},
+		expectedType:         consolidators.NamespaceCoversAllQueryRange,
+		expectedClusterNames: []string{"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE"},
+	},
 }
 
 func TestResolveClusterNamespacesForQueryWithOptions(t *testing.T) {

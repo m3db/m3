@@ -23,10 +23,10 @@ package storage
 import (
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
-
-	"github.com/uber-go/tally"
 )
 
 // NewFetchOptions creates a new fetch options.

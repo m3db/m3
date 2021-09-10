@@ -79,6 +79,7 @@ var middlewareParseParams middleware.ParseQueryParams = func(r *http.Request, re
 	if query == "" {
 		return middleware.QueryParams{}, nil
 	}
+
 	// N.B - instant queries set startParam/endParam to "now" if not set. ParseTime can handle this special
 	// "now" value. Use when this middleware ran as the approximate now value.
 	start, err := prometheus.ParseTime(r, startParam, requestStart)

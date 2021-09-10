@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -1221,7 +1222,7 @@ func (n *dbNamespace) WarmFlush(
 			return err
 		}
 		// skip flushing if the shard has already flushed data for the `blockStart`
-		if flushState.WarmStatus == fileOpSuccess {
+		if flushState.WarmStatus.DataFlushed == fileOpSuccess {
 			continue
 		}
 
@@ -1499,7 +1500,7 @@ func (n *dbNamespace) needsFlushWithLock(
 			if err != nil {
 				return false, err
 			}
-			if flushState.WarmStatus != fileOpSuccess {
+			if flushState.WarmStatus.DataFlushed != fileOpSuccess {
 				return true, nil
 			}
 		}
@@ -1827,7 +1828,11 @@ func (n *dbNamespace) aggregateTiles(
 		targetBlockStart   = opts.Start.Truncate(targetBlockSize)
 		sourceBlockSize    = sourceNs.Options().RetentionOptions().BlockSize()
 		lastSourceBlockEnd = opts.End.Truncate(sourceBlockSize)
-		processedShards    = opts.InsOptions.MetricsScope().Counter("processed-shards")
+
+		scope = opts.InsOptions.MetricsScope().Tagged(map[string]string{
+			"backfill": strconv.FormatBool(opts.Backfill),
+		})
+		processedShards = scope.Counter("processed-shards")
 	)
 
 	if targetBlockStart.Add(targetBlockSize).Before(lastSourceBlockEnd) {
@@ -1888,6 +1893,7 @@ func (n *dbNamespace) aggregateTiles(
 
 	n.log.Info("finished large tiles aggregation for namespace",
 		zap.String("sourceNs", sourceNs.ID().String()),
+		zap.Bool("backfill", opts.Backfill),
 		zap.Time("targetBlockStart", targetBlockStart.ToTime()),
 		zap.Time("lastSourceBlockEnd", lastSourceBlockEnd.ToTime()),
 		zap.Duration("step", opts.Step),

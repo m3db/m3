@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -48,6 +49,7 @@ const (
 	defaultPlacementKVKey             = "/placement"
 	defaultElectionKeyFmt             = "/shardset/%d/lock"
 	defaultFlushTimesKeyFmt           = "/shardset/%d/flush"
+	defaultTopicName                  = "aggregator_ingest"
 	defaultShardSetID                 = 0
 	defaultElectionStateChangeTimeout = 10 * time.Second
 	defaultEntryCheckInterval         = time.Second
@@ -146,6 +148,18 @@ type testServerOptions interface {
 	// KVStore returns the key value store.
 	KVStore() kv.Store
 
+	// SetTopicService sets the topic service.
+	SetTopicService(value topic.Service) testServerOptions
+
+	// TopicService returns the topic service.
+	TopicService() topic.Service
+
+	// SetTopicName sets the topic name.
+	SetTopicName(value string) testServerOptions
+
+	// TopicName return the topic name.
+	TopicName() string
+
 	// SetAggregatorClientType sets the aggregator client type.
 	SetAggregatorClientType(value aggclient.AggregatorClientType) testServerOptions
 
@@ -211,6 +225,12 @@ type testServerOptions interface {
 
 	// DiscardNaNAggregatedValues determines whether NaN aggregated values are discarded.
 	DiscardNaNAggregatedValues() bool
+
+	// SetBufferForPastTimedMetric sets the BufferForPastTimedMetric.
+	SetBufferForPastTimedMetric(value time.Duration) testServerOptions
+
+	// BufferForPastTimedMetric is how long to wait for timed metrics to arrive.
+	BufferForPastTimedMetric() time.Duration
 }
 
 // nolint: maligned
@@ -230,6 +250,8 @@ type serverOptions struct {
 	placementKVKey              string
 	flushTimesKeyFmt            string
 	kvStore                     kv.Store
+	topicService                topic.Service
+	topicName                   string
 	serverStateChangeTimeout    time.Duration
 	workerPoolSize              int
 	clientType                  aggclient.AggregatorClientType
@@ -241,6 +263,7 @@ type serverOptions struct {
 	maxJitterFn                 aggregator.FlushJitterFn
 	maxAllowedForwardingDelayFn aggregator.MaxAllowedForwardingDelayFn
 	discardNaNAggregatedValues  bool
+	resendBufferForPastTimeMetric time.Duration
 }
 
 func newTestServerOptions(t *testing.T) testServerOptions {
@@ -271,6 +294,8 @@ func newTestServerOptions(t *testing.T) testServerOptions {
 		placementKVKey:              defaultPlacementKVKey,
 		flushTimesKeyFmt:            defaultFlushTimesKeyFmt,
 		kvStore:                     mem.NewStore(),
+		topicService:                nil,
+		topicName:                   defaultTopicName,
 		serverStateChangeTimeout:    defaultServerStateChangeTimeout,
 		workerPoolSize:              defaultWorkerPoolSize,
 		clientType:                  clientType,
@@ -435,6 +460,26 @@ func (o *serverOptions) KVStore() kv.Store {
 	return o.kvStore
 }
 
+func (o *serverOptions) SetTopicService(value topic.Service) testServerOptions {
+	opts := *o
+	opts.topicService = value
+	return &opts
+}
+
+func (o *serverOptions) TopicService() topic.Service {
+	return o.topicService
+}
+
+func (o *serverOptions) SetTopicName(value string) testServerOptions {
+	opts := *o
+	opts.topicName = value
+	return &opts
+}
+
+func (o *serverOptions) TopicName() string {
+	return o.topicName
+}
+
 func (o *serverOptions) SetAggregatorClientType(value aggclient.AggregatorClientType) testServerOptions {
 	opts := *o
 	opts.clientType = value
@@ -533,6 +578,16 @@ func (o *serverOptions) SetMaxAllowedForwardingDelayFn(value aggregator.MaxAllow
 
 func (o *serverOptions) MaxAllowedForwardingDelayFn() aggregator.MaxAllowedForwardingDelayFn {
 	return o.maxAllowedForwardingDelayFn
+}
+
+func (o *serverOptions) SetBufferForPastTimedMetric(value time.Duration) testServerOptions {
+	opts := *o
+	opts.resendBufferForPastTimeMetric = value
+	return &opts
+}
+
+func (o *serverOptions) BufferForPastTimedMetric() time.Duration {
+	return o.resendBufferForPastTimeMetric
 }
 
 func (o *serverOptions) SetDiscardNaNAggregatedValues(value bool) testServerOptions {

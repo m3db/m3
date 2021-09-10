@@ -111,7 +111,7 @@ func TestBlockWriteAfterClose(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, b.Close())
 
-	lifecycle := NewMockOnIndexSeries(ctrl)
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	lifecycle.EXPECT().OnIndexFinalize(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
@@ -160,7 +160,7 @@ func TestBlockWriteAfterSeal(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, b.Seal())
 
-	lifecycle := NewMockOnIndexSeries(ctrl)
+	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	lifecycle.EXPECT().OnIndexFinalize(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
@@ -214,11 +214,11 @@ func TestBlockWrite(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
@@ -260,11 +260,11 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
@@ -321,11 +321,11 @@ func TestBlockWritePartialFailure(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
@@ -896,6 +896,47 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	ctx.BlockingClose()
 }
 
+func TestBlockQueryWithIterMetrics(t *testing.T) {
+	block, err := NewBlock(xtime.Now().Truncate(time.Hour),
+		newTestNSMetadata(t), BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"),
+		testOpts)
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewBackground()
+
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+	_, _, err = results.AddDocuments([]doc.Document{
+		doc.NewDocumentFromMetadata(testDoc1()),
+		doc.NewDocumentFromMetadata(testDoc2()),
+	})
+	require.NoError(t, err)
+
+	queryIter := NewMockQueryIterator(ctrl)
+	notImportantInt := 0
+	gomock.InOrder(
+		queryIter.EXPECT().Next(ctx).Return(true),
+		queryIter.EXPECT().Current().Return(doc.NewDocumentFromMetadata(testDoc3())),
+		queryIter.EXPECT().Next(ctx).Return(false),
+		queryIter.EXPECT().Err().Return(nil),
+
+		// Iterator returns one document, so expect numOfSeries that have been added to the results object to be 1
+		// and number of documents to be 1
+		queryIter.EXPECT().AddSeries(gomock.Eq(1)),
+		queryIter.EXPECT().AddDocs(gomock.Eq(1)),
+
+		queryIter.EXPECT().Done().Return(true),
+		queryIter.EXPECT().Counts().Return(notImportantInt, notImportantInt),
+	)
+
+	err = block.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Minute),
+		emptyLogFields)
+	require.NoError(t, err)
+}
+
 func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1236,7 +1277,7 @@ func TestBlockNeedsMutableSegmentsEvicted(t *testing.T) {
 	require.False(t, b.NeedsMutableSegmentsEvicted())
 
 	// perform write and ensure it says it needs eviction
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(start)
 	h1.EXPECT().OnIndexSuccess(start)
 	batch := NewWriteBatch(WriteBatchOptions{
@@ -1372,11 +1413,11 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
@@ -1456,13 +1497,19 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().IndexedForBlockStart(blockStart).
+		Return(true).
+		AnyTimes()
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().IndexedForBlockStart(blockStart).
+		Return(true).
+		AnyTimes()
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -1490,7 +1537,11 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	ctx := context.NewBackground()
 	queryIter, err := b.QueryIter(ctx, Query{q})
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{SeriesLimit: limit}, queryIter, results, time.Now().Add(time.Minute),
+	err = b.QueryWithIter(ctx, QueryOptions{
+		SeriesLimit:    limit,
+		StartInclusive: blockStart,
+		EndExclusive:   blockStart,
+	}, queryIter, results, time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
 	require.Equal(t, 1, results.Size())
@@ -1538,13 +1589,19 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().IndexedForBlockStart(blockStart).
+		Return(true).
+		AnyTimes()
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
+	h2.EXPECT().IndexedForBlockStart(blockStart).
+		Return(true).
+		AnyTimes()
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -1582,7 +1639,10 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	queryIter, err := b.QueryIter(ctx, Query{q})
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
+	err = b.QueryWithIter(ctx, QueryOptions{
+		StartInclusive: blockStart,
+		EndExclusive:   blockStart,
+	}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
 	require.NoError(t, err)
 	require.Equal(t, 2, results.Size())
 
@@ -1631,9 +1691,12 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().IndexedForBlockStart(blockStart).
+		Return(true).
+		AnyTimes()
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -1667,7 +1730,10 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	queryIter, err := b.QueryIter(ctx, Query{q})
 	require.NoError(t, err)
-	err = b.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
+	err = b.QueryWithIter(ctx, QueryOptions{
+		StartInclusive: blockStart,
+		EndExclusive:   blockStart,
+	}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
 	require.NoError(t, err)
 	require.Equal(t, 2, results.Size())
 
@@ -1725,12 +1791,15 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
+	// Testing compaction only, so mark GC as already running so the test is limited only to compaction.
+	b.mutableSegments.compact.compactingBackgroundGarbageCollect = true
+
 	// First write
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
@@ -1759,7 +1828,7 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	b.Unlock()
 
 	// Second write
-	h1 = NewMockOnIndexSeries(ctrl)
+	h1 = doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
@@ -1782,13 +1851,13 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 		{Segment: b.mutableSegments.foregroundSegments[0].Segment()},
 	})
 	require.Equal(t, 2, len(b.mutableSegments.backgroundSegments))
-	require.True(t, b.mutableSegments.compact.compactingBackground)
+	require.True(t, b.mutableSegments.compact.compactingBackgroundStandard)
 	b.mutableSegments.Unlock()
 
 	// Wait for compaction to finish
 	for {
 		b.mutableSegments.RLock()
-		compacting := b.mutableSegments.compact.compactingBackground
+		compacting := b.mutableSegments.compact.compactingBackgroundStandard
 		b.mutableSegments.RUnlock()
 		if !compacting {
 			break
@@ -2156,15 +2225,15 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	h1 := NewMockOnIndexSeries(ctrl)
+	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	h2 := NewMockOnIndexSeries(ctrl)
+	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
-	h3 := NewMockOnIndexSeries(ctrl)
+	h3 := doc.NewMockOnIndexSeries(ctrl)
 	h3.EXPECT().OnIndexFinalize(blockStart)
 	h3.EXPECT().OnIndexSuccess(blockStart)
 

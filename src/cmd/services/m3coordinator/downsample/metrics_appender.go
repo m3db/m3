@@ -424,7 +424,6 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			dropTimestamp = true
 		}
 	}
-
 	dropPolicyApplied := dropApplyResult != metadata.NoDropPolicyPresentResult
 	return SamplesAppenderResult{
 		SamplesAppender:     a.multiSamplesAppender,
