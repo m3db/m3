@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
+	"sync"
 
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
+	"github.com/m3db/m3/src/x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
@@ -34,19 +35,31 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 		return err
 	}
 
-	// TODO accumulate errors but try best effort to send everywhere
-	// TODO in parallel
+	var wg sync.WaitGroup
+	multiErr := xerrors.NewMultiError()
+	var m sync.Mutex
 	for _, endpoint := range p.opts.endpoints {
-		if endpoint.storageMetadata.MetricsType == storagemetadata.UnaggregatedMetricsType ||
-			endpoint.storageMetadata.Resolution == query.Attributes().Resolution &&
-				endpoint.storageMetadata.Retention == query.Attributes().Retention {
-			err = p.sendWrite(ctx, endpoint.address, bytes.NewBuffer(encoded))
-			if err != nil {
-				return err
-			}
+		endpoint := endpoint
+		if endpoint.resolution == query.Attributes().Resolution &&
+			endpoint.retention == query.Attributes().Retention {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				err = p.sendWrite(ctx, endpoint.address, bytes.NewBuffer(encoded))
+				if err != nil {
+					m.Lock()
+					multiErr = multiErr.Add(err)
+					m.Unlock()
+				}
+			}()
 		}
 	}
 
+	wg.Wait()
+
+	if !multiErr.Empty() {
+		return multiErr
+	}
 	return nil
 }
 
@@ -67,10 +80,9 @@ func (p *promStorage) sendWrite(ctx context.Context, address string, encoded io.
 	if resp.StatusCode != 200 {
 		bodyBytes, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			log.Fatal(err)
+			return errors.Wrapf(err, "failed to invoke prom remote write endpoint %s", address)
 		}
-		bodyString := string(bodyBytes)
-		return fmt.Errorf("remote write endpoint returned non 200 response: %d, %s", resp.StatusCode, bodyString)
+		return fmt.Errorf("remote write endpoint returned non 200 response: %d, %s", resp.StatusCode, string(bodyBytes))
 	}
 	return nil
 }

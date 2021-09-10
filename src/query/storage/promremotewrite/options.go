@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
@@ -19,7 +18,8 @@ type Options struct {
 
 type EndpointOptions struct {
 	address    string
-	storageMetadata storagemetadata.Attributes
+	retention  time.Duration
+	resolution time.Duration
 }
 
 // TODO add some validation
@@ -27,20 +27,14 @@ func NewFromConfiguration(cfg config.PrometheusRemoteWriteBackendConfiguration) 
 	endpoints := make([]EndpointOptions, len(cfg.Endpoints))
 
 	for i, endpoint := range cfg.Endpoints {
-		storageMeta := storagemetadata.Attributes{
-			MetricsType: endpoint.Type,
-		}
-		if endpoint.Type == storagemetadata.AggregatedMetricsType {
-			storageMeta.Resolution = endpoint.Resolution
-			storageMeta.Retention = endpoint.Retention
-		}
 		endpoints[i] = EndpointOptions{
-			address:         endpoint.Address,
-			storageMetadata: storageMeta,
+			address:    endpoint.Address,
+			resolution: endpoint.Resolution,
+			retention:  endpoint.Retention,
 		}
 	}
 	return Options{
-		endpoints: endpoints,
+		endpoints:       endpoints,
 		requestTimeout:  cfg.RequestTimeout,
 		connectTimeout:  cfg.ConnectTimeout,
 		keepAlive:       cfg.KeepAlive,

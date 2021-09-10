@@ -167,8 +167,8 @@ func (m *Policy) GetAggregationTypes() []aggregationpb.AggregationType {
 }
 
 func init() {
-	proto.RegisterType((*Resolution)(nil), "policypb.Resolution")
-	proto.RegisterType((*Retention)(nil), "policypb.Retention")
+	proto.RegisterType((*Resolution)(nil), "policypb.resolution")
+	proto.RegisterType((*Retention)(nil), "policypb.retention")
 	proto.RegisterType((*StoragePolicy)(nil), "policypb.StoragePolicy")
 	proto.RegisterType((*Policy)(nil), "policypb.Policy")
 	proto.RegisterEnum("policypb.DropPolicy", DropPolicy_name, DropPolicy_value)
@@ -396,10 +396,10 @@ func (m *Resolution) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Resolution: wiretype end group for non-group")
+			return fmt.Errorf("proto: resolution: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Resolution: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: resolution: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -484,10 +484,10 @@ func (m *Retention) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Retention: wiretype end group for non-group")
+			return fmt.Errorf("proto: retention: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Retention: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: retention: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -561,7 +561,7 @@ func (m *StoragePolicy) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Resolution", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field resolution", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -591,7 +591,7 @@ func (m *StoragePolicy) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Retention", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field retention", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {

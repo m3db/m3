@@ -26,12 +26,9 @@ func TestNewFromConfiguration(t *testing.T) {
 
 	assert.Equal(t, opts, Options{
 		endpoints: []EndpointOptions{{
-			address: "testAddress",
-			storageMetadata: storagemetadata.Attributes{
-				MetricsType: storagemetadata.AggregatedMetricsType,
-				Resolution:  time.Second,
-				Retention:   time.Millisecond,
-			},
+			address:    "testAddress",
+			resolution: time.Second,
+			retention:  time.Millisecond,
 		}},
 		requestTimeout:  time.Nanosecond,
 		connectTimeout:  time.Microsecond,
@@ -39,21 +36,4 @@ func TestNewFromConfiguration(t *testing.T) {
 		idleConnTimeout: time.Second,
 		maxIdleConns:    1,
 	})
-}
-
-func TestUnaggregatedRetentionAndReslutionIgnored(t *testing.T) {
-	opts := NewFromConfiguration(config.PrometheusRemoteWriteBackendConfiguration{
-		Endpoints: []config.PrometheusRemoteWriteBackendEndpointConfiguration{{
-			Resolution: time.Second,
-			Retention:  time.Millisecond,
-			Type:       storagemetadata.UnaggregatedMetricsType,
-		}},
-	})
-
-	assert.Equal(t, opts.endpoints[0].storageMetadata,
-		storagemetadata.Attributes{
-			MetricsType: storagemetadata.UnaggregatedMetricsType,
-			Resolution:  0,
-			Retention:   0,
-		})
 }

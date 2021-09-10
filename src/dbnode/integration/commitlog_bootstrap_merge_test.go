@@ -35,7 +35,7 @@ import (
 
 // Consider a database running with a single namespaces, and the following retention opts:
 //
-//           | BlockSize | Retention Period
+//           | BlockSize | retention Period
 // ns1       |    2h     |      8h
 // commitLog |   15m     |      8h
 //

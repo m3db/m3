@@ -2,6 +2,7 @@ package promremotewrite
 
 import (
 	"context"
+	"errors"
 	"math/rand"
 	"net/http"
 	"testing"
@@ -88,47 +89,47 @@ func TestWrite(t *testing.T) {
 	}
 }
 
-func TestMetricTypeSupport(t *testing.T) {
-	promUnagg, closeFn1 := promremotewritetest.NewFakePromRemoteWriteServer(t)
+func TestWriteBasedOnRetention(t *testing.T) {
+	promShortRetention, closeFn1 := promremotewritetest.NewFakePromRemoteWriteServer(t)
 	defer closeFn1()
-	prom120x1, closeFn2 := promremotewritetest.NewFakePromRemoteWriteServer(t)
+	promMediumRetention, closeFn2 := promremotewritetest.NewFakePromRemoteWriteServer(t)
 	defer closeFn2()
-	prom720x5, closeFn3 := promremotewritetest.NewFakePromRemoteWriteServer(t)
+	promLongRetention, closeFn3 := promremotewritetest.NewFakePromRemoteWriteServer(t)
 	defer closeFn3()
+	promLongRetention2, closeFn4 := promremotewritetest.NewFakePromRemoteWriteServer(t)
+	defer closeFn4()
 	reset := func() {
-		promUnagg.Reset()
-		prom120x1.Reset()
-		prom720x5.Reset()
+		promShortRetention.Reset()
+		promMediumRetention.Reset()
+		promLongRetention.Reset()
 	}
 
 	appender, storageCloseFn, err := NewStorage(Options{endpoints: []EndpointOptions{
 		{
-			address: promUnagg.HTTPAddr(),
-			storageMetadata: storagemetadata.Attributes{
-				MetricsType: storagemetadata.UnaggregatedMetricsType,
-			},
+			address:    promShortRetention.HTTPAddr(),
+			retention:  120 * time.Hour,
+			resolution: 15 * time.Second,
 		},
 		{
-			address: prom120x1.HTTPAddr(),
-			storageMetadata: storagemetadata.Attributes{
-				MetricsType: storagemetadata.AggregatedMetricsType,
-				Retention:   120 * time.Hour,
-				Resolution:  1 * time.Minute,
-			},
+			address:    promMediumRetention.HTTPAddr(),
+			retention:  720 * time.Hour,
+			resolution: 5 * time.Minute,
 		},
 		{
-			address: prom720x5.HTTPAddr(),
-			storageMetadata: storagemetadata.Attributes{
-				MetricsType: storagemetadata.AggregatedMetricsType,
-				Retention:   720 * time.Hour,
-				Resolution:  5 * time.Minute,
-			},
+			address:    promLongRetention.HTTPAddr(),
+			retention:  8760 * time.Hour,
+			resolution: 10 * time.Minute,
+		},
+		{
+			address:    promLongRetention2.HTTPAddr(),
+			retention:  8760 * time.Hour,
+			resolution: 10 * time.Minute,
 		},
 	}})
 	require.NoError(t, err)
 	defer storageCloseFn()
 
-	sendWrite := func(attr storagemetadata.Attributes) {
+	sendWrite := func(attr storagemetadata.Attributes) error {
 		datapoint := ts.Datapoint{Value: rand.Float64(), Timestamp: xtime.Now()}
 		wq, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 			Tags: models.Tags{
@@ -143,47 +144,95 @@ func TestMetricTypeSupport(t *testing.T) {
 			Attributes: attr,
 		})
 		require.NoError(t, err)
-		err = appender.Write(context.TODO(), wq)
-		require.NoError(t, err)
+		return appender.Write(context.TODO(), wq)
 	}
 
-	t.Run("send unnagregated write", func(t *testing.T) {
+	t.Run("send short retention write", func(t *testing.T) {
 		reset()
-		sendWrite(storagemetadata.Attributes{
-			MetricsType: storagemetadata.UnaggregatedMetricsType,
-			// Should be ignored when type is unagg
-			Resolution: time.Second,
-			Retention:  time.Hour,
-		})
-		assert.Nil(t, prom120x1.GetLastRequest())
-		assert.Nil(t, prom720x5.GetLastRequest())
-		assert.NotNil(t, promUnagg.GetLastRequest())
-	})
-
-	t.Run("send aggregated write for shortest retention", func(t *testing.T) {
-		reset()
-		sendWrite(storagemetadata.Attributes{
-			MetricsType: storagemetadata.AggregatedMetricsType,
-			// Should be ignored when type is unagg
-			Resolution: time.Minute,
+		err := sendWrite(storagemetadata.Attributes{
 			Retention:  120 * time.Hour,
+			Resolution: 15 * time.Second,
 		})
-		assert.NotNil(t, prom120x1.GetLastRequest())
-		assert.Nil(t, prom720x5.GetLastRequest())
-		assert.NotNil(t, promUnagg.GetLastRequest())
+		require.NoError(t, err)
+		assert.NotNil(t, promShortRetention.GetLastRequest())
+		assert.Nil(t, promMediumRetention.GetLastRequest())
+		assert.Nil(t, promLongRetention.GetLastRequest())
 	})
 
-	t.Run("send aggregated write for longest retention", func(t *testing.T) {
+	t.Run("send medium retention write", func(t *testing.T) {
 		reset()
-		sendWrite(storagemetadata.Attributes{
-			MetricsType: storagemetadata.AggregatedMetricsType,
-			// Should be ignored when type is unagg
+		err := sendWrite(storagemetadata.Attributes{
 			Resolution: 5 * time.Minute,
 			Retention:  720 * time.Hour,
 		})
-		assert.Nil(t, prom120x1.GetLastRequest())
-		assert.NotNil(t, prom720x5.GetLastRequest())
-		assert.NotNil(t, promUnagg.GetLastRequest())
+		require.NoError(t, err)
+		assert.Nil(t, promShortRetention.GetLastRequest())
+		assert.NotNil(t, promMediumRetention.GetLastRequest())
+		assert.Nil(t, promLongRetention.GetLastRequest())
+	})
+
+	t.Run("send long retention write", func(t *testing.T) {
+		reset()
+		err := sendWrite(storagemetadata.Attributes{
+			MetricsType: storagemetadata.AggregatedMetricsType,
+			// Should be ignored when type is unagg
+			Resolution: 10 * time.Minute,
+			Retention:  8760 * time.Hour,
+		})
+		require.NoError(t, err)
+		assert.Nil(t, promShortRetention.GetLastRequest())
+		assert.Nil(t, promMediumRetention.GetLastRequest())
+		assert.NotNil(t, promLongRetention.GetLastRequest())
+	})
+
+	t.Run("send write to multiple instances configured with same retention", func(t *testing.T) {
+		reset()
+		err := sendWrite(storagemetadata.Attributes{
+			MetricsType: storagemetadata.AggregatedMetricsType,
+			// Should be ignored when type is unagg
+			Resolution: 10 * time.Minute,
+			Retention:  8760 * time.Hour,
+		})
+		require.NoError(t, err)
+		assert.Nil(t, promShortRetention.GetLastRequest())
+		assert.Nil(t, promMediumRetention.GetLastRequest())
+		assert.NotNil(t, promLongRetention.GetLastRequest())
+		assert.NotNil(t, promLongRetention2.GetLastRequest())
+	})
+
+	t.Run("send unconfigured retention write", func(t *testing.T) {
+		reset()
+		err := sendWrite(storagemetadata.Attributes{
+			MetricsType: storagemetadata.AggregatedMetricsType,
+			// Should be ignored when type is unagg
+			Resolution: 5*time.Minute + 1,
+			Retention:  720 * time.Hour,
+		})
+		require.NoError(t, err)
+		err = sendWrite(storagemetadata.Attributes{
+			MetricsType: storagemetadata.AggregatedMetricsType,
+			// Should be ignored when type is unagg
+			Resolution: 5 * time.Minute,
+			Retention:  720*time.Hour + 1,
+		})
+		require.NoError(t, err)
+		assert.Nil(t, promShortRetention.GetLastRequest())
+		assert.Nil(t, promMediumRetention.GetLastRequest())
+		assert.Nil(t, promLongRetention.GetLastRequest())
+	})
+
+	t.Run("error should not prevent sending to other instances", func(t *testing.T) {
+		reset()
+		promLongRetention.SetError(errors.New("test err"))
+		err := sendWrite(storagemetadata.Attributes{
+			MetricsType: storagemetadata.AggregatedMetricsType,
+			// Should be ignored when type is unagg
+			Resolution: 10 * time.Minute,
+			Retention:  8760 * time.Hour,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "remote write endpoint returned non 200 response: 500, test err")
+		assert.NotNil(t, promLongRetention2.GetLastRequest())
 	})
 }
 

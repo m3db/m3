@@ -87,7 +87,7 @@ func PersistBootstrapIndexSegment(
 	// Example:
 	//  Index block size: 4 hours
 	//  Data block size: 2 hours
-	//  Retention: 6 hours
+	//  retention: 6 hours
 	//           [12PM->2PM][2PM->4PM][4PM->6PM] (Data Blocks)
 	// [10AM     ->     2PM][2PM     ->     6PM] (Index Blocks)
 	retentionOpts := ns.Options().RetentionOptions()
@@ -255,7 +255,7 @@ func BuildBootstrapIndexSegment(
 	// Example:
 	//  Index block size: 4 hours
 	//  Data block size: 2 hours
-	//  Retention: 6 hours
+	//  retention: 6 hours
 	//           [12PM->2PM)[2PM->4PM)[4PM->6PM) (Data Blocks)
 	// [10AM     ->     2PM)[2PM     ->     6PM) (Index Blocks)
 	retentionOpts := ns.Options().RetentionOptions()

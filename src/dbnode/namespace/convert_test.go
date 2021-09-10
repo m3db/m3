@@ -311,7 +311,7 @@ func TestFromProtoSnapshotEnabled(t *testing.T) {
 			"testns1": {
 				// Use non-default value
 				SnapshotEnabled: !namespace.NewOptions().SnapshotEnabled(),
-				// Retention must be set
+				// retention must be set
 				RetentionOptions: &validRetentionOpts,
 			},
 		},
