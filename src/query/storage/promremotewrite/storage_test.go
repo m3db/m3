@@ -56,7 +56,7 @@ func TestWrite(t *testing.T) {
 	for _, tc := range tcs {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			appender, closeFn, err := NewStorage(Options{endpoints: []EndpointOptions{{address: fakeProm.HTTPAddr()}}})
+			promStorage, closeFn, err := NewStorage(Options{endpoints: []EndpointOptions{{address: fakeProm.HTTPAddr()}}})
 			require.NoError(t, err)
 			defer closeFn()
 
@@ -70,7 +70,7 @@ func TestWrite(t *testing.T) {
 				Unit: xtime.Millisecond,
 			})
 			require.NoError(t, err)
-			err = appender.Write(context.TODO(), wq)
+			err = promStorage.Write(context.TODO(), wq)
 			require.NoError(t, err)
 
 			promWrite := fakeProm.GetLastRequest()
@@ -104,7 +104,7 @@ func TestWriteBasedOnRetention(t *testing.T) {
 		promLongRetention.Reset()
 	}
 
-	appender, storageCloseFn, err := NewStorage(Options{endpoints: []EndpointOptions{
+	promStorage, storageCloseFn, err := NewStorage(Options{endpoints: []EndpointOptions{
 		{
 			address:    promShortRetention.HTTPAddr(),
 			retention:  120 * time.Hour,
@@ -144,7 +144,7 @@ func TestWriteBasedOnRetention(t *testing.T) {
 			Attributes: attr,
 		})
 		require.NoError(t, err)
-		return appender.Write(context.TODO(), wq)
+		return promStorage.Write(context.TODO(), wq)
 	}
 
 	t.Run("send short retention write", func(t *testing.T) {

@@ -37,7 +37,7 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 
 	var wg sync.WaitGroup
 	multiErr := xerrors.NewMultiError()
-	var m sync.Mutex
+	var errLock sync.Mutex
 	for _, endpoint := range p.opts.endpoints {
 		endpoint := endpoint
 		if endpoint.resolution == query.Attributes().Resolution &&
@@ -47,9 +47,9 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 				defer wg.Done()
 				err = p.sendWrite(ctx, endpoint.address, bytes.NewBuffer(encoded))
 				if err != nil {
-					m.Lock()
+					errLock.Lock()
 					multiErr = multiErr.Add(err)
-					m.Unlock()
+					errLock.Unlock()
 				}
 			}()
 		}

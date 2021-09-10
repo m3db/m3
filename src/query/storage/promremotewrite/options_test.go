@@ -37,3 +37,14 @@ func TestNewFromConfiguration(t *testing.T) {
 		maxIdleConns:    1,
 	})
 }
+
+func TestHTTPDefaults(t *testing.T) {
+	opts := NewFromConfiguration(config.PrometheusRemoteWriteBackendConfiguration{}).HTTPClientOptions()
+
+	assert.Equal(t, 60 * time.Second, opts.RequestTimeout)
+	assert.Equal(t, 5 * time.Second, opts.ConnectTimeout)
+	assert.Equal(t, 60 * time.Second, opts.KeepAlive)
+	assert.Equal(t, 60 * time.Second, opts.IdleConnTimeout)
+	assert.Equal(t, 100, opts.MaxIdleConns)
+	assert.Equal(t, true, opts.DisableCompression)
+}

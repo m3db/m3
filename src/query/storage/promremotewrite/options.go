@@ -43,7 +43,7 @@ func NewFromConfiguration(cfg config.PrometheusRemoteWriteBackendConfiguration) 
 	}
 }
 
-func (o *Options) HTTPClientOptions() xhttp.HTTPClientOptions {
+func (o Options) HTTPClientOptions() xhttp.HTTPClientOptions {
 	clientOpts := xhttp.DefaultHTTPClientOptions()
 	if o.requestTimeout != 0 {
 		clientOpts.RequestTimeout = o.requestTimeout
