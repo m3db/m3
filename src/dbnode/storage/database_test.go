@@ -1488,9 +1488,11 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
 		start      = xtime.Now().Truncate(time.Hour)
+		process    = AggregateTilesAPI
 	)
 
-	opts, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, targetNsID, d.opts.InstrumentOptions())
+	opts, err := NewAggregateTilesOptions(
+		start, start.Add(-time.Second), time.Minute, targetNsID, process, d.opts.InstrumentOptions())
 	require.Error(t, err)
 	opts.InsOptions = d.opts.InstrumentOptions()
 
@@ -1504,22 +1506,25 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 }
 
 func TestNewAggregateTilesOptions(t *testing.T) {
-	start := xtime.Now().Truncate(time.Hour)
-	targetNs := ident.StringID("target")
-	insOpts := instrument.NewOptions()
+	var (
+		start    = xtime.Now().Truncate(time.Hour)
+		targetNs = ident.StringID("target")
+		insOpts  = instrument.NewOptions()
+		process  = AggregateTilesRegular
+	)
 
-	_, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, targetNs, insOpts)
+	_, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, targetNs, process, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start, time.Minute, targetNs, insOpts)
+	_, err = NewAggregateTilesOptions(start, start, time.Minute, targetNs, process, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), -time.Minute, targetNs, insOpts)
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), -time.Minute, targetNs, process, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), 0, targetNs, insOpts)
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), 0, targetNs, process, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), time.Minute, targetNs, insOpts)
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), time.Minute, targetNs, process, insOpts)
 	assert.NoError(t, err)
 }
