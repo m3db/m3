@@ -1827,7 +1827,9 @@ func (n *dbNamespace) aggregateTiles(
 		targetBlockStart   = opts.Start.Truncate(targetBlockSize)
 		sourceBlockSize    = sourceNs.Options().RetentionOptions().BlockSize()
 		lastSourceBlockEnd = opts.End.Truncate(sourceBlockSize)
-		processedShards    = opts.InsOptions.MetricsScope().Counter("processed-shards")
+
+		scope           = opts.InsOptions.MetricsScope()
+		processedShards = scope.Counter("processed-shards")
 	)
 
 	if targetBlockStart.Add(targetBlockSize).Before(lastSourceBlockEnd) {
@@ -1887,7 +1889,8 @@ func (n *dbNamespace) aggregateTiles(
 	}
 
 	n.log.Info("finished large tiles aggregation for namespace",
-		zap.String("sourceNs", sourceNs.ID().String()),
+		zap.Stringer("sourceNs", sourceNs.ID()),
+		zap.Stringer("process", opts.Process),
 		zap.Time("targetBlockStart", targetBlockStart.ToTime()),
 		zap.Time("lastSourceBlockEnd", lastSourceBlockEnd.ToTime()),
 		zap.Duration("step", opts.Step),

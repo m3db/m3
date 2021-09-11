@@ -1361,6 +1361,7 @@ func NewAggregateTilesOptions(
 	start, end xtime.UnixNano,
 	step time.Duration,
 	targetNsID ident.ID,
+	process AggregateTilesProcess,
 	insOpts instrument.Options,
 ) (AggregateTilesOptions, error) {
 	if !end.After(start) {
@@ -1372,12 +1373,16 @@ func NewAggregateTilesOptions(
 	}
 
 	scope := insOpts.MetricsScope().SubScope("computed-namespace")
-	insOpts = insOpts.SetMetricsScope(scope.Tagged(map[string]string{"target-namespace": targetNsID.String()}))
+	insOpts = insOpts.SetMetricsScope(scope.Tagged(map[string]string{
+		"target-namespace": targetNsID.String(),
+		"process":          process.String(),
+	}))
 
 	return AggregateTilesOptions{
 		Start:      start,
 		End:        end,
 		Step:       step,
+		Process:    process,
 		InsOptions: insOpts,
 	}, nil
 }

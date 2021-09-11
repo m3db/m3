@@ -628,6 +628,7 @@ func (s *service) aggregateTiles(
 	opts, err := storage.NewAggregateTilesOptions(
 		start, end, step,
 		sourceNsID,
+		storage.AggregateTilesAPI,
 		s.opts.InstrumentOptions())
 	if err != nil {
 		return 0, tterrors.NewBadRequestError(err)
@@ -1095,6 +1096,7 @@ func (i *fetchTaggedResultsIter) Close(err error) {
 	for _, p := range i.permits {
 		i.blockPermits.Release(p)
 	}
+	i.blockPermits.Close()
 }
 
 // IDResult is the FetchTagged result for a series ID.
