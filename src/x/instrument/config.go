@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"time"
 
 	prom "github.com/m3db/prometheus_client_golang/prometheus"
@@ -35,9 +36,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	errNoReporterConfigured = errors.New("no reporter configured")
-)
+var errNoReporterConfigured = errors.New("no reporter configured")
 
 // ScopeConfiguration configures a metric scope.
 type ScopeConfiguration struct {
@@ -101,6 +100,7 @@ type MetricsConfigurationPrometheusReporter struct {
 // NewRootScopeAndReportersOptions is a set of options.
 type NewRootScopeAndReportersOptions struct {
 	PrometheusHandlerListener    net.Listener
+	PrometheusDefaultServeMux    *http.ServeMux
 	PrometheusExternalRegistries []PrometheusExternalRegistry
 	PrometheusOnError            func(e error)
 	// CommonLabels will be appended to every metric gathered.
@@ -162,6 +162,7 @@ func (mc *MetricsConfiguration) NewRootScopeAndReporters(
 			Registry:           registry,
 			ExternalRegistries: opts.PrometheusExternalRegistries,
 			HandlerListener:    opts.PrometheusHandlerListener,
+			DefaultServeMux:    opts.PrometheusDefaultServeMux,
 			OnError:            onError,
 			CommonLabels:       opts.CommonLabels,
 		}
