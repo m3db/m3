@@ -164,7 +164,6 @@ type databaseNamespaceMetrics struct {
 	snapshot            instrument.MethodMetrics
 	write               instrument.MethodMetrics
 	writeTagged         instrument.MethodMetrics
-	aggregateTiles      instrument.MethodMetrics
 	read                instrument.MethodMetrics
 	fetchBlocks         instrument.MethodMetrics
 	fetchBlocksMetadata instrument.MethodMetrics
@@ -239,13 +238,6 @@ func newDatabaseNamespaceMetrics(
 	scope tally.Scope,
 	opts instrument.TimerOptions,
 ) databaseNamespaceMetrics {
-	const (
-		// NB: tally.Timer when backed by a Prometheus Summary type is *very* expensive
-		// for high frequency measurements. Overriding sampling rate for writes to avoid this issue.
-		// TODO: make tally.Timers default to Prom Histograms instead of Summary. And update the dashboard
-		// to reflect this.
-		overrideWriteSamplingRate = 0.01
-	)
 	shardsScope := scope.SubScope("dbnamespace").SubScope("shards")
 	tickScope := scope.SubScope("tick")
 	indexTickScope := tickScope.SubScope("index")
@@ -262,7 +254,6 @@ func newDatabaseNamespaceMetrics(
 		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", opts),
 		write:               instrument.NewMethodMetrics(scope, "write", opts),
 		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", opts),
-		aggregateTiles:      instrument.NewMethodMetrics(scope, "aggregate-tiles", opts),
 		read:                instrument.NewMethodMetrics(scope, "read", opts),
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
 		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
@@ -1809,9 +1800,18 @@ func (n *dbNamespace) AggregateTiles(
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
 ) (int64, error) {
-	callStart := n.nowFn()
+	var (
+		callStart = n.nowFn()
+
+		aggregateTilesScope = opts.InsOptions.MetricsScope()
+		timerOpts           = n.opts.InstrumentOptions().TimerOptions()
+		methodMetrics       = instrument.NewMethodMetrics(
+			aggregateTilesScope, "aggregate-tiles", timerOpts)
+	)
+
 	processedTileCount, err := n.aggregateTiles(ctx, sourceNs, opts)
-	n.metrics.aggregateTiles.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+
+	methodMetrics.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 
 	return processedTileCount, err
 }
