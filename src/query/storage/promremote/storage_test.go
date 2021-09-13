@@ -56,7 +56,7 @@ func TestWrite(t *testing.T) {
 	for _, tc := range tcs {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			promStorage, err := NewStorage(Options{endpoints: []EndpointOptions{{address: fakeProm.HTTPAddr()}}})
+			promStorage, err := NewStorage(Options{endpoints: []EndpointOptions{{address: fakeProm.WriteAddr()}}})
 			require.NoError(t, err)
 			defer closeStorage(t, promStorage)
 
@@ -105,22 +105,22 @@ func TestWriteBasedOnRetention(t *testing.T) {
 
 	promStorage, err := NewStorage(Options{endpoints: []EndpointOptions{
 		{
-			address:    promShortRetention.HTTPAddr(),
+			address:    promShortRetention.WriteAddr(),
 			retention:  120 * time.Hour,
 			resolution: 15 * time.Second,
 		},
 		{
-			address:    promMediumRetention.HTTPAddr(),
+			address:    promMediumRetention.WriteAddr(),
 			retention:  720 * time.Hour,
 			resolution: 5 * time.Minute,
 		},
 		{
-			address:    promLongRetention.HTTPAddr(),
+			address:    promLongRetention.WriteAddr(),
 			retention:  8760 * time.Hour,
 			resolution: 10 * time.Minute,
 		},
 		{
-			address:    promLongRetention2.HTTPAddr(),
+			address:    promLongRetention2.WriteAddr(),
 			retention:  8760 * time.Hour,
 			resolution: 10 * time.Minute,
 		},

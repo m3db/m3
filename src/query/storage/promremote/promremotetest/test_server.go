@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// FakeServer is a fake http server handling prometheus remote write. Intended for test usage.
-type FakeServer struct {
+// TestPromServer is a fake http server handling prometheus remote write. Intended for test usage.
+type TestPromServer struct {
 	mu               sync.Mutex
 	lastWriteRequest *prompb.WriteRequest
 	lastHTTPRequest  *http.Request
@@ -27,32 +27,36 @@ type FakeServer struct {
 }
 
 // NewServer creates new instance of a fake server.
-func NewServer(t *testing.T) (*FakeServer, func()) {
-	server := &FakeServer{t: t}
+func NewServer(t *testing.T) (*TestPromServer, func()) {
+	testPromServer := &TestPromServer{t: t}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	HTTPServer := &http.Server{Handler: http.HandlerFunc(server.handle)}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/write", testPromServer.handleWrite)
+
+	svr := &http.Server{Handler: mux}
 	go func() {
-		if err := HTTPServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := svr.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			//nolint: forbidigo
-			fmt.Printf("unexpected server error %v \n", err)
+			fmt.Printf("unexpected testPromServer error %v \n", err)
 		}
 	}()
-	server.addr = listener.Addr().String()
-	return server, func() {
-		require.NoError(t, HTTPServer.Shutdown(context.TODO()))
-		require.NoError(t, HTTPServer.Close())
+	testPromServer.addr = listener.Addr().String()
+	return testPromServer, func() {
+		require.NoError(t, svr.Shutdown(context.TODO()))
+		require.NoError(t, svr.Close())
 	}
 }
 
-func (s *FakeServer) handle(w http.ResponseWriter, request *http.Request) {
+func (s *TestPromServer) handleWrite(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.lastHTTPRequest = request
-	assert.Equal(s.t, request.Header.Get("content-encoding"), "snappy")
-	assert.Equal(s.t, request.Header.Get("content-type"), "application/x-protobuf")
+	s.lastHTTPRequest = r
+	assert.Equal(s.t, r.Header.Get("content-encoding"), "snappy")
+	assert.Equal(s.t, r.Header.Get("content-type"), "application/x-protobuf")
 
-	req, err := remote.DecodeWriteRequest(request.Body)
+	req, err := remote.DecodeWriteRequest(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -65,33 +69,33 @@ func (s *FakeServer) handle(w http.ResponseWriter, request *http.Request) {
 }
 
 // GetLastRequest returns last recorded request.
-func (s *FakeServer) GetLastRequest() *prompb.WriteRequest {
+func (s *TestPromServer) GetLastRequest() *prompb.WriteRequest {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.lastWriteRequest
 }
 
 // GetLastHTTPRequest returns last recorded http request.
-func (s *FakeServer) GetLastHTTPRequest() *http.Request {
+func (s *TestPromServer) GetLastHTTPRequest() *http.Request {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.lastHTTPRequest
 }
 
-// HTTPAddr http address of a server.
-func (s *FakeServer) HTTPAddr() string {
-	return fmt.Sprintf("http://%s", s.addr)
+// WriteAddr http address of a write endpoint.
+func (s *TestPromServer) WriteAddr() string {
+	return fmt.Sprintf("http://%s/write", s.addr)
 }
 
 // SetError sets error that will be returned for all incoming requests.
-func (s *FakeServer) SetError(err error) {
+func (s *TestPromServer) SetError(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.respErr = err
 }
 
 // Reset resets state to default.
-func (s *FakeServer) Reset() {
+func (s *TestPromServer) Reset() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.respErr = nil

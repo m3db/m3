@@ -399,7 +399,7 @@ func TestPromRemoteBackend(t *testing.T) {
 	defer ctrl.Finish()
 	externalFakePromServer, closeFn := promremotetest.NewServer(t)
 	defer closeFn()
-	externalPromAddr := externalFakePromServer.HTTPAddr()
+	externalPromAddr := externalFakePromServer.WriteAddr()
 	configYAML := fmt.Sprintf(`
 listenAddress: 127.0.0.1:0
 
