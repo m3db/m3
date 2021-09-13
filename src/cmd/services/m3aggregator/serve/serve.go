@@ -27,6 +27,7 @@ import (
 	httpserver "github.com/m3db/m3/src/aggregator/server/http"
 	m3msgserver "github.com/m3db/m3/src/aggregator/server/m3msg"
 	rawtcpserver "github.com/m3db/m3/src/aggregator/server/rawtcp"
+	xdebug "github.com/m3db/m3/src/x/debug"
 
 	"go.uber.org/zap"
 )
@@ -66,6 +67,7 @@ func Serve(
 
 	if httpAddr := opts.HTTPAddr(); httpAddr != "" {
 		serverOpts := opts.HTTPServerOpts()
+		xdebug.RegisterPProfHandlers(serverOpts.Mux())
 		httpServer := httpserver.NewServer(httpAddr, aggregator, serverOpts, iOpts)
 		if err := httpServer.ListenAndServe(); err != nil {
 			return fmt.Errorf("could not start http server at: addr=%s, err=%v", httpAddr, err)

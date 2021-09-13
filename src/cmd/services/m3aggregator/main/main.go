@@ -23,7 +23,6 @@ package main
 import (
 	"flag"
 	"log"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
 
 	"github.com/m3db/m3/src/aggregator/server"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"

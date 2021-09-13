@@ -339,6 +339,10 @@ func (agg *aggregator) updateStagedMetadatas(sms metadata.StagedMetadatas) {
 			if agg.opts.AddToReset() {
 				sms[s].Pipelines[p].Pipeline = sms[s].Pipelines[p].Pipeline.WithResets()
 			}
+			if !agg.opts.TimedForResendEnabled() && sms[s].Pipelines[p].ResendEnabled {
+				// disable resending for the pipeline if the feature flag is off.
+				sms[s].Pipelines[p].ResendEnabled = false
+			}
 		}
 	}
 }
