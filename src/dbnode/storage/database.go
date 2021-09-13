@@ -1305,10 +1305,8 @@ func (d *db) AggregateTiles(
 			zap.String("targetNs", targetNsID.String()),
 			zap.Error(err),
 		)
-		opts.InsOptions.MetricsScope().Counter("aggregation.errors").Inc(1)
-	} else {
-		opts.InsOptions.MetricsScope().Counter("aggregation.success").Inc(1)
 	}
+
 	return processedTileCount, err
 }
 
