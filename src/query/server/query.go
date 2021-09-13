@@ -57,7 +57,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/fanout"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
-	"github.com/m3db/m3/src/query/storage/promremotewrite"
+	"github.com/m3db/m3/src/query/storage/promremote"
 	"github.com/m3db/m3/src/query/storage/remote"
 	"github.com/m3db/m3/src/query/stores/m3db"
 	"github.com/m3db/m3/src/x/clock"
@@ -485,15 +485,15 @@ func Run(runOpts RunOptions) RunResult {
 		if err != nil {
 			logger.Fatal("unable to setup downsampler for m3db backend", zap.Error(err))
 		}
-	case config.PromRemoteWriteStorageType:
-		var opts promremotewrite.Options
-		opts, err = promremotewrite.NewOptions(cfg.PrometheusRemoteWriteBackend)
+	case config.PromRemoteStorageType:
+		var opts promremote.Options
+		opts, err = promremote.NewOptions(cfg.PrometheusRemoteBackend)
 		if err != nil {
 			logger.Fatal("invalid configuration", zap.Error(err))
 		}
-		backendStorage, err = promremotewrite.NewStorage(opts)
+		backendStorage, err = promremote.NewStorage(opts)
 		if err != nil {
-			logger.Fatal("unable to setup prom remote write backend", zap.Error(err))
+			logger.Fatal("unable to setup prom remote backend", zap.Error(err))
 		}
 		defer func() {
 			err := backendStorage.Close()

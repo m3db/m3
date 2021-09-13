@@ -1,4 +1,4 @@
-package promremotewrite
+package promremote
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
-	"github.com/m3db/m3/src/query/storage/promremotewrite/promremotewritetest"
+	"github.com/m3db/m3/src/query/storage/promremote/promremotetest"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -51,7 +51,7 @@ func TestWrite(t *testing.T) {
 		},
 	}
 
-	fakeProm, closeFn := promremotewritetest.NewFakePromRemoteWriteServer(t)
+	fakeProm, closeFn := promremotetest.NewServer(t)
 	defer closeFn()
 
 	for _, tc := range tcs {
@@ -91,13 +91,13 @@ func TestWrite(t *testing.T) {
 }
 
 func TestWriteBasedOnRetention(t *testing.T) {
-	promShortRetention, closeFn1 := promremotewritetest.NewFakePromRemoteWriteServer(t)
+	promShortRetention, closeFn1 := promremotetest.NewServer(t)
 	defer closeFn1()
-	promMediumRetention, closeFn2 := promremotewritetest.NewFakePromRemoteWriteServer(t)
+	promMediumRetention, closeFn2 := promremotetest.NewServer(t)
 	defer closeFn2()
-	promLongRetention, closeFn3 := promremotewritetest.NewFakePromRemoteWriteServer(t)
+	promLongRetention, closeFn3 := promremotetest.NewServer(t)
 	defer closeFn3()
-	promLongRetention2, closeFn4 := promremotewritetest.NewFakePromRemoteWriteServer(t)
+	promLongRetention2, closeFn4 := promremotetest.NewServer(t)
 	defer closeFn4()
 	reset := func() {
 		promShortRetention.Reset()

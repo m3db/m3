@@ -58,8 +58,8 @@ const (
 	// coordinators used only to serve m3admin APIs.
 	NoopEtcdStorageType BackendStorageType = "noop-etcd"
 
-	// PromRemoteWriteStorageType is a type of storage that is backed by Prometheus Remote Write compatible API.
-	PromRemoteWriteStorageType BackendStorageType = "prom-remote-write"
+	// PromRemoteStorageType is a type of storage that is backed by Prometheus Remote Write compatible API.
+	PromRemoteStorageType BackendStorageType = "prom-remote"
 
 	defaultListenAddress = "0.0.0.0:7201"
 
@@ -134,9 +134,9 @@ type Configuration struct {
 	// endpoints.
 	ClusterManagement ClusterManagementConfiguration `yaml:"clusterManagement"`
 
-	// PrometheusRemoteWriteBackend configures prometheus remote write backend.
-	// Used only when backend property is "prom-remote-write"
-	PrometheusRemoteWriteBackend PrometheusRemoteWriteBackendConfiguration `yaml:"prometheusRemoteWriteBackend"`
+	// PrometheusRemoteBackend configures prometheus remote write backend.
+	// Used only when backend property is "prom-remote"
+	PrometheusRemoteBackend PrometheusRemoteBackendConfiguration `yaml:"prometheusRemoteBackend"`
 
 	// ListenAddress is the server listen address.
 	ListenAddress *string `yaml:"listenAddress"`
@@ -753,18 +753,18 @@ type RPCConfiguration struct {
 	ReflectionEnabled bool `yaml:"reflectionEnabled"`
 }
 
-// PrometheusRemoteWriteBackendConfiguration configures prometheus remote write backend.
-type PrometheusRemoteWriteBackendConfiguration struct {
-	Endpoints       []PrometheusRemoteWriteBackendEndpointConfiguration `yaml:"endpoints"`
-	RequestTimeout  time.Duration                                       `yaml:"requestTimeout"`
-	ConnectTimeout  time.Duration                                       `yaml:"connectTimeout"`
-	KeepAlive       time.Duration                                       `yaml:"keepAlive"`
-	IdleConnTimeout time.Duration                                       `yaml:"idleConnTimeout"`
-	MaxIdleConns    int                                                 `yaml:"maxIdleConns"`
+// PrometheusRemoteBackendConfiguration configures prometheus remote write backend.
+type PrometheusRemoteBackendConfiguration struct {
+	Endpoints       []PrometheusRemoteBackendEndpointConfiguration `yaml:"endpoints"`
+	RequestTimeout  time.Duration                                  `yaml:"requestTimeout"`
+	ConnectTimeout  time.Duration                                  `yaml:"connectTimeout"`
+	KeepAlive       time.Duration                                  `yaml:"keepAlive"`
+	IdleConnTimeout time.Duration                                  `yaml:"idleConnTimeout"`
+	MaxIdleConns    int                                            `yaml:"maxIdleConns"`
 }
 
-// PrometheusRemoteWriteBackendEndpointConfiguration configures single endpoint.
-type PrometheusRemoteWriteBackendEndpointConfiguration struct {
+// PrometheusRemoteBackendEndpointConfiguration configures single endpoint.
+type PrometheusRemoteBackendEndpointConfiguration struct {
 	Address    string        `yaml:"address"`
 	Retention  time.Duration `yaml:"retention"`
 	Resolution time.Duration `yaml:"resolution"`

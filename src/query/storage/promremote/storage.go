@@ -1,4 +1,4 @@
-package promremotewrite
+package promremote
 
 import (
 	"bytes"
@@ -74,7 +74,7 @@ func (p *promStorage) ErrorBehavior() storage.ErrorBehavior {
 }
 
 func (p *promStorage) Name() string {
-	return "prom-remote-write"
+	return "prom-remote"
 }
 
 func (p *promStorage) writeSingle(ctx context.Context, address string, encoded io.Reader) error {

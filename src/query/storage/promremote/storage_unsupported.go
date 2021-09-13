@@ -1,4 +1,4 @@
-package promremotewrite
+package promremote
 
 import (
 	"context"

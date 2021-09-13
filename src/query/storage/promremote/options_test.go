@@ -1,4 +1,4 @@
-package promremotewrite
+package promremote
 
 import (
 	"testing"
@@ -11,8 +11,8 @@ import (
 )
 
 func TestNewFromConfiguration(t *testing.T) {
-	opts, err := NewOptions(config.PrometheusRemoteWriteBackendConfiguration{
-		Endpoints: []config.PrometheusRemoteWriteBackendEndpointConfiguration{{
+	opts, err := NewOptions(config.PrometheusRemoteBackendConfiguration{
+		Endpoints: []config.PrometheusRemoteBackendEndpointConfiguration{{
 			Address:    "testAddress",
 			Resolution: time.Second,
 			Retention:  time.Millisecond,
@@ -39,8 +39,8 @@ func TestNewFromConfiguration(t *testing.T) {
 }
 
 func TestHTTPDefaults(t *testing.T) {
-	cfg, err := NewOptions(config.PrometheusRemoteWriteBackendConfiguration{
-		Endpoints: []config.PrometheusRemoteWriteBackendEndpointConfiguration{getValidEndpointConfiguration()},
+	cfg, err := NewOptions(config.PrometheusRemoteBackendConfiguration{
+		Endpoints: []config.PrometheusRemoteBackendEndpointConfiguration{getValidEndpointConfiguration()},
 	})
 	require.NoError(t, err)
 	opts := cfg.HTTPClientOptions()
@@ -128,7 +128,7 @@ func TestValidateEndpoint(t *testing.T) {
 	})
 }
 
-func assertValidationError(t *testing.T, cfg config.PrometheusRemoteWriteBackendConfiguration, expectedMsg string) {
+func assertValidationError(t *testing.T, cfg config.PrometheusRemoteBackendConfiguration, expectedMsg string) {
 	_, err := NewOptions(cfg)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), expectedMsg)
@@ -136,7 +136,7 @@ func assertValidationError(t *testing.T, cfg config.PrometheusRemoteWriteBackend
 
 func assertEndpointError(
 	t *testing.T,
-	cfg config.PrometheusRemoteWriteBackendEndpointConfiguration,
+	cfg config.PrometheusRemoteBackendEndpointConfiguration,
 	expectedMsg string,
 ) {
 	err := validateEndpointConfiguration(cfg)
@@ -144,14 +144,14 @@ func assertEndpointError(
 	assert.Contains(t, err.Error(), expectedMsg)
 }
 
-func getValidConfig() config.PrometheusRemoteWriteBackendConfiguration {
-	return config.PrometheusRemoteWriteBackendConfiguration{
-		Endpoints: []config.PrometheusRemoteWriteBackendEndpointConfiguration{getValidEndpointConfiguration()},
+func getValidConfig() config.PrometheusRemoteBackendConfiguration {
+	return config.PrometheusRemoteBackendConfiguration{
+		Endpoints: []config.PrometheusRemoteBackendEndpointConfiguration{getValidEndpointConfiguration()},
 	}
 }
 
-func getValidEndpointConfiguration() config.PrometheusRemoteWriteBackendEndpointConfiguration {
-	return config.PrometheusRemoteWriteBackendEndpointConfiguration{
+func getValidEndpointConfiguration() config.PrometheusRemoteBackendEndpointConfiguration {
+	return config.PrometheusRemoteBackendEndpointConfiguration{
 		Address:    "testAddress",
 		Retention:  time.Second,
 		Resolution: time.Second,

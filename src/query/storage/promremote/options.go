@@ -1,4 +1,4 @@
-package promremotewrite
+package promremote
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 )
 
 // NewOptions constructs options given config.
-func NewOptions(cfg config.PrometheusRemoteWriteBackendConfiguration) (Options, error) {
+func NewOptions(cfg config.PrometheusRemoteBackendConfiguration) (Options, error) {
 	err := validateBackendConfiguration(cfg)
 	if err != nil {
 		return Options{}, err
@@ -57,11 +57,11 @@ func (o Options) HTTPClientOptions() xhttp.HTTPClientOptions {
 	return clientOpts
 }
 
-func validateBackendConfiguration(cfg config.PrometheusRemoteWriteBackendConfiguration) error {
+func validateBackendConfiguration(cfg config.PrometheusRemoteBackendConfiguration) error {
 	if len(cfg.Endpoints) == 0 {
 		return fmt.Errorf(
 			"at least one endpoint must be configured when using %s backend type",
-			config.PromRemoteWriteStorageType,
+			config.PromRemoteStorageType,
 		)
 	}
 	if cfg.MaxIdleConns < 0 {
@@ -88,7 +88,7 @@ func validateBackendConfiguration(cfg config.PrometheusRemoteWriteBackendConfigu
 	return nil
 }
 
-func validateEndpointConfiguration(endpoint config.PrometheusRemoteWriteBackendEndpointConfiguration) error {
+func validateEndpointConfiguration(endpoint config.PrometheusRemoteBackendEndpointConfiguration) error {
 	if endpoint.Resolution <= 0 {
 		return errors.New("endpoint resolution must be set and have positive value")
 	}

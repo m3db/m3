@@ -1,5 +1,5 @@
-// Package promremotewritetest provides test utilities.
-package promremotewritetest
+// Package promremotetest provides test utilities.
+package promremotetest
 
 import (
 	"context"
@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// FakePromRemoteWriteServer is a fake http server handling prometheus remote write. Intended for test usage.
-type FakePromRemoteWriteServer struct {
+// FakeServer is a fake http server handling prometheus remote write. Intended for test usage.
+type FakeServer struct {
 	mu               sync.Mutex
 	lastWriteRequest *prompb.WriteRequest
 	lastHTTPRequest  *http.Request
@@ -24,9 +24,9 @@ type FakePromRemoteWriteServer struct {
 	respErr          error
 }
 
-// NewFakePromRemoteWriteServer creates new instance of a fake server.
-func NewFakePromRemoteWriteServer(t *testing.T) (*FakePromRemoteWriteServer, func()) {
-	server := &FakePromRemoteWriteServer{}
+// NewServer creates new instance of a fake server.
+func NewServer(t *testing.T) (*FakeServer, func()) {
+	server := &FakeServer{}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	HTTPServer := &http.Server{Handler: http.HandlerFunc(server.handle)}
@@ -43,7 +43,7 @@ func NewFakePromRemoteWriteServer(t *testing.T) (*FakePromRemoteWriteServer, fun
 	}
 }
 
-func (s *FakePromRemoteWriteServer) handle(w http.ResponseWriter, request *http.Request) {
+func (s *FakeServer) handle(w http.ResponseWriter, request *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lastHTTPRequest = request
@@ -60,33 +60,33 @@ func (s *FakePromRemoteWriteServer) handle(w http.ResponseWriter, request *http.
 }
 
 // GetLastRequest returns last recorded request.
-func (s *FakePromRemoteWriteServer) GetLastRequest() *prompb.WriteRequest {
+func (s *FakeServer) GetLastRequest() *prompb.WriteRequest {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.lastWriteRequest
 }
 
 // GetLastHTTPRequest returns last recorded http request.
-func (s *FakePromRemoteWriteServer) GetLastHTTPRequest() *http.Request {
+func (s *FakeServer) GetLastHTTPRequest() *http.Request {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.lastHTTPRequest
 }
 
 // HTTPAddr http address of a server.
-func (s *FakePromRemoteWriteServer) HTTPAddr() string {
+func (s *FakeServer) HTTPAddr() string {
 	return fmt.Sprintf("http://%s", s.addr)
 }
 
 // SetError sets error that will be returned for all incoming requests.
-func (s *FakePromRemoteWriteServer) SetError(err error) {
+func (s *FakeServer) SetError(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.respErr = err
 }
 
 // Reset resets state to default.
-func (s *FakePromRemoteWriteServer) Reset() {
+func (s *FakeServer) Reset() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.respErr = nil
