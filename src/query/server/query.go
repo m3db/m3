@@ -506,7 +506,7 @@ func Run(runOpts RunOptions) RunResult {
 			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
 		)
 		if err != nil {
-			logger.Fatal("unable to setup downsampler", zap.Error(err))
+			logger.Fatal("unable to setup downsampler for prom remote backend", zap.Error(err))
 		}
 	default:
 		logger.Fatal("unrecognized backend", zap.String("backend", string(cfg.Backend)))

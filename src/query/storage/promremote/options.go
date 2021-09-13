@@ -89,11 +89,11 @@ func validateBackendConfiguration(cfg config.PrometheusRemoteBackendConfiguratio
 }
 
 func validateEndpointConfiguration(endpoint config.PrometheusRemoteBackendEndpointConfiguration) error {
-	if endpoint.Resolution <= 0 {
-		return errors.New("endpoint resolution must be set and have positive value")
+	if endpoint.Resolution < 0 {
+		return errors.New("endpoint resolution can't be negative")
 	}
-	if endpoint.Retention <= 0 {
-		return errors.New("endpoint retention must be set and have positive value")
+	if endpoint.Retention < 0 {
+		return errors.New("endpoint retention can't be negative")
 	}
 	if strings.TrimSpace(endpoint.Address) == "" {
 		return errors.New("endpoint address must be set")

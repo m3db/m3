@@ -37,6 +37,7 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 	var errLock sync.Mutex
 	for _, endpoint := range p.opts.endpoints {
 		endpoint := endpoint
+		println("Aaaaaaa", query.Attributes().Retention)
 		if endpoint.resolution == query.Attributes().Resolution &&
 			endpoint.retention == query.Attributes().Retention {
 			wg.Add(1)

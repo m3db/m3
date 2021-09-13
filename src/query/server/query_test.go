@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/promremote/promremotetest"
 	xclock "github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/ident"
@@ -233,8 +234,8 @@ func TestWriteH1(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	configFile, close := newTestFile(t, "config.yaml", configYAML)
-	defer close()
+	configFile, closeFn := newTestFile(t, "config.yaml", configYAML)
+	defer closeFn()
 
 	var cfg config.Configuration
 	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
@@ -287,6 +288,193 @@ func TestIngestH2C(t *testing.T) {
 	cfg.HTTP.EnableH2C = true
 
 	testIngest(t, cfg, ctrl)
+}
+
+func TestGRPCBackend(t *testing.T) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	grpcAddr := lis.Addr().String()
+	grpcConfigYAML := fmt.Sprintf(`
+listenAddress: 127.0.0.1:0
+
+logging:
+  level: info
+
+metrics:
+  scope:
+    prefix: "coordinator"
+  prometheus:
+    handlerPath: /metrics
+    listenAddress: "127.0.0.1:0"
+    onError: stderr
+  sanitization: prometheus
+  samplingRate: 1.0
+
+rpc:
+  remoteListenAddresses: ["%s"]
+
+backend: grpc
+
+tagOptions:
+  metricName: "bar"
+  idScheme: prepend_meta
+
+readWorkerPoolPolicy:
+  grow: true
+  size: 100
+  shards: 1000
+  killProbability: 0.3
+
+writeWorkerPoolPolicy:
+  grow: true
+  size: 100
+  shards: 1000
+  killProbability: 0.3
+`, grpcAddr)
+
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+
+	s := grpc.NewServer()
+	defer s.GracefulStop()
+	qs := newQueryServer()
+	rpc.RegisterQueryServer(s, qs)
+	go func() {
+		_ = s.Serve(lis)
+	}()
+
+	configFile, closeFn := newTestFile(t, "config_backend.yaml", grpcConfigYAML)
+	defer closeFn()
+
+	var cfg config.Configuration
+	err = xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
+	require.NoError(t, err)
+
+	// No clusters
+	require.Equal(t, 0, len(cfg.Clusters))
+	require.Equal(t, config.GRPCStorageType, cfg.Backend)
+
+	interruptCh := make(chan error)
+	doneCh := make(chan struct{})
+	listenerCh := make(chan net.Listener, 1)
+	go func() {
+		Run(RunOptions{
+			Config:      cfg,
+			InterruptCh: interruptCh,
+			ListenerCh:  listenerCh,
+		})
+		doneCh <- struct{}{}
+	}()
+
+	// Wait for listener
+	listener := <-listenerCh
+	addr := listener.Addr().String()
+
+	// Wait for server to come up
+	waitForServerHealthy(t, addr)
+
+	// Send Prometheus read request
+	promReq := test.GeneratePromReadRequest()
+	promReqBody := test.GeneratePromReadRequestBody(t, promReq)
+	req, err := http.NewRequestWithContext(
+		context.TODO(),
+		http.MethodPost,
+		fmt.Sprintf("http://%s%s", addr, remote.PromReadURL),
+		promReqBody,
+	)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer require.NoError(t, resp.Body.Close())
+	assert.Equal(t, qs.reads, 1)
+
+	// Ensure close server performs as expected
+	interruptCh <- fmt.Errorf("interrupt")
+	<-doneCh
+}
+
+func TestPromRemoteBackend(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+	externalFakePromServer, closeFn := promremotetest.NewServer(t)
+	defer closeFn()
+	externalPromAddr := externalFakePromServer.HTTPAddr()
+	configYAML := fmt.Sprintf(`
+listenAddress: 127.0.0.1:0
+
+logging:
+  level: info
+
+metrics:
+  scope:
+    prefix: "coordinator"
+  prometheus:
+    handlerPath: /metrics
+    listenAddress: "127.0.0.1:0"
+    onError: stderr
+  sanitization: prometheus
+  samplingRate: 1.0
+
+prometheusRemoteBackend:
+  endpoints: 
+  - address: "%s"
+
+backend: prom-remote
+
+tagOptions:
+  allowTagNameDuplicates: true
+`, externalPromAddr)
+
+	configFile, closeFn := newTestFile(t, "config_backend.yaml", configYAML)
+	defer closeFn()
+
+	var cfg config.Configuration
+	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
+	require.NoError(t, err)
+
+	require.Equal(t, config.PromRemoteStorageType, cfg.Backend)
+
+	clusterClientCh := make(chan clusterclient.Client, 1)
+	clusterClientCh <- clusterclient.NewMockClient(ctrl)
+	interruptCh := make(chan error)
+	doneCh := make(chan struct{})
+	listenerCh := make(chan net.Listener, 1)
+	go func() {
+		Run(RunOptions{
+			Config:        cfg,
+			InterruptCh:   interruptCh,
+			ListenerCh:    listenerCh,
+			ClusterClient: clusterClientCh,
+		})
+		doneCh <- struct{}{}
+	}()
+
+	// Wait for listener
+	listener := <-listenerCh
+	addr := listener.Addr().String()
+
+	// Wait for server to come up
+	waitForServerHealthy(t, addr)
+
+	promReq := test.GeneratePromWriteRequest()
+	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
+	req, err := http.NewRequestWithContext(
+		context.TODO(),
+		http.MethodPost,
+		fmt.Sprintf("http://%s%s", addr, remote.PromWriteURL),
+		promReqBody,
+	)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer require.NoError(t, resp.Body.Close())
+	assert.NotNil(t, externalFakePromServer.GetLastRequest())
+
+	// Ensure close server performs as expected
+	interruptCh <- fmt.Errorf("interrupt")
+	<-doneCh
 }
 
 func testWrite(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller) {
@@ -549,105 +737,6 @@ func waitForServerHealthy(t *testing.T, addr string) {
 	}
 	require.FailNow(t, "waited for server healthy longer than limit: "+
 		maxWait.String())
-}
-
-func TestGRPCBackend(t *testing.T) {
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	grpcAddr := lis.Addr().String()
-	grpcConfigYAML := fmt.Sprintf(`
-listenAddress: 127.0.0.1:0
-
-logging:
-  level: info
-
-metrics:
-  scope:
-    prefix: "coordinator"
-  prometheus:
-    handlerPath: /metrics
-    listenAddress: "127.0.0.1:0"
-    onError: stderr
-  sanitization: prometheus
-  samplingRate: 1.0
-
-rpc:
-  remoteListenAddresses: ["%s"]
-
-backend: grpc
-
-tagOptions:
-  metricName: "bar"
-  idScheme: prepend_meta
-
-readWorkerPoolPolicy:
-  grow: true
-  size: 100
-  shards: 1000
-  killProbability: 0.3
-
-writeWorkerPoolPolicy:
-  grow: true
-  size: 100
-  shards: 1000
-  killProbability: 0.3
-`, grpcAddr)
-
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
-	defer ctrl.Finish()
-
-	s := grpc.NewServer()
-	defer s.GracefulStop()
-	qs := newQueryServer()
-	rpc.RegisterQueryServer(s, qs)
-	go func() {
-		s.Serve(lis)
-	}()
-
-	configFile, close := newTestFile(t, "config_backend.yaml", grpcConfigYAML)
-	defer close()
-
-	var cfg config.Configuration
-	err = xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
-	require.NoError(t, err)
-
-	// No clusters
-	require.Equal(t, 0, len(cfg.Clusters))
-	require.Equal(t, config.GRPCStorageType, cfg.Backend)
-
-	interruptCh := make(chan error)
-	doneCh := make(chan struct{})
-	listenerCh := make(chan net.Listener, 1)
-	go func() {
-		Run(RunOptions{
-			Config:      cfg,
-			InterruptCh: interruptCh,
-			ListenerCh:  listenerCh,
-		})
-		doneCh <- struct{}{}
-	}()
-
-	// Wait for listener
-	listener := <-listenerCh
-	addr := listener.Addr().String()
-
-	// Wait for server to come up
-	waitForServerHealthy(t, addr)
-
-	// Send Prometheus read request
-	promReq := test.GeneratePromReadRequest()
-	promReqBody := test.GeneratePromReadRequestBody(t, promReq)
-	req, err := http.NewRequest(http.MethodPost,
-		fmt.Sprintf("http://%s%s", addr, remote.PromReadURL), promReqBody)
-	require.NoError(t, err)
-
-	_, err = http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	assert.Equal(t, qs.reads, 1)
-
-	// Ensure close server performs as expected
-	interruptCh <- fmt.Errorf("interrupt")
-	<-doneCh
 }
 
 var _ rpc.QueryServer = &queryServer{}

@@ -57,7 +57,7 @@ func TestValidation(t *testing.T) {
 	t.Run("at least 1 endpoint", func(t *testing.T) {
 		cfg := getValidConfig()
 		cfg.Endpoints = nil
-		assertValidationError(t, cfg, "at least one endpoint must be configured when using prom-remote-write backend type")
+		assertValidationError(t, cfg, "at least one endpoint must be configured when using prom-remote backend type")
 	})
 
 	t.Run("valid endpoint", func(t *testing.T) {
@@ -112,19 +112,13 @@ func TestValidateEndpoint(t *testing.T) {
 	t.Run("retention must be positive", func(t *testing.T) {
 		cfg := getValidEndpointConfiguration()
 		cfg.Retention = -1
-		assertEndpointError(t, cfg, "endpoint retention must be set and have positive value")
-
-		cfg.Retention = 0
-		assertEndpointError(t, cfg, "endpoint retention must be set and have positive value")
+		assertEndpointError(t, cfg, "endpoint retention can't be negative")
 	})
 
-	t.Run("retention must be positive", func(t *testing.T) {
+	t.Run("resolution must be positive", func(t *testing.T) {
 		cfg := getValidEndpointConfiguration()
 		cfg.Resolution = -1
-		assertEndpointError(t, cfg, "endpoint resolution must be set and have positive value")
-
-		cfg.Resolution = 0
-		assertEndpointError(t, cfg, "endpoint resolution must be set and have positive value")
+		assertEndpointError(t, cfg, "endpoint resolution can't be negative")
 	})
 }
 
