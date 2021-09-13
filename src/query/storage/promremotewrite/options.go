@@ -9,6 +9,7 @@ import (
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
+// NewOptions constructs options given config.
 func NewOptions(cfg config.PrometheusRemoteWriteBackendConfiguration) (Options, error) {
 	err := validateBackendConfiguration(cfg)
 	if err != nil {
@@ -33,6 +34,7 @@ func NewOptions(cfg config.PrometheusRemoteWriteBackendConfiguration) (Options, 
 	}, nil
 }
 
+// HTTPClientOptions maps options to http client options
 func (o Options) HTTPClientOptions() xhttp.HTTPClientOptions {
 	clientOpts := xhttp.DefaultHTTPClientOptions()
 	if o.requestTimeout != 0 {
@@ -57,7 +59,10 @@ func (o Options) HTTPClientOptions() xhttp.HTTPClientOptions {
 
 func validateBackendConfiguration(cfg config.PrometheusRemoteWriteBackendConfiguration) error {
 	if len(cfg.Endpoints) == 0 {
-		return fmt.Errorf("at least one endpoint must be configured when using %s backend type", config.PromRemoteWriteStorageType)
+		return fmt.Errorf(
+			"at least one endpoint must be configured when using %s backend type",
+			config.PromRemoteWriteStorageType,
+		)
 	}
 	if cfg.MaxIdleConns < 0 {
 		return errors.New("maxIdleConns can't be negative")

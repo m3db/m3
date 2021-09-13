@@ -12,27 +12,51 @@ import (
 )
 
 const unimplementedMessage = "storage method is not supported"
-func (p *promStorage) FetchProm(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.PromResult, error) {
+
+func (p *promStorage) FetchProm(
+	_ context.Context,
+	_ *storage.FetchQuery,
+	_ *storage.FetchOptions,
+) (storage.PromResult, error) {
 	return storage.PromResult{}, errors.New(unimplementedMessage)
 }
 
-func (p *promStorage) FetchBlocks(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
+func (p *promStorage) FetchBlocks(
+	_ context.Context,
+	_ *storage.FetchQuery,
+	_ *storage.FetchOptions,
+) (block.Result, error) {
 	return block.Result{}, errors.New(unimplementedMessage)
 }
 
-func (p *promStorage) FetchCompressed(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (consolidators.MultiFetchResult, error) {
+func (p *promStorage) FetchCompressed(
+	_ context.Context,
+	_ *storage.FetchQuery,
+	_ *storage.FetchOptions,
+) (consolidators.MultiFetchResult, error) {
 	return nil, errors.New(unimplementedMessage)
 }
 
-func (p *promStorage) SearchSeries(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {
+func (p *promStorage) SearchSeries(
+	_ context.Context,
+	_ *storage.FetchQuery,
+	_ *storage.FetchOptions,
+) (*storage.SearchResults, error) {
 	return nil, errors.New(unimplementedMessage)
 }
 
-func (p *promStorage) CompleteTags(ctx context.Context, query *storage.CompleteTagsQuery, options *storage.FetchOptions) (*consolidators.CompleteTagsResult, error) {
+func (p *promStorage) CompleteTags(
+	_ context.Context,
+	_ *storage.CompleteTagsQuery,
+	_ *storage.FetchOptions,
+) (*consolidators.CompleteTagsResult, error) {
 	return nil, errors.New(unimplementedMessage)
 }
 
-func (p *promStorage) QueryStorageMetadataAttributes(ctx context.Context, queryStart, queryEnd time.Time, opts *storage.FetchOptions) ([]storagemetadata.Attributes, error) {
+func (p *promStorage) QueryStorageMetadataAttributes(
+	_ context.Context,
+	_, _ time.Time,
+	_ *storage.FetchOptions,
+) ([]storagemetadata.Attributes, error) {
 	return nil, errors.New(unimplementedMessage)
 }
-

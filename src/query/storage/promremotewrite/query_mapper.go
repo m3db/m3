@@ -4,8 +4,9 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
-	"github.com/m3db/m3/src/query/storage"
 	"github.com/prometheus/prometheus/prompb"
+
+	"github.com/m3db/m3/src/query/storage"
 )
 
 func encodeWriteQuery(query *storage.WriteQuery) ([]byte, error) {

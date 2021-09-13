@@ -505,6 +505,9 @@ func Run(runOpts RunOptions) RunResult {
 		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, cfg.ClusterManagement.Etcd, backendStorage,
 			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
 		)
+		if err != nil {
+			logger.Fatal("unable to setup downsampler", zap.Error(err))
+		}
 	default:
 		logger.Fatal("unrecognized backend", zap.String("backend", string(cfg.Backend)))
 	}

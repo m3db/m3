@@ -765,9 +765,9 @@ type PrometheusRemoteWriteBackendConfiguration struct {
 
 // PrometheusRemoteWriteBackendEndpointConfiguration configures single endpoint.
 type PrometheusRemoteWriteBackendEndpointConfiguration struct {
-	Address    string                      `yaml:"address"`
-	Retention  time.Duration               `yaml:"retention"`
-	Resolution time.Duration               `yaml:"resolution"`
+	Address    string        `yaml:"address"`
+	Retention  time.Duration `yaml:"retention"`
+	Resolution time.Duration `yaml:"resolution"`
 }
 
 // HTTPConfiguration is the HTTP configuration for configuring

@@ -8,15 +8,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/prometheus/prompb"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/storage/promremotewrite/promremotewritetest"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/prometheus/prometheus/prompb"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWrite(t *testing.T) {
@@ -56,9 +57,9 @@ func TestWrite(t *testing.T) {
 	for _, tc := range tcs {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			promStorage, closeFn, err := NewStorage(Options{endpoints: []EndpointOptions{{address: fakeProm.HTTPAddr()}}})
+			promStorage, err := NewStorage(Options{endpoints: []EndpointOptions{{address: fakeProm.HTTPAddr()}}})
 			require.NoError(t, err)
-			defer closeFn()
+			defer closeStorage(t, promStorage)
 
 			wq, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 				Tags: models.Tags{
@@ -104,7 +105,7 @@ func TestWriteBasedOnRetention(t *testing.T) {
 		promLongRetention.Reset()
 	}
 
-	promStorage, storageCloseFn, err := NewStorage(Options{endpoints: []EndpointOptions{
+	promStorage, err := NewStorage(Options{endpoints: []EndpointOptions{
 		{
 			address:    promShortRetention.HTTPAddr(),
 			retention:  120 * time.Hour,
@@ -127,9 +128,10 @@ func TestWriteBasedOnRetention(t *testing.T) {
 		},
 	}})
 	require.NoError(t, err)
-	defer storageCloseFn()
+	defer closeStorage(t, promStorage)
 
 	sendWrite := func(attr storagemetadata.Attributes) error {
+		//nolint: gosec
 		datapoint := ts.Datapoint{Value: rand.Float64(), Timestamp: xtime.Now()}
 		wq, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 			Tags: models.Tags{
@@ -239,4 +241,8 @@ func TestWriteBasedOnRetention(t *testing.T) {
 func assertRemoteWriteHeadersSetCorrectly(t *testing.T, r *http.Request) {
 	assert.Equal(t, r.Header.Get("content-encoding"), "snappy")
 	assert.Equal(t, r.Header.Get("content-type"), "application/x-protobuf")
+}
+
+func closeStorage(t *testing.T, s storage.Storage) {
+	require.NoError(t, s.Close())
 }

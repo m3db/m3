@@ -14,6 +14,7 @@ import (
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
+// NewStorage returns new Prometheus remote write compatible storage
 func NewStorage(opts Options) (storage.Storage, error) {
 	client := xhttp.NewHTTPClient(opts.HTTPClientOptions())
 	s := &promStorage{opts: opts, client: client}

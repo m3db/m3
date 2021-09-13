@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
 )
 
 func TestNewFromConfiguration(t *testing.T) {
@@ -38,14 +39,16 @@ func TestNewFromConfiguration(t *testing.T) {
 }
 
 func TestHTTPDefaults(t *testing.T) {
-	cfg, err := NewOptions(config.PrometheusRemoteWriteBackendConfiguration{})
+	cfg, err := NewOptions(config.PrometheusRemoteWriteBackendConfiguration{
+		Endpoints: []config.PrometheusRemoteWriteBackendEndpointConfiguration{getValidEndpointConfiguration()},
+	})
 	require.NoError(t, err)
 	opts := cfg.HTTPClientOptions()
 
-	assert.Equal(t, 60 * time.Second, opts.RequestTimeout)
-	assert.Equal(t, 5 * time.Second, opts.ConnectTimeout)
-	assert.Equal(t, 60 * time.Second, opts.KeepAlive)
-	assert.Equal(t, 60 * time.Second, opts.IdleConnTimeout)
+	assert.Equal(t, 60*time.Second, opts.RequestTimeout)
+	assert.Equal(t, 5*time.Second, opts.ConnectTimeout)
+	assert.Equal(t, 60*time.Second, opts.KeepAlive)
+	assert.Equal(t, 60*time.Second, opts.IdleConnTimeout)
 	assert.Equal(t, 100, opts.MaxIdleConns)
 	assert.Equal(t, true, opts.DisableCompression)
 }
@@ -131,7 +134,11 @@ func assertValidationError(t *testing.T, cfg config.PrometheusRemoteWriteBackend
 	assert.Contains(t, err.Error(), expectedMsg)
 }
 
-func assertEndpointError(t *testing.T, cfg config.PrometheusRemoteWriteBackendEndpointConfiguration, expectedMsg string) {
+func assertEndpointError(
+	t *testing.T,
+	cfg config.PrometheusRemoteWriteBackendEndpointConfiguration,
+	expectedMsg string,
+) {
 	err := validateEndpointConfiguration(cfg)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), expectedMsg)
@@ -144,9 +151,9 @@ func getValidConfig() config.PrometheusRemoteWriteBackendConfiguration {
 }
 
 func getValidEndpointConfiguration() config.PrometheusRemoteWriteBackendEndpointConfiguration {
-	return  config.PrometheusRemoteWriteBackendEndpointConfiguration{
-		Address: "testAddress",
-		Retention: time.Second,
+	return config.PrometheusRemoteWriteBackendEndpointConfiguration{
+		Address:    "testAddress",
+		Retention:  time.Second,
 		Resolution: time.Second,
 	}
 }

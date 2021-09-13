@@ -2,6 +2,7 @@ package promremotewrite
 
 import "time"
 
+// Options for storage.
 type Options struct {
 	endpoints       []EndpointOptions
 	requestTimeout  time.Duration
@@ -11,6 +12,7 @@ type Options struct {
 	maxIdleConns    int
 }
 
+// EndpointOptions for single prometheus remote write capable endpoint.
 type EndpointOptions struct {
 	address    string
 	retention  time.Duration
