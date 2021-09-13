@@ -31,7 +31,7 @@ func NewServer(t *testing.T) (*FakeServer, func()) {
 	require.NoError(t, err)
 	HTTPServer := &http.Server{Handler: http.HandlerFunc(server.handle)}
 	go func() {
-		if err := HTTPServer.Serve(listener); err != nil && errors.Is(err, http.ErrServerClosed) {
+		if err := HTTPServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			//nolint: forbidigo
 			fmt.Printf("unexpected server error %v \n", err)
 		}
