@@ -486,14 +486,21 @@ func Run(runOpts RunOptions) RunResult {
 			logger.Fatal("unable to setup downsampler for m3db backend", zap.Error(err))
 		}
 	case config.PromRemoteWriteStorageType:
-		var cleanup func()
-		backendStorage, cleanup, err = promremotewrite.NewStorage(
-			promremotewrite.NewFromConfiguration(cfg.PrometheusRemoteWriteBackend),
-		)
+		var opts promremotewrite.Options
+		opts, err = promremotewrite.NewOptions(cfg.PrometheusRemoteWriteBackend)
+		if err != nil {
+			logger.Fatal("invalid configuration", zap.Error(err))
+		}
+		backendStorage, err = promremotewrite.NewStorage(opts)
 		if err != nil {
 			logger.Fatal("unable to setup prom remote write backend", zap.Error(err))
 		}
-		defer cleanup()
+		defer func() {
+			err := backendStorage.Close()
+			if err != nil {
+				logger.Error("error when closing storage", zap.Error(err))
+			}
+		}()
 
 		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, cfg.ClusterManagement.Etcd, backendStorage,
 			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,

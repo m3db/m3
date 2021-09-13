@@ -1,29 +1,19 @@
 package promremotewrite
 
 import (
-	"time"
+	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
-type Options struct {
-	endpoints       []EndpointOptions
-	requestTimeout  time.Duration
-	connectTimeout  time.Duration
-	keepAlive       time.Duration
-	idleConnTimeout time.Duration
-	maxIdleConns    int
-}
-
-type EndpointOptions struct {
-	address    string
-	retention  time.Duration
-	resolution time.Duration
-}
-
-// TODO add some validation
-func NewFromConfiguration(cfg config.PrometheusRemoteWriteBackendConfiguration) Options {
+func NewOptions(cfg config.PrometheusRemoteWriteBackendConfiguration) (Options, error) {
+	err := validateBackendConfiguration(cfg)
+	if err != nil {
+		return Options{}, err
+	}
 	endpoints := make([]EndpointOptions, len(cfg.Endpoints))
 
 	for i, endpoint := range cfg.Endpoints {
@@ -40,7 +30,7 @@ func NewFromConfiguration(cfg config.PrometheusRemoteWriteBackendConfiguration) 
 		keepAlive:       cfg.KeepAlive,
 		idleConnTimeout: cfg.IdleConnTimeout,
 		maxIdleConns:    cfg.MaxIdleConns,
-	}
+	}, nil
 }
 
 func (o Options) HTTPClientOptions() xhttp.HTTPClientOptions {
@@ -63,4 +53,45 @@ func (o Options) HTTPClientOptions() xhttp.HTTPClientOptions {
 
 	clientOpts.DisableCompression = true // Already snappy compressed.
 	return clientOpts
+}
+
+func validateBackendConfiguration(cfg config.PrometheusRemoteWriteBackendConfiguration) error {
+	if len(cfg.Endpoints) == 0 {
+		return fmt.Errorf("at least one endpoint must be configured when using %s backend type", config.PromRemoteWriteStorageType)
+	}
+	if cfg.MaxIdleConns < 0 {
+		return errors.New("maxIdleConns can't be negative")
+	}
+	if cfg.KeepAlive < 0 {
+		return errors.New("keepAlive can't be negative")
+	}
+	if cfg.IdleConnTimeout < 0 {
+		return errors.New("idleConnTimeout can't be negative")
+	}
+	if cfg.RequestTimeout < 0 {
+		return errors.New("requestTimeout can't be negative")
+	}
+	if cfg.ConnectTimeout < 0 {
+		return errors.New("connectTimeout can't be negative")
+	}
+
+	for _, endpoint := range cfg.Endpoints {
+		if err := validateEndpointConfiguration(endpoint); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateEndpointConfiguration(endpoint config.PrometheusRemoteWriteBackendEndpointConfiguration) error {
+	if endpoint.Resolution <= 0 {
+		return errors.New("endpoint resolution must be set and have positive value")
+	}
+	if endpoint.Retention <= 0 {
+		return errors.New("endpoint retention must be set and have positive value")
+	}
+	if strings.TrimSpace(endpoint.Address) == "" {
+		return errors.New("endpoint address must be set")
+	}
+	return nil
 }

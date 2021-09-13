@@ -10,18 +10,14 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/x/errors"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
-func NewStorage(opts Options) (storage.Storage, func(), error) {
+func NewStorage(opts Options) (storage.Storage, error) {
 	client := xhttp.NewHTTPClient(opts.HTTPClientOptions())
-	s := &promStorage{
-		opts:   opts,
-		client: client,
-	}
-	return s, func() { client.CloseIdleConnections() }, nil
+	s := &promStorage{opts: opts, client: client}
+	return s, nil
 }
 
 type promStorage struct {
@@ -45,7 +41,7 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				err = p.sendWrite(ctx, endpoint.address, bytes.NewBuffer(encoded))
+				err = p.writeSingle(ctx, endpoint.address, bytes.NewBuffer(encoded))
 				if err != nil {
 					errLock.Lock()
 					multiErr = multiErr.Add(err)
@@ -63,7 +59,24 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 	return nil
 }
 
-func (p *promStorage) sendWrite(ctx context.Context, address string, encoded io.Reader) error {
+func (p *promStorage) Type() storage.Type {
+	return storage.TypeRemoteDC
+}
+
+func (p *promStorage) Close() error {
+	p.client.CloseIdleConnections()
+	return nil
+}
+
+func (p *promStorage) ErrorBehavior() storage.ErrorBehavior {
+	return storage.BehaviorFail
+}
+
+func (p *promStorage) Name() string {
+	return "prom-remote-write"
+}
+
+func (p *promStorage) writeSingle(ctx context.Context, address string, encoded io.Reader) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, address, encoded)
 	if err != nil {
 		return err
@@ -76,13 +89,13 @@ func (p *promStorage) sendWrite(ctx context.Context, address string, encoded io.
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// TODO smth more sophisticated?
-	if resp.StatusCode != 200 {
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode/100 != 2 {
+		response, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return errors.Wrapf(err, "failed to invoke prom remote write endpoint %s", address)
+			response = []byte(fmt.Sprintf("error reading body: %v", err))
 		}
-		return fmt.Errorf("remote write endpoint returned non 200 response: %d, %s", resp.StatusCode, string(bodyBytes))
+		return fmt.Errorf("expected status code 2XX: actual=%v, address=%v, resp=%s",
+			resp.StatusCode, address, response)
 	}
 	return nil
 }

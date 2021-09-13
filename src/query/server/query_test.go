@@ -44,7 +44,6 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage/m3"
-	"github.com/m3db/m3/src/query/storage/promremotewrite/promremotewritetest"
 	xclock "github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/ident"
@@ -119,61 +118,6 @@ writeWorkerPoolPolicy:
   shards: 100
   killProbability: 0.3
 `
-
-func getPromRemoteWriteBackendConfigYAML(promAddress string) string {
-	return fmt.Sprintf(`
-listenAddress: 127.0.0.1:0
-
-logging:
-  level: info
-
-metrics:
-  scope:
-    prefix: "coordinator"
-  prometheus:
-    handlerPath: /metrics
-    listenAddress: "127.0.0.1:0"
-  sanitization: prometheus
-  samplingRate: 1.0
-
-ingest:
-  ingester:
-    workerPoolSize: 100
-    opPool:
-      size: 100
-    retry:
-      maxRetries: 3
-      jitter: true
-    logSampleRate: 0.01
-  m3msg:
-    server:
-      listenAddress: "0.0.0.0:0"
-      retry:
-        maxBackoff: 10s
-        jitter: true
-
-tagOptions:
-  metricName: "_new"
-  idScheme: quoted
-
-readWorkerPoolPolicy:
-  grow: true
-  size: 100
-  shards: 100
-  killProbability: 0.3
-
-writeWorkerPoolPolicy:
-  grow: true
-  size: 100
-  shards: 100
-  killProbability: 0.3
-
-backend: prom-remote-write
-prometheusRemoteWriteBackend:
-  endpoints:
-    - address: "%s"
-`, promAddress)
-}
 
 func TestMultiProcessSetsProcessLabel(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
@@ -333,7 +277,6 @@ func TestIngestH2C(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-
 	configFile, closer := newTestFile(t, "config.yaml", configYAML)
 	defer closer()
 
@@ -342,23 +285,6 @@ func TestIngestH2C(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg.HTTP.EnableH2C = true
-
-	testIngest(t, cfg, ctrl)
-}
-
-func TestIngestPromRemoteWriteBackend(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
-	defer ctrl.Finish()
-
-	promServer, promServerClose := promremotewritetest.NewFakePromRemoteWriteServer(t)
-	defer promServerClose()
-
-	configFile, closer := newTestFile(t, "config.yaml", getPromRemoteWriteBackendConfigYAML(promServer.HTTPAddr()))
-	defer closer()
-
-	var cfg config.Configuration
-	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
-	require.NoError(t, err)
 
 	testIngest(t, cfg, ctrl)
 }

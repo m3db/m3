@@ -768,7 +768,6 @@ type PrometheusRemoteWriteBackendEndpointConfiguration struct {
 	Address    string                      `yaml:"address"`
 	Retention  time.Duration               `yaml:"retention"`
 	Resolution time.Duration               `yaml:"resolution"`
-	Type       storagemetadata.MetricsType `yaml:"type"`
 }
 
 // HTTPConfiguration is the HTTP configuration for configuring

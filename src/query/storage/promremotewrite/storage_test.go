@@ -231,7 +231,7 @@ func TestWriteBasedOnRetention(t *testing.T) {
 			Retention:  8760 * time.Hour,
 		})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "remote write endpoint returned non 200 response: 500, test err")
+		assert.Contains(t, err.Error(), "test err")
 		assert.NotNil(t, promLongRetention2.GetLastRequest())
 	})
 }
