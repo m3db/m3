@@ -12,6 +12,7 @@ import (
 
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/prometheus/prometheus/storage/remote"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,11 +23,12 @@ type FakeServer struct {
 	lastHTTPRequest  *http.Request
 	addr             string
 	respErr          error
+	t                *testing.T
 }
 
 // NewServer creates new instance of a fake server.
 func NewServer(t *testing.T) (*FakeServer, func()) {
-	server := &FakeServer{}
+	server := &FakeServer{t: t}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	HTTPServer := &http.Server{Handler: http.HandlerFunc(server.handle)}
@@ -47,6 +49,9 @@ func (s *FakeServer) handle(w http.ResponseWriter, request *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lastHTTPRequest = request
+	assert.Equal(s.t, request.Header.Get("content-encoding"), "snappy")
+	assert.Equal(s.t, request.Header.Get("content-type"), "application/x-protobuf")
+
 	req, err := remote.DecodeWriteRequest(request.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

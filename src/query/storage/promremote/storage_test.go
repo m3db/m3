@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"math/rand"
-	"net/http"
 	"testing"
 	"time"
 
@@ -85,7 +84,6 @@ func TestWrite(t *testing.T) {
 			for i := 0; i < len(tc.expectedSamples); i++ {
 				assert.Equal(t, promWrite.Timeseries[0].Samples[i], tc.expectedSamples[i])
 			}
-			assertRemoteWriteHeadersSetCorrectly(t, fakeProm.GetLastHTTPRequest())
 		})
 	}
 }
@@ -236,11 +234,6 @@ func TestWriteBasedOnRetention(t *testing.T) {
 		assert.Contains(t, err.Error(), "test err")
 		assert.NotNil(t, promLongRetention2.GetLastRequest())
 	})
-}
-
-func assertRemoteWriteHeadersSetCorrectly(t *testing.T, r *http.Request) {
-	assert.Equal(t, r.Header.Get("content-encoding"), "snappy")
-	assert.Equal(t, r.Header.Get("content-type"), "application/x-protobuf")
 }
 
 func closeStorage(t *testing.T, s storage.Storage) {
