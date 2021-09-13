@@ -21,6 +21,7 @@
 package instrument
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -86,6 +87,9 @@ type PrometheusConfigurationOptions struct {
 	ExternalRegistries []PrometheusExternalRegistry
 	// HandlerListener is the listener to register the server handler on.
 	HandlerListener net.Listener
+	// DefaultServeMux is the ServeMux to use if no HandlerListener or
+	// ListenAddress on PrometheusConfiguration is specified.
+	DefaultServeMux *http.ServeMux
 	// HandlerOpts is the reporter HTTP handler options, not specifying will
 	// use defaults.
 	HandlerOpts promhttp.HandlerOpts
@@ -177,7 +181,12 @@ func (c PrometheusConfiguration) NewReporter(
 	if addr == "" && configOpts.HandlerListener == nil {
 		// If address not specified and server not specified, register
 		// on default mux.
-		http.Handle(path, handler)
+		if configOpts.DefaultServeMux == nil {
+			return nil, errors.New(
+				"must specify a DefaultServeMux option when not specifying a listener",
+			)
+		}
+		configOpts.DefaultServeMux.Handle(path, handler)
 	} else {
 		mux := http.NewServeMux()
 		mux.Handle(path, handler)
