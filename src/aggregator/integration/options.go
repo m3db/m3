@@ -303,6 +303,7 @@ func newTestServerOptions(t *testing.T) testServerOptions {
 		placementKVKey:              defaultPlacementKVKey,
 		flushTimesKeyFmt:            defaultFlushTimesKeyFmt,
 		kvStore:                     mem.NewStore(),
+		clusterClient:               nil,
 		topicService:                nil,
 		topicName:                   defaultTopicName,
 		serverStateChangeTimeout:    defaultServerStateChangeTimeout,

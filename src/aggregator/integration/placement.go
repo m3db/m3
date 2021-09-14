@@ -107,7 +107,7 @@ func setPlacementWithClusterClient(
 	}
 	_, err = ps.Set(pl)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	store, err := clusterClient.KV()

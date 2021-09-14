@@ -56,11 +56,11 @@ func initializeTopicWithClusterClient(
 		SetServiceID(serviceID).
 		SetConsumptionType(topic.Replicated).
 		SetMessageTTLNanos(time.Minute.Nanoseconds())
-
 	ingestTopic := topic.NewTopic().
 		SetName(topicName).
 		SetNumberOfShards(uint32(numShards)).
 		SetConsumerServices([]topic.ConsumerService{cs})
+
 	topicServiceOpts := topic.NewServiceOptions().
 		SetConfigService(clusterClient).
 		SetKVOverrideOptions(kv.NewOverrideOptions().SetNamespace("_kv"))
@@ -68,6 +68,7 @@ func initializeTopicWithClusterClient(
 	if err != nil {
 		return topicService, err
 	}
+
 	_, err = topicService.CheckAndSet(ingestTopic, 0)
 
 	return topicService, err
