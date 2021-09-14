@@ -289,8 +289,8 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 		"path":                 "/api/v1/query_range",
 		"status":               "300",
 		"type":                 "coordinator",
-		resultsClassification:  "10",
-		durationClassification: "15m0s",
+		resultsClassification:  "unclassified",
+		durationClassification: "unclassified",
 	})
 
 	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
@@ -301,18 +301,18 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 		durationClassification: "1m0s",
 	})
 
-	tallytest.AssertCounterValue(t, 5, snapshot, "count", map[string]string{
+	tallytest.AssertCounterValue(t, 4, snapshot, "count", map[string]string{
 		"type":   "coordinator",
 		"status": "classified_duration",
 	})
-	tallytest.AssertCounterValue(t, 5, snapshot, "count", map[string]string{
+	tallytest.AssertCounterValue(t, 4, snapshot, "count", map[string]string{
 		"type":   "coordinator",
 		"status": "classified_result",
 	})
 
 	var (
 		hist       = snapshot.Histograms()
-		exHistLen  = 3
+		exHistLen  = 4
 		exTagCount = 4
 	)
 
@@ -321,7 +321,6 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 		// since they will also include the status code in the tags list; otherwise
 		// code:200 and code:300 queries are expected to go to the same histogram
 		// metric.
-		exHistLen++
 		exTagCount++
 	}
 
@@ -354,18 +353,18 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 
 	expectedBuckets := map[string]map[string]int{
 		resultsClassification: {
-			"1":  1,
-			"10": 2,
+			"1":            1,
+			"10":           2,
+			"unclassified": 1,
 		},
 		durationClassification: {
-			"1m0s":  2,
-			"15m0s": 1,
+			"1m0s":         2,
+			"15m0s":        1,
+			"unclassified": 1,
 		},
 	}
 	if addStatus {
 		require.Equal(t, map[string]int{"200": 3, "300": 1}, statuses)
-		expectedBuckets[durationClassification]["15m0s"]++
-		expectedBuckets[resultsClassification]["10"]++
 	}
 
 	require.Equal(t, expectedBuckets, buckets)
