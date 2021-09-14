@@ -73,7 +73,7 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				err = p.writeSingle(ctx, endpoint.address, bytes.NewBuffer(encoded))
+				err := p.writeSingle(ctx, endpoint.address, bytes.NewBuffer(encoded))
 				if err != nil {
 					errLock.Lock()
 					multiErr = multiErr.Add(err)
