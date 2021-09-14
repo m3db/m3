@@ -62,8 +62,7 @@ func initializeTopicWithClusterClient(
 		SetConsumerServices([]topic.ConsumerService{cs})
 
 	topicServiceOpts := topic.NewServiceOptions().
-		SetConfigService(clusterClient).
-		SetKVOverrideOptions(kv.NewOverrideOptions().SetNamespace("_kv"))
+		SetConfigService(clusterClient)
 	topicService, err := topic.NewService(topicServiceOpts)
 	if err != nil {
 		return topicService, err
