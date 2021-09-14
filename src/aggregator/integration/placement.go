@@ -24,7 +24,6 @@ import (
 	"math"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
@@ -77,23 +76,6 @@ func newPlacement(numShards int, instances []placement.Instance) placement.Place
 
 func setPlacement(
 	key string,
-	store kv.Store,
-	pl placement.Placement,
-) error {
-	stagedPlacement, err := placement.NewPlacementsFromLatest(pl)
-	if err != nil {
-		return err
-	}
-	stagedPlacementProto, err := stagedPlacement.Proto()
-	if err != nil {
-		return err
-	}
-	_, err = store.Set(key, stagedPlacementProto)
-	return err
-}
-
-func setPlacementWithClusterClient(
-	key string,
 	clusterClient clusterclient.Client,
 	pl placement.Placement,
 ) error {
@@ -114,5 +96,15 @@ func setPlacementWithClusterClient(
 	if err != nil {
 		return err
 	}
-	return setPlacement(key, store, pl)
+
+	stagedPlacement, err := placement.NewPlacementsFromLatest(pl)
+	if err != nil {
+		return err
+	}
+	stagedPlacementProto, err := stagedPlacement.Proto()
+	if err != nil {
+		return err
+	}
+	_, err = store.Set(key, stagedPlacementProto)
+	return err
 }

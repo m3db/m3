@@ -27,26 +27,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/dbnode/integration/fake"
 	"github.com/m3db/m3/src/msg/topic"
 )
 
 func initializeTopic(
-	topicName string, //nolint:unparam
-	kvStore kv.Store,
-	p placement.Placement,
-) (topic.Service, error) {
-	placementSvc := fake.NewM3ClusterPlacementServiceWithPlacement(p)
-	svcs := fake.NewM3ClusterServicesWithPlacementService(placementSvc)
-	clusterClient := fake.NewM3ClusterClient(svcs, kvStore)
-
-	return initializeTopicWithClusterClient(topicName, clusterClient, p.NumShards())
-}
-
-func initializeTopicWithClusterClient(
 	topicName string, //nolint:unparam
 	clusterClient clusterclient.Client,
 	numShards int,
@@ -92,7 +78,7 @@ func removeAllTopicConsumers(
 }
 
 func setupTopic(t *testing.T, serverOpts testServerOptions, placement placement.Placement) testServerOptions {
-	topicService, err := initializeTopic(defaultTopicName, serverOpts.KVStore(), placement)
+	topicService, err := initializeTopic(defaultTopicName, serverOpts.ClusterClient(), placement.NumShards())
 	require.NoError(t, err)
 	return serverOpts.
 		SetTopicService(topicService).

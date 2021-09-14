@@ -91,7 +91,7 @@ type m3ClusterClient struct {
 	txnStore M3ClusterTxnStore
 }
 
-func (c *m3ClusterClient) Services(opts services.OverrideOptions) (services.Services, error) {
+func (c *m3ClusterClient) Services(_ services.OverrideOptions) (services.Services, error) {
 	return c.services, nil
 }
 
@@ -103,11 +103,11 @@ func (c *m3ClusterClient) Txn() (kv.TxnStore, error) {
 	return c.txnStore, nil
 }
 
-func (c *m3ClusterClient) Store(opts kv.OverrideOptions) (kv.Store, error) {
+func (c *m3ClusterClient) Store(_ kv.OverrideOptions) (kv.Store, error) {
 	return c.kvStore, nil
 }
 
-func (c *m3ClusterClient) TxnStore(opts kv.OverrideOptions) (kv.TxnStore, error) {
+func (c *m3ClusterClient) TxnStore(_ kv.OverrideOptions) (kv.TxnStore, error) {
 	return c.txnStore, nil
 }
 
@@ -251,18 +251,9 @@ func NewM3ClusterPlacementService() M3ClusterPlacementService {
 	}
 }
 
-// NewM3ClusterPlacementServiceWithPlacement creates a fake m3cluster placement service with given placement.
-func NewM3ClusterPlacementServiceWithPlacement(placement placement.Placement) M3ClusterPlacementService {
-	return &m3ClusterPlacementService{
-		placement:       placement,
-		markedAvailable: make(map[string][]uint32),
-	}
-}
-
 type m3ClusterPlacementService struct {
 	placement.Service
 
-	placement       placement.Placement
 	markedAvailable map[string][]uint32
 }
 
@@ -274,31 +265,6 @@ func (s *m3ClusterPlacementService) MarkShardsAvailable(
 ) (placement.Placement, error) {
 	s.markedAvailable[instanceID] = append(s.markedAvailable[instanceID], shardIDs...)
 	return nil, nil
-}
-
-func (s *m3ClusterPlacementService) Watch() (placement.Watch, error) {
-	return &m3clusterPlacementWatch{
-		placement: s.placement,
-	}, nil
-}
-
-type m3clusterPlacementWatch struct {
-	placement.Watch
-
-	placement placement.Placement
-}
-
-func (w *m3clusterPlacementWatch) C() <-chan struct{} {
-	c := make(chan struct{})
-	close(c)
-	return c
-}
-
-func (w *m3clusterPlacementWatch) Get() (placement.Placement, error) {
-	return w.placement, nil
-}
-
-func (w *m3clusterPlacementWatch) Close() {
 }
 
 // NewM3ClusterService creates a new fake m3cluster service

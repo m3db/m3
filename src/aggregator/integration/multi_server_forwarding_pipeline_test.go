@@ -32,7 +32,8 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/aggregation"
 	aggclient "github.com/m3db/m3/src/aggregator/client"
-	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/cluster/kv"
+	memcluster "github.com/m3db/m3/src/cluster/mem"
 	"github.com/m3db/m3/src/cluster/placement"
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
@@ -74,7 +75,6 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	var (
 		numTotalShards = 1024
 		placementKey   = "/placement"
-		kvStore        = mem.NewStore()
 	)
 	multiServerSetup := []struct {
 		rawTCPAddr     string
@@ -131,14 +131,15 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		}
 	}
 
+	clusterClient := memcluster.New(kv.NewOverrideOptions())
 	instances := make([]placement.Instance, 0, len(multiServerSetup))
 	for _, mss := range multiServerSetup {
 		instance := mss.instanceConfig.newPlacementInstance()
 		instances = append(instances, instance)
 	}
-	initPlacement := newPlacement(numTotalShards, instances)
-	require.NoError(t, setPlacement(placementKey, kvStore, initPlacement))
-	topicService, err := initializeTopic(defaultTopicName, kvStore, initPlacement)
+	initPlacement := newPlacement(numTotalShards, instances).SetReplicaFactor(2)
+	require.NoError(t, setPlacement(placementKey, clusterClient, initPlacement))
+	topicService, err := initializeTopic(defaultTopicName, clusterClient, numTotalShards)
 	require.NoError(t, err)
 
 	// Election cluster setup.
@@ -177,10 +178,9 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			SetHTTPAddr(mss.httpAddr).
 			SetM3MsgAddr(mss.m3MsgAddr).
 			SetInstanceID(mss.instanceConfig.instanceID).
-			SetKVStore(kvStore).
+			SetClusterClient(clusterClient).
 			SetTopicService(topicService).
 			SetTopicName(defaultTopicName).
-			SetPlacement(initPlacement).
 			SetShardFn(shardFn).
 			SetShardSetID(mss.instanceConfig.shardSetID).
 			SetClientConnectionOptions(connectionOpts).

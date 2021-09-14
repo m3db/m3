@@ -67,9 +67,7 @@ func TestOneClientPassthroughMetrics(t *testing.T) {
 	instance := cfg.newPlacementInstance()
 	placement := newPlacement(numShards, []placement.Instance{instance})
 	placementKey := serverOpts.PlacementKVKey()
-	placementStore := serverOpts.KVStore()
-	require.NoError(t, setPlacement(placementKey, placementStore, placement))
-	serverOpts = serverOpts.SetPlacement(placement)
+	require.NoError(t, setPlacement(placementKey, serverOpts.ClusterClient(), placement))
 
 	// Create server.
 	testServer := newTestServerSetup(t, serverOpts)
