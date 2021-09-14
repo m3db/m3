@@ -459,8 +459,20 @@ func (ts *testServerSetup) close() {
 }
 
 func newM3MsgProducer(opts testServerOptions) (producer.Producer, error) {
-	placementSvc := fake.NewM3ClusterPlacementServiceWithPlacement(opts.Placement())
-	svcs := fake.NewM3ClusterServicesWithPlacementService(placementSvc)
+	var (
+		clusterClient = opts.ClusterClient()
+		svcs          services.Services
+	)
+	if clusterClient != nil {
+		var err error
+		svcs, err = opts.ClusterClient().Services(nil)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		placementSvc := fake.NewM3ClusterPlacementServiceWithPlacement(opts.Placement())
+		svcs = fake.NewM3ClusterServicesWithPlacementService(placementSvc)
+	}
 
 	bufferOpts := buffer.NewOptions().
 		// NB: the default values of cleanup retry options causes very slow m3msg client shutdowns
