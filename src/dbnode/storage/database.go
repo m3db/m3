@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -1360,6 +1361,8 @@ func NewAggregateTilesOptions(
 	step time.Duration,
 	targetNsID ident.ID,
 	process AggregateTilesProcess,
+	memorizeMetricTypes, backfillMetricTypes bool,
+	metricsTypeByName map[string]annotation.Payload,
 	insOpts instrument.Options,
 ) (AggregateTilesOptions, error) {
 	if !end.After(start) {
@@ -1370,6 +1373,11 @@ func NewAggregateTilesOptions(
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.Step must be positive, got %s", step)
 	}
 
+	if (memorizeMetricTypes || backfillMetricTypes) && metricsTypeByName == nil {
+		return AggregateTilesOptions{}, errors.New(
+			"metricsTypeByName must not be nil when memorizeMetricTypes or backfillMetricTypes is true")
+	}
+
 	scope := insOpts.MetricsScope().SubScope("computed-namespace")
 	insOpts = insOpts.SetMetricsScope(scope.Tagged(map[string]string{
 		"target-namespace": targetNsID.String(),
@@ -1377,10 +1385,15 @@ func NewAggregateTilesOptions(
 	}))
 
 	return AggregateTilesOptions{
-		Start:      start,
-		End:        end,
-		Step:       step,
-		Process:    process,
+		Start:   start,
+		End:     end,
+		Step:    step,
+		Process: process,
+
+		MemorizeMetricTypes: memorizeMetricTypes,
+		BackfillMetricTypes: backfillMetricTypes,
+		MetricsTypeByName:   metricsTypeByName,
+
 		InsOptions: insOpts,
 	}, nil
 }

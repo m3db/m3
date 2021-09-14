@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -1492,7 +1493,8 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 	)
 
 	opts, err := NewAggregateTilesOptions(
-		start, start.Add(-time.Second), time.Minute, targetNsID, process, d.opts.InstrumentOptions())
+		start, start.Add(-time.Second), time.Minute, targetNsID, process,
+		false, false, nil, d.opts.InstrumentOptions())
 	require.Error(t, err)
 	opts.InsOptions = d.opts.InstrumentOptions()
 
@@ -1508,23 +1510,45 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 func TestNewAggregateTilesOptions(t *testing.T) {
 	var (
 		start    = xtime.Now().Truncate(time.Hour)
+		end      = start.Add(time.Second)
 		targetNs = ident.StringID("target")
 		insOpts  = instrument.NewOptions()
 		process  = AggregateTilesRegular
 	)
 
-	_, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, targetNs, process, insOpts)
+	_, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, targetNs, process,
+		false, false, nil, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start, time.Minute, targetNs, process, insOpts)
+	_, err = NewAggregateTilesOptions(start, start, time.Minute, targetNs, process,
+		false, false, nil, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), -time.Minute, targetNs, process, insOpts)
+	_, err = NewAggregateTilesOptions(start, end, -time.Minute, targetNs, process,
+		false, false, nil, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), 0, targetNs, process, insOpts)
+	_, err = NewAggregateTilesOptions(start, end, 0, targetNs, process,
+		false, false, nil, insOpts)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), time.Minute, targetNs, process, insOpts)
+	_, err = NewAggregateTilesOptions(start, end, time.Minute, targetNs, process,
+		false, false, nil, insOpts)
+	assert.NoError(t, err)
+
+	_, err = NewAggregateTilesOptions(start, end, time.Minute, targetNs, process,
+		true, false, nil, insOpts)
+	assert.Error(t, err)
+
+	_, err = NewAggregateTilesOptions(start, end, time.Minute, targetNs, process,
+		false, true, nil, insOpts)
+	assert.Error(t, err)
+
+	_, err = NewAggregateTilesOptions(start, end, time.Minute, targetNs, process,
+		true, true, nil, insOpts)
+	assert.Error(t, err)
+
+	_, err = NewAggregateTilesOptions(start, end, time.Minute, targetNs, process,
+		true, true, map[string]annotation.Payload{}, insOpts)
 	assert.NoError(t, err)
 }
