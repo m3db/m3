@@ -25,12 +25,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 // NewOptions constructs options given config.
-func NewOptions(cfg config.PrometheusRemoteBackendConfiguration) (Options, error) {
+func NewOptions(cfg config.PrometheusRemoteBackendConfiguration, scope tally.Scope) (Options, error) {
 	err := validateBackendConfiguration(cfg)
 	if err != nil {
 		return Options{}, err
@@ -51,6 +53,7 @@ func NewOptions(cfg config.PrometheusRemoteBackendConfiguration) (Options, error
 		keepAlive:       cfg.KeepAlive,
 		idleConnTimeout: cfg.IdleConnTimeout,
 		maxIdleConns:    cfg.MaxIdleConns,
+		scope:           scope,
 	}, nil
 }
 

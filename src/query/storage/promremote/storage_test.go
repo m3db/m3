@@ -30,82 +30,67 @@ import (
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/storage/promremote/promremotetest"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/x/tallytest"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func TestWrite(t *testing.T) {
-	tcs := []struct {
-		name       string
-		tags       []models.Tag
-		datapoints ts.Datapoints
-
-		expectedLabels  []prompb.Label
-		expectedSamples []prompb.Sample
-	}{
-		{
-			name: "write single datapoint with labels",
-			tags: []models.Tag{{
-				Name:  []byte("test_tag_name"),
-				Value: []byte("test_tag_value"),
-			}},
-			datapoints: ts.Datapoints{{
-				Timestamp: xtime.UnixNano(time.Second),
-				Value:     42,
-			}},
-
-			expectedLabels: []prompb.Label{{
-				Name:  "test_tag_name",
-				Value: "test_tag_value",
-			}},
-			expectedSamples: []prompb.Sample{{
-				Value:     42,
-				Timestamp: int64(1000),
-			}},
-		},
-	}
-
 	fakeProm, closeFn := promremotetest.NewServer(t)
 	defer closeFn()
 
-	for _, tc := range tcs {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			promStorage, err := NewStorage(Options{endpoints: []EndpointOptions{{address: fakeProm.WriteAddr()}}})
-			require.NoError(t, err)
-			defer closeStorage(t, promStorage)
+	scope := tally.NewTestScope("test_scope", map[string]string{})
+	promStorage, err := NewStorage(Options{
+		endpoints: []EndpointOptions{{address: fakeProm.WriteAddr()}},
+		scope:     scope,
+	})
+	require.NoError(t, err)
+	defer closeStorage(t, promStorage)
 
-			wq, err := storage.NewWriteQuery(storage.WriteQueryOptions{
-				Tags: models.Tags{
-					Opts: models.NewTagOptions(),
-					Tags: tc.tags,
-				},
-				Datapoints: tc.datapoints,
-				// TODO what is the meaning of this?
-				Unit: xtime.Millisecond,
-			})
-			require.NoError(t, err)
-			err = promStorage.Write(context.TODO(), wq)
-			require.NoError(t, err)
+	wq, err := storage.NewWriteQuery(storage.WriteQueryOptions{
+		Tags: models.Tags{
+			Opts: models.NewTagOptions(),
+			Tags: []models.Tag{{
+				Name:  []byte("test_tag_name"),
+				Value: []byte("test_tag_value"),
+			}},
+		},
+		Datapoints: ts.Datapoints{{
+			Timestamp: xtime.UnixNano(time.Second),
+			Value:     42,
+		}},
+		Unit: xtime.Millisecond,
+	})
+	require.NoError(t, err)
+	err = promStorage.Write(context.TODO(), wq)
+	require.NoError(t, err)
 
-			promWrite := fakeProm.GetLastRequest()
-			require.Len(t, promWrite.Timeseries, 1)
-			require.Len(t, promWrite.Timeseries[0].Labels, len(tc.expectedLabels))
-			require.Len(t, promWrite.Timeseries[0].Samples, len(tc.expectedSamples))
+	promWrite := fakeProm.GetLastRequest()
 
-			for i := 0; i < len(tc.expectedLabels); i++ {
-				assert.Equal(t, promWrite.Timeseries[0].Labels[i], tc.expectedLabels[i])
-			}
-			for i := 0; i < len(tc.expectedSamples); i++ {
-				assert.Equal(t, promWrite.Timeseries[0].Samples[i], tc.expectedSamples[i])
-			}
-		})
+	expectedLabel := prompb.Label{
+		Name:  "test_tag_name",
+		Value: "test_tag_value",
 	}
+	expectedSample := prompb.Sample{
+		Value:     42,
+		Timestamp: int64(1000),
+	}
+	require.Len(t, promWrite.Timeseries, 1)
+	require.Len(t, promWrite.Timeseries[0].Labels, 1)
+	require.Len(t, promWrite.Timeseries[0].Samples, 1)
+	assert.Equal(t, promWrite.Timeseries[0].Labels[0], expectedLabel)
+	assert.Equal(t, promWrite.Timeseries[0].Samples[0], expectedSample)
+
+	tallytest.AssertCounterValue(
+		t, 1, scope.Snapshot(), "test_scope.prom_remote_storage.endpoint.success",
+		map[string]string{"endpoint_address": fakeProm.WriteAddr()},
+	)
 }
 
 func TestWriteBasedOnRetention(t *testing.T) {
@@ -123,28 +108,31 @@ func TestWriteBasedOnRetention(t *testing.T) {
 		promLongRetention.Reset()
 	}
 
-	promStorage, err := NewStorage(Options{endpoints: []EndpointOptions{
-		{
-			address:    promShortRetention.WriteAddr(),
-			retention:  120 * time.Hour,
-			resolution: 15 * time.Second,
+	promStorage, err := NewStorage(Options{
+		endpoints: []EndpointOptions{
+			{
+				address:    promShortRetention.WriteAddr(),
+				retention:  120 * time.Hour,
+				resolution: 15 * time.Second,
+			},
+			{
+				address:    promMediumRetention.WriteAddr(),
+				retention:  720 * time.Hour,
+				resolution: 5 * time.Minute,
+			},
+			{
+				address:    promLongRetention.WriteAddr(),
+				retention:  8760 * time.Hour,
+				resolution: 10 * time.Minute,
+			},
+			{
+				address:    promLongRetention2.WriteAddr(),
+				retention:  8760 * time.Hour,
+				resolution: 10 * time.Minute,
+			},
 		},
-		{
-			address:    promMediumRetention.WriteAddr(),
-			retention:  720 * time.Hour,
-			resolution: 5 * time.Minute,
-		},
-		{
-			address:    promLongRetention.WriteAddr(),
-			retention:  8760 * time.Hour,
-			resolution: 10 * time.Minute,
-		},
-		{
-			address:    promLongRetention2.WriteAddr(),
-			retention:  8760 * time.Hour,
-			resolution: 10 * time.Minute,
-		},
-	}})
+		scope: tally.NoopScope,
+	})
 	require.NoError(t, err)
 	defer closeStorage(t, promStorage)
 

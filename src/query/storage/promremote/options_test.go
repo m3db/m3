@@ -26,6 +26,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 )
@@ -42,7 +43,7 @@ func TestNewFromConfiguration(t *testing.T) {
 		KeepAlive:       time.Millisecond,
 		IdleConnTimeout: time.Second,
 		MaxIdleConns:    1,
-	})
+	}, tally.NoopScope)
 	require.NoError(t, err)
 	assert.Equal(t, opts, Options{
 		endpoints: []EndpointOptions{{
@@ -55,13 +56,14 @@ func TestNewFromConfiguration(t *testing.T) {
 		keepAlive:       time.Millisecond,
 		idleConnTimeout: time.Second,
 		maxIdleConns:    1,
+		scope:           tally.NoopScope,
 	})
 }
 
 func TestHTTPDefaults(t *testing.T) {
 	cfg, err := NewOptions(config.PrometheusRemoteBackendConfiguration{
 		Endpoints: []config.PrometheusRemoteBackendEndpointConfiguration{getValidEndpointConfiguration()},
-	})
+	}, tally.NoopScope)
 	require.NoError(t, err)
 	opts := cfg.HTTPClientOptions()
 
@@ -143,7 +145,7 @@ func TestValidateEndpoint(t *testing.T) {
 }
 
 func assertValidationError(t *testing.T, cfg config.PrometheusRemoteBackendConfiguration, expectedMsg string) {
-	_, err := NewOptions(cfg)
+	_, err := NewOptions(cfg, tally.NoopScope)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), expectedMsg)
 }

@@ -20,7 +20,11 @@
 
 package promremote
 
-import "time"
+import (
+	"time"
+
+	"github.com/uber-go/tally"
+)
 
 // Options for storage.
 type Options struct {
@@ -30,6 +34,8 @@ type Options struct {
 	keepAlive       time.Duration
 	idleConnTimeout time.Duration
 	maxIdleConns    int
+
+	scope tally.Scope
 }
 
 // EndpointOptions for single prometheus remote write capable endpoint.

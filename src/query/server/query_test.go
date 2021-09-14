@@ -435,8 +435,13 @@ tagOptions:
 
 	require.Equal(t, config.PromRemoteStorageType, cfg.Backend)
 
+	require.NoError(t, err)
+	kvClient := kv.NewMockStore(ctrl)
+	clusterClient := clusterclient.NewMockClient(ctrl)
+	clusterClient.EXPECT().KV().Return(kvClient, nil).AnyTimes()
+
 	clusterClientCh := make(chan clusterclient.Client, 1)
-	clusterClientCh <- clusterclient.NewMockClient(ctrl)
+	clusterClientCh <- clusterClient
 	interruptCh := make(chan error)
 	doneCh := make(chan struct{})
 	listenerCh := make(chan net.Listener, 1)

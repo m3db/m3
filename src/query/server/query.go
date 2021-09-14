@@ -487,7 +487,7 @@ func Run(runOpts RunOptions) RunResult {
 		}
 	case config.PromRemoteStorageType:
 		var opts promremote.Options
-		opts, err = promremote.NewOptions(cfg.PrometheusRemoteBackend)
+		opts, err = promremote.NewOptions(cfg.PrometheusRemoteBackend, scope)
 		if err != nil {
 			logger.Fatal("invalid configuration", zap.Error(err))
 		}

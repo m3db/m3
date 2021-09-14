@@ -29,6 +29,8 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/query/storage"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -37,13 +39,22 @@ import (
 // NewStorage returns new Prometheus remote write compatible storage
 func NewStorage(opts Options) (storage.Storage, error) {
 	client := xhttp.NewHTTPClient(opts.HTTPClientOptions())
-	s := &promStorage{opts: opts, client: client}
+	scope := opts.scope.SubScope("prom_remote_storage")
+	s := &promStorage{opts: opts, client: client, endpointMetrics: initEndpointMetrics(opts.endpoints, scope)}
 	return s, nil
 }
 
+type endpointMetrics struct {
+	successCount tally.Counter
+	errCount     tally.Counter
+	totalCount   tally.Counter
+	latency      tally.Histogram
+}
+
 type promStorage struct {
-	opts   Options
-	client *http.Client
+	opts            Options
+	client          *http.Client
+	endpointMetrics map[string]endpointMetrics
 }
 
 func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
@@ -67,6 +78,7 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 					errLock.Lock()
 					multiErr = multiErr.Add(err)
 					errLock.Unlock()
+					return
 				}
 			}()
 		}
@@ -98,19 +110,23 @@ func (p *promStorage) Name() string {
 }
 
 func (p *promStorage) writeSingle(ctx context.Context, address string, encoded io.Reader) error {
+	p.endpointMetrics[address].totalCount.Inc(1)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, address, encoded)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("content-encoding", "snappy")
 	req.Header.Set("content-type", "application/x-protobuf")
+	latencyStopwatch := p.endpointMetrics[address].latency.Start()
 	resp, err := p.client.Do(req)
+	latencyStopwatch.Stop()
 	if err != nil {
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode/100 != 2 {
+		p.endpointMetrics[address].errCount.Inc(1)
 		response, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			response = []byte(fmt.Sprintf("error reading body: %v", err))
@@ -118,7 +134,23 @@ func (p *promStorage) writeSingle(ctx context.Context, address string, encoded i
 		return fmt.Errorf("expected status code 2XX: actual=%v, address=%v, resp=%s",
 			resp.StatusCode, address, response)
 	}
+	p.endpointMetrics[address].successCount.Inc(1)
 	return nil
+}
+
+func initEndpointMetrics(endpoints []EndpointOptions, scope tally.Scope) map[string]endpointMetrics {
+	metrics := make(map[string]endpointMetrics, len(endpoints))
+	for _, endpoint := range endpoints {
+		endpointScope := scope.SubScope("endpoint").
+			Tagged(map[string]string{"endpoint_address": endpoint.address})
+		metrics[endpoint.address] = endpointMetrics{
+			successCount: endpointScope.Counter("success"),
+			errCount:     endpointScope.Counter("error"),
+			totalCount:   endpointScope.Counter("requests"),
+			latency:      endpointScope.Histogram("request_latency", tally.DefaultBuckets),
+		}
+	}
+	return metrics
 }
 
 var _ storage.Storage = &promStorage{}
