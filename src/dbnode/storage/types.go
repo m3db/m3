@@ -1524,12 +1524,12 @@ type AggregateTilesOptions struct {
 	InsOptions instrument.Options
 	Process    AggregateTilesProcess
 
-	// MemorizeMetricTypes enables storing data into MetricsTypeByName map.
+	// MemorizeMetricTypes enables storing data into MetricTypeByName map.
 	MemorizeMetricTypes bool
-	// MemorizeMetricTypes enables assigning metric types from MetricsTypeByName map.
+	// MemorizeMetricTypes enables assigning metric types from MetricTypeByName map.
 	BackfillMetricTypes bool
-	// MetricsTypeByName is used when either MemorizeMetricTypes or BackfillMetricTypes is true.
-	MetricsTypeByName map[string]annotation.Payload
+	// MetricTypeByName is used when either MemorizeMetricTypes or BackfillMetricTypes is true.
+	MetricTypeByName map[string]annotation.Payload
 }
 
 // TileAggregator is the interface for AggregateTiles.

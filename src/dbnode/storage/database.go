@@ -1362,7 +1362,7 @@ func NewAggregateTilesOptions(
 	targetNsID ident.ID,
 	process AggregateTilesProcess,
 	memorizeMetricTypes, backfillMetricTypes bool,
-	metricsTypeByName map[string]annotation.Payload,
+	metricTypeByName map[string]annotation.Payload,
 	insOpts instrument.Options,
 ) (AggregateTilesOptions, error) {
 	if !end.After(start) {
@@ -1373,9 +1373,9 @@ func NewAggregateTilesOptions(
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.Step must be positive, got %s", step)
 	}
 
-	if (memorizeMetricTypes || backfillMetricTypes) && metricsTypeByName == nil {
+	if (memorizeMetricTypes || backfillMetricTypes) && metricTypeByName == nil {
 		return AggregateTilesOptions{}, errors.New(
-			"metricsTypeByName must not be nil when memorizeMetricTypes or backfillMetricTypes is true")
+			"metricTypeByName must not be nil when memorizeMetricTypes or backfillMetricTypes is true")
 	}
 
 	scope := insOpts.MetricsScope().SubScope("computed-namespace")
@@ -1392,7 +1392,7 @@ func NewAggregateTilesOptions(
 
 		MemorizeMetricTypes: memorizeMetricTypes,
 		BackfillMetricTypes: backfillMetricTypes,
-		MetricsTypeByName:   metricsTypeByName,
+		MetricTypeByName:    metricTypeByName,
 
 		InsOptions: insOpts,
 	}, nil
