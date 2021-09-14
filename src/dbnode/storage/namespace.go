@@ -1891,6 +1891,8 @@ func (n *dbNamespace) aggregateTiles(
 	n.log.Info("finished large tiles aggregation for namespace",
 		zap.Stringer("sourceNs", sourceNs.ID()),
 		zap.Stringer("process", opts.Process),
+		zap.Bool("memorizeMetricTypes", opts.MemorizeMetricTypes),
+		zap.Bool("backfillMetricTypes", opts.BackfillMetricTypes),
 		zap.Time("targetBlockStart", targetBlockStart.ToTime()),
 		zap.Time("lastSourceBlockEnd", lastSourceBlockEnd.ToTime()),
 		zap.Duration("step", opts.Step),
