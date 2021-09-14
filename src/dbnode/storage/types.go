@@ -1528,6 +1528,7 @@ type AggregateTilesOptions struct {
 	MemorizeMetricTypes bool
 	// MemorizeMetricTypes enables assigning metric types from MetricTypeByName map.
 	BackfillMetricTypes bool
+
 	// MetricTypeByName is used when either MemorizeMetricTypes or BackfillMetricTypes is true.
 	MetricTypeByName map[string]annotation.Payload
 }
