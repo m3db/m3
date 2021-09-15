@@ -241,7 +241,6 @@ type testServerOptions interface {
 	BufferForPastTimedMetric() time.Duration
 }
 
-// nolint: maligned
 type serverOptions struct {
 	clockOpts                     clock.Options
 	instrumentOpts                instrument.Options
