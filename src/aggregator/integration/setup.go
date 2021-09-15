@@ -45,7 +45,6 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
-	"github.com/m3db/m3/src/dbnode/integration/fake"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/consumer"
@@ -130,10 +129,12 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetDiscardNaNAggregatedValues(opts.DiscardNaNAggregatedValues())
 
 	// Set up placement manager.
+	kvStore, err := opts.ClusterClient().KV()
+	require.NoError(t, err)
 	placementWatcherOpts := placement.NewWatcherOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetStagedPlacementKey(opts.PlacementKVKey()).
-		SetStagedPlacementStore(opts.KVStore())
+		SetStagedPlacementStore(kvStore)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetInstanceID(opts.InstanceID()).
@@ -149,7 +150,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFlushTimesKeyFmt(opts.FlushTimesKeyFmt()).
-		SetFlushTimesStore(opts.KVStore())
+		SetFlushTimesStore(kvStore)
 	flushTimesManager := aggregator.NewFlushTimesManager(flushTimesManagerOpts)
 	aggregatorOpts = aggregatorOpts.SetFlushTimesManager(flushTimesManager)
 
@@ -468,19 +469,9 @@ func (tss testServerSetups) newClient(t *testing.T) *client {
 }
 
 func newM3MsgProducer(opts testServerOptions) (producer.Producer, error) {
-	var (
-		clusterClient = opts.ClusterClient()
-		svcs          services.Services
-	)
-	if clusterClient != nil {
-		var err error
-		svcs, err = opts.ClusterClient().Services(nil)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		placementSvc := fake.NewM3ClusterPlacementServiceWithPlacement(opts.Placement())
-		svcs = fake.NewM3ClusterServicesWithPlacementService(placementSvc)
+	svcs, err := opts.ClusterClient().Services(nil)
+	if err != nil {
+		return nil, err
 	}
 
 	bufferOpts := buffer.NewOptions().

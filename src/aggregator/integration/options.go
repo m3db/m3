@@ -31,8 +31,7 @@ import (
 	"github.com/m3db/m3/src/aggregator/sharding"
 	cluster "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/cluster/kv/mem"
-	"github.com/m3db/m3/src/cluster/placement"
+	memcluster "github.com/m3db/m3/src/cluster/mem"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/clock"
@@ -126,12 +125,6 @@ type testServerOptions interface {
 	// ShardFn returns the sharding function.
 	ShardFn() sharding.ShardFn
 
-	// SetPlacement sets the placement.
-	SetPlacement(value placement.Placement) testServerOptions
-
-	// Placement returns the placement.
-	Placement() placement.Placement
-
 	// SetPlacementKVKey sets the placement kv key.
 	SetPlacementKVKey(value string) testServerOptions
 
@@ -143,12 +136,6 @@ type testServerOptions interface {
 
 	// FlushTimesKeyFmt returns the flush times key format.
 	FlushTimesKeyFmt() string
-
-	// SetKVStore sets the key value store.
-	SetKVStore(value kv.Store) testServerOptions
-
-	// KVStore returns the key value store.
-	KVStore() kv.Store
 
 	// SetClusterClient sets the cluster client.
 	SetClusterClient(value cluster.Client) testServerOptions
@@ -253,10 +240,8 @@ type serverOptions struct {
 	electionCluster               *testCluster
 	shardSetID                    uint32
 	shardFn                       sharding.ShardFn
-	placement                     placement.Placement
 	placementKVKey                string
 	flushTimesKeyFmt              string
-	kvStore                       kv.Store
 	clusterClient                 cluster.Client
 	topicService                  topic.Service
 	topicName                     string
@@ -298,11 +283,9 @@ func newTestServerOptions(t *testing.T) testServerOptions {
 		electionKeyFmt:              defaultElectionKeyFmt,
 		shardSetID:                  defaultShardSetID,
 		shardFn:                     sharding.Murmur32Hash.MustShardFn(),
-		placement:                   nil,
 		placementKVKey:              defaultPlacementKVKey,
 		flushTimesKeyFmt:            defaultFlushTimesKeyFmt,
-		kvStore:                     mem.NewStore(),
-		clusterClient:               nil,
+		clusterClient:               memcluster.New(kv.NewOverrideOptions()),
 		topicService:                nil,
 		topicName:                   defaultTopicName,
 		serverStateChangeTimeout:    defaultServerStateChangeTimeout,
@@ -429,16 +412,6 @@ func (o *serverOptions) ShardFn() sharding.ShardFn {
 	return o.shardFn
 }
 
-func (o *serverOptions) SetPlacement(value placement.Placement) testServerOptions {
-	opts := *o
-	opts.placement = value
-	return &opts
-}
-
-func (o *serverOptions) Placement() placement.Placement {
-	return o.placement
-}
-
 func (o *serverOptions) SetPlacementKVKey(value string) testServerOptions {
 	opts := *o
 	opts.placementKVKey = value
@@ -457,16 +430,6 @@ func (o *serverOptions) SetFlushTimesKeyFmt(value string) testServerOptions {
 
 func (o *serverOptions) FlushTimesKeyFmt() string {
 	return o.flushTimesKeyFmt
-}
-
-func (o *serverOptions) SetKVStore(value kv.Store) testServerOptions {
-	opts := *o
-	opts.kvStore = value
-	return &opts
-}
-
-func (o *serverOptions) KVStore() kv.Store {
-	return o.kvStore
 }
 
 func (o *serverOptions) SetClusterClient(value cluster.Client) testServerOptions {

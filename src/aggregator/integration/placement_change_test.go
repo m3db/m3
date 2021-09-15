@@ -52,10 +52,6 @@ func TestPlacementChange(t *testing.T) {
 	// Clock setup.
 	clock := newTestClock(time.Now().Truncate(time.Hour))
 
-	clusterClient := memcluster.New(kv.NewOverrideOptions())
-	kvStore, err := clusterClient.KV()
-	require.NoError(t, err)
-
 	// Placement setup.
 	var (
 		numTotalShards = 4
@@ -113,10 +109,11 @@ func TestPlacementChange(t *testing.T) {
 		}
 	}
 
+	clusterClient := memcluster.New(kv.NewOverrideOptions())
 	initialPlacement := makePlacement(initialInstanceConfig, numTotalShards)
 	finalPlacement := makePlacement(finalInstanceConfig, numTotalShards)
-	require.NoError(t, setPlacementWithClusterClient(placementKey, clusterClient, initialPlacement))
-	topicService, err := initializeTopicWithClusterClient(defaultTopicName, clusterClient, numTotalShards)
+	setPlacement(t, placementKey, clusterClient, initialPlacement)
+	topicService, err := initializeTopic(defaultTopicName, clusterClient, numTotalShards)
 	require.NoError(t, err)
 
 	// Election cluster setup.
@@ -145,12 +142,10 @@ func TestPlacementChange(t *testing.T) {
 			SetHTTPAddr(mss.httpAddr).
 			SetM3MsgAddr(mss.m3MsgAddr).
 			SetInstanceID(initialInstanceConfig[i].instanceID).
-			SetKVStore(kvStore).
 			SetClusterClient(clusterClient).
 			SetTopicService(topicService).
 			SetShardSetID(initialInstanceConfig[i].shardSetID).
-			SetClientConnectionOptions(connectionOpts).
-			SetPlacement(initialPlacement)
+			SetClientConnectionOptions(connectionOpts)
 		server := newTestServerSetup(t, serverOpts)
 		servers = append(servers, server)
 	}
@@ -232,7 +227,7 @@ func TestPlacementChange(t *testing.T) {
 
 	clock.SetNow(start2)
 	time.Sleep(6 * time.Second)
-	require.NoError(t, setPlacementWithClusterClient(placementKey, clusterClient, finalPlacement))
+	setPlacement(t, placementKey, clusterClient, finalPlacement)
 	time.Sleep(6 * time.Second)
 
 	for _, data := range datasets[1] {

@@ -22,9 +22,11 @@ package integration
 
 import (
 	"math"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
@@ -76,43 +78,25 @@ func newPlacement(numShards int, instances []placement.Instance) placement.Place
 }
 
 func setPlacement(
-	key string,
-	store kv.Store,
-	pl placement.Placement,
-) error {
-	stagedPlacement, err := placement.NewPlacementsFromLatest(pl)
-	if err != nil {
-		return err
-	}
-	stagedPlacementProto, err := stagedPlacement.Proto()
-	if err != nil {
-		return err
-	}
-	_, err = store.Set(key, stagedPlacementProto)
-	return err
-}
-
-func setPlacementWithClusterClient(
+	t *testing.T,
 	key string,
 	clusterClient clusterclient.Client,
 	pl placement.Placement,
-) error {
+) {
 	svcs, err := clusterClient.Services(nil)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	ps, err := svcs.PlacementService(services.NewServiceID().SetName(defaultServiceName), placement.NewOptions())
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	_, err = ps.Set(pl)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 
 	store, err := clusterClient.KV()
-	if err != nil {
-		return err
-	}
-	return setPlacement(key, store, pl)
+	require.NoError(t, err)
+
+	stagedPlacement, err := placement.NewPlacementsFromLatest(pl)
+	require.NoError(t, err)
+	stagedPlacementProto, err := stagedPlacement.Proto()
+	require.NoError(t, err)
+	_, err = store.Set(key, stagedPlacementProto)
+	require.NoError(t, err)
 }
