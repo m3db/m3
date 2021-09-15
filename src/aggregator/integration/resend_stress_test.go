@@ -89,7 +89,7 @@ func TestResendAggregatedValueStress(t *testing.T) {
 
 	instance := serverSetup.instanceConfig.newPlacementInstance()
 	initPlacement := newPlacement(numTotalShards, []placement.Instance{instance})
-	require.NoError(t, setPlacement(placementKey, serverOpts.ClusterClient(), initPlacement))
+	setPlacement(t, placementKey, serverOpts.ClusterClient(), initPlacement)
 	serverOpts = setupTopic(t, serverOpts, initPlacement)
 	require.NoError(t, err)
 

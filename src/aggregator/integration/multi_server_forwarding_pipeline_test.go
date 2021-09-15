@@ -138,7 +138,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		instances = append(instances, instance)
 	}
 	initPlacement := newPlacement(numTotalShards, instances).SetReplicaFactor(2)
-	require.NoError(t, setPlacement(placementKey, clusterClient, initPlacement))
+	setPlacement(t, placementKey, clusterClient, initPlacement)
 	topicService, err := initializeTopic(defaultTopicName, clusterClient, numTotalShards)
 	require.NoError(t, err)
 

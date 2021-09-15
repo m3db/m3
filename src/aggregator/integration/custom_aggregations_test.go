@@ -90,7 +90,7 @@ func testCustomAggregations(t *testing.T, metadataFns [4]metadataFn) {
 	instance := cfg.newPlacementInstance()
 	placement := newPlacement(numShards, []placement.Instance{instance})
 	placementKey := serverOpts.PlacementKVKey()
-	require.NoError(t, setPlacement(placementKey, serverOpts.ClusterClient(), placement))
+	setPlacement(t, placementKey, serverOpts.ClusterClient(), placement)
 
 	serverOpts = setupTopic(t, serverOpts, placement)
 

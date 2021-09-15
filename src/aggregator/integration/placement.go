@@ -22,6 +22,9 @@ package integration
 
 import (
 	"math"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/placement"
@@ -75,36 +78,25 @@ func newPlacement(numShards int, instances []placement.Instance) placement.Place
 }
 
 func setPlacement(
+	t *testing.T,
 	key string,
 	clusterClient clusterclient.Client,
 	pl placement.Placement,
-) error {
+) {
 	svcs, err := clusterClient.Services(nil)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	ps, err := svcs.PlacementService(services.NewServiceID().SetName(defaultServiceName), placement.NewOptions())
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	_, err = ps.Set(pl)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 
 	store, err := clusterClient.KV()
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 
 	stagedPlacement, err := placement.NewPlacementsFromLatest(pl)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	stagedPlacementProto, err := stagedPlacement.Proto()
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	_, err = store.Set(key, stagedPlacementProto)
-	return err
+	require.NoError(t, err)
 }

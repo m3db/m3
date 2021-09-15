@@ -112,7 +112,7 @@ func TestPlacementChange(t *testing.T) {
 	clusterClient := memcluster.New(kv.NewOverrideOptions())
 	initialPlacement := makePlacement(initialInstanceConfig, numTotalShards)
 	finalPlacement := makePlacement(finalInstanceConfig, numTotalShards)
-	require.NoError(t, setPlacement(placementKey, clusterClient, initialPlacement))
+	setPlacement(t, placementKey, clusterClient, initialPlacement)
 	topicService, err := initializeTopic(defaultTopicName, clusterClient, numTotalShards)
 	require.NoError(t, err)
 
@@ -227,7 +227,7 @@ func TestPlacementChange(t *testing.T) {
 
 	clock.SetNow(start2)
 	time.Sleep(6 * time.Second)
-	require.NoError(t, setPlacement(placementKey, clusterClient, finalPlacement))
+	setPlacement(t, placementKey, clusterClient, finalPlacement)
 	time.Sleep(6 * time.Second)
 
 	for _, data := range datasets[1] {
