@@ -84,11 +84,6 @@ func (f *FakeTagEncoder) Data() (checked.Bytes, bool) {
 	return b, true
 }
 
-// RawData returns the encoded tags as raw []byte.
-func (f *FakeTagEncoder) RawData() []byte {
-	return f.data
-}
-
 // Reset the stored encoded data.
 func (f *FakeTagEncoder) Reset() {
 	f.data = f.data[:0]
