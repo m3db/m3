@@ -130,7 +130,7 @@ func TestPlacementChange(t *testing.T) {
 		SetWriteTimeout(time.Second)
 
 	// Create servers.
-	servers := make([]*testServerSetup, 0, len(multiServerSetup))
+	servers := make(testServerSetups, 0, len(multiServerSetup))
 	for i, mss := range multiServerSetup {
 		instrumentOpts := instrument.NewOptions()
 		logger := instrumentOpts.Logger().With(
@@ -163,7 +163,7 @@ func TestPlacementChange(t *testing.T) {
 	}
 
 	// Create client for writing to the servers.
-	client := servers[0].newClient(t)
+	client := servers.newClient(t)
 	require.NoError(t, client.connect())
 
 	for _, server := range servers {

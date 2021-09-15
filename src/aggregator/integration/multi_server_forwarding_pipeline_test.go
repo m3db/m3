@@ -162,7 +162,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		SetWriteTimeout(time.Second)
 
 	// Create servers.
-	servers := make([]*testServerSetup, 0, len(multiServerSetup))
+	servers := make(testServerSetups, 0, len(multiServerSetup))
 	for _, mss := range multiServerSetup {
 		instrumentOpts := instrument.NewOptions()
 		logger := instrumentOpts.Logger().With(
@@ -198,7 +198,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	}
 
 	// Create clients for writing to the servers.
-	client := servers[0].newClient(t)
+	client := servers.newClient(t)
 	require.NoError(t, client.connect())
 
 	// Waiting for two leaders to come up.

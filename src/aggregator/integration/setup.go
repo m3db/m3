@@ -64,6 +64,8 @@ var (
 	errLeaderElectionTimeout = errors.New("took too long to become leader")
 )
 
+type testServerSetups []*testServerSetup
+
 type testServerSetup struct {
 	opts             testServerOptions
 	m3msgAddr        string
@@ -456,6 +458,13 @@ func (ts *testServerSetup) stopServer() error {
 
 func (ts *testServerSetup) close() {
 	ts.electionCluster.Close()
+}
+
+func (tss testServerSetups) newClient(t *testing.T) *client {
+	require.NotEmpty(t, tss)
+	// NB: the client can be constructed from any of the setups. The client does the routing and
+	// sends the writes to the server which holds related shard.
+	return tss[0].newClient(t)
 }
 
 func newM3MsgProducer(opts testServerOptions) (producer.Producer, error) {
