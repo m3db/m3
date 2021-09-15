@@ -27,16 +27,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	aggclient "github.com/m3db/m3/src/aggregator/client"
-	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/cluster/kv"
+	memcluster "github.com/m3db/m3/src/cluster/mem"
 	"github.com/m3db/m3/src/cluster/placement"
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
-	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -48,21 +49,17 @@ func TestPlacementChange(t *testing.T) {
 		t.SkipNow()
 	}
 
-	aggregatorClientType, err := getAggregatorClientTypeFromEnv()
-	require.NoError(t, err)
-	if aggregatorClientType == aggclient.M3MsgAggregatorClient {
-		// TODO(vilius) update this test to work with m3msg client
-		t.SkipNow()
-	}
-
 	// Clock setup.
 	clock := newTestClock(time.Now().Truncate(time.Hour))
 
+	clusterClient := memcluster.New(kv.NewOverrideOptions())
+	kvStore, err := clusterClient.KV()
+	require.NoError(t, err)
+
 	// Placement setup.
 	var (
-		numTotalShards = 2
+		numTotalShards = 4
 		placementKey   = "/placement"
-		kvStore        = mem.NewStore()
 	)
 	multiServerSetup := []struct {
 		rawTCPAddr string
@@ -84,12 +81,12 @@ func TestPlacementChange(t *testing.T) {
 		{
 			shardSetID:          1,
 			shardStartInclusive: 0,
-			shardEndExclusive:   uint32(numTotalShards),
+			shardEndExclusive:   uint32(numTotalShards) - 1,
 		},
 		{
 			shardSetID:          2,
-			shardStartInclusive: 0,
-			shardEndExclusive:   0,
+			shardStartInclusive: uint32(numTotalShards) - 1,
+			shardEndExclusive:   uint32(numTotalShards),
 		},
 	}
 	finalInstanceConfig := []placementInstanceConfig{
@@ -105,6 +102,8 @@ func TestPlacementChange(t *testing.T) {
 		},
 	}
 
+	aggregatorClientType, err := getAggregatorClientTypeFromEnv()
+	require.NoError(t, err)
 	for i, mss := range multiServerSetup {
 		initialInstanceConfig[i].instanceID = mss.rawTCPAddr
 		finalInstanceConfig[i].instanceID = mss.rawTCPAddr
@@ -116,20 +115,9 @@ func TestPlacementChange(t *testing.T) {
 
 	initialPlacement := makePlacement(initialInstanceConfig, numTotalShards)
 	finalPlacement := makePlacement(finalInstanceConfig, numTotalShards)
-	require.NoError(t, setPlacement(placementKey, kvStore, initialPlacement))
-
-	shardFn := newTestServerOptions(t).ShardFn()
-
-	getServerIndex := func(metricId id.RawID, placement placement.Placement) int {
-		instance := placement.InstancesForShard(shardFn(metricId, uint32(numTotalShards)))[0]
-		for i, config := range initialInstanceConfig {
-			if config.instanceID == instance.ID() {
-				return i
-			}
-		}
-		require.Fail(t, "could not find instance for")
-		return -1
-	}
+	require.NoError(t, setPlacementWithClusterClient(placementKey, clusterClient, initialPlacement))
+	topicService, err := initializeTopicWithClusterClient(defaultTopicName, clusterClient, numTotalShards)
+	require.NoError(t, err)
 
 	// Election cluster setup.
 	electionCluster := newTestCluster(t)
@@ -142,7 +130,7 @@ func TestPlacementChange(t *testing.T) {
 		SetWriteTimeout(time.Second)
 
 	// Create servers.
-	servers := make([]*testServerSetup, 0, len(multiServerSetup))
+	servers := make(testServerSetups, 0, len(multiServerSetup))
 	for i, mss := range multiServerSetup {
 		instrumentOpts := instrument.NewOptions()
 		logger := instrumentOpts.Logger().With(
@@ -158,8 +146,9 @@ func TestPlacementChange(t *testing.T) {
 			SetM3MsgAddr(mss.m3MsgAddr).
 			SetInstanceID(initialInstanceConfig[i].instanceID).
 			SetKVStore(kvStore).
+			SetClusterClient(clusterClient).
+			SetTopicService(topicService).
 			SetShardSetID(initialInstanceConfig[i].shardSetID).
-			SetShardFn(shardFn).
 			SetClientConnectionOptions(connectionOpts).
 			SetPlacement(initialPlacement)
 		server := newTestServerSetup(t, serverOpts)
@@ -173,13 +162,9 @@ func TestPlacementChange(t *testing.T) {
 		log.Sugar().Infof("server %d is now up", i)
 	}
 
-	// Create clients for writing to the servers.
-	clients := make([]*client, 0, len(servers))
-	for _, server := range servers {
-		client := server.newClient(t)
-		require.NoError(t, client.connect())
-		clients = append(clients, client)
-	}
+	// Create client for writing to the servers.
+	client := servers.newClient(t)
+	require.NoError(t, client.connect())
 
 	for _, server := range servers {
 		require.NoError(t, server.waitUntilLeader())
@@ -237,32 +222,26 @@ func TestPlacementChange(t *testing.T) {
 		clock.SetNow(data.timestamp)
 
 		for _, mm := range data.metricWithMetadatas {
-			idx := getServerIndex(mm.metric.ID(), initialPlacement)
-			require.NoError(t, clients[idx].writeTimedMetricWithMetadata(mm.metric.timed, mm.metadata.timedMetadata))
+			require.NoError(t, client.writeTimedMetricWithMetadata(mm.metric.timed, mm.metadata.timedMetadata))
 		}
-		for _, c := range clients {
-			require.NoError(t, c.flush())
-		}
+		require.NoError(t, client.flush())
 
 		// Give server some time to process the incoming packets.
 		time.Sleep(sleepDuration)
 	}
 
 	clock.SetNow(start2)
-	time.Sleep(sleepDuration)
-	require.NoError(t, setPlacement(placementKey, kvStore, finalPlacement))
-	time.Sleep(sleepDuration)
+	time.Sleep(6 * time.Second)
+	require.NoError(t, setPlacementWithClusterClient(placementKey, clusterClient, finalPlacement))
+	time.Sleep(6 * time.Second)
 
 	for _, data := range datasets[1] {
 		clock.SetNow(data.timestamp)
 
 		for _, mm := range data.metricWithMetadatas {
-			idx := getServerIndex(mm.metric.ID(), finalPlacement)
-			require.NoError(t, clients[idx].writeTimedMetricWithMetadata(mm.metric.timed, mm.metadata.timedMetadata))
+			require.NoError(t, client.writeTimedMetricWithMetadata(mm.metric.timed, mm.metadata.timedMetadata))
 		}
-		for _, c := range clients {
-			require.NoError(t, c.flush())
-		}
+		require.NoError(t, client.flush())
 
 		// Give server some time to process the incoming packets.
 		time.Sleep(sleepDuration)
@@ -270,12 +249,15 @@ func TestPlacementChange(t *testing.T) {
 
 	// Move time forward and wait for flushing to happen.
 	clock.SetNow(finalTime)
-	time.Sleep(sleepDuration)
+	time.Sleep(6 * time.Second)
 
-	// Stop the clients.
-	for _, client := range clients {
-		require.NoError(t, client.close())
-	}
+	// Remove all the topic consumers before closing clients and servers. This allows to close the
+	// connections between servers while they still are running. Otherwise, during server shutdown,
+	// the yet-to-be-closed servers would repeatedly try to reconnect to recently closed ones, which
+	// results in longer shutdown times.
+	require.NoError(t, removeAllTopicConsumers(topicService, defaultTopicName))
+
+	require.NoError(t, client.close())
 
 	// Stop the servers.
 	for i, server := range servers {
@@ -294,7 +276,7 @@ func TestPlacementChange(t *testing.T) {
 		expected = append(expected, results...)
 	}
 	sort.Sort(byTimeIDPolicyAscending(expected))
-	require.Equal(t, expected, actual)
+	require.True(t, cmp.Equal(expected, actual, testCmpOpts...), cmp.Diff(expected, actual, testCmpOpts...))
 }
 
 func makePlacement(instanceConfig []placementInstanceConfig, numShards int) placement.Placement {

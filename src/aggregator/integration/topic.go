@@ -22,9 +22,11 @@ package integration
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
+	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
@@ -41,29 +43,40 @@ func initializeTopic(
 	svcs := fake.NewM3ClusterServicesWithPlacementService(placementSvc)
 	clusterClient := fake.NewM3ClusterClient(svcs, kvStore)
 
-	consumerServices := make([]topic.ConsumerService, 0)
-	for _, inst := range p.Instances() {
-		serviceID := services.NewServiceID().SetName(inst.ID())
-		cs := topic.NewConsumerService().SetServiceID(serviceID).SetConsumptionType(topic.Replicated)
-		consumerServices = append(consumerServices, cs)
-	}
+	return initializeTopicWithClusterClient(topicName, clusterClient, p.NumShards())
+}
 
+func initializeTopicWithClusterClient(
+	topicName string, //nolint:unparam
+	clusterClient clusterclient.Client,
+	numShards int,
+) (topic.Service, error) {
+	serviceID := services.NewServiceID().SetName(defaultServiceName)
+	cs := topic.NewConsumerService().
+		SetServiceID(serviceID).
+		SetConsumptionType(topic.Replicated).
+		SetMessageTTLNanos(time.Minute.Nanoseconds())
 	ingestTopic := topic.NewTopic().
 		SetName(topicName).
-		SetNumberOfShards(uint32(p.NumShards())).
-		SetConsumerServices(consumerServices)
+		SetNumberOfShards(uint32(numShards)).
+		SetConsumerServices([]topic.ConsumerService{cs})
+
 	topicServiceOpts := topic.NewServiceOptions().
 		SetConfigService(clusterClient)
 	topicService, err := topic.NewService(topicServiceOpts)
 	if err != nil {
 		return topicService, err
 	}
+
 	_, err = topicService.CheckAndSet(ingestTopic, 0)
 
 	return topicService, err
 }
 
-func removeAllTopicConsumers(topicService topic.Service, topicName string) error {
+func removeAllTopicConsumers(
+	topicService topic.Service,
+	topicName string, //nolint:unparam
+) error {
 	topic, err := topicService.Get(topicName)
 	if err != nil {
 		return err

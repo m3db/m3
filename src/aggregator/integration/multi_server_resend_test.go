@@ -159,7 +159,7 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 		SetWriteTimeout(time.Second)
 
 	// Create servers.
-	servers := make([]*testServerSetup, 0, len(multiServerSetup))
+	servers := make(testServerSetups, 0, len(multiServerSetup))
 	for _, mss := range multiServerSetup {
 		instrumentOpts := instrument.NewOptions()
 		logger := instrumentOpts.Logger().With(
@@ -196,7 +196,7 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 	}
 
 	// Create clients for writing to the servers.
-	client := servers[0].newClient(t)
+	client := servers.newClient(t)
 	require.NoError(t, client.connect())
 
 	// Waiting for two leaders to come up.
