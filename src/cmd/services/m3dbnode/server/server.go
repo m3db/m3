@@ -38,6 +38,10 @@ type Options struct {
 	// InterruptCh is a programmatic interrupt channel to supply to
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
+
+	// ShutdownCh is an optional channel to supply if interested in receiving
+	// a notification that the server has shutdown.
+	ShutdownCh chan<- struct{}
 }
 
 // RunComponents runs the appropriate M3 components based on the configuration.
@@ -46,6 +50,7 @@ func RunComponents(opts Options) {
 	var (
 		cfg         = opts.Configuration
 		interruptCh = opts.InterruptCh
+		shutdownCh  = opts.ShutdownCh
 
 		dbClientCh        chan client.Client
 		clusterClientCh   chan clusterclient.Client
@@ -66,6 +71,7 @@ func RunComponents(opts Options) {
 				DBClient:      dbClientCh,
 				ClusterClient: clusterClientCh,
 				InterruptCh:   interruptCh,
+				ShutdownCh:    shutdownCh,
 			})
 			coordinatorDoneCh <- struct{}{}
 		}()
@@ -77,6 +83,7 @@ func RunComponents(opts Options) {
 			ClientCh:        dbClientCh,
 			ClusterClientCh: clusterClientCh,
 			InterruptCh:     interruptCh,
+			ShutdownCh:      shutdownCh,
 		})
 	} else if cfg.Coordinator != nil {
 		<-coordinatorDoneCh
