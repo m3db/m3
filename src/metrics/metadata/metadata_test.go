@@ -1156,8 +1156,8 @@ func TestVersionedStagedMetadatasMarshalJSON(t *testing.T) {
 		`{"version":12,` +
 			`"stagedMetadatas":` +
 			`[{"metadata":{"pipelines":[` +
-			`{"aggregation":["Sum"],"storagePolicies":["1s:1h","1m:12h"],"ResendEnabled":true},` +
-			`{"aggregation":null,"storagePolicies":["10s:1h"],"ResendEnabled":false}]},` +
+			`{"aggregation":["Sum"],"storagePolicies":["1s:1h","1m:12h"],"resendEnabled":true},` +
+			`{"aggregation":null,"storagePolicies":["10s:1h"]}]},` +
 			`"cutoverNanos":4567,` +
 			`"tombstoned":true}]}`
 	require.Equal(t, expected, string(res))
