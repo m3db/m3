@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -42,6 +43,8 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
+var logger, _ = zap.NewDevelopment()
+
 func TestWrite(t *testing.T) {
 	fakeProm := promremotetest.NewServer(t)
 	defer fakeProm.Close()
@@ -50,6 +53,7 @@ func TestWrite(t *testing.T) {
 	promStorage, err := NewStorage(Options{
 		endpoints: []EndpointOptions{{name: "testEndpoint", address: fakeProm.WriteAddr()}},
 		scope:     scope,
+		logger:    logger,
 	})
 	require.NoError(t, err)
 	defer closeWithCheck(t, promStorage)
@@ -115,6 +119,7 @@ func TestWriteBasedOnRetention(t *testing.T) {
 		promLongRetention2.Reset()
 	}
 
+	scope := tally.NewTestScope("test_scope", map[string]string{})
 	promStorage, err := NewStorage(Options{
 		endpoints: []EndpointOptions{
 			{
@@ -138,7 +143,8 @@ func TestWriteBasedOnRetention(t *testing.T) {
 				resolution: 10 * time.Minute,
 			},
 		},
-		scope: tally.NoopScope,
+		scope:  scope,
+		logger: logger,
 	})
 	require.NoError(t, err)
 	defer closeWithCheck(t, promStorage)
@@ -205,15 +211,18 @@ func TestWriteBasedOnRetention(t *testing.T) {
 			Resolution: 5*time.Minute + 1,
 			Retention:  720 * time.Hour,
 		})
-		require.NoError(t, err)
+		require.Error(t, err)
 		err = sendWrite(storagemetadata.Attributes{
 			Resolution: 5 * time.Minute,
 			Retention:  720*time.Hour + 1,
 		})
-		require.NoError(t, err)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "write did not match any of known endpoints")
 		assert.Nil(t, promShortRetention.GetLastWriteRequest())
 		assert.Nil(t, promMediumRetention.GetLastWriteRequest())
 		assert.Nil(t, promLongRetention.GetLastWriteRequest())
+		const metricName = "test_scope.prom_remote_storage.dropped_writes"
+		tallytest.AssertCounterValue(t, 2, scope.Snapshot(), metricName, map[string]string{})
 	})
 
 	t.Run("error should not prevent sending to other instances", func(t *testing.T) {

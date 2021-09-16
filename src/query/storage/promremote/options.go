@@ -26,13 +26,18 @@ import (
 	"strings"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 // NewOptions constructs Options based on the given config.
-func NewOptions(cfg *config.PrometheusRemoteBackendConfiguration, scope tally.Scope) (Options, error) {
+func NewOptions(
+	cfg *config.PrometheusRemoteBackendConfiguration,
+	scope tally.Scope,
+	logger *zap.Logger,
+) (Options, error) {
 	err := validateBackendConfiguration(cfg)
 	if err != nil {
 		return Options{}, err
@@ -40,14 +45,18 @@ func NewOptions(cfg *config.PrometheusRemoteBackendConfiguration, scope tally.Sc
 	endpoints := make([]EndpointOptions, len(cfg.Endpoints))
 
 	for i, endpoint := range cfg.Endpoints {
-		endpoints[i] = EndpointOptions{
+		endpointOptions := EndpointOptions{
 			name:    endpoint.Name,
 			address: endpoint.Address,
 		}
 		if endpoint.StoragePolicy != nil {
-			endpoints[i].resolution = endpoint.StoragePolicy.Resolution
-			endpoints[i].retention = endpoint.StoragePolicy.Retention
+			endpointOptions.resolution = endpoint.StoragePolicy.Resolution
+			endpointOptions.retention = endpoint.StoragePolicy.Retention
+			if endpoint.StoragePolicy.Downsample != nil {
+				endpointOptions.downsampleAll = endpoint.StoragePolicy.Downsample.All
+			}
 		}
+		endpoints[i] = endpointOptions
 	}
 	clientOpts := xhttp.DefaultHTTPClientOptions()
 	if cfg.RequestTimeout != nil {
@@ -72,6 +81,7 @@ func NewOptions(cfg *config.PrometheusRemoteBackendConfiguration, scope tally.Sc
 		endpoints:   endpoints,
 		httpOptions: clientOpts,
 		scope:       scope,
+		logger:      logger,
 	}, nil
 }
 

@@ -489,7 +489,7 @@ func Run(runOpts RunOptions) RunResult {
 		}
 	case config.PromRemoteStorageType:
 		var opts promremote.Options
-		opts, err = promremote.NewOptions(cfg.PrometheusRemoteBackend, scope)
+		opts, err = promremote.NewOptions(cfg.PrometheusRemoteBackend, scope, instrumentOptions.Logger())
 		if err != nil {
 			logger.Fatal("invalid configuration", zap.Error(err))
 		}
@@ -503,6 +503,13 @@ func Run(runOpts RunOptions) RunResult {
 				logger.Error("error when closing storage", zap.Error(err))
 			}
 		}()
+
+		logger.Info("configuring downsampler to use with aggregated namespaces",
+			zap.Int("numAggregatedClusterNamespaces", opts.Namespaces().NumAggregatedClusterNamespaces()))
+		err = clusterNamespacesWatcher.Update(opts.Namespaces())
+		if err != nil {
+			logger.Error("error when updating namespaces", zap.Error(err))
+		}
 
 		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, cfg.ClusterManagement.Etcd, backendStorage,
 			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
