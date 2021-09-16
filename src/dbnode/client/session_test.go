@@ -435,11 +435,11 @@ func TestDedicatedConnection(t *testing.T) {
 			callback(1, initializingShard, remote1)
 			callback(2, availableShard, remote2)
 			return nil
-		}).Times(4)
+		}).Times(5)
 
 	s := session{origin: local}
 	s.opts = NewOptions().SetNewConnectionFn(noopNewConnection)
-	s.healthCheckNewConnFn = testHealthCheck(nil, false)
+	s.healthCheckNewConnFn = testHealthCheck(false, nil)
 	s.state.status = statusOpen
 	s.state.topoMap = topoMap
 
@@ -451,17 +451,23 @@ func TestDedicatedConnection(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, &noopPooledChannel{"remote2"}, ch2)
 
-	s.healthCheckNewConnFn = testHealthCheck(nil, true)
+	s.healthCheckNewConnFn = testHealthCheck(true, nil)
 	_, ch3, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{BootstrappedNodesOnly: true})
 	require.NoError(t, err)
 	assert.Equal(t, &noopPooledChannel{"remote1"}, ch3)
 
+	s.healthCheckNewConnFn = testHealthCheck(false, nil)
+	_, _, err = s.DedicatedConnection(shardID, DedicatedConnectionOptions{BootstrappedNodesOnly: true})
+	multiErr, ok := err.(xerror.MultiError) // nolint: errorlint
+	assert.True(t, ok, "expecting MultiError")
+	assert.True(t, multiErr.Contains(errNodeNotBootstrapped))
+
 	healthErr := errors.New("unhealthy")
-	s.healthCheckNewConnFn = testHealthCheck(healthErr, false)
+	s.healthCheckNewConnFn = testHealthCheck(false, healthErr)
 
 	_, _, err = s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
 	require.NotNil(t, err)
-	multiErr, ok := err.(xerror.MultiError) // nolint: errorlint
+	multiErr, ok = err.(xerror.MultiError) // nolint: errorlint
 	assert.True(t, ok, "expecting MultiError")
 	assert.True(t, multiErr.Contains(healthErr))
 }
@@ -610,13 +616,9 @@ func mockHost(ctrl *gomock.Controller, id, address string) topology.Host {
 	return host
 }
 
-func testHealthCheck(err error, bootstrappedNodesOnly bool) func(rpc.TChanNode, Options, bool) error {
-	return func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
-		if checkBootstrapped != bootstrappedNodesOnly {
-			return fmt.Errorf("checkBootstrapped value (%t) != expected (%t)",
-				checkBootstrapped, bootstrappedNodesOnly)
-		}
-		return err
+func testHealthCheck(bootstrapped bool, err error) healthCheckFn {
+	return func(client rpc.TChanNode, opts Options) (bool, error) {
+		return bootstrapped, err
 	}
 }
 

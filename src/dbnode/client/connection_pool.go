@@ -68,8 +68,9 @@ type connPool struct {
 }
 
 type conn struct {
-	channel Channel
-	client  rpc.TChanNode
+	channel      Channel
+	client       rpc.TChanNode
+	bootstrapped bool
 }
 
 // NewConnectionFn is a function that creates a connection.
@@ -77,7 +78,7 @@ type NewConnectionFn func(
 	channelName string, addr string, opts Options,
 ) (Channel, rpc.TChanNode, error)
 
-type healthCheckFn func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error
+type healthCheckFn func(client rpc.TChanNode, opts Options) (bool, error)
 
 type sleepFn func(t time.Duration)
 
@@ -134,7 +135,7 @@ func (p *connPool) ConnectionCount() int {
 	return int(poolLen)
 }
 
-func (p *connPool) NextClient() (rpc.TChanNode, Channel, error) {
+func (p *connPool) NextClient(bootstrappedOnly bool) (rpc.TChanNode, Channel, error) {
 	p.RLock()
 	if p.status != statusOpen {
 		p.RUnlock()
@@ -147,6 +148,11 @@ func (p *connPool) NextClient() (rpc.TChanNode, Channel, error) {
 	n := atomic.AddInt64(&p.used, 1)
 	conn := p.pool[n%p.poolLen]
 	p.RUnlock()
+
+	if bootstrappedOnly && !conn.bootstrapped {
+		return nil, nil, errNodeNotBootstrapped
+	}
+
 	return conn.client, conn.channel, nil
 }
 
@@ -194,7 +200,8 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 				}
 
 				// Health check the connection
-				if err := p.healthCheckNewConn(client, p.opts, false); err != nil {
+				bootstrapped, err := p.healthCheckNewConn(client, p.opts)
+				if err != nil {
 					p.maybeEmitHealthStatus(healthStatusCheckFailed)
 					log.Debug("could not connect, failed health check", zap.String("host", address), zap.Error(err))
 					channel.Close()
@@ -204,7 +211,7 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 				p.maybeEmitHealthStatus(healthStatusOK)
 				p.Lock()
 				if p.status == statusOpen {
-					p.pool = append(p.pool, conn{channel, client})
+					p.pool = append(p.pool, conn{channel, client, bootstrapped})
 					p.poolLen = int64(len(p.pool))
 				}
 				p.Unlock()
@@ -250,10 +257,12 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 				var (
 					attempts = p.opts.BackgroundHealthCheckFailLimit()
 					failed   = 0
-					checkErr error
+					checkErr, err error
+					bootstrapped bool
 				)
 				for j := 0; j < attempts; j++ {
-					if err := p.healthCheck(client, p.opts, false); err != nil {
+					bootstrapped, err = p.healthCheck(client, p.opts)
+					if err != nil {
 						checkErr = err
 						failed++
 						throttleDuration := time.Duration(math.Max(
@@ -268,7 +277,14 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 				}
 
 				healthy := failed < attempts
-				if !healthy {
+				if healthy {
+					for j := int64(0); j < p.poolLen; j++ {
+						if client == p.pool[j].client {
+							p.pool[j].bootstrapped = bootstrapped
+							break
+						}
+					}
+				} else {
 					// Log health check error
 					log.Debug("health check failed", zap.String("host", p.host.Address()), zap.Error(checkErr))
 
@@ -310,19 +326,16 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 	}
 }
 
-func healthCheck(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
+func healthCheck(client rpc.TChanNode, opts Options) (bool, error) {
 	tctx, _ := thrift.NewContext(opts.HostConnectTimeout())
 	result, err := client.Health(tctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !result.Ok {
-		return fmt.Errorf("status not ok: %s", result.Status)
+		return false, fmt.Errorf("status not ok: %s", result.Status)
 	}
-	if checkBootstrapped && !result.Bootstrapped {
-		return errNodeNotBootstrapped
-	}
-	return nil
+	return result.GetBootstrapped(), nil
 }
 
 func randStutter(source rand.Source, t time.Duration) time.Duration {

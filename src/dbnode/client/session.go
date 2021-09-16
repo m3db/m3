@@ -766,8 +766,13 @@ func (s *session) DedicatedConnection(
 			return
 		}
 
-		if err := s.healthCheckNewConnFn(client, s.opts, opts.BootstrappedNodesOnly); err != nil {
+		bootstrapped, err := s.healthCheckNewConnFn(client, s.opts)
+		if err != nil {
 			multiErr = multiErr.Add(err)
+			return
+		}
+		if opts.BootstrappedNodesOnly && !bootstrapped {
+			multiErr = multiErr.Add(errNodeNotBootstrapped)
 			return
 		}
 

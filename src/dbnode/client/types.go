@@ -202,7 +202,7 @@ type TaggedIDsIterator interface {
 type AdminClient interface {
 	Client
 
-	// NewSession creates a new session.
+	// NewAdminSession creates a new session.
 	NewAdminSession() (AdminSession, error)
 
 	// DefaultAdminSession creates a default admin session that gets reused.
@@ -391,7 +391,7 @@ type Options interface {
 	// SetReadConsistencyLevel sets the read consistency level.
 	SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options
 
-	// topology.ReadConsistencyLevel returns the read consistency level.
+	// ReadConsistencyLevel returns the read consistency level.
 	ReadConsistencyLevel() topology.ReadConsistencyLevel
 
 	// SetWriteConsistencyLevel sets the write consistency level.
@@ -479,11 +479,11 @@ type Options interface {
 	BackgroundHealthCheckStutter() time.Duration
 
 	// SetBackgroundHealthCheckFailLimit sets the background health failure
-	// limit before connection is deemed unhealth
+	// limit before connection is deemed unhealthy
 	SetBackgroundHealthCheckFailLimit(value int) Options
 
 	// BackgroundHealthCheckFailLimit returns the background health failure
-	// limit before connection is deemed unhealth
+	// limit before connection is deemed unhealthy
 	BackgroundHealthCheckFailLimit() int
 
 	// SetBackgroundHealthCheckFailThrottleFactor sets the throttle factor to
@@ -626,7 +626,7 @@ type Options interface {
 	// IdentifierPool returns the identifier pool.
 	IdentifierPool() ident.Pool
 
-	// HostQueueOpsArrayPoolSize sets the hostQueueOpsArrayPoolSize.
+	// SetHostQueueOpsArrayPoolSize sets the hostQueueOpsArrayPoolSize.
 	SetHostQueueOpsArrayPoolSize(value int) Options
 
 	// HostQueueOpsArrayPoolSize returns the hostQueueOpsArrayPoolSize.
@@ -835,7 +835,8 @@ type connectionPool interface {
 	ConnectionCount() int
 
 	// NextClient gets the next client for use by the connection pool.
-	NextClient() (rpc.TChanNode, Channel, error)
+	// If bootstrappedOnly, only connections to bootstrapped nodes will be considered.
+	NextClient(bootstrappedOnly bool) (rpc.TChanNode, Channel, error)
 
 	// Close the connection pool.
 	Close()

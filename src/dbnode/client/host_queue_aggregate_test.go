@@ -68,7 +68,7 @@ func TestHostQueueDrainOnCloseAggregate(t *testing.T) {
 		assert.Equal(t, aggregate.request.NameSpace, req.NameSpace)
 	}
 	mockClient.EXPECT().AggregateRaw(gomock.Any(), gomock.Any()).Do(aggregateExec).Return(nil, nil)
-	mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
+	mockConnPool.EXPECT().NextClient(true).Return(mockClient, &noopPooledChannel{}, nil)
 	mockConnPool.EXPECT().Close().AnyTimes()
 
 	// Execute aggregate
@@ -201,7 +201,7 @@ func testHostQueueAggregate(
 	// Prepare mocks for flush
 	mockClient := rpc.NewMockTChanNode(ctrl)
 	if testOpts != nil && testOpts.nextClientErr != nil {
-		mockConnPool.EXPECT().NextClient().Return(nil, nil, testOpts.nextClientErr)
+		mockConnPool.EXPECT().NextClient(true).Return(nil, nil, testOpts.nextClientErr)
 	} else if testOpts != nil && testOpts.aggregateErr != nil {
 		aggregateExec := func(ctx thrift.Context, req *rpc.AggregateQueryRawRequest) {
 			require.NotNil(t, req)
@@ -212,7 +212,7 @@ func testHostQueueAggregate(
 			Do(aggregateExec).
 			Return(nil, testOpts.aggregateErr)
 
-		mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
+		mockConnPool.EXPECT().NextClient(true).Return(mockClient, &noopPooledChannel{}, nil)
 	} else {
 		aggregateExec := func(ctx thrift.Context, req *rpc.AggregateQueryRawRequest) {
 			require.NotNil(t, req)
@@ -223,7 +223,7 @@ func testHostQueueAggregate(
 			Do(aggregateExec).
 			Return(result, nil)
 
-		mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, nil)
+		mockConnPool.EXPECT().NextClient(true).Return(mockClient, &noopPooledChannel{}, nil)
 	}
 
 	// Fetch
