@@ -361,7 +361,8 @@ func TestPromRemoteBackend(t *testing.T) {
 	cfg := configFromYAML(t, fmt.Sprintf(`
 prometheusRemoteBackend:
   endpoints: 
-  - address: "%s"
+  - name: defaultEndpointForTests
+    address: "%s"
 
 backend: prom-remote
 
