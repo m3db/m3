@@ -47,7 +47,7 @@ func TestWrite(t *testing.T) {
 
 	scope := tally.NewTestScope("test_scope", map[string]string{})
 	promStorage, err := NewStorage(Options{
-		endpoints: []EndpointOptions{{address: fakeProm.WriteAddr()}},
+		endpoints: []EndpointOptions{{name: "testEndpoint", address: fakeProm.WriteAddr()}},
 		scope:     scope,
 	})
 	require.NoError(t, err)
@@ -88,8 +88,12 @@ func TestWrite(t *testing.T) {
 	assert.Equal(t, promWrite.Timeseries[0].Samples[0], expectedSample)
 
 	tallytest.AssertCounterValue(
-		t, 1, scope.Snapshot(), "test_scope.prom_remote_storage.endpoint.success",
-		map[string]string{"endpoint_address": fakeProm.WriteAddr()},
+		t, 1, scope.Snapshot(), "test_scope.prom_remote_storage.writeSingle.success",
+		map[string]string{"endpoint_name": "testEndpoint"},
+	)
+	tallytest.AssertCounterValue(
+		t, 0, scope.Snapshot(), "test_scope.prom_remote_storage.writeSingle.errors",
+		map[string]string{"endpoint_name": "testEndpoint"},
 	)
 }
 

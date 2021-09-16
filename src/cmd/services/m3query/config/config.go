@@ -136,7 +136,7 @@ type Configuration struct {
 
 	// PrometheusRemoteBackend configures prometheus remote write backend.
 	// Used only when backend property is "prom-remote"
-	PrometheusRemoteBackend PrometheusRemoteBackendConfiguration `yaml:"prometheusRemoteBackend"`
+	PrometheusRemoteBackend *PrometheusRemoteBackendConfiguration `yaml:"prometheusRemoteBackend"`
 
 	// ListenAddress is the server listen address.
 	ListenAddress *string `yaml:"listenAddress"`
@@ -150,7 +150,7 @@ type Configuration struct {
 	// HTTP is the HTTP configuration.
 	HTTP HTTPConfiguration `yaml:"http"`
 
-	// Backend is the backend store for query service. We currently support grpc and m3db (default).
+	// Backend is the backend store for query service.
 	Backend BackendStorageType `yaml:"backend"`
 
 	// TagOptions is the tag configuration options.
@@ -756,15 +756,16 @@ type RPCConfiguration struct {
 // PrometheusRemoteBackendConfiguration configures prometheus remote write backend.
 type PrometheusRemoteBackendConfiguration struct {
 	Endpoints       []PrometheusRemoteBackendEndpointConfiguration `yaml:"endpoints"`
-	RequestTimeout  time.Duration                                  `yaml:"requestTimeout"`
-	ConnectTimeout  time.Duration                                  `yaml:"connectTimeout"`
-	KeepAlive       time.Duration                                  `yaml:"keepAlive"`
-	IdleConnTimeout time.Duration                                  `yaml:"idleConnTimeout"`
-	MaxIdleConns    int                                            `yaml:"maxIdleConns"`
+	RequestTimeout  *time.Duration                                 `yaml:"requestTimeout"`
+	ConnectTimeout  *time.Duration                                 `yaml:"connectTimeout"`
+	KeepAlive       *time.Duration                                 `yaml:"keepAlive"`
+	IdleConnTimeout *time.Duration                                 `yaml:"idleConnTimeout"`
+	MaxIdleConns    *int                                           `yaml:"maxIdleConns"`
 }
 
 // PrometheusRemoteBackendEndpointConfiguration configures single endpoint.
 type PrometheusRemoteBackendEndpointConfiguration struct {
+	Name       string        `yaml:"name"`
 	Address    string        `yaml:"address"`
 	Retention  time.Duration `yaml:"retention"`
 	Resolution time.Duration `yaml:"resolution"`

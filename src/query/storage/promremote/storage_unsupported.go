@@ -22,7 +22,6 @@ package promremote
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -37,7 +36,7 @@ func (p *promStorage) FetchProm(
 	_ *storage.FetchQuery,
 	_ *storage.FetchOptions,
 ) (storage.PromResult, error) {
-	return storage.PromResult{}, errors.New(unimplementedmessage("FetchProm"))
+	return storage.PromResult{}, unimplementedErr("FetchProm")
 }
 
 func (p *promStorage) FetchBlocks(
@@ -45,7 +44,7 @@ func (p *promStorage) FetchBlocks(
 	_ *storage.FetchQuery,
 	_ *storage.FetchOptions,
 ) (block.Result, error) {
-	return block.Result{}, errors.New(unimplementedmessage("FetchBlocks"))
+	return block.Result{}, unimplementedErr("FetchBlocks")
 }
 
 func (p *promStorage) FetchCompressed(
@@ -53,7 +52,7 @@ func (p *promStorage) FetchCompressed(
 	_ *storage.FetchQuery,
 	_ *storage.FetchOptions,
 ) (consolidators.MultiFetchResult, error) {
-	return nil, errors.New(unimplementedmessage("FetchCompressed"))
+	return nil, unimplementedErr("FetchCompressed")
 }
 
 func (p *promStorage) SearchSeries(
@@ -61,7 +60,7 @@ func (p *promStorage) SearchSeries(
 	_ *storage.FetchQuery,
 	_ *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
-	return nil, errors.New(unimplementedmessage("SearchSeries"))
+	return nil, unimplementedErr("SearchSeries")
 }
 
 func (p *promStorage) CompleteTags(
@@ -69,7 +68,7 @@ func (p *promStorage) CompleteTags(
 	_ *storage.CompleteTagsQuery,
 	_ *storage.FetchOptions,
 ) (*consolidators.CompleteTagsResult, error) {
-	return nil, errors.New(unimplementedmessage("CompleteTags"))
+	return nil, unimplementedErr("CompleteTags")
 }
 
 func (p *promStorage) QueryStorageMetadataAttributes(
@@ -77,9 +76,9 @@ func (p *promStorage) QueryStorageMetadataAttributes(
 	_, _ time.Time,
 	_ *storage.FetchOptions,
 ) ([]storagemetadata.Attributes, error) {
-	return nil, errors.New(unimplementedmessage("QueryStorageMetadataAttributes"))
+	return nil, unimplementedErr("QueryStorageMetadataAttributes")
 }
 
-func unimplementedmessage(name string) string {
-	return fmt.Sprintf("promStorage: %s method is not supported", name)
+func unimplementedErr(name string) error {
+	return fmt.Errorf("promStorage: %s method is not supported", name)
 }

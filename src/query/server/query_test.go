@@ -294,22 +294,7 @@ func TestGRPCBackend(t *testing.T) {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	grpcAddr := lis.Addr().String()
-	grpcConfigYAML := fmt.Sprintf(`
-listenAddress: 127.0.0.1:0
-
-logging:
-  level: info
-
-metrics:
-  scope:
-    prefix: "coordinator"
-  prometheus:
-    handlerPath: /metrics
-    listenAddress: "127.0.0.1:0"
-    onError: stderr
-  sanitization: prometheus
-  samplingRate: 1.0
-
+	cfg := configFromYAML(t, fmt.Sprintf(`
 rpc:
   remoteListenAddresses: ["%s"]
 
@@ -330,7 +315,7 @@ writeWorkerPoolPolicy:
   size: 100
   shards: 1000
   killProbability: 0.3
-`, grpcAddr)
+`, grpcAddr))
 
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
@@ -343,35 +328,12 @@ writeWorkerPoolPolicy:
 		_ = s.Serve(lis)
 	}()
 
-	configFile, closeFn := newTestFile(t, "config_backend.yaml", grpcConfigYAML)
-	defer closeFn()
-
-	var cfg config.Configuration
-	err = xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
-	require.NoError(t, err)
-
 	// No clusters
 	require.Equal(t, 0, len(cfg.Clusters))
 	require.Equal(t, config.GRPCStorageType, cfg.Backend)
 
-	interruptCh := make(chan error)
-	doneCh := make(chan struct{})
-	listenerCh := make(chan net.Listener, 1)
-	go func() {
-		Run(RunOptions{
-			Config:      cfg,
-			InterruptCh: interruptCh,
-			ListenerCh:  listenerCh,
-		})
-		doneCh <- struct{}{}
-	}()
-
-	// Wait for listener
-	listener := <-listenerCh
-	addr := listener.Addr().String()
-
-	// Wait for server to come up
-	waitForServerHealthy(t, addr)
+	addr, stopServer := runServer(t, runServerOpts{cfg: cfg})
+	defer stopServer()
 
 	// Send Prometheus read request
 	promReq := test.GeneratePromReadRequest()
@@ -388,10 +350,6 @@ writeWorkerPoolPolicy:
 	require.NoError(t, err)
 	defer require.NoError(t, resp.Body.Close())
 	assert.Equal(t, qs.reads, 1)
-
-	// Ensure close server performs as expected
-	interruptCh <- fmt.Errorf("interrupt")
-	<-doneCh
 }
 
 func TestPromRemoteBackend(t *testing.T) {
@@ -400,22 +358,7 @@ func TestPromRemoteBackend(t *testing.T) {
 	externalFakePromServer, closeFn := promremotetest.NewServer(t)
 	defer closeFn()
 	externalPromAddr := externalFakePromServer.WriteAddr()
-	configYAML := fmt.Sprintf(`
-listenAddress: 127.0.0.1:0
-
-logging:
-  level: info
-
-metrics:
-  scope:
-    prefix: "coordinator"
-  prometheus:
-    handlerPath: /metrics
-    listenAddress: "127.0.0.1:0"
-    onError: stderr
-  sanitization: prometheus
-  samplingRate: 1.0
-
+	cfg := configFromYAML(t, fmt.Sprintf(`
 prometheusRemoteBackend:
   endpoints: 
   - address: "%s"
@@ -424,43 +367,18 @@ backend: prom-remote
 
 tagOptions:
   allowTagNameDuplicates: true
-`, externalPromAddr)
-
-	configFile, closeFn := newTestFile(t, "config_backend.yaml", configYAML)
-	defer closeFn()
-
-	var cfg config.Configuration
-	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
-	require.NoError(t, err)
+`, externalPromAddr))
 
 	require.Equal(t, config.PromRemoteStorageType, cfg.Backend)
 
-	require.NoError(t, err)
 	kvClient := kv.NewMockStore(ctrl)
 	clusterClient := clusterclient.NewMockClient(ctrl)
 	clusterClient.EXPECT().KV().Return(kvClient, nil).AnyTimes()
 
 	clusterClientCh := make(chan clusterclient.Client, 1)
 	clusterClientCh <- clusterClient
-	interruptCh := make(chan error)
-	doneCh := make(chan struct{})
-	listenerCh := make(chan net.Listener, 1)
-	go func() {
-		Run(RunOptions{
-			Config:        cfg,
-			InterruptCh:   interruptCh,
-			ListenerCh:    listenerCh,
-			ClusterClient: clusterClientCh,
-		})
-		doneCh <- struct{}{}
-	}()
-
-	// Wait for listener
-	listener := <-listenerCh
-	addr := listener.Addr().String()
-
-	// Wait for server to come up
-	waitForServerHealthy(t, addr)
+	addr, stopServer := runServer(t, runServerOpts{cfg: cfg, clusterClientCh: clusterClientCh})
+	defer stopServer()
 
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
@@ -476,10 +394,6 @@ tagOptions:
 	require.NoError(t, err)
 	defer require.NoError(t, resp.Body.Close())
 	assert.NotNil(t, externalFakePromServer.GetLastRequest())
-
-	// Ensure close server performs as expected
-	interruptCh <- fmt.Errorf("interrupt")
-	<-doneCh
 }
 
 func testWrite(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller) {
@@ -510,18 +424,18 @@ func testWrite(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller) 
 	dbClient := client.NewMockClient(ctrl)
 	dbClient.EXPECT().DefaultSession().Return(session, nil).AnyTimes()
 
-	cfg.Clusters[0].NewClientFromConfig = m3.NewClientFromConfig(
-		func(
-			cfg client.Configuration,
-			params client.ConfigurationParameters,
-			custom ...client.CustomAdminOption,
-		) (client.Client, error) {
-			return dbClient, nil
-		})
-
-	interruptCh := make(chan error, 1)
-	doneCh := make(chan struct{}, 1)
-	listenerCh := make(chan net.Listener, 1)
+	opts := runServerOpts{
+		cfg:                cfg,
+		clusterClientCh:    make(chan clusterclient.Client, 1),
+		downsamplerReadyCh: make(chan struct{}, 1),
+	}
+	cfg.Clusters[0].NewClientFromConfig = func(
+		cfg client.Configuration,
+		params client.ConfigurationParameters,
+		custom ...client.CustomAdminOption,
+	) (client.Client, error) {
+		return dbClient, nil
+	}
 
 	rulesNamespacesValue := kv.NewMockValue(ctrl)
 	rulesNamespacesValue.EXPECT().Version().Return(0).AnyTimes()
@@ -531,52 +445,30 @@ func testWrite(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller) 
 		return nil
 	})
 	rulesNamespacesWatchable := kv.NewValueWatchable()
-	rulesNamespacesWatchable.Update(rulesNamespacesValue)
+	err := rulesNamespacesWatchable.Update(rulesNamespacesValue)
+	require.NoError(t, err)
 	_, rulesNamespacesWatch, err := rulesNamespacesWatchable.Watch()
 	require.NoError(t, err)
 	kvClient := kv.NewMockStore(ctrl)
 	kvClient.EXPECT().Watch(gomock.Any()).Return(rulesNamespacesWatch, nil).AnyTimes()
 	clusterClient := clusterclient.NewMockClient(ctrl)
 	clusterClient.EXPECT().KV().Return(kvClient, nil).AnyTimes()
-	clusterClientCh := make(chan clusterclient.Client, 1)
-	clusterClientCh <- clusterClient
+	opts.clusterClientCh <- clusterClient
 
-	downsamplerReadyCh := make(chan struct{}, 1)
-
-	go func() {
-		Run(RunOptions{
-			Config:             cfg,
-			InterruptCh:        interruptCh,
-			ListenerCh:         listenerCh,
-			ClusterClient:      clusterClientCh,
-			DownsamplerReadyCh: downsamplerReadyCh,
-		})
-		doneCh <- struct{}{}
-	}()
-
-	// Wait for downsampler to be ready.
-	<-downsamplerReadyCh
-
-	// Wait for listener
-	listener := <-listenerCh
-	addr := listener.Addr().String()
-
-	// Wait for server to come up
-	waitForServerHealthy(t, addr)
+	addr, stopServer := runServer(t, opts)
+	defer stopServer()
 
 	// Send Prometheus write request
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
-	req, err := http.NewRequest(http.MethodPost,
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost,
 		fmt.Sprintf("http://%s%s", addr, remote.PromWriteURL), promReqBody)
 	require.NoError(t, err)
 
 	res, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
+	defer require.NoError(t, res.Body.Close())
 	require.Equal(t, http.StatusOK, res.StatusCode)
-	// Ensure close server performs as expected
-	interruptCh <- fmt.Errorf("interrupt")
-	<-doneCh
 }
 
 // testIngest will test an M3Msg being ingested by the coordinator, it also
@@ -606,20 +498,20 @@ func testIngest(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller)
 	dbClient := client.NewMockClient(ctrl)
 	dbClient.EXPECT().DefaultSession().Return(session, nil).AnyTimes()
 
-	cfg.Clusters[0].NewClientFromConfig = m3.NewClientFromConfig(
-		func(
-			cfg client.Configuration,
-			params client.ConfigurationParameters,
-			custom ...client.CustomAdminOption,
-		) (client.Client, error) {
-			return dbClient, nil
-		})
+	cfg.Clusters[0].NewClientFromConfig = func(
+		cfg client.Configuration,
+		params client.ConfigurationParameters,
+		custom ...client.CustomAdminOption,
+	) (client.Client, error) {
+		return dbClient, nil
+	}
 
-	interruptCh := make(chan error, 1)
-	doneCh := make(chan struct{}, 1)
-	listenerCh := make(chan net.Listener, 1)
-	m3msgListenerCh := make(chan net.Listener, 1)
-
+	opts := runServerOpts{
+		cfg:                cfg,
+		clusterClientCh:    make(chan clusterclient.Client, 1),
+		downsamplerReadyCh: make(chan struct{}, 1),
+		m3msgListenerCh:    make(chan net.Listener, 1),
+	}
 	rulesNamespacesValue := kv.NewMockValue(ctrl)
 	rulesNamespacesValue.EXPECT().Version().Return(0).AnyTimes()
 	rulesNamespacesValue.EXPECT().Unmarshal(gomock.Any()).DoAndReturn(func(v proto.Message) error {
@@ -635,32 +527,10 @@ func testIngest(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller)
 	kvClient.EXPECT().Watch(gomock.Any()).Return(rulesNamespacesWatch, nil).AnyTimes()
 	clusterClient := clusterclient.NewMockClient(ctrl)
 	clusterClient.EXPECT().KV().Return(kvClient, nil).AnyTimes()
-	clusterClientCh := make(chan clusterclient.Client, 1)
-	clusterClientCh <- clusterClient
+	opts.clusterClientCh <- clusterClient
 
-	downsamplerReadyCh := make(chan struct{}, 1)
-
-	go func() {
-		Run(RunOptions{
-			Config:             cfg,
-			InterruptCh:        interruptCh,
-			ListenerCh:         listenerCh,
-			M3MsgListenerCh:    m3msgListenerCh,
-			ClusterClient:      clusterClientCh,
-			DownsamplerReadyCh: downsamplerReadyCh,
-		})
-		doneCh <- struct{}{}
-	}()
-
-	// Wait for downsampler to be ready.
-	<-downsamplerReadyCh
-
-	// Wait for listener
-	listener := <-listenerCh
-	addr := listener.Addr().String()
-
-	// Wait for server to come up
-	waitForServerHealthy(t, addr)
+	_, stopServer := runServer(t, opts)
+	defer stopServer()
 
 	// Send ingest message.
 	tagEncoderPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(), nil)
@@ -696,7 +566,7 @@ func testIngest(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller)
 		Value: message,
 	})
 	require.NoError(t, err)
-	m3msgListener := <-m3msgListenerCh
+	m3msgListener := <-opts.m3msgListenerCh
 	conn, err := net.Dial("tcp", m3msgListener.Addr().String())
 	require.NoError(t, err)
 	_, err = conn.Write(encoder.Bytes())
@@ -706,10 +576,6 @@ func testIngest(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller)
 	xclock.WaitUntil(func() bool {
 		return numWrites.Load() == 1
 	}, 30*time.Second)
-
-	// Ensure close server performs as expected
-	interruptCh <- fmt.Errorf("interrupt")
-	<-doneCh
 }
 
 type closeFn func()
@@ -727,13 +593,86 @@ func newTestFile(t *testing.T, fileName, contents string) (*os.File, closeFn) {
 	}
 }
 
+func configFromYAML(t *testing.T, partYAML string) config.Configuration {
+	cfgYAML := fmt.Sprintf(`
+listenAddress: 127.0.0.1:0
+
+logging:
+  level: info
+
+metrics:
+  scope:
+    prefix: "coordinator"
+  prometheus:
+    handlerPath: /metrics
+    listenAddress: "127.0.0.1:0"
+    onError: stderr
+  sanitization: prometheus
+  samplingRate: 1.0
+
+%s
+`, partYAML)
+
+	configFile, closeFile := newTestFile(t, "config_backend.yaml", cfgYAML)
+	defer closeFile()
+	var cfg config.Configuration
+	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
+	require.NoError(t, err)
+	return cfg
+}
+
+type runServerOpts struct {
+	cfg                config.Configuration
+	clusterClientCh    chan clusterclient.Client
+	downsamplerReadyCh chan struct{}
+	m3msgListenerCh    chan net.Listener
+}
+
+func runServer(t *testing.T, opts runServerOpts) (string, closeFn) {
+	interruptCh := make(chan error)
+	doneCh := make(chan struct{})
+	listenerCh := make(chan net.Listener, 1)
+	go func() {
+		Run(RunOptions{
+			Config:             opts.cfg,
+			InterruptCh:        interruptCh,
+			ListenerCh:         listenerCh,
+			ClusterClient:      opts.clusterClientCh,
+			DownsamplerReadyCh: opts.downsamplerReadyCh,
+			M3MsgListenerCh:    opts.m3msgListenerCh,
+		})
+		doneCh <- struct{}{}
+	}()
+
+	if opts.downsamplerReadyCh != nil {
+		// Wait for downsampler to be ready.
+		<-opts.downsamplerReadyCh
+	}
+
+	// Wait for listener
+	listener := <-listenerCh
+	addr := listener.Addr().String()
+
+	// Wait for server to come up
+	waitForServerHealthy(t, addr)
+
+	return addr, func() {
+		// Ensure close server performs as expected
+		interruptCh <- fmt.Errorf("interrupt")
+		<-doneCh
+	}
+}
+
 func waitForServerHealthy(t *testing.T, addr string) {
 	maxWait := 10 * time.Second
 	startAt := time.Now()
 	for time.Since(startAt) < maxWait {
-		req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/health", addr), nil)
+		req, err := http.NewRequestWithContext(context.TODO(), "GET", fmt.Sprintf("http://%s/health", addr), nil)
 		require.NoError(t, err)
 		res, err := http.DefaultClient.Do(req)
+		if res != nil {
+			require.NoError(t, res.Body.Close())
+		}
 		if err != nil || res.StatusCode != http.StatusOK {
 			time.Sleep(100 * time.Millisecond)
 			continue

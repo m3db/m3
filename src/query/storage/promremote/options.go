@@ -29,10 +29,11 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/ptr"
 )
 
 // NewOptions constructs options given config.
-func NewOptions(cfg config.PrometheusRemoteBackendConfiguration, scope tally.Scope) (Options, error) {
+func NewOptions(cfg *config.PrometheusRemoteBackendConfiguration, scope tally.Scope) (Options, error) {
 	err := validateBackendConfiguration(cfg)
 	if err != nil {
 		return Options{}, err
@@ -41,6 +42,7 @@ func NewOptions(cfg config.PrometheusRemoteBackendConfiguration, scope tally.Sco
 
 	for i, endpoint := range cfg.Endpoints {
 		endpoints[i] = EndpointOptions{
+			name:       endpoint.Name,
 			address:    endpoint.Address,
 			resolution: endpoint.Resolution,
 			retention:  endpoint.Retention,
@@ -48,11 +50,11 @@ func NewOptions(cfg config.PrometheusRemoteBackendConfiguration, scope tally.Sco
 	}
 	return Options{
 		endpoints:       endpoints,
-		requestTimeout:  cfg.RequestTimeout,
-		connectTimeout:  cfg.ConnectTimeout,
-		keepAlive:       cfg.KeepAlive,
-		idleConnTimeout: cfg.IdleConnTimeout,
-		maxIdleConns:    cfg.MaxIdleConns,
+		requestTimeout:  ptr.DurationOrDefault(cfg.RequestTimeout, 0),
+		connectTimeout:  ptr.DurationOrDefault(cfg.ConnectTimeout, 0),
+		keepAlive:       ptr.DurationOrDefault(cfg.KeepAlive, 0),
+		idleConnTimeout: ptr.DurationOrDefault(cfg.IdleConnTimeout, 0),
+		maxIdleConns:    ptr.IntOrDefault(cfg.MaxIdleConns, 0),
 		scope:           scope,
 	}, nil
 }
@@ -80,33 +82,41 @@ func (o Options) HTTPClientOptions() xhttp.HTTPClientOptions {
 	return clientOpts
 }
 
-func validateBackendConfiguration(cfg config.PrometheusRemoteBackendConfiguration) error {
+func validateBackendConfiguration(cfg *config.PrometheusRemoteBackendConfiguration) error {
+	if cfg == nil {
+		return fmt.Errorf("prometheusRemoteBackend configuration is required")
+	}
 	if len(cfg.Endpoints) == 0 {
 		return fmt.Errorf(
 			"at least one endpoint must be configured when using %s backend type",
 			config.PromRemoteStorageType,
 		)
 	}
-	if cfg.MaxIdleConns < 0 {
+	if ptr.IntOrDefault(cfg.MaxIdleConns, 0) < 0 {
 		return errors.New("maxIdleConns can't be negative")
 	}
-	if cfg.KeepAlive < 0 {
+	if ptr.DurationOrDefault(cfg.KeepAlive, 0) < 0 {
 		return errors.New("keepAlive can't be negative")
 	}
-	if cfg.IdleConnTimeout < 0 {
+	if ptr.DurationOrDefault(cfg.IdleConnTimeout, 0) < 0 {
 		return errors.New("idleConnTimeout can't be negative")
 	}
-	if cfg.RequestTimeout < 0 {
+	if ptr.DurationOrDefault(cfg.RequestTimeout, 0) < 0 {
 		return errors.New("requestTimeout can't be negative")
 	}
-	if cfg.ConnectTimeout < 0 {
+	if ptr.DurationOrDefault(cfg.ConnectTimeout, 0) < 0 {
 		return errors.New("connectTimeout can't be negative")
 	}
 
+	seenNames := map[string]struct{}{}
 	for _, endpoint := range cfg.Endpoints {
 		if err := validateEndpointConfiguration(endpoint); err != nil {
 			return err
 		}
+		if _, ok := seenNames[endpoint.Name]; ok {
+			return fmt.Errorf("endpoint name %s is not unique, ensure all endpoint names are unique", endpoint.Name)
+		}
+		seenNames[endpoint.Name] = struct{}{}
 	}
 	return nil
 }
@@ -120,6 +130,9 @@ func validateEndpointConfiguration(endpoint config.PrometheusRemoteBackendEndpoi
 	}
 	if strings.TrimSpace(endpoint.Address) == "" {
 		return errors.New("endpoint address must be set")
+	}
+	if strings.TrimSpace(endpoint.Name) == "" {
+		return errors.New("endpoint name must be set")
 	}
 	return nil
 }

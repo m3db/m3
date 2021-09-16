@@ -29,24 +29,27 @@ import (
 	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/x/ptr"
 )
 
 func TestNewFromConfiguration(t *testing.T) {
-	opts, err := NewOptions(config.PrometheusRemoteBackendConfiguration{
+	opts, err := NewOptions(&config.PrometheusRemoteBackendConfiguration{
 		Endpoints: []config.PrometheusRemoteBackendEndpointConfiguration{{
+			Name:       "testEndpoint",
 			Address:    "testAddress",
 			Resolution: time.Second,
 			Retention:  time.Millisecond,
 		}},
-		RequestTimeout:  time.Nanosecond,
-		ConnectTimeout:  time.Microsecond,
-		KeepAlive:       time.Millisecond,
-		IdleConnTimeout: time.Second,
-		MaxIdleConns:    1,
+		RequestTimeout:  ptr.Duration(time.Nanosecond),
+		ConnectTimeout:  ptr.Duration(time.Microsecond),
+		KeepAlive:       ptr.Duration(time.Millisecond),
+		IdleConnTimeout: ptr.Duration(time.Second),
+		MaxIdleConns:    ptr.Int(1),
 	}, tally.NoopScope)
 	require.NoError(t, err)
 	assert.Equal(t, opts, Options{
 		endpoints: []EndpointOptions{{
+			name:       "testEndpoint",
 			address:    "testAddress",
 			resolution: time.Second,
 			retention:  time.Millisecond,
@@ -61,7 +64,7 @@ func TestNewFromConfiguration(t *testing.T) {
 }
 
 func TestHTTPDefaults(t *testing.T) {
-	cfg, err := NewOptions(config.PrometheusRemoteBackendConfiguration{
+	cfg, err := NewOptions(&config.PrometheusRemoteBackendConfiguration{
 		Endpoints: []config.PrometheusRemoteBackendEndpointConfiguration{getValidEndpointConfiguration()},
 	}, tally.NoopScope)
 	require.NoError(t, err)
@@ -76,45 +79,64 @@ func TestHTTPDefaults(t *testing.T) {
 }
 
 func TestValidation(t *testing.T) {
+	t.Run("can't be nil", func(t *testing.T) {
+		assertValidationError(t, nil, "prometheusRemoteBackend configuration is required")
+	})
+
 	t.Run("at least 1 endpoint", func(t *testing.T) {
 		cfg := getValidConfig()
 		cfg.Endpoints = nil
-		assertValidationError(t, cfg, "at least one endpoint must be configured when using prom-remote backend type")
+		assertValidationError(t, &cfg, "at least one endpoint must be configured when using prom-remote backend type")
 	})
 
 	t.Run("valid endpoint", func(t *testing.T) {
 		cfg := getValidConfig()
 		cfg.Endpoints[0].Address = ""
-		assertValidationError(t, cfg, "endpoint address must be set")
+		assertValidationError(t, &cfg, "endpoint address must be set")
+	})
+
+	t.Run("name required for endpoint", func(t *testing.T) {
+		cfg := getValidConfig()
+		cfg.Endpoints[0].Name = ""
+		assertValidationError(t, &cfg, "endpoint name must be set")
+		cfg.Endpoints[0].Name = "    "
+		assertValidationError(t, &cfg, "endpoint name must be set")
+	})
+
+	t.Run("name must be unique", func(t *testing.T) {
+		cfg := getValidConfig()
+		endpoint := getValidEndpointConfiguration()
+		cfg.Endpoints = []config.PrometheusRemoteBackendEndpointConfiguration{endpoint, endpoint}
+		assertValidationError(t, &cfg, "endpoint name testName is not unique, ensure all endpoint names are unique")
 	})
 
 	t.Run("non negative keep alive", func(t *testing.T) {
 		cfg := getValidConfig()
-		cfg.KeepAlive = -1
-		assertValidationError(t, cfg, "keepAlive can't be negative")
+		cfg.KeepAlive = ptr.Duration(-1)
+		assertValidationError(t, &cfg, "keepAlive can't be negative")
 	})
 	t.Run("non negative max idle conns", func(t *testing.T) {
 		cfg := getValidConfig()
-		cfg.MaxIdleConns = -1
-		assertValidationError(t, cfg, "maxIdleConns can't be negative")
+		cfg.MaxIdleConns = ptr.Int(-1)
+		assertValidationError(t, &cfg, "maxIdleConns can't be negative")
 	})
 
 	t.Run("non negative idle conn timeout", func(t *testing.T) {
 		cfg := getValidConfig()
-		cfg.IdleConnTimeout = -1
-		assertValidationError(t, cfg, "idleConnTimeout can't be negative")
+		cfg.IdleConnTimeout = ptr.Duration(-1)
+		assertValidationError(t, &cfg, "idleConnTimeout can't be negative")
 	})
 
 	t.Run("non negative request timeout", func(t *testing.T) {
 		cfg := getValidConfig()
-		cfg.RequestTimeout = -1
-		assertValidationError(t, cfg, "requestTimeout can't be negative")
+		cfg.RequestTimeout = ptr.Duration(-1)
+		assertValidationError(t, &cfg, "requestTimeout can't be negative")
 	})
 
 	t.Run("non negative connect timeout", func(t *testing.T) {
 		cfg := getValidConfig()
-		cfg.ConnectTimeout = -1
-		assertValidationError(t, cfg, "connectTimeout can't be negative")
+		cfg.ConnectTimeout = ptr.Duration(-1)
+		assertValidationError(t, &cfg, "connectTimeout can't be negative")
 	})
 }
 
@@ -144,7 +166,7 @@ func TestValidateEndpoint(t *testing.T) {
 	})
 }
 
-func assertValidationError(t *testing.T, cfg config.PrometheusRemoteBackendConfiguration, expectedMsg string) {
+func assertValidationError(t *testing.T, cfg *config.PrometheusRemoteBackendConfiguration, expectedMsg string) {
 	_, err := NewOptions(cfg, tally.NoopScope)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), expectedMsg)
@@ -168,6 +190,7 @@ func getValidConfig() config.PrometheusRemoteBackendConfiguration {
 
 func getValidEndpointConfiguration() config.PrometheusRemoteBackendEndpointConfiguration {
 	return config.PrometheusRemoteBackendEndpointConfiguration{
+		Name:       "testName",
 		Address:    "testAddress",
 		Retention:  time.Second,
 		Resolution: time.Second,

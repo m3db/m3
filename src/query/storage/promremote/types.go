@@ -40,6 +40,7 @@ type Options struct {
 
 // EndpointOptions for single prometheus remote write capable endpoint.
 type EndpointOptions struct {
+	name       string
 	address    string
 	retention  time.Duration
 	resolution time.Duration
