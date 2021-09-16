@@ -24,18 +24,15 @@ import (
 	"time"
 
 	"github.com/uber-go/tally"
+
+	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 // Options for storage.
 type Options struct {
-	endpoints       []EndpointOptions
-	requestTimeout  time.Duration
-	connectTimeout  time.Duration
-	keepAlive       time.Duration
-	idleConnTimeout time.Duration
-	maxIdleConns    int
-
-	scope tally.Scope
+	endpoints   []EndpointOptions
+	httpOptions xhttp.HTTPClientOptions
+	scope       tally.Scope
 }
 
 // EndpointOptions for single prometheus remote write capable endpoint.

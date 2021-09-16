@@ -47,20 +47,20 @@ func TestNewFromConfiguration(t *testing.T) {
 		MaxIdleConns:    ptr.Int(1),
 	}, tally.NoopScope)
 	require.NoError(t, err)
-	assert.Equal(t, opts, Options{
-		endpoints: []EndpointOptions{{
-			name:       "testEndpoint",
-			address:    "testAddress",
-			resolution: time.Second,
-			retention:  time.Millisecond,
-		}},
-		requestTimeout:  time.Nanosecond,
-		connectTimeout:  time.Microsecond,
-		keepAlive:       time.Millisecond,
-		idleConnTimeout: time.Second,
-		maxIdleConns:    1,
-		scope:           tally.NoopScope,
-	})
+
+	assert.Equal(t, []EndpointOptions{{
+		name:       "testEndpoint",
+		address:    "testAddress",
+		resolution: time.Second,
+		retention:  time.Millisecond,
+	}}, opts.endpoints)
+	assert.Equal(t, tally.NoopScope, opts.scope)
+	assert.Equal(t, time.Nanosecond, opts.httpOptions.RequestTimeout)
+	assert.Equal(t, time.Microsecond, opts.httpOptions.ConnectTimeout)
+	assert.Equal(t, time.Millisecond, opts.httpOptions.KeepAlive)
+	assert.Equal(t, time.Second, opts.httpOptions.IdleConnTimeout)
+	assert.Equal(t, 1, opts.httpOptions.MaxIdleConns)
+	assert.Equal(t, true, opts.httpOptions.DisableCompression)
 }
 
 func TestHTTPDefaults(t *testing.T) {
@@ -68,7 +68,7 @@ func TestHTTPDefaults(t *testing.T) {
 		Endpoints: []config.PrometheusRemoteBackendEndpointConfiguration{getValidEndpointConfiguration()},
 	}, tally.NoopScope)
 	require.NoError(t, err)
-	opts := cfg.HTTPClientOptions()
+	opts := cfg.httpOptions
 
 	assert.Equal(t, 60*time.Second, opts.RequestTimeout)
 	assert.Equal(t, 5*time.Second, opts.ConnectTimeout)

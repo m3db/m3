@@ -29,7 +29,6 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-	"github.com/m3db/m3/src/x/ptr"
 )
 
 // NewOptions constructs options given config.
@@ -48,38 +47,30 @@ func NewOptions(cfg *config.PrometheusRemoteBackendConfiguration, scope tally.Sc
 			retention:  endpoint.Retention,
 		}
 	}
-	return Options{
-		endpoints:       endpoints,
-		requestTimeout:  ptr.DurationOrDefault(cfg.RequestTimeout, 0),
-		connectTimeout:  ptr.DurationOrDefault(cfg.ConnectTimeout, 0),
-		keepAlive:       ptr.DurationOrDefault(cfg.KeepAlive, 0),
-		idleConnTimeout: ptr.DurationOrDefault(cfg.IdleConnTimeout, 0),
-		maxIdleConns:    ptr.IntOrDefault(cfg.MaxIdleConns, 0),
-		scope:           scope,
-	}, nil
-}
-
-// HTTPClientOptions maps options to http client options
-func (o Options) HTTPClientOptions() xhttp.HTTPClientOptions {
 	clientOpts := xhttp.DefaultHTTPClientOptions()
-	if o.requestTimeout != 0 {
-		clientOpts.RequestTimeout = o.requestTimeout
+	if cfg.RequestTimeout != nil {
+		clientOpts.RequestTimeout = *cfg.RequestTimeout
 	}
-	if o.connectTimeout != 0 {
-		clientOpts.ConnectTimeout = o.connectTimeout
+	if cfg.ConnectTimeout != nil {
+		clientOpts.ConnectTimeout = *cfg.ConnectTimeout
 	}
-	if o.keepAlive != 0 {
-		clientOpts.KeepAlive = o.keepAlive
+	if cfg.KeepAlive != nil {
+		clientOpts.KeepAlive = *cfg.KeepAlive
 	}
-	if o.idleConnTimeout != 0 {
-		clientOpts.IdleConnTimeout = o.idleConnTimeout
+	if cfg.IdleConnTimeout != nil {
+		clientOpts.IdleConnTimeout = *cfg.IdleConnTimeout
 	}
-	if o.maxIdleConns != 0 {
-		clientOpts.MaxIdleConns = o.maxIdleConns
+	if cfg.MaxIdleConns != nil {
+		clientOpts.MaxIdleConns = *cfg.MaxIdleConns
 	}
 
 	clientOpts.DisableCompression = true // Already snappy compressed.
-	return clientOpts
+
+	return Options{
+		endpoints:   endpoints,
+		httpOptions: clientOpts,
+		scope:       scope,
+	}, nil
 }
 
 func validateBackendConfiguration(cfg *config.PrometheusRemoteBackendConfiguration) error {
@@ -92,19 +83,19 @@ func validateBackendConfiguration(cfg *config.PrometheusRemoteBackendConfigurati
 			config.PromRemoteStorageType,
 		)
 	}
-	if ptr.IntOrDefault(cfg.MaxIdleConns, 0) < 0 {
+	if cfg.MaxIdleConns != nil && *cfg.MaxIdleConns < 0 {
 		return errors.New("maxIdleConns can't be negative")
 	}
-	if ptr.DurationOrDefault(cfg.KeepAlive, 0) < 0 {
+	if cfg.KeepAlive != nil && *cfg.KeepAlive < 0 {
 		return errors.New("keepAlive can't be negative")
 	}
-	if ptr.DurationOrDefault(cfg.IdleConnTimeout, 0) < 0 {
+	if cfg.IdleConnTimeout != nil && *cfg.IdleConnTimeout < 0 {
 		return errors.New("idleConnTimeout can't be negative")
 	}
-	if ptr.DurationOrDefault(cfg.RequestTimeout, 0) < 0 {
+	if cfg.RequestTimeout != nil && *cfg.RequestTimeout < 0 {
 		return errors.New("requestTimeout can't be negative")
 	}
-	if ptr.DurationOrDefault(cfg.ConnectTimeout, 0) < 0 {
+	if cfg.ConnectTimeout != nil && *cfg.ConnectTimeout < 0 {
 		return errors.New("connectTimeout can't be negative")
 	}
 

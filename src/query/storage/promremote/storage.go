@@ -38,10 +38,12 @@ import (
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
+const metricsScope = "prom_remote_storage"
+
 // NewStorage returns new Prometheus remote write compatible storage
 func NewStorage(opts Options) (storage.Storage, error) {
-	client := xhttp.NewHTTPClient(opts.HTTPClientOptions())
-	scope := opts.scope.SubScope("prom_remote_storage")
+	client := xhttp.NewHTTPClient(opts.httpOptions)
+	scope := opts.scope.SubScope(metricsScope)
 	s := &promStorage{opts: opts, client: client, endpointMetrics: initEndpointMetrics(opts.endpoints, scope)}
 	return s, nil
 }
