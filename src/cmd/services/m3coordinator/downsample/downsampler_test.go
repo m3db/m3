@@ -3278,7 +3278,7 @@ func testDownsamplerAggregationIngest(
 
 		samplesAppender := samplesAppenderResult.SamplesAppender
 		for _, sample := range metric.samples {
-			err = samplesAppender.AppendUntimedCounterSample(sample, nil)
+			err = samplesAppender.AppendUntimedCounterSample(xtime.Now(), sample, nil)
 			require.NoError(t, err)
 		}
 		for _, sample := range metric.timedSamples {
@@ -3292,7 +3292,7 @@ func testDownsamplerAggregationIngest(
 				time.Sleep(sample.offset)
 			}
 			if samplesAppenderResult.ShouldDropTimestamp {
-				err = samplesAppender.AppendUntimedCounterSample(sample.value, nil)
+				err = samplesAppender.AppendUntimedCounterSample(sample.time, sample.value, nil)
 			} else {
 				err = samplesAppender.AppendCounterSample(sample.time, sample.value, nil)
 			}
@@ -3315,7 +3315,7 @@ func testDownsamplerAggregationIngest(
 
 		samplesAppender := samplesAppenderResult.SamplesAppender
 		for _, sample := range metric.samples {
-			err = samplesAppender.AppendUntimedGaugeSample(sample, nil)
+			err = samplesAppender.AppendUntimedGaugeSample(xtime.Now(), sample, nil)
 			require.NoError(t, err)
 		}
 		for _, sample := range metric.timedSamples {
@@ -3329,7 +3329,7 @@ func testDownsamplerAggregationIngest(
 				time.Sleep(sample.offset)
 			}
 			if samplesAppenderResult.ShouldDropTimestamp {
-				err = samplesAppender.AppendUntimedGaugeSample(sample.value, nil)
+				err = samplesAppender.AppendUntimedGaugeSample(sample.time, sample.value, nil)
 			} else {
 				err = samplesAppender.AppendGaugeSample(sample.time, sample.value, nil)
 			}
@@ -3354,7 +3354,7 @@ func testDownsamplerAggregationIngest(
 
 		samplesAppender := samplesAppenderResult.SamplesAppender
 		for _, sample := range metric.samples {
-			err = samplesAppender.AppendUntimedTimerSample(sample, nil)
+			err = samplesAppender.AppendUntimedTimerSample(xtime.Now(), sample, nil)
 			require.NoError(t, err)
 		}
 		for _, sample := range metric.timedSamples {
@@ -3368,7 +3368,7 @@ func testDownsamplerAggregationIngest(
 				time.Sleep(sample.offset)
 			}
 			if samplesAppenderResult.ShouldDropTimestamp {
-				err = samplesAppender.AppendUntimedTimerSample(sample.value, nil)
+				err = samplesAppender.AppendUntimedTimerSample(sample.time, sample.value, nil)
 			} else {
 				err = samplesAppender.AppendTimerSample(sample.time, sample.value, nil)
 			}

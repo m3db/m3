@@ -32,6 +32,8 @@ import (
 	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/v1/route"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/tallytest"
@@ -62,12 +64,9 @@ func TestResponseMetrics(t *testing.T) {
 
 	snapshot := scope.Snapshot()
 	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
-		"path":            "/test",
-		"status":          "200",
-		"size":            "small",
-		"type":            "coordinator",
-		"count_threshold": "0",
-		"range_threshold": "0",
+		"path":   "/test",
+		"status": "200",
+		"type":   "coordinator",
 	})
 
 	hist := snapshot.Histograms()
@@ -75,11 +74,8 @@ func TestResponseMetrics(t *testing.T) {
 	for _, h := range hist {
 		require.Equal(t, "latency", h.Name())
 		require.Equal(t, map[string]string{
-			"path":            "/test",
-			"size":            "small",
-			"type":            "coordinator",
-			"count_threshold": "0",
-			"range_threshold": "0",
+			"path": "/test",
+			"type": "coordinator",
 		}, h.Tags())
 	}
 }
@@ -110,12 +106,9 @@ func TestResponseMetricsCustomMetricType(t *testing.T) {
 
 	snapshot := scope.Snapshot()
 	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
-		"path":            "/test",
-		"status":          "200",
-		"size":            "small",
-		"type":            "foo",
-		"count_threshold": "0",
-		"range_threshold": "0",
+		"path":   "/test",
+		"status": "200",
+		"type":   "foo",
 	})
 
 	hist := snapshot.Histograms()
@@ -123,11 +116,8 @@ func TestResponseMetricsCustomMetricType(t *testing.T) {
 	for _, h := range hist {
 		require.Equal(t, "latency", h.Name())
 		require.Equal(t, map[string]string{
-			"path":            "/test",
-			"size":            "small",
-			"type":            "foo",
-			"count_threshold": "0",
-			"range_threshold": "0",
+			"path": "/test",
+			"type": "foo",
 		}, h.Tags())
 	}
 }
@@ -168,9 +158,10 @@ func TestLargeResponseMetrics(t *testing.T) {
 		Route:          route,
 		Metrics: MetricsOptions{
 			Config: config.MetricsMiddlewareConfiguration{
-				InspectQuerySize:          true,
-				LargeSeriesCountThreshold: 10,
-				LargeSeriesRangeThreshold: time.Minute * 15,
+				QueryEndpointsClassification: config.QueryClassificationConfig{
+					ResultsBuckets:  []int{1, 10},
+					DurationBuckets: []time.Duration{1 * time.Minute, 15 * time.Minute},
+				},
 			},
 			ParseQueryParams: parseQueryParams,
 		},
@@ -191,12 +182,11 @@ func TestLargeResponseMetrics(t *testing.T) {
 
 	snapshot := scope.Snapshot()
 	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
-		"path":            "/api/v1/query",
-		"status":          "200",
-		"size":            "large",
-		"type":            "coordinator",
-		"count_threshold": "10",
-		"range_threshold": "15m0s",
+		"path":                 "/api/v1/query",
+		"status":               "200",
+		"type":                 "coordinator",
+		resultsClassification:  "10",
+		durationClassification: "15m0s",
 	})
 
 	hist := snapshot.Histograms()
@@ -204,11 +194,10 @@ func TestLargeResponseMetrics(t *testing.T) {
 	for _, h := range hist {
 		require.Equal(t, "latency", h.Name())
 		require.Equal(t, map[string]string{
-			"path":            "/api/v1/query",
-			"size":            "large",
-			"type":            "coordinator",
-			"count_threshold": "10",
-			"range_threshold": "15m0s",
+			"path":                 "/api/v1/query",
+			"type":                 "coordinator",
+			resultsClassification:  "10",
+			durationClassification: "15m0s",
 		}, h.Tags())
 	}
 }
@@ -246,10 +235,11 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 		Route:          route,
 		Metrics: MetricsOptions{
 			Config: config.MetricsMiddlewareConfiguration{
-				InspectQuerySize:          true,
-				LargeSeriesCountThreshold: 10,
-				LargeSeriesRangeThreshold: time.Minute * 15,
-				AddStatusToLatencies:      addStatus,
+				QueryEndpointsClassification: config.QueryClassificationConfig{
+					ResultsBuckets:  []int{1, 10},
+					DurationBuckets: []time.Duration{1 * time.Minute, 15 * time.Minute},
+				},
+				AddStatusToLatencies: addStatus,
 			},
 			ParseQueryParams: parseQueryParams,
 		},
@@ -288,50 +278,42 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 
 	snapshot := scope.Snapshot()
 	tallytest.AssertCounterValue(t, 2, snapshot, "request", map[string]string{
-		"path":            "/api/v1/query_range",
-		"status":          "200",
-		"size":            "large",
-		"type":            "coordinator",
-		"count_threshold": "10",
-		"range_threshold": "15m0s",
+		"path":                 "/api/v1/query_range",
+		"status":               "200",
+		"type":                 "coordinator",
+		resultsClassification:  "10",
+		durationClassification: "15m0s",
 	})
 
 	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
-		"path":            "/api/v1/query_range",
-		"status":          "300",
-		"size":            "large",
-		"type":            "coordinator",
-		"count_threshold": "10",
-		"range_threshold": "15m0s",
+		"path":                 "/api/v1/query_range",
+		"status":               "300",
+		"type":                 "coordinator",
+		resultsClassification:  "unclassified",
+		durationClassification: "unclassified",
 	})
 
-	tallytest.AssertCounterValue(t, 2, snapshot, "request", map[string]string{
-		"path":            "/api/v1/query_range",
-		"status":          "200",
-		"size":            "small",
-		"type":            "coordinator",
-		"count_threshold": "10",
-		"range_threshold": "15m0s",
+	tallytest.AssertCounterValue(t, 1, snapshot, "request", map[string]string{
+		"path":                 "/api/v1/query_range",
+		"status":               "200",
+		"type":                 "coordinator",
+		resultsClassification:  "1",
+		durationClassification: "1m0s",
 	})
 
-	tallytest.AssertCounterValue(t, 1, snapshot, "count", map[string]string{
+	tallytest.AssertCounterValue(t, 4, snapshot, "count", map[string]string{
 		"type":   "coordinator",
-		"status": "below_range_threshold",
+		"status": "classified_duration",
 	})
-	tallytest.AssertCounterValue(t, 1, snapshot, "count", map[string]string{
+	tallytest.AssertCounterValue(t, 4, snapshot, "count", map[string]string{
 		"type":   "coordinator",
-		"status": "below_count_threshold",
-	})
-	tallytest.AssertCounterValue(t, 3, snapshot, "count", map[string]string{
-		"type":   "coordinator",
-		"status": "large_query",
+		"status": "classified_result",
 	})
 
 	var (
 		hist       = snapshot.Histograms()
-		exHistLen  = 2
-		exLarge    = 1
-		exTagCount = 5
+		exHistLen  = 4
+		exTagCount = 4
 	)
 
 	if addStatus {
@@ -339,13 +321,20 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 		// since they will also include the status code in the tags list; otherwise
 		// code:200 and code:300 queries are expected to go to the same histogram
 		// metric.
-		exHistLen++
-		exLarge++
 		exTagCount++
 	}
 
-	require.True(t, len(hist) == exHistLen)
-	sizes := map[string]int{}
+	require.Equal(t, exHistLen, len(hist))
+	buckets := map[string]map[string]int{
+		resultsClassification: {
+			"1":  0,
+			"10": 0,
+		},
+		durationClassification: {
+			"1m0s":  0,
+			"15m0s": 0,
+		},
+	}
 	statuses := map[string]int{}
 	for _, h := range hist {
 		require.Equal(t, "latency", h.Name())
@@ -353,19 +342,211 @@ func testMultipleLargeResponseMetrics(t *testing.T, addStatus bool) {
 		tags := h.Tags()
 		require.Equal(t, exTagCount, len(tags))
 		require.Equal(t, "/api/v1/query_range", tags["path"])
-		require.Equal(t, "10", tags["count_threshold"])
-		require.Equal(t, "15m0s", tags["range_threshold"])
 		require.Equal(t, metricsTypeTagDefaultValue, tags[metricsTypeTagName])
 
-		sizes[tags["size"]]++
+		buckets[resultsClassification][tags[resultsClassification]]++
+		buckets[durationClassification][tags[durationClassification]]++
 		if addStatus {
 			statuses[tags["status"]]++
 		}
 	}
 
+	expectedBuckets := map[string]map[string]int{
+		resultsClassification: {
+			"1":            1,
+			"10":           2,
+			"unclassified": 1,
+		},
+		durationClassification: {
+			"1m0s":         2,
+			"15m0s":        1,
+			"unclassified": 1,
+		},
+	}
 	if addStatus {
-		require.Equal(t, map[string]int{"200": 2, "300": 1}, statuses)
+		require.Equal(t, map[string]int{"200": 3, "300": 1}, statuses)
 	}
 
-	require.Equal(t, map[string]int{"small": 1, "large": exLarge}, sizes)
+	require.Equal(t, expectedBuckets, buckets)
+}
+
+func TestRequestClassificationByEndpoints(t *testing.T) {
+	defaultConfig := config.MetricsMiddlewareConfiguration{
+		QueryEndpointsClassification: config.QueryClassificationConfig{
+			ResultsBuckets:  []int{1, 10, 100, 1000},
+			DurationBuckets: []time.Duration{1 * time.Minute, 10 * time.Minute, 100 * time.Minute},
+		},
+		LabelEndpointsClassification: config.QueryClassificationConfig{
+			ResultsBuckets:  []int{2, 20, 200, 2000},
+			DurationBuckets: []time.Duration{2 * time.Minute, 20 * time.Minute, 200 * time.Minute},
+		},
+	}
+	tests := []struct {
+		name             string
+		path             string
+		config           config.MetricsMiddlewareConfiguration
+		isQueryEndpoint  bool
+		query            string
+		fetchedResult    string
+		expectedResult   string
+		expectedDuration string
+	}{
+		{
+			name:             "query_range",
+			path:             route.QueryRangeURL,
+			config:           defaultConfig,
+			isQueryEndpoint:  true,
+			query:            "query=sum(rate(coordinator_http_handler_http_handler_request[1m]))&start=1&end=660",
+			fetchedResult:    "25",
+			expectedResult:   "10",
+			expectedDuration: "10m0s",
+		},
+		{
+			name:             "query_range - no results",
+			path:             route.QueryRangeURL,
+			config:           defaultConfig,
+			isQueryEndpoint:  true,
+			query:            "query=sum(rate(coordinator_http_handler_http_handler_request[1m]))&start=1&end=660",
+			fetchedResult:    "",
+			expectedResult:   "1",
+			expectedDuration: "10m0s",
+		},
+		{
+			name:             "query",
+			path:             route.QueryURL,
+			config:           defaultConfig,
+			isQueryEndpoint:  true,
+			query:            "query=sum(rate(coordinator_http_handler_http_handler_request[1m]))&time=1630611461",
+			fetchedResult:    "1",
+			expectedResult:   "1",
+			expectedDuration: "1m0s",
+		},
+		{
+			name:             "label_values",
+			path:             route.Prefix + "/label/__name__/values",
+			config:           defaultConfig,
+			isQueryEndpoint:  false,
+			query:            "start=0&end=1800",
+			fetchedResult:    "30000",
+			expectedResult:   "2000",
+			expectedDuration: "20m0s",
+		},
+		{
+			name:             "label_values -- max time",
+			path:             route.Prefix + "/label/__name__/values",
+			config:           defaultConfig,
+			isQueryEndpoint:  false,
+			fetchedResult:    "30000",
+			expectedResult:   "2000",
+			expectedDuration: "3h20m0s",
+		},
+		{
+			name:             "label_names",
+			path:             route.LabelNamesURL,
+			config:           defaultConfig,
+			isQueryEndpoint:  false,
+			query:            "start=0&end=21600",
+			fetchedResult:    "300",
+			expectedResult:   "200",
+			expectedDuration: "3h20m0s",
+		},
+		{
+			name:             "label_names - no results",
+			path:             route.LabelNamesURL,
+			config:           defaultConfig,
+			isQueryEndpoint:  false,
+			query:            "start=0&end=21600",
+			fetchedResult:    "",
+			expectedResult:   "2",
+			expectedDuration: "3h20m0s",
+		},
+		{
+			name:             "non-classifiable endpoint",
+			path:             "/foo",
+			config:           defaultConfig,
+			isQueryEndpoint:  false,
+			query:            "start=0&end=21600",
+			expectedResult:   "unclassified",
+			expectedDuration: "unclassified",
+		},
+		{
+			name:            "disabled",
+			path:            "/foo",
+			config:          config.MetricsMiddlewareConfiguration{},
+			isQueryEndpoint: false,
+			query:           "start=0&end=21600",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scope := tally.NewTestScope("", nil)
+			iOpts := instrument.NewOptions().SetMetricsScope(scope)
+
+			r := mux.NewRouter()
+			route := r.NewRoute()
+			opts := Options{
+				InstrumentOpts: iOpts,
+				Route:          route,
+				Metrics: MetricsOptions{
+					Config:           tt.config,
+					ParseQueryParams: parseQueryParams,
+					ParseOptions: promql.NewParseOptions().
+						SetRequireStartEndTime(false).
+						SetNowFn(time.Now),
+				},
+			}
+
+			h := ResponseMetrics(opts).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tt.isQueryEndpoint {
+					w.Header().Add(headers.FetchedSeriesCount, tt.fetchedResult)
+				} else {
+					w.Header().Add(headers.FetchedMetadataCount, tt.fetchedResult)
+				}
+				w.WriteHeader(200)
+			}))
+
+			route.Path(tt.path).Handler(h)
+			server := httptest.NewServer(r)
+			defer server.Close()
+
+			resp, err := server.Client().Get(server.URL + tt.path + "?" + tt.query) //nolint: noctx
+			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
+
+			snapshot := scope.Snapshot()
+			// Validate request counter
+			tags := map[string]string{
+				"path":                 tt.path,
+				"status":               "200",
+				"type":                 "coordinator",
+				resultsClassification:  tt.expectedResult,
+				durationClassification: tt.expectedDuration,
+			}
+			if tt.expectedResult == "" {
+				delete(tags, resultsClassification)
+			}
+			if tt.expectedDuration == "" {
+				delete(tags, durationClassification)
+			}
+			tallytest.AssertCounterValue(t, 1, snapshot, "request", tags)
+
+			// Validate latency histogram
+			require.Equal(t, 1, len(snapshot.Histograms()))
+			var hist tally.HistogramSnapshot
+			for _, hist = range snapshot.Histograms() {
+			}
+
+			if !tt.config.AddStatusToLatencies {
+				delete(tags, "status")
+			}
+			require.Equal(t, tags, hist.Tags())
+
+			count := int64(0)
+			for _, value := range hist.Durations() {
+				count += value
+			}
+			require.Equal(t, int64(1), count)
+		})
+	}
 }

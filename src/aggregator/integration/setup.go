@@ -45,7 +45,6 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
-	"github.com/m3db/m3/src/dbnode/integration/fake"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/consumer"
@@ -63,6 +62,8 @@ var (
 	errServerStartTimedOut   = errors.New("server took too long to start")
 	errLeaderElectionTimeout = errors.New("took too long to become leader")
 )
+
+type testServerSetups []*testServerSetup
 
 type testServerSetup struct {
 	opts             testServerOptions
@@ -116,6 +117,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	// Creating the aggregator options.
 	clockOpts := opts.ClockOptions()
 	aggregatorOpts := aggregator.NewOptions(clockOpts).
+		SetTimedForResendEnabled(true).
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetAggregationTypesOptions(opts.AggregationTypesOptions()).
 		SetEntryCheckInterval(opts.EntryCheckInterval()).
@@ -127,10 +129,12 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetDiscardNaNAggregatedValues(opts.DiscardNaNAggregatedValues())
 
 	// Set up placement manager.
+	kvStore, err := opts.ClusterClient().KV()
+	require.NoError(t, err)
 	placementWatcherOpts := placement.NewWatcherOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetStagedPlacementKey(opts.PlacementKVKey()).
-		SetStagedPlacementStore(opts.KVStore())
+		SetStagedPlacementStore(kvStore)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetInstanceID(opts.InstanceID()).
@@ -146,7 +150,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFlushTimesKeyFmt(opts.FlushTimesKeyFmt()).
-		SetFlushTimesStore(opts.KVStore())
+		SetFlushTimesStore(kvStore)
 	flushTimesManager := aggregator.NewFlushTimesManager(flushTimesManagerOpts)
 	aggregatorOpts = aggregatorOpts.SetFlushTimesManager(flushTimesManager)
 
@@ -457,9 +461,18 @@ func (ts *testServerSetup) close() {
 	ts.electionCluster.Close()
 }
 
+func (tss testServerSetups) newClient(t *testing.T) *client {
+	require.NotEmpty(t, tss)
+	// NB: the client can be constructed from any of the setups. The client does the routing and
+	// sends the writes to the server which holds related shard.
+	return tss[0].newClient(t)
+}
+
 func newM3MsgProducer(opts testServerOptions) (producer.Producer, error) {
-	placementSvc := fake.NewM3ClusterPlacementServiceWithPlacement(opts.Placement())
-	svcs := fake.NewM3ClusterServicesWithPlacementService(placementSvc)
+	svcs, err := opts.ClusterClient().Services(nil)
+	if err != nil {
+		return nil, err
+	}
 
 	bufferOpts := buffer.NewOptions().
 		// NB: the default values of cleanup retry options causes very slow m3msg client shutdowns

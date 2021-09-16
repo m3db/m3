@@ -80,12 +80,14 @@ message AppliedPipelineOp {
     ROLLUP = 2;
   }
   Type type = 1;
-  TransformationOp transformation = 2;
-  AppliedRollupOp rollup = 3;
+  TransformationOp transformation = 2 [(gogoproto.nullable) = false];
+  AppliedRollupOp rollup = 3 [(gogoproto.nullable) = false];
 }
 
 // AppliedPipelineOp is a pipeline containing operations
 // that have been applied against a metric.
 message AppliedPipeline {
+  // A custom Unmarshal function exists in custom_unmarshal.go to allow reusing slices.
+  option (gogoproto.unmarshaler) = false;
   repeated AppliedPipelineOp ops = 1 [(gogoproto.nullable) = false];
 }

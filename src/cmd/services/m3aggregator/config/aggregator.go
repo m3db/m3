@@ -183,6 +183,10 @@ type AggregatorConfiguration struct {
 	// WritesIgnoreCutoffCutover allows accepting writes ignoring cutoff/cutover timestamp.
 	// Must be in sync with m3msg WriterConfiguration.IgnoreCutoffCutover.
 	WritesIgnoreCutoffCutover bool `yaml:"writesIgnoreCutoffCutover"`
+
+	// TimedForResendEnabled is a feature flag that gracefully transitions AddUntimed to AddTimed for pipelines
+	// that support resending aggregate values.
+	TimedForResendEnabled bool `yaml:"timedForResendEnabled"`
 }
 
 // InstanceIDType is the instance ID type that defines how the
@@ -491,7 +495,9 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		return aggregator.NewEntryWithMetrics(nil, metrics, runtimeOpts, opts)
 	})
 
-	opts = opts.SetWritesIgnoreCutoffCutover(c.WritesIgnoreCutoffCutover)
+	opts = opts.
+		SetWritesIgnoreCutoffCutover(c.WritesIgnoreCutoffCutover).
+		SetTimedForResendEnabled(c.TimedForResendEnabled)
 
 	return opts, nil
 }

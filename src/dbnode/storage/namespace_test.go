@@ -51,7 +51,7 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1616,9 +1616,11 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 		shard0ID        = uint32(10)
 		shard1ID        = uint32(20)
 		insOpts         = instrument.NewOptions()
+		process         = AggregateTilesRegular
 	)
 
-	opts, err := NewAggregateTilesOptions(start, start.Add(targetBlockSize), time.Second, targetNsID, insOpts)
+	opts, err := NewAggregateTilesOptions(
+		start, start.Add(targetBlockSize), time.Second, targetNsID, process, false, false, nil, insOpts)
 	require.NoError(t, err)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1680,9 +1682,11 @@ func TestNamespaceAggregateTilesShipBootstrappingShards(t *testing.T) {
 		targetBlockSize = 2 * time.Hour
 		start           = xtime.Now().Truncate(targetBlockSize)
 		insOpts         = instrument.NewOptions()
+		process         = AggregateTilesRegular
 	)
 
-	opts, err := NewAggregateTilesOptions(start, start.Add(targetBlockSize), time.Second, targetNsID, insOpts)
+	opts, err := NewAggregateTilesOptions(
+		start, start.Add(targetBlockSize), time.Second, targetNsID, process, false, false, nil, insOpts)
 	require.NoError(t, err)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())

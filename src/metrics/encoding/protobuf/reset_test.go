@@ -34,24 +34,27 @@ import (
 
 var (
 	testCounterBeforeResetProto = metricpb.Counter{
-		Id:    []byte("testCounter"),
-		Value: 1234,
+		Id:              []byte("testCounter"),
+		Value:           1234,
+		ClientTimeNanos: 10,
 	}
 	testCounterAfterResetProto = metricpb.Counter{
 		Id:    []byte{},
 		Value: 0,
 	}
 	testBatchTimerBeforeResetProto = metricpb.BatchTimer{
-		Id:     []byte("testBatchTimer"),
-		Values: []float64{13.45, 98.23},
+		Id:              []byte("testBatchTimer"),
+		Values:          []float64{13.45, 98.23},
+		ClientTimeNanos: 10,
 	}
 	testBatchTimerAfterResetProto = metricpb.BatchTimer{
 		Id:     []byte{},
 		Values: []float64{},
 	}
 	testGaugeBeforeResetProto = metricpb.Gauge{
-		Id:    []byte("testGauge"),
-		Value: 3.48,
+		Id:              []byte("testGauge"),
+		Value:           3.48,
+		ClientTimeNanos: 10,
 	}
 	testGaugeAfterResetProto = metricpb.Gauge{
 		Id:    []byte{},
@@ -102,7 +105,7 @@ var (
 			Ops: []pipelinepb.AppliedPipelineOp{
 				{
 					Type: pipelinepb.AppliedPipelineOp_ROLLUP,
-					Rollup: &pipelinepb.AppliedRollupOp{
+					Rollup: pipelinepb.AppliedRollupOp{
 						Id: []byte("foo"),
 						AggregationId: aggregationpb.AggregationID{
 							Id: 12,
@@ -173,6 +176,83 @@ func TestReuseMetricWithMetadatasProtoOnlyCounter(t *testing.T) {
 	require.Equal(t, expected, input)
 	require.True(t, cap(input.CounterWithMetadatas.Counter.Id) > 0)
 	require.True(t, cap(input.CounterWithMetadatas.Metadatas.Metadatas) > 0)
+}
+
+func TestReuseMetricForEncoding(t *testing.T) {
+	input := metricpb.MetricWithMetadatas{
+		Type: metricpb.MetricWithMetadatas_COUNTER_WITH_METADATAS,
+		CounterWithMetadatas: &metricpb.CounterWithMetadatas{
+			Counter: metricpb.Counter{
+				Id: []byte("testCounter"),
+			},
+			Metadatas: metricpb.StagedMetadatas{
+				Metadatas: []metricpb.StagedMetadata{
+					{
+						Metadata: metricpb.Metadata{
+							Pipelines: []metricpb.PipelineMetadata{
+								{
+									ResendEnabled: true,
+									StoragePolicies: []policypb.StoragePolicy{
+										{
+											Resolution: policypb.Resolution{
+												WindowSize: 1000,
+											},
+											Retention: policypb.Retention{
+												Period: 1000,
+											},
+										},
+									},
+									Pipeline: pipelinepb.AppliedPipeline{
+										Ops: []pipelinepb.AppliedPipelineOp{
+											{
+												Rollup: pipelinepb.AppliedRollupOp{
+													Id: []byte("foobar"),
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						CutoverNanos: 5678,
+					},
+				},
+			},
+		},
+	}
+	b, err := input.Marshal()
+	require.NoError(t, err)
+
+	var pb metricpb.MetricWithMetadatas
+	require.NoError(t, pb.Unmarshal(b))
+	require.Equal(t, input, pb)
+
+	// verify all slices are empty with a non-zero capacity.
+	ReuseMetricWithMetadatasProto(&pb)
+	metas := pb.CounterWithMetadatas.Metadatas.Metadatas
+	require.True(t, cap(metas) > 0)
+	require.Empty(t, metas)
+	metas = metas[0:1]
+	pipes := metas[0].Metadata.Pipelines
+	require.True(t, cap(pipes) > 0)
+	require.Empty(t, pipes)
+	pipes = pipes[0:1]
+	sps := pipes[0].StoragePolicies
+	require.Empty(t, sps)
+	require.True(t, cap(sps) > 0)
+	ops := pipes[0].Pipeline.Ops
+	require.Empty(t, ops)
+	require.True(t, cap(ops) > 0)
+	ops = ops[0:1]
+	id := ops[0].Rollup.Id
+	require.Empty(t, id)
+	require.True(t, cap(id) > 0)
+
+	// verify the proto can be properly reused for unmarshaling
+	require.NoError(t, pb.Unmarshal(b))
+	require.Equal(t, input, pb)
 }
 
 func TestReuseMetricWithMetadatasProtoOnlyBatchTimer(t *testing.T) {

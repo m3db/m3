@@ -32,13 +32,13 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	aggclient "github.com/m3db/m3/src/aggregator/client"
-	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
@@ -58,11 +58,12 @@ func TestResendAggregatedValueStress(t *testing.T) {
 	aggregatorClientType, err := getAggregatorClientTypeFromEnv()
 	require.NoError(t, err)
 
+	serverOpts := newTestServerOptions(t)
+
 	// Placement setup.
 	var (
 		numTotalShards = 1024
 		placementKey   = "/placement"
-		kvStore        = mem.NewStore()
 	)
 	serverSetup := struct {
 		rawTCPAddr     string
@@ -88,8 +89,8 @@ func TestResendAggregatedValueStress(t *testing.T) {
 
 	instance := serverSetup.instanceConfig.newPlacementInstance()
 	initPlacement := newPlacement(numTotalShards, []placement.Instance{instance})
-	require.NoError(t, setPlacement(placementKey, kvStore, initPlacement))
-	topicService, err := initializeTopic(defaultTopicName, kvStore, initPlacement)
+	setPlacement(t, placementKey, serverOpts.ClusterClient(), initPlacement)
+	serverOpts = setupTopic(t, serverOpts, initPlacement)
 	require.NoError(t, err)
 
 	// Election cluster setup.
@@ -116,7 +117,7 @@ func TestResendAggregatedValueStress(t *testing.T) {
 	instrumentOpts := instrument.NewOptions()
 	logger := xtest.NewLogger(t)
 	instrumentOpts = instrumentOpts.SetLogger(logger)
-	serverOpts := newTestServerOptions(t).
+	serverOpts = serverOpts.
 		SetBufferForPastTimedMetric(time.Second * 5).
 		SetMaxAllowedForwardingDelayFn(func(resolution time.Duration, numForwardedTimes int) time.Duration {
 			return resolution
@@ -125,12 +126,9 @@ func TestResendAggregatedValueStress(t *testing.T) {
 		SetElectionCluster(electionCluster).
 		SetHTTPAddr(serverSetup.httpAddr).
 		SetInstanceID(serverSetup.instanceConfig.instanceID).
-		SetKVStore(kvStore).
-		SetTopicService(topicService).
 		SetTopicName(defaultTopicName).
 		SetRawTCPAddr(serverSetup.rawTCPAddr).
 		SetM3MsgAddr(serverSetup.m3MsgAddr).
-		SetPlacement(initPlacement).
 		SetShardFn(shardFn).
 		SetShardSetID(serverSetup.instanceConfig.shardSetID).
 		SetClientConnectionOptions(connectionOpts).
@@ -144,7 +142,7 @@ func TestResendAggregatedValueStress(t *testing.T) {
 
 	// Waiting for server to be leader.
 	err = server.waitUntilLeader()
-	require.NoError(t,err)
+	require.NoError(t, err)
 
 	var (
 		storagePolicies = policy.StoragePolicies{
@@ -195,11 +193,11 @@ func TestResendAggregatedValueStress(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(3)
 	go func() {
-		writeMetrics(t, c1, stop1, "foo", start, resolution, stagedMetadatas)
+		writeMetrics(t, c1, stop1, "foo", true, start, resolution, stagedMetadatas)
 		wg.Done()
 	}()
 	go func() {
-		writeMetrics(t, c2, stop2, "bar", start, resolution, stagedMetadatas)
+		writeMetrics(t, c2, stop2, "bar", false, start, resolution, stagedMetadatas)
 		wg.Done()
 	}()
 	go func() {
@@ -243,12 +241,6 @@ func TestResendAggregatedValueStress(t *testing.T) {
 	wg.Wait()
 	log.Sugar().Infof("done. Ran for %v\n", time.Since(start))
 
-	// Remove all the topic consumers before closing clients and servers. This allows to close the
-	// connections between servers while they still are running. Otherwise, during server shutdown,
-	// the yet-to-be-closed servers would repeatedly try to reconnect to recently closed ones, which
-	// results in longer shutdown times.
-	require.NoError(t, removeAllTopicConsumers(topicService, defaultTopicName))
-
 	require.NoError(t, c1.close())
 	require.NoError(t, c2.close())
 
@@ -264,6 +256,7 @@ func writeMetrics(
 	c *client,
 	stop chan struct{},
 	metricID string,
+	timed bool,
 	start time.Time,
 	resolution time.Duration,
 	stagedMetadatas metadata.StagedMetadatas) {
@@ -289,13 +282,23 @@ func writeMetrics(
 			if rnd.Intn(3) == 0 {
 				time.Sleep(delay)
 			}
-			m := aggregated.Metric{
-				Type:      metric.GaugeType,
-				ID:        metricid.RawID(metricID),
-				TimeNanos: ts.UnixNano(),
-				Value:     value,
+			if timed {
+				m := aggregated.Metric{
+					Type:      metric.GaugeType,
+					ID:        metricid.RawID(metricID),
+					TimeNanos: ts.UnixNano(),
+					Value:     value,
+				}
+				require.NoError(t, c.writeTimedMetricWithMetadatas(m, stagedMetadatas))
+			} else {
+				m := unaggregated.MetricUnion{
+					Type:            metric.GaugeType,
+					ID:              metricid.RawID(metricID),
+					ClientTimeNanos: xtime.ToUnixNano(ts),
+					GaugeVal:        value,
+				}
+				require.NoError(t, c.writeUntimedMetricWithMetadatas(m, stagedMetadatas))
 			}
-			require.NoError(t, c.writeTimedMetricWithMetadatas(m, stagedMetadatas))
 			require.NoError(t, c.flush())
 		}(ts, value)
 	}

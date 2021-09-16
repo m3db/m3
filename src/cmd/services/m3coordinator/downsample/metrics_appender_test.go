@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -137,7 +138,7 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 			},
 		)
 
-		require.NoError(t, a.SamplesAppender.AppendUntimedCounterSample(int64(i), nil))
+		require.NoError(t, a.SamplesAppender.AppendUntimedCounterSample(xtime.Now(), int64(i), nil))
 
 		assert.False(t, a.IsDropPolicyApplied)
 		appender.Finalize()

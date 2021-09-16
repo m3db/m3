@@ -76,6 +76,11 @@ const (
 	// metrics type.
 	MetricsStoragePolicyHeader = M3HeaderPrefix + "Storage-Policy"
 
+	// MetricsRestrictByStoragePoliciesHeader provides the policies options to
+	// enforce on queries, in the form of a list of storage policies.
+	// "1m:14d;5m:60d"
+	MetricsRestrictByStoragePoliciesHeader = M3HeaderPrefix + "Restrict-By-Storage-Policies"
+
 	// RestrictByTagsJSONHeader provides tag options to enforces on queries,
 	// in JSON format. See `handler.stringTagOptions` for definitions.`
 	RestrictByTagsJSONHeader = M3HeaderPrefix + "Restrict-By-Tags-JSON"

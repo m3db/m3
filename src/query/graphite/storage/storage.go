@@ -40,8 +40,8 @@ type FetchOptions struct {
 	EndTime time.Time
 	// DataOptions are the options for the fetch.
 	DataOptions
-	// Source is the query source.
-	Source []byte
+	// QueryFetchOpts are the query storage fetch options.
+	QueryFetchOpts *querystorage.FetchOptions
 }
 
 // DataOptions provide data context.
@@ -49,8 +49,6 @@ type DataOptions struct {
 	// Timeout determines a custom timeout for the context. If set to 0, uses
 	// the default timeout.
 	Timeout time.Duration
-	// Limit is the limit for number of datapoints to retrieve.
-	Limit int
 }
 
 // Storage provides an interface for retrieving timeseries values or names
