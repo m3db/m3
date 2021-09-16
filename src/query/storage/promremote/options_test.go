@@ -29,7 +29,6 @@ import (
 	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/x/ptr"
 )
 
 func TestNewFromConfiguration(t *testing.T) {
@@ -40,11 +39,11 @@ func TestNewFromConfiguration(t *testing.T) {
 			Resolution: time.Second,
 			Retention:  time.Millisecond,
 		}},
-		RequestTimeout:  ptr.Duration(time.Nanosecond),
-		ConnectTimeout:  ptr.Duration(time.Microsecond),
-		KeepAlive:       ptr.Duration(time.Millisecond),
-		IdleConnTimeout: ptr.Duration(time.Second),
-		MaxIdleConns:    ptr.Int(1),
+		RequestTimeout:  ptrDuration(time.Nanosecond),
+		ConnectTimeout:  ptrDuration(time.Microsecond),
+		KeepAlive:       ptrDuration(time.Millisecond),
+		IdleConnTimeout: ptrDuration(time.Second),
+		MaxIdleConns:    ptrInt(1),
 	}, tally.NoopScope)
 	require.NoError(t, err)
 
@@ -112,30 +111,30 @@ func TestValidation(t *testing.T) {
 
 	t.Run("non negative keep alive", func(t *testing.T) {
 		cfg := getValidConfig()
-		cfg.KeepAlive = ptr.Duration(-1)
+		cfg.KeepAlive = ptrDuration(-1)
 		assertValidationError(t, &cfg, "keepAlive can't be negative")
 	})
 	t.Run("non negative max idle conns", func(t *testing.T) {
 		cfg := getValidConfig()
-		cfg.MaxIdleConns = ptr.Int(-1)
+		cfg.MaxIdleConns = ptrInt(-1)
 		assertValidationError(t, &cfg, "maxIdleConns can't be negative")
 	})
 
 	t.Run("non negative idle conn timeout", func(t *testing.T) {
 		cfg := getValidConfig()
-		cfg.IdleConnTimeout = ptr.Duration(-1)
+		cfg.IdleConnTimeout = ptrDuration(-1)
 		assertValidationError(t, &cfg, "idleConnTimeout can't be negative")
 	})
 
 	t.Run("non negative request timeout", func(t *testing.T) {
 		cfg := getValidConfig()
-		cfg.RequestTimeout = ptr.Duration(-1)
+		cfg.RequestTimeout = ptrDuration(-1)
 		assertValidationError(t, &cfg, "requestTimeout can't be negative")
 	})
 
 	t.Run("non negative connect timeout", func(t *testing.T) {
 		cfg := getValidConfig()
-		cfg.ConnectTimeout = ptr.Duration(-1)
+		cfg.ConnectTimeout = ptrDuration(-1)
 		assertValidationError(t, &cfg, "connectTimeout can't be negative")
 	})
 }
@@ -196,3 +195,7 @@ func getValidEndpointConfiguration() config.PrometheusRemoteBackendEndpointConfi
 		Resolution: time.Second,
 	}
 }
+
+func ptrDuration(n time.Duration) *time.Duration { return &n }
+
+func ptrInt(n int) *int { return &n }

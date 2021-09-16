@@ -67,10 +67,11 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 		endpoint := endpoint
 		if endpoint.resolution == query.Attributes().Resolution &&
 			endpoint.retention == query.Attributes().Retention {
+			metrics := p.endpointMetrics[endpoint.name]
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				err := p.writeSingle(ctx, endpoint.address, bytes.NewBuffer(encoded))
+				err := p.writeSingle(ctx, metrics, endpoint.address, bytes.NewBuffer(encoded))
 				if err != nil {
 					errLock.Lock()
 					multiErr = multiErr.Add(err)
@@ -106,15 +107,18 @@ func (p *promStorage) Name() string {
 	return "prom-remote"
 }
 
-func (p *promStorage) writeSingle(ctx context.Context, address string, encoded io.Reader) error {
+func (p *promStorage) writeSingle(
+	ctx context.Context,
+	metrics *instrument.MethodMetrics,
+	address string,
+	encoded io.Reader,
+) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, address, encoded)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("content-encoding", "snappy")
 	req.Header.Set(xhttp.HeaderContentType, xhttp.ContentTypeProtobuf)
-
-	metrics := p.endpointMetrics[address]
 
 	start := time.Now()
 	resp, err := p.client.Do(req)
@@ -146,7 +150,7 @@ func initEndpointMetrics(endpoints []EndpointOptions, scope tally.Scope) map[str
 			Type:             instrument.HistogramTimerType,
 			HistogramBuckets: tally.DefaultBuckets,
 		})
-		metrics[endpoint.address] = &methodMetrics
+		metrics[endpoint.name] = &methodMetrics
 	}
 	return metrics
 }
