@@ -896,6 +896,47 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	ctx.BlockingClose()
 }
 
+func TestBlockQueryWithIterMetrics(t *testing.T) {
+	block, err := NewBlock(xtime.Now().Truncate(time.Hour),
+		newTestNSMetadata(t), BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"),
+		testOpts)
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewBackground()
+
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+	_, _, err = results.AddDocuments([]doc.Document{
+		doc.NewDocumentFromMetadata(testDoc1()),
+		doc.NewDocumentFromMetadata(testDoc2()),
+	})
+	require.NoError(t, err)
+
+	queryIter := NewMockQueryIterator(ctrl)
+	notImportantInt := 0
+	gomock.InOrder(
+		queryIter.EXPECT().Next(ctx).Return(true),
+		queryIter.EXPECT().Current().Return(doc.NewDocumentFromMetadata(testDoc3())),
+		queryIter.EXPECT().Next(ctx).Return(false),
+		queryIter.EXPECT().Err().Return(nil),
+
+		// Iterator returns one document, so expect numOfSeries that have been added to the results object to be 1
+		// and number of documents to be 1
+		queryIter.EXPECT().AddSeries(gomock.Eq(1)),
+		queryIter.EXPECT().AddDocs(gomock.Eq(1)),
+
+		queryIter.EXPECT().Done().Return(true),
+		queryIter.EXPECT().Counts().Return(notImportantInt, notImportantInt),
+	)
+
+	err = block.QueryWithIter(ctx, QueryOptions{}, queryIter, results, time.Now().Add(time.Minute),
+		emptyLogFields)
+	require.NoError(t, err)
+}
+
 func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,36 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package httpd
 
 import (
-	"flag"
-	"log"
+	"net/http"
 
-	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
-	"github.com/m3db/m3/src/cmd/services/m3dbnode/server"
-	xconfig "github.com/m3db/m3/src/x/config"
-	"github.com/m3db/m3/src/x/config/configflag"
-	xos "github.com/m3db/m3/src/x/os"
+	"github.com/m3db/m3/src/query/api/v1/options"
 )
 
-func main() {
-	var cfgOpts configflag.Options
-	cfgOpts.Register()
+type renderRouter struct {
+	renderHandler func(http.ResponseWriter, *http.Request)
+}
 
-	flag.Parse()
+// NewGraphiteRenderRouter returns a new graphite render router.
+func NewGraphiteRenderRouter() options.GraphiteRenderRouter {
+	return &renderRouter{}
+}
 
-	var cfg config.Configuration
-	if err := cfgOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
-		log.Fatalf("error loading config: %v", err)
-	}
+func (r *renderRouter) Setup(opts options.GraphiteRenderRouterOptions) {
+	r.renderHandler = opts.RenderHandler
+}
 
-	if err := cfg.Validate(); err != nil {
-		log.Fatalf("error validating config: %v", err)
-	}
+func (r *renderRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	r.renderHandler(w, req)
+}
 
-	server.RunComponents(server.Options{
-		Configuration: cfg,
-		InterruptCh:   xos.NewInterruptChannel(cfg.Components()),
-	})
+type findRouter struct {
+	findHandler func(http.ResponseWriter, *http.Request)
+}
+
+// NewGraphiteFindRouter returns a new graphite find router.
+func NewGraphiteFindRouter() options.GraphiteFindRouter {
+	return &findRouter{}
+}
+
+func (r *findRouter) Setup(opts options.GraphiteFindRouterOptions) {
+	r.findHandler = opts.FindHandler
+}
+
+func (r *findRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	r.findHandler(w, req)
 }

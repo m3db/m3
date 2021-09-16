@@ -97,6 +97,28 @@ type QueryRouterOptions struct {
 	M3QueryHandler     func(http.ResponseWriter, *http.Request)
 }
 
+// GraphiteRenderRouter is responsible for routing graphite render queries.
+type GraphiteRenderRouter interface {
+	Setup(opts GraphiteRenderRouterOptions)
+	ServeHTTP(w http.ResponseWriter, req *http.Request)
+}
+
+// GraphiteRenderRouterOptions defines options for the graphite render router.
+type GraphiteRenderRouterOptions struct {
+	RenderHandler func(http.ResponseWriter, *http.Request)
+}
+
+// GraphiteFindRouter is responsible for routing graphite find queries.
+type GraphiteFindRouter interface {
+	Setup(opts GraphiteFindRouterOptions)
+	ServeHTTP(w http.ResponseWriter, req *http.Request)
+}
+
+// GraphiteFindRouterOptions defines options for graphite find router
+type GraphiteFindRouterOptions struct {
+	FindHandler func(http.ResponseWriter, *http.Request)
+}
+
 // RemoteReadRenderer renders remote read output.
 type RemoteReadRenderer func(io.Writer, []*ts.Series,
 	models.RequestParams, bool)
@@ -218,6 +240,16 @@ type HandlerOptions interface {
 	// SetGraphiteRenderFetchOptionsBuilder sets the Graphite render fetch options builder.
 	SetGraphiteRenderFetchOptionsBuilder(value handleroptions.FetchOptionsBuilder) HandlerOptions
 
+	// GraphiteRenderRouter is a reference to the router for graphite render queries.
+	GraphiteRenderRouter() GraphiteRenderRouter
+	// SetGraphiteRenderRouter sets the graphite render router.
+	SetGraphiteRenderRouter(value GraphiteRenderRouter) HandlerOptions
+
+	// GraphiteFindRouter is a reference to the router for graphite find queries.
+	GraphiteFindRouter() GraphiteFindRouter
+	// SetGraphiteFindRouter sets the graphite find router.
+	SetGraphiteFindRouter(value GraphiteFindRouter) HandlerOptions
+
 	// SetM3DBOptions sets the M3DB options.
 	SetM3DBOptions(value m3.Options) HandlerOptions
 	// M3DBOptions returns the M3DB options.
@@ -233,9 +265,9 @@ type HandlerOptions interface {
 	// NamespaceValidator returns the NamespaceValidator.
 	NamespaceValidator() NamespaceValidator
 
-	// KVStoreProtoParser sets the KVStoreProtoParser.
+	// SetKVStoreProtoParser sets the KVStoreProtoParser.
 	SetKVStoreProtoParser(KVStoreProtoParser) HandlerOptions
-	// KVStoreProtoHandler returns the KVStoreProtoParser.
+	// KVStoreProtoParser returns the KVStoreProtoParser.
 	KVStoreProtoParser() KVStoreProtoParser
 
 	// SetRegisterMiddleware sets the function to construct the set of Middleware functions to run.
@@ -274,6 +306,8 @@ type handlerOptions struct {
 	storeMetricsType                  bool
 	kvStoreProtoParser                KVStoreProtoParser
 	registerMiddleware                middleware.Register
+	graphiteRenderRouter              GraphiteRenderRouter
+	graphiteFindRouter                GraphiteFindRouter
 }
 
 // EmptyHandlerOptions returns  default handler options.
@@ -307,6 +341,8 @@ func NewHandlerOptions(
 	instantQueryRouter QueryRouter,
 	graphiteStorageOpts graphite.M3WrappedStorageOptions,
 	m3dbOpts m3.Options,
+	graphiteRenderRouter GraphiteRenderRouter,
+	graphiteFindRouter GraphiteFindRouter,
 ) (HandlerOptions, error) {
 	storeMetricsType := false
 	if cfg.StoreMetricsType != nil {
@@ -340,6 +376,8 @@ func NewHandlerOptions(
 		storeMetricsType:                  storeMetricsType,
 		namespaceValidator:                validators.NamespaceValidator,
 		registerMiddleware:                middleware.Default,
+		graphiteRenderRouter:              graphiteRenderRouter,
+		graphiteFindRouter:                graphiteFindRouter,
 	}, nil
 }
 
@@ -589,6 +627,26 @@ func (o *handlerOptions) GraphiteRenderFetchOptionsBuilder() handleroptions.Fetc
 func (o *handlerOptions) SetGraphiteRenderFetchOptionsBuilder(value handleroptions.FetchOptionsBuilder) HandlerOptions {
 	opts := *o
 	opts.graphiteRenderFetchOptionsBuilder = value
+	return &opts
+}
+
+func (o *handlerOptions) GraphiteRenderRouter() GraphiteRenderRouter {
+	return o.graphiteRenderRouter
+}
+
+func (o *handlerOptions) SetGraphiteRenderRouter(value GraphiteRenderRouter) HandlerOptions {
+	opts := *o
+	opts.graphiteRenderRouter = value
+	return &opts
+}
+
+func (o *handlerOptions) GraphiteFindRouter() GraphiteFindRouter {
+	return o.graphiteFindRouter
+}
+
+func (o *handlerOptions) SetGraphiteFindRouter(value GraphiteFindRouter) HandlerOptions {
+	opts := *o
+	opts.graphiteFindRouter = value
 	return &opts
 }
 

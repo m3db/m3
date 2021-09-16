@@ -27,6 +27,10 @@ import (
 	_ "net/http/pprof" // needed for pprof handler registration
 	"time"
 
+	"github.com/gorilla/mux"
+	"github.com/jonboulle/clockwork"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/placementhandler"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -48,10 +52,6 @@ import (
 	xdebug "github.com/m3db/m3/src/x/debug"
 	extdebug "github.com/m3db/m3/src/x/debug/ext"
 	xhttp "github.com/m3db/m3/src/x/net/http"
-
-	"github.com/gorilla/mux"
-	"github.com/jonboulle/clockwork"
-	"go.uber.org/zap"
 )
 
 const (
@@ -331,17 +331,23 @@ func (h *Handler) RegisterRoutes() error {
 		return err
 	}
 
-	// Graphite endpoints.
+	// Graphite routable endpoints.
+	h.options.GraphiteRenderRouter().Setup(options.GraphiteRenderRouterOptions{
+		RenderHandler: graphite.NewRenderHandler(h.options).ServeHTTP,
+	})
+	h.options.GraphiteFindRouter().Setup(options.GraphiteFindRouterOptions{
+		FindHandler: graphite.NewFindHandler(h.options).ServeHTTP,
+	})
 	if err := h.registry.Register(queryhttp.RegisterOptions{
 		Path:    graphite.ReadURL,
-		Handler: graphite.NewRenderHandler(h.options),
+		Handler: h.options.GraphiteRenderRouter(),
 		Methods: graphite.ReadHTTPMethods,
 	}); err != nil {
 		return err
 	}
 	if err := h.registry.Register(queryhttp.RegisterOptions{
 		Path:    graphite.FindURL,
-		Handler: graphite.NewFindHandler(h.options),
+		Handler: h.options.GraphiteFindRouter(),
 		Methods: graphite.FindHTTPMethods,
 	}); err != nil {
 		return err
@@ -566,9 +572,12 @@ func (h *Handler) registerHealthEndpoints() error {
 
 // Endpoints useful for profiling the service.
 func (h *Handler) registerProfileEndpoints() error {
+	debugHandler := http.NewServeMux()
+	xdebug.RegisterPProfHandlers(debugHandler)
+
 	return h.registry.Register(queryhttp.RegisterOptions{
 		PathPrefix: "/debug/pprof",
-		Handler:    http.DefaultServeMux,
+		Handler:    debugHandler,
 	})
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,36 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package metricpb
 
 import (
-	"flag"
-	"log"
+	"testing"
 
-	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
-	"github.com/m3db/m3/src/cmd/services/m3dbnode/server"
-	xconfig "github.com/m3db/m3/src/x/config"
-	"github.com/m3db/m3/src/x/config/configflag"
-	xos "github.com/m3db/m3/src/x/os"
+	"github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
+	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
 )
 
-func main() {
-	var cfgOpts configflag.Options
-	cfgOpts.Register()
+func TestCatchNewFields(t *testing.T) {
+	verifyFields(t, &StagedMetadatas{}, 1)
+	verifyFields(t, &StagedMetadata{}, 3)
+	verifyFields(t, &Metadata{}, 1)
+	verifyFields(t, &PipelineMetadata{}, 5)
+	verifyFields(t, &pipelinepb.AppliedPipeline{}, 1)
+	verifyFields(t, &pipelinepb.AppliedPipelineOp{}, 3)
+	verifyFields(t, &pipelinepb.AppliedRollupOp{}, 2)
+}
 
-	flag.Parse()
-
-	var cfg config.Configuration
-	if err := cfgOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
-		log.Fatalf("error loading config: %v", err)
-	}
-
-	if err := cfg.Validate(); err != nil {
-		log.Fatalf("error validating config: %v", err)
-	}
-
-	server.RunComponents(server.Options{
-		Configuration: cfg,
-		InterruptCh:   xos.NewInterruptChannel(cfg.Components()),
-	})
+func verifyFields(t *testing.T, m descriptor.Message, expectedFieldCount int) {
+	_, d := descriptor.ForMessage(m)
+	require.Len(t, d.Field, expectedFieldCount, "Unexpected number of fields for %s. "+
+		"If you added a new field you need to update the reuse() function in custom_unmarshal.go to reset the field "+
+		"for reuse. After that you can update the expected number of fields in this test.", *d.Name)
 }

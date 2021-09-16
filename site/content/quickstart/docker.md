@@ -19,7 +19,7 @@ Deploying a single-node cluster is a great way to experiment with M3 and get an 
         -   _Swap_: 1GB
         -   _Disk image size_: 16GB
 -   **JQ**: This example uses [jq](https://stedolan.github.io/jq/) to format the output of API calls. It isn't essential for using M3DB.
--   **curl**: This example uses curl for communicating with M3DB endpoints. You can also use alternatives such as [Wget](https://www.gnu.org/software/wget/) and [HTTPie](https://httpie.org/).
+-   **curl**: This example uses curl for communicating with M3DB endpoints. You can also use alternatives such as [Wget](https://www.gnu.org/software/wget/) and HTTPie.
 
 ## Start Docker Container
 

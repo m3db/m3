@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,36 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+// Package debug contains debug helpers for M3 components.
+package debug
 
 import (
-	"flag"
-	"log"
-
-	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
-	"github.com/m3db/m3/src/cmd/services/m3dbnode/server"
-	xconfig "github.com/m3db/m3/src/x/config"
-	"github.com/m3db/m3/src/x/config/configflag"
-	xos "github.com/m3db/m3/src/x/os"
+	"net/http"
+	"net/http/pprof"
 )
 
-func main() {
-	var cfgOpts configflag.Options
-	cfgOpts.Register()
-
-	flag.Parse()
-
-	var cfg config.Configuration
-	if err := cfgOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
-		log.Fatalf("error loading config: %v", err)
-	}
-
-	if err := cfg.Validate(); err != nil {
-		log.Fatalf("error validating config: %v", err)
-	}
-
-	server.RunComponents(server.Options{
-		Configuration: cfg,
-		InterruptCh:   xos.NewInterruptChannel(cfg.Components()),
-	})
+// RegisterPProfHandlers registers pprof endpoints on the ServeMux
+// provided. Use this instead of just importing net/http/pprof if you'd
+// like to register endpoints on a ServeMux other than http.DefaultServeMux.
+func RegisterPProfHandlers(mux *http.ServeMux) {
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 }

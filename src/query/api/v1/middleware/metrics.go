@@ -92,7 +92,14 @@ func ResponseMetrics(opts Options) mux.MiddlewareFunc {
 
 			var tags classificationTags
 			if cfg.LabelEndpointsClassification.Enabled() || cfg.QueryEndpointsClassification.Enabled() {
-				tags = classifyRequest(w, r, classificationMetrics, opts, start, path)
+				if statusCodeTracking.Status == 200 {
+					tags = classifyRequest(w, r, classificationMetrics, opts, start, path)
+				} else {
+					// NB(nate): Don't attempt to classify failed requests since they won't have a number of
+					// series/metadata fetched and would skew the results of the smallest bucket if attempted,
+					// as a missing "result" is considered a 0.
+					tags = newClassificationTags()
+				}
 			}
 
 			addLatencyStatus := false
