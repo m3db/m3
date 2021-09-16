@@ -266,7 +266,7 @@ func (s *peersSource) readData(
 		concurrency = s.opts.ShardPersistenceConcurrency()
 	}
 
-	instrCtx := s.instrumentation.bootstrapShardsStarted(count, concurrency, shouldPersist)
+	instrCtx := s.instrumentation.bootstrapShardsStarted(nsMetadata.ID(), count, concurrency, shouldPersist)
 	defer instrCtx.bootstrapShardsCompleted()
 	if shouldPersist {
 		// Spin up persist workers.
