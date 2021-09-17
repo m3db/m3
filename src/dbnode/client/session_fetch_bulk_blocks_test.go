@@ -338,8 +338,8 @@ func TestFetchBootstrapBlocksDontRetryHostNotAvailableInRetrier(t *testing.T) {
 	host := hostShardSets[len(hostShardSets)-1].Host()
 	connectionPool := NewMockconnectionPool(ctrl)
 	connectionPool.EXPECT().
-		NextClient(false).
-		Return(nil, nil, errConnectionPoolHasNoConnections).
+		NextClient().
+		Return(nil, nil, false, errConnectionPoolHasNoConnections).
 		AnyTimes()
 	hostQueue := NewMockhostQueue(ctrl)
 	hostQueue.EXPECT().Open()
@@ -2023,7 +2023,7 @@ func defaultHostAndClientWithExpect(
 ) (*MockhostQueue, *rpc.MockTChanNode) {
 	client := rpc.NewMockTChanNode(ctrl)
 	connectionPool := NewMockconnectionPool(ctrl)
-	connectionPool.EXPECT().NextClient(false).Return(client, &noopPooledChannel{}, nil).AnyTimes()
+	connectionPool.EXPECT().NextClient().Return(client, &noopPooledChannel{}, false, nil).AnyTimes()
 
 	hostQueue := NewMockhostQueue(ctrl)
 	hostQueue.EXPECT().Open()

@@ -5293,19 +5293,20 @@ func (mr *MockconnectionPoolMockRecorder) ConnectionCount() *gomock.Call {
 }
 
 // NextClient mocks base method.
-func (m *MockconnectionPool) NextClient(bootstrappedOnly bool) (rpc.TChanNode, Channel, error) {
+func (m *MockconnectionPool) NextClient() (rpc.TChanNode, Channel, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NextClient", bootstrappedOnly)
+	ret := m.ctrl.Call(m, "NextClient")
 	ret0, _ := ret[0].(rpc.TChanNode)
 	ret1, _ := ret[1].(Channel)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret2, _ := ret[2].(bool)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
 }
 
 // NextClient indicates an expected call of NextClient.
-func (mr *MockconnectionPoolMockRecorder) NextClient(bootstrappedOnly interface{}) *gomock.Call {
+func (mr *MockconnectionPoolMockRecorder) NextClient() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NextClient", reflect.TypeOf((*MockconnectionPool)(nil).NextClient), bootstrappedOnly)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NextClient", reflect.TypeOf((*MockconnectionPool)(nil).NextClient))
 }
 
 // Open mocks base method.

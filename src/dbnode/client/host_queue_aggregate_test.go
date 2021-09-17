@@ -68,7 +68,7 @@ func TestHostQueueDrainOnCloseAggregate(t *testing.T) {
 		assert.Equal(t, aggregate.request.NameSpace, req.NameSpace)
 	}
 	mockClient.EXPECT().AggregateRaw(gomock.Any(), gomock.Any()).Do(aggregateExec).Return(nil, nil)
-	mockConnPool.EXPECT().NextClient(true).Return(mockClient, &noopPooledChannel{}, nil)
+	mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, true, nil)
 	mockConnPool.EXPECT().Close().AnyTimes()
 
 	// Execute aggregate
@@ -98,7 +98,6 @@ func TestHostQueueDrainOnCloseAggregate(t *testing.T) {
 }
 
 func TestHostQueueAggregate(t *testing.T) {
-	namespace := "testNs"
 	res := &rpc.AggregateQueryRawResult_{
 		Results: []*rpc.AggregateQueryRawResultTagNameElement{
 			{
@@ -115,13 +114,12 @@ func TestHostQueueAggregate(t *testing.T) {
 			},
 		},
 	}
-	testHostQueueAggregate(t, namespace, res, expectedResults, nil, func(results []hostQueueResult) {
+	testHostQueueAggregate(t, res, nil, func(results []hostQueueResult) {
 		assert.Equal(t, expectedResults, results)
 	})
 }
 
 func TestHostQueueAggregateErrorOnNextClientUnavailable(t *testing.T) {
-	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
 		{
@@ -134,13 +132,29 @@ func TestHostQueueAggregateErrorOnNextClientUnavailable(t *testing.T) {
 	opts := &testHostQueueAggregateOptions{
 		nextClientErr: expectedErr,
 	}
-	testHostQueueAggregate(t, namespace, nil, expectedResults, opts, func(results []hostQueueResult) {
+	testHostQueueAggregate(t, nil, opts, func(results []hostQueueResult) {
+		assert.Equal(t, expectedResults, results)
+	})
+}
+
+func TestHostQueueAggregateErrorOnNextClientNotBootstrapped(t *testing.T) {
+	expectedResults := []hostQueueResult{
+		{
+			result: aggregateResultAccumulatorOpts{
+				host: h,
+			},
+			err: errNodeNotBootstrapped,
+		},
+	}
+	opts := &testHostQueueAggregateOptions{
+		bootstrapped: false,
+	}
+	testHostQueueAggregate(t, nil, opts, func(results []hostQueueResult) {
 		assert.Equal(t, expectedResults, results)
 	})
 }
 
 func TestHostQueueAggregateErrorOnAggregateError(t *testing.T) {
-	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
 		{
@@ -151,7 +165,7 @@ func TestHostQueueAggregateErrorOnAggregateError(t *testing.T) {
 	opts := &testHostQueueAggregateOptions{
 		aggregateErr: expectedErr,
 	}
-	testHostQueueAggregate(t, namespace, nil, expectedResults, opts, func(results []hostQueueResult) {
+	testHostQueueAggregate(t, nil, opts, func(results []hostQueueResult) {
 		assert.Equal(t, expectedResults, results)
 	})
 }
@@ -159,13 +173,12 @@ func TestHostQueueAggregateErrorOnAggregateError(t *testing.T) {
 type testHostQueueAggregateOptions struct {
 	nextClientErr error
 	aggregateErr  error
+	bootstrapped  bool
 }
 
 func testHostQueueAggregate(
 	t *testing.T,
-	namespace string,
 	result *rpc.AggregateQueryRawResult_,
-	expected []hostQueueResult,
 	testOpts *testHostQueueAggregateOptions,
 	assertion func(results []hostQueueResult),
 ) {
@@ -201,7 +214,7 @@ func testHostQueueAggregate(
 	// Prepare mocks for flush
 	mockClient := rpc.NewMockTChanNode(ctrl)
 	if testOpts != nil && testOpts.nextClientErr != nil {
-		mockConnPool.EXPECT().NextClient(true).Return(nil, nil, testOpts.nextClientErr)
+		mockConnPool.EXPECT().NextClient().Return(nil, nil, false, testOpts.nextClientErr)
 	} else if testOpts != nil && testOpts.aggregateErr != nil {
 		aggregateExec := func(ctx thrift.Context, req *rpc.AggregateQueryRawRequest) {
 			require.NotNil(t, req)
@@ -212,7 +225,9 @@ func testHostQueueAggregate(
 			Do(aggregateExec).
 			Return(nil, testOpts.aggregateErr)
 
-		mockConnPool.EXPECT().NextClient(true).Return(mockClient, &noopPooledChannel{}, nil)
+		mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, true, nil)
+	} else if testOpts != nil && !testOpts.bootstrapped {
+		mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, false, nil)
 	} else {
 		aggregateExec := func(ctx thrift.Context, req *rpc.AggregateQueryRawRequest) {
 			require.NotNil(t, req)
@@ -223,7 +238,7 @@ func testHostQueueAggregate(
 			Do(aggregateExec).
 			Return(result, nil)
 
-		mockConnPool.EXPECT().NextClient(true).Return(mockClient, &noopPooledChannel{}, nil)
+		mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, true, nil)
 	}
 
 	// Fetch

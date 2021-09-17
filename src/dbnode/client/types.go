@@ -834,9 +834,9 @@ type connectionPool interface {
 	// ConnectionCount gets the current open connection count.
 	ConnectionCount() int
 
-	// NextClient gets the next client for use by the connection pool.
-	// If bootstrappedOnly, only connections to bootstrapped nodes will be considered.
-	NextClient(bootstrappedOnly bool) (rpc.TChanNode, Channel, error)
+	// NextClient gets the next client for use by the connection pool,
+	// and true iff the underlying node is bootstrapped.
+	NextClient() (rpc.TChanNode, Channel, bool, error)
 
 	// Close the connection pool.
 	Close()

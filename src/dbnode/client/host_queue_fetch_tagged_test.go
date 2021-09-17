@@ -67,7 +67,7 @@ func TestHostQueueDrainOnCloseFetchTagged(t *testing.T) {
 		assert.Equal(t, fetch.request.NameSpace, req.NameSpace)
 	}
 	mockClient.EXPECT().FetchTagged(gomock.Any(), gomock.Any()).Do(fetchTagged).Return(nil, nil)
-	mockConnPool.EXPECT().NextClient(true).Return(mockClient, &noopPooledChannel{}, nil)
+	mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, true, nil)
 	mockConnPool.EXPECT().Close().AnyTimes()
 
 	// Execute fetch
@@ -115,13 +115,29 @@ func TestHostQueueFetchTagged(t *testing.T) {
 			},
 		},
 	}
-	testHostQueueFetchTagged(t, namespace, res, expectedResults, nil, func(results []hostQueueResult) {
+	testHostQueueFetchTagged(t, res, nil, func(results []hostQueueResult) {
+		assert.Equal(t, expectedResults, results)
+	})
+}
+
+func TestHostQueueFetchTaggedErrorOnNextClientNotBootstrapped(t *testing.T) {
+	expectedResults := []hostQueueResult{
+		{
+			result: fetchTaggedResultAccumulatorOpts{
+				host: h,
+			},
+			err: errNodeNotBootstrapped,
+		},
+	}
+	opts := &testHostQueueFetchTaggedOptions{
+		bootstrapped: false,
+	}
+	testHostQueueFetchTagged(t, nil, opts, func(results []hostQueueResult) {
 		assert.Equal(t, expectedResults, results)
 	})
 }
 
 func TestHostQueueFetchTaggedErrorOnNextClientUnavailable(t *testing.T) {
-	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
 		{
@@ -134,13 +150,12 @@ func TestHostQueueFetchTaggedErrorOnNextClientUnavailable(t *testing.T) {
 	opts := &testHostQueueFetchTaggedOptions{
 		nextClientErr: expectedErr,
 	}
-	testHostQueueFetchTagged(t, namespace, nil, expectedResults, opts, func(results []hostQueueResult) {
+	testHostQueueFetchTagged(t, nil, opts, func(results []hostQueueResult) {
 		assert.Equal(t, expectedResults, results)
 	})
 }
 
 func TestHostQueueFetchTaggedErrorOnFetchTaggedError(t *testing.T) {
-	namespace := "testNs"
 	expectedErr := fmt.Errorf("an error")
 	expectedResults := []hostQueueResult{
 		{
@@ -151,7 +166,7 @@ func TestHostQueueFetchTaggedErrorOnFetchTaggedError(t *testing.T) {
 	opts := &testHostQueueFetchTaggedOptions{
 		fetchTaggedErr: expectedErr,
 	}
-	testHostQueueFetchTagged(t, namespace, nil, expectedResults, opts, func(results []hostQueueResult) {
+	testHostQueueFetchTagged(t, nil, opts, func(results []hostQueueResult) {
 		assert.Equal(t, expectedResults, results)
 	})
 }
@@ -159,13 +174,12 @@ func TestHostQueueFetchTaggedErrorOnFetchTaggedError(t *testing.T) {
 type testHostQueueFetchTaggedOptions struct {
 	nextClientErr  error
 	fetchTaggedErr error
+	bootstrapped   bool
 }
 
 func testHostQueueFetchTagged(
 	t *testing.T,
-	namespace string,
 	result *rpc.FetchTaggedResult_,
-	expected []hostQueueResult,
 	testOpts *testHostQueueFetchTaggedOptions,
 	assertion func(results []hostQueueResult),
 ) {
@@ -201,7 +215,7 @@ func testHostQueueFetchTagged(
 	// Prepare mocks for flush
 	mockClient := rpc.NewMockTChanNode(ctrl)
 	if testOpts != nil && testOpts.nextClientErr != nil {
-		mockConnPool.EXPECT().NextClient(true).Return(nil, nil, testOpts.nextClientErr)
+		mockConnPool.EXPECT().NextClient().Return(nil, nil, false, testOpts.nextClientErr)
 	} else if testOpts != nil && testOpts.fetchTaggedErr != nil {
 		fetchTaggedExec := func(ctx thrift.Context, req *rpc.FetchTaggedRequest) {
 			require.NotNil(t, req)
@@ -212,7 +226,9 @@ func testHostQueueFetchTagged(
 			Do(fetchTaggedExec).
 			Return(nil, testOpts.fetchTaggedErr)
 
-		mockConnPool.EXPECT().NextClient(true).Return(mockClient, &noopPooledChannel{}, nil)
+		mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, true, nil)
+	} else if testOpts != nil && !testOpts.bootstrapped {
+		mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, false, nil)
 	} else {
 		fetchTaggedExec := func(ctx thrift.Context, req *rpc.FetchTaggedRequest) {
 			require.NotNil(t, req)
@@ -223,7 +239,7 @@ func testHostQueueFetchTagged(
 			Do(fetchTaggedExec).
 			Return(result, nil)
 
-		mockConnPool.EXPECT().NextClient(true).Return(mockClient, &noopPooledChannel{}, nil)
+		mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, true, nil)
 	}
 
 	// Fetch

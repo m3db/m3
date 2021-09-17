@@ -43,7 +43,7 @@ func TestHostQueueFetchBatches(t *testing.T) {
 	for i := range ids {
 		expected = append(expected, hostQueueResult{result.Elements[i].Segments, nil})
 	}
-	testHostQueueFetchBatches(t, namespace, ids, result, expected, nil, func(results []hostQueueResult) {
+	testHostQueueFetchBatches(t, namespace, ids, result, nil, func(results []hostQueueResult) {
 		assert.Equal(t, expected, results)
 	})
 }
@@ -123,7 +123,7 @@ func TestHostQueueFetchBatchesV2MultiNS(t *testing.T) {
 		Do(verifyFetchBatchRawV2).
 		Return(result, nil)
 
-	mockConnPool.EXPECT().NextClient(false).Return(mockClient, &noopPooledChannel{}, nil)
+	mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, false, nil)
 
 	for _, fetchBatch := range fetchBatches {
 		assert.NoError(t, queue.Enqueue(fetchBatch))
@@ -155,7 +155,7 @@ func TestHostQueueFetchBatchesErrorOnNextClientUnavailable(t *testing.T) {
 	opts := &testHostQueueFetchBatchesOptions{
 		nextClientErr: expectedErr,
 	}
-	testHostQueueFetchBatches(t, namespace, ids, nil, expected, opts, func(results []hostQueueResult) {
+	testHostQueueFetchBatches(t, namespace, ids, nil, opts, func(results []hostQueueResult) {
 		assert.Equal(t, expected, results)
 	})
 }
@@ -171,7 +171,7 @@ func TestHostQueueFetchBatchesErrorOnFetchRawBatchError(t *testing.T) {
 	opts := &testHostQueueFetchBatchesOptions{
 		fetchRawBatchErr: expectedErr,
 	}
-	testHostQueueFetchBatches(t, namespace, ids, nil, expected, opts, func(results []hostQueueResult) {
+	testHostQueueFetchBatches(t, namespace, ids, nil, opts, func(results []hostQueueResult) {
 		assert.Equal(t, expected, results)
 	})
 }
@@ -188,7 +188,7 @@ func TestHostQueueFetchBatchesErrorOnFetchNoResponse(t *testing.T) {
 		expected = append(expected, hostQueueResult{result.Elements[i].Segments, nil})
 	}
 
-	testHostQueueFetchBatches(t, namespace, ids, result, expected, nil, func(results []hostQueueResult) {
+	testHostQueueFetchBatches(t, namespace, ids, result,  nil, func(results []hostQueueResult) {
 		assert.Equal(t, expected, results[:len(results)-1])
 		lastResult := results[len(results)-1]
 		assert.Nil(t, lastResult.result)
@@ -209,7 +209,7 @@ func TestHostQueueFetchBatchesErrorOnResultError(t *testing.T) {
 	for i := range ids[:len(ids)-1] {
 		expected = append(expected, hostQueueResult{result.Elements[i].Segments, nil})
 	}
-	testHostQueueFetchBatches(t, namespace, ids, result, expected, nil, func(results []hostQueueResult) {
+	testHostQueueFetchBatches(t, namespace, ids, result,  nil, func(results []hostQueueResult) {
 		assert.Equal(t, expected, results[:len(results)-1])
 		rpcErr, ok := results[len(results)-1].err.(*rpc.Error)
 		assert.True(t, ok)
@@ -228,7 +228,6 @@ func testHostQueueFetchBatches(
 	namespace string,
 	ids []string,
 	result *rpc.FetchBatchRawResult_,
-	expected []hostQueueResult,
 	testOpts *testHostQueueFetchBatchesOptions,
 	assertion func(results []hostQueueResult),
 ) {
@@ -310,7 +309,7 @@ func testHostQueueFetchBatches(
 				}
 			}
 			if testOpts != nil && testOpts.nextClientErr != nil {
-				mockConnPool.EXPECT().NextClient(false).Return(nil, nil, testOpts.nextClientErr)
+				mockConnPool.EXPECT().NextClient().Return(nil, nil, false, testOpts.nextClientErr)
 			} else if testOpts != nil && testOpts.fetchRawBatchErr != nil {
 				if opts.UseV2BatchAPIs() {
 					mockClient.EXPECT().
@@ -326,7 +325,7 @@ func testHostQueueFetchBatches(
 						Do(fetchBatchRaw).
 						Return(nil, testOpts.fetchRawBatchErr)
 				}
-				mockConnPool.EXPECT().NextClient(false).Return(mockClient, &noopPooledChannel{}, nil)
+				mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, false, nil)
 			} else {
 				if opts.UseV2BatchAPIs() {
 					mockClient.EXPECT().
@@ -343,7 +342,7 @@ func testHostQueueFetchBatches(
 						Return(result, nil)
 				}
 
-				mockConnPool.EXPECT().NextClient(false).Return(mockClient, &noopPooledChannel{}, nil)
+				mockConnPool.EXPECT().NextClient().Return(mockClient, &noopPooledChannel{}, false, nil)
 			}
 
 			// Fetch

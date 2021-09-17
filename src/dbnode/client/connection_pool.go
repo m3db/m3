@@ -135,25 +135,21 @@ func (p *connPool) ConnectionCount() int {
 	return int(poolLen)
 }
 
-func (p *connPool) NextClient(bootstrappedOnly bool) (rpc.TChanNode, Channel, error) {
+func (p *connPool) NextClient() (rpc.TChanNode, Channel, bool, error) {
 	p.RLock()
 	if p.status != statusOpen {
 		p.RUnlock()
-		return nil, nil, errConnectionPoolClosed
+		return nil, nil, false, errConnectionPoolClosed
 	}
 	if p.poolLen < 1 {
 		p.RUnlock()
-		return nil, nil, errConnectionPoolHasNoConnections
+		return nil, nil, false, errConnectionPoolHasNoConnections
 	}
 	n := atomic.AddInt64(&p.used, 1)
 	conn := p.pool[n%p.poolLen]
 	p.RUnlock()
 
-	if bootstrappedOnly && !conn.bootstrapped {
-		return nil, nil, errNodeNotBootstrapped
-	}
-
-	return conn.client, conn.channel, nil
+	return conn.client, conn.channel, conn.bootstrapped, nil
 }
 
 func (p *connPool) Close() {
