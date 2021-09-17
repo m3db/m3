@@ -274,12 +274,14 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 
 				healthy := failed < attempts
 				if healthy {
+					p.Lock()
 					for j := int64(0); j < p.poolLen; j++ {
 						if client == p.pool[j].client {
 							p.pool[j].bootstrapped = bootstrapped
 							break
 						}
 					}
+					p.Unlock()
 				} else {
 					// Log health check error
 					log.Debug("health check failed", zap.String("host", p.host.Address()), zap.Error(checkErr))
