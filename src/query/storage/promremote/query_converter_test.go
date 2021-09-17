@@ -15,6 +15,7 @@ import (
 )
 
 func TestQueryConverter(t *testing.T) {
+	now := xtime.Now()
 	tcs := []struct {
 		name     string
 		input    storage.WriteQueryOptions
@@ -31,7 +32,7 @@ func TestQueryConverter(t *testing.T) {
 					}},
 				},
 				Datapoints: ts.Datapoints{{
-					Timestamp: xtime.UnixNano(time.Second),
+					Timestamp: now,
 					Value:     42,
 				}},
 				Unit: xtime.Millisecond,
@@ -47,7 +48,7 @@ func TestQueryConverter(t *testing.T) {
 						},
 						Samples: []prompb.Sample{
 							{
-								Timestamp: 1000,
+								Timestamp: now.ToNormalizedTime(time.Millisecond),
 								Value:     42,
 							},
 						},
