@@ -46,3 +46,34 @@ func GetAvailablePort() (int, error) {
 	}
 	return port, nil
 }
+
+// MaybeGeneratePort takes an address and generates a new version of
+// that address with the port replaced with an open port if the original
+// port was 0. Otherwise, the address is returned unchanged.
+// This method returns the potentially updated address, the potentially
+// updated port, a boolean indicating if the address was changed, and
+// an error in case the method failed
+func MaybeGeneratePort(address string) (string, int, bool, error) {
+	h, p, err := net.SplitHostPort(address)
+	if err != nil {
+		return "", 0, false, err
+	}
+
+	port, err := strconv.Atoi(p)
+	if err != nil {
+		return "", 0, false, err
+	}
+
+	if port == 0 {
+		newPort, err := GetAvailablePort()
+		if err != nil {
+			return address, 0, false, err
+		}
+
+		newAddr := net.JoinHostPort(h, strconv.Itoa(newPort))
+
+		return newAddr, newPort, true, nil
+	}
+
+	return address, port, false, nil
+}

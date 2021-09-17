@@ -24,9 +24,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"net"
+	"io/ioutil"
+	"os"
 	"os/exec"
-	"strconv"
 	"time"
 
 	"github.com/cenkalti/backoff/v3"
@@ -48,8 +48,8 @@ const defaultRPCTimeout = time.Minute
 
 type dbNode struct {
 	cfg     config.Configuration
-	rpcPort int
 	logger  *zap.Logger
+	tmpDirs []string
 
 	interruptCh chan<- error
 	shutdownCh  <-chan struct{}
@@ -88,22 +88,19 @@ func NewDBNodeFromYAML(yamlCfg string, opts DBNodeOptions) (resources.Node, erro
 // NewDBNode creates a new in-process DB node based on the configuration
 // and options provided.
 func NewDBNode(cfg config.Configuration, opts DBNodeOptions) (resources.Node, error) {
+	// Replace any "0" ports with an open port
+	cfg, err := updateDBNodePorts(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	// Replace any "*" filepath with a temporary directory
+	cfg, tmpDirs, err := updateDBNodeFilepaths(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	// Configure TChannel client for hitting the DB node.
-	_, p, err := net.SplitHostPort(cfg.DB.ListenAddressOrDefault())
-	if err != nil {
-		return nil, err
-	}
-
-	cfg, err = updatePorts(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	rpcPort, err := strconv.Atoi(p)
-	if err != nil {
-		return nil, err
-	}
-
 	tchanClient, err := integration.NewTChannelClient("client", cfg.DB.ListenAddressOrDefault())
 	if err != nil {
 		return nil, err
@@ -120,9 +117,9 @@ func NewDBNode(cfg config.Configuration, opts DBNodeOptions) (resources.Node, er
 	// Start the DB node
 	node := &dbNode{
 		cfg:         cfg,
-		rpcPort:     rpcPort,
 		logger:      opts.Logger,
 		tchanClient: tchanClient,
+		tmpDirs:     tmpDirs,
 	}
 	node.start()
 
@@ -148,7 +145,20 @@ func (d *dbNode) HostDetails(port int) (*admin.Host, error) {
 	// TODO(nate): implement once working on helpers for spinning up
 	// a multi-node cluster since that's what it's currently being
 	// used for based on the docker-based implementation.
-	panic("implement me")
+	// id we can generate?
+	// isolation_group set a constant?
+	// weight just use 1024?
+	// address is 0.0.0.0
+	// port is the listen address (get from config)
+
+	return &admin.Host{
+		Id:             "foo",
+		IsolationGroup: "foo-a",
+		Zone:           "embedded",
+		Weight:         1024,
+		Address:        "0.0.0.0",
+		Port:           uint32(port),
+	}, nil
 }
 
 func (d *dbNode) Health() (*rpc.NodeHealthResult_, error) {
@@ -230,6 +240,14 @@ func (d *dbNode) Restart() error {
 }
 
 func (d *dbNode) Close() error {
+	defer func() {
+		for _, dir := range d.tmpDirs {
+			if err := os.RemoveAll(dir); err != nil {
+				d.logger.Error("error removing temp directory", zap.String("dir", dir), zap.Error(err))
+			}
+		}
+	}()
+
 	for i := 0; i < d.cfg.Components(); i++ {
 		select {
 		case d.interruptCh <- errors.New("in-process node being shut down"):
@@ -252,25 +270,43 @@ func (d *dbNode) Close() error {
 	return nil
 }
 
-func updatePorts(cfg config.Configuration) (config.Configuration, error) {
+func updateDBNodePorts(cfg config.Configuration) (config.Configuration, error) {
 	if cfg.DB.ListenAddress != nil {
-		h, p, err := net.SplitHostPort(*cfg.DB.ListenAddress)
+		addr, _, _, err := nettest.MaybeGeneratePort(*cfg.DB.ListenAddress)
 		if err != nil {
 			return cfg, err
 		}
 
-		if p == "0" {
-			port, err := nettest.GetAvailablePort()
-			if err != nil {
-				return cfg, err
-			}
+		cfg.DB.ListenAddress = &addr
+	}
 
-			newAddr := net.JoinHostPort(h, strconv.Itoa(port))
-			cfg.DB.ListenAddress = &newAddr
+	if cfg.Coordinator != nil && cfg.Coordinator.ListenAddress != nil {
+		addr, _, _, err := nettest.MaybeGeneratePort(*cfg.Coordinator.ListenAddress)
+		if err != nil {
+			return cfg, err
 		}
+
+		cfg.Coordinator.ListenAddress = &addr
 	}
 
 	return cfg, nil
+}
+
+func updateDBNodeFilepaths(cfg config.Configuration) (config.Configuration, []string, error) {
+	tmpDirs := make([]string, 0, 1)
+
+	prefix := cfg.DB.Filesystem.FilePathPrefix
+	if prefix != nil && *prefix == "*" {
+		dir, err := ioutil.TempDir("", "m3db-*")
+		if err != nil {
+			return cfg, tmpDirs, err
+		}
+
+		tmpDirs = append(tmpDirs, dir)
+		cfg.DB.Filesystem.FilePathPrefix = &dir
+	}
+
+	return cfg, tmpDirs, nil
 }
 
 func retry(op func() error) error {

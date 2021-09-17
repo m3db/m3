@@ -27,6 +27,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/m3db/m3/src/integration/resources/common"
+
 	"github.com/ory/dockertest/v3"
 	dc "github.com/ory/dockertest/v3/docker"
 	"github.com/ory/dockertest/v3/docker/types/mount"
@@ -124,7 +126,7 @@ func (c *dockerResource) exec(commands ...string) (string, error) {
 
 	// NB: this is prefixed with a `/` that should be trimmed off.
 	name := strings.TrimLeft(c.resource.Container.Name, "/")
-	logger := c.logger.With(zapMethod("exec"))
+	logger := c.logger.With(common.ZapMethod("exec"))
 	client := c.pool.Client
 	exec, err := client.CreateExec(dc.CreateExecOptions{
 		AttachStdout: true,
@@ -174,7 +176,7 @@ func (c *dockerResource) goalStateExec(
 		return errClosed
 	}
 
-	logger := c.logger.With(zapMethod("goalStateExec"))
+	logger := c.logger.With(common.ZapMethod("goalStateExec"))
 	return c.pool.Retry(func() error {
 		err := verifier(c.exec(commands...))
 		if err != nil {
