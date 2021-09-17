@@ -172,7 +172,8 @@ func TestPipelineString(t *testing.T) {
 					},
 				},
 			},
-			expected: "{operations: [{aggregation: Last}, {transformation: PerSecond}, {rollup: {name: foo, type: 0, tags: [tag1, tag2], aggregation: Sum}}]}",
+			expected: "{operations: [{aggregation: Last}, {transformation: PerSecond}, " +
+				"{rollup: {name: foo, type: 0, tags: [tag1, tag2], aggregation: Sum}}]}",
 		},
 		{
 			p: Pipeline{
@@ -313,7 +314,7 @@ func TestOpUnionMarshalJSON(t *testing.T) {
 			op: OpUnion{
 				Type: RollupOpType,
 				Rollup: RollupOp{
-					Type: ExcludeByRollupType,
+					Type:          ExcludeByRollupType,
 					newName:       b("testRollup"),
 					Tags:          bs("tag1", "tag2"),
 					AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
