@@ -32,7 +32,10 @@ import (
 
 	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -49,13 +52,14 @@ func NewStorage(opts Options) (storage.Storage, error) {
 }
 
 type promStorage struct {
+	unimplementedPromStorageMethods
 	opts            Options
 	client          *http.Client
 	endpointMetrics map[string]instrument.MethodMetrics
 }
 
 func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
-	encoded, err := encodeWriteQuery(query)
+	encoded, err := convertAndEncodeWriteQuery(query)
 	if err != nil {
 		return err
 	}
@@ -130,7 +134,7 @@ func (p *promStorage) writeSingle(
 		response, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			// TODO(antanas): should log and return just generic error
-			response = []byte(fmt.Sprintf("error reading body: %v", err))
+			response = []byte("error reading body")
 		}
 		return fmt.Errorf("expected status code 2XX: actual=%v, address=%v, resp=%s",
 			resp.StatusCode, address, response)
@@ -153,3 +157,57 @@ func initEndpointMetrics(endpoints []EndpointOptions, scope tally.Scope) map[str
 }
 
 var _ storage.Storage = &promStorage{}
+
+type unimplementedPromStorageMethods struct{}
+
+func (p *unimplementedPromStorageMethods) FetchProm(
+	_ context.Context,
+	_ *storage.FetchQuery,
+	_ *storage.FetchOptions,
+) (storage.PromResult, error) {
+	return storage.PromResult{}, unimplementedError("FetchProm")
+}
+
+func (p *unimplementedPromStorageMethods) FetchBlocks(
+	_ context.Context,
+	_ *storage.FetchQuery,
+	_ *storage.FetchOptions,
+) (block.Result, error) {
+	return block.Result{}, unimplementedError("FetchBlocks")
+}
+
+func (p *unimplementedPromStorageMethods) FetchCompressed(
+	_ context.Context,
+	_ *storage.FetchQuery,
+	_ *storage.FetchOptions,
+) (consolidators.MultiFetchResult, error) {
+	return nil, unimplementedError("FetchCompressed")
+}
+
+func (p *unimplementedPromStorageMethods) SearchSeries(
+	_ context.Context,
+	_ *storage.FetchQuery,
+	_ *storage.FetchOptions,
+) (*storage.SearchResults, error) {
+	return nil, unimplementedError("SearchSeries")
+}
+
+func (p *unimplementedPromStorageMethods) CompleteTags(
+	_ context.Context,
+	_ *storage.CompleteTagsQuery,
+	_ *storage.FetchOptions,
+) (*consolidators.CompleteTagsResult, error) {
+	return nil, unimplementedError("CompleteTags")
+}
+
+func (p *unimplementedPromStorageMethods) QueryStorageMetadataAttributes(
+	_ context.Context,
+	_, _ time.Time,
+	_ *storage.FetchOptions,
+) ([]storagemetadata.Attributes, error) {
+	return nil, unimplementedError("QueryStorageMetadataAttributes")
+}
+
+func unimplementedError(name string) error {
+	return fmt.Errorf("promStorage: %s method is not supported", name)
+}

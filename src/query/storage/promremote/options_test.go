@@ -164,13 +164,19 @@ func TestValidateEndpoint(t *testing.T) {
 	t.Run("retention must be positive", func(t *testing.T) {
 		cfg := getValidEndpointConfiguration()
 		cfg.StoragePolicy.Retention = -1
-		assertEndpointValidationError(t, cfg, "endpoint retention can't be negative")
+		assertEndpointValidationError(t, cfg, "endpoint retention must be positive")
+
+		cfg.StoragePolicy.Retention = 0
+		assertEndpointValidationError(t, cfg, "endpoint retention must be positive")
 	})
 
 	t.Run("resolution must be positive", func(t *testing.T) {
 		cfg := getValidEndpointConfiguration()
 		cfg.StoragePolicy.Resolution = -1
-		assertEndpointValidationError(t, cfg, "endpoint resolution can't be negative")
+		assertEndpointValidationError(t, cfg, "endpoint resolution must be positive")
+
+		cfg.StoragePolicy.Resolution = 0
+		assertEndpointValidationError(t, cfg, "endpoint resolution must be positive")
 	})
 }
 

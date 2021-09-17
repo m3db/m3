@@ -30,11 +30,13 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 )
 
-func encodeWriteQuery(query *storage.WriteQuery) ([]byte, error) {
+var errNilQuery = errors.New("received nil query")
+
+func convertAndEncodeWriteQuery(query *storage.WriteQuery) ([]byte, error) {
 	if query == nil {
-		return []byte{}, errors.New("received nil query")
+		return []byte{}, errNilQuery
 	}
-	promQuery := convertAndEncodeWriteQuery(query)
+	promQuery := convertWriteQuery(query)
 	data, err := promQuery.Marshal()
 	if err != nil {
 		return nil, err
@@ -42,20 +44,21 @@ func encodeWriteQuery(query *storage.WriteQuery) ([]byte, error) {
 	return snappy.Encode(nil, data), nil
 }
 
-func convertAndEncodeWriteQuery(query *storage.WriteQuery) *prompb.WriteRequest {
+func convertWriteQuery(query *storage.WriteQuery) *prompb.WriteRequest {
 	if query == nil {
 		return nil
 	}
-	labels := make([]prompb.Label, len(query.Tags().Tags))
-	samples := make([]prompb.Sample, len(query.Datapoints()))
 
-	for i, tag := range query.Tags().Tags {
+	ourLabels := storage.TagsToPromLabels(query.Tags())
+	labels := make([]prompb.Label, len(ourLabels))
+	for i, tag := range ourLabels {
 		labels[i] = prompb.Label{
 			Name:  string(tag.Name),
 			Value: string(tag.Value),
 		}
 	}
 
+	samples := make([]prompb.Sample, len(query.Datapoints()))
 	for i, dp := range query.Datapoints() {
 		samples[i] = prompb.Sample{
 			Value:     dp.Value,

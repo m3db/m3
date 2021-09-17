@@ -116,11 +116,11 @@ func validateBackendConfiguration(cfg *config.PrometheusRemoteBackendConfigurati
 
 func validateEndpointConfiguration(endpoint config.PrometheusRemoteBackendEndpointConfiguration) error {
 	if endpoint.StoragePolicy != nil {
-		if endpoint.StoragePolicy.Resolution < 0 {
-			return errors.New("endpoint resolution can't be negative")
+		if endpoint.StoragePolicy.Resolution <= 0 {
+			return errors.New("endpoint resolution must be positive")
 		}
-		if endpoint.StoragePolicy.Retention < 0 {
-			return errors.New("endpoint retention can't be negative")
+		if endpoint.StoragePolicy.Retention <= 0 {
+			return errors.New("endpoint retention must be positive")
 		}
 	}
 	if strings.TrimSpace(endpoint.Address) == "" {

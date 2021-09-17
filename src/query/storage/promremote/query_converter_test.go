@@ -34,67 +34,122 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-func TestQueryConverter(t *testing.T) {
+func TestWriteQueryConverter(t *testing.T) {
 	now := xtime.Now()
-	tcs := []struct {
-		name     string
-		input    storage.WriteQueryOptions
-		expected *prompb.WriteRequest
-	}{
-		{
-			name: "converts",
-			input: storage.WriteQueryOptions{
-				Tags: models.Tags{
-					Opts: models.NewTagOptions(),
-					Tags: []models.Tag{{
-						Name:  []byte("test_tag_name"),
-						Value: []byte("test_tag_value"),
-					}},
-				},
-				Datapoints: ts.Datapoints{{
-					Timestamp: now,
-					Value:     42,
-				}},
-				Unit: xtime.Millisecond,
-			},
-			expected: &prompb.WriteRequest{
-				Timeseries: []prompb.TimeSeries{
-					{
-						Labels: []prompb.Label{
-							{
-								Name:  "test_tag_name",
-								Value: "test_tag_value",
-							},
-						},
-						Samples: []prompb.Sample{
-							{
-								Timestamp: now.ToNormalizedTime(time.Millisecond),
-								Value:     42,
-							},
-						},
-					},
-				},
-			},
-		},
+	dp := ts.Datapoint{
+		Timestamp: now,
+		Value:     42,
+	}
+	tag := models.Tag{
+		Name:  []byte("test_tag_name"),
+		Value: []byte("test_tag_value"),
+	}
+	convertedToLabel := prompb.Label{
+		Name:  "test_tag_name",
+		Value: "test_tag_value",
+	}
+	covertedToSample := prompb.Sample{
+		Timestamp: now.ToNormalizedTime(time.Millisecond),
+		Value:     42,
 	}
 
-	for _, tc := range tcs {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			q, err := storage.NewWriteQuery(tc.input)
-			require.NoError(t, err)
-			assert.Equal(t, tc.expected, convertAndEncodeWriteQuery(q))
-		})
-	}
+	t.Run("single datapoint", func(t *testing.T) {
+		assertConversion(
+			t,
+			storage.WriteQueryOptions{
+				Tags: models.Tags{
+					Opts: models.NewTagOptions(),
+					Tags: []models.Tag{tag},
+				},
+				Datapoints: ts.Datapoints{dp},
+				Unit:       xtime.Millisecond,
+			},
+			promWriteRequest(prompb.TimeSeries{
+				Labels:  []prompb.Label{convertedToLabel},
+				Samples: []prompb.Sample{covertedToSample},
+			}),
+		)
+	})
+
+	t.Run("duplicate tags and samples", func(t *testing.T) {
+		assertConversion(
+			t,
+			storage.WriteQueryOptions{
+				Tags: models.Tags{
+					Opts: models.NewTagOptions().SetAllowTagNameDuplicates(true),
+					Tags: []models.Tag{tag, tag},
+				},
+				Datapoints: ts.Datapoints{dp, dp},
+				Unit:       xtime.Millisecond,
+			},
+			promWriteRequest(prompb.TimeSeries{
+				Labels:  []prompb.Label{convertedToLabel, convertedToLabel},
+				Samples: []prompb.Sample{covertedToSample, covertedToSample},
+			}),
+		)
+	})
+
+	t.Run("overrides metric name tag", func(t *testing.T) {
+		assertConversion(
+			t,
+			storage.WriteQueryOptions{
+				Tags: models.Tags{
+					Opts: models.NewTagOptions().SetMetricName(tag.Name),
+					Tags: []models.Tag{tag},
+				},
+				Datapoints: ts.Datapoints{dp},
+				Unit:       xtime.Millisecond,
+			},
+			promWriteRequest(prompb.TimeSeries{
+				Labels: []prompb.Label{{
+					Name:  "__name__",
+					Value: convertedToLabel.Value,
+				}},
+				Samples: []prompb.Sample{covertedToSample},
+			}),
+		)
+	})
+
+	t.Run("overrides bucket name name tag", func(t *testing.T) {
+		assertConversion(
+			t,
+			storage.WriteQueryOptions{
+				Tags: models.Tags{
+					Opts: models.NewTagOptions().SetBucketName(tag.Name),
+					Tags: []models.Tag{tag},
+				},
+				Datapoints: ts.Datapoints{dp},
+				Unit:       xtime.Millisecond,
+			},
+			promWriteRequest(prompb.TimeSeries{
+				Labels: []prompb.Label{{
+					Name:  "le",
+					Value: convertedToLabel.Value,
+				}},
+				Samples: []prompb.Sample{covertedToSample},
+			}),
+		)
+	})
 }
 
 func TestConvertQueryNil(t *testing.T) {
-	assert.Nil(t, convertAndEncodeWriteQuery(nil))
+	assert.Nil(t, convertWriteQuery(nil))
 }
 
 func TestEncodeWriteQuery(t *testing.T) {
-	data, err := encodeWriteQuery(nil)
+	data, err := convertAndEncodeWriteQuery(nil)
 	require.Error(t, err)
 	assert.Len(t, data, 0)
 	assert.Contains(t, err.Error(), "received nil query")
+}
+
+func promWriteRequest(ts prompb.TimeSeries) *prompb.WriteRequest {
+	return &prompb.WriteRequest{Timeseries: []prompb.TimeSeries{ts}}
+}
+
+func assertConversion(t *testing.T, input storage.WriteQueryOptions,
+	expected *prompb.WriteRequest) {
+	q, err := storage.NewWriteQuery(input)
+	require.NoError(t, err)
+	assert.Equal(t, expected, convertWriteQuery(q))
 }
