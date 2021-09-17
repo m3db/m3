@@ -36,7 +36,7 @@ func (p *promStorage) FetchProm(
 	_ *storage.FetchQuery,
 	_ *storage.FetchOptions,
 ) (storage.PromResult, error) {
-	return storage.PromResult{}, unimplementedErr("FetchProm")
+	return storage.PromResult{}, unimplementedError("FetchProm")
 }
 
 func (p *promStorage) FetchBlocks(
@@ -44,7 +44,7 @@ func (p *promStorage) FetchBlocks(
 	_ *storage.FetchQuery,
 	_ *storage.FetchOptions,
 ) (block.Result, error) {
-	return block.Result{}, unimplementedErr("FetchBlocks")
+	return block.Result{}, unimplementedError("FetchBlocks")
 }
 
 func (p *promStorage) FetchCompressed(
@@ -52,7 +52,7 @@ func (p *promStorage) FetchCompressed(
 	_ *storage.FetchQuery,
 	_ *storage.FetchOptions,
 ) (consolidators.MultiFetchResult, error) {
-	return nil, unimplementedErr("FetchCompressed")
+	return nil, unimplementedError("FetchCompressed")
 }
 
 func (p *promStorage) SearchSeries(
@@ -60,7 +60,7 @@ func (p *promStorage) SearchSeries(
 	_ *storage.FetchQuery,
 	_ *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
-	return nil, unimplementedErr("SearchSeries")
+	return nil, unimplementedError("SearchSeries")
 }
 
 func (p *promStorage) CompleteTags(
@@ -68,7 +68,7 @@ func (p *promStorage) CompleteTags(
 	_ *storage.CompleteTagsQuery,
 	_ *storage.FetchOptions,
 ) (*consolidators.CompleteTagsResult, error) {
-	return nil, unimplementedErr("CompleteTags")
+	return nil, unimplementedError("CompleteTags")
 }
 
 func (p *promStorage) QueryStorageMetadataAttributes(
@@ -76,9 +76,9 @@ func (p *promStorage) QueryStorageMetadataAttributes(
 	_, _ time.Time,
 	_ *storage.FetchOptions,
 ) ([]storagemetadata.Attributes, error) {
-	return nil, unimplementedErr("QueryStorageMetadataAttributes")
+	return nil, unimplementedError("QueryStorageMetadataAttributes")
 }
 
-func unimplementedErr(name string) error {
+func unimplementedError(name string) error {
 	return fmt.Errorf("promStorage: %s method is not supported", name)
 }

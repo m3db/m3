@@ -23,6 +23,7 @@ package promremote
 import (
 	"context"
 	"errors"
+	"io"
 	"math/rand"
 	"testing"
 	"time"
@@ -42,8 +43,8 @@ import (
 )
 
 func TestWrite(t *testing.T) {
-	fakeProm, closeFn := promremotetest.NewServer(t)
-	defer closeFn()
+	fakeProm := promremotetest.NewServer(t)
+	defer fakeProm.Close()
 
 	scope := tally.NewTestScope("test_scope", map[string]string{})
 	promStorage, err := NewStorage(Options{
@@ -51,8 +52,9 @@ func TestWrite(t *testing.T) {
 		scope:     scope,
 	})
 	require.NoError(t, err)
-	defer closeStorage(t, promStorage)
+	defer closeWithCheck(t, promStorage)
 
+	now := xtime.Now()
 	wq, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 		Tags: models.Tags{
 			Opts: models.NewTagOptions(),
@@ -62,7 +64,7 @@ func TestWrite(t *testing.T) {
 			}},
 		},
 		Datapoints: ts.Datapoints{{
-			Timestamp: xtime.UnixNano(time.Second),
+			Timestamp: now,
 			Value:     42,
 		}},
 		Unit: xtime.Millisecond,
@@ -71,7 +73,7 @@ func TestWrite(t *testing.T) {
 	err = promStorage.Write(context.TODO(), wq)
 	require.NoError(t, err)
 
-	promWrite := fakeProm.GetLastRequest()
+	promWrite := fakeProm.GetLastWriteRequest()
 
 	expectedLabel := prompb.Label{
 		Name:  "test_tag_name",
@@ -79,13 +81,13 @@ func TestWrite(t *testing.T) {
 	}
 	expectedSample := prompb.Sample{
 		Value:     42,
-		Timestamp: int64(1000),
+		Timestamp: now.ToNormalizedTime(time.Millisecond),
 	}
 	require.Len(t, promWrite.Timeseries, 1)
 	require.Len(t, promWrite.Timeseries[0].Labels, 1)
 	require.Len(t, promWrite.Timeseries[0].Samples, 1)
-	assert.Equal(t, promWrite.Timeseries[0].Labels[0], expectedLabel)
-	assert.Equal(t, promWrite.Timeseries[0].Samples[0], expectedSample)
+	assert.Equal(t, expectedLabel, promWrite.Timeseries[0].Labels[0])
+	assert.Equal(t, expectedSample, promWrite.Timeseries[0].Samples[0])
 
 	tallytest.AssertCounterValue(
 		t, 1, scope.Snapshot(), "test_scope.prom_remote_storage.writeSingle.success",
@@ -98,18 +100,19 @@ func TestWrite(t *testing.T) {
 }
 
 func TestWriteBasedOnRetention(t *testing.T) {
-	promShortRetention, closeFn1 := promremotetest.NewServer(t)
-	defer closeFn1()
-	promMediumRetention, closeFn2 := promremotetest.NewServer(t)
-	defer closeFn2()
-	promLongRetention, closeFn3 := promremotetest.NewServer(t)
-	defer closeFn3()
-	promLongRetention2, closeFn4 := promremotetest.NewServer(t)
-	defer closeFn4()
+	promShortRetention := promremotetest.NewServer(t)
+	defer promShortRetention.Close()
+	promMediumRetention := promremotetest.NewServer(t)
+	defer promMediumRetention.Close()
+	promLongRetention := promremotetest.NewServer(t)
+	defer promLongRetention.Close()
+	promLongRetention2 := promremotetest.NewServer(t)
+	defer promLongRetention2.Close()
 	reset := func() {
 		promShortRetention.Reset()
 		promMediumRetention.Reset()
 		promLongRetention.Reset()
+		promLongRetention2.Reset()
 	}
 
 	promStorage, err := NewStorage(Options{
@@ -138,7 +141,7 @@ func TestWriteBasedOnRetention(t *testing.T) {
 		scope: tally.NoopScope,
 	})
 	require.NoError(t, err)
-	defer closeStorage(t, promStorage)
+	defer closeWithCheck(t, promStorage)
 
 	sendWrite := func(attr storagemetadata.Attributes) error {
 		//nolint: gosec
@@ -166,9 +169,9 @@ func TestWriteBasedOnRetention(t *testing.T) {
 			Resolution: 15 * time.Second,
 		})
 		require.NoError(t, err)
-		assert.NotNil(t, promShortRetention.GetLastRequest())
-		assert.Nil(t, promMediumRetention.GetLastRequest())
-		assert.Nil(t, promLongRetention.GetLastRequest())
+		assert.NotNil(t, promShortRetention.GetLastWriteRequest())
+		assert.Nil(t, promMediumRetention.GetLastWriteRequest())
+		assert.Nil(t, promLongRetention.GetLastWriteRequest())
 	})
 
 	t.Run("send medium retention write", func(t *testing.T) {
@@ -178,76 +181,54 @@ func TestWriteBasedOnRetention(t *testing.T) {
 			Retention:  720 * time.Hour,
 		})
 		require.NoError(t, err)
-		assert.Nil(t, promShortRetention.GetLastRequest())
-		assert.NotNil(t, promMediumRetention.GetLastRequest())
-		assert.Nil(t, promLongRetention.GetLastRequest())
-	})
-
-	t.Run("send long retention write", func(t *testing.T) {
-		reset()
-		err := sendWrite(storagemetadata.Attributes{
-			MetricsType: storagemetadata.AggregatedMetricsType,
-			// Should be ignored when type is unagg
-			Resolution: 10 * time.Minute,
-			Retention:  8760 * time.Hour,
-		})
-		require.NoError(t, err)
-		assert.Nil(t, promShortRetention.GetLastRequest())
-		assert.Nil(t, promMediumRetention.GetLastRequest())
-		assert.NotNil(t, promLongRetention.GetLastRequest())
+		assert.Nil(t, promShortRetention.GetLastWriteRequest())
+		assert.NotNil(t, promMediumRetention.GetLastWriteRequest())
+		assert.Nil(t, promLongRetention.GetLastWriteRequest())
 	})
 
 	t.Run("send write to multiple instances configured with same retention", func(t *testing.T) {
 		reset()
 		err := sendWrite(storagemetadata.Attributes{
-			MetricsType: storagemetadata.AggregatedMetricsType,
-			// Should be ignored when type is unagg
 			Resolution: 10 * time.Minute,
 			Retention:  8760 * time.Hour,
 		})
 		require.NoError(t, err)
-		assert.Nil(t, promShortRetention.GetLastRequest())
-		assert.Nil(t, promMediumRetention.GetLastRequest())
-		assert.NotNil(t, promLongRetention.GetLastRequest())
-		assert.NotNil(t, promLongRetention2.GetLastRequest())
+		assert.Nil(t, promShortRetention.GetLastWriteRequest())
+		assert.Nil(t, promMediumRetention.GetLastWriteRequest())
+		assert.NotNil(t, promLongRetention.GetLastWriteRequest())
+		assert.NotNil(t, promLongRetention2.GetLastWriteRequest())
 	})
 
 	t.Run("send unconfigured retention write", func(t *testing.T) {
 		reset()
 		err := sendWrite(storagemetadata.Attributes{
-			MetricsType: storagemetadata.AggregatedMetricsType,
-			// Should be ignored when type is unagg
 			Resolution: 5*time.Minute + 1,
 			Retention:  720 * time.Hour,
 		})
 		require.NoError(t, err)
 		err = sendWrite(storagemetadata.Attributes{
-			MetricsType: storagemetadata.AggregatedMetricsType,
-			// Should be ignored when type is unagg
 			Resolution: 5 * time.Minute,
 			Retention:  720*time.Hour + 1,
 		})
 		require.NoError(t, err)
-		assert.Nil(t, promShortRetention.GetLastRequest())
-		assert.Nil(t, promMediumRetention.GetLastRequest())
-		assert.Nil(t, promLongRetention.GetLastRequest())
+		assert.Nil(t, promShortRetention.GetLastWriteRequest())
+		assert.Nil(t, promMediumRetention.GetLastWriteRequest())
+		assert.Nil(t, promLongRetention.GetLastWriteRequest())
 	})
 
 	t.Run("error should not prevent sending to other instances", func(t *testing.T) {
 		reset()
 		promLongRetention.SetError(errors.New("test err"))
 		err := sendWrite(storagemetadata.Attributes{
-			MetricsType: storagemetadata.AggregatedMetricsType,
-			// Should be ignored when type is unagg
 			Resolution: 10 * time.Minute,
 			Retention:  8760 * time.Hour,
 		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "test err")
-		assert.NotNil(t, promLongRetention2.GetLastRequest())
+		assert.NotNil(t, promLongRetention2.GetLastWriteRequest())
 	})
 }
 
-func closeStorage(t *testing.T, s storage.Storage) {
-	require.NoError(t, s.Close())
+func closeWithCheck(t *testing.T, c io.Closer) {
+	require.NoError(t, c.Close())
 }

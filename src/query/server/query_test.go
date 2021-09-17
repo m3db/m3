@@ -294,9 +294,10 @@ func TestIngestH2C(t *testing.T) {
 func TestPromRemoteBackend(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
-	externalFakePromServer, closeFn := promremotetest.NewServer(t)
-	defer closeFn()
-	externalPromAddr := externalFakePromServer.WriteAddr()
+
+	externalFakePromServer := promremotetest.NewServer(t)
+	defer externalFakePromServer.Close()
+
 	cfg := configFromYAML(t, fmt.Sprintf(`
 prometheusRemoteBackend:
   endpoints: 
@@ -307,7 +308,7 @@ backend: prom-remote
 
 tagOptions:
   allowTagNameDuplicates: true
-`, externalPromAddr))
+`, externalFakePromServer.WriteAddr()))
 
 	require.Equal(t, config.PromRemoteStorageType, cfg.Backend)
 
@@ -326,8 +327,8 @@ tagOptions:
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	defer require.NoError(t, resp.Body.Close())
-	assert.NotNil(t, externalFakePromServer.GetLastRequest())
+	require.NoError(t, resp.Body.Close())
+	assert.NotNil(t, externalFakePromServer.GetLastWriteRequest())
 }
 
 func testWrite(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller) {
@@ -611,14 +612,15 @@ type runServerOpts struct {
 }
 
 func runServer(t *testing.T, opts runServerOpts) (string, closeFn) {
-	interruptCh := make(chan error)
-	doneCh := make(chan struct{})
-	listenerCh := make(chan net.Listener, 1)
+	var (
+		interruptCh     = make(chan error)
+		doneCh          = make(chan struct{})
+		listenerCh      = make(chan net.Listener, 1)
+		clusterClient   = clusterclient.NewMockClient(opts.ctrl)
+		clusterClientCh = make(chan clusterclient.Client, 1)
+	)
 
-	clusterClient := clusterclient.NewMockClient(opts.ctrl)
 	clusterClient.EXPECT().KV().Return(mem.NewStore(), nil).MaxTimes(1)
-
-	clusterClientCh := make(chan clusterclient.Client, 1)
 	clusterClientCh <- clusterClient
 
 	go func() {
@@ -730,7 +732,7 @@ writeWorkerPoolPolicy:
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	defer require.NoError(t, resp.Body.Close())
+	require.NoError(t, resp.Body.Close())
 	assert.Equal(t, qs.reads, 1)
 }
 

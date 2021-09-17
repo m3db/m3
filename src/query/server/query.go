@@ -465,7 +465,7 @@ func Run(runOpts RunOptions) RunResult {
 
 		var cleanup cleanupFn
 		backendStorage, cleanup, err = newM3DBStorage(
-			cfg, m3dbClusters, m3dbPoolWrapper, queryCtxOpts, tsdbOpts, clusterNamespacesWatcher, instrumentOptions,
+			cfg, m3dbClusters, m3dbPoolWrapper, queryCtxOpts, tsdbOpts, instrumentOptions,
 		)
 		if err != nil {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
@@ -735,7 +735,7 @@ func Run(runOpts RunOptions) RunResult {
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage
 func newM3DBStorage(cfg config.Configuration, clusters m3.Clusters, poolWrapper *pools.PoolWrapper,
 	queryContextOptions models.QueryContextOptions, tsdbOpts m3.Options,
-	clusterNamespacesWatcher m3.ClusterNamespacesWatcher, instrumentOptions instrument.Options,
+	instrumentOptions instrument.Options,
 ) (storage.Storage, cleanupFn, error) {
 	fanoutStorage, storageCleanup, err := newStorages(clusters, cfg,
 		poolWrapper, queryContextOptions, tsdbOpts, instrumentOptions)
@@ -749,8 +749,6 @@ func newM3DBStorage(cfg config.Configuration, clusters m3.Clusters, poolWrapper 
 		if lastErr != nil {
 			logger.Error("error during storage cleanup", zap.Error(lastErr))
 		}
-
-		clusterNamespacesWatcher.Close()
 
 		if err := clusters.Close(); err != nil {
 			lastErr = errors.Wrap(err, "unable to close M3DB cluster sessions")

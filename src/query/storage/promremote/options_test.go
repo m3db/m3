@@ -34,10 +34,12 @@ import (
 func TestNewFromConfiguration(t *testing.T) {
 	opts, err := NewOptions(&config.PrometheusRemoteBackendConfiguration{
 		Endpoints: []config.PrometheusRemoteBackendEndpointConfiguration{{
-			Name:       "testEndpoint",
-			Address:    "testAddress",
-			Resolution: time.Second,
-			Retention:  time.Millisecond,
+			Name:    "testEndpoint",
+			Address: "testAddress",
+			StoragePolicy: &config.PrometheusRemoteBackendStoragePolicyConfiguration{
+				Resolution: time.Second,
+				Retention:  time.Millisecond,
+			},
 		}},
 		RequestTimeout:  ptrDuration(time.Nanosecond),
 		ConnectTimeout:  ptrDuration(time.Microsecond),
@@ -143,25 +145,32 @@ func TestValidateEndpoint(t *testing.T) {
 	t.Run("address required", func(t *testing.T) {
 		cfg := getValidEndpointConfiguration()
 		cfg.Address = ""
-		assertEndpointError(t, cfg, "endpoint address must be set")
+		assertEndpointValidationError(t, cfg, "endpoint address must be set")
 	})
 
 	t.Run("address spaces trimmed", func(t *testing.T) {
 		cfg := getValidEndpointConfiguration()
 		cfg.Address = "    "
-		assertEndpointError(t, cfg, "endpoint address must be set")
+		assertEndpointValidationError(t, cfg, "endpoint address must be set")
+	})
+
+	t.Run("storage policy is optional", func(t *testing.T) {
+		cfg := getValidEndpointConfiguration()
+		cfg.StoragePolicy = nil
+		err := validateEndpointConfiguration(cfg)
+		require.NoError(t, err)
 	})
 
 	t.Run("retention must be positive", func(t *testing.T) {
 		cfg := getValidEndpointConfiguration()
-		cfg.Retention = -1
-		assertEndpointError(t, cfg, "endpoint retention can't be negative")
+		cfg.StoragePolicy.Retention = -1
+		assertEndpointValidationError(t, cfg, "endpoint retention can't be negative")
 	})
 
 	t.Run("resolution must be positive", func(t *testing.T) {
 		cfg := getValidEndpointConfiguration()
-		cfg.Resolution = -1
-		assertEndpointError(t, cfg, "endpoint resolution can't be negative")
+		cfg.StoragePolicy.Resolution = -1
+		assertEndpointValidationError(t, cfg, "endpoint resolution can't be negative")
 	})
 }
 
@@ -171,7 +180,7 @@ func assertValidationError(t *testing.T, cfg *config.PrometheusRemoteBackendConf
 	assert.Contains(t, err.Error(), expectedMsg)
 }
 
-func assertEndpointError(
+func assertEndpointValidationError(
 	t *testing.T,
 	cfg config.PrometheusRemoteBackendEndpointConfiguration,
 	expectedMsg string,
@@ -189,10 +198,12 @@ func getValidConfig() config.PrometheusRemoteBackendConfiguration {
 
 func getValidEndpointConfiguration() config.PrometheusRemoteBackendEndpointConfiguration {
 	return config.PrometheusRemoteBackendEndpointConfiguration{
-		Name:       "testName",
-		Address:    "testAddress",
-		Retention:  time.Second,
-		Resolution: time.Second,
+		Name:    "testName",
+		Address: "testAddress",
+		StoragePolicy: &config.PrometheusRemoteBackendStoragePolicyConfiguration{
+			Retention:  time.Second,
+			Resolution: time.Second,
+		},
 	}
 }
 

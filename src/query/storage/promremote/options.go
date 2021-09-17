@@ -31,7 +31,7 @@ import (
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
-// NewOptions constructs options given config.
+// NewOptions constructs Options based on the given config.
 func NewOptions(cfg *config.PrometheusRemoteBackendConfiguration, scope tally.Scope) (Options, error) {
 	err := validateBackendConfiguration(cfg)
 	if err != nil {
@@ -41,10 +41,12 @@ func NewOptions(cfg *config.PrometheusRemoteBackendConfiguration, scope tally.Sc
 
 	for i, endpoint := range cfg.Endpoints {
 		endpoints[i] = EndpointOptions{
-			name:       endpoint.Name,
-			address:    endpoint.Address,
-			resolution: endpoint.Resolution,
-			retention:  endpoint.Retention,
+			name:    endpoint.Name,
+			address: endpoint.Address,
+		}
+		if endpoint.StoragePolicy != nil {
+			endpoints[i].resolution = endpoint.StoragePolicy.Resolution
+			endpoints[i].retention = endpoint.StoragePolicy.Retention
 		}
 	}
 	clientOpts := xhttp.DefaultHTTPClientOptions()
@@ -113,11 +115,13 @@ func validateBackendConfiguration(cfg *config.PrometheusRemoteBackendConfigurati
 }
 
 func validateEndpointConfiguration(endpoint config.PrometheusRemoteBackendEndpointConfiguration) error {
-	if endpoint.Resolution < 0 {
-		return errors.New("endpoint resolution can't be negative")
-	}
-	if endpoint.Retention < 0 {
-		return errors.New("endpoint retention can't be negative")
+	if endpoint.StoragePolicy != nil {
+		if endpoint.StoragePolicy.Resolution < 0 {
+			return errors.New("endpoint resolution can't be negative")
+		}
+		if endpoint.StoragePolicy.Retention < 0 {
+			return errors.New("endpoint retention can't be negative")
+		}
 	}
 	if strings.TrimSpace(endpoint.Address) == "" {
 		return errors.New("endpoint address must be set")

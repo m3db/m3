@@ -51,7 +51,7 @@ func NewStorage(opts Options) (storage.Storage, error) {
 type promStorage struct {
 	opts            Options
 	client          *http.Client
-	endpointMetrics map[string]*instrument.MethodMetrics
+	endpointMetrics map[string]instrument.MethodMetrics
 }
 
 func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
@@ -84,10 +84,7 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 
 	wg.Wait()
 
-	if !multiErr.Empty() {
-		return multiErr
-	}
-	return nil
+	return multiErr.FinalError()
 }
 
 func (p *promStorage) Type() storage.Type {
@@ -109,7 +106,7 @@ func (p *promStorage) Name() string {
 
 func (p *promStorage) writeSingle(
 	ctx context.Context,
-	metrics *instrument.MethodMetrics,
+	metrics instrument.MethodMetrics,
 	address string,
 	encoded io.Reader,
 ) error {
@@ -127,30 +124,30 @@ func (p *promStorage) writeSingle(
 		metrics.ReportError(methodDuration)
 		return err
 	}
-	metrics.ReportSuccess(methodDuration)
 	defer func() { _ = resp.Body.Close() }()
-
 	if resp.StatusCode/100 != 2 {
 		metrics.ReportError(methodDuration)
 		response, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
+			// TODO(antanas): should log and return just generic error
 			response = []byte(fmt.Sprintf("error reading body: %v", err))
 		}
 		return fmt.Errorf("expected status code 2XX: actual=%v, address=%v, resp=%s",
 			resp.StatusCode, address, response)
 	}
+	metrics.ReportSuccess(methodDuration)
 	return nil
 }
 
-func initEndpointMetrics(endpoints []EndpointOptions, scope tally.Scope) map[string]*instrument.MethodMetrics {
-	metrics := make(map[string]*instrument.MethodMetrics, len(endpoints))
+func initEndpointMetrics(endpoints []EndpointOptions, scope tally.Scope) map[string]instrument.MethodMetrics {
+	metrics := make(map[string]instrument.MethodMetrics, len(endpoints))
 	for _, endpoint := range endpoints {
 		endpointScope := scope.Tagged(map[string]string{"endpoint_name": endpoint.name})
 		methodMetrics := instrument.NewMethodMetrics(endpointScope, "writeSingle", instrument.TimerOptions{
 			Type:             instrument.HistogramTimerType,
 			HistogramBuckets: tally.DefaultBuckets,
 		})
-		metrics[endpoint.name] = &methodMetrics
+		metrics[endpoint.name] = methodMetrics
 	}
 	return metrics
 }

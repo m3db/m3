@@ -24,13 +24,17 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
+	"github.com/pkg/errors"
 	"github.com/prometheus/prometheus/prompb"
 
 	"github.com/m3db/m3/src/query/storage"
 )
 
 func encodeWriteQuery(query *storage.WriteQuery) ([]byte, error) {
-	promQuery := mapWriteQuery(query)
+	if query == nil {
+		return []byte{}, errors.New("received nil query")
+	}
+	promQuery := convertAndEncodeWriteQuery(query)
 	data, err := promQuery.Marshal()
 	if err != nil {
 		return nil, err
@@ -38,7 +42,10 @@ func encodeWriteQuery(query *storage.WriteQuery) ([]byte, error) {
 	return snappy.Encode(nil, data), nil
 }
 
-func mapWriteQuery(query *storage.WriteQuery) *prompb.WriteRequest {
+func convertAndEncodeWriteQuery(query *storage.WriteQuery) *prompb.WriteRequest {
+	if query == nil {
+		return nil
+	}
 	labels := make([]prompb.Label, len(query.Tags().Tags))
 	samples := make([]prompb.Sample, len(query.Datapoints()))
 

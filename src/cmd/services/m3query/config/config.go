@@ -765,10 +765,16 @@ type PrometheusRemoteBackendConfiguration struct {
 
 // PrometheusRemoteBackendEndpointConfiguration configures single endpoint.
 type PrometheusRemoteBackendEndpointConfiguration struct {
-	Name       string        `yaml:"name"`
-	Address    string        `yaml:"address"`
-	Retention  time.Duration `yaml:"retention"`
-	Resolution time.Duration `yaml:"resolution"`
+	Name    string `yaml:"name"`
+	Address string `yaml:"address"`
+	// When nil all unaggregated data will be sent to this endpoint.
+	StoragePolicy *PrometheusRemoteBackendStoragePolicyConfiguration `yaml:"storagePolicy"`
+}
+
+// PrometheusRemoteBackendStoragePolicyConfiguration configures storage policy for single endpoint.
+type PrometheusRemoteBackendStoragePolicyConfiguration struct {
+	Resolution time.Duration `yaml:"resolution" validate:"nonzero"`
+	Retention  time.Duration `yaml:"retention" validate:"nonzero"`
 }
 
 // HTTPConfiguration is the HTTP configuration for configuring

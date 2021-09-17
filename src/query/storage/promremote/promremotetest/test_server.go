@@ -40,14 +40,14 @@ import (
 type TestPromServer struct {
 	mu               sync.Mutex
 	lastWriteRequest *prompb.WriteRequest
-	lastHTTPRequest  *http.Request
 	addr             string
 	respErr          error
 	t                *testing.T
+	svr              *http.Server
 }
 
 // NewServer creates new instance of a fake server.
-func NewServer(t *testing.T) (*TestPromServer, func()) {
+func NewServer(t *testing.T) *TestPromServer {
 	testPromServer := &TestPromServer{t: t}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -55,24 +55,20 @@ func NewServer(t *testing.T) (*TestPromServer, func()) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/write", testPromServer.handleWrite)
 
-	svr := &http.Server{Handler: mux}
+	testPromServer.svr = &http.Server{Handler: mux}
 	go func() {
-		if err := svr.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := testPromServer.svr.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			//nolint: forbidigo
 			fmt.Printf("unexpected testPromServer error %v \n", err)
 		}
 	}()
 	testPromServer.addr = listener.Addr().String()
-	return testPromServer, func() {
-		require.NoError(t, svr.Shutdown(context.TODO()))
-		require.NoError(t, svr.Close())
-	}
+	return testPromServer
 }
 
 func (s *TestPromServer) handleWrite(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.lastHTTPRequest = r
 	assert.Equal(s.t, r.Header.Get("content-encoding"), "snappy")
 	assert.Equal(s.t, r.Header.Get("content-type"), "application/x-protobuf")
 
@@ -88,21 +84,14 @@ func (s *TestPromServer) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GetLastRequest returns last recorded request.
-func (s *TestPromServer) GetLastRequest() *prompb.WriteRequest {
+// GetLastWriteRequest returns the last recorded write request.
+func (s *TestPromServer) GetLastWriteRequest() *prompb.WriteRequest {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.lastWriteRequest
 }
 
-// GetLastHTTPRequest returns last recorded http request.
-func (s *TestPromServer) GetLastHTTPRequest() *http.Request {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.lastHTTPRequest
-}
-
-// WriteAddr http address of a write endpoint.
+// WriteAddr returns http address of a write endpoint.
 func (s *TestPromServer) WriteAddr() string {
 	return fmt.Sprintf("http://%s/write", s.addr)
 }
@@ -120,5 +109,10 @@ func (s *TestPromServer) Reset() {
 	defer s.mu.Unlock()
 	s.respErr = nil
 	s.lastWriteRequest = nil
-	s.lastHTTPRequest = nil
+}
+
+// Close stops underlying http server.
+func (s *TestPromServer) Close() {
+	require.NoError(s.t, s.svr.Shutdown(context.TODO()))
+	require.NoError(s.t, s.svr.Close())
 }
