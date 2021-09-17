@@ -94,7 +94,7 @@ type PipelineMetadata struct {
 	GraphitePrefix [][]byte `json:"graphitePrefix,omitempty"`
 
 	// ResendEnabled is true if the Pipeline supports resending aggregate values after the initial flush.
-	ResendEnabled bool
+	ResendEnabled bool `json:"resendEnabled,omitempty"`
 }
 
 func (m PipelineMetadata) String() string {
