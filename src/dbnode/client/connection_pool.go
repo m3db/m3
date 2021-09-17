@@ -251,10 +251,10 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 				defer wg.Done()
 
 				var (
-					attempts = p.opts.BackgroundHealthCheckFailLimit()
-					failed   = 0
+					attempts      = p.opts.BackgroundHealthCheckFailLimit()
+					failed        = 0
 					checkErr, err error
-					bootstrapped bool
+					bootstrapped  bool
 				)
 				for j := 0; j < attempts; j++ {
 					bootstrapped, err = p.healthCheck(client, p.opts)

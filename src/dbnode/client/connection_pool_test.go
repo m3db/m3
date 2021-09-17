@@ -378,8 +378,8 @@ func TestConnectionPoolReturnsBootstrappedConn(t *testing.T) {
 
 	bootstrappedCh := make(chan bool)
 	conns.healthCheck = func(client rpc.TChanNode, opts Options) (bool, error) {
-		bootstrapped, _ := <-bootstrappedCh
-		return bootstrapped, nil
+		bootstrapped, ok := <-bootstrappedCh
+		return ok && bootstrapped, nil
 	}
 
 	require.Equal(t, 0, conns.ConnectionCount())

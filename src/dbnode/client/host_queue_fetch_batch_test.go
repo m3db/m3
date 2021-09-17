@@ -188,7 +188,7 @@ func TestHostQueueFetchBatchesErrorOnFetchNoResponse(t *testing.T) {
 		expected = append(expected, hostQueueResult{result.Elements[i].Segments, nil})
 	}
 
-	testHostQueueFetchBatches(t, namespace, ids, result,  nil, func(results []hostQueueResult) {
+	testHostQueueFetchBatches(t, namespace, ids, result, nil, func(results []hostQueueResult) {
 		assert.Equal(t, expected, results[:len(results)-1])
 		lastResult := results[len(results)-1]
 		assert.Nil(t, lastResult.result)
@@ -209,7 +209,7 @@ func TestHostQueueFetchBatchesErrorOnResultError(t *testing.T) {
 	for i := range ids[:len(ids)-1] {
 		expected = append(expected, hostQueueResult{result.Elements[i].Segments, nil})
 	}
-	testHostQueueFetchBatches(t, namespace, ids, result,  nil, func(results []hostQueueResult) {
+	testHostQueueFetchBatches(t, namespace, ids, result, nil, func(results []hostQueueResult) {
 		assert.Equal(t, expected, results[:len(results)-1])
 		rpcErr, ok := results[len(results)-1].err.(*rpc.Error)
 		assert.True(t, ok)
