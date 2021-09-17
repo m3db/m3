@@ -53,10 +53,14 @@ func TestWriteQueryConverter(t *testing.T) {
 		Value:     42,
 	}
 
-	t.Run("single datapoint", func(t *testing.T) {
-		assertConversion(
-			t,
-			storage.WriteQueryOptions{
+	tcs := []struct {
+		name     string
+		input    storage.WriteQueryOptions
+		expected *prompb.WriteRequest
+	}{
+		{
+			name: "single datapoint",
+			input: storage.WriteQueryOptions{
 				Tags: models.Tags{
 					Opts: models.NewTagOptions(),
 					Tags: []models.Tag{tag},
@@ -64,17 +68,14 @@ func TestWriteQueryConverter(t *testing.T) {
 				Datapoints: ts.Datapoints{dp},
 				Unit:       xtime.Millisecond,
 			},
-			promWriteRequest(prompb.TimeSeries{
+			expected: promWriteRequest(prompb.TimeSeries{
 				Labels:  []prompb.Label{convertedToLabel},
 				Samples: []prompb.Sample{covertedToSample},
 			}),
-		)
-	})
-
-	t.Run("duplicate tags and samples", func(t *testing.T) {
-		assertConversion(
-			t,
-			storage.WriteQueryOptions{
+		},
+		{
+			name: "duplicate tags and samples",
+			input: storage.WriteQueryOptions{
 				Tags: models.Tags{
 					Opts: models.NewTagOptions().SetAllowTagNameDuplicates(true),
 					Tags: []models.Tag{tag, tag},
@@ -82,17 +83,14 @@ func TestWriteQueryConverter(t *testing.T) {
 				Datapoints: ts.Datapoints{dp, dp},
 				Unit:       xtime.Millisecond,
 			},
-			promWriteRequest(prompb.TimeSeries{
+			expected: promWriteRequest(prompb.TimeSeries{
 				Labels:  []prompb.Label{convertedToLabel, convertedToLabel},
 				Samples: []prompb.Sample{covertedToSample, covertedToSample},
 			}),
-		)
-	})
-
-	t.Run("overrides metric name tag", func(t *testing.T) {
-		assertConversion(
-			t,
-			storage.WriteQueryOptions{
+		},
+		{
+			name: "overrides metric name tag",
+			input: storage.WriteQueryOptions{
 				Tags: models.Tags{
 					Opts: models.NewTagOptions().SetMetricName(tag.Name),
 					Tags: []models.Tag{tag},
@@ -100,20 +98,17 @@ func TestWriteQueryConverter(t *testing.T) {
 				Datapoints: ts.Datapoints{dp},
 				Unit:       xtime.Millisecond,
 			},
-			promWriteRequest(prompb.TimeSeries{
+			expected: promWriteRequest(prompb.TimeSeries{
 				Labels: []prompb.Label{{
 					Name:  "__name__",
 					Value: convertedToLabel.Value,
 				}},
 				Samples: []prompb.Sample{covertedToSample},
 			}),
-		)
-	})
-
-	t.Run("overrides bucket name name tag", func(t *testing.T) {
-		assertConversion(
-			t,
-			storage.WriteQueryOptions{
+		},
+		{
+			name: "overrides bucket name name tag",
+			input: storage.WriteQueryOptions{
 				Tags: models.Tags{
 					Opts: models.NewTagOptions().SetBucketName(tag.Name),
 					Tags: []models.Tag{tag},
@@ -121,15 +116,24 @@ func TestWriteQueryConverter(t *testing.T) {
 				Datapoints: ts.Datapoints{dp},
 				Unit:       xtime.Millisecond,
 			},
-			promWriteRequest(prompb.TimeSeries{
+			expected: promWriteRequest(prompb.TimeSeries{
 				Labels: []prompb.Label{{
 					Name:  "le",
 					Value: convertedToLabel.Value,
 				}},
 				Samples: []prompb.Sample{covertedToSample},
 			}),
-		)
-	})
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			q, err := storage.NewWriteQuery(tc.input)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, convertWriteQuery(q))
+		})
+	}
 }
 
 func TestConvertQueryNil(t *testing.T) {
@@ -145,11 +149,4 @@ func TestEncodeWriteQuery(t *testing.T) {
 
 func promWriteRequest(ts prompb.TimeSeries) *prompb.WriteRequest {
 	return &prompb.WriteRequest{Timeseries: []prompb.TimeSeries{ts}}
-}
-
-func assertConversion(t *testing.T, input storage.WriteQueryOptions,
-	expected *prompb.WriteRequest) {
-	q, err := storage.NewWriteQuery(input)
-	require.NoError(t, err)
-	assert.Equal(t, expected, convertWriteQuery(q))
 }
