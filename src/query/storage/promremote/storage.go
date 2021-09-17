@@ -43,6 +43,8 @@ import (
 
 const metricsScope = "prom_remote_storage"
 
+var errorReadingBody = []byte("error reading body")
+
 // NewStorage returns new Prometheus remote write compatible storage
 func NewStorage(opts Options) (storage.Storage, error) {
 	client := xhttp.NewHTTPClient(opts.httpOptions)
@@ -134,7 +136,7 @@ func (p *promStorage) writeSingle(
 		response, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			// TODO(antanas): should log and return just generic error
-			response = []byte("error reading body")
+			response = errorReadingBody
 		}
 		return fmt.Errorf("expected status code 2XX: actual=%v, address=%v, resp=%s",
 			resp.StatusCode, address, response)
