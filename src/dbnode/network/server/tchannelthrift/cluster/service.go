@@ -140,6 +140,8 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 			return nil, convert.ToRPCError(err)
 		}
 
+		defer results.Finalize()
+
 		result := &rpc.QueryResult_{
 			Exhaustive: metadata.Exhaustive,
 		}
@@ -160,7 +162,6 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 			if err := tags.Err(); err != nil {
 				return nil, convert.ToRPCError(err)
 			}
-			tags.Close()
 		}
 
 		if err := results.Err(); err != nil {
@@ -175,6 +176,7 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}
+	defer results.Close()
 
 	result := &rpc.QueryResult_{
 		Results:    make([]*rpc.QueryResultElement, 0, results.Len()),
@@ -197,7 +199,6 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 		if err := tags.Err(); err != nil {
 			return nil, convert.ToRPCError(err)
 		}
-		tags.Close()
 
 		var datapoints []*rpc.Datapoint
 		for series.Next() {
@@ -220,7 +221,6 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 		curr.Datapoints = datapoints
 	}
 
-	results.Close()
 	return result, nil
 }
 
