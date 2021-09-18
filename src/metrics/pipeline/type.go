@@ -358,6 +358,7 @@ func (op RollupOp) String() string {
 	var b bytes.Buffer
 	b.WriteString("{")
 	fmt.Fprintf(&b, "name: %s, ", op.newName)
+	fmt.Fprintf(&b, "type: %v, ", op.Type)
 	b.WriteString("tags: [")
 	for i, t := range op.Tags {
 		fmt.Fprintf(&b, "%s", t)
@@ -412,6 +413,7 @@ type rollupMarshaler struct {
 
 func newRollupMarshaler(op RollupOp) rollupMarshaler {
 	return rollupMarshaler{
+		Type:          op.Type,
 		NewName:       string(op.newName),
 		Tags:          xbytes.ArraysToStringArray(op.Tags),
 		AggregationID: op.AggregationID,
