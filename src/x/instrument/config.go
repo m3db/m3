@@ -107,6 +107,30 @@ type NewRootScopeAndReportersOptions struct {
 	CommonLabels map[string]string
 }
 
+type metricsClosers struct {
+	closers []io.Closer
+}
+
+func newMetricsClosers() metricsClosers {
+	return metricsClosers{
+		closers: make([]io.Closer, 0, 2),
+	}
+}
+
+func (m *metricsClosers) add(closer io.Closer) {
+	m.closers = append(m.closers, closer)
+}
+
+func (m metricsClosers) Close() error {
+	for _, closer := range m.closers {
+		if err := closer.Close(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // NewRootScopeAndReporters creates a new tally.Scope based on a tally.CachedStatsReporter
 // based on the the the config along with the reporters used.
 func (mc *MetricsConfiguration) NewRootScopeAndReporters(
@@ -117,7 +141,10 @@ func (mc *MetricsConfiguration) NewRootScopeAndReporters(
 	MetricsConfigurationReporters,
 	error,
 ) {
-	var result MetricsConfigurationReporters
+	var (
+		result  MetricsConfigurationReporters
+		closers metricsClosers
+	)
 	if mc.M3Reporter != nil {
 		r, err := mc.M3Reporter.NewReporter()
 		if err != nil {
@@ -189,10 +216,11 @@ func (mc *MetricsConfiguration) NewRootScopeAndReporters(
 			}
 		}
 
-		r, err := mc.PrometheusReporter.NewReporter(opts)
+		r, rCloser, err := mc.PrometheusReporter.NewReporter(opts)
 		if err != nil {
 			return nil, nil, MetricsConfigurationReporters{}, err
 		}
+		closers.add(rCloser)
 
 		result.AllReporters = append(result.AllReporters, r)
 		result.PrometheusReporter = &MetricsConfigurationPrometheusReporter{
@@ -212,7 +240,9 @@ func (mc *MetricsConfiguration) NewRootScopeAndReporters(
 	}
 
 	scope, closer := mc.NewRootScopeReporter(r)
-	return scope, closer, result, nil
+	closers.add(closer)
+
+	return scope, closers, result, nil
 }
 
 // NewRootScopeReporter creates a new tally.Scope based on a given tally.CachedStatsReporter
