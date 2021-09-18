@@ -34,6 +34,7 @@
 - **M3DB**: Use adaptive WriteBatch allocations to dynamically match workload throughput and batch sizes ([#3429](https://github.com/m3db/m3/pull/3429))
 - **M3Coordinator**: Improve rule matching speed by improving per element rule matching and disabling cache which puts locks in the hot path ([#3080](https://github.com/m3db/m3/pull/3080), [#3083](https://github.com/m3db/m3/pull/3083))
 - **M3Query**: Improve speed of M3TSZ decoding by using 64 bit operations ([#2827](https://github.com/m3db/m3/pull/2827))
+- **M3Query**: Improve speed of M3TSZ decoding by using int64 type xtime.UnixNano instead of time.Time ([#3515](https://github.com/m3db/m3/pull/3515))
 - **M3Query**: Improve speed of quorum reads by improving multi-replica iterator ([#3512](https://github.com/m3db/m3/pull/3512))
 
 # 1.1.0
