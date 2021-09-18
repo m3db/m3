@@ -240,7 +240,7 @@ func NewBlock(
 	scope := iopts.MetricsScope().SubScope("index").SubScope("block")
 	iopts = iopts.SetMetricsScope(scope)
 
-	cpus := int(math.Max(1, math.Ceil(0.25*float64(runtime.NumCPU()))))
+	cpus := int(math.Max(1, math.Ceil(0.25*float64(runtime.GOMAXPROCS(0)))))
 	cachedSearchesWorkers := xsync.NewWorkerPool(cpus)
 	cachedSearchesWorkers.Init()
 

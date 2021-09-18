@@ -828,7 +828,7 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 		opts = opts.SetMaxJitterFn(maxJitterFn)
 	}
 	if c.NumWorkersPerCPU != 0 {
-		runtimeCPU := float64(runtime.NumCPU())
+		runtimeCPU := float64(runtime.GOMAXPROCS(0))
 		numWorkers := c.NumWorkersPerCPU * runtimeCPU
 		workerPoolSize := int(math.Ceil(numWorkers))
 		if workerPoolSize < 1 {

@@ -344,7 +344,7 @@ func TestWideFetch(t *testing.T) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var multiErr xerrors.MultiError
-	for i := 0; i < runtime.NumCPU(); i++ {
+	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
 		q := index.Query{Query: idx.NewAllQuery()}
 		expected := buildExpectedChecksumsByShard(
 			ids, nil, testSetup.ShardSet(), batchSize)
