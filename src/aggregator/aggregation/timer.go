@@ -30,11 +30,11 @@ import (
 // Timer aggregates timer values. Timer APIs are not thread-safe.
 type Timer struct {
 	lastAt                   time.Time
-	count                    int64      // Number of values received.
-	sum                      float64    // Sum of the values.
-	sumSq                    float64    // Sum of squared values.
 	stream                   *cm.Stream // Stream of values received.
 	annotation               []byte
+	count                    int64   // Number of values received.
+	sum                      float64 // Sum of the values.
+	sumSq                    float64 // Sum of squared values.
 	hasExpensiveAggregations bool
 }
 

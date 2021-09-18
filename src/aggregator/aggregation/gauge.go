@@ -30,15 +30,14 @@ import (
 // Gauge aggregates gauge values.
 type Gauge struct {
 	Options
-
 	lastAt     time.Time
-	last       float64
+	annotation []byte
 	sum        float64
 	sumSq      float64
 	count      int64
 	max        float64
 	min        float64
-	annotation []byte
+	last       float64
 }
 
 // NewGauge creates a new gauge.

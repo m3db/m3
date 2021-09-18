@@ -193,15 +193,14 @@ const (
 
 // RollupOp is a rollup operation.
 type RollupOp struct {
-	// Type is the rollup type.
-	Type RollupType
 	// Dimensions along which the rollup is performed.
 	Tags [][]byte
-	// Types of aggregation performed within each unique dimension combination.
-	AggregationID aggregation.ID
-
 	// New metric name generated as a result of the rollup.
-	newName          []byte
+	newName []byte
+	// Type is the rollup type.
+	Type RollupType
+	// Types of aggregation performed within each unique dimension combination.
+	AggregationID    aggregation.ID
 	newNameTemplated bool
 }
 
@@ -405,9 +404,9 @@ func (op RollupOp) MarshalYAML() (interface{}, error) {
 }
 
 type rollupMarshaler struct {
-	Type          RollupType     `json:"type" yaml:"type"`
 	NewName       string         `json:"newName" yaml:"newName"`
 	Tags          []string       `json:"tags" yaml:"tags"`
+	Type          RollupType     `json:"type" yaml:"type"`
 	AggregationID aggregation.ID `json:"aggregation,omitempty" yaml:"aggregation"`
 }
 

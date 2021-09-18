@@ -30,14 +30,13 @@ import (
 // Counter aggregates counter values.
 type Counter struct {
 	Options
-
 	lastAt     time.Time
+	annotation []byte
 	sum        int64
 	sumSq      int64
 	count      int64
 	max        int64
 	min        int64
-	annotation []byte
 }
 
 // NewCounter creates a new counter.

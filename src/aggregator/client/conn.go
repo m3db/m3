@@ -53,31 +53,27 @@ type (
 // connection is a persistent connection that retries establishing
 // connection with exponential backoff if the connection goes down.
 type connection struct {
-	sync.Mutex
-
-	addr           string
-	connTimeout    time.Duration
-	writeTimeout   time.Duration
-	keepAlive      bool
-	initThreshold  int
-	multiplier     int
-	maxThreshold   int
-	maxDuration    time.Duration
-	writeRetryOpts retry.Options
-	rngFn          retry.RngFn
-
-	conn                    *net.TCPConn
+	metrics                 connectionMetrics
+	writeRetryOpts          retry.Options
 	writer                  xio.ResettableWriter
-	numFailures             int
+	connectWithLockFn       connectWithLockFn
+	sleepFn                 sleepFn
+	nowFn                   clock.NowFn
+	conn                    *net.TCPConn
+	rngFn                   retry.RngFn
+	writeWithLockFn         writeWithLockFn
+	addr                    string
+	maxDuration             time.Duration
+	maxThreshold            int
+	multiplier              int
+	initThreshold           int
 	threshold               int
 	lastConnectAttemptNanos int64
-	metrics                 connectionMetrics
-
-	// These are for testing purposes.
-	nowFn             clock.NowFn
-	sleepFn           sleepFn
-	connectWithLockFn connectWithLockFn
-	writeWithLockFn   writeWithLockFn
+	writeTimeout            time.Duration
+	connTimeout             time.Duration
+	numFailures             int
+	sync.Mutex
+	keepAlive bool
 }
 
 // newConnection creates a new connection.

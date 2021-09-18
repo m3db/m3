@@ -33,11 +33,11 @@ var (
 
 // Options is the options for aggregations.
 type Options struct {
+	// Metrics is as set of aggregation metrics.
+	Metrics Metrics
 	// HasExpensiveAggregations means expensive (multiplication／division)
 	// aggregation types are enabled.
 	HasExpensiveAggregations bool
-	// Metrics is as set of aggregation metrics.
-	Metrics Metrics
 }
 
 // Metrics is a set of metrics that can be used by elements.
