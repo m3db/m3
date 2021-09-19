@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/aggregator/rate"
 	"github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3/src/metrics/metadata"
-	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/x/clock"
@@ -52,7 +51,10 @@ var (
 	errWriteNewMetricRateLimitExceeded = errors.New("write new metric rate limit is exceeded")
 )
 
-type metricCategory int
+type (
+	metricCategory uint8
+	metricType     uint8
+)
 
 const (
 	// nolint
@@ -63,14 +65,14 @@ const (
 )
 
 type entryKey struct {
-	metricCategory metricCategory
-	metricType     metric.Type
 	idHash         hash.Hash128
+	metricType     metricType
+	metricCategory metricCategory
 }
 
 type hashedEntry struct {
-	key   entryKey
 	entry *Entry
+	key   entryKey
 }
 
 type metricMapMetrics struct {
@@ -150,7 +152,7 @@ func (m *metricMap) AddUntimed(
 ) error {
 	key := entryKey{
 		metricCategory: untimedMetric,
-		metricType:     metric.Type,
+		metricType:     metricType(metric.Type),
 		idHash:         hash.Murmur3Hash128(metric.ID),
 	}
 	entry, err := m.findOrCreate(key)
@@ -168,7 +170,7 @@ func (m *metricMap) AddTimed(
 ) error {
 	key := entryKey{
 		metricCategory: timedMetric,
-		metricType:     metric.Type,
+		metricType:     metricType(metric.Type),
 		idHash:         hash.Murmur3Hash128(metric.ID),
 	}
 	entry, err := m.findOrCreate(key)
@@ -186,7 +188,7 @@ func (m *metricMap) AddTimedWithStagedMetadatas(
 ) error {
 	key := entryKey{
 		metricCategory: timedMetric,
-		metricType:     metric.Type,
+		metricType:     metricType(metric.Type),
 		idHash:         hash.Murmur3Hash128(metric.ID),
 	}
 	entry, err := m.findOrCreate(key)
@@ -204,7 +206,7 @@ func (m *metricMap) AddForwarded(
 ) error {
 	key := entryKey{
 		metricCategory: forwardedMetric,
-		metricType:     metric.Type,
+		metricType:     metricType(metric.Type),
 		idHash:         hash.Murmur3Hash128(metric.ID),
 	}
 	entry, err := m.findOrCreate(key)
