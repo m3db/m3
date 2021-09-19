@@ -38,9 +38,8 @@ type AggregatedEncoder interface {
 
 type aggregatedEncoder struct {
 	pool pool.BytesPool
-
-	pb  metricpb.AggregatedMetric
-	buf []byte
+	buf  []byte
+	pb   metricpb.AggregatedMetric
 }
 
 // NewAggregatedEncoder creates a new aggregated encoder.
