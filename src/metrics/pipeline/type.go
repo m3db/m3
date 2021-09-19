@@ -404,9 +404,9 @@ func (op RollupOp) MarshalYAML() (interface{}, error) {
 }
 
 type rollupMarshaler struct {
+	Type          RollupType     `json:"type" yaml:"type"`
 	NewName       string         `json:"newName" yaml:"newName"`
 	Tags          []string       `json:"tags" yaml:"tags"`
-	Type          RollupType     `json:"type" yaml:"type"`
 	AggregationID aggregation.ID `json:"aggregation,omitempty" yaml:"aggregation"`
 }
 
@@ -425,10 +425,10 @@ func (m rollupMarshaler) RollupOp() (RollupOp, error) {
 
 // OpUnion is a union of different types of operation.
 type OpUnion struct {
+	Rollup         RollupOp
 	Type           OpType
 	Aggregation    AggregationOp
 	Transformation TransformationOp
-	Rollup         RollupOp
 }
 
 // NewOpUnionFromProto creates a new operation union from proto.
