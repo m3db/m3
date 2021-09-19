@@ -612,7 +612,7 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 	}
 
 	if t == seriesBatch {
-		batches, err := bl.MultiSeriesIter(runtime.NumCPU())
+		batches, err := bl.MultiSeriesIter(runtime.GOMAXPROCS(0))
 		require.NoError(b, err)
 
 		var wg sync.WaitGroup

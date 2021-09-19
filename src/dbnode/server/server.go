@@ -487,7 +487,7 @@ func Run(runOpts RunOptions) {
 	)
 
 	permitOptions := opts.PermitsOptions().SetSeriesReadPermitsManager(seriesReadPermits)
-	maxIdxConcurrency := int(math.Ceil(float64(runtime.NumCPU()) / 2))
+	maxIdxConcurrency := int(math.Ceil(float64(runtime.GOMAXPROCS(0)) / 2))
 	if cfg.Index.MaxQueryIDsConcurrency > 0 {
 		maxIdxConcurrency = cfg.Index.MaxQueryIDsConcurrency
 		logger.Info("max index query IDs concurrency set",
@@ -640,7 +640,7 @@ func Run(runOpts RunOptions) {
 	case config.CalculationTypeFixed:
 		commitLogQueueSize = specified
 	case config.CalculationTypePerCPU:
-		commitLogQueueSize = specified * runtime.NumCPU()
+		commitLogQueueSize = specified * runtime.GOMAXPROCS(0)
 	default:
 		logger.Fatal("unknown commit log queue size type",
 			zap.Any("type", cfgCommitLog.Queue.CalculationType))
@@ -653,7 +653,7 @@ func Run(runOpts RunOptions) {
 		case config.CalculationTypeFixed:
 			commitLogQueueChannelSize = specified
 		case config.CalculationTypePerCPU:
-			commitLogQueueChannelSize = specified * runtime.NumCPU()
+			commitLogQueueChannelSize = specified * runtime.GOMAXPROCS(0)
 		default:
 			logger.Fatal("unknown commit log queue channel size type",
 				zap.Any("type", cfgCommitLog.Queue.CalculationType))

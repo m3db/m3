@@ -188,7 +188,7 @@ var (
 	}
 
 	// defaultFetchSeriesBlocksBatchConcurrency is the default fetch series blocks in batch parallel concurrency limit
-	defaultFetchSeriesBlocksBatchConcurrency = int(math.Max(1, float64(runtime.NumCPU())/2))
+	defaultFetchSeriesBlocksBatchConcurrency = int(math.Max(1, float64(runtime.GOMAXPROCS(0))/2))
 
 	// defaultSeriesIteratorArrayPoolBuckets is the default pool buckets for the series iterator array pool
 	defaultSeriesIteratorArrayPoolBuckets = []pool.Bucket{}
