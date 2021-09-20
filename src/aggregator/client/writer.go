@@ -62,18 +62,16 @@ type instanceWriter interface {
 type newLockedEncoderFn func(protobuf.UnaggregatedOptions) *lockedEncoder
 
 type writer struct {
-	sync.RWMutex
-
-	log               *zap.Logger
-	metrics           writerMetrics
-	encoderOpts       protobuf.UnaggregatedOptions
-	queue             instanceQueue
-	maxBatchSize      int
-	maxTimerBatchSize int
-
+	metrics            writerMetrics
+	encoderOpts        protobuf.UnaggregatedOptions
+	queue              instanceQueue
+	log                *zap.Logger
 	encodersByShard    map[uint32]*lockedEncoder
 	newLockedEncoderFn newLockedEncoderFn
-	closed             bool
+	maxTimerBatchSize  int
+	maxBatchSize       int
+	sync.RWMutex
+	closed bool
 }
 
 func newInstanceWriter(instance placement.Instance, opts Options) instanceWriter {
@@ -414,9 +412,9 @@ func newLockedEncoder(encoderOpts protobuf.UnaggregatedOptions) *lockedEncoder {
 }
 
 type refCountedWriter struct {
-	dirty atomic.Bool
 	instanceWriter
 	refCount
+	dirty atomic.Bool
 }
 
 func newRefCountedWriter(instance placement.Instance, opts Options) *refCountedWriter {

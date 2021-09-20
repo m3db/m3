@@ -193,15 +193,14 @@ const (
 
 // RollupOp is a rollup operation.
 type RollupOp struct {
-	// Type is the rollup type.
-	Type RollupType
 	// Dimensions along which the rollup is performed.
 	Tags [][]byte
-	// Types of aggregation performed within each unique dimension combination.
-	AggregationID aggregation.ID
-
 	// New metric name generated as a result of the rollup.
-	newName          []byte
+	newName []byte
+	// Type is the rollup type.
+	Type RollupType
+	// Types of aggregation performed within each unique dimension combination.
+	AggregationID    aggregation.ID
 	newNameTemplated bool
 }
 
@@ -426,10 +425,10 @@ func (m rollupMarshaler) RollupOp() (RollupOp, error) {
 
 // OpUnion is a union of different types of operation.
 type OpUnion struct {
+	Rollup         RollupOp
 	Type           OpType
 	Aggregation    AggregationOp
 	Transformation TransformationOp
-	Rollup         RollupOp
 }
 
 // NewOpUnionFromProto creates a new operation union from proto.
