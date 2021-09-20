@@ -52,6 +52,7 @@ type dbNode struct {
 
 	interruptCh chan<- error
 	shutdownCh  <-chan struct{}
+	// tchanClient is an RPC client used for hitting the DB nodes RPC API.
 	tchanClient *integration.TestTChannelClient
 }
 
