@@ -72,8 +72,8 @@ type connection struct {
 	writeTimeout            time.Duration
 	connTimeout             time.Duration
 	numFailures             int
-	sync.Mutex
-	keepAlive bool
+	mtx                     sync.Mutex
+	keepAlive               bool
 }
 
 // newConnection creates a new connection.
@@ -108,16 +108,16 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 // connection if the connection is down.
 func (c *connection) Write(data []byte) error {
 	var err error
-	c.Lock()
+	c.mtx.Lock()
 	if c.conn == nil {
 		if err = c.checkReconnectWithLock(); err != nil {
 			c.numFailures++
-			c.Unlock()
+			c.mtx.Unlock()
 			return err
 		}
 	}
 	if err = c.writeAttemptWithLock(data); err == nil {
-		c.Unlock()
+		c.mtx.Unlock()
 		return nil
 	}
 	for i := 1; i <= c.writeRetryOpts.MaxRetries(); i++ {
@@ -133,19 +133,19 @@ func (c *connection) Write(data []byte) error {
 		}
 		c.metrics.writeRetries.Inc(1)
 		if err = c.writeAttemptWithLock(data); err == nil {
-			c.Unlock()
+			c.mtx.Unlock()
 			return nil
 		}
 	}
 	c.numFailures++
-	c.Unlock()
+	c.mtx.Unlock()
 	return err
 }
 
 func (c *connection) Close() {
-	c.Lock()
+	c.mtx.Lock()
 	c.closeWithLock()
-	c.Unlock()
+	c.mtx.Unlock()
 }
 
 // writeAttemptWithLock attempts to establish a new connection and writes raw bytes

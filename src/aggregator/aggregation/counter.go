@@ -30,6 +30,7 @@ import (
 // Counter aggregates counter values.
 type Counter struct {
 	Options
+
 	lastAt     time.Time
 	annotation []byte
 	sum        int64

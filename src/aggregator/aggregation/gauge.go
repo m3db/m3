@@ -30,6 +30,7 @@ import (
 // Gauge aggregates gauge values.
 type Gauge struct {
 	Options
+
 	lastAt     time.Time
 	annotation []byte
 	sum        float64
