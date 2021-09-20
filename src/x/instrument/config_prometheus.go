@@ -21,8 +21,10 @@
 package instrument
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -110,10 +112,26 @@ type PrometheusExternalRegistry struct {
 	SubScope string
 }
 
+type reporterCloser struct {
+	closeFn func() error
+}
+
+func newReporterCloser() reporterCloser {
+	return reporterCloser{
+		closeFn: func() error {
+			return nil
+		},
+	}
+}
+
+func (r reporterCloser) Close() error {
+	return r.closeFn()
+}
+
 // NewReporter creates a new M3 Prometheus reporter from this configuration.
 func (c PrometheusConfiguration) NewReporter(
 	configOpts PrometheusConfigurationOptions,
-) (prometheus.Reporter, error) {
+) (prometheus.Reporter, io.Closer, error) {
 	registry := configOpts.Registry
 	if registry == nil {
 		registry = prom.NewRegistry()
@@ -178,11 +196,12 @@ func (c PrometheusConfiguration) NewReporter(
 	handler := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
 
 	addr := strings.TrimSpace(c.ListenAddress)
+	closer := newReporterCloser()
 	if addr == "" && configOpts.HandlerListener == nil {
 		// If address not specified and server not specified, register
 		// on default mux.
 		if configOpts.DefaultServeMux == nil {
-			return nil, errors.New(
+			return nil, nil, errors.New(
 				"must specify a DefaultServeMux option when not specifying a listener",
 			)
 		}
@@ -197,20 +216,23 @@ func (c PrometheusConfiguration) NewReporter(
 			var err error
 			listener, err = net.Listen("tcp", addr)
 			if err != nil {
-				return nil, fmt.Errorf(
+				return nil, nil, fmt.Errorf(
 					"prometheus handler listen address error: %v", err)
 			}
 		}
 
+		server := &http.Server{Handler: mux}
 		go func() {
-			server := &http.Server{Handler: mux}
-			if err := server.Serve(listener); err != nil {
+			if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				opts.OnRegisterError(err)
 			}
 		}()
+		closer.closeFn = func() error {
+			return server.Shutdown(context.Background())
+		}
 	}
 
-	return reporter, nil
+	return reporter, closer, nil
 }
 
 func newMultiGatherer(

@@ -107,6 +107,27 @@ type NewRootScopeAndReportersOptions struct {
 	CommonLabels map[string]string
 }
 
+type metricsClosers struct {
+	// serverCloser is responsible for closing the http server handling /metrics
+	// if one was started up as a part of reporter creation.
+	serverCloser io.Closer
+	// reporterClose is responsible for closing the underlying tally.Reporter
+	// responsible for reporting metrics for all registered scopes.
+	reporterCloser io.Closer
+}
+
+func (m metricsClosers) Close() error {
+	if err := m.reporterCloser.Close(); err != nil {
+		return err
+	}
+
+	if m.serverCloser != nil {
+		return m.serverCloser.Close()
+	}
+
+	return nil
+}
+
 // NewRootScopeAndReporters creates a new tally.Scope based on a tally.CachedStatsReporter
 // based on the the the config along with the reporters used.
 func (mc *MetricsConfiguration) NewRootScopeAndReporters(
@@ -117,7 +138,10 @@ func (mc *MetricsConfiguration) NewRootScopeAndReporters(
 	MetricsConfigurationReporters,
 	error,
 ) {
-	var result MetricsConfigurationReporters
+	var (
+		result  MetricsConfigurationReporters
+		closers metricsClosers
+	)
 	if mc.M3Reporter != nil {
 		r, err := mc.M3Reporter.NewReporter()
 		if err != nil {
@@ -189,10 +213,11 @@ func (mc *MetricsConfiguration) NewRootScopeAndReporters(
 			}
 		}
 
-		r, err := mc.PrometheusReporter.NewReporter(opts)
+		r, srvCloser, err := mc.PrometheusReporter.NewReporter(opts)
 		if err != nil {
 			return nil, nil, MetricsConfigurationReporters{}, err
 		}
+		closers.serverCloser = srvCloser
 
 		result.AllReporters = append(result.AllReporters, r)
 		result.PrometheusReporter = &MetricsConfigurationPrometheusReporter{
@@ -212,7 +237,9 @@ func (mc *MetricsConfiguration) NewRootScopeAndReporters(
 	}
 
 	scope, closer := mc.NewRootScopeReporter(r)
-	return scope, closer, result, nil
+	closers.reporterCloser = closer
+
+	return scope, closers, result, nil
 }
 
 // NewRootScopeReporter creates a new tally.Scope based on a given tally.CachedStatsReporter
