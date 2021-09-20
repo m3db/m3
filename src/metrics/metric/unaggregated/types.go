@@ -42,8 +42,8 @@ var (
 // Counter is a counter containing the counter ID and the counter value.
 type Counter struct {
 	ID              id.RawID
-	Value           int64
 	Annotation      []byte
+	Value           int64
 	ClientTimeNanos xtime.UnixNano
 }
 
@@ -111,8 +111,8 @@ func (t *BatchTimer) FromProto(pb metricpb.BatchTimer) {
 // Gauge is a gauge containing the gauge ID and the value at certain time.
 type Gauge struct {
 	ID              id.RawID
-	Value           float64
 	Annotation      []byte
+	Value           float64
 	ClientTimeNanos xtime.UnixNano
 }
 
@@ -145,26 +145,26 @@ func (g *Gauge) FromProto(pb metricpb.Gauge) {
 
 // CounterWithPoliciesList is a counter with applicable policies list.
 type CounterWithPoliciesList struct {
-	Counter
 	policy.PoliciesList
+	Counter
 }
 
 // BatchTimerWithPoliciesList is a batch timer with applicable policies list.
 type BatchTimerWithPoliciesList struct {
-	BatchTimer
 	policy.PoliciesList
+	BatchTimer
 }
 
 // GaugeWithPoliciesList is a gauge with applicable policies list.
 type GaugeWithPoliciesList struct {
-	Gauge
 	policy.PoliciesList
+	Gauge
 }
 
 // CounterWithMetadatas is a counter with applicable metadatas.
 type CounterWithMetadatas struct {
-	Counter
 	metadata.StagedMetadatas
+	Counter
 }
 
 // ToProto converts the counter with metadatas to a protobuf message in place.
@@ -190,8 +190,8 @@ func (cm *CounterWithMetadatas) FromProto(pb *metricpb.CounterWithMetadatas) err
 
 // BatchTimerWithMetadatas is a batch timer with applicable metadatas.
 type BatchTimerWithMetadatas struct {
-	BatchTimer
 	metadata.StagedMetadatas
+	BatchTimer
 }
 
 // ToProto converts the batch timer with metadatas to a protobuf message in place.
@@ -217,8 +217,8 @@ func (bm *BatchTimerWithMetadatas) FromProto(pb *metricpb.BatchTimerWithMetadata
 
 // GaugeWithMetadatas is a gauge with applicable metadatas.
 type GaugeWithMetadatas struct {
-	Gauge
 	metadata.StagedMetadatas
+	Gauge
 }
 
 // ToProto converts the gauge with metadatas to a protobuf message in place.
@@ -248,13 +248,13 @@ func (gm *GaugeWithMetadatas) FromProto(pb *metricpb.GaugeWithMetadatas) error {
 // allocated from a pool, the TimerValPool should be set to the originating pool,
 // and the caller is responsible for returning the timer values to the pool.
 type MetricUnion struct {
-	Type            metric.Type
-	ID              id.RawID
-	CounterVal      int64
-	BatchTimerVal   []float64
-	GaugeVal        float64
 	TimerValPool    pool.FloatsPool
 	Annotation      []byte
+	ID              id.RawID
+	BatchTimerVal   []float64
+	CounterVal      int64
+	GaugeVal        float64
+	Type            metric.Type
 	ClientTimeNanos xtime.UnixNano
 }
 

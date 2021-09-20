@@ -37,10 +37,10 @@ var (
 )
 
 type options struct {
+	streamPool             StreamPool
 	eps                    float64
 	capacity               int
 	insertAndCompressEvery int
-	streamPool             StreamPool
 }
 
 // NewOptions creates a new options.

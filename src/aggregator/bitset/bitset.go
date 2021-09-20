@@ -28,9 +28,9 @@ import (
 // range of values in the bitset is small (e.g., [0, 64)). It falls back to
 // github.com/willf/bitset for large value ranges.
 type BitSet struct {
-	smallRange bool
-	val        uint64
 	bs         *bitset.BitSet
+	val        uint64
+	smallRange bool
 }
 
 // New can be used to keep track of values between [0, maxExclusive).
