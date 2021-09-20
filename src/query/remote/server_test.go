@@ -167,7 +167,7 @@ func checkErrorFetch(ctx context.Context, t *testing.T, client Client,
 }
 
 func buildClient(t *testing.T, hosts []string) Client {
-	readWorkerPool, err := xsync.NewPooledWorkerPool(runtime.NumCPU(),
+	readWorkerPool, err := xsync.NewPooledWorkerPool(runtime.GOMAXPROCS(0),
 		xsync.NewPooledWorkerPoolOptions())
 	readWorkerPool.Init()
 	require.NoError(t, err)
