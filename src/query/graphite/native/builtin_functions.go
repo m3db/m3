@@ -156,7 +156,7 @@ func useSeriesAbove(
 		multiErr       xerrors.MultiError
 		newNames       []string
 		output         = make([]*ts.Series, 0, len(seriesList.Values))
-		maxConcurrency = runtime.NumCPU() / 2
+		maxConcurrency = runtime.GOMAXPROCS(0) / 2
 	)
 
 	for _, series := range seriesList.Values {

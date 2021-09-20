@@ -91,7 +91,7 @@ const (
 )
 
 var (
-	numShards                   = runtime.NumCPU()
+	numShards                   = runtime.GOMAXPROCS(0)
 	defaultNamespaceTag         = metric.M3MetricsPrefixString + "_namespace__"
 	defaultFilterOutTagPrefixes = [][]byte{
 		metric.M3MetricsPrefix,

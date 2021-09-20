@@ -48,7 +48,7 @@ var (
 	errMigrationOptionsNotSet   = errors.New("migration options not set")
 
 	// DefaultIndexSegmentConcurrency defines the default index segment building concurrency.
-	DefaultIndexSegmentConcurrency = int(math.Min(2, float64(goruntime.NumCPU())))
+	DefaultIndexSegmentConcurrency = int(math.Min(2, float64(goruntime.GOMAXPROCS(0))))
 
 	// defaultIndexSegmentsVerify defines default for index segments validation.
 	defaultIndexSegmentsVerify = false
