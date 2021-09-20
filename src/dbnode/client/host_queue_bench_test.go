@@ -30,12 +30,12 @@ const baseline = 1024
 
 func BenchmarkEnqueueChannel(b *testing.B) {
 	work := baseline * b.N
-	workerTarget := work / runtime.NumCPU()
+	workerTarget := work / runtime.GOMAXPROCS(0)
 	actual := 0
 	// expected = (((n^2)+n)/2) * workers
-	expected := (((workerTarget * workerTarget) + workerTarget) / 2) * runtime.NumCPU()
+	expected := (((workerTarget * workerTarget) + workerTarget) / 2) * runtime.GOMAXPROCS(0)
 
-	q := make(chan int, work/runtime.NumCPU())
+	q := make(chan int, work/runtime.GOMAXPROCS(0))
 
 	flushingL := sync.Mutex{}
 
@@ -54,7 +54,7 @@ func BenchmarkEnqueueChannel(b *testing.B) {
 
 	var wg sync.WaitGroup
 
-	for w := 0; w < runtime.NumCPU(); w++ {
+	for w := 0; w < runtime.GOMAXPROCS(0); w++ {
 		wg.Add(1)
 		go func() {
 			for i := 0; i < workerTarget; i++ {
@@ -81,13 +81,13 @@ func BenchmarkEnqueueChannel(b *testing.B) {
 
 func BenchmarkEnqueueMutex(b *testing.B) {
 	work := baseline * b.N
-	workerTarget := work / runtime.NumCPU()
+	workerTarget := work / runtime.GOMAXPROCS(0)
 	actual := 0
 	// expected = (((n^2)+n)/2) * workers
-	expected := (((workerTarget * workerTarget) + workerTarget) / 2) * runtime.NumCPU()
+	expected := (((workerTarget * workerTarget) + workerTarget) / 2) * runtime.GOMAXPROCS(0)
 
-	q := make([]int, 0, work/runtime.NumCPU())
-	qCopy := make([]int, 0, work/runtime.NumCPU())
+	q := make([]int, 0, work/runtime.GOMAXPROCS(0))
+	qCopy := make([]int, 0, work/runtime.GOMAXPROCS(0))
 	l := sync.RWMutex{}
 	flushingL := sync.Mutex{}
 
@@ -101,7 +101,7 @@ func BenchmarkEnqueueMutex(b *testing.B) {
 
 	var wg sync.WaitGroup
 
-	for w := 0; w < runtime.NumCPU(); w++ {
+	for w := 0; w < runtime.GOMAXPROCS(0); w++ {
 		wg.Add(1)
 		go func() {
 			for i := 0; i < workerTarget; i++ {

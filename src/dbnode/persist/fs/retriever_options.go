@@ -33,7 +33,7 @@ import (
 
 var (
 	// Allow max concurrency to match available CPUs.
-	defaultFetchConcurrency = runtime.NumCPU()
+	defaultFetchConcurrency = runtime.GOMAXPROCS(0)
 	defaultCacheOnRetrieve  = false
 
 	errBlockLeaseManagerNotSet = errors.New("block lease manager is not set")

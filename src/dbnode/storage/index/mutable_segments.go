@@ -206,7 +206,7 @@ func (m *mutableSegments) SetNamespaceRuntimeOptions(opts namespace.RuntimeOptio
 	m.Lock()
 	// Update current runtime opts for segment builders created in future.
 	perCPUFraction := opts.WriteIndexingPerCPUConcurrencyOrDefault()
-	cpus := math.Ceil(perCPUFraction * float64(runtime.NumCPU()))
+	cpus := math.Ceil(perCPUFraction * float64(runtime.GOMAXPROCS(0)))
 	m.writeIndexingConcurrency = int(math.Max(1, cpus))
 	segmentBuilder := m.compact.segmentBuilder
 	m.Unlock()

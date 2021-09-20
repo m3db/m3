@@ -56,7 +56,7 @@ const (
 
 var (
 	// defaultBacklogQueueSize is the default commit log backlog queue size.
-	defaultBacklogQueueSize = 1024 * runtime.NumCPU()
+	defaultBacklogQueueSize = 1024 * runtime.GOMAXPROCS(0)
 
 	// defaultBacklogQueueChannelSize is the default commit log backlog queue channel size.
 	defaultBacklogQueueChannelSize = int(float64(defaultBacklogQueueSize) / MaximumQueueSizeQueueChannelSizeRatio)

@@ -135,7 +135,7 @@ func (c *baseNode) Process(
 		resultMeta:  resultMeta,
 	}
 
-	concurrency := runtime.NumCPU()
+	concurrency := runtime.GOMAXPROCS(0)
 	var builder block.Builder
 	batches, err := b.MultiSeriesIter(concurrency)
 	if err != nil {

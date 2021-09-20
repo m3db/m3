@@ -39,7 +39,7 @@ const (
 )
 
 var (
-	defaultWorkerPoolSize = int(math.Max(float64(runtime.NumCPU()/8), 1.0))
+	defaultWorkerPoolSize = int(math.Max(float64(runtime.GOMAXPROCS(0)/8), 1.0))
 )
 
 // FlushJitterFn determines the jitter based on the flush interval.
