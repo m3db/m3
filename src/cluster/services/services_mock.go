@@ -1271,6 +1271,20 @@ func (mr *MockQueryOptionsMockRecorder) IncludeUnhealthy() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncludeUnhealthy", reflect.TypeOf((*MockQueryOptions)(nil).IncludeUnhealthy))
 }
 
+// InterruptCh mocks base method.
+func (m *MockQueryOptions) InterruptCh() <-chan error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InterruptCh")
+	ret0, _ := ret[0].(<-chan error)
+	return ret0
+}
+
+// InterruptCh indicates an expected call of InterruptCh.
+func (mr *MockQueryOptionsMockRecorder) InterruptCh() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InterruptCh", reflect.TypeOf((*MockQueryOptions)(nil).InterruptCh))
+}
+
 // SetIncludeUnhealthy mocks base method.
 func (m *MockQueryOptions) SetIncludeUnhealthy(h bool) QueryOptions {
 	m.ctrl.T.Helper()
@@ -1283,6 +1297,20 @@ func (m *MockQueryOptions) SetIncludeUnhealthy(h bool) QueryOptions {
 func (mr *MockQueryOptionsMockRecorder) SetIncludeUnhealthy(h interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIncludeUnhealthy", reflect.TypeOf((*MockQueryOptions)(nil).SetIncludeUnhealthy), h)
+}
+
+// SetInterruptCh mocks base method.
+func (m *MockQueryOptions) SetInterruptCh(value <-chan error) QueryOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetInterruptCh", value)
+	ret0, _ := ret[0].(QueryOptions)
+	return ret0
+}
+
+// SetInterruptCh indicates an expected call of SetInterruptCh.
+func (mr *MockQueryOptionsMockRecorder) SetInterruptCh(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInterruptCh", reflect.TypeOf((*MockQueryOptions)(nil).SetInterruptCh), value)
 }
 
 // MockMetadata is a mock of Metadata interface.
