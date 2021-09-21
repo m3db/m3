@@ -1,0 +1,16 @@
+global:
+  external_labels:
+    role: "remote"
+
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets:
+
+rule_files:
+
+scrape_configs:
+
+remote_read:
+
+remote_write:

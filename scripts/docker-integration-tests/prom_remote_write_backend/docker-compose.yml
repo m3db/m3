@@ -1,0 +1,114 @@
+version: "3.5"
+services:
+  dbnode01:
+    expose:
+      - "9000-9004"
+      - "7201"
+    ports:
+      - "0.0.0.0:9000-9004:9000-9004"
+      - "0.0.0.0:7201:7201"
+    networks:
+      - backend
+    image: "m3dbnode_integration:${REVISION}"
+  m3aggregator01:
+    expose:
+      - "6001"
+    ports:
+      - "127.0.0.1:6001:6001"
+    networks:
+      - backend
+    environment:
+      - M3AGGREGATOR_HOST_ID=m3aggregator01
+    image: "m3aggregator_integration:${REVISION}"
+    volumes:
+      - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
+  m3aggregator02:
+    networks:
+      - backend
+    environment:
+      - M3AGGREGATOR_HOST_ID=m3aggregator02
+    image: "m3aggregator_integration:${REVISION}"
+    volumes:
+      - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
+  m3coordinator01:
+    expose:
+      - "7202"
+    ports:
+      - "0.0.0.0:7202:7201"
+    networks:
+      - backend
+    image: "m3coordinator_integration:${REVISION}"
+    volumes:
+      - "./:/etc/m3coordinator/"
+  coordinatoradmin:
+    expose:
+      - "7201"
+    ports:
+      - "0.0.0.0:7201:7201"
+    networks:
+      - backend
+    image: "m3coordinator_integration:${REVISION}"
+    volumes:
+      - "./m3coordinator-admin.yml:/etc/m3coordinator/m3coordinator.yml"
+  prometheusraw:
+    expose:
+      - "9090"
+    ports:
+      - "0.0.0.0:9090:9090"
+    networks:
+      - backend
+    image: prom/prometheus:latest
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--enable-feature=remote-write-receiver"
+  prometheusagg:
+    expose:
+      - "9091"
+    ports:
+      - "0.0.0.0:9091:9090"
+    networks:
+      - backend
+    image: prom/prometheus:latest
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--enable-feature=remote-write-receiver"
+  etcd01:
+    expose:
+      - "2379-2380"
+    ports:
+      - "0.0.0.0:2379-2380:2379-2380"
+    networks:
+      - backend
+    image: quay.io/coreos/etcd:v3.4.3
+    command:
+      - "etcd"
+      - "--name"
+      - "etcd01"
+      - "--listen-peer-urls"
+      - "http://0.0.0.0:2380"
+      - "--listen-client-urls"
+      - "http://0.0.0.0:2379"
+      - "--advertise-client-urls"
+      - "http://etcd01:2379"
+      - "--initial-cluster-token"
+      - "etcd-cluster-1"
+      - "--initial-advertise-peer-urls"
+      - "http://etcd01:2380"
+      - "--initial-cluster"
+      - "etcd01=http://etcd01:2380"
+      - "--initial-cluster-state"
+      - "new"
+      - "--data-dir"
+      - "/var/lib/etcd"
+networks:
+  backend:

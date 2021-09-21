@@ -1,0 +1,86 @@
+listenAddress: 0.0.0.0:7201
+
+logging:
+  level: info
+
+metrics:
+  scope:
+    prefix: "coordinator"
+  prometheus:
+    handlerPath: /metrics
+    listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3/issues/682 is resolved
+  sanitization: prometheus
+  samplingRate: 1.0
+  extended: none
+
+backend: prom-remote
+
+prometheusRemoteBackend:
+  endpoints:
+    - name: raw
+      address: "http://prometheusraw:9090/api/v1/write"
+    - name: aggregated
+      address: "http://prometheusagg:9090/api/v1/write"
+      storagePolicy:
+        retention: 1h
+        resolution: 5s
+        downsample:
+          all: true
+
+clusterManagement:
+  etcd:
+    env: default_env
+    zone: embedded
+    service: m3db
+    cacheDir: /var/lib/m3kv
+    etcdClusters:
+      - zone: embedded
+        endpoints:
+          - etcd01:2379
+
+tagOptions:
+  idScheme: quoted
+
+downsample:
+  matcher:
+    requireNamespaceWatchOnInit: false
+  remoteAggregator:
+    client:
+      type: m3msg
+      m3msg:
+        producer:
+          writer:
+            topicName: aggregator_ingest
+            topicServiceOverride:
+              zone: embedded
+              environment: override_test_env
+            placement:
+              isStaged: true
+            placementServiceOverride:
+              namespaces:
+                placement: /placement
+            connection:
+              numConnections: 4
+            messagePool:
+              size: 16384
+              watermark:
+                low: 0.2
+                high: 0.5
+
+ingest:
+  ingester:
+    workerPoolSize: 10000
+    opPool:
+      size: 10000
+    retry:
+      maxRetries: 3
+      jitter: true
+    logSampleRate: 0.01
+  m3msg:
+    server:
+      listenAddress: "0.0.0.0:7507"
+      retry:
+        maxBackoff: 10s
+        jitter: true
+
+storeMetricsType: true
