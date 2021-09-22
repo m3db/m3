@@ -62,16 +62,15 @@ func NewAsyncDownsampler(
 	}
 
 	go func() {
+		asyncDownsampler.Lock()
+		defer asyncDownsampler.Unlock()
 		if asyncDownsampler.done != nil {
 			defer func() {
 				asyncDownsampler.done <- struct{}{}
 			}()
 		}
-
 		downsampler, err := fn()
 
-		asyncDownsampler.Lock()
-		defer asyncDownsampler.Unlock()
 		if err != nil {
 			asyncDownsampler.err = fmt.Errorf(errNewDownsamplerFailFmt, err)
 			return
