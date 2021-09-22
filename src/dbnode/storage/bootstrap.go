@@ -226,13 +226,11 @@ func (m *bootstrapManager) bootstrap() error {
 
 	// NB(r): construct new instance of the bootstrap process to avoid
 	// state being kept around by bootstrappers.
-	m.instrumentation.log.Info("providing bootstrap process")
 	process, err := m.processProvider.Provide()
 	if err != nil {
 		return err
 	}
 
-	m.instrumentation.log.Info("getting owned namespaces")
 	namespaces, err := m.database.OwnedNamespaces()
 	if err != nil {
 		return err

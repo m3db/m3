@@ -311,6 +311,10 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	}
 
 	if len(adds) > 0 {
+		// NB: need to disable fileOps and wait for all the background processes to complete
+		// so that we could update namespaces safely. Otherwise, there is a high change in getting
+		// invariant violation panic because cold/warm flush will receive new namespaces
+		// in the middle of their operations.
 		d.disableFileOpsAndWait()
 		d.Lock()
 		// add any namespaces marked for addition
