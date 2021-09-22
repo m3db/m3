@@ -96,7 +96,7 @@ func (w *indexWorkers) registerBuilder() {
 
 	// Need to initialize structures, prepare all num CPU
 	// worker queues, even if we don't use all of them.
-	n := runtime.NumCPU()
+	n := runtime.GOMAXPROCS(0)
 	if cap(w.queues) == 0 {
 		w.queues = make([]chan indexJob, 0, n)
 	} else {

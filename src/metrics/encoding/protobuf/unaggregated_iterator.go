@@ -32,15 +32,14 @@ import (
 
 // UnaggregatedIterator decodes unaggregated metrics.
 type UnaggregatedIterator struct {
+	pb             metricpb.MetricWithMetadatas
 	reader         encoding.ByteReadScanner
 	bytesPool      pool.BytesPool
+	err            error
+	buf            []byte
+	msg            encoding.UnaggregatedMessageUnion
 	maxMessageSize int
-
-	closed bool
-	pb     metricpb.MetricWithMetadatas
-	msg    encoding.UnaggregatedMessageUnion
-	buf    []byte
-	err    error
+	closed         bool
 }
 
 // NewUnaggregatedIterator creates a new unaggregated iterator.

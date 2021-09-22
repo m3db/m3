@@ -33,7 +33,7 @@ const (
 )
 
 var (
-	defaultConcurrency = runtime.NumCPU()
+	defaultConcurrency = runtime.GOMAXPROCS(0)
 )
 
 // Options is a collection of options for segment building.

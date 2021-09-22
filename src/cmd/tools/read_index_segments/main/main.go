@@ -43,7 +43,7 @@ import (
 )
 
 var (
-	halfCPUs     = int(math.Max(float64(runtime.NumCPU()/2), 1))
+	halfCPUs     = int(math.Max(float64(runtime.GOMAXPROCS(0)/2), 1))
 	endlineBytes = []byte("\n")
 )
 

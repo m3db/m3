@@ -221,12 +221,11 @@ func ParseType(str string) (Type, error) {
 
 // Op represents a transform operation.
 type Op struct {
-	opType Type
-
-	// has one of the following
 	unary      UnaryTransform
 	binary     BinaryTransform
 	unaryMulti UnaryMultiOutputTransform
+	// opType determines which one of the above transformations are applied
+	opType Type
 }
 
 // Type returns the op type.

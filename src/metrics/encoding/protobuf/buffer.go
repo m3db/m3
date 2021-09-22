@@ -31,8 +31,8 @@ type PoolReleaseFn func([]byte)
 
 // Buffer contains a byte slice backed by an optional bytes pool.
 type Buffer struct {
-	buf       []byte
 	finalizer PoolReleaseFn
+	buf       []byte
 }
 
 // NewBuffer create a new buffer.

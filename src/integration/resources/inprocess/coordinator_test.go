@@ -1,4 +1,5 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// +build integration_v2
+// Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,22 +19,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package hash is a temporary measure used as in between while m3aggregator
-// is upgraded to use native source generated maps now accessible in m3x,
-// these types are missing from m3x when native source generated maps
-// were added.
-package hash
+package inprocess
 
-import murmur3 "github.com/m3db/stackmurmur3/v2"
+import (
+	"testing"
 
-// Hash128 is a 128-bit hash of an ID consisting of two unsigned 64-bit ints.
-type Hash128 struct {
-	h0 uint64
-	h1 uint64
+	"github.com/stretchr/testify/require"
+)
+
+func TestNewCoordinator(t *testing.T) {
+	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
+	require.NoError(t, err)
+	require.NoError(t, coord.Close())
 }
 
-// Murmur3Hash128 computes the 128-bit hash of an id.
-func Murmur3Hash128(data []byte) Hash128 {
-	h0, h1 := murmur3.Sum128(data)
-	return Hash128{h0, h1}
+func TestCreateAnotherCoordinatorInProcess(t *testing.T) {
+	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
+	require.NoError(t, err)
+	require.NoError(t, coord.Close())
 }
+
+// TODO(nate): add more tests exercising other endpoints once dbnode impl is landed
+
+const defaultCoordConfig = `
+clusters:
+  - namespaces:
+      - namespace: default
+        type: unaggregated
+        retention: 1h
+    client:
+      config:
+        service:
+          env: default_env
+          zone: embedded
+          service: m3db
+          cacheDir: "*"
+          etcdClusters:
+            - zone: embedded
+              endpoints:
+                - 127.0.0.1:2379
+`
