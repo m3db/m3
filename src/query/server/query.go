@@ -506,7 +506,7 @@ func Run(runOpts RunOptions) RunResult {
 			zap.Int("numAggregatedClusterNamespaces", opts.Namespaces().NumAggregatedClusterNamespaces()))
 		err = clusterNamespacesWatcher.Update(opts.Namespaces())
 		if err != nil {
-			logger.Error("error when updating namespaces", zap.Error(err))
+			logger.Fatal("unable to update namespaces", zap.Error(err))
 		}
 
 		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, cfg.ClusterManagement.Etcd, backendStorage,
