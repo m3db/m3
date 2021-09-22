@@ -51,22 +51,17 @@ func (o Options) Namespaces() m3.ClusterNamespaces {
 
 // EndpointOptions for single prometheus remote write capable endpoint.
 type EndpointOptions struct {
-	name          string
-	address       string
-	attributes    storagemetadata.Attributes
-	downsampleAll bool
+	name              string
+	address           string
+	attributes        storagemetadata.Attributes
+	downsampleOptions *m3.ClusterNamespaceDownsampleOptions
 }
 
 func newClusterNamespace(endpoint EndpointOptions) m3.ClusterNamespace {
 	return promRemoteNamespace{
 		// NB(antanas): NewOptions validates endpoint name to be unique in the list of endpoints.
-		nsID: ident.StringID(endpoint.name),
-		options: m3.NewClusterNamespaceOptions(
-			endpoint.attributes,
-			&m3.ClusterNamespaceDownsampleOptions{
-				All: endpoint.downsampleAll,
-			},
-		),
+		nsID:    ident.StringID(endpoint.name),
+		options: m3.NewClusterNamespaceOptions(endpoint.attributes, endpoint.downsampleOptions),
 	}
 }
 

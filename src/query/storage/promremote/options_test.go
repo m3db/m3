@@ -64,7 +64,9 @@ func TestNewFromConfiguration(t *testing.T) {
 			Resolution:  time.Second,
 			Retention:   time.Millisecond,
 		},
-		downsampleAll: true,
+		downsampleOptions: &m3.ClusterNamespaceDownsampleOptions{
+			All: true,
+		},
 	}}, opts.endpoints)
 	assert.Equal(t, tally.NoopScope, opts.scope)
 	assert.Equal(t, logger, opts.logger)
@@ -87,7 +89,23 @@ func TestUnaggregatedEndpoint(t *testing.T) {
 	assert.Equal(t, storagemetadata.UnaggregatedMetricsType, opts.endpoints[0].attributes.MetricsType)
 	assert.Equal(t, time.Duration(0), opts.endpoints[0].attributes.Retention)
 	assert.Equal(t, time.Duration(0), opts.endpoints[0].attributes.Resolution)
-	assert.Equal(t, false, opts.endpoints[0].downsampleAll)
+	assert.Nil(t, opts.endpoints[0].downsampleOptions)
+}
+
+func TestDefaultDownsampleAll(t *testing.T) {
+	opts, err := NewOptions(&config.PrometheusRemoteBackendConfiguration{
+		Endpoints: []config.PrometheusRemoteBackendEndpointConfiguration{{
+			Name:    "testEndpoint",
+			Address: "testAddress",
+			StoragePolicy: &config.PrometheusRemoteBackendStoragePolicyConfiguration{
+				Resolution: time.Second,
+				Retention:  time.Millisecond,
+			},
+		}},
+	}, tally.NoopScope, zap.NewNop())
+	require.NoError(t, err)
+	assert.NotNil(t, opts.endpoints[0].downsampleOptions)
+	assert.True(t, opts.endpoints[0].downsampleOptions.All)
 }
 
 func TestHTTPDefaults(t *testing.T) {
@@ -243,5 +261,3 @@ func getValidEndpointConfiguration() config.PrometheusRemoteBackendEndpointConfi
 func ptrDuration(n time.Duration) *time.Duration { return &n }
 
 func ptrInt(n int) *int { return &n }
-
-func ptrBool(b bool) *bool { return &b }

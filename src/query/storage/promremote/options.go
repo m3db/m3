@@ -29,6 +29,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
@@ -50,21 +51,24 @@ func NewOptions(
 			attr = storagemetadata.Attributes{
 				MetricsType: storagemetadata.UnaggregatedMetricsType,
 			}
-			downsampleAll = false
+			downsampleOptions *m3.ClusterNamespaceDownsampleOptions
 		)
 		if endpoint.StoragePolicy != nil {
 			attr.MetricsType = storagemetadata.AggregatedMetricsType
 			attr.Resolution = endpoint.StoragePolicy.Resolution
 			attr.Retention = endpoint.StoragePolicy.Retention
+			downsampleOptions = &m3.DefaultClusterNamespaceDownsampleOptions
 			if downsample := endpoint.StoragePolicy.Downsample; downsample != nil {
-				downsampleAll = downsample.All
+				downsampleOptions = &m3.ClusterNamespaceDownsampleOptions{
+					All: downsample.All,
+				}
 			}
 		}
 		endpoints = append(endpoints, EndpointOptions{
-			name:          endpoint.Name,
-			address:       endpoint.Address,
-			attributes:    attr,
-			downsampleAll: downsampleAll,
+			name:              endpoint.Name,
+			address:           endpoint.Address,
+			attributes:        attr,
+			downsampleOptions: downsampleOptions,
 		})
 	}
 	clientOpts := xhttp.DefaultHTTPClientOptions()

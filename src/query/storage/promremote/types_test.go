@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/ident"
 )
@@ -43,7 +44,6 @@ func TestNamespaces(t *testing.T) {
 				attributes: storagemetadata.Attributes{
 					MetricsType: storagemetadata.UnaggregatedMetricsType,
 				},
-				downsampleAll: false,
 			},
 			expectedDownsample: nil,
 		},
@@ -56,9 +56,8 @@ func TestNamespaces(t *testing.T) {
 					Retention:   time.Second,
 					Resolution:  time.Millisecond,
 				},
-				downsampleAll: true,
+				downsampleOptions: &m3.ClusterNamespaceDownsampleOptions{All: true},
 			},
-			expectedDownsample: ptrBool(true),
 		},
 		{
 			name: "donwsampled all false",
@@ -69,9 +68,8 @@ func TestNamespaces(t *testing.T) {
 					Retention:   time.Second,
 					Resolution:  time.Millisecond,
 				},
-				downsampleAll: false,
+				downsampleOptions: &m3.ClusterNamespaceDownsampleOptions{All: false},
 			},
-			expectedDownsample: ptrBool(false),
 		},
 	}
 
@@ -83,17 +81,17 @@ func TestNamespaces(t *testing.T) {
 			}
 			nss := opts.Namespaces()
 			require.Len(t, nss, 1)
+
 			ns := nss[0]
 			assert.Equal(t, ident.StringID(tc.endpoint.name), ns.NamespaceID())
 			assert.Equal(t, tc.endpoint.attributes, ns.Options().Attributes())
-			if tc.expectedDownsample != nil {
-				ds, err := ns.Options().DownsampleOptions()
-				require.NoError(t, err)
-				assert.Equal(t, *tc.expectedDownsample, ds.All)
+
+			ds, err := ns.Options().DownsampleOptions()
+			if tc.endpoint.downsampleOptions != nil {
+				assert.NoError(t, err)
+				assert.Equal(t, *tc.endpoint.downsampleOptions, ds)
 			} else {
-				_, err := ns.Options().DownsampleOptions()
-				println(err.Error())
-				require.Error(t, err)
+				assert.Error(t, err)
 			}
 		})
 	}
@@ -106,14 +104,6 @@ func TestNewSessionPanics(t *testing.T) {
 		}
 	}()
 
-	opts := Options{endpoints: []EndpointOptions{{
-		name: "raw",
-		attributes: storagemetadata.Attributes{
-			MetricsType: storagemetadata.AggregatedMetricsType,
-			Resolution:  0,
-			Retention:   0,
-		},
-		downsampleAll: false,
-	}}}
+	opts := Options{endpoints: []EndpointOptions{{name: "raw"}}}
 	opts.Namespaces()[0].Session()
 }
