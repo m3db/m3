@@ -22,8 +22,6 @@
 package promremote
 
 import (
-	"time"
-
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 
@@ -44,27 +42,9 @@ type Options struct {
 
 // Namespaces returns M3 namespaces from endpoint opts.
 func (o Options) Namespaces() m3.ClusterNamespaces {
-	namespaces := make(m3.ClusterNamespaces, len(o.endpoints))
-	for i, endpoint := range o.endpoints {
-		metricType := storagemetadata.AggregatedMetricsType
-		if endpoint.resolution == 0 {
-			metricType = storagemetadata.UnaggregatedMetricsType
-		}
-		namespaceOptions := m3.NewClusterNamespaceOptions(
-			storagemetadata.Attributes{
-				MetricsType: metricType,
-				Resolution:  endpoint.resolution,
-				Retention:   endpoint.retention,
-			},
-			&m3.ClusterNamespaceDownsampleOptions{
-				All: endpoint.downsampleAll,
-			},
-		)
-		// NB(antanas): NewOptions validates endpoint name to be unique in the list of endpoints.
-		namespaces[i] = promRemoteNamespace{
-			nsID:    ident.StringID(endpoint.name),
-			options: namespaceOptions,
-		}
+	namespaces := make(m3.ClusterNamespaces, 0, len(o.endpoints))
+	for _, endpoint := range o.endpoints {
+		namespaces = append(namespaces, newClusterNamespace(endpoint))
 	}
 	return namespaces
 }
@@ -73,9 +53,21 @@ func (o Options) Namespaces() m3.ClusterNamespaces {
 type EndpointOptions struct {
 	name          string
 	address       string
-	retention     time.Duration
-	resolution    time.Duration
+	attributes    storagemetadata.Attributes
 	downsampleAll bool
+}
+
+func newClusterNamespace(endpoint EndpointOptions) m3.ClusterNamespace {
+	return promRemoteNamespace{
+		// NB(antanas): NewOptions validates endpoint name to be unique in the list of endpoints.
+		nsID: ident.StringID(endpoint.name),
+		options: m3.NewClusterNamespaceOptions(
+			endpoint.attributes,
+			&m3.ClusterNamespaceDownsampleOptions{
+				All: endpoint.downsampleAll,
+			},
+		),
+	}
 }
 
 type promRemoteNamespace struct {

@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 )
 
 func TestNewFromConfiguration(t *testing.T) {
@@ -56,10 +57,13 @@ func TestNewFromConfiguration(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []EndpointOptions{{
-		name:          "testEndpoint",
-		address:       "testAddress",
-		resolution:    time.Second,
-		retention:     time.Millisecond,
+		name:    "testEndpoint",
+		address: "testAddress",
+		attributes: storagemetadata.Attributes{
+			MetricsType: storagemetadata.AggregatedMetricsType,
+			Resolution:  time.Second,
+			Retention:   time.Millisecond,
+		},
 		downsampleAll: true,
 	}}, opts.endpoints)
 	assert.Equal(t, tally.NoopScope, opts.scope)
@@ -70,6 +74,20 @@ func TestNewFromConfiguration(t *testing.T) {
 	assert.Equal(t, time.Second, opts.httpOptions.IdleConnTimeout)
 	assert.Equal(t, 1, opts.httpOptions.MaxIdleConns)
 	assert.Equal(t, true, opts.httpOptions.DisableCompression)
+}
+
+func TestUnaggregatedEndpoint(t *testing.T) {
+	opts, err := NewOptions(&config.PrometheusRemoteBackendConfiguration{
+		Endpoints: []config.PrometheusRemoteBackendEndpointConfiguration{{
+			Name:    "testEndpoint",
+			Address: "testAddress",
+		}},
+	}, tally.NoopScope, zap.NewNop())
+	require.NoError(t, err)
+	assert.Equal(t, storagemetadata.UnaggregatedMetricsType, opts.endpoints[0].attributes.MetricsType)
+	assert.Equal(t, time.Duration(0), opts.endpoints[0].attributes.Retention)
+	assert.Equal(t, time.Duration(0), opts.endpoints[0].attributes.Resolution)
+	assert.Equal(t, false, opts.endpoints[0].downsampleAll)
 }
 
 func TestHTTPDefaults(t *testing.T) {
@@ -225,3 +243,5 @@ func getValidEndpointConfiguration() config.PrometheusRemoteBackendEndpointConfi
 func ptrDuration(n time.Duration) *time.Duration { return &n }
 
 func ptrInt(n int) *int { return &n }
+
+func ptrBool(b bool) *bool { return &b }

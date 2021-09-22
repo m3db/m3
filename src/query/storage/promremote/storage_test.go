@@ -123,24 +123,36 @@ func TestWriteBasedOnRetention(t *testing.T) {
 	promStorage, err := NewStorage(Options{
 		endpoints: []EndpointOptions{
 			{
-				address:    promShortRetention.WriteAddr(),
-				retention:  120 * time.Hour,
-				resolution: 15 * time.Second,
+				address: promShortRetention.WriteAddr(),
+				attributes: storagemetadata.Attributes{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Retention:   120 * time.Hour,
+					Resolution:  15 * time.Second,
+				},
 			},
 			{
-				address:    promMediumRetention.WriteAddr(),
-				retention:  720 * time.Hour,
-				resolution: 5 * time.Minute,
+				address: promMediumRetention.WriteAddr(),
+				attributes: storagemetadata.Attributes{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Retention:   720 * time.Hour,
+					Resolution:  5 * time.Minute,
+				},
 			},
 			{
-				address:    promLongRetention.WriteAddr(),
-				retention:  8760 * time.Hour,
-				resolution: 10 * time.Minute,
+				address: promLongRetention.WriteAddr(),
+				attributes: storagemetadata.Attributes{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Retention:   8760 * time.Hour,
+					Resolution:  10 * time.Minute,
+				},
 			},
 			{
-				address:    promLongRetention2.WriteAddr(),
-				retention:  8760 * time.Hour,
-				resolution: 10 * time.Minute,
+				address: promLongRetention2.WriteAddr(),
+				attributes: storagemetadata.Attributes{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Retention:   8760 * time.Hour,
+					Resolution:  10 * time.Minute,
+				},
 			},
 		},
 		scope:  scope,
@@ -221,8 +233,8 @@ func TestWriteBasedOnRetention(t *testing.T) {
 		assert.Nil(t, promShortRetention.GetLastWriteRequest())
 		assert.Nil(t, promMediumRetention.GetLastWriteRequest())
 		assert.Nil(t, promLongRetention.GetLastWriteRequest())
-		const metricName = "test_scope.prom_remote_storage.dropped_writes"
-		tallytest.AssertCounterValue(t, 2, scope.Snapshot(), metricName, map[string]string{})
+		const droppedWrites = "test_scope.prom_remote_storage.dropped_writes"
+		tallytest.AssertCounterValue(t, 2, scope.Snapshot(), droppedWrites, map[string]string{})
 	})
 
 	t.Run("error should not prevent sending to other instances", func(t *testing.T) {

@@ -47,6 +47,8 @@ const metricsScope = "prom_remote_storage"
 
 var errorReadingBody = []byte("error reading body")
 
+var errNoEndpoints = errors.New("write did not match any of known endpoints")
+
 // NewStorage returns new Prometheus remote write compatible storage
 func NewStorage(opts Options) (storage.Storage, error) {
 	client := xhttp.NewHTTPClient(opts.httpOptions)
@@ -82,8 +84,8 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 	atLeastOneEndpointMatched := false
 	for _, endpoint := range p.opts.endpoints {
 		endpoint := endpoint
-		if endpoint.resolution != query.Attributes().Resolution ||
-			endpoint.retention != query.Attributes().Retention {
+		if endpoint.attributes.Resolution != query.Attributes().Resolution ||
+			endpoint.attributes.Retention != query.Attributes().Retention {
 			continue
 		}
 
@@ -106,7 +108,7 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 
 	if !atLeastOneEndpointMatched {
 		p.droppedWrites.Inc(1)
-		multiErr = multiErr.Add(errors.Errorf("write did not match any of known endpoints"))
+		multiErr = multiErr.Add(errNoEndpoints)
 		p.logger.Warn(
 			"write did not match any of known endpoints",
 			zap.Duration("retention", query.Attributes().Retention),
