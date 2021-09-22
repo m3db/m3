@@ -307,23 +307,30 @@ func TestPromTimeSeriesToSeriesAttributesPromMetricsType(t *testing.T) {
 	}
 
 	mapping := map[prompbMetricTypeWithNameSuffix]promMetricTypeWithBool{
-		{metricType: prompb.MetricType_UNKNOWN}:  {metricType: ts.PromMetricTypeUnknown},
-		{metricType: prompb.MetricType_COUNTER}:  {metricType: ts.PromMetricTypeCounter, handleValueResets: true},
+		{metricType: prompb.MetricType_UNKNOWN}: {metricType: ts.PromMetricTypeUnknown},
+
+		{metricType: prompb.MetricType_COUNTER}: {metricType: ts.PromMetricTypeCounter, handleValueResets: true},
+		{prompb.MetricType_COUNTER, "total"}:    {metricType: ts.PromMetricTypeCounter, handleValueResets: true},
+		{prompb.MetricType_COUNTER, "created"}:  {metricType: ts.PromMetricTypeCounter},
+
 		{metricType: prompb.MetricType_GAUGE}:    {metricType: ts.PromMetricTypeGauge},
 		{metricType: prompb.MetricType_INFO}:     {metricType: ts.PromMetricTypeInfo},
 		{metricType: prompb.MetricType_STATESET}: {metricType: ts.PromMetricTypeStateSet},
 
-		{prompb.MetricType_HISTOGRAM, "bucket"}: {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
-		{prompb.MetricType_HISTOGRAM, "count"}:  {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
-		{prompb.MetricType_HISTOGRAM, "sum"}:    {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
+		{prompb.MetricType_HISTOGRAM, "bucket"}:  {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
+		{prompb.MetricType_HISTOGRAM, "count"}:   {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
+		{prompb.MetricType_HISTOGRAM, "sum"}:     {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
+		{prompb.MetricType_HISTOGRAM, "created"}: {metricType: ts.PromMetricTypeHistogram},
 
-		{prompb.MetricType_GAUGE_HISTOGRAM, "bucket"}: {metricType: ts.PromMetricTypeGaugeHistogram},
-		{prompb.MetricType_GAUGE_HISTOGRAM, "count"}:  {metricType: ts.PromMetricTypeGaugeHistogram, handleValueResets: true},
-		{prompb.MetricType_GAUGE_HISTOGRAM, "sum"}:    {metricType: ts.PromMetricTypeGaugeHistogram},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "bucket"}:  {metricType: ts.PromMetricTypeGaugeHistogram},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "count"}:   {metricType: ts.PromMetricTypeGaugeHistogram, handleValueResets: true},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "sum"}:     {metricType: ts.PromMetricTypeGaugeHistogram},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "created"}: {metricType: ts.PromMetricTypeGaugeHistogram},
 
 		{metricType: prompb.MetricType_SUMMARY}: {metricType: ts.PromMetricTypeSummary, handleValueResets: true},
 		{prompb.MetricType_SUMMARY, "count"}:    {metricType: ts.PromMetricTypeSummary, handleValueResets: true},
 		{prompb.MetricType_SUMMARY, "sum"}:      {metricType: ts.PromMetricTypeSummary, handleValueResets: true},
+		{prompb.MetricType_SUMMARY, "created"}:  {metricType: ts.PromMetricTypeSummary},
 	}
 
 	for proto, expected := range mapping {

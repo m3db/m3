@@ -43,6 +43,8 @@ var (
 
 	// The suffix of count metric name in Prometheus histogram/summary metric families.
 	promDefaultCountSuffix = []byte("_count")
+	// The suffix for creation time in counter/histogram/gauge-histogram/summary metric families.
+	openMetricsDefaultCreatedSuffix = []byte("_created")
 )
 
 // PromLabelsToM3Tags converts Prometheus labels to M3 tags
@@ -97,14 +99,16 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 
 	case prompb.MetricType_COUNTER:
 		promMetricType = ts.PromMetricTypeCounter
-		handleValueResets = true
+		name := metricNameFromLabels(series.Labels)
+		handleValueResets = !bytes.HasSuffix(name, openMetricsDefaultCreatedSuffix)
 
 	case prompb.MetricType_GAUGE:
 		promMetricType = ts.PromMetricTypeGauge
 
 	case prompb.MetricType_HISTOGRAM:
 		promMetricType = ts.PromMetricTypeHistogram
-		handleValueResets = true
+		name := metricNameFromLabels(series.Labels)
+		handleValueResets = !bytes.HasSuffix(name, openMetricsDefaultCreatedSuffix)
 
 	case prompb.MetricType_GAUGE_HISTOGRAM:
 		promMetricType = ts.PromMetricTypeGaugeHistogram
@@ -113,7 +117,8 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 
 	case prompb.MetricType_SUMMARY:
 		promMetricType = ts.PromMetricTypeSummary
-		handleValueResets = true
+		name := metricNameFromLabels(series.Labels)
+		handleValueResets = !bytes.HasSuffix(name, openMetricsDefaultCreatedSuffix)
 
 	case prompb.MetricType_INFO:
 		promMetricType = ts.PromMetricTypeInfo
