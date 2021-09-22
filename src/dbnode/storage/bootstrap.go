@@ -164,7 +164,9 @@ func (m *bootstrapManager) startBootstrap(asyncResult *BootstrapAsyncResult) (Bo
 	m.Unlock()
 	// NB(xichen): disable filesystem manager before we bootstrap to minimize
 	// the impact of file operations on bootstrapping performance
+	m.instrumentation.log.Info("disabling fileOps")
 	m.mediator.DisableFileOpsAndWait()
+	m.instrumentation.log.Info("fileOps disabled")
 	defer m.mediator.EnableFileOps()
 
 	m.Lock()
@@ -239,11 +241,13 @@ func (m *bootstrapManager) bootstrap() error {
 
 	// NB(r): construct new instance of the bootstrap process to avoid
 	// state being kept around by bootstrappers.
+	m.instrumentation.log.Info("providing bootstrap process")
 	process, err := m.processProvider.Provide()
 	if err != nil {
 		return err
 	}
 
+	m.instrumentation.log.Info("getting owned namespaces")
 	namespaces, err := m.database.OwnedNamespaces()
 	if err != nil {
 		return err

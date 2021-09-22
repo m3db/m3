@@ -293,12 +293,11 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	}
 
 	d.Lock()
-	defer d.Unlock()
-
 	removes, adds, updates := d.namespaceDeltaWithLock(newNamespaces)
 	if err := d.logNamespaceUpdate(removes, adds, updates); err != nil {
 		enrichedErr := fmt.Errorf("unable to log namespace updates: %v", err)
 		d.log.Error(enrichedErr.Error())
+		d.Unlock()
 		return enrichedErr
 	}
 
@@ -306,8 +305,10 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	if err := d.addNamespacesWithLock(adds); err != nil {
 		enrichedErr := fmt.Errorf("unable to add namespaces: %v", err)
 		d.log.Error(enrichedErr.Error())
+		d.Unlock()
 		return err
 	}
+	d.Unlock()
 
 	// log that updates and removals are skipped
 	if len(removes) > 0 || len(updates) > 0 {
@@ -319,7 +320,10 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 
 	// enqueue bootstraps if new namespaces
 	if len(adds) > 0 {
-		d.queueBootstrapWithLock()
+		d.RLock()
+		bootstraps := d.bootstraps
+		d.RUnlock()
+		d.queueBootstrap(bootstraps)
 	}
 
 	return nil
@@ -481,7 +485,6 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 
 func (d *db) assignShardSet(shardSet sharding.ShardSet) {
 	d.Lock()
-	defer d.Unlock()
 
 	d.log.Info("assigning shards", zap.Uint32s("shards", shardSet.AllIDs()))
 
@@ -493,6 +496,8 @@ func (d *db) assignShardSet(shardSet sharding.ShardSet) {
 		ns.AssignShardSet(shardSet)
 	}
 
+	d.Unlock()
+
 	if receivedNewShards {
 		// Only trigger a bootstrap if the node received new shards otherwise
 		// the nodes will perform lots of small bootstraps (that accomplish nothing)
@@ -500,7 +505,10 @@ func (d *db) assignShardSet(shardSet sharding.ShardSet) {
 		//
 		// These small bootstraps can significantly delay topology changes as they prevent
 		// the nodes from marking themselves as bootstrapped and durable, for example.
-		d.queueBootstrapWithLock()
+		d.RLock()
+		bootstraps := d.bootstraps
+		d.RUnlock()
+		d.queueBootstrap(bootstraps)
 	}
 }
 
@@ -533,7 +541,7 @@ func (d *db) ShardSet() sharding.ShardSet {
 	return shardSet
 }
 
-func (d *db) queueBootstrapWithLock() {
+func (d *db) queueBootstrap(bootstraps int) {
 	// Only perform a bootstrap if at least one bootstrap has already occurred. This enables
 	// the ability to open the clustered database and assign shardsets to the non-clustered
 	// database when it receives an initial topology (as well as topology changes) without
@@ -541,7 +549,8 @@ func (d *db) queueBootstrapWithLock() {
 	// call to Bootstrap(). After that initial bootstrap, the clustered database will keep
 	// the non-clustered database bootstrapped by assigning it shardsets which will trigger new
 	// bootstraps since d.bootstraps > 0 will be true.
-	if d.bootstraps > 0 {
+	if bootstraps > 0 {
+		d.log.Info("enqueuing bootstrap")
 		bootstrapAsyncResult := d.mediator.BootstrapEnqueue()
 		// NB(linasn): We need to wait for the bootstrap to start and set it's state to Bootstrapping in order
 		// to safely run fileOps in mediator later.
