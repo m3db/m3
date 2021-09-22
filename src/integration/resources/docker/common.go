@@ -21,20 +21,13 @@
 package docker
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 
 	"github.com/m3db/m3/src/x/instrument"
 
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/proto"
 	"github.com/ory/dockertest/v3"
 	dc "github.com/ory/dockertest/v3/docker"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -43,8 +36,6 @@ var (
 
 	errClosed = errors.New("container has been closed")
 )
-
-func zapMethod(s string) zapcore.Field { return zap.String("method", s) }
 
 type dockerResourceOptions struct {
 	overrideDefaults bool
@@ -168,34 +159,4 @@ func exposePorts(
 
 	opts.PortBindings = ports
 	return opts
-}
-
-func toResponse(
-	resp *http.Response,
-	response proto.Message,
-	logger *zap.Logger,
-) error {
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		logger.Error("could not read body", zap.Error(err))
-		return err
-	}
-
-	defer resp.Body.Close()
-	if resp.StatusCode/100 != 2 {
-		logger.Error("status code not 2xx",
-			zap.Int("status code", resp.StatusCode),
-			zap.String("status", resp.Status))
-		return fmt.Errorf("status code %d", resp.StatusCode)
-	}
-
-	err = jsonpb.Unmarshal(bytes.NewReader(b), response)
-	if err != nil {
-		logger.Error("unable to unmarshal response",
-			zap.Error(err),
-			zap.Any("response", response))
-		return err
-	}
-
-	return nil
 }

@@ -229,23 +229,23 @@ type Options interface {
 }
 
 type options struct {
-	aggregatorClientType       AggregatorClientType
+	watcherOpts                placement.WatcherOptions
 	clockOpts                  clock.Options
 	instrumentOpts             instrument.Options
 	encoderOpts                protobuf.UnaggregatedOptions
-	shardFn                    sharding.ShardFn
-	shardCutoverWarmupDuration time.Duration
-	shardCutoffLingerDuration  time.Duration
-	watcherOpts                placement.WatcherOptions
+	m3msgOptions               M3MsgOptions
 	connOpts                   ConnectionOptions
-	flushWorkerCount           int
+	rwOpts                     xio.Options
+	shardFn                    sharding.ShardFn
+	shardCutoffLingerDuration  time.Duration
+	shardCutoverWarmupDuration time.Duration
 	forceFlushEvery            time.Duration
 	maxTimerBatchSize          int
 	instanceQueueSize          int
 	dropType                   DropType
 	maxBatchSize               int
-	m3msgOptions               M3MsgOptions
-	rwOpts                     xio.Options
+	flushWorkerCount           int
+	aggregatorClientType       AggregatorClientType
 }
 
 // NewOptions creates a new set of client options.

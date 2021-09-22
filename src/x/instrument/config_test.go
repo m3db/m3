@@ -110,7 +110,9 @@ func TestPrometheusExternalRegistries(t *testing.T) {
 	baz.Inc()
 
 	// Wait for report.
-	require.NoError(t, closer.Close())
+	mClosers, ok := closer.(metricsClosers)
+	require.True(t, ok)
+	require.NoError(t, mClosers.reporterCloser.Close())
 
 	expected := map[string]xjson.Map{
 		"foo": {
@@ -164,6 +166,7 @@ func TestPrometheusExternalRegistries(t *testing.T) {
 	}
 
 	assertMetricsEqual(t, listener, expected)
+	require.NoError(t, mClosers.Close())
 }
 
 func TestCommonLabelsAdded(t *testing.T) {
@@ -191,7 +194,9 @@ func TestCommonLabelsAdded(t *testing.T) {
 	bar.Inc()
 
 	// Wait for report.
-	require.NoError(t, closer.Close())
+	mClosers, ok := closer.(metricsClosers)
+	require.True(t, ok)
+	require.NoError(t, mClosers.reporterCloser.Close())
 
 	expected := map[string]xjson.Map{
 		"foo": {
@@ -229,6 +234,7 @@ func TestCommonLabelsAdded(t *testing.T) {
 	}
 
 	assertMetricsEqual(t, listener, expected)
+	require.NoError(t, mClosers.Close())
 }
 
 func startMetricsEndpoint(t *testing.T) (MetricsConfiguration, net.Listener) {
@@ -256,7 +262,7 @@ func newConfiguration() MetricsConfiguration {
 
 func assertMetricsEqual(t *testing.T, listener net.Listener, expected map[string]xjson.Map) {
 	url := fmt.Sprintf("http://%s/metrics", listener.Addr().String()) //nolint
-	resp, err := http.Get(url) //nolint
+	resp, err := http.Get(url)                                        //nolint
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 

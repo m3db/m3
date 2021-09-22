@@ -338,7 +338,7 @@ func newDatabaseNamespace(
 
 	scope := iops.MetricsScope().SubScope("database")
 
-	tickWorkersConcurrency := int(math.Max(1, float64(runtime.NumCPU())/8))
+	tickWorkersConcurrency := int(math.Max(1, float64(runtime.GOMAXPROCS(0))/8))
 	tickWorkers := xsync.NewWorkerPool(tickWorkersConcurrency)
 	tickWorkers.Init()
 
@@ -1058,7 +1058,7 @@ func (n *dbNamespace) Bootstrap(
 	}
 
 	// Bootstrap shards using at least half the CPUs available
-	workers := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
+	workers := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.GOMAXPROCS(0)) / 2)))
 	workers.Init()
 
 	var (
