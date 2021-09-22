@@ -892,6 +892,11 @@ func (b *BootstrapAsyncResult) WaitForStart() {
 	b.bootstrapStarted.Wait()
 }
 
+// WaitForComplete waits until bootstrap has been completed.
+func (b *BootstrapAsyncResult) WaitForComplete() {
+	b.bootstrapCompleted.Wait()
+}
+
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
