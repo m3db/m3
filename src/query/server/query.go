@@ -485,6 +485,11 @@ func Run(runOpts RunOptions) RunResult {
 			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
 		)
 		if err != nil {
+			var interruptErr *xos.InterruptError
+			if errors.As(err, &interruptErr) {
+				logger.Warn("interrupt received. closing server", zap.Error(err))
+				return runResult
+			}
 			logger.Fatal("unable to setup downsampler for m3db backend", zap.Error(err))
 		}
 	case config.PromRemoteStorageType:
@@ -814,7 +819,8 @@ func newDownsamplerAsync(
 		ds, err := newDownsampler(
 			cfg, clusterClient,
 			storage, clusterNamespacesWatcher,
-			tagOptions, clockOpts, instrumentOptions, rwOpts, runOpts.ApplyCustomRuleStore)
+			tagOptions, clockOpts, instrumentOptions, rwOpts, runOpts.ApplyCustomRuleStore,
+			runOpts.InterruptCh)
 		if err != nil {
 			return nil, err
 		}
@@ -854,6 +860,7 @@ func newDownsampler(
 	instrumentOpts instrument.Options,
 	rwOpts xio.Options,
 	applyCustomRuleStore downsample.CustomRuleStoreFn,
+	interruptCh <-chan error,
 ) (downsample.Downsampler, error) {
 	// Namespace the downsampler metrics.
 	instrumentOpts = instrumentOpts.SetMetricsScope(
@@ -909,9 +916,10 @@ func newDownsampler(
 		TagOptions:                 tagOptions,
 		MetricsAppenderPoolOptions: metricsAppenderPoolOptions,
 		RWOptions:                  rwOpts,
+		InterruptCh:                interruptCh,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("unable to create downsampler: %v", err)
+		return nil, fmt.Errorf("unable to create downsampler: %w", err)
 	}
 
 	return downsampler, nil
