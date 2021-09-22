@@ -39,11 +39,6 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-const (
-	maxUint64 = ^uint64(0)
-	maxInt64  = int64(maxUint64 >> 1)
-)
-
 // IndexWriter accepts index inserts.
 type IndexWriter interface {
 	// WritePending indexes the provided pending entries.

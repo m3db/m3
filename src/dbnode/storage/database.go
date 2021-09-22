@@ -319,7 +319,7 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 		d.Lock()
 		// add any namespaces marked for addition
 		if err := d.addNamespacesWithLock(adds); err != nil {
-			enrichedErr := fmt.Errorf("unable to add namespaces: %v", err)
+			enrichedErr := fmt.Errorf("unable to add namespaces: %w", err)
 			d.log.Error(enrichedErr.Error())
 			d.Unlock()
 			d.enableFileOps()
@@ -564,9 +564,9 @@ func (d *db) enqueueBootstrap(onCompleteFn func()) {
 	// the non-clustered database bootstrapped by assigning it shardsets which will trigger new
 	// bootstraps since d.bootstraps > 0 will be true.
 	d.RLock()
-	bootstraps := d.bootstraps
+	shouldBootstrap := d.bootstraps > 0
 	d.RUnlock()
-	if bootstraps > 0 {
+	if shouldBootstrap {
 		d.log.Info("enqueuing bootstrap")
 		bootstrapAsyncResult := d.mediator.BootstrapEnqueue()
 		// NB(linasn): We need to wait for the bootstrap to complete and call onCompleteFn.
