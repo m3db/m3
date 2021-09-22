@@ -39,7 +39,10 @@ var (
 	errRetentionNotSet   = errors.New("retention not set")
 	errResolutionNotSet  = errors.New("resolution not set")
 
-	defaultClusterNamespaceDownsampleOptions = ClusterNamespaceDownsampleOptions{
+	// DefaultClusterNamespaceDownsampleOptions is a default options.
+	// NB(antanas): this was made public to access it in promremote storage.
+	// Ideally downsampling could be decoupled from m3 storage.
+	DefaultClusterNamespaceDownsampleOptions = ClusterNamespaceDownsampleOptions{
 		All: true,
 	}
 )
@@ -126,7 +129,7 @@ func (o ClusterNamespaceOptions) DownsampleOptions() (
 		return ClusterNamespaceDownsampleOptions{}, errNotAggregatedClusterNamespace
 	}
 	if o.downsample == nil {
-		return defaultClusterNamespaceDownsampleOptions, nil
+		return DefaultClusterNamespaceDownsampleOptions, nil
 	}
 	return *o.downsample, nil
 }

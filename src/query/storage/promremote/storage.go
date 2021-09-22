@@ -30,7 +30,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
@@ -45,11 +47,19 @@ const metricsScope = "prom_remote_storage"
 
 var errorReadingBody = []byte("error reading body")
 
+var errNoEndpoints = errors.New("write did not match any of known endpoints")
+
 // NewStorage returns new Prometheus remote write compatible storage
 func NewStorage(opts Options) (storage.Storage, error) {
 	client := xhttp.NewHTTPClient(opts.httpOptions)
 	scope := opts.scope.SubScope(metricsScope)
-	s := &promStorage{opts: opts, client: client, endpointMetrics: initEndpointMetrics(opts.endpoints, scope)}
+	s := &promStorage{
+		opts:            opts,
+		client:          client,
+		endpointMetrics: initEndpointMetrics(opts.endpoints, scope),
+		droppedWrites:   scope.Counter("dropped_writes"),
+		logger:          opts.logger,
+	}
 	return s, nil
 }
 
@@ -58,6 +68,8 @@ type promStorage struct {
 	opts            Options
 	client          *http.Client
 	endpointMetrics map[string]instrument.MethodMetrics
+	droppedWrites   tally.Counter
+	logger          *zap.Logger
 }
 
 func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
@@ -69,14 +81,17 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 	var wg sync.WaitGroup
 	multiErr := xerrors.NewMultiError()
 	var errLock sync.Mutex
+	atLeastOneEndpointMatched := false
 	for _, endpoint := range p.opts.endpoints {
 		endpoint := endpoint
-		if endpoint.resolution != query.Attributes().Resolution ||
-			endpoint.retention != query.Attributes().Retention {
+		if endpoint.attributes.Resolution != query.Attributes().Resolution ||
+			endpoint.attributes.Retention != query.Attributes().Retention {
 			continue
 		}
 
 		metrics := p.endpointMetrics[endpoint.name]
+		atLeastOneEndpointMatched = true
+
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -92,6 +107,15 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 
 	wg.Wait()
 
+	if !atLeastOneEndpointMatched {
+		p.droppedWrites.Inc(1)
+		multiErr = multiErr.Add(errNoEndpoints)
+		p.logger.Warn(
+			"write did not match any of known endpoints",
+			zap.Duration("retention", query.Attributes().Retention),
+			zap.Duration("resolution", query.Attributes().Resolution),
+		)
+	}
 	return multiErr.FinalError()
 }
 
@@ -137,7 +161,7 @@ func (p *promStorage) writeSingle(
 		metrics.ReportError(methodDuration)
 		response, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			// TODO(antanas): should log and return just generic error
+			p.logger.Error("error reading body", zap.Error(err))
 			response = errorReadingBody
 		}
 		return fmt.Errorf("expected status code 2XX: actual=%v, address=%v, resp=%s",

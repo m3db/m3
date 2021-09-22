@@ -27,11 +27,72 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 )
 
 func TestNewFromConfiguration(t *testing.T) {
+	logger := zap.NewNop()
+	opts, err := NewOptions(&config.PrometheusRemoteBackendConfiguration{
+		Endpoints: []config.PrometheusRemoteBackendEndpointConfiguration{{
+			Name:    "testEndpoint",
+			Address: "testAddress",
+			StoragePolicy: &config.PrometheusRemoteBackendStoragePolicyConfiguration{
+				Resolution: time.Second,
+				Retention:  time.Millisecond,
+				Downsample: &m3.DownsampleClusterStaticNamespaceConfiguration{
+					All: true,
+				},
+			},
+		}},
+		RequestTimeout:  ptrDuration(time.Nanosecond),
+		ConnectTimeout:  ptrDuration(time.Microsecond),
+		KeepAlive:       ptrDuration(time.Millisecond),
+		IdleConnTimeout: ptrDuration(time.Second),
+		MaxIdleConns:    ptrInt(1),
+	}, tally.NoopScope, logger)
+	require.NoError(t, err)
+
+	assert.Equal(t, []EndpointOptions{{
+		name:    "testEndpoint",
+		address: "testAddress",
+		attributes: storagemetadata.Attributes{
+			MetricsType: storagemetadata.AggregatedMetricsType,
+			Resolution:  time.Second,
+			Retention:   time.Millisecond,
+		},
+		downsampleOptions: &m3.ClusterNamespaceDownsampleOptions{
+			All: true,
+		},
+	}}, opts.endpoints)
+	assert.Equal(t, tally.NoopScope, opts.scope)
+	assert.Equal(t, logger, opts.logger)
+	assert.Equal(t, time.Nanosecond, opts.httpOptions.RequestTimeout)
+	assert.Equal(t, time.Microsecond, opts.httpOptions.ConnectTimeout)
+	assert.Equal(t, time.Millisecond, opts.httpOptions.KeepAlive)
+	assert.Equal(t, time.Second, opts.httpOptions.IdleConnTimeout)
+	assert.Equal(t, 1, opts.httpOptions.MaxIdleConns)
+	assert.Equal(t, true, opts.httpOptions.DisableCompression)
+}
+
+func TestUnaggregatedEndpoint(t *testing.T) {
+	opts, err := NewOptions(&config.PrometheusRemoteBackendConfiguration{
+		Endpoints: []config.PrometheusRemoteBackendEndpointConfiguration{{
+			Name:    "testEndpoint",
+			Address: "testAddress",
+		}},
+	}, tally.NoopScope, zap.NewNop())
+	require.NoError(t, err)
+	assert.Equal(t, storagemetadata.UnaggregatedMetricsType, opts.endpoints[0].attributes.MetricsType)
+	assert.Equal(t, time.Duration(0), opts.endpoints[0].attributes.Retention)
+	assert.Equal(t, time.Duration(0), opts.endpoints[0].attributes.Resolution)
+	assert.Nil(t, opts.endpoints[0].downsampleOptions)
+}
+
+func TestDefaultDownsampleAll(t *testing.T) {
 	opts, err := NewOptions(&config.PrometheusRemoteBackendConfiguration{
 		Endpoints: []config.PrometheusRemoteBackendEndpointConfiguration{{
 			Name:    "testEndpoint",
@@ -41,33 +102,16 @@ func TestNewFromConfiguration(t *testing.T) {
 				Retention:  time.Millisecond,
 			},
 		}},
-		RequestTimeout:  ptrDuration(time.Nanosecond),
-		ConnectTimeout:  ptrDuration(time.Microsecond),
-		KeepAlive:       ptrDuration(time.Millisecond),
-		IdleConnTimeout: ptrDuration(time.Second),
-		MaxIdleConns:    ptrInt(1),
-	}, tally.NoopScope)
+	}, tally.NoopScope, zap.NewNop())
 	require.NoError(t, err)
-
-	assert.Equal(t, []EndpointOptions{{
-		name:       "testEndpoint",
-		address:    "testAddress",
-		resolution: time.Second,
-		retention:  time.Millisecond,
-	}}, opts.endpoints)
-	assert.Equal(t, tally.NoopScope, opts.scope)
-	assert.Equal(t, time.Nanosecond, opts.httpOptions.RequestTimeout)
-	assert.Equal(t, time.Microsecond, opts.httpOptions.ConnectTimeout)
-	assert.Equal(t, time.Millisecond, opts.httpOptions.KeepAlive)
-	assert.Equal(t, time.Second, opts.httpOptions.IdleConnTimeout)
-	assert.Equal(t, 1, opts.httpOptions.MaxIdleConns)
-	assert.Equal(t, true, opts.httpOptions.DisableCompression)
+	assert.NotNil(t, opts.endpoints[0].downsampleOptions)
+	assert.True(t, opts.endpoints[0].downsampleOptions.All)
 }
 
 func TestHTTPDefaults(t *testing.T) {
 	cfg, err := NewOptions(&config.PrometheusRemoteBackendConfiguration{
 		Endpoints: []config.PrometheusRemoteBackendEndpointConfiguration{getValidEndpointConfiguration()},
-	}, tally.NoopScope)
+	}, tally.NoopScope, zap.NewNop())
 	require.NoError(t, err)
 	opts := cfg.httpOptions
 
@@ -116,6 +160,7 @@ func TestValidation(t *testing.T) {
 		cfg.KeepAlive = ptrDuration(-1)
 		assertValidationError(t, &cfg, "keepAlive can't be negative")
 	})
+
 	t.Run("non negative max idle conns", func(t *testing.T) {
 		cfg := getValidConfig()
 		cfg.MaxIdleConns = ptrInt(-1)
@@ -181,7 +226,7 @@ func TestValidateEndpoint(t *testing.T) {
 }
 
 func assertValidationError(t *testing.T, cfg *config.PrometheusRemoteBackendConfiguration, expectedMsg string) {
-	_, err := NewOptions(cfg, tally.NoopScope)
+	_, err := NewOptions(cfg, tally.NoopScope, zap.NewNop())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), expectedMsg)
 }

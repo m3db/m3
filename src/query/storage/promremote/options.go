@@ -26,13 +26,20 @@ import (
 	"strings"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 // NewOptions constructs Options based on the given config.
-func NewOptions(cfg *config.PrometheusRemoteBackendConfiguration, scope tally.Scope) (Options, error) {
+func NewOptions(
+	cfg *config.PrometheusRemoteBackendConfiguration,
+	scope tally.Scope,
+	logger *zap.Logger,
+) (Options, error) {
 	err := validateBackendConfiguration(cfg)
 	if err != nil {
 		return Options{}, err
@@ -40,15 +47,29 @@ func NewOptions(cfg *config.PrometheusRemoteBackendConfiguration, scope tally.Sc
 	endpoints := make([]EndpointOptions, 0, len(cfg.Endpoints))
 
 	for _, endpoint := range cfg.Endpoints {
-		endpointOptions := EndpointOptions{
-			name:    endpoint.Name,
-			address: endpoint.Address,
-		}
+		var (
+			attr = storagemetadata.Attributes{
+				MetricsType: storagemetadata.UnaggregatedMetricsType,
+			}
+			downsampleOptions *m3.ClusterNamespaceDownsampleOptions
+		)
 		if endpoint.StoragePolicy != nil {
-			endpointOptions.resolution = endpoint.StoragePolicy.Resolution
-			endpointOptions.retention = endpoint.StoragePolicy.Retention
+			attr.MetricsType = storagemetadata.AggregatedMetricsType
+			attr.Resolution = endpoint.StoragePolicy.Resolution
+			attr.Retention = endpoint.StoragePolicy.Retention
+			downsampleOptions = &m3.DefaultClusterNamespaceDownsampleOptions
+			if downsample := endpoint.StoragePolicy.Downsample; downsample != nil {
+				downsampleOptions = &m3.ClusterNamespaceDownsampleOptions{
+					All: downsample.All,
+				}
+			}
 		}
-		endpoints = append(endpoints, endpointOptions)
+		endpoints = append(endpoints, EndpointOptions{
+			name:              endpoint.Name,
+			address:           endpoint.Address,
+			attributes:        attr,
+			downsampleOptions: downsampleOptions,
+		})
 	}
 	clientOpts := xhttp.DefaultHTTPClientOptions()
 	if cfg.RequestTimeout != nil {
@@ -73,6 +94,7 @@ func NewOptions(cfg *config.PrometheusRemoteBackendConfiguration, scope tally.Sc
 		endpoints:   endpoints,
 		httpOptions: clientOpts,
 		scope:       scope,
+		logger:      logger,
 	}, nil
 }
 

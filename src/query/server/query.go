@@ -488,7 +488,7 @@ func Run(runOpts RunOptions) RunResult {
 			logger.Fatal("unable to setup downsampler for m3db backend", zap.Error(err))
 		}
 	case config.PromRemoteStorageType:
-		opts, err := promremote.NewOptions(cfg.PrometheusRemoteBackend, scope)
+		opts, err := promremote.NewOptions(cfg.PrometheusRemoteBackend, scope, instrumentOptions.Logger())
 		if err != nil {
 			logger.Fatal("invalid configuration", zap.Error(err))
 		}
@@ -501,6 +501,13 @@ func Run(runOpts RunOptions) RunResult {
 				logger.Error("error when closing storage", zap.Error(err))
 			}
 		}()
+
+		logger.Info("configuring downsampler to use with aggregated namespaces",
+			zap.Int("numAggregatedClusterNamespaces", opts.Namespaces().NumAggregatedClusterNamespaces()))
+		err = clusterNamespacesWatcher.Update(opts.Namespaces())
+		if err != nil {
+			logger.Fatal("unable to update namespaces", zap.Error(err))
+		}
 
 		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, cfg.ClusterManagement.Etcd, backendStorage,
 			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
