@@ -22,47 +22,35 @@
 package promremotetest
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"net"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/prometheus/prometheus/storage/remote"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestPromServer is a fake http server handling prometheus remote write. Intended for test usage.
 type TestPromServer struct {
 	mu               sync.Mutex
 	lastWriteRequest *prompb.WriteRequest
-	addr             string
 	respErr          error
 	t                *testing.T
-	svr              *http.Server
+	svr              *httptest.Server
 }
 
 // NewServer creates new instance of a fake server.
 func NewServer(t *testing.T) *TestPromServer {
 	testPromServer := &TestPromServer{t: t}
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/write", testPromServer.handleWrite)
 
-	testPromServer.svr = &http.Server{Handler: mux}
-	go func() {
-		if err := testPromServer.svr.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			//nolint: forbidigo
-			fmt.Printf("unexpected testPromServer error %v \n", err)
-		}
-	}()
-	testPromServer.addr = listener.Addr().String()
+	testPromServer.svr = httptest.NewServer(mux)
+
 	return testPromServer
 }
 
@@ -93,7 +81,7 @@ func (s *TestPromServer) GetLastWriteRequest() *prompb.WriteRequest {
 
 // WriteAddr returns http address of a write endpoint.
 func (s *TestPromServer) WriteAddr() string {
-	return fmt.Sprintf("http://%s/write", s.addr)
+	return fmt.Sprintf("%s/write", s.svr.URL)
 }
 
 // SetError sets error that will be returned for all incoming requests.
@@ -113,6 +101,5 @@ func (s *TestPromServer) Reset() {
 
 // Close stops underlying http server.
 func (s *TestPromServer) Close() {
-	require.NoError(s.t, s.svr.Shutdown(context.TODO()))
-	require.NoError(s.t, s.svr.Close())
+	s.svr.Close()
 }

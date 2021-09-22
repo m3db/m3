@@ -488,8 +488,7 @@ func Run(runOpts RunOptions) RunResult {
 			logger.Fatal("unable to setup downsampler for m3db backend", zap.Error(err))
 		}
 	case config.PromRemoteStorageType:
-		var opts promremote.Options
-		opts, err = promremote.NewOptions(cfg.PrometheusRemoteBackend, scope, instrumentOptions.Logger())
+		opts, err := promremote.NewOptions(cfg.PrometheusRemoteBackend, scope, instrumentOptions.Logger())
 		if err != nil {
 			logger.Fatal("invalid configuration", zap.Error(err))
 		}
@@ -498,8 +497,7 @@ func Run(runOpts RunOptions) RunResult {
 			logger.Fatal("unable to setup prom remote backend", zap.Error(err))
 		}
 		defer func() {
-			err := backendStorage.Close()
-			if err != nil {
+			if err := backendStorage.Close(); err != nil {
 				logger.Error("error when closing storage", zap.Error(err))
 			}
 		}()

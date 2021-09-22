@@ -42,9 +42,9 @@ func NewOptions(
 	if err != nil {
 		return Options{}, err
 	}
-	endpoints := make([]EndpointOptions, len(cfg.Endpoints))
+	endpoints := make([]EndpointOptions, 0, len(cfg.Endpoints))
 
-	for i, endpoint := range cfg.Endpoints {
+	for _, endpoint := range cfg.Endpoints {
 		endpointOptions := EndpointOptions{
 			name:    endpoint.Name,
 			address: endpoint.Address,
@@ -56,7 +56,7 @@ func NewOptions(
 				endpointOptions.downsampleAll = endpoint.StoragePolicy.Downsample.All
 			}
 		}
-		endpoints[i] = endpointOptions
+		endpoints = append(endpoints, endpointOptions)
 	}
 	clientOpts := xhttp.DefaultHTTPClientOptions()
 	if cfg.RequestTimeout != nil {

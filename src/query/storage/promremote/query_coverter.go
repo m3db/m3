@@ -50,20 +50,20 @@ func convertWriteQuery(query *storage.WriteQuery) *prompb.WriteRequest {
 	}
 
 	ourLabels := storage.TagsToPromLabels(query.Tags())
-	labels := make([]prompb.Label, len(ourLabels))
-	for i, tag := range ourLabels {
-		labels[i] = prompb.Label{
+	labels := make([]prompb.Label, 0, len(ourLabels))
+	for _, tag := range ourLabels {
+		labels = append(labels, prompb.Label{
 			Name:  string(tag.Name),
 			Value: string(tag.Value),
-		}
+		})
 	}
 
-	samples := make([]prompb.Sample, len(query.Datapoints()))
-	for i, dp := range query.Datapoints() {
-		samples[i] = prompb.Sample{
+	samples := make([]prompb.Sample, 0, len(query.Datapoints()))
+	for _, dp := range query.Datapoints() {
+		samples = append(samples, prompb.Sample{
 			Value:     dp.Value,
 			Timestamp: dp.Timestamp.ToNormalizedTime(time.Millisecond),
-		}
+		})
 	}
 
 	return &prompb.WriteRequest{
