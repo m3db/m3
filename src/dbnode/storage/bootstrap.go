@@ -79,7 +79,6 @@ type bootstrapManager struct {
 	processProvider             bootstrap.ProcessProvider
 	state                       BootstrapState
 	hasPending                  bool
-	waiting                     bool
 	sleepFn                     sleepFn
 	nowFn                       clock.NowFn
 	lastBootstrapCompletionTime xtime.UnixNano
@@ -150,29 +149,15 @@ func (m *bootstrapManager) startBootstrap(asyncResult *BootstrapAsyncResult) (Bo
 		asyncResult.bootstrapCompleted.Done()
 		return result, errBootstrapEnqueued
 	default:
-		if m.waiting {
-			m.Unlock()
-			result := BootstrapResult{AlreadyBootstrapping: true}
-			asyncResult.bootstrapResult = result
-			asyncResult.bootstrapStarted.Done()
-			asyncResult.bootstrapCompleted.Done()
-			return result, errBootstrapEnqueued
-		}
-		// NB: do not set Bootstrapping state until fileOps are disabled.
-		m.waiting = true
+		m.state = Bootstrapping
 	}
 	m.Unlock()
 	// NB(xichen): disable filesystem manager before we bootstrap to minimize
 	// the impact of file operations on bootstrapping performance
-	m.instrumentation.log.Info("disabling fileOps")
+	m.instrumentation.log.Info("disable fileOps and wait")
 	m.mediator.DisableFileOpsAndWait()
-	m.instrumentation.log.Info("fileOps disabled")
 	defer m.mediator.EnableFileOps()
-
-	m.Lock()
-	m.waiting = false
-	m.state = Bootstrapping
-	m.Unlock()
+	m.instrumentation.log.Info("fileOps disabled")
 
 	var result BootstrapResult
 	asyncResult.bootstrapStarted.Done()
