@@ -57,6 +57,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/fanout"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/promremote"
 	"github.com/m3db/m3/src/query/storage/remote"
 	"github.com/m3db/m3/src/query/stores/m3db"
 	"github.com/m3db/m3/src/x/clock"
@@ -340,7 +341,7 @@ func Run(runOpts RunOptions) RunResult {
 	}
 
 	var (
-		clusterNamespacesWatcher m3.ClusterNamespacesWatcher
+		clusterNamespacesWatcher = m3.NewClusterNamespacesWatcher()
 		backendStorage           storage.Storage
 		clusterClient            clusterclient.Client
 		downsampler              downsample.Downsampler
@@ -357,6 +358,7 @@ func Run(runOpts RunOptions) RunResult {
 			MatchType: cfg.Query.ConsolidationConfiguration.MatchType,
 		}
 	)
+	defer clusterNamespacesWatcher.Close()
 
 	tagOptions, err := config.TagOptionsFromConfig(cfg.TagOptions)
 	if err != nil {
@@ -454,15 +456,16 @@ func Run(runOpts RunOptions) RunResult {
 	case "", config.M3DBStorageType:
 		// For m3db backend, we need to make connections to the m3db cluster
 		// which generates a session and use the storage with the session.
-		m3dbClusters, clusterNamespacesWatcher, m3dbPoolWrapper, err = initClusters(cfg,
-			runOpts.DBConfig, runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions())
+		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBConfig, clusterNamespacesWatcher,
+			runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions(),
+		)
 		if err != nil {
 			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
 
 		var cleanup cleanupFn
 		backendStorage, cleanup, err = newM3DBStorage(
-			cfg, m3dbClusters, m3dbPoolWrapper, queryCtxOpts, tsdbOpts, clusterNamespacesWatcher, instrumentOptions,
+			cfg, m3dbClusters, m3dbPoolWrapper, queryCtxOpts, tsdbOpts, instrumentOptions,
 		)
 		if err != nil {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
@@ -483,6 +486,34 @@ func Run(runOpts RunOptions) RunResult {
 		)
 		if err != nil {
 			logger.Fatal("unable to setup downsampler for m3db backend", zap.Error(err))
+		}
+	case config.PromRemoteStorageType:
+		opts, err := promremote.NewOptions(cfg.PrometheusRemoteBackend, scope, instrumentOptions.Logger())
+		if err != nil {
+			logger.Fatal("invalid configuration", zap.Error(err))
+		}
+		backendStorage, err = promremote.NewStorage(opts)
+		if err != nil {
+			logger.Fatal("unable to setup prom remote backend", zap.Error(err))
+		}
+		defer func() {
+			if err := backendStorage.Close(); err != nil {
+				logger.Error("error when closing storage", zap.Error(err))
+			}
+		}()
+
+		logger.Info("configuring downsampler to use with aggregated namespaces",
+			zap.Int("numAggregatedClusterNamespaces", opts.Namespaces().NumAggregatedClusterNamespaces()))
+		err = clusterNamespacesWatcher.Update(opts.Namespaces())
+		if err != nil {
+			logger.Fatal("unable to update namespaces", zap.Error(err))
+		}
+
+		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, cfg.ClusterManagement.Etcd, backendStorage,
+			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
+		)
+		if err != nil {
+			logger.Fatal("unable to setup downsampler for prom remote backend", zap.Error(err))
 		}
 	default:
 		logger.Fatal("unrecognized backend", zap.String("backend", string(cfg.Backend)))
@@ -709,7 +740,7 @@ func Run(runOpts RunOptions) RunResult {
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage
 func newM3DBStorage(cfg config.Configuration, clusters m3.Clusters, poolWrapper *pools.PoolWrapper,
 	queryContextOptions models.QueryContextOptions, tsdbOpts m3.Options,
-	clusterNamespacesWatcher m3.ClusterNamespacesWatcher, instrumentOptions instrument.Options,
+	instrumentOptions instrument.Options,
 ) (storage.Storage, cleanupFn, error) {
 	fanoutStorage, storageCleanup, err := newStorages(clusters, cfg,
 		poolWrapper, queryContextOptions, tsdbOpts, instrumentOptions)
@@ -723,8 +754,6 @@ func newM3DBStorage(cfg config.Configuration, clusters m3.Clusters, poolWrapper 
 		if lastErr != nil {
 			logger.Error("error during storage cleanup", zap.Error(lastErr))
 		}
-
-		clusterNamespacesWatcher.Close()
 
 		if err := clusters.Close(); err != nil {
 			lastErr = errors.Wrap(err, "unable to close M3DB cluster sessions")
@@ -891,20 +920,20 @@ func newDownsampler(
 func initClusters(
 	cfg config.Configuration,
 	dbCfg *dbconfig.DBConfiguration,
+	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	dbClientCh <-chan client.Client,
 	instrumentOpts instrument.Options,
 	customAdminOptions []client.CustomAdminOption,
-) (m3.Clusters, m3.ClusterNamespacesWatcher, *pools.PoolWrapper, error) {
+) (m3.Clusters, *pools.PoolWrapper, error) {
 	instrumentOpts = instrumentOpts.
 		SetMetricsScope(instrumentOpts.MetricsScope().SubScope("m3db-client"))
 
 	var (
-		logger                   = instrumentOpts.Logger()
-		clusterNamespacesWatcher = m3.NewClusterNamespacesWatcher()
-		clusters                 m3.Clusters
-		poolWrapper              *pools.PoolWrapper
-		staticNamespaceConfig    bool
-		err                      error
+		logger                = instrumentOpts.Logger()
+		clusters              m3.Clusters
+		poolWrapper           *pools.PoolWrapper
+		staticNamespaceConfig bool
+		err                   error
 	)
 	if len(cfg.Clusters) > 0 {
 		for _, clusterCfg := range cfg.Clusters {
@@ -924,7 +953,7 @@ func initClusters(
 			clusters, err = cfg.Clusters.NewDynamicClusters(instrumentOpts, opts, clusterNamespacesWatcher)
 		}
 		if err != nil {
-			return nil, nil, nil, errors.Wrap(err, "unable to connect to clusters")
+			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
 
 		poolWrapper = pools.NewPoolsWrapper(
@@ -939,7 +968,7 @@ func initClusters(
 		}
 
 		if dbClientCh == nil {
-			return nil, nil, nil, errors.New("no clusters configured and not running local cluster")
+			return nil, nil, errors.New("no clusters configured and not running local cluster")
 		}
 
 		sessionInitChan := make(chan struct{})
@@ -952,7 +981,7 @@ func initClusters(
 		}
 		if !staticNamespaceConfig {
 			if dbCfg == nil {
-				return nil, nil, nil, errors.New("environment config required when dynamically fetching namespaces")
+				return nil, nil, errors.New("environment config required when dynamically fetching namespaces")
 			}
 
 			hostID, err := dbCfg.HostIDOrDefault().Resolve()
@@ -983,7 +1012,7 @@ func initClusters(
 			clusters, err = clustersCfg.NewDynamicClusters(instrumentOpts, cfgOptions, clusterNamespacesWatcher)
 		}
 		if err != nil {
-			return nil, nil, nil, errors.Wrap(err, "unable to connect to clusters")
+			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
 
 		poolWrapper = pools.NewAsyncPoolsWrapper()
@@ -998,7 +1027,7 @@ func initClusters(
 			zap.String("namespace", namespace.NamespaceID().String()))
 	}
 
-	return clusters, clusterNamespacesWatcher, poolWrapper, nil
+	return clusters, poolWrapper, nil
 }
 
 func newStorages(
