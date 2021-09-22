@@ -94,7 +94,7 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 		atLeastOneEndpointMatched = true
 		go func() {
 			defer wg.Done()
-			err := p.writeSingle(ctx, metrics, endpoint.address, bytes.NewBuffer(encoded))
+			err := p.writeSingle(ctx, metrics, endpoint.address, bytes.NewReader(encoded))
 			if err != nil {
 				errLock.Lock()
 				multiErr = multiErr.Add(err)

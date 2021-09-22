@@ -87,5 +87,3 @@ func (e promRemoteNamespace) Session() client.Session {
 	// NB(antanas): should never be called since there is no m3db backend in this case.
 	panic("M3DB client session can't be used when using prom remote storage backend")
 }
-
-var _ m3.ClusterNamespace = &promRemoteNamespace{}
