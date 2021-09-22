@@ -46,23 +46,26 @@ func NewOptions(
 	endpoints := make([]EndpointOptions, 0, len(cfg.Endpoints))
 
 	for _, endpoint := range cfg.Endpoints {
-		endpointOptions := EndpointOptions{
-			name:    endpoint.Name,
-			address: endpoint.Address,
-		}
-		attr := storagemetadata.Attributes{
-			MetricsType: storagemetadata.UnaggregatedMetricsType,
-		}
+		var (
+			attr = storagemetadata.Attributes{
+				MetricsType: storagemetadata.UnaggregatedMetricsType,
+			}
+			downsampleAll = false
+		)
 		if endpoint.StoragePolicy != nil {
 			attr.MetricsType = storagemetadata.AggregatedMetricsType
 			attr.Resolution = endpoint.StoragePolicy.Resolution
 			attr.Retention = endpoint.StoragePolicy.Retention
-			if endpoint.StoragePolicy.Downsample != nil {
-				endpointOptions.downsampleAll = endpoint.StoragePolicy.Downsample.All
+			if downsample := endpoint.StoragePolicy.Downsample; downsample != nil {
+				downsampleAll = downsample.All
 			}
 		}
-		endpointOptions.attributes = attr
-		endpoints = append(endpoints, endpointOptions)
+		endpoints = append(endpoints, EndpointOptions{
+			name:          endpoint.Name,
+			address:       endpoint.Address,
+			attributes:    attr,
+			downsampleAll: downsampleAll,
+		})
 	}
 	clientOpts := xhttp.DefaultHTTPClientOptions()
 	if cfg.RequestTimeout != nil {

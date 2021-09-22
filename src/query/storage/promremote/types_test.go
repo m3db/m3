@@ -42,8 +42,6 @@ func TestNamespaces(t *testing.T) {
 				name: "raw",
 				attributes: storagemetadata.Attributes{
 					MetricsType: storagemetadata.UnaggregatedMetricsType,
-					Resolution:  0,
-					Retention:   0,
 				},
 				downsampleAll: false,
 			},

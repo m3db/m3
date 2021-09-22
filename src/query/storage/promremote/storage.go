@@ -90,8 +90,9 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 		}
 
 		metrics := p.endpointMetrics[endpoint.name]
-		wg.Add(1)
 		atLeastOneEndpointMatched = true
+
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			err := p.writeSingle(ctx, metrics, endpoint.address, bytes.NewReader(encoded))
