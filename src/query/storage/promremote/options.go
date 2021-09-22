@@ -37,17 +37,18 @@ func NewOptions(cfg *config.PrometheusRemoteBackendConfiguration, scope tally.Sc
 	if err != nil {
 		return Options{}, err
 	}
-	endpoints := make([]EndpointOptions, len(cfg.Endpoints))
+	endpoints := make([]EndpointOptions, 0, len(cfg.Endpoints))
 
-	for i, endpoint := range cfg.Endpoints {
-		endpoints[i] = EndpointOptions{
+	for _, endpoint := range cfg.Endpoints {
+		endpointOptions := EndpointOptions{
 			name:    endpoint.Name,
 			address: endpoint.Address,
 		}
 		if endpoint.StoragePolicy != nil {
-			endpoints[i].resolution = endpoint.StoragePolicy.Resolution
-			endpoints[i].retention = endpoint.StoragePolicy.Retention
+			endpointOptions.resolution = endpoint.StoragePolicy.Resolution
+			endpointOptions.retention = endpoint.StoragePolicy.Retention
 		}
+		endpoints = append(endpoints, endpointOptions)
 	}
 	clientOpts := xhttp.DefaultHTTPClientOptions()
 	if cfg.RequestTimeout != nil {

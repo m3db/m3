@@ -71,21 +71,23 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 	var errLock sync.Mutex
 	for _, endpoint := range p.opts.endpoints {
 		endpoint := endpoint
-		if endpoint.resolution == query.Attributes().Resolution &&
-			endpoint.retention == query.Attributes().Retention {
-			metrics := p.endpointMetrics[endpoint.name]
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				err := p.writeSingle(ctx, metrics, endpoint.address, bytes.NewBuffer(encoded))
-				if err != nil {
-					errLock.Lock()
-					multiErr = multiErr.Add(err)
-					errLock.Unlock()
-					return
-				}
-			}()
+		if endpoint.resolution != query.Attributes().Resolution ||
+			endpoint.retention != query.Attributes().Retention {
+			continue
 		}
+
+		metrics := p.endpointMetrics[endpoint.name]
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := p.writeSingle(ctx, metrics, endpoint.address, bytes.NewReader(encoded))
+			if err != nil {
+				errLock.Lock()
+				multiErr = multiErr.Add(err)
+				errLock.Unlock()
+				return
+			}
+		}()
 	}
 
 	wg.Wait()
