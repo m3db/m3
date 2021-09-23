@@ -1,6 +1,6 @@
 {
     "name": "low resolution counter with rate function",
-    "query": "rate(low_res_counter[1m])",
+    "query": "rate(low_res_counter[1h])",
     "startMillis": 1632355200,
     "endMillis": 1632376800,
     "step": 2,
