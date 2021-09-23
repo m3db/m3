@@ -35,13 +35,13 @@ import (
 
 // RegressionQuery is the JSON representation of a query to be compared.
 type RegressionQuery struct {
-	Name        string          `json:"name"`
-	Query       string          `json:"query"`
-	StartMillis int64           `json:"startMillis"`
-	EndMillis   int64           `json:"endMillis"`
-	Step        int             `json:"step"`
-	Retries     int             `json:"retries"`
-	Data        []parser.Series `json:"data"`
+	Name         string          `json:"name"`
+	Query        string          `json:"query"`
+	StartSeconds int64           `json:"startSeconds"`
+	EndSeconds   int64           `json:"endSeconds"`
+	Step         int             `json:"step"`
+	Retries      int             `json:"retries"`
+	Data         []parser.Series `json:"data"`
 }
 
 func parseRegressionFileToQueries(
@@ -81,8 +81,8 @@ func (q RegressionQuery) constructPromQL() PromQLRegressionQueryGroup {
 	values := make(url.Values)
 	values.Add("query", q.Query)
 	values.Add("step", fmt.Sprint(q.Step))
-	values.Add("start", fmt.Sprint(q.StartMillis))
-	values.Add("end", fmt.Sprint(q.EndMillis))
+	values.Add("start", fmt.Sprint(q.StartSeconds))
+	values.Add("end", fmt.Sprint(q.EndSeconds))
 	query := "/api/v1/query_range?" + values.Encode()
 
 	retries := 1
