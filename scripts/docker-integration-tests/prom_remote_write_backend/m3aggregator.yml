@@ -120,7 +120,7 @@ aggregator:
   hashType: murmur32
   bufferDurationBeforeShardCutover: 10m
   bufferDurationAfterShardCutoff: 10m
-  bufferDurationForFutureTimedMetric: 10s # Allow test to write into future.
+  bufferDurationForFutureTimedMetric: 10m # Allow test to write into future.
   bufferDurationForPastTimedMetric: 10s # Don't wait too long for timed metrics to flush.
   resignTimeout: 1m
   flushTimesManager:
@@ -179,7 +179,7 @@ aggregator:
         maxJitterPercent: 0.25
     numWorkersPerCPU: 0.5
     flushTimesPersistEvery: 10s
-    maxBufferSize: 10s
+    maxBufferSize: 10m
     forcedFlushWindowSize: 10s
   flush:
     handlers:

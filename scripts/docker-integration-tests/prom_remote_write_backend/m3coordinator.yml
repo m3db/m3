@@ -42,6 +42,22 @@ tagOptions:
   idScheme: quoted
 
 downsample:
+  rules:
+    rollupRules:
+      - name: "prom_remote_write_test_metric rolled up"
+        filter: "__name__:prom_remote_write_test_metric"
+        transforms:
+          - transform:
+              type: "Increase"
+          - rollup:
+              metricName: "prom_remote_write_test_metric_rolled_up"
+              groupBy: []
+              aggregations: ["Sum"]
+          - transform:
+              type: "Add"
+        storagePolicies:
+          - resolution: 5s
+            retention: 1h
   matcher:
     requireNamespaceWatchOnInit: false
   remoteAggregator:
