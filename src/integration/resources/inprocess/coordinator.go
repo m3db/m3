@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/server"
 	xconfig "github.com/m3db/m3/src/x/config"
+	xos "github.com/m3db/m3/src/x/os"
 )
 
 const (
@@ -166,6 +167,34 @@ func NewCoordinator(cfg config.Configuration, opts CoordinatorOptions) (resource
 	return coord, nil
 }
 
+// NewEmbeddedCoordinator creates a coordinator from one embedded within an existing
+// db node. This method expects that the DB node has already been started before
+// being called.
+func NewEmbeddedCoordinator(d dbNode) (resources.Coordinator, error) {
+	_, p, err := net.SplitHostPort(d.cfg.Coordinator.ListenAddressOrDefault())
+	if err != nil {
+		return nil, err
+	}
+
+	port, err := strconv.Atoi(p)
+	if err != nil {
+		return nil, err
+	}
+
+	return &coordinator{
+		cfg: *d.cfg.Coordinator,
+		client: common.NewCoordinatorClient(common.CoordinatorClientOptions{
+			Client:    &http.Client{},
+			HTTPPort:  port,
+			Logger:    d.logger,
+			RetryFunc: retry,
+		}),
+		logger:      d.logger,
+		interruptCh: d.interruptCh,
+		shutdownCh:  d.shutdownCh,
+	}, nil
+}
+
 func (c *coordinator) start() {
 	interruptCh := make(chan error, 1)
 	shutdownCh := make(chan struct{}, 1)
@@ -229,7 +258,7 @@ func (c *coordinator) Close() error {
 
 	// TODO: confirm this works correctly when using an embedded coordinator
 	select {
-	case c.interruptCh <- errors.New("in-process coordinator being shut down"):
+	case c.interruptCh <- xos.NewInterruptError("in-process coordinator being shut down"):
 	case <-time.After(interruptTimeout):
 		return errors.New("timeout sending interrupt. closing without graceful shutdown")
 	}

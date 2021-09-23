@@ -131,6 +131,7 @@ type DownsamplerOptions struct {
 	TagOptions                 models.TagOptions
 	MetricsAppenderPoolOptions pool.ObjectPoolOptions
 	RWOptions                  xio.Options
+	InterruptCh                <-chan error
 }
 
 // AutoMappingRule is a mapping rule to apply to metrics.
@@ -726,7 +727,8 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetRuleSetOptions(ruleSetOpts).
 		SetKVStore(o.RulesKVStore).
 		SetNamespaceTag([]byte(namespaceTag)).
-		SetRequireNamespaceWatchOnInit(cfg.Matcher.RequireNamespaceWatchOnInit)
+		SetRequireNamespaceWatchOnInit(cfg.Matcher.RequireNamespaceWatchOnInit).
+		SetInterruptCh(o.InterruptCh)
 
 	// NB(r): If rules are being explicitly set in config then we are
 	// going to use an in memory KV store for rules and explicitly set them up.

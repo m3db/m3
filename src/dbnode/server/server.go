@@ -746,6 +746,7 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating dynamic config service client with m3cluster")
 
 		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
+			InterruptCh:            runOpts.InterruptCh,
 			InstrumentOpts:         iOpts,
 			HashingSeed:            cfg.Hashing.Seed,
 			NewDirectoryMode:       newDirectoryMode,
@@ -758,6 +759,7 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating static config service client with m3cluster")
 
 		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
+			InterruptCh:            runOpts.InterruptCh,
 			InstrumentOpts:         iOpts,
 			HostID:                 hostID,
 			ForceColdWritesEnabled: forceColdWrites,
@@ -875,6 +877,14 @@ func Run(runOpts RunOptions) {
 
 	topo, err := syncCfg.TopologyInitializer.Init()
 	if err != nil {
+		var interruptErr *xos.InterruptError
+		if errors.As(err, &interruptErr) {
+			logger.Warn("interrupt received. closing server", zap.Error(err))
+			// NB(nate): Have not attempted to start the actual database yet so
+			// it's safe for us to just return here.
+			return
+		}
+
 		logger.Fatal("could not initialize m3db topology", zap.Error(err))
 	}
 

@@ -307,9 +307,9 @@ func (c *client) Watch(sid ServiceID, opts QueryOptions) (Watch, error) {
 		return nil, err
 	}
 
-	initValue, err := c.waitForInitValue(kvm.kv, placementWatch, sid, c.opts.InitTimeout())
+	initValue, err := c.waitForInitValue(kvm.kv, placementWatch, sid, c.opts.InitTimeout(), opts.InterruptCh())
 	if err != nil {
-		return nil, fmt.Errorf("could not get init value for '%s' within timeout, err: %v", key, err)
+		return nil, fmt.Errorf("could not get init value for '%s',  err: %w", key, err)
 	}
 
 	initService, err := getServiceFromValue(initValue, sid)
@@ -587,19 +587,37 @@ func getServiceFromValue(value kv.Value, sid ServiceID) (Service, error) {
 	return NewServiceFromPlacement(p, sid), nil
 }
 
-func (c *client) waitForInitValue(kvStore kv.Store, w kv.ValueWatch, sid ServiceID, timeout time.Duration) (kv.Value, error) {
+func (c *client) waitForInitValue(
+	kvStore kv.Store,
+	w kv.ValueWatch,
+	sid ServiceID,
+	timeout time.Duration,
+	interruptCh <-chan error,
+) (kv.Value, error) {
+	if interruptCh == nil {
+		// NB(nate): if no interrupt channel is provided, then this wait is not
+		// gracefully interruptable.
+		interruptCh = make(chan error)
+	}
+
 	if timeout < 0 {
 		timeout = defaultInitTimeout
 	} else if timeout == 0 {
 		// We want no timeout if specifically asking for none
-		<-w.C()
-		return w.Get(), nil
+		select {
+		case <-w.C():
+			return w.Get(), nil
+		case err := <-interruptCh:
+			return nil, err
+		}
 	}
 	select {
 	case <-w.C():
 		return w.Get(), nil
 	case <-time.After(timeout):
 		return kvStore.Get(c.placementKeyFn(sid))
+	case err := <-interruptCh:
+		return nil, err
 	}
 }
 

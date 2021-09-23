@@ -67,6 +67,12 @@ type Options interface {
 
 	// SetKey sets the key for the watch.
 	SetKey(key string) Options
+
+	// InterruptCh returns the interrupt channel.
+	InterruptCh() <-chan error
+
+	// SetInterruptCh sets the interrupt channel.
+	SetInterruptCh(value <-chan error) Options
 }
 
 type options struct {
@@ -76,6 +82,7 @@ type options struct {
 	getUpdateFn      GetUpdateFn
 	processFn        ProcessFn
 	key              string
+	interruptCh      <-chan error
 }
 
 // NewOptions creates a new set of options.
@@ -144,4 +151,13 @@ func (o *options) SetKey(key string) Options {
 	opts := *o
 	opts.key = key
 	return &opts
+}
+
+func (o *options) InterruptCh() <-chan error {
+	return o.interruptCh
+}
+
+func (o *options) SetInterruptCh(ch <-chan error) Options {
+	o.interruptCh = ch
+	return o
 }

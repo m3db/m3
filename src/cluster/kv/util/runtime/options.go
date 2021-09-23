@@ -62,6 +62,12 @@ type Options interface {
 
 	// ProcessFn returns the process function.
 	ProcessFn() ProcessFn
+
+	// InterruptCh returns the interrupt channel.
+	InterruptCh() <-chan error
+
+	// SetInterruptCh sets the interrupt channel.
+	SetInterruptCh(value <-chan error) Options
 }
 
 type options struct {
@@ -70,6 +76,7 @@ type options struct {
 	kvStore          kv.Store
 	unmarshalFn      UnmarshalFn
 	processFn        ProcessFn
+	interruptCh      <-chan error
 }
 
 // NewOptions creates a new set of options.
@@ -128,4 +135,13 @@ func (o *options) SetProcessFn(value ProcessFn) Options {
 
 func (o *options) ProcessFn() ProcessFn {
 	return o.processFn
+}
+
+func (o *options) SetInterruptCh(ch <-chan error) Options {
+	o.interruptCh = ch
+	return o
+}
+
+func (o *options) InterruptCh() <-chan error {
+	return o.interruptCh
 }
