@@ -113,7 +113,6 @@ function initialize_m3_via_coordinator_admin {
     }
   }' # msgs will be discarded after 600000000000ns = 10mins
 
-  # TODO paziuret ar nereik
   echo "Initializing m3coordinator topology"
   curl -vvvsSf -X POST localhost:7201/api/v1/services/m3coordinator/placement/init -d '{
       "instances": [
