@@ -36,6 +36,20 @@ type InterruptOptions struct {
 	InterruptCh <-chan error
 }
 
+// InterruptError is an error representing an interrupt.
+type InterruptError struct {
+	interrupt string
+}
+
+// NewInterruptError creates a new InterruptError.
+func NewInterruptError(interrupt string) error {
+	return &InterruptError{interrupt: interrupt}
+}
+
+func (i *InterruptError) Error() string {
+	return i.interrupt
+}
+
 // WaitForInterrupt will wait for an interrupt to occur and return when done.
 func WaitForInterrupt(logger *zap.Logger, opts InterruptOptions) {
 	// Handle interrupts.
@@ -56,7 +70,7 @@ func WaitForInterrupt(logger *zap.Logger, opts InterruptOptions) {
 func NewInterruptChannel(numListeners int) <-chan error {
 	interruptCh := make(chan error, numListeners)
 	go func() {
-		err := fmt.Errorf("%v", <-interrupt())
+		err := NewInterruptError(fmt.Sprintf("%v", <-interrupt()))
 		for i := 0; i < numListeners; i++ {
 			interruptCh <- err
 		}

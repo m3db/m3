@@ -114,6 +114,13 @@ func (v *value) Watch() error {
 	// error condition is resolved.
 	defer func() { go v.watchUpdates(v.updatable) }()
 
+	interruptCh := v.opts.InterruptCh()
+	if interruptCh == nil {
+		// NB(nate): if no interrupt channel is provided, then this wait is not
+		// gracefully interruptable.
+		interruptCh = make(chan error)
+	}
+
 	select {
 	case <-v.updatable.C():
 	case <-time.After(v.opts.InitWatchTimeout()):
@@ -121,6 +128,8 @@ func (v *value) Watch() error {
 			innerError: errInitWatchTimeout,
 			key:        v.opts.Key(),
 		}
+	case err = <-interruptCh:
+		return err
 	}
 
 	update, err := v.getUpdateFn(v.updatable)

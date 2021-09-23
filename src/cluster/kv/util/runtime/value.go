@@ -82,7 +82,8 @@ func (v *value) initValue() {
 		SetNewUpdatableFn(v.newUpdatableFn).
 		SetGetUpdateFn(v.getUpdateFn).
 		SetProcessFn(v.updateFn).
-		SetKey(v.key)
+		SetKey(v.key).
+		SetInterruptCh(v.opts.InterruptCh())
 	v.Value = watch.NewValue(valueOpts)
 }
 

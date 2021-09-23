@@ -38,6 +38,13 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 )
 
+func TestNewDBNodeNoSetup(t *testing.T) {
+	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
+	require.NoError(t, err)
+
+	require.NoError(t, dbnode.Close())
+}
+
 func TestNewDBNode(t *testing.T) {
 	_, closer := setupNode(t)
 	closer()
