@@ -334,12 +334,14 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 
 func (d *db) disableFileOpsAndWait() {
 	if mediator := d.mediator; mediator != nil && mediator.IsOpen() {
+		d.log.Info("waiting for file ops to be disabled")
 		mediator.DisableFileOpsAndWait()
 	}
 }
 
 func (d *db) enableFileOps() {
 	if mediator := d.mediator; mediator != nil && mediator.IsOpen() {
+		d.log.Info("enabling file ops")
 		mediator.EnableFileOps()
 	}
 }
