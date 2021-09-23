@@ -1009,9 +1009,10 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 	// If the number of hostQueues has changed then we need to recreate the fetch
 	// batch op array pool as it must be the exact length of the queues as we index
 	// directly into the return array in fetch calls.
-	if len(queues) != len(prevQueues) && !s.opts.FetchBatchOpPoolSize().IsDynamic() {
+	if len(queues) != len(prevQueues) {
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(int(s.opts.FetchBatchOpPoolSize())).
+			SetDynamic(s.opts.FetchBatchOpPoolSize().IsDynamic()).
 			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 				s.scope.SubScope("fetch-batch-op-array-array-pool"),
 			))
@@ -1031,20 +1032,28 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		})
 		s.pools.multiReaderIteratorArray.Init()
 	}
-	if s.pools.readerSliceOfSlicesIterator == nil && !s.opts.SeriesIteratorPoolSize().IsDynamic() {
-		size := replicas * int(s.opts.SeriesIteratorPoolSize())
+	if s.pools.readerSliceOfSlicesIterator == nil {
+		size := int(s.opts.SeriesIteratorPoolSize())
+		if !s.opts.SeriesIteratorPoolSize().IsDynamic() {
+			size = replicas * int(s.opts.SeriesIteratorPoolSize())
+		}
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(size).
+			SetDynamic(s.opts.SeriesIteratorPoolSize().IsDynamic()).
 			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 				s.scope.SubScope("reader-slice-of-slices-iterator-pool"),
 			))
 		s.pools.readerSliceOfSlicesIterator = newReaderSliceOfSlicesIteratorPool(poolOpts)
 		s.pools.readerSliceOfSlicesIterator.Init()
 	}
-	if s.pools.multiReaderIterator == nil && !s.opts.SeriesIteratorPoolSize().IsDynamic() {
-		size := replicas * int(s.opts.SeriesIteratorPoolSize())
+	if s.pools.multiReaderIterator == nil {
+		size := int(s.opts.SeriesIteratorPoolSize())
+		if !s.opts.SeriesIteratorPoolSize().IsDynamic() {
+			size = replicas * int(s.opts.SeriesIteratorPoolSize())
+		}
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(size).
+			SetDynamic(s.opts.SeriesIteratorPoolSize().IsDynamic()).
 			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 				s.scope.SubScope("multi-reader-iterator-pool"),
 			))
