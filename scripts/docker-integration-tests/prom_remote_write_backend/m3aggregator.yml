@@ -179,7 +179,7 @@ aggregator:
         maxJitterPercent: 0.25
     numWorkersPerCPU: 0.5
     flushTimesPersistEvery: 10s
-    maxBufferSize: 5m
+    maxBufferSize: 10s
     forcedFlushWindowSize: 10s
   flush:
     handlers:

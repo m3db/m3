@@ -92,7 +92,6 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 		metrics := p.endpointMetrics[endpoint.name]
 		atLeastOneEndpointMatched = true
 
-		p.logger.Info("sending metric", zap.Duration("retention", endpoint.attributes.Retention), zap.Any("tags", query.Tags()), zap.Any("dp", query.Datapoints()))
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

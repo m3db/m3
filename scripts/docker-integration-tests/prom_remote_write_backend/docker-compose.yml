@@ -1,15 +1,5 @@
 version: "3.5"
 services:
-  dbnode01:
-    expose:
-      - "9000-9004"
-      - "7201"
-    ports:
-      - "0.0.0.0:9000-9004:9000-9004"
-      - "0.0.0.0:7201:7201"
-    networks:
-      - backend
-    image: "m3dbnode_integration:${REVISION}"
   m3aggregator01:
     expose:
       - "6001"
@@ -23,6 +13,10 @@ services:
     volumes:
       - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
   m3aggregator02:
+    expose:
+      - "6002"
+    ports:
+      - "127.0.0.1:6002:6001"
     networks:
       - backend
     environment:

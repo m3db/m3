@@ -1,4 +1,4 @@
-d# my global config
+# my global config
 global:
   external_labels:
     role: "remote"
