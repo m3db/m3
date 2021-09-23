@@ -119,14 +119,12 @@ func newHostQueue(
 		opArrayPoolOpts = pool.NewObjectPoolOptions().
 				SetInstrumentOptions(
 				opts.InstrumentOptions().SetMetricsScope(scope.SubScope("op-array-pool")),
-			)
+			).
+			SetSize(int(opArrayPoolSize)).
+			SetDynamic(opArrayPoolSize.IsDynamic())
 	)
 
-	opArrayPoolOpts = opArrayPoolOpts.SetSize(int(opArrayPoolSize))
-
-	if opArrayPoolSize.IsDynamic() {
-		opArrayPoolOpts = opArrayPoolOpts.SetDynamic(true)
-	} else {
+	if !opArrayPoolSize.IsDynamic() {
 		// for static pools, keep channel buffer size the same as pool size to preserve backwards-compat
 		opsArrayLen = int(opArrayPoolSize)
 	}
