@@ -301,7 +301,8 @@ func newSession(opts Options) (clientSession, error) {
 	s.reattemptStreamBlocksFromPeersFn = s.streamBlocksReattemptFromPeers
 	s.pickBestPeerFn = s.streamBlocksPickBestPeer
 	writeAttemptPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(opts.WriteOpPoolSize()).
+		SetDynamic(s.opts.WriteOpPoolSize().IsDynamic()).
+		SetSize(int(s.opts.WriteOpPoolSize())).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
 			scope.SubScope("write-attempt-pool"),
 		))
@@ -309,7 +310,8 @@ func newSession(opts Options) (clientSession, error) {
 	s.pools.writeAttempt.Init()
 
 	fetchAttemptPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(opts.FetchBatchOpPoolSize()).
+		SetDynamic(s.opts.FetchBatchOpPoolSize().IsDynamic()).
+		SetSize(int(s.opts.FetchBatchOpPoolSize())).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
 			scope.SubScope("fetch-attempt-pool"),
 		))
@@ -317,7 +319,8 @@ func newSession(opts Options) (clientSession, error) {
 	s.pools.fetchAttempt.Init()
 
 	fetchTaggedAttemptPoolImplOpts := pool.NewObjectPoolOptions().
-		SetSize(opts.FetchBatchOpPoolSize()).
+		SetDynamic(s.opts.FetchBatchOpPoolSize().IsDynamic()).
+		SetSize(int(s.opts.FetchBatchOpPoolSize())).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
 			scope.SubScope("fetch-tagged-attempt-pool"),
 		))
@@ -325,7 +328,8 @@ func newSession(opts Options) (clientSession, error) {
 	s.pools.fetchTaggedAttempt.Init()
 
 	aggregateAttemptPoolImplOpts := pool.NewObjectPoolOptions().
-		SetSize(opts.FetchBatchOpPoolSize()).
+		SetDynamic(s.opts.FetchBatchOpPoolSize().IsDynamic()).
+		SetSize(int(s.opts.FetchBatchOpPoolSize())).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
 			scope.SubScope("aggregate-attempt-pool"),
 		))
@@ -333,7 +337,8 @@ func newSession(opts Options) (clientSession, error) {
 	s.pools.aggregateAttempt.Init()
 
 	tagEncoderPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(opts.TagEncoderPoolSize()).
+		SetDynamic(s.opts.TagEncoderPoolSize().IsDynamic()).
+		SetSize(int(s.opts.TagEncoderPoolSize())).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
 			scope.SubScope("tag-encoder-pool"),
 		))
@@ -341,7 +346,8 @@ func newSession(opts Options) (clientSession, error) {
 	s.pools.tagEncoder.Init()
 
 	tagDecoderPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(opts.TagDecoderPoolSize()).
+		SetDynamic(s.opts.TagDecoderPoolSize().IsDynamic()).
+		SetSize(int(s.opts.TagDecoderPoolSize())).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
 			scope.SubScope("tag-decoder-pool"),
 		))
@@ -349,7 +355,8 @@ func newSession(opts Options) (clientSession, error) {
 	s.pools.tagDecoder.Init()
 
 	wrapperPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(opts.CheckedBytesWrapperPoolSize()).
+		SetDynamic(s.opts.CheckedBytesWrapperPoolSize().IsDynamic()).
+		SetSize(int(s.opts.CheckedBytesWrapperPoolSize())).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
 			scope.SubScope("client-checked-bytes-wrapper-pool")))
 	s.pools.checkedBytesWrapper = xpool.NewCheckedBytesWrapperPool(wrapperPoolOpts)
@@ -539,7 +546,8 @@ func (s *session) Open() error {
 	// NB(r): Alloc pools that can take some time in Open, expectation
 	// is already that Open will take some time
 	writeOperationPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(s.opts.WriteOpPoolSize()).
+		SetDynamic(s.opts.WriteOpPoolSize().IsDynamic()).
+		SetSize(int(s.opts.WriteOpPoolSize())).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-op-pool"),
 		))
@@ -547,27 +555,33 @@ func (s *session) Open() error {
 	s.pools.writeOperation.Init()
 
 	writeTaggedOperationPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(s.opts.WriteTaggedOpPoolSize()).
+		SetDynamic(s.opts.WriteTaggedOpPoolSize().IsDynamic()).
+		SetSize(int(s.opts.WriteTaggedOpPoolSize())).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-op-tagged-pool"),
 		))
 	s.pools.writeTaggedOperation = newWriteTaggedOpPool(writeTaggedOperationPoolOpts)
 	s.pools.writeTaggedOperation.Init()
 
-	writeStatePoolSize := s.opts.WriteOpPoolSize()
-	if s.opts.WriteTaggedOpPoolSize() > writeStatePoolSize {
-		writeStatePoolSize = s.opts.WriteTaggedOpPoolSize()
-	}
 	writeStatePoolOpts := pool.NewObjectPoolOptions().
-		SetSize(writeStatePoolSize).
+		SetDynamic(s.opts.WriteOpPoolSize().IsDynamic()).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-state-pool"),
 		))
+
+	if !s.opts.WriteOpPoolSize().IsDynamic() {
+		writeStatePoolSize := s.opts.WriteOpPoolSize()
+		if !s.opts.WriteTaggedOpPoolSize().IsDynamic() && s.opts.WriteTaggedOpPoolSize() > writeStatePoolSize {
+			writeStatePoolSize = s.opts.WriteTaggedOpPoolSize()
+		}
+		writeStatePoolOpts = writeStatePoolOpts.SetSize(int(writeStatePoolSize))
+	}
 	s.pools.writeState = newWriteStatePool(s.pools.tagEncoder, writeStatePoolOpts)
 	s.pools.writeState.Init()
 
 	fetchBatchOpPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(s.opts.FetchBatchOpPoolSize()).
+		SetDynamic(s.opts.FetchBatchOpPoolSize().IsDynamic()).
+		SetSize(int(s.opts.FetchBatchOpPoolSize())).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("fetch-batch-op-pool"),
 		))
@@ -575,7 +589,8 @@ func (s *session) Open() error {
 	s.pools.fetchBatchOp.Init()
 
 	fetchTaggedOpPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(s.opts.FetchBatchOpPoolSize()).
+		SetDynamic(s.opts.FetchBatchOpPoolSize().IsDynamic()).
+		SetSize(int(s.opts.FetchBatchOpPoolSize())).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("fetch-tagged-op-pool"),
 		))
@@ -583,7 +598,8 @@ func (s *session) Open() error {
 	s.pools.fetchTaggedOp.Init()
 
 	aggregateOpPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(s.opts.FetchBatchOpPoolSize()).
+		SetDynamic(s.opts.FetchBatchOpPoolSize().IsDynamic()).
+		SetSize(int(s.opts.FetchBatchOpPoolSize())).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("aggregate-op-pool"),
 		))
@@ -591,7 +607,8 @@ func (s *session) Open() error {
 	s.pools.aggregateOp.Init()
 
 	fetchStatePoolOpts := pool.NewObjectPoolOptions().
-		SetSize(s.opts.FetchBatchOpPoolSize()).
+		SetDynamic(s.opts.FetchBatchOpPoolSize().IsDynamic()).
+		SetSize(int(s.opts.FetchBatchOpPoolSize())).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("fetch-tagged-state-pool"),
 		))
@@ -599,7 +616,8 @@ func (s *session) Open() error {
 	s.pools.fetchState.Init()
 
 	seriesIteratorPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(s.opts.SeriesIteratorPoolSize()).
+		SetDynamic(s.opts.SeriesIteratorPoolSize().IsDynamic()).
+		SetSize(int(s.opts.SeriesIteratorPoolSize())).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("series-iterator-pool"),
 		))
@@ -993,14 +1011,15 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 	// directly into the return array in fetch calls.
 	if len(queues) != len(prevQueues) {
 		poolOpts := pool.NewObjectPoolOptions().
-			SetSize(s.opts.FetchBatchOpPoolSize()).
+			SetSize(int(s.opts.FetchBatchOpPoolSize())).
+			SetDynamic(s.opts.FetchBatchOpPoolSize().IsDynamic()).
 			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 				s.scope.SubScope("fetch-batch-op-array-array-pool"),
 			))
 		s.pools.fetchBatchOpArrayArray = newFetchBatchOpArrayArrayPool(
 			poolOpts,
 			len(queues),
-			s.opts.FetchBatchOpPoolSize()/len(queues))
+			int(s.opts.FetchBatchOpPoolSize())/len(queues))
 		s.pools.fetchBatchOpArrayArray.Init()
 	}
 
@@ -1008,15 +1027,19 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		s.pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool([]pool.Bucket{
 			{
 				Capacity: replicas,
-				Count:    pool.Size(s.opts.SeriesIteratorPoolSize()),
+				Count:    s.opts.SeriesIteratorPoolSize(),
 			},
 		})
 		s.pools.multiReaderIteratorArray.Init()
 	}
 	if s.pools.readerSliceOfSlicesIterator == nil {
-		size := replicas * s.opts.SeriesIteratorPoolSize()
+		size := int(s.opts.SeriesIteratorPoolSize())
+		if !s.opts.SeriesIteratorPoolSize().IsDynamic() {
+			size = replicas * int(s.opts.SeriesIteratorPoolSize())
+		}
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(size).
+			SetDynamic(s.opts.SeriesIteratorPoolSize().IsDynamic()).
 			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 				s.scope.SubScope("reader-slice-of-slices-iterator-pool"),
 			))
@@ -1024,9 +1047,13 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		s.pools.readerSliceOfSlicesIterator.Init()
 	}
 	if s.pools.multiReaderIterator == nil {
-		size := replicas * s.opts.SeriesIteratorPoolSize()
+		size := int(s.opts.SeriesIteratorPoolSize())
+		if !s.opts.SeriesIteratorPoolSize().IsDynamic() {
+			size = replicas * int(s.opts.SeriesIteratorPoolSize())
+		}
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(size).
+			SetDynamic(s.opts.SeriesIteratorPoolSize().IsDynamic()).
 			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 				s.scope.SubScope("multi-reader-iterator-pool"),
 			))
