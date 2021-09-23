@@ -175,12 +175,7 @@ func TestWriteH1(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	configFile, closeFn := newTestFile(t, "config.yaml", configYAML)
-	defer closeFn()
-
-	var cfg config.Configuration
-	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
-	require.NoError(t, err)
+	cfg := configFromYAML(t, configYAML)
 
 	testWrite(t, cfg, ctrl)
 }
@@ -189,12 +184,7 @@ func TestWriteH2C(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	configFile, closer := newTestFile(t, "config.yaml", configYAML)
-	defer closer()
-
-	var cfg config.Configuration
-	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
-	require.NoError(t, err)
+	cfg := configFromYAML(t, configYAML)
 
 	cfg.HTTP.EnableH2C = true
 
@@ -205,12 +195,7 @@ func TestIngestH1(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	configFile, closer := newTestFile(t, "config.yaml", configYAML)
-	defer closer()
-
-	var cfg config.Configuration
-	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
-	require.NoError(t, err)
+	cfg := configFromYAML(t, configYAML)
 
 	testIngest(t, cfg, ctrl)
 }
@@ -219,12 +204,7 @@ func TestIngestH2C(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	configFile, closer := newTestFile(t, "config.yaml", configYAML)
-	defer closer()
-
-	var cfg config.Configuration
-	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
-	require.NoError(t, err)
+	cfg := configFromYAML(t, configYAML)
 
 	cfg.HTTP.EnableH2C = true
 

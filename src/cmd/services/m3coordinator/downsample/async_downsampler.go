@@ -64,6 +64,7 @@ func NewAsyncDownsampler(
 	go func() {
 		asyncDownsampler.Lock()
 		defer asyncDownsampler.Unlock()
+
 		if asyncDownsampler.done != nil {
 			defer func() {
 				asyncDownsampler.done <- struct{}{}
