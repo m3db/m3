@@ -1,0 +1,42 @@
+{
+    "name": "low resolution counter with rate function",
+    "query": "rate(low_res_counter[1m])",
+    "startMillis": 1632355200,
+    "endMillis": 1632376800,
+    "step": 2,
+    "data": [
+        {
+            "start": "2021-09-23T00:00:00Z",
+            "end": "2021-09-23T06:00:00Z",
+            "tags": [
+                ["__name__", "low_res_counter"]
+            ],
+            "datapoints": [
+                {
+                    "val": "90",
+                    "ts": "2021-09-23T00:59:00Z"
+                },
+                {
+                    "val": "100",
+                    "ts": "2021-09-23T01:59:00Z"
+                },
+                {
+                    "val": "101",
+                    "ts": "2021-09-23T02:01:00Z"
+                },
+                {
+                    "val": "110",
+                    "ts": "2021-09-23T02:59:00Z"
+                },
+                {
+                    "val": "120",
+                    "ts": "2021-09-23T03:59:00Z"
+                },
+                {
+                    "val": "130",
+                    "ts": "2021-09-23T04:59:00Z"
+                }
+            ]
+        }
+    ]
+}
