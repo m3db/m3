@@ -499,30 +499,32 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 }
 
 func (d *db) assignShardSet(shardSet sharding.ShardSet) {
-	d.Lock()
-
-	d.log.Info("assigning shards", zap.Uint32s("shards", shardSet.AllIDs()))
-
+	d.RLock()
 	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
-	d.shardSet = shardSet
+	d.RUnlock()
 
+	if receivedNewShards {
+		d.disableFileOpsAndWait()
+
+		d.Lock()
+		d.assignShardsWithLock(shardSet)
+		d.Unlock()
+
+		d.enqueueBootstrap(d.enableFileOps)
+		return
+	}
+
+	d.Lock()
+	d.assignShardsWithLock(shardSet)
+	d.Unlock()
+}
+
+func (d *db) assignShardsWithLock(shardSet sharding.ShardSet) {
+	d.log.Info("assigning shards", zap.Uint32s("shards", shardSet.AllIDs()))
+	d.shardSet = shardSet
 	for _, elem := range d.namespaces.Iter() {
 		ns := elem.Value()
 		ns.AssignShardSet(shardSet)
-	}
-
-	d.Unlock()
-
-	if receivedNewShards {
-		// Only trigger a bootstrap if the node received new shards otherwise
-		// the nodes will perform lots of small bootstraps (that accomplish nothing)
-		// during topology changes as other nodes mark their shards as available.
-		//
-		// These small bootstraps can significantly delay topology changes as they prevent
-		// the nodes from marking themselves as bootstrapped and durable, for example.
-		d.enqueueBootstrap(func() {
-			d.log.Info("bootstrap completed after receiving new shards")
-		})
 	}
 }
 

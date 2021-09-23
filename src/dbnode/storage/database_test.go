@@ -478,7 +478,9 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 
 	mediator := NewMockdatabaseMediator(ctrl)
-	mediator.EXPECT().IsOpen().Return(true)
+	mediator.EXPECT().IsOpen().Return(true).AnyTimes()
+	mediator.EXPECT().DisableFileOpsAndWait().AnyTimes()
+	mediator.EXPECT().EnableFileOps().AnyTimes()
 	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).DoAndReturn(func(fn func()) error {
 		fn()
 		return nil
