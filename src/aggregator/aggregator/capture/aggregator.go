@@ -239,6 +239,7 @@ func cloneStagedMetadata(sm metadata.StagedMetadata) metadata.StagedMetadata {
 			AggregationID:   pipelines[i].AggregationID,
 			StoragePolicies: storagePolicies,
 			Pipeline:        pipeline,
+			ResendEnabled:   pipelines[i].ResendEnabled,
 		}
 	}
 	return metadata.StagedMetadata{
