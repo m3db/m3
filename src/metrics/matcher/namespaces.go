@@ -144,7 +144,7 @@ func NewNamespaces(key string, opts Options) Namespaces {
 		SetKVStore(n.store).
 		SetUnmarshalFn(n.toNamespaces).
 		SetProcessFn(n.process).
-		SetInterruptCh(opts.InterruptCh())
+		SetInterruptedCh(opts.InterruptedCh())
 	n.Value = runtime.NewValue(key, valueOpts)
 	return n
 }

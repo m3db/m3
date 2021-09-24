@@ -920,15 +920,15 @@ func TestWatchInterruptedWithTimeout(t *testing.T) {
 func testWatchInterrupted(t *testing.T, s Services) {
 	sid := NewServiceID().SetName("m3db").SetZone("zone1")
 
-	interruptCh := make(chan error, 1)
-	interruptCh <- errors.New("interrupt")
+	interruptedCh := make(chan struct{})
+	close(interruptedCh)
 
 	qopts := NewQueryOptions().
 		SetIncludeUnhealthy(true).
-		SetInterruptCh(interruptCh)
+		SetInterruptedCh(interruptedCh)
 	_, err := s.Watch(sid, qopts)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "interrupt")
+	require.Contains(t, err.Error(), "interrupted")
 }
 
 func TestHeartbeatService(t *testing.T) {
