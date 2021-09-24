@@ -256,9 +256,9 @@ type options struct {
 	backgroundHealthCheckFailLimit          int
 	backgroundHealthCheckFailThrottleFactor float64
 	tagEncoderOpts                          serialize.TagEncoderOptions
-	tagEncoderPoolSize                      int
+	tagEncoderPoolSize                      pool.Size
 	tagDecoderOpts                          serialize.TagDecoderOptions
-	tagDecoderPoolSize                      int
+	tagDecoderPoolSize                      pool.Size
 	writeRetrier                            xretry.Retrier
 	fetchRetrier                            xretry.Retrier
 	streamBlocksRetrier                     xretry.Retrier
@@ -266,21 +266,21 @@ type options struct {
 	shardsLeavingCountTowardsConsistency    bool
 	newConnectionFn                         NewConnectionFn
 	readerIteratorAllocate                  encoding.ReaderIteratorAllocate
-	writeOperationPoolSize                  int
-	writeTaggedOperationPoolSize            int
-	fetchBatchOpPoolSize                    int
+	writeOperationPoolSize                  pool.Size
+	writeTaggedOperationPoolSize            pool.Size
+	fetchBatchOpPoolSize                    pool.Size
 	writeBatchSize                          int
 	fetchBatchSize                          int
 	checkedBytesPool                        pool.CheckedBytesPool
 	identifierPool                          ident.Pool
 	hostQueueOpsFlushSize                   int
 	hostQueueOpsFlushInterval               time.Duration
-	hostQueueOpsArrayPoolSize               int
+	hostQueueOpsArrayPoolSize               pool.Size
 	hostQueueNewPooledWorkerFn              xsync.NewPooledWorkerFn
 	hostQueueEmitsHealthStatus              bool
-	seriesIteratorPoolSize                  int
+	seriesIteratorPoolSize                  pool.Size
 	seriesIteratorArrayPoolBuckets          []pool.Bucket
-	checkedBytesWrapperPoolSize             int
+	checkedBytesWrapperPoolSize             pool.Size
 	contextPool                             context.Pool
 	origin                                  topology.Host
 	fetchSeriesBlocksMaxBlockRetries        int
@@ -789,13 +789,13 @@ func (o *options) TagEncoderOptions() serialize.TagEncoderOptions {
 	return o.tagEncoderOpts
 }
 
-func (o *options) SetTagEncoderPoolSize(value int) Options {
+func (o *options) SetTagEncoderPoolSize(value pool.Size) Options {
 	opts := *o
 	opts.tagEncoderPoolSize = value
 	return &opts
 }
 
-func (o *options) TagEncoderPoolSize() int {
+func (o *options) TagEncoderPoolSize() pool.Size {
 	return o.tagEncoderPoolSize
 }
 
@@ -809,13 +809,13 @@ func (o *options) TagDecoderOptions() serialize.TagDecoderOptions {
 	return o.tagDecoderOpts
 }
 
-func (o *options) SetTagDecoderPoolSize(value int) Options {
+func (o *options) SetTagDecoderPoolSize(value pool.Size) Options {
 	opts := *o
 	opts.tagDecoderPoolSize = value
 	return &opts
 }
 
-func (o *options) TagDecoderPoolSize() int {
+func (o *options) TagDecoderPoolSize() pool.Size {
 	return o.tagDecoderPoolSize
 }
 
@@ -839,33 +839,33 @@ func (o *options) NewConnectionFn() NewConnectionFn {
 	return o.newConnectionFn
 }
 
-func (o *options) SetWriteOpPoolSize(value int) Options {
+func (o *options) SetWriteOpPoolSize(value pool.Size) Options {
 	opts := *o
 	opts.writeOperationPoolSize = value
 	return &opts
 }
 
-func (o *options) WriteOpPoolSize() int {
+func (o *options) WriteOpPoolSize() pool.Size {
 	return o.writeOperationPoolSize
 }
 
-func (o *options) SetWriteTaggedOpPoolSize(value int) Options {
+func (o *options) SetWriteTaggedOpPoolSize(value pool.Size) Options {
 	opts := *o
 	opts.writeTaggedOperationPoolSize = value
 	return &opts
 }
 
-func (o *options) WriteTaggedOpPoolSize() int {
+func (o *options) WriteTaggedOpPoolSize() pool.Size {
 	return o.writeTaggedOperationPoolSize
 }
 
-func (o *options) SetFetchBatchOpPoolSize(value int) Options {
+func (o *options) SetFetchBatchOpPoolSize(value pool.Size) Options {
 	opts := *o
 	opts.fetchBatchOpPoolSize = value
 	return &opts
 }
 
-func (o *options) FetchBatchOpPoolSize() int {
+func (o *options) FetchBatchOpPoolSize() pool.Size {
 	return o.fetchBatchOpPoolSize
 }
 
@@ -919,13 +919,13 @@ func (o *options) IdentifierPool() ident.Pool {
 	return o.identifierPool
 }
 
-func (o *options) SetCheckedBytesWrapperPoolSize(value int) Options {
+func (o *options) SetCheckedBytesWrapperPoolSize(value pool.Size) Options {
 	opts := *o
 	opts.checkedBytesWrapperPoolSize = value
 	return &opts
 }
 
-func (o *options) CheckedBytesWrapperPoolSize() int {
+func (o *options) CheckedBytesWrapperPoolSize() pool.Size {
 	return o.checkedBytesWrapperPoolSize
 }
 
@@ -949,13 +949,13 @@ func (o *options) HostQueueOpsFlushInterval() time.Duration {
 	return o.hostQueueOpsFlushInterval
 }
 
-func (o *options) SetHostQueueOpsArrayPoolSize(value int) Options {
+func (o *options) SetHostQueueOpsArrayPoolSize(value pool.Size) Options {
 	opts := *o
 	opts.hostQueueOpsArrayPoolSize = value
 	return &opts
 }
 
-func (o *options) HostQueueOpsArrayPoolSize() int {
+func (o *options) HostQueueOpsArrayPoolSize() pool.Size {
 	return o.hostQueueOpsArrayPoolSize
 }
 
@@ -979,13 +979,13 @@ func (o *options) HostQueueEmitsHealthStatus() bool {
 	return o.hostQueueEmitsHealthStatus
 }
 
-func (o *options) SetSeriesIteratorPoolSize(value int) Options {
+func (o *options) SetSeriesIteratorPoolSize(value pool.Size) Options {
 	opts := *o
 	opts.seriesIteratorPoolSize = value
 	return &opts
 }
 
-func (o *options) SeriesIteratorPoolSize() int {
+func (o *options) SeriesIteratorPoolSize() pool.Size {
 	return o.seriesIteratorPoolSize
 }
 
