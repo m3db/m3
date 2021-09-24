@@ -537,10 +537,10 @@ func runServer(t *testing.T, opts runServerOpts) (string, closeFn) {
 			DownsamplerReadyCh: opts.downsamplerReadyCh,
 			M3MsgListenerCh:    opts.m3msgListenerCh,
 		})
+		doneCh <- struct{}{}
 		if opts.runResultCh != nil {
 			opts.runResultCh <- r
 		}
-		doneCh <- struct{}{}
 	}()
 
 	if opts.downsamplerReadyCh != nil {
