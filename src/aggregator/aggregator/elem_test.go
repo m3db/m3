@@ -287,6 +287,8 @@ func TestCounterElemAddValue(t *testing.T) {
 		require.Equal(t, 1, len(e.values))
 	}
 
+	// Now confirm consume for resolution window.
+	// No emitting on forwardRes yet because no previous val.
 	t2 := t1.Add(resolution)
 	require.False(t, e.Consume(t2.UnixNano(), isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 1, len(e.toConsume))
@@ -299,6 +301,7 @@ func TestCounterElemAddValue(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 
+	// Add second value.
 	v2 := 10.0
 	require.NoError(t, e.AddValue(t2, v2, nil))
 	require.Equal(t, 1, len(e.values))
@@ -319,6 +322,8 @@ func TestCounterElemAddValue(t *testing.T) {
 		require.Equal(t, 1, len(e.values))
 	}
 
+	// Now confirm consume for resolution window.
+	// Expect one emittance for curr + previous aggregated.
 	t3 := t2.Add(resolution)
 	require.False(t, e.Consume(t3.UnixNano(), isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 1, len(e.toConsume))
@@ -330,9 +335,10 @@ func TestCounterElemAddValue(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 1, len(*forwardRes))
-	require.Equal(t, t3.UnixNano(), (*forwardRes)[0].timeNanos) // (8-2)/10
-	require.Equal(t, (v2-v1)/resolution.Seconds(), (*forwardRes)[0].value)
+	require.Equal(t, t3.UnixNano(), (*forwardRes)[0].timeNanos)
+	require.Equal(t, (v2-v1)/resolution.Seconds(), (*forwardRes)[0].value) // (8-2)/10
 
+	// Add third value.
 	v3 := 15.0
 	require.NoError(t, e.AddValue(t3, v3, nil))
 	require.Equal(t, 1, len(e.values))
@@ -345,6 +351,7 @@ func TestCounterElemAddValue(t *testing.T) {
 	require.Equal(t, 1, len(e.consumedValues))
 	require.Equal(t, 1, len(e.values))
 
+	// Confirm next consumption leads to now 2 aggregated values.
 	t4 := t3.Add(resolution)
 	require.False(t, e.Consume(t4.UnixNano(), isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 1, len(e.toConsume))
@@ -356,11 +363,13 @@ func TestCounterElemAddValue(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 2, len(*forwardRes))
-	require.Equal(t, t3.UnixNano(), (*forwardRes)[0].timeNanos) // (8-2)/10
-	require.Equal(t, (v2-v1)/resolution.Seconds(), (*forwardRes)[0].value)
-	require.Equal(t, t4.UnixNano(), (*forwardRes)[1].timeNanos) // (15-8)/10
-	require.Equal(t, (v3-v2)/resolution.Seconds(), (*forwardRes)[1].value)
+	require.Equal(t, t3.UnixNano(), (*forwardRes)[0].timeNanos)
+	require.Equal(t, (v2-v1)/resolution.Seconds(), (*forwardRes)[0].value) // (8-2)/10
+	require.Equal(t, t4.UnixNano(), (*forwardRes)[1].timeNanos)
+	require.Equal(t, (v3-v2)/resolution.Seconds(), (*forwardRes)[1].value) // (15-8)/10
 
+	// Add value beyond bufferPast to ensure it does not get aggregated
+	// with the previous (expired) value.
 	t5 := t4.Add(bufferPast * 2)
 	v4 := 21.0
 	require.NoError(t, e.AddValue(t5, v4, nil))
@@ -374,6 +383,7 @@ func TestCounterElemAddValue(t *testing.T) {
 	require.Equal(t, 1, len(e.consumedValues))
 	require.Equal(t, 1, len(e.values))
 
+	// Consume and verify no additional aggregations yet.
 	t6 := t5.Add(resolution)
 	require.False(t, e.Consume(t6.UnixNano(), isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 1, len(e.toConsume))
@@ -384,15 +394,44 @@ func TestCounterElemAddValue(t *testing.T) {
 	_, ok = e.consumedValues[xtime.ToUnixNano(t6)]
 	require.True(t, ok)
 	require.Equal(t, 0, len(*localRes))
-	require.Equal(t, 3, len(*forwardRes))
+	require.Equal(t, 2, len(*forwardRes))
 	require.Equal(t, t3.UnixNano(), (*forwardRes)[0].timeNanos) // (8-2)/10
 	require.Equal(t, (v2-v1)/resolution.Seconds(), (*forwardRes)[0].value)
 	require.Equal(t, t4.UnixNano(), (*forwardRes)[1].timeNanos) // (15-8)/10
 	require.Equal(t, (v3-v2)/resolution.Seconds(), (*forwardRes)[1].value)
 
-	// WRONG - includes bad value
-	require.Equal(t, t6.UnixNano(), (*forwardRes)[2].timeNanos) // (21-15)/10
-	require.Equal(t, (v4-v3)/(bufferPast.Seconds()*2+resolution.Seconds()), (*forwardRes)[2].value)
+	// Add next value to now aggregate with new previous.
+	t7 := t6.Add(resolution)
+	v5 := 25.0
+	require.NoError(t, e.AddValue(t6, v5, nil))
+	require.Equal(t, 1, len(e.values))
+	require.Equal(t, t6.UnixNano(), e.values[0].startAtNanos)
+	require.Equal(t, int64(v5), e.values[0].lockedAgg.aggregation.Sum())
+	require.Equal(t, int64(1), e.values[0].lockedAgg.aggregation.Count())
+	require.Equal(t, int64(0), e.values[0].lockedAgg.aggregation.SumSq())
+	require.Equal(t, []byte(nil), e.values[0].lockedAgg.aggregation.Annotation())
+	require.Equal(t, 1, len(e.toConsume))
+	require.Equal(t, 1, len(e.consumedValues))
+	require.Equal(t, 1, len(e.values))
+
+	// Consume and verify no additional aggregations yet.
+	t8 := t6.Add(resolution)
+	require.False(t, e.Consume(t8.UnixNano(), isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.Equal(t, 1, len(e.toConsume))
+	require.Equal(t, 1, len(e.consumedValues))
+	require.Equal(t, 0, len(e.values))
+	require.Equal(t, int64(0), e.toConsume[0].startAtNanos)
+	require.Equal(t, true, e.toConsume[0].onConsumeExpired) // expired
+	_, ok = e.consumedValues[xtime.ToUnixNano(t8)]
+	require.True(t, ok)
+	require.Equal(t, 0, len(*localRes))
+	require.Equal(t, 3, len(*forwardRes))
+	require.Equal(t, t3.UnixNano(), (*forwardRes)[0].timeNanos) // (8-2)/10
+	require.Equal(t, (v2-v1)/resolution.Seconds(), (*forwardRes)[0].value)
+	require.Equal(t, t4.UnixNano(), (*forwardRes)[1].timeNanos) // (15-8)/10
+	require.Equal(t, (v3-v2)/resolution.Seconds(), (*forwardRes)[1].value)
+	require.Equal(t, t7.UnixNano(), (*forwardRes)[2].timeNanos) // (25-21)/10
+	require.Equal(t, (v5-v4)/(resolution.Seconds()), (*forwardRes)[2].value)
 }
 
 func TestCounterElemAddUnionWithCustomAggregation(t *testing.T) {
