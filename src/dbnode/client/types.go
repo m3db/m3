@@ -537,10 +537,10 @@ type Options interface {
 	TagEncoderOptions() serialize.TagEncoderOptions
 
 	// SetTagEncoderPoolSize sets the TagEncoderPoolSize.
-	SetTagEncoderPoolSize(value int) Options
+	SetTagEncoderPoolSize(value pool.Size) Options
 
 	// TagEncoderPoolSize returns the TagEncoderPoolSize.
-	TagEncoderPoolSize() int
+	TagEncoderPoolSize() pool.Size
 
 	// SetTagDecoderOptions sets the TagDecoderOptions.
 	SetTagDecoderOptions(value serialize.TagDecoderOptions) Options
@@ -549,10 +549,10 @@ type Options interface {
 	TagDecoderOptions() serialize.TagDecoderOptions
 
 	// SetTagDecoderPoolSize sets the TagDecoderPoolSize.
-	SetTagDecoderPoolSize(value int) Options
+	SetTagDecoderPoolSize(value pool.Size) Options
 
 	// TagDecoderPoolSize returns the TagDecoderPoolSize.
-	TagDecoderPoolSize() int
+	TagDecoderPoolSize() pool.Size
 
 	// SetWriteBatchSize sets the writeBatchSize
 	// NB(r): for a write only application load this should match the host
@@ -573,28 +573,28 @@ type Options interface {
 	FetchBatchSize() int
 
 	// SetWriteOpPoolSize sets the writeOperationPoolSize.
-	SetWriteOpPoolSize(value int) Options
+	SetWriteOpPoolSize(value pool.Size) Options
 
 	// WriteOpPoolSize returns the writeOperationPoolSize.
-	WriteOpPoolSize() int
+	WriteOpPoolSize() pool.Size
 
 	// SetWriteTaggedOpPoolSize sets the writeTaggedOperationPoolSize.
-	SetWriteTaggedOpPoolSize(value int) Options
+	SetWriteTaggedOpPoolSize(value pool.Size) Options
 
 	// WriteTaggedOpPoolSize returns the writeTaggedOperationPoolSize.
-	WriteTaggedOpPoolSize() int
+	WriteTaggedOpPoolSize() pool.Size
 
 	// SetFetchBatchOpPoolSize sets the fetchBatchOpPoolSize.
-	SetFetchBatchOpPoolSize(value int) Options
+	SetFetchBatchOpPoolSize(value pool.Size) Options
 
 	// FetchBatchOpPoolSize returns the fetchBatchOpPoolSize.
-	FetchBatchOpPoolSize() int
+	FetchBatchOpPoolSize() pool.Size
 
 	// SetCheckedBytesWrapperPoolSize sets the checkedBytesWrapperPoolSize.
-	SetCheckedBytesWrapperPoolSize(value int) Options
+	SetCheckedBytesWrapperPoolSize(value pool.Size) Options
 
 	// CheckedBytesWrapperPoolSize returns the checkedBytesWrapperPoolSize.
-	CheckedBytesWrapperPoolSize() int
+	CheckedBytesWrapperPoolSize() pool.Size
 
 	// SetHostQueueOpsFlushSize sets the hostQueueOpsFlushSize.
 	SetHostQueueOpsFlushSize(value int) Options
@@ -627,10 +627,10 @@ type Options interface {
 	IdentifierPool() ident.Pool
 
 	// HostQueueOpsArrayPoolSize sets the hostQueueOpsArrayPoolSize.
-	SetHostQueueOpsArrayPoolSize(value int) Options
+	SetHostQueueOpsArrayPoolSize(value pool.Size) Options
 
 	// HostQueueOpsArrayPoolSize returns the hostQueueOpsArrayPoolSize.
-	HostQueueOpsArrayPoolSize() int
+	HostQueueOpsArrayPoolSize() pool.Size
 
 	// SetHostQueueNewPooledWorkerFn sets the host queue new pooled worker function.
 	SetHostQueueNewPooledWorkerFn(value xsync.NewPooledWorkerFn) Options
@@ -645,10 +645,10 @@ type Options interface {
 	HostQueueEmitsHealthStatus() bool
 
 	// SetSeriesIteratorPoolSize sets the seriesIteratorPoolSize.
-	SetSeriesIteratorPoolSize(value int) Options
+	SetSeriesIteratorPoolSize(value pool.Size) Options
 
 	// SeriesIteratorPoolSize returns the seriesIteratorPoolSize.
-	SeriesIteratorPoolSize() int
+	SeriesIteratorPoolSize() pool.Size
 
 	// SetSeriesIteratorArrayPoolBuckets sets the seriesIteratorArrayPoolBuckets.
 	SetSeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options

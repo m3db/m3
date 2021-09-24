@@ -141,6 +141,12 @@ type Options interface {
 
 	// RequireNamespaceWatchOnInit returns the flag to ensure matcher is initialized with a loaded namespace watch.
 	RequireNamespaceWatchOnInit() bool
+
+	// InterruptCh returns the interrupt channel.
+	InterruptCh() <-chan error
+
+	// SetInterruptCh sets the interrupt channel.
+	SetInterruptCh(value <-chan error) Options
 }
 
 type options struct {
@@ -158,6 +164,7 @@ type options struct {
 	onNamespaceRemovedFn        OnNamespaceRemovedFn
 	onRuleSetUpdatedFn          OnRuleSetUpdatedFn
 	requireNamespaceWatchOnInit bool
+	interruptCh                 <-chan error
 }
 
 // NewOptions creates a new set of options.
@@ -316,6 +323,15 @@ func (o *options) SetRequireNamespaceWatchOnInit(value bool) Options {
 // RequireNamespaceWatchOnInit returns the flag to ensure matcher is initialized with a loaded namespace watch.
 func (o *options) RequireNamespaceWatchOnInit() bool {
 	return o.requireNamespaceWatchOnInit
+}
+
+func (o *options) SetInterruptCh(ch <-chan error) Options {
+	o.interruptCh = ch
+	return o
+}
+
+func (o *options) InterruptCh() <-chan error {
+	return o.interruptCh
 }
 
 func defaultRuleSetKeyFn(namespace []byte) string {

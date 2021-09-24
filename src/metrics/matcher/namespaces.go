@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/watch"
 
 	"github.com/uber-go/tally"
@@ -142,15 +143,19 @@ func NewNamespaces(key string, opts Options) Namespaces {
 		SetInitWatchTimeout(opts.InitWatchTimeout()).
 		SetKVStore(n.store).
 		SetUnmarshalFn(n.toNamespaces).
-		SetProcessFn(n.process)
+		SetProcessFn(n.process).
+		SetInterruptCh(opts.InterruptCh())
 	n.Value = runtime.NewValue(key, valueOpts)
 	return n
 }
 
 func (n *namespaces) Open() error {
 	err := n.Watch()
+	var interruptErr *xos.InterruptError
 	if err == nil {
 		return nil
+	} else if errors.As(err, &interruptErr) {
+		return err
 	}
 
 	errCreateWatch, ok := err.(watch.CreateWatchError)

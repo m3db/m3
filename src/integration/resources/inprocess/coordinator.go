@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/server"
 	xconfig "github.com/m3db/m3/src/x/config"
+	xos "github.com/m3db/m3/src/x/os"
 )
 
 const (
@@ -257,7 +258,7 @@ func (c *coordinator) Close() error {
 
 	// TODO: confirm this works correctly when using an embedded coordinator
 	select {
-	case c.interruptCh <- errors.New("in-process coordinator being shut down"):
+	case c.interruptCh <- xos.NewInterruptError("in-process coordinator being shut down"):
 	case <-time.After(interruptTimeout):
 		return errors.New("timeout sending interrupt. closing without graceful shutdown")
 	}

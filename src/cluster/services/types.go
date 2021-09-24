@@ -287,6 +287,12 @@ type QueryOptions interface {
 
 	// SetIncludeUnhealthy sets the value of IncludeUnhealthy.
 	SetIncludeUnhealthy(h bool) QueryOptions
+
+	// InterruptCh returns the interrupt channel.
+	InterruptCh() <-chan error
+
+	// SetInterruptCh sets the interrupt channel.
+	SetInterruptCh(value <-chan error) QueryOptions
 }
 
 // Metadata contains the metadata for a service.

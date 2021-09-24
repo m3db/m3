@@ -50,7 +50,7 @@ func TestConvertBetweenProtoAndService(t *testing.T) {
 		SetZone("test_zone")
 	p := &placementpb.Placement{
 		Instances: map[string]*placementpb.Instance{
-			"i1": &placementpb.Instance{
+			"i1": {
 				Id:             "i1",
 				IsolationGroup: "r1",
 				Zone:           "z1",
@@ -58,7 +58,7 @@ func TestConvertBetweenProtoAndService(t *testing.T) {
 				Weight:         1,
 				Shards:         protoShards,
 			},
-			"i2": &placementpb.Instance{
+			"i2": {
 				Id:             "i2",
 				IsolationGroup: "r2",
 				Zone:           "z1",
@@ -899,6 +899,36 @@ func TestWatch_GetAfterTimeout(t *testing.T) {
 			break
 		}
 	}
+}
+
+func TestWatchInterrupted(t *testing.T) {
+	opts, _ := testSetup()
+	sd, err := NewServices(opts.SetInitTimeout(0))
+	require.NoError(t, err)
+
+	testWatchInterrupted(t, sd)
+}
+
+func TestWatchInterruptedWithTimeout(t *testing.T) {
+	opts, _ := testSetup()
+	sd, err := NewServices(opts.SetInitTimeout(1 * time.Minute))
+	require.NoError(t, err)
+
+	testWatchInterrupted(t, sd)
+}
+
+func testWatchInterrupted(t *testing.T, s Services) {
+	sid := NewServiceID().SetName("m3db").SetZone("zone1")
+
+	interruptCh := make(chan error, 1)
+	interruptCh <- errors.New("interrupt")
+
+	qopts := NewQueryOptions().
+		SetIncludeUnhealthy(true).
+		SetInterruptCh(interruptCh)
+	_, err := s.Watch(sid, qopts)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "interrupt")
 }
 
 func TestHeartbeatService(t *testing.T) {
