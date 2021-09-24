@@ -5,7 +5,7 @@ weight: 1
 
 This document is a getting started guide to integrating M3DB with Prometheus.
 
-## M3 Coordinator
+## M3 Coordinator configuration
 
 To write to a remote M3DB cluster the simplest configuration is to run `m3coordinator` as a sidecar alongside Prometheus.
 
