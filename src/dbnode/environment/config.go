@@ -194,7 +194,7 @@ func (c ConfigureResults) SyncCluster() (ConfigureResult, error) {
 
 // ConfigurationParameters are options used to create new ConfigureResults
 type ConfigurationParameters struct {
-	InterruptCh            <-chan error
+	InterruptedCh          <-chan struct{}
 	InstrumentOpts         instrument.Options
 	HashingSeed            uint32
 	HostID                 string
@@ -316,7 +316,7 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 			SetServiceID(serviceID).
 			SetQueryOptions(services.NewQueryOptions().
 				SetIncludeUnhealthy(true).
-				SetInterruptCh(cfgParams.InterruptCh)).
+				SetInterruptedCh(cfgParams.InterruptedCh)).
 			SetInstrumentOptions(cfgParams.InstrumentOpts).
 			SetHashGen(sharding.NewHashGenWithSeed(cfgParams.HashingSeed))
 		topoInit := topology.NewDynamicInitializer(topoOpts)
