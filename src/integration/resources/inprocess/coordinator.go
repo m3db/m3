@@ -44,13 +44,9 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/server"
 	xconfig "github.com/m3db/m3/src/x/config"
-	xos "github.com/m3db/m3/src/x/os"
 )
 
 const (
-	interruptTimeout = 5 * time.Second
-	shutdownTimeout  = time.Minute
-
 	retryMaxInterval = 5 * time.Second
 	retryMaxTime     = time.Minute
 )
@@ -268,17 +264,11 @@ func (c *coordinator) Close() error {
 		}
 	}()
 
-	select {
-	case c.interruptCh <- xos.NewInterruptError("in-process coordinator being shut down"):
-	case <-time.After(interruptTimeout):
-		return errors.New("timeout sending interrupt. closing without graceful shutdown")
-	}
-
-	select {
-	case <-c.shutdownCh:
-	case <-time.After(shutdownTimeout):
-		return errors.New("timeout waiting for shutdown notification. coordinator closing may" +
-			" not be completely graceful")
+	if err := server.Close(server.CloseOptions{
+		InterruptCh: c.interruptCh,
+		ShutdownCh:  c.shutdownCh,
+	}); err != nil {
+		return err
 	}
 
 	return nil

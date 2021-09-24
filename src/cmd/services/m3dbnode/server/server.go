@@ -22,6 +22,11 @@
 package server
 
 import (
+	"errors"
+	"time"
+
+	xos "github.com/m3db/m3/src/x/os"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -88,4 +93,85 @@ func RunComponents(opts Options) {
 	} else if cfg.Coordinator != nil {
 		<-coordinatorDoneCh
 	}
+}
+
+const (
+	interruptTimeout = 5 * time.Second
+	shutdownTimeout  = time.Minute
+)
+
+// CloseOptions are options for closing the started components.
+type CloseOptions struct {
+	// Configuration is the top level configuration that includes both a DB
+	// node and a coordinator.
+	Configuration config.Configuration
+
+	// InterruptCh is a programmatic interrupt channel to supply to
+	// interrupt and shutdown the server.
+	InterruptCh chan<- error
+
+	// ShutdownCh is an optional channel to supply if interested in receiving
+	// a notification that the server has shutdown.
+	ShutdownCh <-chan struct{}
+}
+
+// Close programmatically closes components that were started via RunComponents.
+func Close(opts CloseOptions) error {
+	var (
+		cfg         = opts.Configuration
+		interruptCh = opts.InterruptCh
+		shutdownCh  = opts.ShutdownCh
+	)
+
+	if err := interrupt(cfg, interruptCh); err != nil {
+		return err
+	}
+
+	if err := waitForShutdown(cfg, shutdownCh); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func interrupt(cfg config.Configuration, interruptCh chan<- error) error {
+	if cfg.Coordinator != nil {
+		select {
+		case interruptCh <- xos.NewInterruptError("interrupt received. shutting down"):
+		case <-time.After(interruptTimeout):
+			return errors.New("timeout sending interrupt. server may not close")
+		}
+	}
+
+	if cfg.DB != nil {
+		select {
+		case interruptCh <- xos.NewInterruptError("interrupt received. shutting down"):
+		case <-time.After(interruptTimeout):
+			return errors.New("timeout sending interrupt. server may not close")
+		}
+	}
+
+	return nil
+}
+
+func waitForShutdown(cfg config.Configuration, shutdownCh <-chan struct{}) error {
+	if cfg.Coordinator != nil {
+		select {
+		case <-shutdownCh:
+		case <-time.After(shutdownTimeout):
+			return errors.New("timeout waiting for shutdown notification. closing may" +
+				" not be completely graceful")
+		}
+	}
+
+	if cfg.DB != nil {
+		select {
+		case <-shutdownCh:
+		case <-time.After(shutdownTimeout):
+			return errors.New("timeout waiting for shutdown notification. closing may" +
+				" not be completely graceful")
+		}
+	}
+
+	return nil
 }

@@ -755,6 +755,45 @@ func Run(runOpts RunOptions) RunResult {
 	return runResult
 }
 
+const (
+	interruptTimeout = 5 * time.Second
+	shutdownTimeout  = time.Minute
+)
+
+// CloseOptions are options for closing the coordinator
+type CloseOptions struct {
+	// InterruptCh is a programmatic interrupt channel to supply to
+	// interrupt and shutdown the server.
+	InterruptCh chan<- error
+
+	// ShutdownCh is an optional channel to supply if interested in receiving
+	// a notification that the server has shutdown.
+	ShutdownCh <-chan struct{}
+}
+
+// Close programmatically closes the coordinator.
+func Close(opts CloseOptions) error {
+	var (
+		interruptCh = opts.InterruptCh
+		shutdownCh  = opts.ShutdownCh
+	)
+
+	select {
+	case interruptCh <- xos.NewInterruptError("interrupt received. shutting down"):
+	case <-time.After(interruptTimeout):
+		return errors.New("timeout sending interrupt. server may not close")
+	}
+
+	select {
+	case <-shutdownCh:
+	case <-time.After(shutdownTimeout):
+		return errors.New("timeout waiting for shutdown notification. coordinator closing may" +
+			" not be completely graceful")
+	}
+
+	return nil
+}
+
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage
 func newM3DBStorage(cfg config.Configuration, clusters m3.Clusters, poolWrapper *pools.PoolWrapper,
 	queryContextOptions models.QueryContextOptions, tsdbOpts m3.Options,

@@ -22,7 +22,6 @@ package inprocess
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -40,7 +39,6 @@ import (
 	nettest "github.com/m3db/m3/src/integration/resources/net"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	xconfig "github.com/m3db/m3/src/x/config"
-	xos "github.com/m3db/m3/src/x/os"
 )
 
 // TODO(nate): make configurable
@@ -273,22 +271,14 @@ func (d *dbNode) Close() error {
 		}
 	}()
 
-	for i := 0; i < d.cfg.Components(); i++ {
-		select {
-		case d.interruptCh <- xos.NewInterruptError("in-process node being shut down"):
-		case <-time.After(interruptTimeout):
-			return errors.New("timeout sending interrupt. closing without graceful shutdown")
-		}
+	if err := server.Close(server.CloseOptions{
+		Configuration: d.cfg,
+		InterruptCh:   d.interruptCh,
+		ShutdownCh:    d.shutdownCh,
+	}); err != nil {
+		return err
 	}
 
-	for i := 0; i < d.cfg.Components(); i++ {
-		select {
-		case <-d.shutdownCh:
-		case <-time.After(shutdownTimeout):
-			return errors.New("timeout waiting for shutdown notification. server closing may" +
-				" not be completely graceful")
-		}
-	}
 	d.started = false
 
 	return nil
