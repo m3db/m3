@@ -165,3 +165,6 @@ prometheusRemoteBackend:
           all: true
 
 ```
+
+Now you could setup multiple datasources in your Grafana. 
+For a more realtime data you could unaggregated Prometheus as datasource and for historical data - aggregated one.
