@@ -102,6 +102,7 @@ import (
 	"github.com/uber/tchannel-go"
 	"go.etcd.io/etcd/embed"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -292,7 +293,10 @@ func Run(runOpts RunOptions) {
 		if serviceName == "" {
 			serviceName = defaultServiceName
 		}
-		tracer, traceCloser, err = cfg.Tracing.NewTracer(serviceName, scope.SubScope("jaeger"), logger)
+		tracer, traceCloser, err = cfg.Tracing.NewTracer(serviceName,
+			scope.SubScope("jaeger"),
+			// Sample logs from tracing SDK since they can be noisy.
+			zap.New(zapcore.NewSamplerWithOptions(logger.Core(), time.Second*30, 1, 0)))
 		if err != nil {
 			tracer = opentracing.NoopTracer{}
 			logger.Warn("could not initialize tracing; using no-op tracer instead",
