@@ -1,0 +1,16 @@
+backend: prom-remote
+
+prometheusRemoteBackend:
+  # Setup as many endpoints as you need.
+  # You can start with a single endpoint without any storage policy. It will receive all metrics.
+  # If you setup local or remote downsampling add endpoints with appropriate storage policies.
+  endpoints:
+    - name: raw
+      address: "http://prometheus-raw:9090/api/v1/write"
+    - name: aggregated
+      address: "http://prometheus-agg:9090/api/v1/write"
+      storagePolicy:
+        retention: 1440h
+        resolution: 1m
+        downsample:
+          all: true

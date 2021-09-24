@@ -311,9 +311,30 @@ rpc:
 
 
 # Configures methods to contact remote coordinators to distribute M3 clusters across data centers
-# Backend store for query service, valid options: [grpc, m3db, noop-etcd].
+# Backend store for query service, valid options: [grpc, m3db, noop-etcd, prom-remote].
 # Default = m3db
 backend: <string>
+
+# Configures Prometheus Remote backend when prom-remote backend is used.
+prometheusRemoteBackend:
+  # Array of Prometheus remote write compatible endpoints.
+  # If storage policy is specified for endpoint only aggregated data matching policy will be sent to it.
+  # Endpoints which do not specify storagePolicy will receive unaggregated writes.
+  endpoints:
+      # Unique endpoint name
+    - name: <string>
+      # HTTP url of and endpoint that accepts Prometheus remote writes.
+      address: <url>
+      # Optional configuration to configure
+      storagePolicy:
+        # How long to store metrics data. This is only used to filter endpoints.
+        retention: <duration>
+        # Metrics sampling resolution. This is only used to filter endpoints.
+        resolution: <duration>
+        # Configuration for downsampling options on an aggregated endpoint
+        # If not specified will default to all=true
+        downsample:
+          all: <bool>
 
 # The worker pool policy for read requests
 readWorkerPoolPolicy:

@@ -5,7 +5,7 @@ weight: 1
 
 This document is a getting started guide to integrating M3DB with Prometheus.
 
-## M3 Coordinator configuration
+## M3 Coordinator
 
 To write to a remote M3DB cluster the simplest configuration is to run `m3coordinator` as a sidecar alongside Prometheus.
 
@@ -123,3 +123,45 @@ Also, we recommend adding `M3DB` and `M3Coordinator`/`M3Query` to your list of j
 When using the Prometheus integration with Grafana, there are two different ways you can query for your metrics. The first option is to configure Grafana to query Prometheus directly by following [these instructions.](http://docs.grafana.org/features/datasources/prometheus/)
 
 Alternatively, you can configure Grafana to read metrics directly from `M3Coordinator` in which case you will bypass Prometheus entirely and use M3's `PromQL` engine instead. To set this up, follow the same instructions from the previous step, but set the `url` to: `http://<M3_COORDINATOR_HOST_NAME>:7201`.
+
+## Using any Prometheus Remote Write capable storage
+
+M3Coordinator supports any backend that implements Prometheus Remote Write API.
+
+Start by downloading the [config template](https://github.com/m3db/m3/blob/master/src/query/config/m3coordinator-prom-remote-template.yml).
+
+Update endpoints with your Prometheus Remote Write compatible storage setup.
+
+### Example - running multiple Prometheus receivers
+
+In this example we will be using Prometheus itself as a metrics storage.
+We will setup 2 Prometheus instances:
+- for unaggregated metrics with short 720h retention. This will allow us to have better query accuracy for recent data.
+- for aggregated metrics with longer 1440h retention and resolution. This will allow us to have longer history at the cost of query accuracy.
+
+M3Coordinator will output metrics to these 2 instances using Prometheus Remote Writes API.
+
+Prometheus must be started with `--enable-feature=remote-write-receiver` to be able to accept writes using Prometheus Remote Write API.
+
+Instruct M3Coordinator to use different backend type - `prom-remote`
+```yaml
+backend: prom-remote
+
+prometheusRemoteBackend:
+  endpoints:
+    # This points to a Prometheus started with `--storage.tsdb.retention.time=720h`
+    - name: unaggregated
+      address: "http://prometheus-raw:9090/api/v1/write"
+    # This points to a Prometheus started with `--storage.tsdb.retention.time=1440h`      
+    - name: aggregated
+      address: "http://prometheus-agg:9090/api/v1/write"
+      storagePolicy:
+        # Should match retention of a Prometheus instance. Coordinator uses it for routing metrics correctly.
+        retention: 1440h
+        # Resolution instructs M3Aggregator to downsample incoming metrics at given rate.
+        # By tuning resolution we can control how much storage Prometheus needs at the cost of query accuracy as range shrinks.
+        resolution: 5m
+        downsample:
+          all: true
+
+```
