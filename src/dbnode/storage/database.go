@@ -608,10 +608,7 @@ func (d *db) enqueueBootstrap(onCompleteFn func()) {
 	// call to Bootstrap(). After that initial bootstrap, the clustered database will keep
 	// the non-clustered database bootstrapped by assigning it shardsets which will trigger new
 	// bootstraps since d.bootstraps > 0 will be true.
-	d.RLock()
-	shouldBootstrap := d.bootstraps > 0
-	d.RUnlock()
-	if shouldBootstrap {
+	if d.bootstrapCount() > 0 {
 		d.log.Info("enqueuing bootstrap")
 		bootstrapAsyncResult := d.mediator.BootstrapEnqueue()
 		go func() {
