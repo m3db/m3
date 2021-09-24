@@ -311,30 +311,23 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	}
 
 	if len(adds) > 0 {
-		// if db was not yet bootstrapped, it is safe to add namespaces immediately
-		if d.bootstrapCount() == 0 {
-			return d.addNamespaces(adds)
+		// NB: need to disable fileOps and wait for all the background processes to complete
+		// so that we could update namespaces safely. Otherwise, there is a high chance in getting
+		// invariant violation panic because cold/warm flush will receive new namespaces
+		// in the middle of their operations.
+		d.disableFileOpsAndWait()
+		d.Lock()
+		// add any namespaces marked for addition
+		if err := d.addNamespacesWithLock(adds); err != nil {
+			enrichedErr := fmt.Errorf("unable to add namespaces: %w", err)
+			d.log.Error(enrichedErr.Error())
+			d.Unlock()
+			d.enableFileOps()
+			return err
 		}
-
-		// if mediator is not opened, it is safe to add namespaces immediately
-		if mediator := d.mediator; mediator == nil || !mediator.IsOpen() {
-			return d.addNamespaces(adds)
-		}
-
-		if err := d.mediator.EnqueueMutuallyExclusiveFn(func() {
-			if err := d.addNamespaces(adds); err != nil {
-				instrument.EmitAndLogInvariantViolation(d.opts.InstrumentOptions(),
-					func(l *zap.Logger) {
-						l.Error("failed to add namespaces", zap.Error(err))
-					})
-			}
-		}); err != nil {
-			// should not happen.
-			instrument.EmitAndLogInvariantViolation(d.opts.InstrumentOptions(),
-				func(l *zap.Logger) {
-					l.Error("failed to enqueue addNamespaces fn", zap.Error(err))
-				})
-		}
+		d.Unlock()
+		// enqueue bootstrap and enable file ops when bootstrap is completed
+		d.enqueueBootstrap(d.enableFileOps)
 	}
 	return nil
 }
@@ -351,12 +344,6 @@ func (d *db) enableFileOps() {
 		d.log.Info("enabling file ops")
 		mediator.EnableFileOps()
 	}
-}
-
-func (d *db) bootstrapCount() int {
-	d.RLock()
-	defer d.RUnlock()
-	return d.bootstraps
 }
 
 func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []namespace.Metadata, []namespace.Metadata) {
@@ -429,27 +416,6 @@ func (d *db) logNamespaceUpdate(removes []ident.ID, adds, updates []namespace.Me
 	return nil
 }
 
-func (d *db) addNamespaces(namespaces []namespace.Metadata) error {
-	// NB: need to disable fileOps and wait for all the background processes to complete
-	// so that we could update namespaces safely. Otherwise, there is a high chance in getting
-	// invariant violation panic because cold/warm flush will receive new namespaces
-	// in the middle of their operations.
-	d.disableFileOpsAndWait()
-	d.Lock()
-	// add any namespaces marked for addition
-	if err := d.addNamespacesWithLock(namespaces); err != nil {
-		enrichedErr := fmt.Errorf("unable to add namespaces: %w", err)
-		d.log.Error(enrichedErr.Error())
-		d.Unlock()
-		d.enableFileOps()
-		return err
-	}
-	d.Unlock()
-	// enqueue bootstrap and enable file ops when bootstrap is completed
-	d.enqueueBootstrap(d.enableFileOps)
-	return nil
-}
-
 func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
 	createdNamespaces := make([]databaseNamespace, 0, len(namespaces))
 
@@ -516,14 +482,7 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	}
 	d.Unlock()
 
-	// if db was not yet bootstrapped, it is safe to assign shards immediately
-	if d.bootstrapCount() == 0 {
-		d.assignShardSet(shardSet)
-		return
-	}
-
-	// if mediator is not opened, it is safe to to assign shards immediately
-	if mediator := d.mediator; mediator == nil || !mediator.IsOpen() {
+	if !d.mediator.IsOpen() {
 		d.assignShardSet(shardSet)
 		return
 	}
@@ -608,7 +567,10 @@ func (d *db) enqueueBootstrap(onCompleteFn func()) {
 	// call to Bootstrap(). After that initial bootstrap, the clustered database will keep
 	// the non-clustered database bootstrapped by assigning it shardsets which will trigger new
 	// bootstraps since d.bootstraps > 0 will be true.
-	if d.bootstrapCount() > 0 {
+	d.RLock()
+	shouldBootstrap := d.bootstraps > 0
+	d.RUnlock()
+	if shouldBootstrap {
 		d.log.Info("enqueuing bootstrap")
 		bootstrapAsyncResult := d.mediator.BootstrapEnqueue()
 		go func() {
