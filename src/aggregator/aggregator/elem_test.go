@@ -252,6 +252,7 @@ func TestCounterElemAddUnion(t *testing.T) {
 func TestCounterElemAddValue(t *testing.T) {
 	e, err := NewCounterElem(testCounterElemData, newTestOptions())
 	require.NoError(t, err)
+	e.resendEnabled = true
 
 	isEarlierThanFn := isStandardMetricEarlierThan
 	timestampNanosFn := standardMetricTimestampNanos

@@ -266,7 +266,9 @@ func (e *GaugeElem) Consume(
 			// this, though, means that if a next dp comes much later (past buffer past) then there
 			// will be a previous dp that should not actually be included in aggregations since it is
 			// expired.
-			e.consumedValues.removeOlderThan(xtime.UnixNano(bufferPastMinNanos))
+			if e.resendEnabled {
+				e.consumedValues.removeOlderThan(xtime.UnixNano(bufferPastMinNanos))
+			}
 
 			// scan back to find the preceding datapoint to timeNanos
 			prevTimeNanos = e.consumedValues.previousTimestamp(timeNanos)
