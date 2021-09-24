@@ -317,17 +317,16 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 		// in the middle of their operations.
 		d.disableFileOpsAndWait()
 		d.Lock()
+		defer d.Unlock()
 		// add any namespaces marked for addition
 		if err := d.addNamespacesWithLock(adds); err != nil {
 			enrichedErr := fmt.Errorf("unable to add namespaces: %w", err)
 			d.log.Error(enrichedErr.Error())
-			d.Unlock()
 			d.enableFileOps()
 			return err
 		}
-		d.Unlock()
 		// enqueue bootstrap and enable file ops when bootstrap is completed
-		d.enqueueBootstrap(d.enableFileOps)
+		d.enqueueBootstrapWithLock(d.enableFileOps)
 	}
 	return nil
 }
@@ -510,9 +509,8 @@ func (d *db) assignShardSet(shardSet sharding.ShardSet) {
 
 		d.Lock()
 		d.assignShardsWithLock(shardSet)
+		d.enqueueBootstrapWithLock(d.enableFileOps)
 		d.Unlock()
-
-		d.enqueueBootstrap(d.enableFileOps)
 		return
 	}
 
@@ -559,7 +557,7 @@ func (d *db) ShardSet() sharding.ShardSet {
 	return shardSet
 }
 
-func (d *db) enqueueBootstrap(onCompleteFn func()) {
+func (d *db) enqueueBootstrapWithLock(onCompleteFn func()) {
 	// Only perform a bootstrap if at least one bootstrap has already occurred. This enables
 	// the ability to open the clustered database and assign shardsets to the non-clustered
 	// database when it receives an initial topology (as well as topology changes) without
@@ -567,10 +565,7 @@ func (d *db) enqueueBootstrap(onCompleteFn func()) {
 	// call to Bootstrap(). After that initial bootstrap, the clustered database will keep
 	// the non-clustered database bootstrapped by assigning it shardsets which will trigger new
 	// bootstraps since d.bootstraps > 0 will be true.
-	d.RLock()
-	shouldBootstrap := d.bootstraps > 0
-	d.RUnlock()
-	if shouldBootstrap {
+	if d.bootstraps > 0 {
 		d.log.Info("enqueuing bootstrap")
 		bootstrapAsyncResult := d.mediator.BootstrapEnqueue()
 		go func() {
