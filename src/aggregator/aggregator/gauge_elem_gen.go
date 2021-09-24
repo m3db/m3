@@ -256,15 +256,19 @@ func (e *GaugeElem) Consume(
 		cascadeDirty  bool
 		prevTimeNanos xtime.UnixNano
 	)
-	// Process the aggregations that are ready for consumption.
-	if len(e.toConsume) > 0 {
-		e.consumedValues.removeOlderThan(xtime.UnixNano(bufferPastMinNanos))
-	}
 	for i := range e.toConsume {
 		expired := e.toConsume[i].onConsumeExpired
 		timeNanos := xtime.UnixNano(timestampNanosFn(e.toConsume[i].startAtNanos, resolution))
 		// seed the previous timestamp if this is first consumed value.
 		if prevTimeNanos == 0 {
+			// when a datapoint is considered expired, the datapoint previous to it is cleared
+			// while the current is left so that the next datapoint has a previous dp to reference.
+			// this, though, means that if a next dp comes much later (past buffer past) then there
+			// will be a previous dp that should not actually be included in aggregations since it is
+			// expired.
+			e.consumedValues.removeOlderThan(xtime.UnixNano(bufferPastMinNanos))
+
+			// scan back to find the preceding datapoint to timeNanos
 			prevTimeNanos = e.consumedValues.previousTimestamp(timeNanos)
 		}
 
