@@ -439,11 +439,6 @@ func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
 	// Set a mock mediator to be certain that bootstrap is not called when
 	// no new shards are assigned.
 	mediator := NewMockdatabaseMediator(ctrl)
-	mediator.EXPECT().IsOpen().Return(true)
-	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).DoAndReturn(func(fn func()) error {
-		fn()
-		return nil
-	})
 	d.mediator = mediator
 
 	var ns []*MockdatabaseNamespace
@@ -513,6 +508,69 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	wg.Wait()
 }
 
+func TestDatabaseCompetingBootstraps(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+
+	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().IsOpen().Return(true).AnyTimes()
+	mediator.EXPECT().DisableFileOpsAndWait().AnyTimes()
+	mediator.EXPECT().EnableFileOps().AnyTimes()
+	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).DoAndReturn(func(fn func()) error {
+		fn()
+		return nil
+	}).Times(2)
+	mediator.EXPECT().Bootstrap().DoAndReturn(func() (BootstrapResult, error) {
+		return BootstrapResult{}, nil
+	})
+	d.mediator = mediator
+
+	assert.NoError(t, d.Bootstrap())
+
+	shards := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+		sharding.NewShards([]uint32{2}, shard.Initializing)...)
+	shardSet, err := sharding.NewShardSet(shards, nil)
+	require.NoError(t, err)
+	shards2 := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+		sharding.NewShards([]uint32{3}, shard.Initializing)...)
+	shardSet2, err2 := sharding.NewShardSet(shards2, nil)
+	require.NoError(t, err2)
+
+	ns.EXPECT().AssignShardSet(shardSet)
+	ns.EXPECT().AssignShardSet(shardSet2)
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+	mediator.EXPECT().BootstrapEnqueue().DoAndReturn(func() *BootstrapAsyncResult {
+		asyncResult := newBootstrapAsyncResult()
+		asyncResult.bootstrapStarted = &wg
+		wg.Done()
+		return asyncResult
+	})
+	d.AssignShardSet(shardSet)
+	mediator.EXPECT().BootstrapEnqueue().DoAndReturn(func() *BootstrapAsyncResult {
+		asyncResult := newBootstrapAsyncResult()
+		asyncResult.bootstrapStarted = &wg
+		asyncResult.bootstrapResult.AlreadyBootstrapping = true
+		wg.Done()
+		return asyncResult
+	})
+	go func() {
+		d.AssignShardSet(shardSet2)
+		wg.Done()
+	}()
+
+	wg.Wait()
+	require.Equal(t, 1, d.bootstraps)
+}
+
 func TestDatabaseAssignShardSetShouldPanic(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
@@ -523,8 +581,6 @@ func TestDatabaseAssignShardSetShouldPanic(t *testing.T) {
 	}()
 
 	mediator := NewMockdatabaseMediator(ctrl)
-	mediator.EXPECT().IsOpen().Return(true)
-	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).Return(errors.New("unknown error"))
 	d.mediator = mediator
 
 	shards := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
@@ -638,6 +694,73 @@ func TestDatabaseAddNamespace(t *testing.T) {
 	ns2, ok := d.Namespace(defaultTestNs2ID)
 	require.True(t, ok)
 	require.Equal(t, md2.Options(), ns2.Options())
+	ns3, ok := d.Namespace(ident.StringID("and1"))
+	require.True(t, ok)
+	require.Equal(t, md1.Options(), ns3.Options())
+}
+
+type testNamespaceHooks struct {
+	adds int
+}
+
+func (th *testNamespaceHooks) OnCreatedNamespace(Namespace, GetNamespaceFn) error {
+	th.adds++
+	return nil
+}
+
+func TestDatabaseAddNamespaceEnqueue(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	require.NoError(t, d.Open())
+	defer func() {
+		close(mapCh)
+		require.NoError(t, d.Close())
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	// retrieve the update channel to track propatation
+	updateCh := d.opts.NamespaceInitializer().(*mockNsInitializer).updateCh
+
+	nsHooks := &testNamespaceHooks{}
+	d.opts = d.opts.SetNamespaceHooks(nsHooks)
+
+	require.NoError(t, d.Bootstrap())
+
+	// check initial namespaces
+	nses := d.Namespaces()
+	require.Len(t, nses, 2)
+
+	// construct new namespace Map
+	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
+	require.NoError(t, err)
+	md3, err := namespace.NewMetadata(ident.StringID("and1"), defaultTestNs1Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2, md3})
+	require.NoError(t, err)
+
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	<-updateCh
+	<-updateCh
+
+	// Because ns update will be enqueued and performed later, we need to wait for more time in theory.
+	// Usually this update should complete in a few seconds.
+	require.True(t, xclock.WaitUntil(func() bool {
+		return nsHooks.adds == 1
+	}, 10*time.Minute))
+	require.True(t, xclock.WaitUntil(func() bool {
+		return len(d.Namespaces()) == 3
+	}, 2*time.Second))
+
+	// ensure the expected namespaces exist
+	nses = d.Namespaces()
+	require.Len(t, nses, 3)
 	ns3, ok := d.Namespace(ident.StringID("and1"))
 	require.True(t, ok)
 	require.Equal(t, md1.Options(), ns3.Options())
