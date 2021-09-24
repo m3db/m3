@@ -284,6 +284,10 @@ func (e *GenericElem) Consume(
 	}
 	e.toConsume = e.toConsume[:0]
 
+	// Anything prior to this time is before the buffer past and so should be considered expired
+	// and not to be included in this aggregation.
+	bufferPastMinNanos := targetNanos - e.bufferForPastTimedMetricFn(resolution).Nanoseconds()
+
 	// Evaluate and GC expired items.
 	valuesForConsideration := e.values
 	e.values = e.values[:0]
@@ -296,8 +300,7 @@ func (e *GenericElem) Consume(
 		if e.resendEnabled {
 			// If resend is enabled, we only expire if the value is now outside the buffer past. It is safe to expire
 			// since any metrics intended for this value are rejected for being too late.
-			expiredNanos := targetNanos - e.bufferForPastTimedMetricFn(resolution).Nanoseconds()
-			expired = value.startAtNanos < expiredNanos
+			expired = value.startAtNanos < bufferPastMinNanos
 		}
 
 		// Modify the by value copy with whether it needs time flush and accumulate.
@@ -318,6 +321,9 @@ func (e *GenericElem) Consume(
 		prevTimeNanos xtime.UnixNano
 	)
 	// Process the aggregations that are ready for consumption.
+	if len(e.toConsume) > 0 {
+		e.consumedValues.removeOlderThan(xtime.UnixNano(bufferPastMinNanos))
+	}
 	for i := range e.toConsume {
 		expired := e.toConsume[i].onConsumeExpired
 		timeNanos := xtime.UnixNano(timestampNanosFn(e.toConsume[i].startAtNanos, resolution))

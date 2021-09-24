@@ -194,6 +194,15 @@ func (v valuesByTime) previousTimestamp(t xtime.UnixNano) xtime.UnixNano {
 	return previous
 }
 
+// Clears entries that are less than the provided min time.
+func (v valuesByTime) removeOlderThan(min xtime.UnixNano) {
+	for ts := range v {
+		if ts.Before(min) {
+			delete(v, ts)
+		}
+	}
+}
+
 type elemMetrics struct {
 	updatedValues tally.Counter
 }
