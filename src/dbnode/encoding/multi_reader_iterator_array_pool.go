@@ -22,6 +22,7 @@ package encoding
 
 import (
 	"sort"
+	"sync"
 
 	"github.com/m3db/m3/src/x/pool"
 )
@@ -41,8 +42,9 @@ type multiReaderIteratorArrayPool struct {
 }
 
 type multiReaderIteratorArrayPoolBucket struct {
-	capacity int
-	values   chan []MultiReaderIterator
+	capacity   int
+	values     chan []MultiReaderIterator
+	valuesPool *sync.Pool
 }
 
 // NewMultiReaderIteratorArrayPool creates a new pool
@@ -65,10 +67,20 @@ func (p *multiReaderIteratorArrayPool) Init() {
 	buckets := make([]multiReaderIteratorArrayPoolBucket, len(p.sizesAsc))
 	for i := range p.sizesAsc {
 		buckets[i].capacity = p.sizesAsc[i].Capacity
-		buckets[i].values = make(chan []MultiReaderIterator, p.sizesAsc[i].Count)
-		for j := 0; pool.Size(j) < p.sizesAsc[i].Count; j++ {
-			buckets[i].values <- p.alloc(p.sizesAsc[i].Capacity)
+
+		if !p.sizesAsc[i].Count.IsDynamic() {
+			buckets[i].values = make(chan []MultiReaderIterator, p.sizesAsc[i].Count)
+			for j := 0; pool.Size(j) < p.sizesAsc[i].Count; j++ {
+				buckets[i].values <- p.alloc(p.sizesAsc[i].Capacity)
+			}
+			continue
 		}
+
+		i := i
+		buckets[i].valuesPool = &sync.Pool{New: func() interface{} {
+			// NB: if leaking slices is ever a problem, change APIs to return *[]MultiReaderIterator
+			return p.alloc(p.sizesAsc[i].Capacity)
+		}}
 	}
 	p.buckets = buckets
 }
@@ -79,6 +91,9 @@ func (p *multiReaderIteratorArrayPool) Get(capacity int) []MultiReaderIterator {
 	}
 	for i := range p.buckets {
 		if p.buckets[i].capacity >= capacity {
+			if p.sizesAsc[i].Count.IsDynamic() {
+				return p.buckets[i].valuesPool.Get().([]MultiReaderIterator)
+			}
 			select {
 			case b := <-p.buckets[i].values:
 				return b
@@ -104,12 +119,15 @@ func (p *multiReaderIteratorArrayPool) Put(array []MultiReaderIterator) {
 	array = array[:0]
 	for i := range p.buckets {
 		if p.buckets[i].capacity >= capacity {
-			select {
-			case p.buckets[i].values <- array:
-				return
-			default:
+			if p.sizesAsc[i].Count.IsDynamic() {
+				p.buckets[i].valuesPool.Put(array) //nolint:staticcheck
 				return
 			}
+			select {
+			case p.buckets[i].values <- array:
+			default:
+			}
+			return
 		}
 	}
 }
