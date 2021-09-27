@@ -402,19 +402,19 @@ func testFind(t *testing.T, opts testFindOptions) {
 
 		var testVarations []testVariation
 		for _, limitTest := range testCaseLimitTests {
-			// Test case with default JSON options.
-			testVarations = append(testVarations, testVariation{
-				limitTest:                    limitTest,
-				includeBothExpandableAndLeaf: false,
-				expectedResults:              test.expectedResultsWithoutExpandableAndLeafDuplicates,
-			})
-
-			// Test case test for overloaded JSON options.
-			testVarations = append(testVarations, testVariation{
-				limitTest:                    limitTest,
-				includeBothExpandableAndLeaf: true,
-				expectedResults:              test.expectedResultsWithExpandableAndLeafDuplicates,
-			})
+			testVarations = append(testVarations,
+				// Test case with default find result options.
+				testVariation{
+					limitTest:                    limitTest,
+					includeBothExpandableAndLeaf: false,
+					expectedResults:              test.expectedResultsWithoutExpandableAndLeafDuplicates,
+				},
+				// Test case test for overloaded find result options.
+				testVariation{
+					limitTest:                    limitTest,
+					includeBothExpandableAndLeaf: true,
+					expectedResults:              test.expectedResultsWithExpandableAndLeafDuplicates,
+				})
 		}
 
 		for _, variation := range testVarations {

@@ -170,7 +170,7 @@ func parseFindParamsToQueries(r *http.Request) (
 	return terminatedQuery, childQuery, query, nil
 }
 
-type findResultsJSONOptions struct {
+type findResultsOptions struct {
 	includeBothExpandableAndLeaf bool
 }
 
@@ -178,7 +178,7 @@ func findResultsJSON(
 	w io.Writer,
 	prefix string,
 	tags map[string]nodeDescriptor,
-	opts findResultsJSONOptions,
+	opts findResultsOptions,
 ) error {
 	jw := json.NewWriter(w)
 	jw.BeginArray()
@@ -196,7 +196,7 @@ func writeFindNodeResultJSON(
 	prefix string,
 	value string,
 	descriptor nodeDescriptor,
-	opts findResultsJSONOptions,
+	opts findResultsOptions,
 ) {
 	id := fmt.Sprintf("%s%s", prefix, value)
 

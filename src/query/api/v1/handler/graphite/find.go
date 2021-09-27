@@ -200,10 +200,10 @@ func (h *grahiteFindHandler) ServeHTTP(
 	}
 
 	// TODO: Support multiple result types
-	jsonOpts := findResultsJSONOptions{
+	resultOpts := findResultsOptions{
 		includeBothExpandableAndLeaf: h.graphiteStorageOpts.FindResultsIncludeBothExpandableAndLeaf,
 	}
-	if err := findResultsJSON(w, prefix, seenMap, jsonOpts); err != nil {
+	if err := findResultsJSON(w, prefix, seenMap, resultOpts); err != nil {
 		logger.Error("unable to render find results", zap.Error(err))
 	}
 }
