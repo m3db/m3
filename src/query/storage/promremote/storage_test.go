@@ -250,7 +250,7 @@ func TestWriteBasedOnRetention(t *testing.T) {
 		assert.NotNil(t, promLongRetention2.GetLastWriteRequest())
 	})
 
-	t.Run("wrap non 5xx errors into invalid params", func(t *testing.T) {
+	t.Run("wrap non 5xx errors as invalid params error", func(t *testing.T) {
 		reset()
 		promLongRetention.SetError("test err", http.StatusForbidden)
 		err := sendWrite(storagemetadata.Attributes{
@@ -261,7 +261,7 @@ func TestWriteBasedOnRetention(t *testing.T) {
 		assert.True(t, xerrors.IsInvalidParams(err))
 	})
 
-	t.Run("429 should not be mapped to invalid params", func(t *testing.T) {
+	t.Run("429 should not be wrapped as invalid params", func(t *testing.T) {
 		reset()
 		promLongRetention.SetError("test err", http.StatusTooManyRequests)
 		err := sendWrite(storagemetadata.Attributes{
