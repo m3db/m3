@@ -121,15 +121,15 @@ type instanceQueue interface {
 type writeFn func([]byte) error
 
 type queue struct {
-	mtx      sync.Mutex
-	closed   atomic.Bool
+	metrics  queueMetrics
+	instance placement.Instance
 	conn     *connection
 	log      *zap.Logger
-	metrics  queueMetrics
-	dropType DropType
-	buf      qbuf
-	instance placement.Instance
 	writeFn  writeFn
+	buf      qbuf
+	dropType DropType
+	closed   atomic.Bool
+	mtx      sync.Mutex
 }
 
 func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {

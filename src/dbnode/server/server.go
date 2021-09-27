@@ -102,6 +102,7 @@ import (
 	"github.com/uber/tchannel-go"
 	"go.etcd.io/etcd/embed"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -292,7 +293,10 @@ func Run(runOpts RunOptions) {
 		if serviceName == "" {
 			serviceName = defaultServiceName
 		}
-		tracer, traceCloser, err = cfg.Tracing.NewTracer(serviceName, scope.SubScope("jaeger"), logger)
+		tracer, traceCloser, err = cfg.Tracing.NewTracer(serviceName,
+			scope.SubScope("jaeger"),
+			// Sample logs from tracing SDK since they can be noisy.
+			zap.New(zapcore.NewSamplerWithOptions(logger.Core(), time.Second*30, 1, 0)))
 		if err != nil {
 			tracer = opentracing.NoopTracer{}
 			logger.Warn("could not initialize tracing; using no-op tracer instead",
@@ -746,6 +750,7 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating dynamic config service client with m3cluster")
 
 		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
+			InterruptCh:            runOpts.InterruptCh,
 			InstrumentOpts:         iOpts,
 			HashingSeed:            cfg.Hashing.Seed,
 			NewDirectoryMode:       newDirectoryMode,
@@ -758,6 +763,7 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating static config service client with m3cluster")
 
 		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
+			InterruptCh:            runOpts.InterruptCh,
 			InstrumentOpts:         iOpts,
 			HostID:                 hostID,
 			ForceColdWritesEnabled: forceColdWrites,
@@ -875,6 +881,14 @@ func Run(runOpts RunOptions) {
 
 	topo, err := syncCfg.TopologyInitializer.Init()
 	if err != nil {
+		var interruptErr *xos.InterruptError
+		if errors.As(err, &interruptErr) {
+			logger.Warn("interrupt received. closing server", zap.Error(err))
+			// NB(nate): Have not attempted to start the actual database yet so
+			// it's safe for us to just return here.
+			return
+		}
+
 		logger.Fatal("could not initialize m3db topology", zap.Error(err))
 	}
 

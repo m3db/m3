@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
 	"github.com/m3db/m3/src/metrics/rules"
+	xos "github.com/m3db/m3/src/x/os"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
@@ -124,6 +125,17 @@ func TestNamespacesWatchRulesetHardErr(t *testing.T) {
 	// This should also hard error with RequireNamespaceWatchOnInit enabled,
 	// because the underlying ruleset does not exist
 	require.Error(t, nss.Open())
+}
+
+func TestNamespacesOpenWithInterrupt(t *testing.T) {
+	interruptCh := make(chan error, 1)
+	interruptCh <- xos.NewInterruptError("interrupt!")
+
+	_, _, nss, _ := testNamespacesWithInterruptCh(interruptCh)
+	err := nss.Open()
+
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "interrupt!")
 }
 
 func TestToNamespacesNilValue(t *testing.T) {
@@ -277,7 +289,7 @@ func TestNamespacesProcess(t *testing.T) {
 	}
 }
 
-func testNamespaces() (kv.TxnStore, cache.Cache, *namespaces, Options) {
+func testNamespacesWithInterruptCh(interruptCh chan error) (kv.TxnStore, cache.Cache, *namespaces, Options) {
 	store := mem.NewStore()
 	cache := newMemCache()
 	opts := NewOptions().
@@ -293,8 +305,14 @@ func testNamespaces() (kv.TxnStore, cache.Cache, *namespaces, Options) {
 		}).
 		SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) {
 			cache.Register(namespace, ruleSet)
-		})
+		}).
+		SetInterruptCh(interruptCh)
+
 	return store, cache, NewNamespaces(testNamespacesKey, opts).(*namespaces), opts
+}
+
+func testNamespaces() (kv.TxnStore, cache.Cache, *namespaces, Options) {
+	return testNamespacesWithInterruptCh(nil)
 }
 
 type memResults struct {

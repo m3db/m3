@@ -214,7 +214,7 @@ func TestEntryIncDecWriter(t *testing.T) {
 	defer ctrl.Finish()
 
 	e := NewEntry(nil, runtime.NewOptions(), testOptions(ctrl))
-	require.Equal(t, int32(0), e.numWriters)
+	require.Equal(t, int32(0), e.numWriters.Load())
 
 	var (
 		numWriters = 10
@@ -229,7 +229,7 @@ func TestEntryIncDecWriter(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	require.Equal(t, int32(numWriters), e.numWriters)
+	require.Equal(t, int32(numWriters), e.numWriters.Load())
 
 	for i := 0; i < numWriters; i++ {
 		wg.Add(1)
@@ -239,7 +239,7 @@ func TestEntryIncDecWriter(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	require.Equal(t, int32(0), e.numWriters)
+	require.Equal(t, int32(0), e.numWriters.Load())
 }
 
 func TestEntryResetSetData(t *testing.T) {
@@ -253,8 +253,8 @@ func TestEntryResetSetData(t *testing.T) {
 	require.False(t, e.hasDefaultMetadatas)
 	require.Equal(t, int64(uninitializedCutoverNanos), e.cutoverNanos)
 	require.Equal(t, lists, e.lists)
-	require.Equal(t, int32(0), e.numWriters)
-	require.Equal(t, now.UnixNano(), e.lastAccessNanos)
+	require.Equal(t, int32(0), e.numWriters.Load())
+	require.Equal(t, now.UnixNano(), e.lastAccessNanos.Load())
 }
 
 func TestEntryBatchTimerRateLimiting(t *testing.T) {
@@ -1155,9 +1155,9 @@ func TestShouldUpdateStagedMetadataWithLock(t *testing.T) {
 		e, _, _ := testEntry(ctrl, testEntryOptions{})
 		e.cutoverNanos = input.cutoverNanos
 		populateTestUntimedAggregations(t, e, input.aggregationKeys, metric.CounterType)
-		e.Lock()
+		e.mtx.Lock()
 		require.Equal(t, input.expected, e.shouldUpdateStagedMetadatasWithLock(input.metadata))
-		e.Unlock()
+		e.mtx.Unlock()
 	}
 }
 
@@ -1786,7 +1786,7 @@ func TestEntryMaybeExpireNoExpiry(t *testing.T) {
 
 	// If there are still active writers, should not expire.
 	e.closed = false
-	e.numWriters = 1
+	e.numWriters.Store(1)
 	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(time.Second)))
 }
 
@@ -2076,7 +2076,7 @@ func testEntryAddUntimed(
 
 		preAddFn(e, now)
 		require.NoError(t, e.AddUntimed(input.mu, inputMetadatas))
-		require.Equal(t, now.UnixNano(), e.lastAccessNanos)
+		require.Equal(t, now.UnixNano(), e.lastAccessNanos.Load())
 
 		require.Equal(t, len(expectedAggregationKeys), len(e.aggregations))
 		for _, key := range expectedAggregationKeys {

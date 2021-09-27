@@ -59,22 +59,20 @@ type UnaggregatedEncoder interface {
 }
 
 type unaggregatedEncoder struct {
-	pool           pool.BytesPool
-	initBufSize    int
-	maxMessageSize int
-
-	cm   metricpb.CounterWithMetadatas
-	bm   metricpb.BatchTimerWithMetadatas
-	gm   metricpb.GaugeWithMetadatas
-	fm   metricpb.ForwardedMetricWithMetadata
-	tm   metricpb.TimedMetricWithMetadata
-	tms  metricpb.TimedMetricWithMetadatas
-	pm   metricpb.TimedMetricWithStoragePolicy
-	buf  []byte
-	used int
-
+	pool                pool.BytesPool
 	encodeMessageSizeFn func(int)
 	encodeMessageFn     func(metricpb.MetricWithMetadatas) error
+	bm                  metricpb.BatchTimerWithMetadatas
+	tms                 metricpb.TimedMetricWithMetadatas
+	cm                  metricpb.CounterWithMetadatas
+	gm                  metricpb.GaugeWithMetadatas
+	buf                 []byte
+	fm                  metricpb.ForwardedMetricWithMetadata
+	pm                  metricpb.TimedMetricWithStoragePolicy
+	tm                  metricpb.TimedMetricWithMetadata
+	used                int
+	initBufSize         int
+	maxMessageSize      int
 }
 
 // NewUnaggregatedEncoder creates a new unaggregated encoder.

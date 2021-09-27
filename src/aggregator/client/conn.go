@@ -53,31 +53,27 @@ type (
 // connection is a persistent connection that retries establishing
 // connection with exponential backoff if the connection goes down.
 type connection struct {
-	sync.Mutex
-
-	addr           string
-	connTimeout    time.Duration
-	writeTimeout   time.Duration
-	keepAlive      bool
-	initThreshold  int
-	multiplier     int
-	maxThreshold   int
-	maxDuration    time.Duration
-	writeRetryOpts retry.Options
-	rngFn          retry.RngFn
-
-	conn                    *net.TCPConn
+	metrics                 connectionMetrics
+	writeRetryOpts          retry.Options
 	writer                  xio.ResettableWriter
-	numFailures             int
+	connectWithLockFn       connectWithLockFn
+	sleepFn                 sleepFn
+	nowFn                   clock.NowFn
+	conn                    *net.TCPConn
+	rngFn                   retry.RngFn
+	writeWithLockFn         writeWithLockFn
+	addr                    string
+	maxDuration             time.Duration
+	maxThreshold            int
+	multiplier              int
+	initThreshold           int
 	threshold               int
 	lastConnectAttemptNanos int64
-	metrics                 connectionMetrics
-
-	// These are for testing purposes.
-	nowFn             clock.NowFn
-	sleepFn           sleepFn
-	connectWithLockFn connectWithLockFn
-	writeWithLockFn   writeWithLockFn
+	writeTimeout            time.Duration
+	connTimeout             time.Duration
+	numFailures             int
+	mtx                     sync.Mutex
+	keepAlive               bool
 }
 
 // newConnection creates a new connection.
@@ -112,16 +108,16 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 // connection if the connection is down.
 func (c *connection) Write(data []byte) error {
 	var err error
-	c.Lock()
+	c.mtx.Lock()
 	if c.conn == nil {
 		if err = c.checkReconnectWithLock(); err != nil {
 			c.numFailures++
-			c.Unlock()
+			c.mtx.Unlock()
 			return err
 		}
 	}
 	if err = c.writeAttemptWithLock(data); err == nil {
-		c.Unlock()
+		c.mtx.Unlock()
 		return nil
 	}
 	for i := 1; i <= c.writeRetryOpts.MaxRetries(); i++ {
@@ -137,19 +133,19 @@ func (c *connection) Write(data []byte) error {
 		}
 		c.metrics.writeRetries.Inc(1)
 		if err = c.writeAttemptWithLock(data); err == nil {
-			c.Unlock()
+			c.mtx.Unlock()
 			return nil
 		}
 	}
 	c.numFailures++
-	c.Unlock()
+	c.mtx.Unlock()
 	return err
 }
 
 func (c *connection) Close() {
-	c.Lock()
+	c.mtx.Lock()
 	c.closeWithLock()
-	c.Unlock()
+	c.mtx.Unlock()
 }
 
 // writeAttemptWithLock attempts to establish a new connection and writes raw bytes

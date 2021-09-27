@@ -39,20 +39,20 @@ type threshold struct {
 
 // Stream represents a data stream.
 type Stream struct {
+	compressCursor           *Sample // compression cursor
 	streamPool               StreamPool
-	eps                      float64     // desired epsilon for errors
-	quantiles                []float64   // sorted target quantiles
+	insertCursor             *Sample
+	samples                  sampleList
 	computedQuantiles        []float64   // sorted computed target quantiles
 	thresholdBuf             []threshold // temporary buffer for computed thresholds
-	capacity                 int         // initial stream sample buffer capacity
-	insertAndCompressEvery   int         // stream insertion and compression frequency
-	insertAndCompressCounter int         // insertion and compression counter
-	numValues                int64       // number of values inserted into the sorted stream
 	bufLess                  minHeap     // sample buffer whose value is less than that at the insertion cursor
 	bufMore                  minHeap     // sample buffer whose value is more than that at the insertion cursor
-	samples                  sampleList  // sample list
-	insertCursor             *Sample     // insertion cursor
-	compressCursor           *Sample     // compression cursor
+	quantiles                []float64   // sorted target quantiles
+	numValues                int64       // number of values inserted into the sorted stream
+	insertAndCompressCounter int         // insertion and compression counter
+	insertAndCompressEvery   int         // stream insertion and compression frequency
+	capacity                 int         // initial stream sample buffer capacity
+	eps                      float64     // desired epsilon for errors
 	compressMinRank          int64       // compression min rank
 	closed                   bool        // whether the stream is closed
 	flushed                  bool        // whether the stream is flushed

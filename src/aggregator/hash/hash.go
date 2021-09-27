@@ -24,10 +24,13 @@
 // were added.
 package hash
 
-import "github.com/m3db/stackmurmur3/v2"
+import murmur3 "github.com/m3db/stackmurmur3/v2"
 
 // Hash128 is a 128-bit hash of an ID consisting of two unsigned 64-bit ints.
-type Hash128 [2]uint64
+type Hash128 struct {
+	h0 uint64
+	h1 uint64
+}
 
 // Murmur3Hash128 computes the 128-bit hash of an id.
 func Murmur3Hash128(data []byte) Hash128 {

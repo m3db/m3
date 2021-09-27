@@ -82,9 +82,9 @@ func (op *RollupOp) FromProto(pb pipelinepb.AppliedRollupOp) error {
 
 // OpUnion is a union of different types of operation.
 type OpUnion struct {
+	Rollup         RollupOp
 	Type           pipeline.OpType
 	Transformation pipeline.TransformationOp
-	Rollup         RollupOp
 }
 
 // Equal determines whether two operation unions are equal.

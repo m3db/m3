@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
+	xos "github.com/m3db/m3/src/x/os"
 
 	"github.com/stretchr/testify/require"
 )
@@ -91,6 +92,21 @@ func TestValueWatchSuccess(t *testing.T) {
 
 	rv.Unwatch()
 	require.Equal(t, valueNotWatching, rv.status)
+}
+
+func TestValueWatchInterrupt(t *testing.T) {
+	interruptCh := make(chan error, 1)
+	interruptCh <- xos.NewInterruptError("interrupt!")
+
+	opts := testValueOptions().
+		SetInterruptCh(interruptCh).
+		SetNewUpdatableFn(testUpdatableFn(NewWatchable()))
+
+	val := NewValue(opts).(*value)
+	err := val.Watch()
+
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "interrupt!")
 }
 
 func TestValueUnwatchNotWatching(t *testing.T) {
