@@ -22,9 +22,9 @@ package promremote
 
 import (
 	"context"
-	"errors"
 	"io"
 	"math/rand"
+	"net/http"
 	"testing"
 	"time"
 
@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/storage/promremote/promremotetest"
 	"github.com/m3db/m3/src/query/ts"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/tallytest"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -239,7 +240,7 @@ func TestWriteBasedOnRetention(t *testing.T) {
 
 	t.Run("error should not prevent sending to other instances", func(t *testing.T) {
 		reset()
-		promLongRetention.SetError(errors.New("test err"))
+		promLongRetention.SetError("test err", http.StatusInternalServerError)
 		err := sendWrite(storagemetadata.Attributes{
 			Resolution: 10 * time.Minute,
 			Retention:  8760 * time.Hour,
@@ -247,6 +248,28 @@ func TestWriteBasedOnRetention(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "test err")
 		assert.NotNil(t, promLongRetention2.GetLastWriteRequest())
+	})
+
+	t.Run("wrap non 5xx errors into invalid params", func(t *testing.T) {
+		reset()
+		promLongRetention.SetError("test err", http.StatusForbidden)
+		err := sendWrite(storagemetadata.Attributes{
+			Resolution: 10 * time.Minute,
+			Retention:  8760 * time.Hour,
+		})
+		require.Error(t, err)
+		assert.True(t, xerrors.IsInvalidParams(err))
+	})
+
+	t.Run("429 should not be mapped to invalid params", func(t *testing.T) {
+		reset()
+		promLongRetention.SetError("test err", http.StatusTooManyRequests)
+		err := sendWrite(storagemetadata.Attributes{
+			Resolution: 10 * time.Minute,
+			Retention:  8760 * time.Hour,
+		})
+		require.Error(t, err)
+		assert.False(t, xerrors.IsInvalidParams(err))
 	})
 }
 
