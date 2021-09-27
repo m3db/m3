@@ -1,0 +1,38 @@
+global:
+  external_labels:
+    role: "remote"
+  scrape_interval:     10s
+  evaluation_interval: 10s
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+rule_files:
+# - "first_rules.yml"
+# - "second_rules.yml"
+
+# A scrape configuration containing exactly one endpoint to scrape:
+# Here it's Prometheus itself.
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['prometheusagg:9090', 'prometheusraw:9090']
+
+  - job_name: 'coordinator'
+    static_configs:
+      - targets:
+          - m3coordinator01:7203
+
+  - job_name: 'aggregator'
+    static_configs:
+      - targets: ['m3aggregator01:6002']
+
+remote_write:
+  - url: http://m3coordinator01:7201/api/v1/prom/remote/write
+    remote_timeout: 30s
