@@ -44,6 +44,8 @@ type GoalStateVerifier func(string, error) error
 // TODO: consider having this work on underlying structures.
 type Coordinator interface {
 	Admin
+	M3msgTopicManager
+	PlacementManager
 
 	// ApplyKVUpdate applies a KV update.
 	ApplyKVUpdate(update string) error
@@ -80,6 +82,25 @@ type Admin interface {
 	// Close closes the wrapper and releases any held resources, including
 	// deleting docker containers.
 	Close() error
+}
+
+// M3msgTopicManager is a wrapper for m3msg functions.
+type M3msgTopicManager interface {
+	// InitM3msgTopic initializes an m3msg topic.
+	InitM3msgTopic(M3msgTopicOptions, admin.TopicInitRequest) (admin.TopicGetResponse, error)
+	// GetM3msgTopic gets an m3msg topic.
+	GetM3msgTopic(M3msgTopicOptions) (admin.TopicGetResponse, error)
+	// AddM3msgTopicConsumer adds a consumer service to an m3msg topic.
+	AddM3msgTopicConsumer(M3msgTopicOptions, admin.TopicAddRequest) (admin.TopicGetResponse, error)
+}
+
+// PlacementManager is a wrapper for managing placements.
+type PlacementManager interface {
+	// GetAggPlacement gets aggregator placements.
+	// TODO: merge with GetPlacement()
+	GetAggPlacement() (admin.PlacementGetResponse, error)
+	// // InitAggPlacement initializes aggregator placements.
+	InitAggPlacement(admin.PlacementInitRequest) (admin.PlacementGetResponse, error)
 }
 
 // Node is a wrapper for a db node. It provides a wrapper on HTTP
@@ -161,4 +182,11 @@ func (n Nodes) WaitForHealthy() error {
 
 	wg.Wait()
 	return multiErr.FinalError()
+}
+
+// M3msgTopicOptions represents a set of options for a m3msg topic.
+type M3msgTopicOptions struct {
+	Zone      string
+	Env       string
+	TopicName string
 }
