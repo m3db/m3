@@ -1,3 +1,3 @@
 # Redirect all requests to the operator docs on the main docs site.
 
-/*      https://m3db.io/docs/operator/:splat
+https://operator.m3db.io/*      https://m3db.io/docs/operator/:splat
