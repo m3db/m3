@@ -199,9 +199,6 @@ func writeFindNodeResultJSON(
 	opts findResultsJSONOptions,
 ) {
 	id := fmt.Sprintf("%s%s", prefix, value)
-	if descriptor.hasChildren {
-		writeFindResultJSON(jw, id, value, true)
-	}
 
 	// Include the leaf node only if no leaf was specified or
 	// if config optionally sets that both should come back.
@@ -212,6 +209,10 @@ func writeFindNodeResultJSON(
 			opts.includeBothExpandableAndLeaf)
 	if includeLeafNode {
 		writeFindResultJSON(jw, id, value, false)
+	}
+
+	if descriptor.hasChildren {
+		writeFindResultJSON(jw, id, value, true)
 	}
 }
 

@@ -267,11 +267,12 @@ func testFind(t *testing.T, opts testFindOptions) {
 	}
 
 	for _, test := range []struct {
-		query           string
-		limitTests      []limitTest
-		terminatedQuery *testFindQuery
-		childQuery      *testFindQuery
-		expectedResults results
+		query                                             string
+		limitTests                                        []limitTest
+		terminatedQuery                                   *testFindQuery
+		childQuery                                        *testFindQuery
+		expectedResultsWithoutExpandableAndLeafDuplicates results
+		expectedResultsWithExpandableAndLeafDuplicates    results
 	}{
 		{
 			query:      "foo.b*",
@@ -323,7 +324,13 @@ func testFind(t *testing.T, opts testFindOptions) {
 					}
 				},
 			},
-			expectedResults: results{
+			expectedResultsWithoutExpandableAndLeafDuplicates: results{
+				makeNoChildrenResult("foo.bar", "bar"),
+				makeWithChildrenResult("foo.baz", "baz"),
+				makeWithChildrenResult("foo.bix", "bix"),
+				makeWithChildrenResult("foo.bug", "bug"),
+			},
+			expectedResultsWithExpandableAndLeafDuplicates: results{
 				makeNoChildrenResult("foo.bar", "bar"),
 				makeNoChildrenResult("foo.baz", "baz"),
 				makeWithChildrenResult("foo.baz", "baz"),
@@ -364,7 +371,14 @@ func testFind(t *testing.T, opts testFindOptions) {
 					}
 				},
 			},
-			expectedResults: results{
+			expectedResultsWithoutExpandableAndLeafDuplicates: results{
+				makeWithChildrenResult("foo.**.bar0", "bar0"),
+				makeWithChildrenResult("foo.**.bar1", "bar1"),
+				makeWithChildrenResult("foo.**.baz0", "baz0"),
+				makeWithChildrenResult("foo.**.baz1", "baz1"),
+				makeWithChildrenResult("foo.**.baz2", "baz2"),
+			},
+			expectedResultsWithExpandableAndLeafDuplicates: results{
 				makeWithChildrenResult("foo.**.bar0", "bar0"),
 				makeWithChildrenResult("foo.**.bar1", "bar1"),
 				makeWithChildrenResult("foo.**.baz0", "baz0"),
@@ -380,9 +394,34 @@ func testFind(t *testing.T, opts testFindOptions) {
 			testCaseLimitTests = []limitTest{bothCompleteLimitTest}
 		}
 
+		type testVariation struct {
+			limitTest                    limitTest
+			includeBothExpandableAndLeaf bool
+			expectedResults              results
+		}
+
+		var testVarations []testVariation
 		for _, limitTest := range testCaseLimitTests {
+			// Test case with default JSON options.
+			testVarations = append(testVarations, testVariation{
+				limitTest:                    limitTest,
+				includeBothExpandableAndLeaf: false,
+				expectedResults:              test.expectedResultsWithoutExpandableAndLeafDuplicates,
+			})
+
+			// Test case test for overloaded JSON options.
+			testVarations = append(testVarations, testVariation{
+				limitTest:                    limitTest,
+				includeBothExpandableAndLeaf: true,
+				expectedResults:              test.expectedResultsWithExpandableAndLeafDuplicates,
+			})
+		}
+
+		for _, variation := range testVarations {
 			// nolint: govet
-			limitTest := limitTest
+			limitTest := variation.limitTest
+			includeBothExpandableAndLeaf := variation.includeBothExpandableAndLeaf
+			expectedResults := variation.expectedResults
 			t.Run(fmt.Sprintf("%s-%s", test.query, limitTest.name), func(t *testing.T) {
 				ctrl := xtest.NewController(t)
 				defer ctrl.Finish()
@@ -412,6 +451,11 @@ func testFind(t *testing.T, opts testFindOptions) {
 				handlerOpts := options.EmptyHandlerOptions().
 					SetGraphiteFindFetchOptionsBuilder(builder).
 					SetStorage(store)
+				// Set the relevant result options and save back to handler options.
+				graphiteStorageOpts := handlerOpts.GraphiteStorageOptions()
+				graphiteStorageOpts.FindResultsIncludeBothExpandableAndLeaf = includeBothExpandableAndLeaf
+				handlerOpts = handlerOpts.SetGraphiteStorageOptions(graphiteStorageOpts)
+
 				h := NewFindHandler(handlerOpts)
 
 				// Execute the query.
@@ -440,7 +484,7 @@ func testFind(t *testing.T, opts testFindOptions) {
 				require.NoError(t, decoder.Decode(&r))
 				sort.Sort(r)
 
-				require.Equal(t, test.expectedResults, r)
+				require.Equal(t, expectedResults, r)
 				actual := w.Header().Get(headers.LimitHeader)
 				assert.Equal(t, limitTest.header, actual)
 			})
