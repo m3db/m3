@@ -586,21 +586,22 @@ func Run(runOpts RunOptions) RunResult {
 		graphiteStorageOpts            graphite.M3WrappedStorageOptions
 	)
 	if cfg.Carbon != nil {
-		graphiteStorageOpts.AggregateNamespacesAllData =
-			cfg.Carbon.AggregateNamespacesAllData
-		graphiteStorageOpts.ShiftTimeStart = cfg.Carbon.ShiftTimeStart
-		graphiteStorageOpts.ShiftTimeEnd = cfg.Carbon.ShiftTimeEnd
-		graphiteStorageOpts.ShiftStepsStart = cfg.Carbon.ShiftStepsStart
-		graphiteStorageOpts.ShiftStepsEnd = cfg.Carbon.ShiftStepsEnd
-		graphiteStorageOpts.ShiftStepsStartWhenAtResolutionBoundary = cfg.Carbon.ShiftStepsStartWhenAtResolutionBoundary
-		graphiteStorageOpts.ShiftStepsEndWhenAtResolutionBoundary = cfg.Carbon.ShiftStepsEndWhenAtResolutionBoundary
-		graphiteStorageOpts.ShiftStepsEndWhenStartAtResolutionBoundary = cfg.Carbon.ShiftStepsEndWhenStartAtResolutionBoundary
-		graphiteStorageOpts.ShiftStepsStartWhenEndAtResolutionBoundary = cfg.Carbon.ShiftStepsStartWhenEndAtResolutionBoundary
-		graphiteStorageOpts.RenderPartialStart = cfg.Carbon.RenderPartialStart
-		graphiteStorageOpts.RenderPartialEnd = cfg.Carbon.RenderPartialEnd
-		graphiteStorageOpts.RenderSeriesAllNaNs = cfg.Carbon.RenderSeriesAllNaNs
-		graphiteStorageOpts.CompileEscapeAllNotOnlyQuotes = cfg.Carbon.CompileEscapeAllNotOnlyQuotes
-
+		graphiteStorageOpts = graphite.M3WrappedStorageOptions{
+			AggregateNamespacesAllData:                 cfg.Carbon.AggregateNamespacesAllData,
+			ShiftTimeStart:                             cfg.Carbon.ShiftTimeStart,
+			ShiftTimeEnd:                               cfg.Carbon.ShiftTimeEnd,
+			ShiftStepsStart:                            cfg.Carbon.ShiftStepsStart,
+			ShiftStepsEnd:                              cfg.Carbon.ShiftStepsEnd,
+			ShiftStepsStartWhenAtResolutionBoundary:    cfg.Carbon.ShiftStepsStartWhenAtResolutionBoundary,
+			ShiftStepsEndWhenAtResolutionBoundary:      cfg.Carbon.ShiftStepsEndWhenAtResolutionBoundary,
+			ShiftStepsEndWhenStartAtResolutionBoundary: cfg.Carbon.ShiftStepsEndWhenStartAtResolutionBoundary,
+			ShiftStepsStartWhenEndAtResolutionBoundary: cfg.Carbon.ShiftStepsStartWhenEndAtResolutionBoundary,
+			RenderPartialStart:                         cfg.Carbon.RenderPartialStart,
+			RenderPartialEnd:                           cfg.Carbon.RenderPartialEnd,
+			RenderSeriesAllNaNs:                        cfg.Carbon.RenderSeriesAllNaNs,
+			CompileEscapeAllNotOnlyQuotes:              cfg.Carbon.CompileEscapeAllNotOnlyQuotes,
+			FindResultsIncludeBothExpandableAndLeaf:    cfg.Carbon.FindResultsIncludeBothExpandableAndLeaf,
+		}
 		if limits := cfg.Carbon.LimitsFind; limits != nil {
 			fetchOptsBuilderLimitsOpts := limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
 			graphiteFindFetchOptsBuilder, err = handleroptions.NewFetchOptionsBuilder(

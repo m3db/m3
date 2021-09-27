@@ -49,6 +49,7 @@ var FindHTTPMethods = []string{http.MethodGet, http.MethodPost}
 
 type grahiteFindHandler struct {
 	storage             graphitestorage.Storage
+	graphiteStorageOpts graphitestorage.M3WrappedStorageOptions
 	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
 	instrumentOpts      instrument.Options
 }
@@ -59,6 +60,7 @@ func NewFindHandler(opts options.HandlerOptions) http.Handler {
 		opts.M3DBOptions(), opts.InstrumentOpts(), opts.GraphiteStorageOptions())
 	return &grahiteFindHandler{
 		storage:             wrappedStore,
+		graphiteStorageOpts: opts.GraphiteStorageOptions(),
 		fetchOptionsBuilder: opts.GraphiteFindFetchOptionsBuilder(),
 		instrumentOpts:      opts.InstrumentOpts(),
 	}
@@ -198,8 +200,10 @@ func (h *grahiteFindHandler) ServeHTTP(
 	}
 
 	// TODO: Support multiple result types
-	err = findResultsJSON(w, prefix, seenMap)
-	if err != nil {
+	jsonOpts := findResultsJSONOptions{
+		includeBothExpandableAndLeaf: h.graphiteStorageOpts.FindResultsIncludeBothExpandableAndLeaf,
+	}
+	if err := findResultsJSON(w, prefix, seenMap, jsonOpts); err != nil {
 		logger.Error("unable to render find results", zap.Error(err))
 	}
 }
