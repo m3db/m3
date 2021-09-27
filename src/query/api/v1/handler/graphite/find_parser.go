@@ -170,16 +170,21 @@ func parseFindParamsToQueries(r *http.Request) (
 	return terminatedQuery, childQuery, query, nil
 }
 
+type findResultsOptions struct {
+	includeBothExpandableAndLeaf bool
+}
+
 func findResultsJSON(
 	w io.Writer,
 	prefix string,
 	tags map[string]nodeDescriptor,
+	opts findResultsOptions,
 ) error {
 	jw := json.NewWriter(w)
 	jw.BeginArray()
 
 	for value, descriptor := range tags {
-		writeFindNodeResultJSON(jw, prefix, value, descriptor)
+		writeFindNodeResultJSON(jw, prefix, value, descriptor, opts)
 	}
 
 	jw.EndArray()
@@ -191,9 +196,18 @@ func writeFindNodeResultJSON(
 	prefix string,
 	value string,
 	descriptor nodeDescriptor,
+	opts findResultsOptions,
 ) {
 	id := fmt.Sprintf("%s%s", prefix, value)
-	if descriptor.isLeaf {
+
+	// Include the leaf node only if no leaf was specified or
+	// if config optionally sets that both should come back.
+	// The default behavior matches graphite web.
+	includeLeafNode := (descriptor.isLeaf && !descriptor.hasChildren) ||
+		(descriptor.isLeaf &&
+			descriptor.hasChildren &&
+			opts.includeBothExpandableAndLeaf)
+	if includeLeafNode {
 		writeFindResultJSON(jw, id, value, false)
 	}
 
@@ -208,10 +222,11 @@ func writeFindResultJSON(
 	value string,
 	hasChildren bool,
 ) {
-	var leaf = 1
+	leaf := 1
 	if hasChildren {
 		leaf = 0
 	}
+
 	jw.BeginObject()
 
 	jw.BeginObjectField("id")

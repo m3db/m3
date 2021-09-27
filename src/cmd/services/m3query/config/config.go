@@ -491,6 +491,10 @@ type CarbonConfiguration struct {
 	// CompileEscapeAllNotOnlyQuotes will escape all characters when using a backslash
 	// in a quoted string rather than just reserving for escaping quotes.
 	CompileEscapeAllNotOnlyQuotes bool `yaml:"compileEscapeAllNotOnlyQuotes"`
+	// FindResultsIncludeBothExpandableAndLeaf will include both an expandable
+	// node and a leaf node if there is a duplicate path node that is both an
+	// expandable node and a leaf node.
+	FindResultsIncludeBothExpandableAndLeaf bool `yaml:"findResultsIncludeBothExpandableAndLeaf"`
 }
 
 // MiddlewareConfiguration is middleware-specific configuration.
