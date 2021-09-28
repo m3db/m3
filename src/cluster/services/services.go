@@ -33,6 +33,7 @@ import (
 	ps "github.com/m3db/m3/src/cluster/placement/service"
 	"github.com/m3db/m3/src/cluster/placement/storage"
 	"github.com/m3db/m3/src/cluster/shard"
+	xos "github.com/m3db/m3/src/x/os"
 	xwatch "github.com/m3db/m3/src/x/watch"
 
 	"github.com/uber-go/tally"
@@ -307,7 +308,7 @@ func (c *client) Watch(sid ServiceID, opts QueryOptions) (Watch, error) {
 		return nil, err
 	}
 
-	initValue, err := c.waitForInitValue(kvm.kv, placementWatch, sid, c.opts.InitTimeout(), opts.InterruptCh())
+	initValue, err := c.waitForInitValue(kvm.kv, placementWatch, sid, c.opts.InitTimeout(), opts.InterruptedCh())
 	if err != nil {
 		return nil, fmt.Errorf("could not get init value for '%s',  err: %w", key, err)
 	}
@@ -592,12 +593,12 @@ func (c *client) waitForInitValue(
 	w kv.ValueWatch,
 	sid ServiceID,
 	timeout time.Duration,
-	interruptCh <-chan error,
+	interruptedCh <-chan struct{},
 ) (kv.Value, error) {
-	if interruptCh == nil {
-		// NB(nate): if no interrupt channel is provided, then this wait is not
+	if interruptedCh == nil {
+		// NB(nate): if no interrupted channel is provided, then this wait is not
 		// gracefully interruptable.
-		interruptCh = make(chan error)
+		interruptedCh = make(chan struct{})
 	}
 
 	if timeout < 0 {
@@ -607,8 +608,8 @@ func (c *client) waitForInitValue(
 		select {
 		case <-w.C():
 			return w.Get(), nil
-		case err := <-interruptCh:
-			return nil, err
+		case <-interruptedCh:
+			return nil, xos.ErrInterrupted
 		}
 	}
 	select {
@@ -616,8 +617,8 @@ func (c *client) waitForInitValue(
 		return w.Get(), nil
 	case <-time.After(timeout):
 		return kvStore.Get(c.placementKeyFn(sid))
-	case err := <-interruptCh:
-		return nil, err
+	case <-interruptedCh:
+		return nil, xos.ErrInterrupted
 	}
 }
 
