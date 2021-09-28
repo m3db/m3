@@ -137,18 +137,6 @@ func NewAggregator(opts Options) Aggregator {
 	timerOpts := iOpts.TimerOptions()
 	logger := iOpts.Logger()
 
-	timedForResendEnabledRollupRegexes := make([]*regexp.Regexp, 0, len(opts.TimedForResendEnabledRollupRegexes()))
-	for _, r := range opts.TimedForResendEnabledRollupRegexes() {
-		compiled, err := regexp.Compile(r)
-		if err != nil {
-			logger.Error("failed to compile timed for resend enabled rollup regex",
-				zap.Error(err),
-				zap.String("regex", r))
-			continue
-		}
-		timedForResendEnabledRollupRegexes = append(timedForResendEnabledRollupRegexes, compiled)
-	}
-
 	return &aggregator{
 		opts:                               opts,
 		nowFn:                              opts.ClockOptions().NowFn(),
@@ -163,12 +151,27 @@ func NewAggregator(opts Options) Aggregator {
 		passthroughWriter:                  opts.PassthroughWriter(),
 		adminClient:                        opts.AdminClient(),
 		resignTimeout:                      opts.ResignTimeout(),
-		timedForResendEnabledRollupRegexes: timedForResendEnabledRollupRegexes,
+		timedForResendEnabledRollupRegexes: compileRegexps(logger, opts.TimedForResendEnabledRollupRegexes()),
 		doneCh:                             make(chan struct{}),
 		sleepFn:                            time.Sleep,
 		metrics:                            newAggregatorMetrics(scope, timerOpts, opts.MaxAllowedForwardingDelayFn()),
 		logger:                             logger,
 	}
+}
+
+func compileRegexps(logger *zap.Logger, regexps []string) []*regexp.Regexp {
+	timedForResendEnabledRollupRegexes := make([]*regexp.Regexp, 0, len(regexps))
+	for _, r := range regexps {
+		compiled, err := regexp.Compile(r)
+		if err != nil {
+			logger.Error("failed to compile timed for resend enabled rollup regex",
+				zap.Error(err),
+				zap.String("regexp", r))
+			continue
+		}
+		timedForResendEnabledRollupRegexes = append(timedForResendEnabledRollupRegexes, compiled)
+	}
+	return timedForResendEnabledRollupRegexes
 }
 
 func (agg *aggregator) Open() error {
@@ -364,9 +367,6 @@ func (agg *aggregator) updateStagedMetadatas(sms metadata.StagedMetadatas) {
 
 func (agg *aggregator) timedForResendEnabledOnPipeline(p metadata.PipelineMetadata) bool {
 	if !p.ResendEnabled {
-		return false
-	}
-	if !p.IsAnyRollupRules() {
 		return false
 	}
 	if len(agg.timedForResendEnabledRollupRegexes) == 0 {

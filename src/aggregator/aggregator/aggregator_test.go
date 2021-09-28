@@ -50,6 +50,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
+	"go.uber.org/zap"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/golang/mock/gomock"
@@ -422,24 +423,25 @@ func TestAggregatorAddUntimedSuccessNoPlacementUpdate(t *testing.T) {
 func TestAggregatorAddUntimedToTimed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+	logger := zap.NewNop()
 
 	agg, _ := testAggregator(t, ctrl)
-	agg.opts = agg.opts.SetTimedForResendEnabledRollupRegexes([]string{".*"})
+	agg.timedForResendEnabledRollupRegexes = compileRegexps(logger, []string{".*"})
 	metas := metadata.StagedMetadatas{testStagedMetadatas[0]}
 	// add another pipeline
 	metas[0].Pipelines = append(metas[0].Pipelines, metadata.PipelineMetadata{
 		StoragePolicies: metas[0].Pipelines[0].StoragePolicies,
 		Pipeline: applied.NewPipeline([]applied.OpUnion{
 			{
-				Type: pipeline.TransformationOpType,
-				Transformation: pipeline.TransformationOp{
-					Type: transformation.Increase,
+				Type: pipeline.RollupOpType,
+				Rollup: applied.RollupOp{
+					ID: []byte("abc"),
 				},
 			},
 		}),
 	})
-	metas[0].Pipelines[0].ResendEnabled = true
-	metas[0].Pipelines[1].ResendEnabled = false
+	metas[0].Pipelines[0].ResendEnabled = false
+	metas[0].Pipelines[1].ResendEnabled = true
 	require.NoError(t, agg.Open())
 	agg.shardFn = func([]byte, uint32) uint32 { return 1 }
 	err := agg.AddUntimed(testUntimedGauge, metas)
@@ -471,7 +473,7 @@ func TestAggregatorAddUntimedToTimedDisabled(t *testing.T) {
 	defer ctrl.Finish()
 
 	agg, _ := testAggregator(t, ctrl)
-	agg.opts = agg.opts.SetTimedForResendEnabledRollupRegexes(nil)
+	agg.timedForResendEnabledRollupRegexes = nil
 	metas := metadata.StagedMetadatas{testStagedMetadatas[0]}
 	// add another pipeline
 	metas[0].Pipelines = append(metas[0].Pipelines, metadata.PipelineMetadata{
