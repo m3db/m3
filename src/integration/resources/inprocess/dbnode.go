@@ -50,6 +50,7 @@ type dbNode struct {
 	cfg     config.Configuration
 	logger  *zap.Logger
 	tmpDirs []string
+	started bool
 
 	interruptCh chan<- error
 	shutdownCh  <-chan struct{}
@@ -160,6 +161,7 @@ func (d *dbNode) start() {
 
 	d.interruptCh = interruptCh
 	d.shutdownCh = shutdownCh
+	d.started = true
 }
 
 func (d *dbNode) HostDetails(port int) (*admin.Host, error) {
@@ -287,6 +289,7 @@ func (d *dbNode) Close() error {
 				" not be completely graceful")
 		}
 	}
+	d.started = false
 
 	return nil
 }
@@ -301,13 +304,13 @@ func updateDBNodePorts(cfg config.Configuration) (config.Configuration, error) {
 		cfg.DB.ListenAddress = &addr
 	}
 
-	if cfg.Coordinator != nil && cfg.Coordinator.ListenAddress != nil {
-		addr, _, _, err := nettest.MaybeGeneratePort(*cfg.Coordinator.ListenAddress)
+	if cfg.Coordinator != nil {
+		coordCfg, err := updateCoordinatorPorts(*cfg.Coordinator)
 		if err != nil {
 			return cfg, err
 		}
 
-		cfg.Coordinator.ListenAddress = &addr
+		cfg.Coordinator = &coordCfg
 	}
 
 	return cfg, nil
@@ -320,11 +323,21 @@ func updateDBNodeFilepaths(cfg config.Configuration) (config.Configuration, []st
 	if prefix != nil && *prefix == "*" {
 		dir, err := ioutil.TempDir("", "m3db-*")
 		if err != nil {
-			return cfg, tmpDirs, err
+			return cfg, nil, err
 		}
 
 		tmpDirs = append(tmpDirs, dir)
 		cfg.DB.Filesystem.FilePathPrefix = &dir
+	}
+
+	if cfg.Coordinator != nil {
+		coordCfg, coordDirs, err := updateCoordinatorFilepaths(*cfg.Coordinator)
+		if err != nil {
+			return cfg, nil, err
+		}
+		tmpDirs = append(tmpDirs, coordDirs...)
+
+		cfg.Coordinator = &coordCfg
 	}
 
 	return cfg, tmpDirs, nil
