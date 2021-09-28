@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+
+	xos "github.com/m3db/m3/src/x/os"
 )
 
 var (
@@ -114,11 +116,11 @@ func (v *value) Watch() error {
 	// error condition is resolved.
 	defer func() { go v.watchUpdates(v.updatable) }()
 
-	interruptCh := v.opts.InterruptCh()
-	if interruptCh == nil {
-		// NB(nate): if no interrupt channel is provided, then this wait is not
+	interruptedCh := v.opts.InterruptedCh()
+	if interruptedCh == nil {
+		// NB(nate): if no interrupted channel is provided, then this wait is not
 		// gracefully interruptable.
-		interruptCh = make(chan error)
+		interruptedCh = make(chan struct{})
 	}
 
 	select {
@@ -128,8 +130,8 @@ func (v *value) Watch() error {
 			innerError: errInitWatchTimeout,
 			key:        v.opts.Key(),
 		}
-	case err = <-interruptCh:
-		return err
+	case <-interruptedCh:
+		return xos.ErrInterrupted
 	}
 
 	update, err := v.getUpdateFn(v.updatable)
