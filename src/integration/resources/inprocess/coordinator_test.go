@@ -39,6 +39,26 @@ func TestCreateAnotherCoordinatorInProcess(t *testing.T) {
 	require.NoError(t, coord.Close())
 }
 
+func TestNewEmbeddedCoordinator(t *testing.T) {
+	dbnode, err := NewDBNodeFromYAML(embeddedCoordConfig, DBNodeOptions{})
+	require.NoError(t, err)
+
+	d, ok := dbnode.(*dbNode)
+	require.True(t, ok)
+	require.True(t, d.started)
+
+	_, err = NewEmbeddedCoordinator(d)
+	require.NoError(t, err)
+
+	require.NoError(t, dbnode.Close())
+}
+
+func TestNewEmbeddedCoordinatorNotStarted(t *testing.T) {
+	var dbnode dbNode
+	_, err := NewEmbeddedCoordinator(&dbnode)
+	require.Error(t, err)
+}
+
 // TODO(nate): add more tests exercising other endpoints once dbnode impl is landed
 
 const defaultCoordConfig = `
@@ -58,4 +78,29 @@ clusters:
             - zone: embedded
               endpoints:
                 - 127.0.0.1:2379
+`
+
+const embeddedCoordConfig = `
+coordinator:
+  clusters:
+    - namespaces:
+        - namespace: default
+          type: unaggregated
+          retention: 1h
+      client:
+        config:
+          service:
+            env: default_env
+            zone: embedded
+            service: m3db
+            cacheDir: "*"
+            etcdClusters:
+              - zone: embedded
+                endpoints:
+                  - 127.0.0.1:2379
+
+db:
+  filesystem:
+    filePathPrefix: "*"
+  writeNewSeriesAsync: false
 `
