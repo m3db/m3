@@ -235,8 +235,17 @@ func (c *coordinator) CreateDatabase(request admin.DatabaseCreateRequest) (admin
 	return c.client.CreateDatabase(request)
 }
 
-func (c *coordinator) GetPlacement() (admin.PlacementGetResponse, error) {
-	return c.client.GetPlacement()
+func (c *coordinator) GetPlacement(
+	opts resources.PlacementRequestOptions,
+) (admin.PlacementGetResponse, error) {
+	return c.client.GetPlacement(opts)
+}
+
+func (c *coordinator) InitPlacement(
+	opts resources.PlacementRequestOptions,
+	req admin.PlacementInitRequest,
+) (admin.PlacementGetResponse, error) {
+	return c.client.InitPlacement(opts, req)
 }
 
 func (c *coordinator) WaitForInstances(ids []string) error {
@@ -291,14 +300,6 @@ func (c *coordinator) AddM3msgTopicConsumer(
 	req admin.TopicAddRequest,
 ) (admin.TopicGetResponse, error) {
 	return c.client.AddM3msgTopicConsumer(opts, req)
-}
-
-func (c *coordinator) GetAggPlacement() (admin.PlacementGetResponse, error) {
-	return c.client.GetAggPlacement()
-}
-
-func (c *coordinator) InitAggPlacement(req admin.PlacementInitRequest) (admin.PlacementGetResponse, error) {
-	return c.client.InitAggPlacement(req)
 }
 
 func (c *coordinator) ApplyKVUpdate(update string) error {

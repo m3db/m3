@@ -25,6 +25,7 @@ package common
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -48,6 +49,8 @@ import (
 	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
+
+var errUnknownServiceType = errors.New("unknown service type")
 
 // RetryFunc is a function that retries the provided
 // operation until successful.
@@ -111,8 +114,19 @@ func (c *CoordinatorClient) GetNamespace() (admin.NamespaceGetResponse, error) {
 
 //nolint:dupl
 // GetPlacement gets placements.
-func (c *CoordinatorClient) GetPlacement() (admin.PlacementGetResponse, error) {
-	url := c.makeURL("api/v1/services/m3db/placement")
+func (c *CoordinatorClient) GetPlacement(opts resources.PlacementRequestOptions) (admin.PlacementGetResponse, error) {
+	var handlerurl string
+	switch opts.Service {
+	case resources.ServiceType_M3DB:
+		handlerurl = placementhandler.M3DBGetURL
+	case resources.Servicetype_M3Aggregator:
+		handlerurl = placementhandler.M3AggGetURL
+	case resources.ServiceType_M3Coordinator:
+		handlerurl = placementhandler.M3CoordinatorGetURL
+	default:
+		return admin.PlacementGetResponse{}, errUnknownServiceType
+	}
+	url := c.makeURL(handlerurl)
 	logger := c.logger.With(
 		ZapMethod("getPlacement"), zap.String("url", url))
 
@@ -120,6 +134,40 @@ func (c *CoordinatorClient) GetPlacement() (admin.PlacementGetResponse, error) {
 	resp, err := c.client.Get(url)
 	if err != nil {
 		logger.Error("failed get", zap.Error(err))
+		return admin.PlacementGetResponse{}, err
+	}
+
+	var response admin.PlacementGetResponse
+	if err := toResponse(resp, &response, logger); err != nil {
+		return admin.PlacementGetResponse{}, err
+	}
+
+	return response, nil
+}
+
+// InitPlacement initializes placements.
+func (c *CoordinatorClient) InitPlacement(
+	opts resources.PlacementRequestOptions,
+	initRequest admin.PlacementInitRequest,
+) (admin.PlacementGetResponse, error) {
+	var handlerurl string
+	switch opts.Service {
+	case resources.ServiceType_M3DB:
+		handlerurl = placementhandler.M3DBInitURL
+	case resources.Servicetype_M3Aggregator:
+		handlerurl = placementhandler.M3AggInitURL
+	case resources.ServiceType_M3Coordinator:
+		handlerurl = placementhandler.M3CoordinatorInitURL
+	default:
+		return admin.PlacementGetResponse{}, errUnknownServiceType
+	}
+	url := c.makeURL(handlerurl)
+	logger := c.logger.With(
+		ZapMethod("initPlacement"), zap.String("url", url))
+
+	resp, err := c.makeRequest(logger, url, placementhandler.InitHTTPMethod, &initRequest, nil)
+	if err != nil {
+		logger.Error("failed init", zap.Error(err))
 		return admin.PlacementGetResponse{}, err
 	}
 
@@ -173,7 +221,7 @@ func (c *CoordinatorClient) WaitForInstances(
 ) error {
 	logger := c.logger.With(ZapMethod("waitForPlacement"))
 	return c.retryFunc(func() error {
-		placement, err := c.GetPlacement()
+		placement, err := c.GetPlacement(resources.PlacementRequestOptions{Service: resources.ServiceType_M3DB})
 		if err != nil {
 			logger.Error("retrying get placement", zap.Error(err))
 			return err
@@ -205,7 +253,7 @@ func (c *CoordinatorClient) WaitForInstances(
 func (c *CoordinatorClient) WaitForShardsReady() error {
 	logger := c.logger.With(ZapMethod("waitForShards"))
 	return c.retryFunc(func() error {
-		placement, err := c.GetPlacement()
+		placement, err := c.GetPlacement(resources.PlacementRequestOptions{Service: resources.ServiceType_M3DB})
 		if err != nil {
 			logger.Error("retrying get placement", zap.Error(err))
 			return err
@@ -423,49 +471,6 @@ func m3msgTopicOptionsToMap(opts resources.M3msgTopicOptions) map[string]string 
 		headers.HeaderClusterZoneName:        opts.Zone,
 		topic.HeaderTopicName:                opts.TopicName,
 	}
-}
-
-// GetAggPlacement gets aggregator placements.
-func (c *CoordinatorClient) GetAggPlacement() (admin.PlacementGetResponse, error) {
-	url := c.makeURL(placementhandler.M3AggGetURL)
-	logger := c.logger.With(
-		ZapMethod("getAggPlacement"), zap.String("url", url))
-
-	//nolint:noctx
-	resp, err := c.client.Get(url)
-	if err != nil {
-		logger.Error("failed get", zap.Error(err))
-		return admin.PlacementGetResponse{}, err
-	}
-
-	var response admin.PlacementGetResponse
-	if err := toResponse(resp, &response, logger); err != nil {
-		return admin.PlacementGetResponse{}, err
-	}
-
-	return response, nil
-}
-
-// InitAggPlacement initializes aggregator placements.
-func (c *CoordinatorClient) InitAggPlacement(
-	initRequest admin.PlacementInitRequest,
-) (admin.PlacementGetResponse, error) {
-	url := c.makeURL(placementhandler.M3AggInitURL)
-	logger := c.logger.With(
-		ZapMethod("inittAggPlacement"), zap.String("url", url))
-
-	resp, err := c.makeRequest(logger, url, placementhandler.InitHTTPMethod, &initRequest, nil)
-	if err != nil {
-		logger.Error("failed init", zap.Error(err))
-		return admin.PlacementGetResponse{}, err
-	}
-
-	var response admin.PlacementGetResponse
-	if err := toResponse(resp, &response, logger); err != nil {
-		return admin.PlacementGetResponse{}, err
-	}
-
-	return response, nil
 }
 
 // WriteCarbon writes a carbon metric datapoint at a given time.

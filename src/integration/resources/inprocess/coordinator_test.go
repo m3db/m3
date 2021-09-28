@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,7 +51,7 @@ func TestCreateAnotherCoordinatorInProcess(t *testing.T) {
 
 // TODO(nate): add more tests exercising other endpoints once dbnode impl is landed
 
-func TestM3msgTopicManager(t *testing.T) {
+func TestM3msgTopicFunctions(t *testing.T) {
 	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
 	require.NoError(t, err)
 
@@ -126,7 +127,7 @@ func validateEqualTopicResp(t *testing.T, expected, actual admin.TopicGetRespons
 	require.Equal(t, t1, t2)
 }
 
-func TestAggPlacementManager(t *testing.T) {
+func TestAggPlacementFunctions(t *testing.T) {
 	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
 	require.NoError(t, err)
 
@@ -135,6 +136,9 @@ func TestAggPlacementManager(t *testing.T) {
 
 	require.NoError(t, coord.WaitForNamespace(""))
 
+	placementOpts := resources.PlacementRequestOptions{
+		Service: resources.Servicetype_M3Aggregator,
+	}
 	initRequest := admin.PlacementInitRequest{
 		Instances: []*placementpb.Instance{
 			{
@@ -181,7 +185,7 @@ func TestAggPlacementManager(t *testing.T) {
 		}
 		instanceMap[ins.Hostname] = &newIns
 	}
-	initResp, err := coord.InitAggPlacement(initRequest)
+	initResp, err := coord.InitPlacement(placementOpts, initRequest)
 	require.NoError(t, err)
 	expectedPlacement := &placementpb.Placement{
 		Instances:     instanceMap,
@@ -194,7 +198,7 @@ func TestAggPlacementManager(t *testing.T) {
 	require.Equal(t, int32(0), initResp.Version)
 	validateEqualAggPlacement(t, expectedPlacement, initResp.Placement)
 
-	getResp, err := coord.GetAggPlacement()
+	getResp, err := coord.GetPlacement(placementOpts)
 
 	require.NoError(t, err)
 	require.Equal(t, int32(1), getResp.Version)
