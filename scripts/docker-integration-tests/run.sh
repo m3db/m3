@@ -17,6 +17,7 @@ TESTS=(
 	scripts/docker-integration-tests/multi_cluster_write/test.sh
 	scripts/docker-integration-tests/coordinator_config_rules/test.sh
 	scripts/docker-integration-tests/coordinator_noop/test.sh
+	scripts/docker-integration-tests/prom_remote_write_backend/test.sh
 )
 
 # Some systems, including our default Buildkite hosts, don't come with netcat
