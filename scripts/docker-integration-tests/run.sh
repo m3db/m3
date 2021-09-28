@@ -27,7 +27,7 @@ if ! command -v nc && [[ "$BUILDKITE" == "true" ]]; then
 	echo "installing netcat"
 	NCDIR="$(mktemp -d)"
 
-	yumdownloader --destdir "$NCDIR" --resolve nc
+	yumdownloader -y --destdir "$NCDIR" --resolve nc
 	(
 		cd "$NCDIR"
 		RPM=$(find . -maxdepth 1 -name '*.rpm' | tail -n1)
