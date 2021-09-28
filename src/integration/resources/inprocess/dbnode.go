@@ -25,8 +25,10 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 
 	"go.uber.org/zap"
@@ -130,7 +132,7 @@ func NewDBNode(cfg config.Configuration, opts DBNodeOptions) (resources.Node, er
 
 	// Configure logger
 	if opts.Logger == nil {
-		opts.Logger, err = zap.NewDevelopment()
+		opts.Logger, err = newLogger()
 		if err != nil {
 			return nil, err
 		}
@@ -164,24 +166,38 @@ func (d *dbNode) start() {
 	d.started = true
 }
 
-func (d *dbNode) HostDetails(port int) (*admin.Host, error) {
-	// TODO(nate): implement once working on helpers for spinning up
-	// a multi-node cluster since that's what it's currently being
-	// used for based on the docker-based implementation.
-	// NOTES:
-	// - id we can generate
-	// - isolation_group set a constant?
-	// - weight just use 1024?
-	// - address is 0.0.0.0
-	// - port is the listen address (get from config)
+func (d *dbNode) HostDetails(_ int) (*admin.Host, error) {
+	_, p, err := net.SplitHostPort(d.cfg.DB.ListenAddressOrDefault())
+	if err != nil {
+		return nil, err
+	}
+
+	port, err := strconv.Atoi(p)
+	if err != nil {
+		return nil, err
+	}
+
+	hostID, err := d.cfg.DB.HostIDOrDefault().Resolve()
+	if err != nil {
+		return nil, err
+	}
+
+	discoverCfg := d.cfg.DB.DiscoveryOrDefault()
+	envConfig, err := discoverCfg.EnvironmentConfig(hostID)
+	if err != nil {
+		return nil, err
+	}
 
 	return &admin.Host{
-		Id:             "foo",
-		IsolationGroup: "foo-a",
-		Zone:           "embedded",
-		Weight:         1024,
-		Address:        "0.0.0.0",
-		Port:           uint32(port),
+		Id: hostID,
+		// TODO(nate): add support for multiple etcd services. Practically, this
+		// is very rare so using the zero-indexed value here will almost always be
+		// correct.
+		Zone: envConfig.Services[0].Service.Zone,
+		// TODO(nate): weight should be configurable
+		Weight:  1024,
+		Address: "0.0.0.0",
+		Port:    uint32(port),
 	}, nil
 }
 
