@@ -22,6 +22,7 @@ package aggregator
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"regexp"
 	"sort"
@@ -1390,116 +1391,263 @@ func TestAggregatorAddForwardedMetrics(t *testing.T) {
 }
 
 func TestPartitionResendEnabled(t *testing.T) {
-	aggAllAllowed := aggregator{
+	aggAllMatches := &aggregator{
 		timedForResendEnabledRollupRegexes: []*regexp.Regexp{
 			regexp.MustCompile(".*"),
 		},
 	}
-	// aggEmptyAllowed := aggregator{
-	// 	timedForResendEnabledRollupRegexes: []*regexp.Regexp{},
-	// }
-	// aggNoneAllowed := aggregator{
-	// 	timedForResendEnabledRollupRegexes: []*regexp.Regexp{
-	// 		regexp.MustCompile(".*123|456.*"),
-	// 	},
-	// }
-	// aggSomeAllowed := aggregator{
-	// 	timedForResendEnabledRollupRegexes: []*regexp.Regexp{
-	// 		regexp.MustCompile("1"),
-	// 		regexp.MustCompile("2|3"),
-	// 	},
-	// }
+	aggEmpty := &aggregator{
+		timedForResendEnabledRollupRegexes: []*regexp.Regexp{},
+	}
+	aggNoMatches := &aggregator{
+		timedForResendEnabledRollupRegexes: []*regexp.Regexp{
+			regexp.MustCompile(".*123|456.*"),
+		},
+	}
+	aggSomeMatches := &aggregator{
+		timedForResendEnabledRollupRegexes: []*regexp.Regexp{
+			regexp.MustCompile(".*1.*"),
+			regexp.MustCompile(".*(2|3).*"),
+		},
+	}
 
-	cases := []struct {
-		name            string
-		agg             aggregator
-		in              metadata.PipelineMetadatas
-		expectedTimed   metadata.PipelineMetadatas
-		expectedUntimed metadata.PipelineMetadatas
+	aggs := []struct {
+		agg  *aggregator
+		name string
 	}{
 		{
-			name: "allow all - many 1",
-			agg:  aggAllAllowed,
+			agg:  aggAllMatches,
+			name: "all",
+		},
+		{
+			agg:  aggEmpty,
+			name: "empty",
+		},
+		{
+			agg:  aggNoMatches,
+			name: "none",
+		},
+		{
+			agg:  aggSomeMatches,
+			name: "some",
+		},
+	}
+
+	cases := []struct {
+		name     string
+		in       metadata.PipelineMetadatas
+		expected map[*aggregator]struct {
+			timed, untimed metadata.PipelineMetadatas
+		}
+	}{
+		{
+			name: "many 1",
 			in: metadata.PipelineMetadatas{
 				newPipeline("1", false),
 				newPipeline("2", true),
 				newPipeline("3", false),
 				newPipeline("4", true),
 			},
-			expectedTimed: metadata.PipelineMetadatas{
-				newPipeline("4", true),
-				newPipeline("2", true),
-			},
-			expectedUntimed: metadata.PipelineMetadatas{
-				newPipeline("3", false),
-				newPipeline("1", false),
+			expected: map[*aggregator]struct {
+				timed, untimed metadata.PipelineMetadatas
+			}{
+				aggAllMatches: {
+					timed: metadata.PipelineMetadatas{
+						newPipeline("4", true),
+						newPipeline("2", true),
+					},
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("3", false),
+						newPipeline("1", false),
+					},
+				},
+				aggEmpty: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("2", true),
+						newPipeline("3", false),
+						newPipeline("4", true),
+						newPipeline("1", false),
+					},
+				},
+				aggNoMatches: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("2", true),
+						newPipeline("3", false),
+						newPipeline("4", true),
+						newPipeline("1", false),
+					},
+				},
+				aggSomeMatches: {
+					timed: metadata.PipelineMetadatas{
+						newPipeline("2", true),
+					},
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("3", false),
+						newPipeline("4", true),
+						newPipeline("1", false),
+					},
+				},
 			},
 		},
 		{
-			name: "allow all - many 2",
-			agg:  aggAllAllowed,
+			name: "many 2",
 			in: metadata.PipelineMetadatas{
 				newPipeline("1", true),
 				newPipeline("2", true),
 				newPipeline("3", false),
 				newPipeline("4", false),
 			},
-			expectedTimed: metadata.PipelineMetadatas{
-				newPipeline("1", true),
-				newPipeline("2", true),
-			},
-			expectedUntimed: metadata.PipelineMetadatas{
-				newPipeline("4", false),
-				newPipeline("3", false),
+			expected: map[*aggregator]struct {
+				timed, untimed metadata.PipelineMetadatas
+			}{
+				aggAllMatches: {
+					timed: metadata.PipelineMetadatas{
+						newPipeline("1", true),
+						newPipeline("2", true),
+					},
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("4", false),
+						newPipeline("3", false),
+					},
+				},
+				aggEmpty: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("2", true),
+						newPipeline("3", false),
+						newPipeline("4", false),
+						newPipeline("1", true),
+					},
+				},
+				aggNoMatches: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("2", true),
+						newPipeline("3", false),
+						newPipeline("4", false),
+						newPipeline("1", true),
+					},
+				},
+				aggSomeMatches: {
+					timed: metadata.PipelineMetadatas{
+						newPipeline("1", true),
+						newPipeline("2", true),
+					},
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("4", false),
+						newPipeline("3", false),
+					},
+				},
 			},
 		},
 		{
-			name: "allow all - single timed",
-			agg:  aggAllAllowed,
+			name: "single timed",
 			in: metadata.PipelineMetadatas{
 				newPipeline("1", true),
 			},
-			expectedTimed: metadata.PipelineMetadatas{
-				newPipeline("1", true),
+			expected: map[*aggregator]struct {
+				timed, untimed metadata.PipelineMetadatas
+			}{
+				aggAllMatches: {
+					timed: metadata.PipelineMetadatas{
+						newPipeline("1", true),
+					},
+					untimed: nil,
+				},
+				aggEmpty: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("1", true),
+					},
+				},
+				aggNoMatches: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("1", true),
+					},
+				},
+				aggSomeMatches: {
+					timed: metadata.PipelineMetadatas{
+						newPipeline("1", true),
+					},
+					untimed: nil,
+				},
 			},
-			expectedUntimed: nil,
 		},
 		{
-			name: "allow all - single untimed",
-			agg:  aggAllAllowed,
+			name: "single untimed",
 			in: metadata.PipelineMetadatas{
 				newPipeline("1", false),
 			},
-			expectedTimed: nil,
-			expectedUntimed: metadata.PipelineMetadatas{
-				newPipeline("1", false),
+			expected: map[*aggregator]struct {
+				timed, untimed metadata.PipelineMetadatas
+			}{
+				aggAllMatches: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("1", false),
+					},
+				},
+				aggEmpty: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("1", false),
+					},
+				},
+				aggNoMatches: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("1", false),
+					},
+				},
+				aggSomeMatches: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("1", false),
+					},
+				},
 			},
 		},
 		{
-			name:            "allow all - empty",
-			agg:             aggAllAllowed,
-			in:              metadata.PipelineMetadatas{},
-			expectedTimed:   nil,
-			expectedUntimed: nil,
+			name: "empty",
+			in:   metadata.PipelineMetadatas{},
+			expected: map[*aggregator]struct {
+				timed, untimed metadata.PipelineMetadatas
+			}{
+				aggAllMatches: {
+					timed:   nil,
+					untimed: nil,
+				},
+				aggEmpty: {
+					timed:   nil,
+					untimed: nil,
+				},
+				aggNoMatches: {
+					timed:   nil,
+					untimed: nil,
+				},
+				aggSomeMatches: {
+					timed:   nil,
+					untimed: nil,
+				},
+			},
 		},
 	}
 
 	for _, tc := range cases {
 		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			p1, p2 := tc.agg.partitionResendEnabled(tc.in)
-			if tc.expectedTimed == nil {
-				require.Empty(t, p1)
-			} else {
-				require.Equal(t, tc.expectedTimed, p1)
-			}
-
-			if tc.expectedUntimed == nil {
-				require.Empty(t, p2)
-			} else {
-				require.Equal(t, tc.expectedUntimed, p2)
-			}
-		})
+		for _, a := range aggs {
+			agg := a.agg
+			in := tc.in.Clone()
+			expected := tc.expected[agg]
+			t.Run(fmt.Sprintf("%s_agg_%s", tc.name, a.name), func(t *testing.T) {
+				p1, p2 := agg.partitionResendEnabled(in)
+				require.True(t, expected.timed.Equal(p1), "timed unexpected")
+				require.True(t, expected.untimed.Equal(p2), "untimed unexpected")
+			})
+		}
 	}
 }
 
@@ -1508,6 +1656,7 @@ func newPipeline(id string, resendEnabled bool) metadata.PipelineMetadata {
 		Pipeline: applied.Pipeline{
 			Operations: []applied.OpUnion{
 				{
+					Type: pipeline.RollupOpType,
 					Rollup: applied.RollupOp{
 						ID: []byte(id),
 					},
