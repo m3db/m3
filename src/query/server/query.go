@@ -222,6 +222,13 @@ func Run(runOpts RunOptions) RunResult {
 		}()
 	}
 
+	interruptOpts := xos.NewInterruptOptions()
+	if runOpts.InterruptCh != nil {
+		interruptOpts.InterruptCh = runOpts.InterruptCh
+	}
+	intWatchCancel := xos.WatchForInterrupt(logger, interruptOpts)
+	defer intWatchCancel()
+
 	defer logger.Sync()
 
 	cfg.Debug.SetRuntimeValues(logger)
@@ -483,6 +490,7 @@ func Run(runOpts RunOptions) RunResult {
 
 		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, etcdConfig, backendStorage,
 			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
+			interruptOpts,
 		)
 		if err != nil {
 			var interruptErr *xos.InterruptError
@@ -516,6 +524,7 @@ func Run(runOpts RunOptions) RunResult {
 
 		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, cfg.ClusterManagement.Etcd, backendStorage,
 			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
+			interruptOpts,
 		)
 		if err != nil {
 			logger.Fatal("unable to setup downsampler for prom remote backend", zap.Error(err))
@@ -735,10 +744,14 @@ func Run(runOpts RunOptions) RunResult {
 		defer server.Close()
 	}
 
-	// Wait for process interrupt.
-	xos.WaitForInterrupt(logger, xos.InterruptOptions{
-		InterruptCh: runOpts.InterruptCh,
-	})
+	// Stop our async watch and now block waiting for the interrupt.
+	intWatchCancel()
+	select {
+	case <-interruptOpts.InterruptedCh:
+		logger.Warn("interrupt already received. closing")
+	default:
+		xos.WaitForInterrupt(logger, interruptOpts)
+	}
 
 	return runResult
 }
@@ -789,7 +802,7 @@ func resolveEtcdForM3DB(cfg config.Configuration) (*etcdclient.Configuration, er
 func newDownsamplerAsync(
 	cfg downsample.Configuration, etcdCfg *etcdclient.Configuration, storage storage.Appender,
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher, tagOptions models.TagOptions, clockOpts clock.Options,
-	instrumentOptions instrument.Options, rwOpts xio.Options, runOpts RunOptions,
+	instrumentOptions instrument.Options, rwOpts xio.Options, runOpts RunOptions, interruptOpts xos.InterruptOptions,
 ) (downsample.Downsampler, clusterclient.Client, error) {
 	var (
 		clusterClient       clusterclient.Client
@@ -821,7 +834,7 @@ func newDownsamplerAsync(
 			cfg, clusterClient,
 			storage, clusterNamespacesWatcher,
 			tagOptions, clockOpts, instrumentOptions, rwOpts, runOpts.ApplyCustomRuleStore,
-			runOpts.InterruptCh)
+			interruptOpts.InterruptedCh)
 		if err != nil {
 			return nil, err
 		}
@@ -861,7 +874,7 @@ func newDownsampler(
 	instrumentOpts instrument.Options,
 	rwOpts xio.Options,
 	applyCustomRuleStore downsample.CustomRuleStoreFn,
-	interruptCh <-chan error,
+	interruptedCh <-chan struct{},
 ) (downsample.Downsampler, error) {
 	// Namespace the downsampler metrics.
 	instrumentOpts = instrumentOpts.SetMetricsScope(
@@ -917,7 +930,7 @@ func newDownsampler(
 		TagOptions:                 tagOptions,
 		MetricsAppenderPoolOptions: metricsAppenderPoolOptions,
 		RWOptions:                  rwOpts,
-		InterruptCh:                interruptCh,
+		InterruptedCh:              interruptedCh,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create downsampler: %w", err)

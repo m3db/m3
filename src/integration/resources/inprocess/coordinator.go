@@ -58,10 +58,11 @@ const (
 // coordinator is an in-process implementation of resources.Coordinator for use
 // in integration tests.
 type coordinator struct {
-	cfg     config.Configuration
-	client  common.CoordinatorClient
-	logger  *zap.Logger
-	tmpDirs []string
+	cfg      config.Configuration
+	client   common.CoordinatorClient
+	logger   *zap.Logger
+	tmpDirs  []string
+	embedded bool
 
 	interruptCh chan<- error
 	shutdownCh  <-chan struct{}
@@ -170,7 +171,11 @@ func NewCoordinator(cfg config.Configuration, opts CoordinatorOptions) (resource
 // NewEmbeddedCoordinator creates a coordinator from one embedded within an existing
 // db node. This method expects that the DB node has already been started before
 // being called.
-func NewEmbeddedCoordinator(d dbNode) (resources.Coordinator, error) {
+func NewEmbeddedCoordinator(d *dbNode) (resources.Coordinator, error) {
+	if !d.started {
+		return nil, errors.New("dbnode must be started to create the embedded coordinator")
+	}
+
 	_, p, err := net.SplitHostPort(d.cfg.Coordinator.ListenAddressOrDefault())
 	if err != nil {
 		return nil, err
@@ -189,6 +194,7 @@ func NewEmbeddedCoordinator(d dbNode) (resources.Coordinator, error) {
 			Logger:    d.logger,
 			RetryFunc: retry,
 		}),
+		embedded:    true,
 		logger:      d.logger,
 		interruptCh: d.interruptCh,
 		shutdownCh:  d.shutdownCh,
@@ -257,6 +263,12 @@ func (c *coordinator) WaitForShardsReady() error {
 }
 
 func (c *coordinator) Close() error {
+	if c.embedded {
+		// NB(nate): for embedded coordinators, close is handled by the dbnode that
+		// it is spun up inside of.
+		return nil
+	}
+
 	defer func() {
 		for _, dir := range c.tmpDirs {
 			if err := os.RemoveAll(dir); err != nil {
@@ -265,7 +277,6 @@ func (c *coordinator) Close() error {
 		}
 	}()
 
-	// TODO: confirm this works correctly when using an embedded coordinator
 	select {
 	case c.interruptCh <- xos.NewInterruptError("in-process coordinator being shut down"):
 	case <-time.After(interruptTimeout):
@@ -275,7 +286,7 @@ func (c *coordinator) Close() error {
 	select {
 	case <-c.shutdownCh:
 	case <-time.After(shutdownTimeout):
-		return errors.New("timeout waiting for shutdown notification. server closing may" +
+		return errors.New("timeout waiting for shutdown notification. coordinator closing may" +
 			" not be completely graceful")
 	}
 
