@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placement/storage"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/x/instrument"
+	xos "github.com/m3db/m3/src/x/os"
 	xwatch "github.com/m3db/m3/src/x/watch"
 
 	"github.com/golang/mock/gomock"
@@ -920,15 +921,15 @@ func TestWatchInterruptedWithTimeout(t *testing.T) {
 func testWatchInterrupted(t *testing.T, s Services) {
 	sid := NewServiceID().SetName("m3db").SetZone("zone1")
 
-	interruptCh := make(chan error, 1)
-	interruptCh <- errors.New("interrupt")
+	interruptedCh := make(chan struct{})
+	close(interruptedCh)
 
 	qopts := NewQueryOptions().
 		SetIncludeUnhealthy(true).
-		SetInterruptCh(interruptCh)
+		SetInterruptedCh(interruptedCh)
 	_, err := s.Watch(sid, qopts)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "interrupt")
+	require.True(t, errors.Is(err, xos.ErrInterrupted))
 }
 
 func TestHeartbeatService(t *testing.T) {

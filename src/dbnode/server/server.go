@@ -214,6 +214,13 @@ func Run(runOpts RunOptions) {
 		}()
 	}
 
+	interruptOpts := xos.NewInterruptOptions()
+	if runOpts.InterruptCh != nil {
+		interruptOpts.InterruptCh = runOpts.InterruptCh
+	}
+	intWatchCancel := xos.WatchForInterrupt(logger, interruptOpts)
+	defer intWatchCancel()
+
 	defer logger.Sync()
 
 	cfg.Debug.SetRuntimeValues(logger)
@@ -746,7 +753,7 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating dynamic config service client with m3cluster")
 
 		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
-			InterruptCh:            runOpts.InterruptCh,
+			InterruptedCh:          interruptOpts.InterruptedCh,
 			InstrumentOpts:         iOpts,
 			HashingSeed:            cfg.Hashing.Seed,
 			NewDirectoryMode:       newDirectoryMode,
@@ -759,7 +766,7 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating static config service client with m3cluster")
 
 		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
-			InterruptCh:            runOpts.InterruptCh,
+			InterruptedCh:          interruptOpts.InterruptedCh,
 			InstrumentOpts:         iOpts,
 			HostID:                 hostID,
 			ForceColdWritesEnabled: forceColdWrites,
@@ -1091,10 +1098,14 @@ func Run(runOpts RunOptions) {
 		)
 	}()
 
-	// Wait for process interrupt.
-	xos.WaitForInterrupt(logger, xos.InterruptOptions{
-		InterruptCh: runOpts.InterruptCh,
-	})
+	// Stop our async watch and now block waiting for the interrupt.
+	intWatchCancel()
+	select {
+	case <-interruptOpts.InterruptedCh:
+		logger.Warn("interrupt already received. closing")
+	default:
+		xos.WaitForInterrupt(logger, interruptOpts)
+	}
 
 	// Attempt graceful server close.
 	closedCh := make(chan struct{})
