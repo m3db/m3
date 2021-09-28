@@ -137,7 +137,7 @@ func TestAggPlacementFunctions(t *testing.T) {
 	require.NoError(t, coord.WaitForNamespace(""))
 
 	placementOpts := resources.PlacementRequestOptions{
-		Service: resources.Servicetype_M3Aggregator,
+		Service: resources.ServiceTypeM3Aggregator,
 	}
 	initRequest := admin.PlacementInitRequest{
 		Instances: []*placementpb.Instance{

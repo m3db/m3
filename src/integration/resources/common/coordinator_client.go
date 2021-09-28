@@ -117,11 +117,11 @@ func (c *CoordinatorClient) GetNamespace() (admin.NamespaceGetResponse, error) {
 func (c *CoordinatorClient) GetPlacement(opts resources.PlacementRequestOptions) (admin.PlacementGetResponse, error) {
 	var handlerurl string
 	switch opts.Service {
-	case resources.ServiceType_M3DB:
+	case resources.ServiceTypeM3DB:
 		handlerurl = placementhandler.M3DBGetURL
-	case resources.Servicetype_M3Aggregator:
+	case resources.ServiceTypeM3Aggregator:
 		handlerurl = placementhandler.M3AggGetURL
-	case resources.ServiceType_M3Coordinator:
+	case resources.ServiceTypeM3Coordinator:
 		handlerurl = placementhandler.M3CoordinatorGetURL
 	default:
 		return admin.PlacementGetResponse{}, errUnknownServiceType
@@ -152,11 +152,11 @@ func (c *CoordinatorClient) InitPlacement(
 ) (admin.PlacementGetResponse, error) {
 	var handlerurl string
 	switch opts.Service {
-	case resources.ServiceType_M3DB:
+	case resources.ServiceTypeM3DB:
 		handlerurl = placementhandler.M3DBInitURL
-	case resources.Servicetype_M3Aggregator:
+	case resources.ServiceTypeM3Aggregator:
 		handlerurl = placementhandler.M3AggInitURL
-	case resources.ServiceType_M3Coordinator:
+	case resources.ServiceTypeM3Coordinator:
 		handlerurl = placementhandler.M3CoordinatorInitURL
 	default:
 		return admin.PlacementGetResponse{}, errUnknownServiceType
@@ -221,7 +221,7 @@ func (c *CoordinatorClient) WaitForInstances(
 ) error {
 	logger := c.logger.With(ZapMethod("waitForPlacement"))
 	return c.retryFunc(func() error {
-		placement, err := c.GetPlacement(resources.PlacementRequestOptions{Service: resources.ServiceType_M3DB})
+		placement, err := c.GetPlacement(resources.PlacementRequestOptions{Service: resources.ServiceTypeM3DB})
 		if err != nil {
 			logger.Error("retrying get placement", zap.Error(err))
 			return err
@@ -253,7 +253,7 @@ func (c *CoordinatorClient) WaitForInstances(
 func (c *CoordinatorClient) WaitForShardsReady() error {
 	logger := c.logger.With(ZapMethod("waitForShards"))
 	return c.retryFunc(func() error {
-		placement, err := c.GetPlacement(resources.PlacementRequestOptions{Service: resources.ServiceType_M3DB})
+		placement, err := c.GetPlacement(resources.PlacementRequestOptions{Service: resources.ServiceTypeM3DB})
 		if err != nil {
 			logger.Error("retrying get placement", zap.Error(err))
 			return err

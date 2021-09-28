@@ -187,11 +187,12 @@ type PlacementRequestOptions struct {
 	Service ServiceType
 }
 
+// ServiceType is the type of m3 service
 type ServiceType int
 
 const (
-	ServiceType_Unknown ServiceType = iota
-	ServiceType_M3DB
-	Servicetype_M3Aggregator
-	ServiceType_M3Coordinator
+	ServiceTypeUnknown ServiceType = iota
+	ServiceTypeM3DB
+	ServiceTypeM3Aggregator
+	ServiceTypeM3Coordinator
 )
