@@ -110,6 +110,6 @@ type Reader64 interface {
 	// Read64 reads and returns a 64 bit word plus a number of bytes (up to 8) actually read.
 	Read64() (word uint64, n byte, err error)
 
-	// Peek64 peeks and returns the next 64 bit word plus a number of bytes (up to 8) available.
+	// Read64 peeks and returns the next 64 bit word plus a number of bytes (up to 8) available.
 	Peek64() (word uint64, n byte, err error)
 }
