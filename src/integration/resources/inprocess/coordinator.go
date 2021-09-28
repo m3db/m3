@@ -32,7 +32,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/backoff/v3"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
@@ -50,9 +49,6 @@ import (
 const (
 	interruptTimeout = 5 * time.Second
 	shutdownTimeout  = time.Minute
-
-	retryMaxInterval = 5 * time.Second
-	retryMaxTime     = time.Minute
 )
 
 // coordinator is an in-process implementation of resources.Coordinator for use
@@ -134,7 +130,7 @@ func NewCoordinator(cfg config.Configuration, opts CoordinatorOptions) (resource
 
 	// Configure logger
 	if opts.Logger == nil {
-		opts.Logger, err = zap.NewDevelopment()
+		opts.Logger, err = newLogger()
 		if err != nil {
 			return nil, err
 		}
@@ -367,11 +363,4 @@ func updateCoordinatorFilepaths(cfg config.Configuration) (config.Configuration,
 	}
 
 	return cfg, tmpDirs, nil
-}
-
-func retry(op func() error) error {
-	bo := backoff.NewExponentialBackOff()
-	bo.MaxInterval = retryMaxInterval
-	bo.MaxElapsedTime = retryMaxTime
-	return backoff.Retry(op, bo)
 }
