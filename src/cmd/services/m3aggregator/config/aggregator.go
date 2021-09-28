@@ -184,10 +184,10 @@ type AggregatorConfiguration struct {
 	// Must be in sync with m3msg WriterConfiguration.IgnoreCutoffCutover.
 	WritesIgnoreCutoffCutover bool `yaml:"writesIgnoreCutoffCutover"`
 
-	// TimedForResendEnabledRollupRegexes is a feature flag that gracefully transitions AddUntimed to AddTimed
-	// for pipelines that support resending aggregate values. The regexes are matched against the rollup IDs
+	// TimedForResendEnabledRollupRegexps is a feature flag that gracefully transitions AddUntimed to AddTimed
+	// for pipelines that support resending aggregate values. The regexps are matched against the rollup IDs
 	// to allow for incremental transition of existing rules to this new behavior.
-	TimedForResendEnabledRollupRegexes []string `yaml:"timedForResendEnabledRollupRegexes"`
+	TimedForResendEnabledRollupRegexps []string `yaml:"timedForResendEnabledRollupRegexps"`
 }
 
 // InstanceIDType is the instance ID type that defines how the
@@ -498,7 +498,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 
 	opts = opts.
 		SetWritesIgnoreCutoffCutover(c.WritesIgnoreCutoffCutover).
-		SetTimedForResendEnabledRollupRegexes(c.TimedForResendEnabledRollupRegexes)
+		SetTimedForResendEnabledRollupRegexps(c.TimedForResendEnabledRollupRegexps)
 
 	return opts, nil
 }
