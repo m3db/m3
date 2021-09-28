@@ -202,15 +202,23 @@ func (c *coordinator) Close() error {
 	return c.resource.close()
 }
 
-func (c *coordinator) InitM3msgTopic(opts resources.M3msgTopicOptions, req admin.TopicInitRequest) (admin.TopicGetResponse, error) {
+func (c *coordinator) InitM3msgTopic(
+	opts resources.M3msgTopicOptions,
+	req admin.TopicInitRequest,
+) (admin.TopicGetResponse, error) {
 	return c.client.InitM3msgTopic(opts, req)
 }
 
-func (c *coordinator) GetM3msgTopic(opts resources.M3msgTopicOptions) (admin.TopicGetResponse, error) {
+func (c *coordinator) GetM3msgTopic(
+	opts resources.M3msgTopicOptions,
+) (admin.TopicGetResponse, error) {
 	return c.client.GetM3msgTopic(opts)
 }
 
-func (c *coordinator) AddM3msgTopicConsumer(opts resources.M3msgTopicOptions, req admin.TopicAddRequest) (admin.TopicGetResponse, error) {
+func (c *coordinator) AddM3msgTopicConsumer(
+	opts resources.M3msgTopicOptions,
+	req admin.TopicAddRequest,
+) (admin.TopicGetResponse, error) {
 	return c.client.AddM3msgTopicConsumer(opts, req)
 }
 

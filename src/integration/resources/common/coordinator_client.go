@@ -334,6 +334,7 @@ func (c *CoordinatorClient) DeleteNamespace(namespaceID string) error {
 	return nil
 }
 
+//nolint:dupl
 // InitM3msgTopic initializes an m3msg topic
 func (c *CoordinatorClient) InitM3msgTopic(
 	topicOpts resources.M3msgTopicOptions,
@@ -387,6 +388,7 @@ func (c *CoordinatorClient) GetM3msgTopic(
 	return response, nil
 }
 
+//nolint:dupl
 // AddM3msgTopicConsumer adds a consumer service to an m3msg topic
 func (c *CoordinatorClient) AddM3msgTopicConsumer(
 	topicOpts resources.M3msgTopicOptions,
@@ -445,7 +447,9 @@ func (c *CoordinatorClient) GetAggPlacement() (admin.PlacementGetResponse, error
 }
 
 // InitAggPlacement initializes aggregator placements.
-func (c *CoordinatorClient) InitAggPlacement(initRequest admin.PlacementInitRequest) (admin.PlacementGetResponse, error) {
+func (c *CoordinatorClient) InitAggPlacement(
+	initRequest admin.PlacementInitRequest,
+) (admin.PlacementGetResponse, error) {
 	url := c.makeURL(placementhandler.M3AggInitURL)
 	logger := c.logger.With(
 		ZapMethod("inittAggPlacement"), zap.String("url", url))
