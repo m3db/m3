@@ -22,8 +22,8 @@ function prometheus_remote_write {
     -t __name__:"${metric_name}"                            \
     -d "${datapoint_timestamp}","${datapoint_value}" | grep -v promremotecli_log) || true)
 
-  success=$(echo "$out" | grep -v promremotecli_log | docker run --rm -i "$JQ_IMAGE" jq .success)
-  status=$(echo "$out" | grep -v promremotecli_log | docker run --rm -i "$JQ_IMAGE" jq .statusCode)
+  success=$(echo "$out" | grep -v promremotecli_log | jq .success)
+  status=$(echo "$out" | grep -v promremotecli_log | jq .statusCode)
   if [[ "$success" != "$expect_success" ]]; then
     echo "$expect_success_err"
     return 1

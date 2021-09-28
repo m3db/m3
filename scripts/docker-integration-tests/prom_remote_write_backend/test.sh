@@ -8,7 +8,6 @@ REVISION=$(git rev-parse HEAD)
 export REVISION
 COMPOSE_FILE="$TESTDIR"/prom_remote_write_backend/docker-compose.yml
 PROMREMOTECLI_IMAGE=quay.io/m3db/prometheus_remote_client_golang:v0.4.3
-JQ_IMAGE=realguess/jq:1.4@sha256:300c5d9fb1d74154248d155ce182e207cf6630acccbaadd0168e18b15bfaa786
 TEST_SUCCESS=false
 
 source "$TESTDIR"/common.sh
@@ -17,7 +16,6 @@ source "$TESTDIR"/prom_remote_write_backend/tests.sh
 
 echo "Pull containers required for test"
 docker pull $PROMREMOTECLI_IMAGE
-docker pull $JQ_IMAGE
 
 trap 'cleanup ${COMPOSE_FILE} ${TEST_SUCCESS}' EXIT
 
