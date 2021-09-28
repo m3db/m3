@@ -113,7 +113,7 @@ type aggregator struct {
 	passthroughWriter                  writer.Writer
 	adminClient                        client.AdminClient
 	resignTimeout                      time.Duration
-	timedForResendEnabledRollupRegexes []*regexp.Regexp
+	timedForResendEnabledRollupRegexps []*regexp.Regexp
 
 	shardSetID         uint32
 	shardSetOpen       bool
@@ -151,7 +151,7 @@ func NewAggregator(opts Options) Aggregator {
 		passthroughWriter:                  opts.PassthroughWriter(),
 		adminClient:                        opts.AdminClient(),
 		resignTimeout:                      opts.ResignTimeout(),
-		timedForResendEnabledRollupRegexes: compileRegexps(logger, opts.TimedForResendEnabledRollupRegexes()),
+		timedForResendEnabledRollupRegexps: compileRegexps(logger, opts.TimedForResendEnabledRollupRegexps()),
 		doneCh:                             make(chan struct{}),
 		sleepFn:                            time.Sleep,
 		metrics:                            newAggregatorMetrics(scope, timerOpts, opts.MaxAllowedForwardingDelayFn()),
@@ -160,7 +160,7 @@ func NewAggregator(opts Options) Aggregator {
 }
 
 func compileRegexps(logger *zap.Logger, regexps []string) []*regexp.Regexp {
-	timedForResendEnabledRollupRegexes := make([]*regexp.Regexp, 0, len(regexps))
+	timedForResendEnabledRollupRegexps := make([]*regexp.Regexp, 0, len(regexps))
 	for _, r := range regexps {
 		compiled, err := regexp.Compile(r)
 		if err != nil {
@@ -169,9 +169,9 @@ func compileRegexps(logger *zap.Logger, regexps []string) []*regexp.Regexp {
 				zap.String("regexp", r))
 			continue
 		}
-		timedForResendEnabledRollupRegexes = append(timedForResendEnabledRollupRegexes, compiled)
+		timedForResendEnabledRollupRegexps = append(timedForResendEnabledRollupRegexps, compiled)
 	}
-	return timedForResendEnabledRollupRegexes
+	return timedForResendEnabledRollupRegexps
 }
 
 func (agg *aggregator) Open() error {
@@ -369,7 +369,7 @@ func (agg *aggregator) timedForResendEnabledOnPipeline(p metadata.PipelineMetada
 	if !p.ResendEnabled {
 		return false
 	}
-	if len(agg.timedForResendEnabledRollupRegexes) == 0 {
+	if len(agg.timedForResendEnabledRollupRegexps) == 0 {
 		return false
 	}
 	for _, op := range p.Pipeline.Operations {
@@ -377,7 +377,7 @@ func (agg *aggregator) timedForResendEnabledOnPipeline(p metadata.PipelineMetada
 			continue
 		}
 
-		for _, r := range agg.timedForResendEnabledRollupRegexes {
+		for _, r := range agg.timedForResendEnabledRollupRegexps {
 			if r.Match(op.Rollup.ID) {
 				return true
 			}

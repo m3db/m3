@@ -348,13 +348,13 @@ type Options interface {
 	// are ignored for incoming writes.
 	SetWritesIgnoreCutoffCutover(value bool) Options
 
-	// TimedForResendEnabledRollupRegexes is a set of regexes which define the rollup IDs to be migrated
+	// TimedForResendEnabledRollupRegexps is a set of regexes which define the rollup IDs to be migrated
 	// AddUntimed calls to AddTimed calls if the pipeline has resends enabled. This allows gracefully
 	// migrating from untimed to timed aggregated metrics on a per-rule basis.
-	TimedForResendEnabledRollupRegexes() []string
+	TimedForResendEnabledRollupRegexps() []string
 
-	// SetTimedForResendEnabledRollupRegexes sets TimedForResendEnabledRollupRegexes.
-	SetTimedForResendEnabledRollupRegexes([]string) Options
+	// SetTimedForResendEnabledRollupRegexps sets TimedForResendEnabledRollupRegexps.
+	SetTimedForResendEnabledRollupRegexps([]string) Options
 }
 
 type options struct {
@@ -400,7 +400,7 @@ type options struct {
 	timedMetricsFlushOffsetEnabled     bool
 	featureFlagBundlesParsed           []FeatureFlagBundleParsed
 	writesIgnoreCutoffCutover          bool
-	timedForResendEnabledRollupRegexes []string
+	timedForResendEnabledRollupRegexps []string
 
 	// Derived options.
 	fullCounterPrefix []byte
@@ -939,14 +939,14 @@ func (o *options) SetWritesIgnoreCutoffCutover(value bool) Options {
 	return &opts
 }
 
-func (o *options) TimedForResendEnabledRollupRegexes() []string {
-	return o.timedForResendEnabledRollupRegexes
+func (o *options) TimedForResendEnabledRollupRegexps() []string {
+	return o.timedForResendEnabledRollupRegexps
 }
 
-// SetTimedForResendEnabledRollupRegexes sets TimedForResendEnabledRollupRegexes.
-func (o *options) SetTimedForResendEnabledRollupRegexes(value []string) Options {
+// SetTimedForResendEnabledRollupRegexps sets TimedForResendEnabledRollupRegexps.
+func (o *options) SetTimedForResendEnabledRollupRegexps(value []string) Options {
 	opts := *o
-	opts.timedForResendEnabledRollupRegexes = value
+	opts.timedForResendEnabledRollupRegexps = value
 	return &opts
 }
 

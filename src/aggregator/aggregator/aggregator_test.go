@@ -50,13 +50,13 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-	"go.uber.org/zap"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -426,7 +426,7 @@ func TestAggregatorAddUntimedToTimed(t *testing.T) {
 	logger := zap.NewNop()
 
 	agg, _ := testAggregator(t, ctrl)
-	agg.timedForResendEnabledRollupRegexes = compileRegexps(logger, []string{".*"})
+	agg.timedForResendEnabledRollupRegexps = compileRegexps(logger, []string{".*"})
 	metas := metadata.StagedMetadatas{testStagedMetadatas[0]}
 	// add another pipeline
 	metas[0].Pipelines = append(metas[0].Pipelines, metadata.PipelineMetadata{
@@ -473,7 +473,7 @@ func TestAggregatorAddUntimedToTimedDisabled(t *testing.T) {
 	defer ctrl.Finish()
 
 	agg, _ := testAggregator(t, ctrl)
-	agg.timedForResendEnabledRollupRegexes = nil
+	agg.timedForResendEnabledRollupRegexps = nil
 	metas := metadata.StagedMetadatas{testStagedMetadatas[0]}
 	// add another pipeline
 	metas[0].Pipelines = append(metas[0].Pipelines, metadata.PipelineMetadata{
@@ -1394,13 +1394,13 @@ func TestAggregatorAddForwardedMetrics(t *testing.T) {
 
 func TestPartitionResendEnabled(t *testing.T) {
 	aggAllMatches := NewAggregator(NewOptions(clock.NewOptions()).
-		SetTimedForResendEnabledRollupRegexes([]string{".*"})).(*aggregator)
+		SetTimedForResendEnabledRollupRegexps([]string{".*"})).(*aggregator)
 	aggEmpty := NewAggregator(NewOptions(clock.NewOptions()).
-		SetTimedForResendEnabledRollupRegexes([]string{})).(*aggregator)
+		SetTimedForResendEnabledRollupRegexps([]string{})).(*aggregator)
 	aggNoMatches := NewAggregator(NewOptions(clock.NewOptions()).
-		SetTimedForResendEnabledRollupRegexes([]string{".*123|456.*"})).(*aggregator)
+		SetTimedForResendEnabledRollupRegexps([]string{".*123|456.*"})).(*aggregator)
 	aggSomeMatches := NewAggregator(NewOptions(clock.NewOptions()).
-		SetTimedForResendEnabledRollupRegexes([]string{"1", "(2|3)"})).(*aggregator)
+		SetTimedForResendEnabledRollupRegexps([]string{"1", "(2|3)"})).(*aggregator)
 
 	aggs := []struct {
 		agg  *aggregator
