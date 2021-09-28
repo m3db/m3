@@ -23,6 +23,7 @@ package aggregator
 import (
 	"errors"
 	"math"
+	"regexp"
 	"sort"
 	"testing"
 	"time"
@@ -422,7 +423,7 @@ func TestAggregatorAddUntimedToTimed(t *testing.T) {
 	defer ctrl.Finish()
 
 	agg, _ := testAggregator(t, ctrl)
-	agg.opts = agg.opts.SetTimedForResendEnabled(true)
+	agg.opts = agg.opts.SetTimedForResendEnabledRollupRegexes([]string{".*"})
 	metas := metadata.StagedMetadatas{testStagedMetadatas[0]}
 	// add another pipeline
 	metas[0].Pipelines = append(metas[0].Pipelines, metadata.PipelineMetadata{
@@ -469,7 +470,7 @@ func TestAggregatorAddUntimedToTimedDisabled(t *testing.T) {
 	defer ctrl.Finish()
 
 	agg, _ := testAggregator(t, ctrl)
-	agg.opts = agg.opts.SetTimedForResendEnabled(false)
+	agg.opts = agg.opts.SetTimedForResendEnabledRollupRegexes(nil)
 	metas := metadata.StagedMetadatas{testStagedMetadatas[0]}
 	// add another pipeline
 	metas[0].Pipelines = append(metas[0].Pipelines, metadata.PipelineMetadata{
@@ -1389,61 +1390,117 @@ func TestAggregatorAddForwardedMetrics(t *testing.T) {
 }
 
 func TestPartitionResendEnabled(t *testing.T) {
-	p1, p2 := partitionResendEnabled(metadata.PipelineMetadatas{
-		newPipeline("1", false),
-		newPipeline("2", true),
-		newPipeline("3", false),
-		newPipeline("4", true),
-	})
-	expected1 := metadata.PipelineMetadatas{
-		newPipeline("4", true),
-		newPipeline("2", true),
+	aggAllAllowed := aggregator{
+		timedForResendEnabledRollupRegexes: []*regexp.Regexp{
+			regexp.MustCompile(".*"),
+		},
 	}
-	expected2 := metadata.PipelineMetadatas{
-		newPipeline("3", false),
-		newPipeline("1", false),
-	}
-	require.Equal(t, expected1, p1)
-	require.Equal(t, expected2, p2)
+	// aggEmptyAllowed := aggregator{
+	// 	timedForResendEnabledRollupRegexes: []*regexp.Regexp{},
+	// }
+	// aggNoneAllowed := aggregator{
+	// 	timedForResendEnabledRollupRegexes: []*regexp.Regexp{
+	// 		regexp.MustCompile(".*123|456.*"),
+	// 	},
+	// }
+	// aggSomeAllowed := aggregator{
+	// 	timedForResendEnabledRollupRegexes: []*regexp.Regexp{
+	// 		regexp.MustCompile("1"),
+	// 		regexp.MustCompile("2|3"),
+	// 	},
+	// }
 
-	p1, p2 = partitionResendEnabled(metadata.PipelineMetadatas{
-		newPipeline("1", true),
-		newPipeline("2", true),
-		newPipeline("3", false),
-		newPipeline("4", false),
-	})
-	expected1 = metadata.PipelineMetadatas{
-		newPipeline("1", true),
-		newPipeline("2", true),
+	cases := []struct {
+		name            string
+		agg             aggregator
+		in              metadata.PipelineMetadatas
+		expectedTimed   metadata.PipelineMetadatas
+		expectedUntimed metadata.PipelineMetadatas
+	}{
+		{
+			name: "allow all - many 1",
+			agg:  aggAllAllowed,
+			in: metadata.PipelineMetadatas{
+				newPipeline("1", false),
+				newPipeline("2", true),
+				newPipeline("3", false),
+				newPipeline("4", true),
+			},
+			expectedTimed: metadata.PipelineMetadatas{
+				newPipeline("4", true),
+				newPipeline("2", true),
+			},
+			expectedUntimed: metadata.PipelineMetadatas{
+				newPipeline("3", false),
+				newPipeline("1", false),
+			},
+		},
+		{
+			name: "allow all - many 2",
+			agg:  aggAllAllowed,
+			in: metadata.PipelineMetadatas{
+				newPipeline("1", true),
+				newPipeline("2", true),
+				newPipeline("3", false),
+				newPipeline("4", false),
+			},
+			expectedTimed: metadata.PipelineMetadatas{
+				newPipeline("1", true),
+				newPipeline("2", true),
+			},
+			expectedUntimed: metadata.PipelineMetadatas{
+				newPipeline("4", false),
+				newPipeline("3", false),
+			},
+		},
+		{
+			name: "allow all - single timed",
+			agg:  aggAllAllowed,
+			in: metadata.PipelineMetadatas{
+				newPipeline("1", true),
+			},
+			expectedTimed: metadata.PipelineMetadatas{
+				newPipeline("1", true),
+			},
+			expectedUntimed: nil,
+		},
+		{
+			name: "allow all - single untimed",
+			agg:  aggAllAllowed,
+			in: metadata.PipelineMetadatas{
+				newPipeline("1", false),
+			},
+			expectedTimed: nil,
+			expectedUntimed: metadata.PipelineMetadatas{
+				newPipeline("1", false),
+			},
+		},
+		{
+			name:            "allow all - empty",
+			agg:             aggAllAllowed,
+			in:              metadata.PipelineMetadatas{},
+			expectedTimed:   nil,
+			expectedUntimed: nil,
+		},
 	}
-	expected2 = metadata.PipelineMetadatas{
-		newPipeline("4", false),
-		newPipeline("3", false),
-	}
-	require.Equal(t, expected1, p1)
-	require.Equal(t, expected2, p2)
 
-	p1, p2 = partitionResendEnabled(metadata.PipelineMetadatas{
-		newPipeline("1", true),
-	})
-	expected1 = metadata.PipelineMetadatas{
-		newPipeline("1", true),
-	}
-	require.Equal(t, expected1, p1)
-	require.Empty(t, p2)
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			p1, p2 := tc.agg.partitionResendEnabled(tc.in)
+			if tc.expectedTimed == nil {
+				require.Empty(t, p1)
+			} else {
+				require.Equal(t, tc.expectedTimed, p1)
+			}
 
-	p1, p2 = partitionResendEnabled(metadata.PipelineMetadatas{
-		newPipeline("1", false),
-	})
-	expected2 = metadata.PipelineMetadatas{
-		newPipeline("1", false),
+			if tc.expectedUntimed == nil {
+				require.Empty(t, p2)
+			} else {
+				require.Equal(t, tc.expectedUntimed, p2)
+			}
+		})
 	}
-	require.Equal(t, expected2, p2)
-	require.Empty(t, p1)
-
-	p1, p2 = partitionResendEnabled(metadata.PipelineMetadatas{})
-	require.Empty(t, p1)
-	require.Empty(t, p2)
 }
 
 func newPipeline(id string, resendEnabled bool) metadata.PipelineMetadata {
