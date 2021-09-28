@@ -289,3 +289,37 @@ db:
     filePathPrefix: "*"
   writeNewSeriesAsync: false
 `
+
+const aggregatorCoordConfig = `
+clusters:
+  - namespaces:
+      - namespace: default
+        type: unaggregated
+        retention: 1h
+    client:
+      config:
+        service:
+          env: default_env
+          zone: embedded
+          service: m3db
+          cacheDir: "*"
+          etcdClusters:
+            - zone: embedded
+              endpoints:
+                - 127.0.0.1:2379
+ingest:
+  ingester:
+    workerPoolSize: 10000
+    opPool:
+      size: 10000
+    retry:
+      maxRetries: 3
+      jitter: true
+    logSampleRate: 0.01
+  m3msg:
+    server:
+      listenAddress: "0.0.0.0:7507"
+      retry:
+        maxBackoff: 10s
+        jitter: true
+`

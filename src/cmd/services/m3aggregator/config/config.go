@@ -26,13 +26,32 @@ import (
 	"github.com/m3db/m3/src/x/log"
 )
 
+var (
+	defaultMetricsSanitization        = instrument.PrometheusMetricSanitization
+	defaultMetricsExtendedMetricsType = instrument.NoExtendedMetrics
+	// copied from src/cmd/services.m3query/config/config.go
+	defaultMetrics = instrument.MetricsConfiguration{
+		RootScope: &instrument.ScopeConfiguration{
+			Prefix: "aggregator",
+		},
+		PrometheusReporter: &instrument.PrometheusConfiguration{
+			HandlerPath: "/metrics",
+			// Default to coordinator (until https://github.com/m3db/m3/issues/682 is resolved)
+			ListenAddress: "0.0.0.0:7204",
+		},
+		Sanitization:    &defaultMetricsSanitization,
+		SamplingRate:    1.0,
+		ExtendedMetrics: &defaultMetricsExtendedMetricsType,
+	}
+)
+
 // Configuration contains top-level configuration.
 type Configuration struct {
 	// Logging configuration.
 	Logging log.Configuration `yaml:"logging"`
 
 	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+	Metrics *instrument.MetricsConfiguration `yaml:"metrics"`
 
 	// M3Msg server configuration.
 	// Optional.
@@ -57,4 +76,13 @@ type Configuration struct {
 
 	// Debug configuration.
 	Debug config.DebugConfiguration `yaml:"debug"`
+}
+
+// MetricsOrDefault returns metrics configuration or defaults.
+func (c *Configuration) MetricsOrDefault() *instrument.MetricsConfiguration {
+	if c.Metrics == nil {
+		return &defaultMetrics
+	}
+
+	return c.Metrics
 }
