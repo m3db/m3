@@ -137,7 +137,7 @@ func NewAggregator(opts Options) Aggregator {
 	timerOpts := iOpts.TimerOptions()
 	logger := iOpts.Logger()
 
-	timedForResendEnabledRollupRegexes := make([]*regexp.Regexp, len(opts.TimedForResendEnabledRollupRegexes()))
+	timedForResendEnabledRollupRegexes := make([]*regexp.Regexp, 0, len(opts.TimedForResendEnabledRollupRegexes()))
 	for _, r := range opts.TimedForResendEnabledRollupRegexes() {
 		compiled, err := regexp.Compile(r)
 		if err != nil {

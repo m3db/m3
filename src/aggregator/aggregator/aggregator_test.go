@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"regexp"
 	"sort"
 	"testing"
 	"time"
@@ -47,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
+	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -1391,25 +1391,14 @@ func TestAggregatorAddForwardedMetrics(t *testing.T) {
 }
 
 func TestPartitionResendEnabled(t *testing.T) {
-	aggAllMatches := &aggregator{
-		timedForResendEnabledRollupRegexes: []*regexp.Regexp{
-			regexp.MustCompile(".*"),
-		},
-	}
-	aggEmpty := &aggregator{
-		timedForResendEnabledRollupRegexes: []*regexp.Regexp{},
-	}
-	aggNoMatches := &aggregator{
-		timedForResendEnabledRollupRegexes: []*regexp.Regexp{
-			regexp.MustCompile(".*123|456.*"),
-		},
-	}
-	aggSomeMatches := &aggregator{
-		timedForResendEnabledRollupRegexes: []*regexp.Regexp{
-			regexp.MustCompile(".*1.*"),
-			regexp.MustCompile(".*(2|3).*"),
-		},
-	}
+	aggAllMatches := NewAggregator(NewOptions(clock.NewOptions()).
+		SetTimedForResendEnabledRollupRegexes([]string{".*"})).(*aggregator)
+	aggEmpty := NewAggregator(NewOptions(clock.NewOptions()).
+		SetTimedForResendEnabledRollupRegexes([]string{})).(*aggregator)
+	aggNoMatches := NewAggregator(NewOptions(clock.NewOptions()).
+		SetTimedForResendEnabledRollupRegexes([]string{".*123|456.*"})).(*aggregator)
+	aggSomeMatches := NewAggregator(NewOptions(clock.NewOptions()).
+		SetTimedForResendEnabledRollupRegexes([]string{"1", "(2|3)"})).(*aggregator)
 
 	aggs := []struct {
 		agg  *aggregator
