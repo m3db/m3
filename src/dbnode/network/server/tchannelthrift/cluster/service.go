@@ -54,6 +54,7 @@ type service struct {
 // a composite key to lookup the type of session for the request.
 type sessionOpts struct {
 	readConsistency        topology.ReadConsistencyLevel
+	consistencyOverride    bool
 	equalTimestampStrategy encoding.IterateEqualTimestampStrategy
 }
 
@@ -93,6 +94,10 @@ func (s *service) sessionForOpts(opts sessionOpts) (client.Session, error) {
 	clientOpts = clientOpts.
 		SetReadConsistencyLevel(opts.readConsistency).
 		SetIterationOptions(iterOpts)
+	if opts.consistencyOverride {
+		// disable the runtime options so the request level consistency level is not overwritten.
+		clientOpts = clientOpts.SetRuntimeOptionsManager(nil)
+	}
 	session, err := s.client.NewSessionWithOptions(clientOpts)
 	if err != nil {
 		s.Unlock()
@@ -445,6 +450,7 @@ func (s *service) sessionOptsFromClusterQueryOpts(clusterOpts *rpc.ClusterQueryO
 		}
 	}
 	if clusterOpts.ReadConsistency != nil {
+		sessOpts.consistencyOverride = true
 		switch *clusterOpts.ReadConsistency {
 		case rpc.ReadConsistency_ONE:
 			sessOpts.readConsistency = topology.ReadConsistencyLevelOne

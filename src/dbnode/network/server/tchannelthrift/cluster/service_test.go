@@ -73,6 +73,7 @@ func TestSessionOpts(t *testing.T) {
 			sessOpts: sessionOpts{
 				readConsistency:        topology.ReadConsistencyLevelAll,
 				equalTimestampStrategy: encoding.IterateLowestValue,
+				consistencyOverride:    true,
 			},
 		},
 		{
@@ -94,6 +95,7 @@ func TestSessionOpts(t *testing.T) {
 			sessOpts: sessionOpts{
 				readConsistency:        topology.ReadConsistencyLevelAll,
 				equalTimestampStrategy: encoding.IterateHighestValue,
+				consistencyOverride:    true,
 			},
 		},
 	}
@@ -130,8 +132,16 @@ func TestSessionOpts(t *testing.T) {
 
 func (s sessionOpts) Matches(x interface{}) bool {
 	if c, ok := x.(client.Options); ok {
-		return s.equalTimestampStrategy == c.IterationOptions().IterateEqualTimestampStrategy &&
-			s.readConsistency == c.ReadConsistencyLevel()
+		if s.equalTimestampStrategy != c.IterationOptions().IterateEqualTimestampStrategy {
+			return false
+		}
+		if s.readConsistency != c.ReadConsistencyLevel() {
+			return false
+		}
+		if s.consistencyOverride && c.RuntimeOptionsManager() != nil {
+			return false
+		}
+		return true
 	}
 	return false
 }
