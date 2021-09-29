@@ -56,6 +56,9 @@ type Client interface {
 	// NewSession creates a new session.
 	NewSession() (Session, error)
 
+	// NewSessionWithOpts creates a new session with the provided Options.
+	NewSessionWithOpts(opts Options) (Session, error)
+
 	// DefaultSession creates a default session that gets reused.
 	DefaultSession() (Session, error)
 

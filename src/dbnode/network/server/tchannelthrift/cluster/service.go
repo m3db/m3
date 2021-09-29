@@ -26,11 +26,13 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -43,56 +45,73 @@ type service struct {
 	sync.RWMutex
 
 	client client.Client
-	active client.Session
+	active map[sessionOpts]client.Session
 	opts   client.Options
 	idPool ident.Pool
 	health *rpc.HealthResult_
 }
 
+// a composite key to lookup the type of session for the request.
+type sessionOpts struct {
+	readConsistency        topology.ReadConsistencyLevel
+	equalTimestampStrategy encoding.IterateEqualTimestampStrategy
+}
+
 // NewService creates a new cluster TChannel Thrift service
-func NewService(client client.Client) rpc.TChanCluster {
+func NewService(c client.Client) rpc.TChanCluster {
 	s := &service{
-		client: client,
-		opts:   client.Options(),
-		idPool: client.Options().IdentifierPool(),
+		client: c,
+		active: make(map[sessionOpts]client.Session),
+		opts:   c.Options(),
+		idPool: c.Options().IdentifierPool(),
 		health: &rpc.HealthResult_{Ok: true, Status: "up"},
 	}
 	return s
 }
 
 func (s *service) session() (client.Session, error) {
+	return s.sessionForOpts(s.sessionOptsFromClusterQueryOpts(nil))
+}
+
+func (s *service) sessionForOpts(opts sessionOpts) (client.Session, error) {
 	s.RLock()
-	session := s.active
+	session := s.active[opts]
 	s.RUnlock()
 	if session != nil {
 		return session, nil
 	}
 
 	s.Lock()
-	if s.active != nil {
-		session := s.active
+	session = s.active[opts]
+	if session != nil {
 		s.Unlock()
 		return session, nil
 	}
-	session, err := s.client.DefaultSession()
+	clientOpts := s.client.Options()
+	iterOpts := clientOpts.IterationOptions()
+	iterOpts.IterateEqualTimestampStrategy = opts.equalTimestampStrategy
+	clientOpts = clientOpts.
+		SetReadConsistencyLevel(opts.readConsistency).
+		SetIterationOptions(iterOpts)
+	session, err := s.client.NewSessionWithOpts(clientOpts)
 	if err != nil {
 		s.Unlock()
 		return nil, err
 	}
-	s.active = session
+	s.active[opts] = session
 	s.Unlock()
 
 	return session, nil
 }
 
 func (s *service) Close() error {
-	var err error
+	var multiErr xerrors.MultiError
 	s.Lock()
-	if s.active != nil {
-		err = s.active.Close()
+	for _, sess := range s.active {
+		multiErr = multiErr.Add(sess.Close())
 	}
 	s.Unlock()
-	return err
+	return multiErr.FinalError()
 }
 
 func (s *service) Health(ctx thrift.Context) (*rpc.HealthResult_, error) {
@@ -128,7 +147,7 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 		opts.Source = req.Source
 	}
 
-	session, err := s.session()
+	session, err := s.sessionForOpts(s.sessionOptsFromClusterQueryOpts(req.ClusterOptions))
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}
@@ -401,4 +420,45 @@ func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (*rpc.
 	res := rpc.NewTruncateResult_()
 	res.NumSeries = truncated
 	return res, nil
+}
+
+func (s *service) sessionOptsFromClusterQueryOpts(clusterOpts *rpc.ClusterQueryOptions) sessionOpts {
+	sessOpts := sessionOpts{
+		readConsistency:        s.opts.ReadConsistencyLevel(),
+		equalTimestampStrategy: s.opts.IterationOptions().IterateEqualTimestampStrategy,
+	}
+	if clusterOpts == nil {
+		return sessOpts
+	}
+	if clusterOpts.ConflictResolutionStrategy != nil {
+		switch *clusterOpts.ConflictResolutionStrategy {
+		case rpc.EqualTimestampStrategy_LAST_PUSHED:
+			sessOpts.equalTimestampStrategy = encoding.IterateLastPushed
+		case rpc.EqualTimestampStrategy_LOWEST_VALUE:
+			sessOpts.equalTimestampStrategy = encoding.IterateLowestValue
+		case rpc.EqualTimestampStrategy_HIGHEST_VALUE:
+			sessOpts.equalTimestampStrategy = encoding.IterateHighestValue
+		case rpc.EqualTimestampStrategy_HIGHEST_FREQUENCY:
+			sessOpts.equalTimestampStrategy = encoding.IterateHighestFrequencyValue
+		default:
+			sessOpts.equalTimestampStrategy = encoding.DefaultIterateEqualTimestampStrategy
+		}
+	}
+	if clusterOpts.ReadConsistency != nil {
+		switch *clusterOpts.ReadConsistency {
+		case rpc.ReadConsistency_ONE:
+			sessOpts.readConsistency = topology.ReadConsistencyLevelOne
+		case rpc.ReadConsistency_UNSTRICT_MAJORITY:
+			sessOpts.readConsistency = topology.ReadConsistencyLevelUnstrictMajority
+		case rpc.ReadConsistency_MAJORITY:
+			sessOpts.readConsistency = topology.ReadConsistencyLevelMajority
+		case rpc.ReadConsistency_UNSTRICT_ALL:
+			sessOpts.readConsistency = topology.ReadConsistencyLevelUnstrictAll
+		case rpc.ReadConsistency_ALL:
+			sessOpts.readConsistency = topology.ReadConsistencyLevelAll
+		default:
+			sessOpts.readConsistency = topology.ReadConsistencyLevelNone
+		}
+	}
+	return sessOpts
 }

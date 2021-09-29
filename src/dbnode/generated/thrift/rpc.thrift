@@ -468,6 +468,34 @@ struct QueryRequest {
 	7: optional TimeType rangeType = TimeType.UNIX_SECONDS
 	8: optional TimeType resultTimeType = TimeType.UNIX_SECONDS
 	9: optional binary source
+	// Additional options for the Cluster service.
+	10: optional ClusterQueryOptions clusterOptions;
+}
+
+// ClusterQueryOptions are additional options for a QueryRequest to the Cluster service.
+struct ClusterQueryOptions {
+        // The read consistency level to use for the query.
+        1: optional ReadConsistency readConsistency
+        // The strategy to resolve conflicts for different values for the same timestamp.
+        2: optional EqualTimestampStrategy conflictResolutionStrategy
+}
+
+// Enumeration of read consistency values. Matches ReadConsistencyLevel type in golang.
+enum ReadConsistency {
+	ONE,
+	UNSTRICT_MAJORITY,
+	MAJORITY,
+	UNSTRICT_ALL,
+	ALL
+}
+
+// Enumeration of strategies to resolve read conflicts for equal timestamps. Matches IterateEqualTimestampStrategy in
+// golang.
+enum EqualTimestampStrategy {
+        LAST_PUSHED,
+        HIGHEST_VALUE,
+        LOWEST_VALUE,
+        HIGHEST_FREQUENCY,
 }
 
 struct QueryResult {
