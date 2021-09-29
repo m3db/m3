@@ -33,7 +33,13 @@ services:
       - backend
     image: prom/prometheus:latest
     volumes:
-      - "./prometheus-scraper.yml:/etc/prometheus/prometheus.yml"
+      - "./prometheus-scraper.yml.tmp:/etc/prometheus/prometheus.yml"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--log.level=debug"
   prometheusraw:
     networks:
       - backend

@@ -23,9 +23,9 @@ prometheusRemoteBackend:
       address: "http://prometheusagg:9090/api/v1/write"
       storagePolicy:
         retention: 1h
-        resolution: 5m
+        resolution: 1m
         downsample:
-          all: true
+          all: false
 
 clusterManagement:
   etcd:
@@ -42,6 +42,31 @@ tagOptions:
   idScheme: quoted
 
 downsample:
+  rules:
+    mappingRules:
+      - name: "drop all cadvisor metrics"
+        filter: "job:cadvisor_*"
+        drop: True
+      - name: "cpu metric"
+        filter: "__name__:container_cpu_usage_seconds_total"
+        storagePolicies:
+          - resolution: 1m
+            retention: 1h
+    rollupRules:
+      - name: "container_cpu_usage_seconds_total rolled up"
+        filter: "__name__:container_cpu_usage_seconds_total"
+        transforms:
+          - transform:
+              type: "Increase"
+          - rollup:
+              metricName: "container_cpu_usage_seconds_total_rolled_up"
+              groupBy: ["container", "namespace", "cpu"]
+              aggregations: ["Sum"]
+          - transform:
+              type: "Add"
+        storagePolicies:
+          - resolution: 1m
+            retention: 1h
   matcher:
     requireNamespaceWatchOnInit: false
   remoteAggregator:

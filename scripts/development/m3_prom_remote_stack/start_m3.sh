@@ -127,6 +127,8 @@ cp ./m3coordinator.yml ./m3coordinator.yml.tmp
 
 docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
 
+./emit_scrape_configs.sh
+
 echo "Starting Prometheus"
 docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheusraw
 docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheusagg

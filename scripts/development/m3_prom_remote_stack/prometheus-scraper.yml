@@ -16,6 +16,10 @@ rule_files:
 # - "first_rules.yml"
 # - "second_rules.yml"
 
+remote_write:
+  - url: http://m3coordinator01:7201/api/v1/prom/remote/write
+    remote_timeout: 30s
+
 # A scrape configuration containing exactly one endpoint to scrape:
 # Here it's Prometheus itself.
 scrape_configs:
@@ -32,7 +36,3 @@ scrape_configs:
   - job_name: 'aggregator'
     static_configs:
       - targets: ['m3aggregator01:6002']
-
-remote_write:
-  - url: http://m3coordinator01:7201/api/v1/prom/remote/write
-    remote_timeout: 30s
