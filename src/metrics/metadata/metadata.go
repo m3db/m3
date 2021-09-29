@@ -273,13 +273,18 @@ func (metadatas PipelineMetadatas) ApplyOrRemoveDropPolicies() (
 		return metadatas, NoDropPolicyPresentResult
 	}
 
+	result := metadatas
+
+	// Drop is effective as no other non drop pipelines, result is a drop
 	if nonDropPipelines == 0 {
-		// Drop is effective as no other non drop pipelines, result is a drop
-		return DropPipelineMetadatas, AppliedEffectiveDropPolicyResult
+		// nb: Do not directly return DropPipelineMetadatas, as the client could potentially save that reference
+		// and modify global state.
+		result = result[:0]
+		result = append(result, DropPipelineMetadata)
+		return result, AppliedEffectiveDropPolicyResult
 	}
 
 	// Remove all non-default drop policies as they must not be effective
-	result := metadatas
 	for i := len(result) - 1; i >= 0; i-- {
 		if !result[i].DropPolicy.IsDefault() {
 			// Remove by moving to tail and decrementing length so we can do in
