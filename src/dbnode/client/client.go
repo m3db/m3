@@ -98,7 +98,7 @@ func (c *client) NewSession() (Session, error) {
 	return c.newSession(c.opts)
 }
 
-func (c *client) NewSessionWithOpts(opts Options) (Session, error) {
+func (c *client) NewSessionWithOptions(opts Options) (Session, error) {
 	return c.newSession(opts)
 }
 

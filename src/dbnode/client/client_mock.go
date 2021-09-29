@@ -119,19 +119,19 @@ func (mr *MockClientMockRecorder) NewSession() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSession", reflect.TypeOf((*MockClient)(nil).NewSession))
 }
 
-// NewSessionWithOpts mocks base method.
-func (m *MockClient) NewSessionWithOpts(opts Options) (Session, error) {
+// NewSessionWithOptions mocks base method.
+func (m *MockClient) NewSessionWithOptions(opts Options) (Session, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewSessionWithOpts", opts)
+	ret := m.ctrl.Call(m, "NewSessionWithOptions", opts)
 	ret0, _ := ret[0].(Session)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// NewSessionWithOpts indicates an expected call of NewSessionWithOpts.
-func (mr *MockClientMockRecorder) NewSessionWithOpts(opts interface{}) *gomock.Call {
+// NewSessionWithOptions indicates an expected call of NewSessionWithOptions.
+func (mr *MockClientMockRecorder) NewSessionWithOptions(opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSessionWithOpts", reflect.TypeOf((*MockClient)(nil).NewSessionWithOpts), opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSessionWithOptions", reflect.TypeOf((*MockClient)(nil).NewSessionWithOptions), opts)
 }
 
 // Options mocks base method.
@@ -633,19 +633,19 @@ func (mr *MockAdminClientMockRecorder) NewSession() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSession", reflect.TypeOf((*MockAdminClient)(nil).NewSession))
 }
 
-// NewSessionWithOpts mocks base method.
-func (m *MockAdminClient) NewSessionWithOpts(opts Options) (Session, error) {
+// NewSessionWithOptions mocks base method.
+func (m *MockAdminClient) NewSessionWithOptions(opts Options) (Session, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewSessionWithOpts", opts)
+	ret := m.ctrl.Call(m, "NewSessionWithOptions", opts)
 	ret0, _ := ret[0].(Session)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// NewSessionWithOpts indicates an expected call of NewSessionWithOpts.
-func (mr *MockAdminClientMockRecorder) NewSessionWithOpts(opts interface{}) *gomock.Call {
+// NewSessionWithOptions indicates an expected call of NewSessionWithOptions.
+func (mr *MockAdminClientMockRecorder) NewSessionWithOptions(opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSessionWithOpts", reflect.TypeOf((*MockAdminClient)(nil).NewSessionWithOpts), opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSessionWithOptions", reflect.TypeOf((*MockAdminClient)(nil).NewSessionWithOptions), opts)
 }
 
 // Options mocks base method.

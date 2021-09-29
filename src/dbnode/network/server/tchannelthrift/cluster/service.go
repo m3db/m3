@@ -93,7 +93,7 @@ func (s *service) sessionForOpts(opts sessionOpts) (client.Session, error) {
 	clientOpts = clientOpts.
 		SetReadConsistencyLevel(opts.readConsistency).
 		SetIterationOptions(iterOpts)
-	session, err := s.client.NewSessionWithOpts(clientOpts)
+	session, err := s.client.NewSessionWithOptions(clientOpts)
 	if err != nil {
 		s.Unlock()
 		return nil, err

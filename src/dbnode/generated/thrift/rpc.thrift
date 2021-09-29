@@ -469,7 +469,7 @@ struct QueryRequest {
 	8: optional TimeType resultTimeType = TimeType.UNIX_SECONDS
 	9: optional binary source
 	// Additional options for the Cluster service.
-	10: optional ClusterQueryOptions clusterOptions;
+	10: optional ClusterQueryOptions clusterOptions
 }
 
 // ClusterQueryOptions are additional options for a QueryRequest to the Cluster service.

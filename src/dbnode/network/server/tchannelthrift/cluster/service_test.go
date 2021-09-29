@@ -119,7 +119,7 @@ func TestSessionOpts(t *testing.T) {
 			req := &rpc.QueryRequest{
 				ClusterOptions: tc.reqOpts,
 			}
-			c.EXPECT().NewSessionWithOpts(tc.sessOpts).Return(sess, nil)
+			c.EXPECT().NewSessionWithOptions(tc.sessOpts).Return(sess, nil)
 			s := NewService(c).(*service)
 			res, err := s.Query(ctx, req)
 			require.NoError(t, err)
