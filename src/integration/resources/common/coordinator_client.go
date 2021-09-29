@@ -25,10 +25,12 @@ package common
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -39,11 +41,16 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/placementhandler"
 	"github.com/m3db/m3/src/integration/resources"
+	"github.com/m3db/m3/src/query/api/v1/handler/topic"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
+
+var errUnknownServiceType = errors.New("unknown service type")
 
 // RetryFunc is a function that retries the provided
 // operation until successful.
@@ -80,7 +87,7 @@ func NewCoordinatorClient(opts CoordinatorClientOptions) CoordinatorClient {
 }
 
 func (c *CoordinatorClient) makeURL(resource string) string {
-	return fmt.Sprintf("http://0.0.0.0:%d/%s", c.httpPort, resource)
+	return fmt.Sprintf("http://0.0.0.0:%d/%s", c.httpPort, strings.TrimPrefix(resource, "/"))
 }
 
 //nolint:dupl
@@ -107,8 +114,19 @@ func (c *CoordinatorClient) GetNamespace() (admin.NamespaceGetResponse, error) {
 
 //nolint:dupl
 // GetPlacement gets placements.
-func (c *CoordinatorClient) GetPlacement() (admin.PlacementGetResponse, error) {
-	url := c.makeURL("api/v1/services/m3db/placement")
+func (c *CoordinatorClient) GetPlacement(opts resources.PlacementRequestOptions) (admin.PlacementGetResponse, error) {
+	var handlerurl string
+	switch opts.Service {
+	case resources.ServiceTypeM3DB:
+		handlerurl = placementhandler.M3DBGetURL
+	case resources.ServiceTypeM3Aggregator:
+		handlerurl = placementhandler.M3AggGetURL
+	case resources.ServiceTypeM3Coordinator:
+		handlerurl = placementhandler.M3CoordinatorGetURL
+	default:
+		return admin.PlacementGetResponse{}, errUnknownServiceType
+	}
+	url := c.makeURL(handlerurl)
 	logger := c.logger.With(
 		ZapMethod("getPlacement"), zap.String("url", url))
 
@@ -116,6 +134,40 @@ func (c *CoordinatorClient) GetPlacement() (admin.PlacementGetResponse, error) {
 	resp, err := c.client.Get(url)
 	if err != nil {
 		logger.Error("failed get", zap.Error(err))
+		return admin.PlacementGetResponse{}, err
+	}
+
+	var response admin.PlacementGetResponse
+	if err := toResponse(resp, &response, logger); err != nil {
+		return admin.PlacementGetResponse{}, err
+	}
+
+	return response, nil
+}
+
+// InitPlacement initializes placements.
+func (c *CoordinatorClient) InitPlacement(
+	opts resources.PlacementRequestOptions,
+	initRequest admin.PlacementInitRequest,
+) (admin.PlacementGetResponse, error) {
+	var handlerurl string
+	switch opts.Service {
+	case resources.ServiceTypeM3DB:
+		handlerurl = placementhandler.M3DBInitURL
+	case resources.ServiceTypeM3Aggregator:
+		handlerurl = placementhandler.M3AggInitURL
+	case resources.ServiceTypeM3Coordinator:
+		handlerurl = placementhandler.M3CoordinatorInitURL
+	default:
+		return admin.PlacementGetResponse{}, errUnknownServiceType
+	}
+	url := c.makeURL(handlerurl)
+	logger := c.logger.With(
+		ZapMethod("initPlacement"), zap.String("url", url))
+
+	resp, err := c.makeRequest(logger, url, placementhandler.InitHTTPMethod, &initRequest, nil)
+	if err != nil {
+		logger.Error("failed init", zap.Error(err))
 		return admin.PlacementGetResponse{}, err
 	}
 
@@ -169,7 +221,7 @@ func (c *CoordinatorClient) WaitForInstances(
 ) error {
 	logger := c.logger.With(ZapMethod("waitForPlacement"))
 	return c.retryFunc(func() error {
-		placement, err := c.GetPlacement()
+		placement, err := c.GetPlacement(resources.PlacementRequestOptions{Service: resources.ServiceTypeM3DB})
 		if err != nil {
 			logger.Error("retrying get placement", zap.Error(err))
 			return err
@@ -201,7 +253,7 @@ func (c *CoordinatorClient) WaitForInstances(
 func (c *CoordinatorClient) WaitForShardsReady() error {
 	logger := c.logger.With(ZapMethod("waitForShards"))
 	return c.retryFunc(func() error {
-		placement, err := c.GetPlacement()
+		placement, err := c.GetPlacement(resources.PlacementRequestOptions{Service: resources.ServiceTypeM3DB})
 		if err != nil {
 			logger.Error("retrying get placement", zap.Error(err))
 			return err
@@ -229,7 +281,7 @@ func (c *CoordinatorClient) CreateDatabase(
 		ZapMethod("createDatabase"), zap.String("url", url),
 		zap.String("request", addRequest.String()))
 
-	resp, err := c.makeRequest(logger, url, http.MethodPost, &addRequest)
+	resp, err := c.makeRequest(logger, url, http.MethodPost, &addRequest, nil)
 	if err != nil {
 		logger.Error("failed post", zap.Error(err))
 		return admin.DatabaseCreateResponse{}, err
@@ -262,7 +314,7 @@ func (c *CoordinatorClient) AddNamespace(
 		ZapMethod("addNamespace"), zap.String("url", url),
 		zap.String("request", addRequest.String()))
 
-	resp, err := c.makeRequest(logger, url, http.MethodPost, &addRequest)
+	resp, err := c.makeRequest(logger, url, http.MethodPost, &addRequest, nil)
 	if err != nil {
 		logger.Error("failed post", zap.Error(err))
 		return admin.NamespaceGetResponse{}, err
@@ -290,7 +342,7 @@ func (c *CoordinatorClient) UpdateNamespace(
 		ZapMethod("updateNamespace"), zap.String("url", url),
 		zap.String("request", req.String()))
 
-	resp, err := c.makeRequest(logger, url, http.MethodPut, &req)
+	resp, err := c.makeRequest(logger, url, http.MethodPut, &req, nil)
 	if err != nil {
 		logger.Error("failed to update namespace", zap.Error(err))
 		return admin.NamespaceGetResponse{}, err
@@ -314,7 +366,7 @@ func (c *CoordinatorClient) setNamespaceReady(name string) error {
 		&admin.NamespaceReadyRequest{
 			Name:  name,
 			Force: true,
-		})
+		}, nil)
 	return err
 }
 
@@ -323,11 +375,102 @@ func (c *CoordinatorClient) DeleteNamespace(namespaceID string) error {
 	url := c.makeURL("api/v1/services/m3db/namespace/" + namespaceID)
 	logger := c.logger.With(ZapMethod("deleteNamespace"), zap.String("url", url))
 
-	if _, err := c.makeRequest(logger, url, http.MethodDelete, nil); err != nil { // nolint: bodyclose
+	if _, err := c.makeRequest(logger, url, http.MethodDelete, nil, nil); err != nil { // nolint: bodyclose
 		logger.Error("failed to delete namespace", zap.Error(err))
 		return err
 	}
 	return nil
+}
+
+//nolint:dupl
+// InitM3msgTopic initializes an m3msg topic
+func (c *CoordinatorClient) InitM3msgTopic(
+	topicOpts resources.M3msgTopicOptions,
+	initRequest admin.TopicInitRequest,
+) (admin.TopicGetResponse, error) {
+	url := c.makeURL(topic.InitURL)
+	logger := c.logger.With(
+		ZapMethod("initM3msgTopic"),
+		zap.String("url", url),
+		zap.String("request", initRequest.String()),
+		zap.String("topic", fmt.Sprintf("%v", topicOpts)))
+
+	resp, err := c.makeRequest(logger, url, topic.InitHTTPMethod, &initRequest, m3msgTopicOptionsToMap(topicOpts))
+	if err != nil {
+		logger.Error("failed post", zap.Error(err))
+		return admin.TopicGetResponse{}, err
+	}
+
+	var response admin.TopicGetResponse
+	if err := toResponse(resp, &response, logger); err != nil {
+		logger.Error("failed response", zap.Error(err))
+		return admin.TopicGetResponse{}, err
+	}
+
+	logger.Info("topic initialized")
+	return response, nil
+}
+
+// GetM3msgTopic fetches an m3msg topic
+func (c *CoordinatorClient) GetM3msgTopic(
+	topicOpts resources.M3msgTopicOptions,
+) (admin.TopicGetResponse, error) {
+	url := c.makeURL(topic.GetURL)
+	logger := c.logger.With(
+		ZapMethod("getM3msgTopic"), zap.String("url", url),
+		zap.String("topic", fmt.Sprintf("%v", topicOpts)))
+
+	resp, err := c.makeRequest(logger, url, topic.GetHTTPMethod, nil, m3msgTopicOptionsToMap(topicOpts))
+	if err != nil {
+		logger.Error("failed get", zap.Error(err))
+		return admin.TopicGetResponse{}, err
+	}
+
+	var response admin.TopicGetResponse
+	if err := toResponse(resp, &response, logger); err != nil {
+		logger.Error("failed response", zap.Error(err))
+		return admin.TopicGetResponse{}, err
+	}
+
+	logger.Info("topic get")
+	return response, nil
+}
+
+//nolint:dupl
+// AddM3msgTopicConsumer adds a consumer service to an m3msg topic
+func (c *CoordinatorClient) AddM3msgTopicConsumer(
+	topicOpts resources.M3msgTopicOptions,
+	addRequest admin.TopicAddRequest,
+) (admin.TopicGetResponse, error) {
+	url := c.makeURL(topic.AddURL)
+	logger := c.logger.With(
+		ZapMethod("addM3msgTopicConsumer"),
+		zap.String("url", url),
+		zap.String("request", addRequest.String()),
+		zap.String("topic", fmt.Sprintf("%v", topicOpts)))
+
+	resp, err := c.makeRequest(logger, url, topic.AddHTTPMethod, &addRequest, m3msgTopicOptionsToMap(topicOpts))
+	if err != nil {
+		logger.Error("failed post", zap.Error(err))
+		return admin.TopicGetResponse{}, err
+	}
+
+	var response admin.TopicGetResponse
+	if err := toResponse(resp, &response, logger); err != nil {
+		logger.Error("failed response", zap.Error(err))
+		return admin.TopicGetResponse{}, err
+	}
+
+	logger.Info("topic consumer added")
+	return response, nil
+}
+
+func m3msgTopicOptionsToMap(opts resources.M3msgTopicOptions) map[string]string {
+	return map[string]string{
+		headers.HeaderClusterEnvironmentName: opts.Env,
+		headers.HeaderClusterZoneName:        opts.Zone,
+		topic.HeaderTopicName:                opts.TopicName,
+	}
 }
 
 // WriteCarbon writes a carbon metric datapoint at a given time.
@@ -423,6 +566,7 @@ func (c *CoordinatorClient) makeRequest(
 	url string,
 	method string,
 	body proto.Message,
+	header map[string]string,
 ) (*http.Response, error) {
 	data := bytes.NewBuffer(nil)
 	if body != nil {
@@ -441,6 +585,9 @@ func (c *CoordinatorClient) makeRequest(
 	}
 
 	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
+	for k, v := range header {
+		req.Header.Add(k, v)
+	}
 
 	return c.client.Do(req)
 }
