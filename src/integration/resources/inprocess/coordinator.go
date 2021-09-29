@@ -58,10 +58,11 @@ const (
 // coordinator is an in-process implementation of resources.Coordinator for use
 // in integration tests.
 type coordinator struct {
-	cfg     config.Configuration
-	client  common.CoordinatorClient
-	logger  *zap.Logger
-	tmpDirs []string
+	cfg      config.Configuration
+	client   common.CoordinatorClient
+	logger   *zap.Logger
+	tmpDirs  []string
+	embedded bool
 
 	interruptCh chan<- error
 	shutdownCh  <-chan struct{}
@@ -170,7 +171,11 @@ func NewCoordinator(cfg config.Configuration, opts CoordinatorOptions) (resource
 // NewEmbeddedCoordinator creates a coordinator from one embedded within an existing
 // db node. This method expects that the DB node has already been started before
 // being called.
-func NewEmbeddedCoordinator(d dbNode) (resources.Coordinator, error) {
+func NewEmbeddedCoordinator(d *dbNode) (resources.Coordinator, error) {
+	if !d.started {
+		return nil, errors.New("dbnode must be started to create the embedded coordinator")
+	}
+
 	_, p, err := net.SplitHostPort(d.cfg.Coordinator.ListenAddressOrDefault())
 	if err != nil {
 		return nil, err
@@ -189,6 +194,7 @@ func NewEmbeddedCoordinator(d dbNode) (resources.Coordinator, error) {
 			Logger:    d.logger,
 			RetryFunc: retry,
 		}),
+		embedded:    true,
 		logger:      d.logger,
 		interruptCh: d.interruptCh,
 		shutdownCh:  d.shutdownCh,
@@ -235,8 +241,17 @@ func (c *coordinator) CreateDatabase(request admin.DatabaseCreateRequest) (admin
 	return c.client.CreateDatabase(request)
 }
 
-func (c *coordinator) GetPlacement() (admin.PlacementGetResponse, error) {
-	return c.client.GetPlacement()
+func (c *coordinator) GetPlacement(
+	opts resources.PlacementRequestOptions,
+) (admin.PlacementGetResponse, error) {
+	return c.client.GetPlacement(opts)
+}
+
+func (c *coordinator) InitPlacement(
+	opts resources.PlacementRequestOptions,
+	req admin.PlacementInitRequest,
+) (admin.PlacementGetResponse, error) {
+	return c.client.InitPlacement(opts, req)
 }
 
 func (c *coordinator) WaitForInstances(ids []string) error {
@@ -248,6 +263,12 @@ func (c *coordinator) WaitForShardsReady() error {
 }
 
 func (c *coordinator) Close() error {
+	if c.embedded {
+		// NB(nate): for embedded coordinators, close is handled by the dbnode that
+		// it is spun up inside of.
+		return nil
+	}
+
 	defer func() {
 		for _, dir := range c.tmpDirs {
 			if err := os.RemoveAll(dir); err != nil {
@@ -256,7 +277,6 @@ func (c *coordinator) Close() error {
 		}
 	}()
 
-	// TODO: confirm this works correctly when using an embedded coordinator
 	select {
 	case c.interruptCh <- xos.NewInterruptError("in-process coordinator being shut down"):
 	case <-time.After(interruptTimeout):
@@ -266,11 +286,31 @@ func (c *coordinator) Close() error {
 	select {
 	case <-c.shutdownCh:
 	case <-time.After(shutdownTimeout):
-		return errors.New("timeout waiting for shutdown notification. server closing may" +
+		return errors.New("timeout waiting for shutdown notification. coordinator closing may" +
 			" not be completely graceful")
 	}
 
 	return nil
+}
+
+func (c *coordinator) InitM3msgTopic(
+	opts resources.M3msgTopicOptions,
+	req admin.TopicInitRequest,
+) (admin.TopicGetResponse, error) {
+	return c.client.InitM3msgTopic(opts, req)
+}
+
+func (c *coordinator) GetM3msgTopic(
+	opts resources.M3msgTopicOptions,
+) (admin.TopicGetResponse, error) {
+	return c.client.GetM3msgTopic(opts)
+}
+
+func (c *coordinator) AddM3msgTopicConsumer(
+	opts resources.M3msgTopicOptions,
+	req admin.TopicAddRequest,
+) (admin.TopicGetResponse, error) {
+	return c.client.AddM3msgTopicConsumer(opts, req)
 }
 
 func (c *coordinator) ApplyKVUpdate(update string) error {
