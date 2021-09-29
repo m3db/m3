@@ -241,8 +241,17 @@ func (c *coordinator) CreateDatabase(request admin.DatabaseCreateRequest) (admin
 	return c.client.CreateDatabase(request)
 }
 
-func (c *coordinator) GetPlacement() (admin.PlacementGetResponse, error) {
-	return c.client.GetPlacement()
+func (c *coordinator) GetPlacement(
+	opts resources.PlacementRequestOptions,
+) (admin.PlacementGetResponse, error) {
+	return c.client.GetPlacement(opts)
+}
+
+func (c *coordinator) InitPlacement(
+	opts resources.PlacementRequestOptions,
+	req admin.PlacementInitRequest,
+) (admin.PlacementGetResponse, error) {
+	return c.client.InitPlacement(opts, req)
 }
 
 func (c *coordinator) WaitForInstances(ids []string) error {
@@ -282,6 +291,26 @@ func (c *coordinator) Close() error {
 	}
 
 	return nil
+}
+
+func (c *coordinator) InitM3msgTopic(
+	opts resources.M3msgTopicOptions,
+	req admin.TopicInitRequest,
+) (admin.TopicGetResponse, error) {
+	return c.client.InitM3msgTopic(opts, req)
+}
+
+func (c *coordinator) GetM3msgTopic(
+	opts resources.M3msgTopicOptions,
+) (admin.TopicGetResponse, error) {
+	return c.client.GetM3msgTopic(opts)
+}
+
+func (c *coordinator) AddM3msgTopicConsumer(
+	opts resources.M3msgTopicOptions,
+	req admin.TopicAddRequest,
+) (admin.TopicGetResponse, error) {
+	return c.client.AddM3msgTopicConsumer(opts, req)
 }
 
 func (c *coordinator) ApplyKVUpdate(update string) error {
