@@ -348,58 +348,59 @@ type Options interface {
 	// are ignored for incoming writes.
 	SetWritesIgnoreCutoffCutover(value bool) Options
 
-	// TimedForResendEnabled is a feature flag that changes AddUntimed calls to AddTimed calls if the pipeline has
-	// resends enabled. This allows gracefully migrating from untimed to timed aggregated metrics.
-	TimedForResendEnabled() bool
+	// TimedForResendEnabledRollupRegexps is a set of regexes which define the rollup IDs to be migrated
+	// AddUntimed calls to AddTimed calls if the pipeline has resends enabled. This allows gracefully
+	// migrating from untimed to timed aggregated metrics on a per-rule basis.
+	TimedForResendEnabledRollupRegexps() []string
 
-	// SetTimedForResendEnabled sets TimedForResendEnabled.
-	SetTimedForResendEnabled(value bool) Options
+	// SetTimedForResendEnabledRollupRegexps sets TimedForResendEnabledRollupRegexps.
+	SetTimedForResendEnabledRollupRegexps([]string) Options
 }
 
 type options struct {
 	// Base options.
-	aggTypesOptions                  aggregation.TypesOptions
-	metricPrefix                     []byte
-	counterPrefix                    []byte
-	timerPrefix                      []byte
-	gaugePrefix                      []byte
-	timeLock                         *sync.RWMutex
-	clockOpts                        clock.Options
-	instrumentOpts                   instrument.Options
-	streamOpts                       cm.Options
-	adminClient                      client.AdminClient
-	runtimeOptsManager               runtime.OptionsManager
-	placementManager                 PlacementManager
-	shardFn                          sharding.ShardFn
-	bufferDurationBeforeShardCutover time.Duration
-	bufferDurationAfterShardCutoff   time.Duration
-	flushManager                     FlushManager
-	flushHandler                     handler.Handler
-	passthroughWriter                writer.Writer
-	entryTTL                         time.Duration
-	entryCheckInterval               time.Duration
-	entryCheckBatchPercent           float64
-	maxTimerBatchSizePerWrite        int
-	defaultStoragePolicies           []policy.StoragePolicy
-	flushTimesManager                FlushTimesManager
-	electionManager                  ElectionManager
-	resignTimeout                    time.Duration
-	maxAllowedForwardingDelayFn      MaxAllowedForwardingDelayFn
-	bufferForPastTimedMetric         time.Duration
-	bufferForPastTimedMetricFn       BufferForPastTimedMetricFn
-	bufferForFutureTimedMetric       time.Duration
-	maxNumCachedSourceSets           int
-	discardNaNAggregatedValues       bool
-	entryPool                        EntryPool
-	counterElemPool                  CounterElemPool
-	timerElemPool                    TimerElemPool
-	gaugeElemPool                    GaugeElemPool
-	verboseErrors                    bool
-	addToReset                       bool
-	timedMetricsFlushOffsetEnabled   bool
-	featureFlagBundlesParsed         []FeatureFlagBundleParsed
-	writesIgnoreCutoffCutover        bool
-	timedForResendEnabled            bool
+	aggTypesOptions                    aggregation.TypesOptions
+	metricPrefix                       []byte
+	counterPrefix                      []byte
+	timerPrefix                        []byte
+	gaugePrefix                        []byte
+	timeLock                           *sync.RWMutex
+	clockOpts                          clock.Options
+	instrumentOpts                     instrument.Options
+	streamOpts                         cm.Options
+	adminClient                        client.AdminClient
+	runtimeOptsManager                 runtime.OptionsManager
+	placementManager                   PlacementManager
+	shardFn                            sharding.ShardFn
+	bufferDurationBeforeShardCutover   time.Duration
+	bufferDurationAfterShardCutoff     time.Duration
+	flushManager                       FlushManager
+	flushHandler                       handler.Handler
+	passthroughWriter                  writer.Writer
+	entryTTL                           time.Duration
+	entryCheckInterval                 time.Duration
+	entryCheckBatchPercent             float64
+	maxTimerBatchSizePerWrite          int
+	defaultStoragePolicies             []policy.StoragePolicy
+	flushTimesManager                  FlushTimesManager
+	electionManager                    ElectionManager
+	resignTimeout                      time.Duration
+	maxAllowedForwardingDelayFn        MaxAllowedForwardingDelayFn
+	bufferForPastTimedMetric           time.Duration
+	bufferForPastTimedMetricFn         BufferForPastTimedMetricFn
+	bufferForFutureTimedMetric         time.Duration
+	maxNumCachedSourceSets             int
+	discardNaNAggregatedValues         bool
+	entryPool                          EntryPool
+	counterElemPool                    CounterElemPool
+	timerElemPool                      TimerElemPool
+	gaugeElemPool                      GaugeElemPool
+	verboseErrors                      bool
+	addToReset                         bool
+	timedMetricsFlushOffsetEnabled     bool
+	featureFlagBundlesParsed           []FeatureFlagBundleParsed
+	writesIgnoreCutoffCutover          bool
+	timedForResendEnabledRollupRegexps []string
 
 	// Derived options.
 	fullCounterPrefix []byte
@@ -938,14 +939,14 @@ func (o *options) SetWritesIgnoreCutoffCutover(value bool) Options {
 	return &opts
 }
 
-func (o *options) TimedForResendEnabled() bool {
-	return o.timedForResendEnabled
+func (o *options) TimedForResendEnabledRollupRegexps() []string {
+	return o.timedForResendEnabledRollupRegexps
 }
 
-// SetTimedForResendEnabled sets TimedForResendEnabled.
-func (o *options) SetTimedForResendEnabled(value bool) Options {
+// SetTimedForResendEnabledRollupRegexps sets TimedForResendEnabledRollupRegexps.
+func (o *options) SetTimedForResendEnabledRollupRegexps(value []string) Options {
 	opts := *o
-	opts.timedForResendEnabled = value
+	opts.timedForResendEnabledRollupRegexps = value
 	return &opts
 }
 
