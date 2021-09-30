@@ -51,7 +51,7 @@ type lockedGaugeAggregation struct {
 }
 
 type timedGauge struct {
-	startAtNanos     int64 // start time of an aggregation window
+	startAtNanos     xtime.UnixNano // start time of an aggregation window
 	lockedAgg        *lockedGaugeAggregation
 	onConsumeExpired bool
 }
@@ -114,8 +114,8 @@ func (e *GaugeElem) ResendEnabled() bool {
 }
 
 // AddUnion adds a metric value union at a given timestamp.
-func (e *GaugeElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) error {
-	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
+func (e *GaugeElem) AddUnion(timestamp xtime.UnixNano, mu unaggregated.MetricUnion) error {
+	alignedStart := timestamp.Truncate(e.sp.Resolution().Window)
 	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{})
 	if err != nil {
 		return err
@@ -132,8 +132,8 @@ func (e *GaugeElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) e
 }
 
 // AddValue adds a metric value at a given timestamp.
-func (e *GaugeElem) AddValue(timestamp time.Time, value float64, annotation []byte) error {
-	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
+func (e *GaugeElem) AddValue(timestamp xtime.UnixNano, value float64, annotation []byte) error {
+	alignedStart := timestamp.Truncate(e.sp.Resolution().Window)
 	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{})
 	if err != nil {
 		return err
@@ -154,11 +154,11 @@ func (e *GaugeElem) AddValue(timestamp time.Time, value float64, annotation []by
 // same aggregation, the incoming value is discarded.
 //nolint: dupl
 func (e *GaugeElem) AddUnique(
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error {
-	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
+	alignedStart := timestamp.Truncate(e.sp.Resolution().Window)
 	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{initSourceSet: true})
 	if err != nil {
 		return err
@@ -205,7 +205,7 @@ func (e *GaugeElem) AddUnique(
 // NB: Consume is not thread-safe and must be called within a single goroutine
 // to avoid race conditions.
 func (e *GaugeElem) Consume(
-	targetNanos int64,
+	targetNanos xtime.UnixNano,
 	isEarlierThanFn isEarlierThanFn,
 	timestampNanosFn timestampNanosFn,
 	flushLocalFn flushLocalMetricFn,
@@ -355,7 +355,7 @@ func (e *GaugeElem) Close() {
 // findOrCreate finds the aggregation for a given time, or creates one
 // if it doesn't exist.
 func (e *GaugeElem) findOrCreate(
-	alignedStart int64,
+	alignedStart xtime.UnixNano,
 	createOpts createAggregationOptions,
 ) (*lockedGaugeAggregation, error) {
 	e.RLock()
@@ -419,7 +419,7 @@ func (e *GaugeElem) findOrCreate(
 // indexOfWithLock finds the smallest element index whose timestamp
 // is no smaller than the start time passed in, and true if it's an
 // exact match, false otherwise.
-func (e *GaugeElem) indexOfWithLock(alignedStart int64) (int, bool) {
+func (e *GaugeElem) indexOfWithLock(alignedStart xtime.UnixNano) (int, bool) {
 	numValues := len(e.values)
 	// Optimize for the common case.
 	if numValues > 0 && e.values[numValues-1].startAtNanos == alignedStart {

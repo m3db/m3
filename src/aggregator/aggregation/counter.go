@@ -22,16 +22,16 @@ package aggregation
 
 import (
 	"math"
-	"time"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // Counter aggregates counter values.
 type Counter struct {
 	Options
 
-	lastAt     time.Time
+	lastAt     xtime.UnixNano
 	annotation []byte
 	sum        int64
 	sumSq      int64
@@ -50,7 +50,7 @@ func NewCounter(opts Options) Counter {
 }
 
 // Update updates the counter value.
-func (c *Counter) Update(timestamp time.Time, value int64, annotation []byte) {
+func (c *Counter) Update(timestamp xtime.UnixNano, value int64, annotation []byte) {
 	if c.lastAt.IsZero() || timestamp.After(c.lastAt) {
 		// NB(r): Only set the last value if this value arrives
 		// after the wall clock timestamp of previous values, not
@@ -78,7 +78,7 @@ func (c *Counter) Update(timestamp time.Time, value int64, annotation []byte) {
 }
 
 // LastAt returns the time of the last value received.
-func (c *Counter) LastAt() time.Time { return c.lastAt }
+func (c *Counter) LastAt() xtime.UnixNano { return c.lastAt }
 
 // Count returns the number of values received.
 func (c *Counter) Count() int64 { return c.count }

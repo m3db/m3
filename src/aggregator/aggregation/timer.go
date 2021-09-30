@@ -21,15 +21,14 @@
 package aggregation
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3/src/metrics/aggregation"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // Timer aggregates timer values. Timer APIs are not thread-safe.
 type Timer struct {
-	lastAt                   time.Time
+	lastAt                   xtime.UnixNano
 	stream                   *cm.Stream // Stream of values received.
 	annotation               []byte
 	count                    int64   // Number of values received.
@@ -49,12 +48,12 @@ func NewTimer(quantiles []float64, streamOpts cm.Options, opts Options) Timer {
 }
 
 // Add adds a timer value.
-func (t *Timer) Add(timestamp time.Time, value float64, annotation []byte) {
+func (t *Timer) Add(timestamp xtime.UnixNano, value float64, annotation []byte) {
 	t.AddBatch(timestamp, []float64{value}, annotation)
 }
 
 // AddBatch adds a batch of timer values.
-func (t *Timer) AddBatch(timestamp time.Time, values []float64, annotation []byte) {
+func (t *Timer) AddBatch(timestamp xtime.UnixNano, values []float64, annotation []byte) {
 	// Record last at just once.
 	t.recordLastAt(timestamp)
 	t.count += int64(len(values))
@@ -75,7 +74,7 @@ func (t *Timer) AddBatch(timestamp time.Time, values []float64, annotation []byt
 	t.annotation = maybeReplaceAnnotation(t.annotation, annotation)
 }
 
-func (t *Timer) recordLastAt(timestamp time.Time) {
+func (t *Timer) recordLastAt(timestamp xtime.UnixNano) {
 	if t.lastAt.IsZero() || timestamp.After(t.lastAt) {
 		// NB(r): Only set the last value if this value arrives
 		// after the wall clock timestamp of previous values, not
@@ -85,7 +84,7 @@ func (t *Timer) recordLastAt(timestamp time.Time) {
 }
 
 // LastAt returns the time of the last value received.
-func (t *Timer) LastAt() time.Time { return t.lastAt }
+func (t *Timer) LastAt() xtime.UnixNano { return t.lastAt }
 
 // Quantile returns the value at a given quantile.
 func (t *Timer) Quantile(q float64) float64 {

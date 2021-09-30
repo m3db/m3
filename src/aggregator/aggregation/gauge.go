@@ -22,16 +22,16 @@ package aggregation
 
 import (
 	"math"
-	"time"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // Gauge aggregates gauge values.
 type Gauge struct {
 	Options
 
-	lastAt     time.Time
+	lastAt     xtime.UnixNano
 	annotation []byte
 	sum        float64
 	sumSq      float64
@@ -51,7 +51,7 @@ func NewGauge(opts Options) Gauge {
 }
 
 // Update updates the gauge value.
-func (g *Gauge) Update(timestamp time.Time, value float64, annotation []byte) {
+func (g *Gauge) Update(timestamp xtime.UnixNano, value float64, annotation []byte) {
 	g.annotation = maybeReplaceAnnotation(g.annotation, annotation)
 	g.updateTotals(timestamp, value)
 	// min/max cannot be updated by an update to a value.
@@ -65,7 +65,7 @@ func (g *Gauge) Update(timestamp time.Time, value float64, annotation []byte) {
 
 // UpdatePrevious removes the prevValue from the aggregation and updates with the new value. This does not update
 // min/max since it's not possible to recalculate those.
-func (g *Gauge) UpdatePrevious(timestamp time.Time, value float64, prevValue float64) {
+func (g *Gauge) UpdatePrevious(timestamp xtime.UnixNano, value float64, prevValue float64) {
 	// remove the prevValue from the totals.
 	if !math.IsNaN(prevValue) {
 		g.sum -= prevValue
@@ -79,7 +79,7 @@ func (g *Gauge) UpdatePrevious(timestamp time.Time, value float64, prevValue flo
 }
 
 // update the set of aggregated values that are shared between Update and UpdatePrevious.
-func (g *Gauge) updateTotals(timestamp time.Time, value float64) {
+func (g *Gauge) updateTotals(timestamp xtime.UnixNano, value float64) {
 	if g.lastAt.IsZero() || timestamp.After(g.lastAt) {
 		// NB(r): Only set the last value if this value arrives
 		// after the wall clock timestamp of previous values, not
@@ -104,7 +104,7 @@ func (g *Gauge) updateTotals(timestamp time.Time, value float64) {
 }
 
 // LastAt returns the time of the last value received.
-func (g *Gauge) LastAt() time.Time { return g.lastAt }
+func (g *Gauge) LastAt() xtime.UnixNano { return g.lastAt }
 
 // Last returns the last value received.
 func (g *Gauge) Last() float64 { return g.last }

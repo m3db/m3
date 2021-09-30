@@ -43,13 +43,13 @@ type typeSpecificAggregation interface {
 	generic.Type
 
 	// Add adds a new metric value.
-	Add(t time.Time, value float64, annotation []byte)
+	Add(t xtime.UnixNano, value float64, annotation []byte)
 
 	// UpdateVal updates a previously added value.
-	UpdateVal(t time.Time, value float64, prevValue float64) error
+	UpdateVal(t xtime.UnixNano, value float64, prevValue float64) error
 
 	// AddUnion adds a new metric value union.
-	AddUnion(t time.Time, mu unaggregated.MetricUnion)
+	AddUnion(t xtime.UnixNano, mu unaggregated.MetricUnion)
 
 	// Annotation returns the last annotation of aggregated values.
 	Annotation() []byte
@@ -58,7 +58,7 @@ type typeSpecificAggregation interface {
 	ValueOf(aggType maggregation.Type) float64
 
 	// LastAt returns the time for last received value.
-	LastAt() time.Time
+	LastAt() xtime.UnixNano
 
 	// Close closes the aggregation object.
 	Close()
@@ -115,7 +115,7 @@ type lockedAggregation struct {
 }
 
 type timedAggregation struct {
-	startAtNanos     int64 // start time of an aggregation window
+	startAtNanos     xtime.UnixNano // start time of an aggregation window
 	lockedAgg        *lockedAggregation
 	onConsumeExpired bool
 }
@@ -178,8 +178,8 @@ func (e *GenericElem) ResendEnabled() bool {
 }
 
 // AddUnion adds a metric value union at a given timestamp.
-func (e *GenericElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) error {
-	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
+func (e *GenericElem) AddUnion(timestamp xtime.UnixNano, mu unaggregated.MetricUnion) error {
+	alignedStart := timestamp.Truncate(e.sp.Resolution().Window)
 	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{})
 	if err != nil {
 		return err
@@ -196,8 +196,8 @@ func (e *GenericElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion)
 }
 
 // AddValue adds a metric value at a given timestamp.
-func (e *GenericElem) AddValue(timestamp time.Time, value float64, annotation []byte) error {
-	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
+func (e *GenericElem) AddValue(timestamp xtime.UnixNano, value float64, annotation []byte) error {
+	alignedStart := timestamp.Truncate(e.sp.Resolution().Window)
 	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{})
 	if err != nil {
 		return err
@@ -218,11 +218,11 @@ func (e *GenericElem) AddValue(timestamp time.Time, value float64, annotation []
 // same aggregation, the incoming value is discarded.
 //nolint: dupl
 func (e *GenericElem) AddUnique(
-	timestamp time.Time,
+	timestamp xtime.UnixNano,
 	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error {
-	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
+	alignedStart := timestamp.Truncate(e.sp.Resolution().Window)
 	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{initSourceSet: true})
 	if err != nil {
 		return err
@@ -269,7 +269,7 @@ func (e *GenericElem) AddUnique(
 // NB: Consume is not thread-safe and must be called within a single goroutine
 // to avoid race conditions.
 func (e *GenericElem) Consume(
-	targetNanos int64,
+	targetNanos xtime.UnixNano,
 	isEarlierThanFn isEarlierThanFn,
 	timestampNanosFn timestampNanosFn,
 	flushLocalFn flushLocalMetricFn,
@@ -419,7 +419,7 @@ func (e *GenericElem) Close() {
 // findOrCreate finds the aggregation for a given time, or creates one
 // if it doesn't exist.
 func (e *GenericElem) findOrCreate(
-	alignedStart int64,
+	alignedStart xtime.UnixNano,
 	createOpts createAggregationOptions,
 ) (*lockedAggregation, error) {
 	e.RLock()
@@ -483,7 +483,7 @@ func (e *GenericElem) findOrCreate(
 // indexOfWithLock finds the smallest element index whose timestamp
 // is no smaller than the start time passed in, and true if it's an
 // exact match, false otherwise.
-func (e *GenericElem) indexOfWithLock(alignedStart int64) (int, bool) {
+func (e *GenericElem) indexOfWithLock(alignedStart xtime.UnixNano) (int, bool) {
 	numValues := len(e.values)
 	// Optimize for the common case.
 	if numValues > 0 && e.values[numValues-1].startAtNanos == alignedStart {

@@ -72,11 +72,11 @@ var (
 
 // isEarlierThanFn determines whether the timestamps of the metrics in a given
 // aggregation window are earlier than the given target time.
-type isEarlierThanFn func(windowStartNanos int64, resolution time.Duration, targetNanos int64) bool
+type isEarlierThanFn func(windowStartNanos xtime.UnixNano, resolution time.Duration, targetNanos xtime.UnixNano) bool
 
 // timestampNanosFn determines the final timestamps of metrics in a given aggregation
 // window with a given resolution.
-type timestampNanosFn func(windowStartNanos int64, resolution time.Duration) int64
+type timestampNanosFn func(windowStartNanos xtime.UnixNano, resolution time.Duration) xtime.UnixNano
 
 type createAggregationOptions struct {
 	// initSourceSet determines whether to initialize the source set.
