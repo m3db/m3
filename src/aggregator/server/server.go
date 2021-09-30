@@ -98,7 +98,7 @@ func Run(opts RunOptions) {
 	xconfig.WarnOnDeprecation(cfg, logger)
 
 	defaultServeMux := http.NewServeMux()
-	scope, closer, _, err := cfg.MetricsOrDefault().NewRootScopeAndReporters(
+	scope, closer, _, err := cfg.Metrics.NewRootScopeAndReporters(
 		instrument.NewRootScopeAndReportersOptions{
 			PrometheusDefaultServeMux: defaultServeMux,
 		})
@@ -109,8 +109,8 @@ func Run(opts RunOptions) {
 	instrumentOpts := instrument.NewOptions().
 		SetLogger(logger).
 		SetMetricsScope(scope).
-		SetTimerOptions(instrument.TimerOptions{StandardSampleRate: cfg.MetricsOrDefault().SampleRate()}).
-		SetReportInterval(cfg.MetricsOrDefault().ReportInterval()).
+		SetTimerOptions(instrument.TimerOptions{StandardSampleRate: cfg.Metrics.SampleRate()}).
+		SetReportInterval(cfg.Metrics.ReportInterval()).
 		SetCustomBuildTags(opts.CustomBuildTags)
 
 	buildReporter := instrument.NewBuildReporter(instrumentOpts)

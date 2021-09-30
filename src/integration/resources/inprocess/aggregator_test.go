@@ -54,7 +54,11 @@ func TestNewAggregator(t *testing.T) {
 
 	agg, err := NewAggregator(defaultAggregatorConfig, AggregatorOptions{})
 	require.NoError(t, err)
+	require.NoError(t, agg.Close())
 
+	// restart an aggregator instance
+	agg, err = NewAggregator(defaultAggregatorConfig, AggregatorOptions{})
+	require.NoError(t, err)
 	require.NoError(t, agg.Close())
 }
 
@@ -105,7 +109,11 @@ func setupM3msgTopic(t *testing.T, coord resources.Coordinator) {
 
 func setupPlacement(t *testing.T, coord resources.Coordinator) {
 	_, err := coord.InitPlacement(
-		resources.PlacementRequestOptions{Service: resources.ServiceTypeM3Aggregator},
+		resources.PlacementRequestOptions{
+			Service: resources.ServiceTypeM3Aggregator,
+			Zone:    "embedded",
+			Env:     "default_env",
+		},
 		admin.PlacementInitRequest{
 			NumShards:         1,
 			ReplicationFactor: 1,
@@ -125,7 +133,11 @@ func setupPlacement(t *testing.T, coord resources.Coordinator) {
 	require.NoError(t, err)
 
 	_, err = coord.InitPlacement(
-		resources.PlacementRequestOptions{Service: resources.ServiceTypeM3Coordinator},
+		resources.PlacementRequestOptions{
+			Service: resources.ServiceTypeM3Coordinator,
+			Zone:    "embedded",
+			Env:     "default_env",
+		},
 		admin.PlacementInitRequest{
 			Instances: []*placementpb.Instance{
 				{
@@ -142,6 +154,13 @@ func setupPlacement(t *testing.T, coord resources.Coordinator) {
 }
 
 const defaultAggregatorConfig = `
+metrics:
+  prometheus:
+    handlerPath: /metrics
+    listenAddress: 0.0.0.0:6002
+    timerType: histogram
+  sanitization: prometheus
+  samplingRate: 1.0
 http:
   listenAddress: 0.0.0.0:6001
   readTimeout: 60s
@@ -171,6 +190,9 @@ kvClient:
 aggregator:
   instanceID:
     type: host_id
+  stream:
+    eps: 0.001
+    capacity: 32
   client:
     type: m3msg
     m3msg:
@@ -219,4 +241,38 @@ aggregator:
                 watermark:
                   low: 0.2
                   high: 0.5
+`
+
+const aggregatorCoordConfig = `
+clusters:
+  - namespaces:
+      - namespace: default
+        type: unaggregated
+        retention: 1h
+    client:
+      config:
+        service:
+          env: default_env
+          zone: embedded
+          service: m3db
+          cacheDir: "*"
+          etcdClusters:
+            - zone: embedded
+              endpoints:
+                - 127.0.0.1:2379
+ingest:
+  ingester:
+    workerPoolSize: 10000
+    opPool:
+      size: 10000
+    retry:
+      maxRetries: 3
+      jitter: true
+    logSampleRate: 0.01
+  m3msg:
+    server:
+      listenAddress: "0.0.0.0:7507"
+      retry:
+        maxBackoff: 10s
+        jitter: true
 `

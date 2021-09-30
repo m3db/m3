@@ -89,7 +89,7 @@ type AggregatorConfiguration struct {
 	GaugePrefix *string `yaml:"gaugePrefix"`
 
 	// Stream configuration for computing quantiles.
-	Stream *streamConfiguration `yaml:"stream"`
+	Stream streamConfiguration `yaml:"stream"`
 
 	// Client configuration.
 	Client aggclient.Configuration `yaml:"client"`
@@ -298,12 +298,9 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	// Set stream options.
 	scope := instrumentOpts.MetricsScope()
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("stream"))
-	streamOpts := cm.NewOptions()
-	if c.Stream != nil {
-		streamOpts, err = c.Stream.NewStreamOptions(iOpts)
-		if err != nil {
-			return nil, err
-		}
+	streamOpts, err := c.Stream.NewStreamOptions(iOpts)
+	if err != nil {
+		return nil, err
 	}
 	opts = opts.SetStreamOptions(streamOpts)
 
