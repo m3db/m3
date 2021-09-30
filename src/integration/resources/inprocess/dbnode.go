@@ -31,6 +31,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
@@ -42,6 +43,7 @@ import (
 	nettest "github.com/m3db/m3/src/integration/resources/net"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/config/hostid"
 	xos "github.com/m3db/m3/src/x/os"
 )
 
@@ -62,6 +64,12 @@ type dbNode struct {
 
 // DBNodeOptions are options for starting a DB node server.
 type DBNodeOptions struct {
+	// GeneratePorts will automatically update the config to use open ports
+	// if set to true. If false, configuration is used as-is re: ports.
+	GeneratePorts bool
+	// GenerateHostID will automatically update the host ID specified in
+	// the config if set to true. If false, configuration is used as-is re: host ID.
+	GenerateHostID bool
 	// Logger is the logger to use for the dbnode. If not provided,
 	// a default one will be created.
 	Logger *zap.Logger
@@ -105,24 +113,29 @@ func NewDBNodeFromYAML(yamlCfg string, opts DBNodeOptions) (resources.Node, erro
 //
 // The dbnode will start up as you specify in your config. However, there is some
 // helper logic to avoid port and filesystem collisions when spinning up multiple components
-// within the process. If you specify a port of 0 in any address, 0 will be automatically
-// replaced with an open port. This is similar to the behavior net.Listen provides for you.
-// Similarly, for filepaths, if a "*" is specified in the config, then that field will
-// be updated with a temp directory that will be cleaned up when the dbnode is destroyed.
-// This should ensure that many of the same component can be spun up in-process without any
-// issues with collisions.
+// within the process. If you specify a GeneratePorts: true in the DBNodeOptions, address ports
+// will be replaced with an open port.
+//
+// Similarly, filepath fields will  be updated with a temp directory that will be cleaned up
+// when the dbnode is destroyed. This should ensure that many of the same component can be
+// spun up in-process without any issues with collisions.
 func NewDBNode(cfg config.Configuration, opts DBNodeOptions) (resources.Node, error) {
-	// Replace any "0" ports with an open port
-	cfg, err := updateDBNodePorts(cfg)
+	// Massage config so it runs properly in tests.
+	cfg, tmpDirs, err := updateDBNodeConfig(cfg, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	// Replace any "*" filepath with a temporary directory
-	cfg, tmpDirs, err := updateDBNodeFilepaths(cfg)
+	hostID, err := cfg.DB.HostIDOrDefault().Resolve()
 	if err != nil {
 		return nil, err
 	}
+	logging := cfg.DB.LoggingOrDefault()
+	if len(logging.Fields) == 0 {
+		logging.Fields = make(map[string]interface{})
+	}
+	logging.Fields["component"] = fmt.Sprintf("dbnode:%s", hostID)
+	cfg.DB.Logging = &logging
 
 	// Configure TChannel client for hitting the DB node.
 	tchanClient, err := integration.NewTChannelClient("client", cfg.DB.ListenAddressOrDefault())
@@ -310,15 +323,66 @@ func (d *dbNode) Close() error {
 	return nil
 }
 
-func updateDBNodePorts(cfg config.Configuration) (config.Configuration, error) {
-	if cfg.DB.ListenAddress != nil {
-		addr, _, _, err := nettest.MaybeGeneratePort(*cfg.DB.ListenAddress)
+func updateDBNodeConfig(
+	cfg config.Configuration,
+	opts DBNodeOptions,
+) (config.Configuration, []string, error) {
+	var (
+		tmpDirs []string
+		err     error
+	)
+	// Replace any ports with open ports
+	if opts.GeneratePorts {
+		cfg, err = updateDBNodePorts(cfg)
 		if err != nil {
-			return cfg, err
+			return config.Configuration{}, nil, err
 		}
-
-		cfg.DB.ListenAddress = &addr
 	}
+
+	// Replace host ID configuration with config-based version.
+	if opts.GenerateHostID {
+		cfg = updateDBNodeHostID(cfg)
+	}
+
+	// Replace any filepath with a temporary directory
+	cfg, tmpDirs, err = updateDBNodeFilepaths(cfg)
+	if err != nil {
+		return config.Configuration{}, nil, err
+	}
+
+	return cfg, tmpDirs, nil
+}
+
+func updateDBNodePorts(cfg config.Configuration) (config.Configuration, error) {
+	addr1, _, err := nettest.GeneratePort(cfg.DB.ListenAddressOrDefault())
+	if err != nil {
+		return cfg, err
+	}
+	cfg.DB.ListenAddress = &addr1
+
+	addr2, _, err := nettest.GeneratePort(cfg.DB.ClusterListenAddressOrDefault())
+	if err != nil {
+		return cfg, err
+	}
+	cfg.DB.ClusterListenAddress = &addr2
+
+	addr3, _, err := nettest.GeneratePort(cfg.DB.HTTPNodeListenAddressOrDefault())
+	if err != nil {
+		return cfg, err
+	}
+	cfg.DB.HTTPNodeListenAddress = &addr3
+
+	addr4, _, err := nettest.GeneratePort(cfg.DB.HTTPClusterListenAddressOrDefault())
+	if err != nil {
+		return cfg, err
+	}
+	cfg.DB.HTTPClusterListenAddress = &addr4
+
+	addr5, _, err := nettest.GeneratePort(cfg.DB.DebugListenAddressOrDefault())
+	if err != nil {
+		return cfg, err
+	}
+	cfg.DB.DebugListenAddress = &addr5
 
 	if cfg.Coordinator != nil {
 		coordCfg, err := updateCoordinatorPorts(*cfg.Coordinator)
@@ -332,18 +396,39 @@ func updateDBNodePorts(cfg config.Configuration) (config.Configuration, error) {
 	return cfg, nil
 }
 
+func updateDBNodeHostID(cfg config.Configuration) config.Configuration {
+	hostID := uuid.New().String()
+	cfg.DB.HostID = &hostid.Configuration{
+		Resolver: hostid.ConfigResolver,
+		Value:    &hostID,
+	}
+
+	return cfg
+}
+
 func updateDBNodeFilepaths(cfg config.Configuration) (config.Configuration, []string, error) {
 	tmpDirs := make([]string, 0, 1)
 
-	prefix := cfg.DB.Filesystem.FilePathPrefix
-	if prefix != nil && *prefix == "*" {
-		dir, err := ioutil.TempDir("", "m3db-*")
-		if err != nil {
-			return cfg, nil, err
-		}
+	dir, err := ioutil.TempDir("", "m3db-*")
+	if err != nil {
+		return cfg, nil, err
+	}
+	tmpDirs = append(tmpDirs, dir)
+	cfg.DB.Filesystem.FilePathPrefix = &dir
 
-		tmpDirs = append(tmpDirs, dir)
-		cfg.DB.Filesystem.FilePathPrefix = &dir
+	ec := cfg.DB.Client.EnvironmentConfig
+	if ec != nil {
+		for _, svc := range ec.Services {
+			if svc != nil && svc.Service != nil {
+				dir, err := ioutil.TempDir("", "m3kv-*")
+				if err != nil {
+					return cfg, tmpDirs, err
+				}
+
+				tmpDirs = append(tmpDirs, dir)
+				svc.Service.CacheDir = dir
+			}
+		}
 	}
 
 	if cfg.Coordinator != nil {
