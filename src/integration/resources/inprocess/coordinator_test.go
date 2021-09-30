@@ -158,6 +158,8 @@ func TestAggPlacementFunctions(t *testing.T) {
 
 	placementOpts := resources.PlacementRequestOptions{
 		Service: resources.ServiceTypeM3Aggregator,
+		Env:     "default_env",
+		Zone:    "embedded",
 	}
 	initRequest := admin.PlacementInitRequest{
 		Instances: []*placementpb.Instance{
@@ -223,6 +225,14 @@ func TestAggPlacementFunctions(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int32(1), getResp.Version)
 	validateEqualAggPlacement(t, expectedPlacement, getResp.Placement)
+
+	wrongPlacementOpts := resources.PlacementRequestOptions{
+		Service: resources.ServiceTypeM3Aggregator,
+		Env:     "default_env_wrong",
+		Zone:    "embedded",
+	}
+	_, err = coord.GetPlacement(wrongPlacementOpts)
+	require.NotNil(t, err)
 
 	assert.NoError(t, coord.Close())
 	assert.NoError(t, dbnode.Close())

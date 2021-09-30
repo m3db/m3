@@ -185,6 +185,10 @@ type M3msgTopicOptions struct {
 type PlacementRequestOptions struct {
 	// Service is the type of service for the placement request.
 	Service ServiceType
+	// Env is the environment of the placement.
+	Env string
+	// Zone is the zone of the placement.
+	Zone string
 }
 
 // ServiceType represents the type of an m3 service.
