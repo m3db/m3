@@ -35,7 +35,7 @@ func TestNewCluster(t *testing.T) {
 		DBNode: DBNodeClusterOptions{
 			Config:       DBNodeClusterConfig{ConfigString: clusterDBNodeConfig},
 			RF:           1,
-			NumInstances: 1,
+			NumInstances: 2,
 			NumShards:    64,
 		},
 	})

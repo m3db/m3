@@ -30,6 +30,7 @@ import (
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/discovery"
 	"github.com/m3db/m3/src/dbnode/environment"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/integration/resources"
 	"github.com/m3db/m3/src/x/config/hostid"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -218,6 +219,8 @@ func NewCluster(opts ClusterOptions) (resources.M3Resources, error) {
 			cleanup(logger, nodes, coord)
 		}
 	}()
+
+	fs.DisableIndexClaimsManagersCheckUnsafe()
 
 	for i := 0; i < numNodes; i++ {
 		cfg := defaultDBNodesCfg
