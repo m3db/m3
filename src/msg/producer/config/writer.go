@@ -107,6 +107,9 @@ type WriterConfiguration struct {
 	// IgnoreCutoffCutover allows producing writes ignoring cutoff/cutover timestamp.
 	// Must be in sync with AggregatorConfiguration.WritesIgnoreCutoffCutover.
 	IgnoreCutoffCutover bool `yaml:"ignoreCutoffCutover"`
+	// WithoutConsumerScope drops the consumer tag from the metrics. For large m3msg deployments the consumer tag can
+	// add a lot of cardinality to the metrics.
+	WithoutConsumerScope bool `yaml:"withoutConsumerScope"`
 }
 
 // NewOptions creates writer options.
@@ -118,7 +121,8 @@ func (c *WriterConfiguration) NewOptions(
 	opts := writer.NewOptions().
 		SetTopicName(c.TopicName).
 		SetPlacementOptions(c.PlacementOptions.NewOptions()).
-		SetInstrumentOptions(iOpts)
+		SetInstrumentOptions(iOpts).
+		SetWithoutConsumerScope(c.WithoutConsumerScope)
 
 	kvOpts, err := c.TopicServiceOverride.NewOverrideOptions()
 	if err != nil {
