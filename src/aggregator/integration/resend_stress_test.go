@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"fmt"
 	"math/rand"
 	"sync"
 	"testing"
@@ -223,6 +224,7 @@ func TestResendAggregatedValueStress(t *testing.T) {
 					expectedTs = expectedTs.Add(time.Millisecond * 2).Add(time.Microsecond * 500)
 				}
 			}
+			fmt.Println("val", server.value(expectedTs.UnixNano(), rollupMetricID, storagePolicies[0]))
 			if time.Now().Sub(expectedTs) > time.Second*5 {
 				actualVal := server.value(expectedTs.UnixNano(), rollupMetricID, storagePolicies[0])
 				log.Sugar().Fatalf("failed for: ts:=%v value=%v zero=%v, round=%v",

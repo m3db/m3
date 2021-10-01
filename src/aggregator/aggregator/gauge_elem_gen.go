@@ -222,21 +222,26 @@ func (e *GaugeElem) Consume(
 	e.toConsume = e.toConsume[:0]
 
 	// Evaluate and GC expired items.
-	var prev *timedGauge
+	var (
+		prev           *timedGauge
+		firstToConsume bool
+	)
 	valuesForConsideration := e.values
 	e.values = e.values[:0]
 	for i, value := range valuesForConsideration {
 		if value.gcEligible {
 			continue
 		}
+
 		if !isEarlierThanFn(value.startAtNanos, resolution, targetNanos) {
 			e.values = append(e.values, value)
 			continue
 		}
 
-		if i > 0 && prev == nil {
+		if !firstToConsume && i > 0 {
 			prev = &valuesForConsideration[i-1]
 		}
+		firstToConsume = true
 
 		expired := true
 		if e.resendEnabled {
@@ -265,15 +270,22 @@ func (e *GaugeElem) Consume(
 		expired := e.toConsume[i].onConsumeExpired
 		timeNanos := timestampNanosFn(e.toConsume[i].startAtNanos, resolution)
 
-		var prevAgg *lockedGaugeAggregation
-		if i == 0 && prev != nil {
-			prevAgg = prev.lockedAgg
-		} else {
-			prevAgg = e.toConsume[i-1].lockedAgg
+		var (
+			prevAgg       *timedGauge
+			prevLockedAgg *lockedGaugeAggregation
+		)
+		if i > 0 {
+			prevAgg = &e.toConsume[i-1]
+			prevLockedAgg = prevAgg.lockedAgg
+		} else if prev != nil {
+			prevAgg = prev
+			prevLockedAgg = prevAgg.lockedAgg
 		}
 
+		if prevLockedAgg != nil {
+			prevLockedAgg.Lock()
+		}
 		e.toConsume[i].lockedAgg.Lock()
-		prevAgg.Lock()
 
 		// if a previous timestamps was dirty, that value might impact a future derivative calculation, so
 		// cascade the dirty bit to all succeeding values. there is a check later to not resend a value if it doesn't
@@ -282,7 +294,7 @@ func (e *GaugeElem) Consume(
 			cascadeDirty = e.processValueWithAggregationLock(
 				timeNanos,
 				e.toConsume[i].lockedAgg,
-				prevAgg,
+				prevLockedAgg,
 				flushLocalFn,
 				flushForwardedFn,
 				resolution,
@@ -308,11 +320,16 @@ func (e *GaugeElem) Consume(
 			}
 		}
 
-		prevAgg.Unlock()
 		e.toConsume[i].lockedAgg.Unlock()
 		if expired {
 			e.toConsume[i].Release()
-			prev.gcEligible = true
+			if prevAgg != nil {
+				prevAgg.gcEligible = true
+			}
+		}
+
+		if prevLockedAgg != nil {
+			prevLockedAgg.Unlock()
 		}
 	}
 
