@@ -69,7 +69,9 @@ func NewCompleteTagsHandler(opts options.HandlerOptions) http.Handler {
 func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
-	ctx, opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r.Context(), r)
+	ctx, opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r.Context(),
+		logging.WithContext(r.Context(), h.instrumentOpts),
+		r)
 	if rErr != nil {
 		xhttp.WriteError(w, rErr)
 		return

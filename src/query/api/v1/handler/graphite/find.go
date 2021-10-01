@@ -124,7 +124,8 @@ func (h *grahiteFindHandler) ServeHTTP(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	ctx, opts, err := h.fetchOptionsBuilder.NewFetchOptions(r.Context(), r)
+	ctx, opts, err := h.fetchOptionsBuilder.NewFetchOptions(r.Context(),
+		logging.WithContext(r.Context(), h.instrumentOpts), r)
 	if err != nil {
 		xhttp.WriteError(w, err)
 		return

@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"math"
 	"net/http"
 	"strconv"
@@ -63,6 +64,7 @@ type FetchOptionsBuilder interface {
 	// NewFetchOptions parses an http request into fetch options.
 	NewFetchOptions(
 		ctx context.Context,
+		logger *zap.Logger,
 		req *http.Request,
 	) (context.Context, *storage.FetchOptions, error)
 }
@@ -234,9 +236,10 @@ func ParseRequireNoWait(req *http.Request) (bool, error) {
 // NewFetchOptions parses an http request into fetch options.
 func (b fetchOptionsBuilder) NewFetchOptions(
 	ctx context.Context,
+	logger *zap.Logger,
 	req *http.Request,
 ) (context.Context, *storage.FetchOptions, error) {
-	ctx, fetchOpts, err := b.newFetchOptions(ctx, req)
+	ctx, fetchOpts, err := b.newFetchOptions(ctx, logger, req)
 	if err != nil {
 		// Always invalid request if parsing fails params.
 		return nil, nil, xerrors.NewInvalidParamsError(err)
@@ -245,7 +248,7 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 }
 
 func (b fetchOptionsBuilder) newFetchOptions(
-	ctx context.Context,
+	ctx context.Context, logger *zap.Logger,
 	req *http.Request,
 ) (context.Context, *storage.FetchOptions, error) {
 	fetchOpts := storage.NewFetchOptions()
@@ -409,6 +412,14 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		// Apply defaults if not overridden by header.
 		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
 		fetchOpts.RestrictQueryOptions.RestrictByTag = defaultTagOpts
+	}
+
+	if str := req.Header.Get(headers.RestrictByTagsJSONHeader); str != "" {
+		logger.Info("restricted headers",
+			zap.String("headers", str),
+			zap.Any("restrictByTag",
+				*fetchOpts.RestrictQueryOptions.RestrictByTag),
+		)
 	}
 
 	if restrict := fetchOpts.RestrictQueryOptions; restrict != nil {

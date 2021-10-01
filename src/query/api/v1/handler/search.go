@@ -112,7 +112,10 @@ func (h *SearchHandler) parseURLParams(
 	ctx context.Context,
 	r *http.Request,
 ) (context.Context, *storage.FetchOptions, error) {
-	ctx, fetchOpts, parseErr := h.fetchOptionsBuilder.NewFetchOptions(ctx, r)
+	ctx, fetchOpts, parseErr := h.fetchOptionsBuilder.NewFetchOptions(ctx,
+		logging.WithContext(r.Context(), h.instrumentOpts),
+
+		r)
 	if parseErr != nil {
 		return nil, nil, xerrors.NewInvalidParamsError(parseErr)
 	}

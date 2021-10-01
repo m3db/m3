@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"go.uber.org/zap"
 	"math"
 	"mime/multipart"
 	"net/http"
@@ -324,7 +325,7 @@ func TestFetchOptionsBuilder(t *testing.T) {
 				req.Header.Add(k, v)
 			}
 
-			ctx, opts, err := builder.NewFetchOptions(context.Background(), req)
+			ctx, opts, err := builder.NewFetchOptions(context.Background(), zap.NewNop(), req)
 			if !test.expectedErr {
 				require.NoError(t, err)
 				require.Equal(t, test.expectedLimit, opts.SeriesLimit)
@@ -475,7 +476,7 @@ func TestFetchOptionsWithHeader(t *testing.T) {
 		req.Header.Add(k, v)
 	}
 
-	_, opts, err := builder.NewFetchOptions(context.Background(), req)
+	_, opts, err := builder.NewFetchOptions(context.Background(), zap.NewNop(), req)
 	require.NoError(t, err)
 	require.NotNil(t, opts.RestrictQueryOptions)
 	ex := &storage.RestrictQueryOptions{

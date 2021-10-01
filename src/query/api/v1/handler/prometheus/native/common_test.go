@@ -22,6 +22,7 @@ package native
 
 import (
 	"bytes"
+	"go.uber.org/zap"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -71,7 +72,9 @@ func testParseParams(req *http.Request) (models.RequestParams, error) {
 		return models.RequestParams{}, err
 	}
 
-	_, fetchOpts, err := fetchOptsBuilder.NewFetchOptions(req.Context(), req)
+	_, fetchOpts, err := fetchOptsBuilder.NewFetchOptions(req.Context(),
+		zap.NewNop(),
+		req)
 	if err != nil {
 		return models.RequestParams{}, err
 	}
@@ -110,7 +113,8 @@ func TestInstantaneousParamParsing(t *testing.T) {
 			Timeout: 10 * time.Second,
 		})
 	require.NoError(t, err)
-	_, fetchOpts, err := fetchOptsBuilder.NewFetchOptions(req.Context(), req)
+	_, fetchOpts, err := fetchOptsBuilder.NewFetchOptions(req.Context(),
+		zap.NewNop(), req)
 	require.NoError(t, err)
 
 	r, err := parseInstantaneousParams(req, executor.NewEngineOptions(),

@@ -418,7 +418,9 @@ func parseRequest(
 		return nil, nil, nil, err
 	}
 
-	ctx, fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(ctx, r)
+	ctx, fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(ctx,
+		logging.WithContext(r.Context(), opts.InstrumentOpts()),
+		r)
 	if rErr != nil {
 		return nil, nil, nil, rErr
 	}

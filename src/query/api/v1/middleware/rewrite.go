@@ -111,7 +111,8 @@ func rewriteRangeDuration(
 
 	// Query for namespace metadata of namespaces used to service the request
 	store := opts.Storage
-	ctx, fetchOpts, err := opts.FetchOptionsBuilder.NewFetchOptions(r.Context(), r)
+	ctx, fetchOpts, err := opts.FetchOptionsBuilder.NewFetchOptions(r.Context(),
+		logger, r)
 	if err != nil {
 		return err
 	}

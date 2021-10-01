@@ -22,6 +22,7 @@ package native
 
 import (
 	"context"
+	"github.com/m3db/m3/src/query/util/logging"
 	"math"
 	"net/http"
 
@@ -119,7 +120,8 @@ func parseRequest(
 	instantaneous bool,
 	opts options.HandlerOptions,
 ) (context.Context, ParsedOptions, error) {
-	ctx, fetchOpts, err := opts.FetchOptionsBuilder().NewFetchOptions(ctx, r)
+	ctx, fetchOpts, err := opts.FetchOptionsBuilder().NewFetchOptions(ctx,
+		logging.WithContext(r.Context(), opts.InstrumentOpts()),  r)
 	if err != nil {
 		return nil, ParsedOptions{}, err
 	}

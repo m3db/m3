@@ -75,7 +75,8 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	ctx, opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r.Context(), r)
+	ctx, opts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r.Context(),
+		logging.WithContext(r.Context(), h.instrumentOpts), r)
 	if rErr != nil {
 		xhttp.WriteError(w, rErr)
 		return
