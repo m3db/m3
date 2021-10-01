@@ -109,7 +109,7 @@ type WriterConfiguration struct {
 	IgnoreCutoffCutover bool `yaml:"ignoreCutoffCutover"`
 	// WithoutConsumerScope drops the consumer tag from the metrics. For large m3msg deployments the consumer tag can
 	// add a lot of cardinality to the metrics.
-	WithoutConsumerScope bool `ymal:"withoutConsumerScope"`
+	WithoutConsumerScope bool `yaml:"withoutConsumerScope"`
 }
 
 // NewOptions creates writer options.

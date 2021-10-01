@@ -364,7 +364,7 @@ type Options interface {
 	// SetIgnoreCutoffCutover sets a flag controlling whether cutoff/cutover timestamps are ignored.
 	SetIgnoreCutoffCutover(value bool) Options
 
-	// WithoutConsumerScope disables the consumer scope for metrics. For large m3msg deploymentssrc/msg/producer/writer/message_writer.go the consumer
+	// WithoutConsumerScope disables the consumer scope for metrics. For large m3msg deployments the consumer
 	// scope can add a lot of cardinality to the metrics.
 	WithoutConsumerScope() bool
 
