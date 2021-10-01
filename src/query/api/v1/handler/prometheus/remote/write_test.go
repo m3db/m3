@@ -32,6 +32,10 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
+
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
@@ -46,6 +50,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -416,6 +421,88 @@ func TestPromWriteDisabledMetricsTypes(t *testing.T) {
 
 	require.False(t, capturedIter.Next())
 	require.NoError(t, capturedIter.Error())
+}
+
+func TestPromWriteLiteralIsTooLongError(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	literalTooLongErrorLookalike := errors.New(serialize.ErrTagLiteralTooLong.Error())
+	batchErr := ingest.BatchError(xerrors.NewMultiError().Add(literalTooLongErrorLookalike))
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	mockDownsamplerAndWriter.
+		EXPECT().
+		WriteBatch(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(batchErr).
+		AnyTimes()
+
+	observerCore, observedLogs := observer.New(zapcore.InfoLevel)
+	opts := makeOptions(mockDownsamplerAndWriter)
+	opts = opts.SetInstrumentOpts(opts.InstrumentOpts().SetLogger(zap.New(observerCore)))
+	handler, err := NewPromWriteHandler(opts)
+	require.NoError(t, err)
+
+	promReq := &prompb.WriteRequest{
+		Timeseries: []prompb.TimeSeries{
+			{
+				Labels: []prompb.Label{
+					{Name: []byte("name"), Value: []byte("value")},
+				},
+			},
+		},
+	}
+
+	// execute write request many times to check that "literal is too long" sampling doesn't error
+	// or deadlock
+	for i := 0; i < maxLiteralIsTooLongLogCount*2; i++ {
+		promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
+		req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
+		handler.ServeHTTP(httptest.NewRecorder(), req)
+	}
+	filteredLogs := observedLogs.Filter(func(e observer.LoggedEntry) bool {
+		return e.Message == "series with too long literal"
+	})
+	require.True(t, filteredLogs.Len() == maxLiteralIsTooLongLogCount,
+		"unexpected number of log messages, expected=%v, actual=%v", maxLiteralIsTooLongLogCount, filteredLogs.Len())
+}
+
+func TestLabelsToSummaryString(t *testing.T) {
+	labels := []prompb.Label{
+		{Name: []byte("name1"), Value: []byte("value1")},
+		{Name: []byte("name2"), Value: []byte("very_long_value2")},
+		{Name: []byte("very_long_name3"), Value: []byte("value3")},
+	}
+	tests := []struct {
+		name                   string
+		literalLengthThreshold int
+		totalLengthThreshold   int
+		expected               string
+	}{
+		{
+			name:                   "no truncation",
+			literalLengthThreshold: 20,
+			totalLengthThreshold:   200,
+			expected:               "name1=value1,name2=very_long_value2,very_long_name3=value3",
+		},
+		{
+			name:                   "truncated literals",
+			literalLengthThreshold: 6,
+			totalLengthThreshold:   200,
+			expected:               "name1=value1,name2=very_l(16),very_l(15)=value3",
+		},
+		{
+			name:                   "truncated list of labels",
+			literalLengthThreshold: 20,
+			totalLengthThreshold:   20,
+			expected:               "name1=value1,name2=very_long_value2,(1 more labels)",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := labelsToSummaryString(labels, tt.literalLengthThreshold, tt.totalLengthThreshold)
+			require.Equal(t, tt.expected, actual)
+		})
+	}
 }
 
 func BenchmarkWriteDatapoints(b *testing.B) {

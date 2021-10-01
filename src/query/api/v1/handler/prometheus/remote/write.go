@@ -28,7 +28,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
@@ -50,6 +52,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -70,6 +73,10 @@ const (
 
 	// defaultForwardingTimeout is the default forwarding timeout.
 	defaultForwardingTimeout = 15 * time.Second
+
+	// maxLiteralIsTooLongLogCount is the number of times the time series labels should be logged
+	// upon "literal is too long" error.
+	maxLiteralIsTooLongLogCount = 10
 )
 
 var (
@@ -119,6 +126,10 @@ type PromWriteHandler struct {
 	nowFn                  clock.NowFn
 	instrumentOpts         instrument.Options
 	metrics                promWriteMetrics
+
+	// Counting the number of times of "literal is too long" error for log sampling purposes.
+	numLiteralIsTooLong     int
+	numLiteralIsTooLongLock sync.RWMutex
 }
 
 // NewPromWriteHandler returns a new instance of handler.
@@ -318,7 +329,14 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			numRegular        int
 			numBadRequest     int
 		)
+		logger := logging.WithContext(r.Context(), h.instrumentOpts)
 		for _, err := range errs {
+			if err.Error() == serialize.ErrTagLiteralTooLong.Error() {
+				// NB: comparing this by string value since the error might have crossed the network
+				// and thus might not be comparable using 'errors.Is()'. This might break if the error
+				// is renamed somewhere in the stack (e.g. by using 'xerrors.NewRenamedError()').
+				h.maybeLogSeriesWithLongestLabels(logger, req.Timeseries)
+			}
 			switch {
 			case client.IsBadRequestError(err):
 				numBadRequest++
@@ -340,7 +358,6 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status = http.StatusInternalServerError
 		}
 
-		logger := logging.WithContext(r.Context(), h.instrumentOpts)
 		logger.Error("write error",
 			zap.String("remoteAddr", r.RemoteAddr),
 			zap.Int("httpResponseStatusCode", status),
@@ -553,6 +570,84 @@ func (h *PromWriteHandler) forward(
 	}
 
 	return nil
+}
+
+func (h *PromWriteHandler) maybeLogSeriesWithLongestLabels(logger *zap.Logger, timeSeries []prompb.TimeSeries) {
+	if len(timeSeries) == 0 {
+		return
+	}
+
+	// Read the value and check if time series should be logged.
+	h.numLiteralIsTooLongLock.RLock()
+	shouldLog := h.numLiteralIsTooLong < maxLiteralIsTooLongLogCount
+	h.numLiteralIsTooLongLock.RUnlock()
+	if !shouldLog {
+		return
+	}
+
+	// Read and update the value if the time series still should be logged.
+	h.numLiteralIsTooLongLock.Lock()
+	shouldLog = h.numLiteralIsTooLong < maxLiteralIsTooLongLogCount
+	if shouldLog {
+		h.numLiteralIsTooLong++
+	}
+	h.numLiteralIsTooLongLock.Unlock()
+	if !shouldLog {
+		return
+	}
+
+	var (
+		longestLabelLength = 0
+		longestLabelIdx    = 0
+	)
+	for i, ts := range timeSeries {
+		for _, l := range ts.Labels {
+			if len(l.Name) > longestLabelLength {
+				longestLabelLength = len(l.Name)
+				longestLabelIdx = i
+			}
+			if len(l.Value) > longestLabelLength {
+				longestLabelLength = len(l.Value)
+				longestLabelIdx = i
+			}
+		}
+	}
+
+	const (
+		literalLengthThreshold = 30
+		totalLengthThreshold   = 1000
+	)
+
+	labelSummary := labelsToSummaryString(timeSeries[longestLabelIdx].Labels, literalLengthThreshold, totalLengthThreshold)
+	logger.Warn("series with too long literal", zap.String("labelSummary", labelSummary))
+}
+
+func labelsToSummaryString(labels []prompb.Label, literalLengthThreshold, totalLengthThreshold int) string {
+	builder := strings.Builder{}
+	for i, l := range labels {
+		if builder.Len() > totalLengthThreshold {
+			builder.WriteString(fmt.Sprintf("(%v more labels)", len(labels)-i))
+			break
+		}
+		appendLiteral(&builder, l.Name, literalLengthThreshold)
+		builder.WriteString("=")
+		appendLiteral(&builder, l.Value, literalLengthThreshold)
+		if i+1 < len(labels) {
+			builder.WriteString(",")
+		}
+	}
+	return builder.String()
+}
+
+func appendLiteral(builder *strings.Builder, literal []byte, lengthThreshold int) {
+	if len(literal) <= lengthThreshold {
+		builder.Write(literal)
+	} else {
+		builder.Write(literal[:lengthThreshold])
+		builder.WriteString("(")
+		builder.WriteString(strconv.Itoa(len(literal)))
+		builder.WriteString(")")
+	}
 }
 
 func newPromTSIter(
