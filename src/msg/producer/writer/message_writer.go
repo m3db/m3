@@ -99,6 +99,7 @@ type messageWriter interface {
 }
 
 type messageWriterMetrics struct {
+	withoutConsumerScope     bool
 	scope                    tally.Scope
 	opts                     instrument.TimerOptions
 	writeSuccess             tally.Counter
@@ -127,23 +128,31 @@ type messageWriterMetrics struct {
 }
 
 func (m messageWriterMetrics) withConsumer(consumer string) messageWriterMetrics {
-	return newMessageWriterMetricsWithConsumer(m.scope, m.opts, consumer)
+	if m.withoutConsumerScope {
+		return m
+	}
+	return newMessageWriterMetricsWithConsumer(m.scope, m.opts, consumer, false)
 }
 
 func newMessageWriterMetrics(
 	scope tally.Scope,
 	opts instrument.TimerOptions,
+	withoutConsumerScope bool,
 ) messageWriterMetrics {
-	return newMessageWriterMetricsWithConsumer(scope, opts, "unknown")
+	return newMessageWriterMetricsWithConsumer(scope, opts, "unknown", withoutConsumerScope)
 }
 
 func newMessageWriterMetricsWithConsumer(
 	scope tally.Scope,
 	opts instrument.TimerOptions,
 	consumer string,
-) messageWriterMetrics {
-	consumerScope := scope.Tagged(map[string]string{"consumer": consumer})
+	withoutConsumerScope bool) messageWriterMetrics {
+	consumerScope := scope
+	if !withoutConsumerScope {
+		consumerScope = scope.Tagged(map[string]string{"consumer": consumer})
+	}
 	return messageWriterMetrics{
+		withoutConsumerScope:  withoutConsumerScope,
 		scope:                 scope,
 		opts:                  opts,
 		writeSuccess:          consumerScope.Counter("write-success"),
