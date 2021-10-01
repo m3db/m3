@@ -191,7 +191,7 @@ func newMessageWriterMetricsWithConsumer(
 			Tagged(map[string]string{"result": "closed"}).
 			Counter("message-processed"),
 		processedNotReady: consumerScope.
-			Tagged(map[string]string{"result": "retry"}).
+			Tagged(map[string]string{"result": "not-ready"}).
 			Counter("message-processed"),
 		processedTTL: consumerScope.
 			Tagged(map[string]string{"result": "ttl"}).
