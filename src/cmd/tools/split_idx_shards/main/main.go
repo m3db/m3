@@ -44,7 +44,10 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-var checkpointPattern = regexp.MustCompile(`/index/data/(\w+)/fileset-([0-9]+)-([0-9]+)-checkpoint.db$`)
+var (
+	checkpointPattern = regexp.MustCompile(`/index/data/(\w+)/fileset-([0-9]+)-([0-9]+)-checkpoint\.db$`)
+	genericPattern    = regexp.MustCompile(`/index/data/(\w+)/fileset-([0-9]+)-([0-9]+)-.*\.db$`)
+)
 
 func main() {
 	var (
@@ -76,13 +79,39 @@ func main() {
 
 	start := time.Now()
 
+	// Delete filesets of all blocks starting from optBlockUntil (inclusive).
+	if err := filepath.WalkDir(*optPath, func(path string, d iofs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		pathParts := checkpointPattern.FindStringSubmatch(path)
+		if len(pathParts) != 4 {
+			return fmt.Errorf("failed to parse path %s", path)
+		}
+
+		blockStart, err := strconv.Atoi(pathParts[2])
+		if err != nil {
+			return err
+		}
+
+		if blockStart >= int(*optBlockUntil) {
+			fmt.Printf("%s - deleting too recent %s\n", time.Now().Local(), path) // nolint: forbidigo
+			return os.Remove(path)
+		}
+
+		return nil
+	}); err != nil {
+		logger.Fatalf("unable to walk the source dir: %+v", err)
+	}
+
+	// Update info files of all blocks before optBlockUntil.
 	if err := filepath.WalkDir(*optPath, func(path string, d iofs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), "-checkpoint.db") {
 			return err
 		}
-		fmt.Printf("%s - %s\n", time.Now().Local(), path) // nolint: forbidigo
+		fmt.Printf("%s - updating fileset of %s\n", time.Now().Local(), path) // nolint: forbidigo
 		pathParts := checkpointPattern.FindStringSubmatch(path)
-		if len(pathParts) != 5 {
+		if len(pathParts) != 4 {
 			return fmt.Errorf("failed to parse path %s", path)
 		}
 
@@ -96,8 +125,9 @@ func main() {
 		}
 
 		if blockStart >= int(*optBlockUntil) {
-			fmt.Println(" - skip (too recent)") // nolint: forbidigo
-			return nil
+			return fmt.Errorf(
+				"encountered fileset too recent to split (should have been deleted in previous step): %s",
+				path)
 		}
 
 		namespaceDir := fs.NamespaceIndexDataDirPath(filesetLocation, ident.StringID(namespace))
