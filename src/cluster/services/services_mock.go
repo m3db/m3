@@ -1271,18 +1271,18 @@ func (mr *MockQueryOptionsMockRecorder) IncludeUnhealthy() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncludeUnhealthy", reflect.TypeOf((*MockQueryOptions)(nil).IncludeUnhealthy))
 }
 
-// InterruptCh mocks base method.
-func (m *MockQueryOptions) InterruptCh() <-chan error {
+// InterruptedCh mocks base method.
+func (m *MockQueryOptions) InterruptedCh() <-chan struct{} {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InterruptCh")
-	ret0, _ := ret[0].(<-chan error)
+	ret := m.ctrl.Call(m, "InterruptedCh")
+	ret0, _ := ret[0].(<-chan struct{})
 	return ret0
 }
 
-// InterruptCh indicates an expected call of InterruptCh.
-func (mr *MockQueryOptionsMockRecorder) InterruptCh() *gomock.Call {
+// InterruptedCh indicates an expected call of InterruptedCh.
+func (mr *MockQueryOptionsMockRecorder) InterruptedCh() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InterruptCh", reflect.TypeOf((*MockQueryOptions)(nil).InterruptCh))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InterruptedCh", reflect.TypeOf((*MockQueryOptions)(nil).InterruptedCh))
 }
 
 // SetIncludeUnhealthy mocks base method.
@@ -1299,18 +1299,18 @@ func (mr *MockQueryOptionsMockRecorder) SetIncludeUnhealthy(h interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIncludeUnhealthy", reflect.TypeOf((*MockQueryOptions)(nil).SetIncludeUnhealthy), h)
 }
 
-// SetInterruptCh mocks base method.
-func (m *MockQueryOptions) SetInterruptCh(value <-chan error) QueryOptions {
+// SetInterruptedCh mocks base method.
+func (m *MockQueryOptions) SetInterruptedCh(value <-chan struct{}) QueryOptions {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetInterruptCh", value)
+	ret := m.ctrl.Call(m, "SetInterruptedCh", value)
 	ret0, _ := ret[0].(QueryOptions)
 	return ret0
 }
 
-// SetInterruptCh indicates an expected call of SetInterruptCh.
-func (mr *MockQueryOptionsMockRecorder) SetInterruptCh(value interface{}) *gomock.Call {
+// SetInterruptedCh indicates an expected call of SetInterruptedCh.
+func (mr *MockQueryOptionsMockRecorder) SetInterruptedCh(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInterruptCh", reflect.TypeOf((*MockQueryOptions)(nil).SetInterruptCh), value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInterruptedCh", reflect.TypeOf((*MockQueryOptions)(nil).SetInterruptedCh), value)
 }
 
 // MockMetadata is a mock of Metadata interface.

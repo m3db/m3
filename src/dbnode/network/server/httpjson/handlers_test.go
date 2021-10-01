@@ -52,7 +52,7 @@ var (
 func newTestClient(ctrl *gomock.Controller) *client.MockClient {
 	client := client.NewMockClient(ctrl)
 	client.EXPECT().Options().Return(testClientOptions).AnyTimes()
-	client.EXPECT().DefaultSession().Return(nil, errTestClientSessionError).AnyTimes()
+	client.EXPECT().NewSessionWithOptions(gomock.Any()).Return(nil, errTestClientSessionError).AnyTimes()
 	return client
 }
 
