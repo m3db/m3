@@ -166,26 +166,26 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
-		checkpointFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix)
-		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix)
-		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix)
-		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix)
-		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix)
-		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix)
+		checkpointFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, CheckpointFileSuffix)
+		infoFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, InfoFileSuffix)
+		digestFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, DigestFileSuffix)
+		bloomFilterFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix)
+		indexFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix)
+		dataFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix)
 	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
 
 		isLegacy := false
 		if volumeIndex == 0 {
-			isLegacy, err = isFirstVolumeLegacy(shardDir, blockStart, checkpointFileSuffix)
+			isLegacy, err = isFirstVolumeLegacy(shardDir, blockStart, CheckpointFileSuffix)
 			if err != nil {
 				return err
 			}
 		}
 
-		checkpointFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix, isLegacy)
-		infoFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix, isLegacy)
-		digestFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix, isLegacy)
+		checkpointFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, CheckpointFileSuffix, isLegacy)
+		infoFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, InfoFileSuffix, isLegacy)
+		digestFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, DigestFileSuffix, isLegacy)
 		bloomFilterFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, isLegacy)
 		indexFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix, isLegacy)
 		dataFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix, isLegacy)

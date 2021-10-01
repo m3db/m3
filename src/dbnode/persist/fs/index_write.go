@@ -138,9 +138,9 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	if err := os.MkdirAll(w.namespaceDir, w.newDirectoryMode); err != nil {
 		return err
 	}
-	w.infoFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, infoFileSuffix)
-	w.digestFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, digestFileSuffix)
-	w.checkpointFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, checkpointFileSuffix)
+	w.infoFilePath = FilesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, InfoFileSuffix)
+	w.digestFilePath = FilesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, DigestFileSuffix)
+	w.checkpointFilePath = FilesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, CheckpointFileSuffix)
 
 	exists, err := CompleteCheckpointFileExists(w.checkpointFilePath)
 	if err != nil {

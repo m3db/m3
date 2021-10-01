@@ -23,13 +23,13 @@ package fs
 const (
 	snapshotFilePrefix = "snapshot"
 
-	infoFileSuffix           = "info"
+	InfoFileSuffix           = "info"
 	indexFileSuffix          = "index"
 	summariesFileSuffix      = "summaries"
 	bloomFilterFileSuffix    = "bloomfilter"
 	dataFileSuffix           = "data"
-	digestFileSuffix         = "digest"
-	checkpointFileSuffix     = "checkpoint"
+	DigestFileSuffix         = "digest"
+	CheckpointFileSuffix     = "checkpoint"
 	metadataFileSuffix       = "metadata"
 	filesetFilePrefix        = "fileset"
 	commitLogFilePrefix      = "commitlog"
