@@ -95,6 +95,8 @@ aggregator:
     m3msg:
       producer:
         writer:
+          messageRetry:
+            initialBackoff: 10s
           topicName: aggregator_ingest
           topicServiceOverride:
             zone: embedded
@@ -188,6 +190,8 @@ aggregator:
           hashType: murmur32
           producer:
             writer:
+              messageRetry:
+                initialBackoff: 10s
               topicName: aggregated_metrics
               topicServiceOverride:
                 zone: embedded

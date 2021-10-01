@@ -4,12 +4,11 @@ set -xe
 
 nodes=()
 while IFS='' read -r line; do nodes+=("$line"); done < <(curl http://localhost:8001/api/v1/nodes | jq '.items[].metadata.name' | tr -d \")
-#nodes=($(curl http://localhost:8001/api/v1/nodes | jq '.items[].metadata.name'))
 
 
 cp prometheus-scraper.yml prometheus-scraper.yml.tmp
 
-limit=50
+limit=10
 
 i=0
 for node in "${nodes[@]}" ; do

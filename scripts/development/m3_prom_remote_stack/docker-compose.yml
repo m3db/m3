@@ -105,3 +105,6 @@ services:
     image: m3grafana:latest
 networks:
   backend:
+volumes:
+  prom-raw-data:
+  prom-agg-data:

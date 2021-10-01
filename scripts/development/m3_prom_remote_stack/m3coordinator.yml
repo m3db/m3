@@ -75,6 +75,8 @@ downsample:
       m3msg:
         producer:
           writer:
+            messageRetry:
+              initialBackoff: 10s
             topicName: aggregator_ingest
             topicServiceOverride:
               zone: embedded
