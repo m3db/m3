@@ -130,8 +130,8 @@ docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
 ./emit_scrape_configs.sh
 
 echo "Starting Prometheus"
-docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheusraw
-docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheusagg
+docker-compose -f docker-compose.yml up -d prometheusraw
+docker-compose -f docker-compose.yml up -d prometheusagg
 docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheusscraper
 
 echo "Starting Grafana"

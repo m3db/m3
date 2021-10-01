@@ -27,6 +27,8 @@ If you want to scrape CAdvisor metrics from Kubernetes cluster:
 
 Use Grafana by navigating to `http://localhost:3000` and using `admin` for both the username and password. The M3DB dashboard should already be populated and working.
 
+To pickup latest grafana Docker build remove existing image `docker image rm m3grafana --force`.
+
 ## Containers Hanging / Unresponsive
 
 Running the entire stack can be resource intensive. If the containers are unresponsive try increasing the amount of cores and memory that the docker daemon is allowed to use.
