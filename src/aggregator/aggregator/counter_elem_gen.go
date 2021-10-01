@@ -42,12 +42,13 @@ import (
 type lockedCounterAggregation struct {
 	sync.Mutex
 
-	dirty        bool
-	flushed      bool
-	closed       bool
-	sourcesSeen  map[uint32]*bitset.BitSet
-	aggregation  counterAggregation
-	prevValues   []float64 // the previously emitted values (one per aggregation type).
+	dirty       bool
+	flushed     bool
+	closed      bool
+	sourcesSeen map[uint32]*bitset.BitSet
+	aggregation counterAggregation
+	prevValues  []float64 // the previously emitted values (one per aggregation type).
+
 	prevConsumed []float64 // the previously consumed values (one per aggregation type).
 }
 
@@ -526,18 +527,16 @@ func (e *CounterElem) processValueWithAggregationLock(
 					}
 				} else {
 					prevDp = transformation.Datapoint{
-						Value:     lockedPrevAgg.prevConsumed[aggTypeIdx],
 						TimeNanos: prevTimeNanos,
+						Value:     lockedPrevAgg.prevConsumed[aggTypeIdx],
 					}
 				}
 
 				curr := transformation.Datapoint{
-					TimeNanos: int64(timeNanos),
+					TimeNanos: timeNanos,
 					Value:     value,
 				}
 				res := binaryOp.Evaluate(prevDp, curr, transformation.FeatureFlags{})
-
-				fmt.Println("P", prevDp, curr)
 
 				// NB: we only need to record the value needed for derivative transformations.
 				// We currently only support first-order derivative transformations so we only
@@ -549,12 +548,12 @@ func (e *CounterElem) processValueWithAggregationLock(
 						e.consumedValues[t] = make([]transformation.Datapoint, len(e.aggTypes))
 					}
 					e.consumedValues[t][aggTypeIdx] = curr
+
 					lockedAgg.prevConsumed[aggTypeIdx] = value
 				}
 
 				value = res.Value
 			case isUnaryMultiOp:
-				fmt.Println("C")
 				curr := transformation.Datapoint{
 					TimeNanos: int64(timeNanos),
 					Value:     value,
@@ -572,7 +571,6 @@ func (e *CounterElem) processValueWithAggregationLock(
 
 		// It's ok to send a 0 prevValue on the first forward because it's not used in AddUnique unless it's a
 		// resend (version > 0)
-		fmt.Println("VAL", value, aggTypeIdx)
 		prevValue := lockedAgg.prevValues[aggTypeIdx]
 		lockedAgg.prevValues[aggTypeIdx] = value
 		if lockedAgg.flushed {
@@ -607,6 +605,5 @@ func (e *CounterElem) processValueWithAggregationLock(
 				int64(timeNanos), value, prevValue, lockedAgg.aggregation.Annotation())
 		}
 	}
-	fmt.Println("EM", lockedAgg.prevValues, emitted)
 	return emitted
 }

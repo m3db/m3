@@ -591,12 +591,13 @@ func (e *GenericElem) processValueWithAggregationLock(
 					}
 				} else {
 					prevDp = transformation.Datapoint{
-						Value: lockedPrevAgg.prevConsumed[aggTypeIdx],
+						TimeNanos: prevTimeNanos,
+						Value:     lockedPrevAgg.prevConsumed[aggTypeIdx],
 					}
 				}
 
 				curr := transformation.Datapoint{
-					TimeNanos: int64(timeNanos),
+					TimeNanos: timeNanos,
 					Value:     value,
 				}
 				res := binaryOp.Evaluate(prevDp, curr, transformation.FeatureFlags{})

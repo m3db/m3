@@ -48,6 +48,8 @@ type lockedGaugeAggregation struct {
 	sourcesSeen map[uint32]*bitset.BitSet
 	aggregation gaugeAggregation
 	prevValues  []float64 // the previously emitted values (one per aggregation type).
+
+	prevConsumed []float64 // the previously consumed values (one per aggregation type).
 }
 
 type timedGauge struct {
@@ -278,13 +280,16 @@ func (e *GaugeElem) Consume(
 		var (
 			prevAgg       *timedGauge
 			prevLockedAgg *lockedGaugeAggregation
+			prevTimeNanos int64
 		)
 		if i > 0 {
 			prevAgg = &e.toConsume[i-1]
 			prevLockedAgg = prevAgg.lockedAgg
+			prevTimeNanos = timestampNanosFn(prevAgg.startAtNanos, resolution)
 		} else if prev != nil {
 			prevAgg = prev
 			prevLockedAgg = prevAgg.lockedAgg
+			prevTimeNanos = timestampNanosFn(prevAgg.startAtNanos, resolution)
 		}
 
 		if prevLockedAgg != nil {
@@ -298,6 +303,7 @@ func (e *GaugeElem) Consume(
 		if cascadeDirty || e.toConsume[i].lockedAgg.dirty {
 			cascadeDirty = e.processValueWithAggregationLock(
 				timeNanos,
+				prevTimeNanos,
 				e.toConsume[i].lockedAgg,
 				prevLockedAgg,
 				flushLocalFn,
@@ -437,9 +443,10 @@ func (e *GaugeElem) findOrCreate(
 	e.values[idx] = timedGauge{
 		startAtNanos: alignedStart,
 		lockedAgg: &lockedGaugeAggregation{
-			sourcesSeen: sourcesSeen,
-			aggregation: e.NewAggregation(e.opts, e.aggOpts),
-			prevValues:  make([]float64, len(e.aggTypes)),
+			sourcesSeen:  sourcesSeen,
+			aggregation:  e.NewAggregation(e.opts, e.aggOpts),
+			prevValues:   make([]float64, len(e.aggTypes)),
+			prevConsumed: make([]float64, len(e.aggTypes)),
 		},
 	}
 	agg := e.values[idx].lockedAgg
@@ -479,6 +486,7 @@ func (e *GaugeElem) indexOfWithLock(alignedStart int64) (int, bool) {
 // returns true if a datapoint is emitted.
 func (e *GaugeElem) processValueWithAggregationLock(
 	timeNanos int64,
+	prevTimeNanos int64,
 	lockedAgg *lockedGaugeAggregation,
 	lockedPrevAgg *lockedGaugeAggregation,
 	flushLocalFn flushLocalMetricFn,
@@ -519,12 +527,13 @@ func (e *GaugeElem) processValueWithAggregationLock(
 					}
 				} else {
 					prevDp = transformation.Datapoint{
-						Value: lockedPrevAgg.prevValues[aggTypeIdx],
+						TimeNanos: prevTimeNanos,
+						Value:     lockedPrevAgg.prevConsumed[aggTypeIdx],
 					}
 				}
 
 				curr := transformation.Datapoint{
-					TimeNanos: int64(timeNanos),
+					TimeNanos: timeNanos,
 					Value:     value,
 				}
 				res := binaryOp.Evaluate(prevDp, curr, transformation.FeatureFlags{})
@@ -539,6 +548,8 @@ func (e *GaugeElem) processValueWithAggregationLock(
 						e.consumedValues[t] = make([]transformation.Datapoint, len(e.aggTypes))
 					}
 					e.consumedValues[t][aggTypeIdx] = curr
+
+					lockedAgg.prevConsumed[aggTypeIdx] = value
 				}
 
 				value = res.Value
