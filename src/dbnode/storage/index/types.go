@@ -118,6 +118,8 @@ type WideQueryOptions struct {
 type IterationOptions struct {
 	// SeriesIteratorConsolidator provides additional series consolidations.
 	SeriesIteratorConsolidator encoding.SeriesIteratorConsolidator
+	// IterateEqualTimestampStrategy provides the conflict resolution strategy for the same timestamp.
+	IterateEqualTimestampStrategy encoding.IterateEqualTimestampStrategy
 }
 
 // AggregationOptions enables users to specify constraints on aggregations.

@@ -283,6 +283,147 @@ func (p *AggregateQueryType) Value() (driver.Value, error) {
 	return int64(*p), nil
 }
 
+type ReadConsistency int64
+
+const (
+	ReadConsistency_ONE               ReadConsistency = 0
+	ReadConsistency_UNSTRICT_MAJORITY ReadConsistency = 1
+	ReadConsistency_MAJORITY          ReadConsistency = 2
+	ReadConsistency_UNSTRICT_ALL      ReadConsistency = 3
+	ReadConsistency_ALL               ReadConsistency = 4
+)
+
+func (p ReadConsistency) String() string {
+	switch p {
+	case ReadConsistency_ONE:
+		return "ONE"
+	case ReadConsistency_UNSTRICT_MAJORITY:
+		return "UNSTRICT_MAJORITY"
+	case ReadConsistency_MAJORITY:
+		return "MAJORITY"
+	case ReadConsistency_UNSTRICT_ALL:
+		return "UNSTRICT_ALL"
+	case ReadConsistency_ALL:
+		return "ALL"
+	}
+	return "<UNSET>"
+}
+
+func ReadConsistencyFromString(s string) (ReadConsistency, error) {
+	switch s {
+	case "ONE":
+		return ReadConsistency_ONE, nil
+	case "UNSTRICT_MAJORITY":
+		return ReadConsistency_UNSTRICT_MAJORITY, nil
+	case "MAJORITY":
+		return ReadConsistency_MAJORITY, nil
+	case "UNSTRICT_ALL":
+		return ReadConsistency_UNSTRICT_ALL, nil
+	case "ALL":
+		return ReadConsistency_ALL, nil
+	}
+	return ReadConsistency(0), fmt.Errorf("not a valid ReadConsistency string")
+}
+
+func ReadConsistencyPtr(v ReadConsistency) *ReadConsistency { return &v }
+
+func (p ReadConsistency) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+func (p *ReadConsistency) UnmarshalText(text []byte) error {
+	q, err := ReadConsistencyFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*p = q
+	return nil
+}
+
+func (p *ReadConsistency) Scan(value interface{}) error {
+	v, ok := value.(int64)
+	if !ok {
+		return errors.New("Scan value is not int64")
+	}
+	*p = ReadConsistency(v)
+	return nil
+}
+
+func (p *ReadConsistency) Value() (driver.Value, error) {
+	if p == nil {
+		return nil, nil
+	}
+	return int64(*p), nil
+}
+
+type EqualTimestampStrategy int64
+
+const (
+	EqualTimestampStrategy_LAST_PUSHED       EqualTimestampStrategy = 0
+	EqualTimestampStrategy_HIGHEST_VALUE     EqualTimestampStrategy = 1
+	EqualTimestampStrategy_LOWEST_VALUE      EqualTimestampStrategy = 2
+	EqualTimestampStrategy_HIGHEST_FREQUENCY EqualTimestampStrategy = 3
+)
+
+func (p EqualTimestampStrategy) String() string {
+	switch p {
+	case EqualTimestampStrategy_LAST_PUSHED:
+		return "LAST_PUSHED"
+	case EqualTimestampStrategy_HIGHEST_VALUE:
+		return "HIGHEST_VALUE"
+	case EqualTimestampStrategy_LOWEST_VALUE:
+		return "LOWEST_VALUE"
+	case EqualTimestampStrategy_HIGHEST_FREQUENCY:
+		return "HIGHEST_FREQUENCY"
+	}
+	return "<UNSET>"
+}
+
+func EqualTimestampStrategyFromString(s string) (EqualTimestampStrategy, error) {
+	switch s {
+	case "LAST_PUSHED":
+		return EqualTimestampStrategy_LAST_PUSHED, nil
+	case "HIGHEST_VALUE":
+		return EqualTimestampStrategy_HIGHEST_VALUE, nil
+	case "LOWEST_VALUE":
+		return EqualTimestampStrategy_LOWEST_VALUE, nil
+	case "HIGHEST_FREQUENCY":
+		return EqualTimestampStrategy_HIGHEST_FREQUENCY, nil
+	}
+	return EqualTimestampStrategy(0), fmt.Errorf("not a valid EqualTimestampStrategy string")
+}
+
+func EqualTimestampStrategyPtr(v EqualTimestampStrategy) *EqualTimestampStrategy { return &v }
+
+func (p EqualTimestampStrategy) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+func (p *EqualTimestampStrategy) UnmarshalText(text []byte) error {
+	q, err := EqualTimestampStrategyFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*p = q
+	return nil
+}
+
+func (p *EqualTimestampStrategy) Scan(value interface{}) error {
+	v, ok := value.(int64)
+	if !ok {
+		return errors.New("Scan value is not int64")
+	}
+	*p = EqualTimestampStrategy(v)
+	return nil
+}
+
+func (p *EqualTimestampStrategy) Value() (driver.Value, error) {
+	if p == nil {
+		return nil, nil
+	}
+	return int64(*p), nil
+}
+
 // Attributes:
 //  - Type
 //  - Message
@@ -11846,16 +11987,18 @@ func (p *AggregateQueryResultTagValueElement) String() string {
 //  - RangeType
 //  - ResultTimeType
 //  - Source
+//  - ClusterOptions
 type QueryRequest struct {
-	Query          *Query   `thrift:"query,1,required" db:"query" json:"query"`
-	RangeStart     int64    `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
-	RangeEnd       int64    `thrift:"rangeEnd,3,required" db:"rangeEnd" json:"rangeEnd"`
-	NameSpace      string   `thrift:"nameSpace,4,required" db:"nameSpace" json:"nameSpace"`
-	Limit          *int64   `thrift:"limit,5" db:"limit" json:"limit,omitempty"`
-	NoData         *bool    `thrift:"noData,6" db:"noData" json:"noData,omitempty"`
-	RangeType      TimeType `thrift:"rangeType,7" db:"rangeType" json:"rangeType,omitempty"`
-	ResultTimeType TimeType `thrift:"resultTimeType,8" db:"resultTimeType" json:"resultTimeType,omitempty"`
-	Source         []byte   `thrift:"source,9" db:"source" json:"source,omitempty"`
+	Query          *Query               `thrift:"query,1,required" db:"query" json:"query"`
+	RangeStart     int64                `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
+	RangeEnd       int64                `thrift:"rangeEnd,3,required" db:"rangeEnd" json:"rangeEnd"`
+	NameSpace      string               `thrift:"nameSpace,4,required" db:"nameSpace" json:"nameSpace"`
+	Limit          *int64               `thrift:"limit,5" db:"limit" json:"limit,omitempty"`
+	NoData         *bool                `thrift:"noData,6" db:"noData" json:"noData,omitempty"`
+	RangeType      TimeType             `thrift:"rangeType,7" db:"rangeType" json:"rangeType,omitempty"`
+	ResultTimeType TimeType             `thrift:"resultTimeType,8" db:"resultTimeType" json:"resultTimeType,omitempty"`
+	Source         []byte               `thrift:"source,9" db:"source" json:"source,omitempty"`
+	ClusterOptions *ClusterQueryOptions `thrift:"clusterOptions,10" db:"clusterOptions" json:"clusterOptions,omitempty"`
 }
 
 func NewQueryRequest() *QueryRequest {
@@ -11922,6 +12065,15 @@ var QueryRequest_Source_DEFAULT []byte
 func (p *QueryRequest) GetSource() []byte {
 	return p.Source
 }
+
+var QueryRequest_ClusterOptions_DEFAULT *ClusterQueryOptions
+
+func (p *QueryRequest) GetClusterOptions() *ClusterQueryOptions {
+	if !p.IsSetClusterOptions() {
+		return QueryRequest_ClusterOptions_DEFAULT
+	}
+	return p.ClusterOptions
+}
 func (p *QueryRequest) IsSetQuery() bool {
 	return p.Query != nil
 }
@@ -11944,6 +12096,10 @@ func (p *QueryRequest) IsSetResultTimeType() bool {
 
 func (p *QueryRequest) IsSetSource() bool {
 	return p.Source != nil
+}
+
+func (p *QueryRequest) IsSetClusterOptions() bool {
+	return p.ClusterOptions != nil
 }
 
 func (p *QueryRequest) Read(iprot thrift.TProtocol) error {
@@ -12003,6 +12159,10 @@ func (p *QueryRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 9:
 			if err := p.ReadField9(iprot); err != nil {
+				return err
+			}
+		case 10:
+			if err := p.ReadField10(iprot); err != nil {
 				return err
 			}
 		default:
@@ -12114,6 +12274,14 @@ func (p *QueryRequest) ReadField9(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *QueryRequest) ReadField10(iprot thrift.TProtocol) error {
+	p.ClusterOptions = &ClusterQueryOptions{}
+	if err := p.ClusterOptions.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.ClusterOptions), err)
+	}
+	return nil
+}
+
 func (p *QueryRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("QueryRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -12144,6 +12312,9 @@ func (p *QueryRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField9(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField10(oprot); err != nil {
 			return err
 		}
 	}
@@ -12283,11 +12454,178 @@ func (p *QueryRequest) writeField9(oprot thrift.TProtocol) (err error) {
 	return err
 }
 
+func (p *QueryRequest) writeField10(oprot thrift.TProtocol) (err error) {
+	if p.IsSetClusterOptions() {
+		if err := oprot.WriteFieldBegin("clusterOptions", thrift.STRUCT, 10); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 10:clusterOptions: ", p), err)
+		}
+		if err := p.ClusterOptions.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.ClusterOptions), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 10:clusterOptions: ", p), err)
+		}
+	}
+	return err
+}
+
 func (p *QueryRequest) String() string {
 	if p == nil {
 		return "<nil>"
 	}
 	return fmt.Sprintf("QueryRequest(%+v)", *p)
+}
+
+// Attributes:
+//  - ReadConsistency
+//  - ConflictResolutionStrategy
+type ClusterQueryOptions struct {
+	ReadConsistency            *ReadConsistency        `thrift:"readConsistency,1" db:"readConsistency" json:"readConsistency,omitempty"`
+	ConflictResolutionStrategy *EqualTimestampStrategy `thrift:"conflictResolutionStrategy,2" db:"conflictResolutionStrategy" json:"conflictResolutionStrategy,omitempty"`
+}
+
+func NewClusterQueryOptions() *ClusterQueryOptions {
+	return &ClusterQueryOptions{}
+}
+
+var ClusterQueryOptions_ReadConsistency_DEFAULT ReadConsistency
+
+func (p *ClusterQueryOptions) GetReadConsistency() ReadConsistency {
+	if !p.IsSetReadConsistency() {
+		return ClusterQueryOptions_ReadConsistency_DEFAULT
+	}
+	return *p.ReadConsistency
+}
+
+var ClusterQueryOptions_ConflictResolutionStrategy_DEFAULT EqualTimestampStrategy
+
+func (p *ClusterQueryOptions) GetConflictResolutionStrategy() EqualTimestampStrategy {
+	if !p.IsSetConflictResolutionStrategy() {
+		return ClusterQueryOptions_ConflictResolutionStrategy_DEFAULT
+	}
+	return *p.ConflictResolutionStrategy
+}
+func (p *ClusterQueryOptions) IsSetReadConsistency() bool {
+	return p.ReadConsistency != nil
+}
+
+func (p *ClusterQueryOptions) IsSetConflictResolutionStrategy() bool {
+	return p.ConflictResolutionStrategy != nil
+}
+
+func (p *ClusterQueryOptions) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		case 2:
+			if err := p.ReadField2(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *ClusterQueryOptions) ReadField1(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI32(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		temp := ReadConsistency(v)
+		p.ReadConsistency = &temp
+	}
+	return nil
+}
+
+func (p *ClusterQueryOptions) ReadField2(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI32(); err != nil {
+		return thrift.PrependError("error reading field 2: ", err)
+	} else {
+		temp := EqualTimestampStrategy(v)
+		p.ConflictResolutionStrategy = &temp
+	}
+	return nil
+}
+
+func (p *ClusterQueryOptions) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("ClusterQueryOptions"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *ClusterQueryOptions) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetReadConsistency() {
+		if err := oprot.WriteFieldBegin("readConsistency", thrift.I32, 1); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:readConsistency: ", p), err)
+		}
+		if err := oprot.WriteI32(int32(*p.ReadConsistency)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.readConsistency (1) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:readConsistency: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *ClusterQueryOptions) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetConflictResolutionStrategy() {
+		if err := oprot.WriteFieldBegin("conflictResolutionStrategy", thrift.I32, 2); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:conflictResolutionStrategy: ", p), err)
+		}
+		if err := oprot.WriteI32(int32(*p.ConflictResolutionStrategy)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.conflictResolutionStrategy (2) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 2:conflictResolutionStrategy: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *ClusterQueryOptions) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ClusterQueryOptions(%+v)", *p)
 }
 
 // Attributes:

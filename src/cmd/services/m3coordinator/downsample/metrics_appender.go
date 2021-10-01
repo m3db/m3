@@ -394,7 +394,8 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	// Apply drop policies results
 	a.curr.Pipelines, dropApplyResult = a.curr.Pipelines.ApplyOrRemoveDropPolicies()
 
-	if len(a.curr.Pipelines) > 0 && !a.curr.IsDropPolicyApplied() {
+	// Skip sending to downsampler if there's a drop policy or no pipeline defined.
+	if len(a.curr.Pipelines) > 0 && !a.curr.IsDropPolicyApplied() && !a.curr.IsDefault() {
 		// Send to downsampler if we have something in the pipeline.
 		a.debugLogMatch("downsampler using built mapping staged metadatas",
 			debugLogMatchOptions{Meta: []metadata.StagedMetadata{a.curr}})

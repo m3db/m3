@@ -323,13 +323,14 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 	nsID := pools.CheckedBytesWrapper().Get(elem.NameSpace)
 	seriesIter := pools.SeriesIterator().Get()
 	seriesIter.Reset(encoding.SeriesIteratorOptions{
-		ID:                         pools.ID().BinaryID(tsID),
-		Namespace:                  pools.ID().BinaryID(nsID),
-		Tags:                       decoder,
-		StartInclusive:             accum.startTime,
-		EndExclusive:               accum.endTime,
-		Replicas:                   iters,
-		SeriesIteratorConsolidator: opts.SeriesIteratorConsolidator,
+		ID:                            pools.ID().BinaryID(tsID),
+		Namespace:                     pools.ID().BinaryID(nsID),
+		Tags:                          decoder,
+		StartInclusive:                accum.startTime,
+		EndExclusive:                  accum.endTime,
+		Replicas:                      iters,
+		SeriesIteratorConsolidator:    opts.SeriesIteratorConsolidator,
+		IterateEqualTimestampStrategy: opts.IterateEqualTimestampStrategy,
 	})
 
 	return seriesIter

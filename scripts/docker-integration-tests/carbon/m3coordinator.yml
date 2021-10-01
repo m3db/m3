@@ -12,6 +12,7 @@ clusters:
                 - dbnode01:2379
 
 carbon:
+  findResultsIncludeBothExpandableAndLeaf: true
   ingester:
     listenAddress: "0.0.0.0:7204"
     rewrite:
