@@ -33,10 +33,11 @@ func TestNewCluster(t *testing.T) {
 			CoordinatorClusterConfig{ConfigString: clusterCoordConfig},
 		},
 		DBNode: DBNodeClusterOptions{
-			Config:       DBNodeClusterConfig{ConfigString: clusterDBNodeConfig},
-			RF:           1,
-			NumInstances: 2,
-			NumShards:    64,
+			Config:             DBNodeClusterConfig{ConfigString: clusterDBNodeConfig},
+			RF:                 3,
+			NumInstances:       1,
+			NumShards:          64,
+			NumIsolationGroups: 3,
 		},
 	})
 	require.NoError(t, err)

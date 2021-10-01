@@ -55,20 +55,24 @@ type DBNodeClusterOptions struct {
 	// Config contains the dbnode configuration.
 	Config DBNodeClusterConfig
 	// RF is the replication factor to use for the cluster.
-	RF int
+	RF int32
 	// NumShards is the number of shards to use for each RF.
-	NumShards int
+	NumShards int32
 	// NumInstances is the number of dbnode instances per RF.
-	NumInstances int
+	NumInstances int32
+	// NumIsolationGroups is the number of isolation groups to split
+	// nodes into.
+	NumIsolationGroups int32
 }
 
 // NewDBNodeClusterOptions creates DBNodeClusteOptions with sane defaults.
 // DBNode config must still be provided.
 func NewDBNodeClusterOptions() DBNodeClusterOptions {
 	return DBNodeClusterOptions{
-		RF:           1,
-		NumShards:    4,
-		NumInstances: 1,
+		RF:                 1,
+		NumShards:          4,
+		NumInstances:       1,
+		NumIsolationGroups: 1,
 	}
 }
 
@@ -84,6 +88,14 @@ func (d *DBNodeClusterOptions) Validate() error {
 
 	if d.NumInstances < 1 {
 		return errors.New("numInstances must be at least 1")
+	}
+
+	if d.NumIsolationGroups < 1 {
+		return errors.New("numIsolationGroups must be at least 1")
+	}
+
+	if d.RF > d.NumIsolationGroups {
+		return errors.New("rf must be less than or equal to numIsolationGroups")
 	}
 
 	return d.Config.Validate()
@@ -222,8 +234,12 @@ func NewCluster(opts ClusterOptions) (resources.M3Resources, error) {
 
 	fs.DisableIndexClaimsManagersCheckUnsafe()
 
-	for i := 0; i < numNodes; i++ {
-		cfg := defaultDBNodesCfg
+	for i := 0; i < int(numNodes); i++ {
+		var cfg dbcfg.Configuration
+		cfg, err = defaultDBNodesCfg.DeepCopy()
+		if err != nil {
+			return nil, err
+		}
 		dbnodeOpts := defaultDBNodeOpts
 
 		if i == 0 {
@@ -261,8 +277,9 @@ func NewCluster(opts ClusterOptions) (resources.M3Resources, error) {
 		DBNodes:     nodes,
 	})
 	if err = resources.SetupCluster(m3, &resources.ClusterOptions{
-		ReplicationFactor: int32(opts.DBNode.RF),
-		NumShards:         int32(opts.DBNode.NumShards),
+		ReplicationFactor:  opts.DBNode.RF,
+		NumShards:          opts.DBNode.NumShards,
+		NumIsolationGroups: opts.DBNode.NumIsolationGroups,
 	}); err != nil {
 		return nil, err
 	}

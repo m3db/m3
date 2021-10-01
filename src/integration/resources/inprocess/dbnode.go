@@ -207,7 +207,8 @@ func (d *dbNode) HostDetails(_ int) (*admin.Host, error) {
 		// is very rare so using the zero-indexed value here will almost always be
 		// correct.
 		Zone: envConfig.Services[0].Service.Zone,
-		// TODO(nate): weight should be configurable
+		// TODO(nate): weight should most likely not live here as it's part of
+		// cluster configuration
 		Weight:  1024,
 		Address: "0.0.0.0",
 		Port:    uint32(port),
