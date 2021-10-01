@@ -183,12 +183,19 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 			}
 		}
 
-		checkpointFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, CheckpointFileSuffix, isLegacy)
-		infoFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, InfoFileSuffix, isLegacy)
-		digestFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, DigestFileSuffix, isLegacy)
-		bloomFilterFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, isLegacy)
-		indexFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix, isLegacy)
-		dataFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix, isLegacy)
+		checkpointFilepath = dataFilesetPathFromTimeAndIndex(
+			shardDir, blockStart, volumeIndex, CheckpointFileSuffix, isLegacy)
+		infoFilepath = dataFilesetPathFromTimeAndIndex(
+			shardDir, blockStart, volumeIndex, InfoFileSuffix, isLegacy)
+		digestFilepath = dataFilesetPathFromTimeAndIndex(
+			shardDir, blockStart, volumeIndex, DigestFileSuffix, isLegacy)
+		bloomFilterFilepath = dataFilesetPathFromTimeAndIndex(
+			shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, isLegacy)
+		indexFilepath = dataFilesetPathFromTimeAndIndex(
+			shardDir, blockStart, volumeIndex, indexFileSuffix, isLegacy)
+		dataFilepath = dataFilesetPathFromTimeAndIndex(
+			shardDir, blockStart, volumeIndex, dataFileSuffix, isLegacy)
+
 	default:
 		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FileSetType)
 	}

@@ -32,15 +32,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/digest"
-	"github.com/m3db/m3/src/dbnode/generated/proto/index"
-	xos "github.com/m3db/m3/src/x/os"
 	"github.com/pborman/getopt"
 	"go.uber.org/zap"
 
+	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	xos "github.com/m3db/m3/src/x/os"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -137,7 +137,7 @@ func updateIndexInfoFile(
 		digests = index.IndexDigests{}
 	)
 
-	digestsData, err := ioutil.ReadFile(digestFilePath)
+	digestsData, err := ioutil.ReadFile(digestFilePath) // nolint: gosec
 	if err != nil {
 		return err
 	}
@@ -145,7 +145,7 @@ func updateIndexInfoFile(
 		return err
 	}
 
-	infoData, err := ioutil.ReadFile(infoFilePath)
+	infoData, err := ioutil.ReadFile(infoFilePath) // nolint: gosec
 	if err != nil {
 		return err
 	}
