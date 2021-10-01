@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/transformation"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/willf/bitset"
 )
@@ -41,12 +42,13 @@ import (
 type lockedCounterAggregation struct {
 	sync.Mutex
 
-	dirty       bool
-	flushed     bool
-	closed      bool
-	sourcesSeen map[uint32]*bitset.BitSet
-	aggregation counterAggregation
-	prevValues  []float64 // the previously emitted values (one per aggregation type).
+	dirty        bool
+	flushed      bool
+	closed       bool
+	sourcesSeen  map[uint32]*bitset.BitSet
+	aggregation  counterAggregation
+	prevValues   []float64 // the previously emitted values (one per aggregation type).
+	prevConsumed []float64 // the previously consumed values (one per aggregation type).
 }
 
 type timedCounter struct {
@@ -73,7 +75,8 @@ type CounterElem struct {
 	values []timedCounter // metric aggregations sorted by time in ascending order
 
 	// internal consume state that does not need to be synchronized.
-	toConsume []timedCounter // small buffer to avoid memory allocations during consumption
+	toConsume      []timedCounter // small buffer to avoid memory allocations during consumption
+	consumedValues valuesByTime
 }
 
 // NewCounterElem returns a new CounterElem.
@@ -220,6 +223,7 @@ func (e *CounterElem) Consume(
 		return false
 	}
 	e.toConsume = e.toConsume[:0]
+	e.consumedValues = nil
 
 	// Evaluate and GC expired items.
 	var (
@@ -254,7 +258,9 @@ func (e *CounterElem) Consume(
 		// Modify the by value copy with whether it needs time flush and accumulate.
 		copiedValue := value
 		copiedValue.onConsumeExpired = expired
-		e.toConsume = append(e.toConsume, copiedValue)
+		if !value.onConsumeExpired {
+			e.toConsume = append(e.toConsume, copiedValue)
+		}
 
 		// Keep item. Expired values are GC'd below after consuming.
 		e.values = append(e.values, value)
@@ -273,13 +279,16 @@ func (e *CounterElem) Consume(
 		var (
 			prevAgg       *timedCounter
 			prevLockedAgg *lockedCounterAggregation
+			prevTimeNanos int64
 		)
 		if i > 0 {
 			prevAgg = &e.toConsume[i-1]
 			prevLockedAgg = prevAgg.lockedAgg
+			prevTimeNanos = timestampNanosFn(prevAgg.startAtNanos, resolution)
 		} else if prev != nil {
 			prevAgg = prev
 			prevLockedAgg = prevAgg.lockedAgg
+			prevTimeNanos = timestampNanosFn(prevAgg.startAtNanos, resolution)
 		}
 
 		if prevLockedAgg != nil {
@@ -293,6 +302,7 @@ func (e *CounterElem) Consume(
 		if cascadeDirty || e.toConsume[i].lockedAgg.dirty {
 			cascadeDirty = e.processValueWithAggregationLock(
 				timeNanos,
+				prevTimeNanos,
 				e.toConsume[i].lockedAgg,
 				prevLockedAgg,
 				flushLocalFn,
@@ -322,9 +332,9 @@ func (e *CounterElem) Consume(
 
 		e.toConsume[i].lockedAgg.Unlock()
 		if expired {
-			e.toConsume[i].Release()
+			//e.toConsume[i].Release()
 			if prevAgg != nil {
-				prevAgg.gcEligible = true
+				//prevAgg.gcEligible = true
 			}
 		}
 
@@ -432,9 +442,10 @@ func (e *CounterElem) findOrCreate(
 	e.values[idx] = timedCounter{
 		startAtNanos: alignedStart,
 		lockedAgg: &lockedCounterAggregation{
-			sourcesSeen: sourcesSeen,
-			aggregation: e.NewAggregation(e.opts, e.aggOpts),
-			prevValues:  make([]float64, len(e.aggTypes)),
+			sourcesSeen:  sourcesSeen,
+			aggregation:  e.NewAggregation(e.opts, e.aggOpts),
+			prevValues:   make([]float64, len(e.aggTypes)),
+			prevConsumed: make([]float64, len(e.aggTypes)),
 		},
 	}
 	agg := e.values[idx].lockedAgg
@@ -474,6 +485,7 @@ func (e *CounterElem) indexOfWithLock(alignedStart int64) (int, bool) {
 // returns true if a datapoint is emitted.
 func (e *CounterElem) processValueWithAggregationLock(
 	timeNanos int64,
+	prevTimeNanos int64,
 	lockedAgg *lockedCounterAggregation,
 	lockedPrevAgg *lockedCounterAggregation,
 	flushLocalFn flushLocalMetricFn,
@@ -503,6 +515,10 @@ func (e *CounterElem) processValueWithAggregationLock(
 				value = res.Value
 
 			case isBinaryOp:
+				// lazily construct consumedValues since they are only needed by binary transforms.
+				if e.consumedValues == nil {
+					e.consumedValues = make(valuesByTime)
+				}
 				var prevDp transformation.Datapoint
 				if lockedPrevAgg == nil {
 					prevDp = transformation.Datapoint{
@@ -510,7 +526,8 @@ func (e *CounterElem) processValueWithAggregationLock(
 					}
 				} else {
 					prevDp = transformation.Datapoint{
-						Value: lockedPrevAgg.prevValues[aggTypeIdx],
+						Value:     lockedPrevAgg.prevConsumed[aggTypeIdx],
+						TimeNanos: prevTimeNanos,
 					}
 				}
 
@@ -520,8 +537,24 @@ func (e *CounterElem) processValueWithAggregationLock(
 				}
 				res := binaryOp.Evaluate(prevDp, curr, transformation.FeatureFlags{})
 
+				fmt.Println("P", prevDp, curr)
+
+				// NB: we only need to record the value needed for derivative transformations.
+				// We currently only support first-order derivative transformations so we only
+				// need to keep one value. In the future if we need to support higher-order
+				// derivative transformations, we need to store an array of values here.
+				if !math.IsNaN(curr.Value) {
+					t := xtime.UnixNano(timeNanos)
+					if e.consumedValues[t] == nil {
+						e.consumedValues[t] = make([]transformation.Datapoint, len(e.aggTypes))
+					}
+					e.consumedValues[t][aggTypeIdx] = curr
+					lockedAgg.prevConsumed[aggTypeIdx] = value
+				}
+
 				value = res.Value
 			case isUnaryMultiOp:
+				fmt.Println("C")
 				curr := transformation.Datapoint{
 					TimeNanos: int64(timeNanos),
 					Value:     value,
@@ -539,6 +572,7 @@ func (e *CounterElem) processValueWithAggregationLock(
 
 		// It's ok to send a 0 prevValue on the first forward because it's not used in AddUnique unless it's a
 		// resend (version > 0)
+		fmt.Println("VAL", value, aggTypeIdx)
 		prevValue := lockedAgg.prevValues[aggTypeIdx]
 		lockedAgg.prevValues[aggTypeIdx] = value
 		if lockedAgg.flushed {
@@ -573,5 +607,6 @@ func (e *CounterElem) processValueWithAggregationLock(
 				int64(timeNanos), value, prevValue, lockedAgg.aggregation.Annotation())
 		}
 	}
+	fmt.Println("EM", lockedAgg.prevValues, emitted)
 	return emitted
 }

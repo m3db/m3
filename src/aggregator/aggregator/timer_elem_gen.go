@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/transformation"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/willf/bitset"
 )
@@ -73,7 +74,8 @@ type TimerElem struct {
 	values []timedTimer // metric aggregations sorted by time in ascending order
 
 	// internal consume state that does not need to be synchronized.
-	toConsume []timedTimer // small buffer to avoid memory allocations during consumption
+	toConsume      []timedTimer // small buffer to avoid memory allocations during consumption
+	consumedValues valuesByTime
 }
 
 // NewTimerElem returns a new TimerElem.
@@ -220,6 +222,7 @@ func (e *TimerElem) Consume(
 		return false
 	}
 	e.toConsume = e.toConsume[:0]
+	e.consumedValues = nil
 
 	// Evaluate and GC expired items.
 	var (
@@ -254,7 +257,9 @@ func (e *TimerElem) Consume(
 		// Modify the by value copy with whether it needs time flush and accumulate.
 		copiedValue := value
 		copiedValue.onConsumeExpired = expired
-		e.toConsume = append(e.toConsume, copiedValue)
+		if !value.onConsumeExpired {
+			e.toConsume = append(e.toConsume, copiedValue)
+		}
 
 		// Keep item. Expired values are GC'd below after consuming.
 		e.values = append(e.values, value)
@@ -322,9 +327,9 @@ func (e *TimerElem) Consume(
 
 		e.toConsume[i].lockedAgg.Unlock()
 		if expired {
-			e.toConsume[i].Release()
+			//e.toConsume[i].Release()
 			if prevAgg != nil {
-				prevAgg.gcEligible = true
+				//prevAgg.gcEligible = true
 			}
 		}
 
@@ -503,6 +508,10 @@ func (e *TimerElem) processValueWithAggregationLock(
 				value = res.Value
 
 			case isBinaryOp:
+				// lazily construct consumedValues since they are only needed by binary transforms.
+				if e.consumedValues == nil {
+					e.consumedValues = make(valuesByTime)
+				}
 				var prevDp transformation.Datapoint
 				if lockedPrevAgg == nil {
 					prevDp = transformation.Datapoint{
@@ -519,6 +528,18 @@ func (e *TimerElem) processValueWithAggregationLock(
 					Value:     value,
 				}
 				res := binaryOp.Evaluate(prevDp, curr, transformation.FeatureFlags{})
+
+				// NB: we only need to record the value needed for derivative transformations.
+				// We currently only support first-order derivative transformations so we only
+				// need to keep one value. In the future if we need to support higher-order
+				// derivative transformations, we need to store an array of values here.
+				if !math.IsNaN(curr.Value) {
+					t := xtime.UnixNano(timeNanos)
+					if e.consumedValues[t] == nil {
+						e.consumedValues[t] = make([]transformation.Datapoint, len(e.aggTypes))
+					}
+					e.consumedValues[t][aggTypeIdx] = curr
+				}
 
 				value = res.Value
 			case isUnaryMultiOp:

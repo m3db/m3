@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/transformation"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type typeSpecificAggregation interface {
@@ -111,6 +112,8 @@ type lockedAggregation struct {
 	sourcesSeen map[uint32]*bitset.BitSet
 	aggregation typeSpecificAggregation
 	prevValues  []float64 // the previously emitted values (one per aggregation type).
+
+	prevConsumed []float64 // the previously consumed values (one per aggregation type).
 }
 
 type timedAggregation struct {
@@ -137,7 +140,8 @@ type GenericElem struct {
 	values []timedAggregation // metric aggregations sorted by time in ascending order
 
 	// internal consume state that does not need to be synchronized.
-	toConsume []timedAggregation // small buffer to avoid memory allocations during consumption
+	toConsume      []timedAggregation // small buffer to avoid memory allocations during consumption
+	consumedValues valuesByTime
 }
 
 // NewGenericElem returns a new GenericElem.
@@ -284,6 +288,7 @@ func (e *GenericElem) Consume(
 		return false
 	}
 	e.toConsume = e.toConsume[:0]
+	e.consumedValues = nil
 
 	// Evaluate and GC expired items.
 	var (
@@ -318,7 +323,9 @@ func (e *GenericElem) Consume(
 		// Modify the by value copy with whether it needs time flush and accumulate.
 		copiedValue := value
 		copiedValue.onConsumeExpired = expired
-		e.toConsume = append(e.toConsume, copiedValue)
+		if !value.onConsumeExpired {
+			e.toConsume = append(e.toConsume, copiedValue)
+		}
 
 		// Keep item. Expired values are GC'd below after consuming.
 		e.values = append(e.values, value)
@@ -337,13 +344,16 @@ func (e *GenericElem) Consume(
 		var (
 			prevAgg       *timedAggregation
 			prevLockedAgg *lockedAggregation
+			prevTimeNanos int64
 		)
 		if i > 0 {
 			prevAgg = &e.toConsume[i-1]
 			prevLockedAgg = prevAgg.lockedAgg
+			prevTimeNanos = timestampNanosFn(prevAgg.startAtNanos, resolution)
 		} else if prev != nil {
 			prevAgg = prev
 			prevLockedAgg = prevAgg.lockedAgg
+			prevTimeNanos = timestampNanosFn(prevAgg.startAtNanos, resolution)
 		}
 
 		if prevLockedAgg != nil {
@@ -357,6 +367,7 @@ func (e *GenericElem) Consume(
 		if cascadeDirty || e.toConsume[i].lockedAgg.dirty {
 			cascadeDirty = e.processValueWithAggregationLock(
 				timeNanos,
+				prevTimeNanos,
 				e.toConsume[i].lockedAgg,
 				prevLockedAgg,
 				flushLocalFn,
@@ -386,9 +397,9 @@ func (e *GenericElem) Consume(
 
 		e.toConsume[i].lockedAgg.Unlock()
 		if expired {
-			e.toConsume[i].Release()
+			//e.toConsume[i].Release()
 			if prevAgg != nil {
-				prevAgg.gcEligible = true
+				//prevAgg.gcEligible = true
 			}
 		}
 
@@ -496,9 +507,10 @@ func (e *GenericElem) findOrCreate(
 	e.values[idx] = timedAggregation{
 		startAtNanos: alignedStart,
 		lockedAgg: &lockedAggregation{
-			sourcesSeen: sourcesSeen,
-			aggregation: e.NewAggregation(e.opts, e.aggOpts),
-			prevValues:  make([]float64, len(e.aggTypes)),
+			sourcesSeen:  sourcesSeen,
+			aggregation:  e.NewAggregation(e.opts, e.aggOpts),
+			prevValues:   make([]float64, len(e.aggTypes)),
+			prevConsumed: make([]float64, len(e.aggTypes)),
 		},
 	}
 	agg := e.values[idx].lockedAgg
@@ -538,6 +550,7 @@ func (e *GenericElem) indexOfWithLock(alignedStart int64) (int, bool) {
 // returns true if a datapoint is emitted.
 func (e *GenericElem) processValueWithAggregationLock(
 	timeNanos int64,
+	prevTimeNanos int64,
 	lockedAgg *lockedAggregation,
 	lockedPrevAgg *lockedAggregation,
 	flushLocalFn flushLocalMetricFn,
@@ -567,6 +580,10 @@ func (e *GenericElem) processValueWithAggregationLock(
 				value = res.Value
 
 			case isBinaryOp:
+				// lazily construct consumedValues since they are only needed by binary transforms.
+				if e.consumedValues == nil {
+					e.consumedValues = make(valuesByTime)
+				}
 				var prevDp transformation.Datapoint
 				if lockedPrevAgg == nil {
 					prevDp = transformation.Datapoint{
@@ -574,7 +591,7 @@ func (e *GenericElem) processValueWithAggregationLock(
 					}
 				} else {
 					prevDp = transformation.Datapoint{
-						Value: lockedPrevAgg.prevValues[aggTypeIdx],
+						Value: lockedPrevAgg.prevConsumed[aggTypeIdx],
 					}
 				}
 
@@ -583,6 +600,20 @@ func (e *GenericElem) processValueWithAggregationLock(
 					Value:     value,
 				}
 				res := binaryOp.Evaluate(prevDp, curr, transformation.FeatureFlags{})
+
+				// NB: we only need to record the value needed for derivative transformations.
+				// We currently only support first-order derivative transformations so we only
+				// need to keep one value. In the future if we need to support higher-order
+				// derivative transformations, we need to store an array of values here.
+				if !math.IsNaN(curr.Value) {
+					t := xtime.UnixNano(timeNanos)
+					if e.consumedValues[t] == nil {
+						e.consumedValues[t] = make([]transformation.Datapoint, len(e.aggTypes))
+					}
+					e.consumedValues[t][aggTypeIdx] = curr
+
+					lockedAgg.prevConsumed[aggTypeIdx] = value
+				}
 
 				value = res.Value
 			case isUnaryMultiOp:
