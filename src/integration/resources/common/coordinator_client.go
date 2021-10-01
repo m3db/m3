@@ -90,7 +90,6 @@ func (c *CoordinatorClient) makeURL(resource string) string {
 	return fmt.Sprintf("http://0.0.0.0:%d/%s", c.httpPort, strings.TrimPrefix(resource, "/"))
 }
 
-//nolint:dupl
 // GetNamespace gets namespaces.
 func (c *CoordinatorClient) GetNamespace() (admin.NamespaceGetResponse, error) {
 	url := c.makeURL("api/v1/services/m3db/namespace")
@@ -112,7 +111,6 @@ func (c *CoordinatorClient) GetNamespace() (admin.NamespaceGetResponse, error) {
 	return response, nil
 }
 
-//nolint:dupl
 // GetPlacement gets placements.
 func (c *CoordinatorClient) GetPlacement(opts resources.PlacementRequestOptions) (admin.PlacementGetResponse, error) {
 	var handlerurl string
@@ -130,8 +128,7 @@ func (c *CoordinatorClient) GetPlacement(opts resources.PlacementRequestOptions)
 	logger := c.logger.With(
 		ZapMethod("getPlacement"), zap.String("url", url))
 
-	//nolint:noctx
-	resp, err := c.client.Get(url)
+	resp, err := c.makeRequest(logger, url, placementhandler.GetHTTPMethod, nil, placementOptsToMap(opts))
 	if err != nil {
 		logger.Error("failed get", zap.Error(err))
 		return admin.PlacementGetResponse{}, err
@@ -165,7 +162,7 @@ func (c *CoordinatorClient) InitPlacement(
 	logger := c.logger.With(
 		ZapMethod("initPlacement"), zap.String("url", url))
 
-	resp, err := c.makeRequest(logger, url, placementhandler.InitHTTPMethod, &initRequest, nil)
+	resp, err := c.makeRequest(logger, url, placementhandler.InitHTTPMethod, &initRequest, placementOptsToMap(opts))
 	if err != nil {
 		logger.Error("failed init", zap.Error(err))
 		return admin.PlacementGetResponse{}, err
@@ -463,6 +460,13 @@ func (c *CoordinatorClient) AddM3msgTopicConsumer(
 
 	logger.Info("topic consumer added")
 	return response, nil
+}
+
+func placementOptsToMap(opts resources.PlacementRequestOptions) map[string]string {
+	return map[string]string{
+		headers.HeaderClusterEnvironmentName: opts.Env,
+		headers.HeaderClusterZoneName:        opts.Zone,
+	}
 }
 
 func m3msgTopicOptionsToMap(opts resources.M3msgTopicOptions) map[string]string {

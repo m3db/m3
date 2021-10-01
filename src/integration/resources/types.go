@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -125,6 +126,22 @@ type Node interface {
 	Close() error
 }
 
+// Aggregator is an aggregator instance.
+type Aggregator interface {
+	// IsHealthy determines whether an instance is healthy.
+	IsHealthy(instance string) error
+
+	// Status returns the instance status.
+	Status(instance string) (aggregator.RuntimeStatus, error)
+
+	// Resign asks an aggregator instance to give up its current leader role if applicable.
+	Resign(instance string) error
+
+	// Close closes the wrapper and releases any held resources, including
+	// deleting docker containers.
+	Close() error
+}
+
 // M3Resources represents a set of test M3 components.
 type M3Resources interface {
 	// Cleanup cleans up after each started component.
@@ -185,6 +202,10 @@ type M3msgTopicOptions struct {
 type PlacementRequestOptions struct {
 	// Service is the type of service for the placement request.
 	Service ServiceType
+	// Env is the environment of the placement.
+	Env string
+	// Zone is the zone of the placement.
+	Zone string
 }
 
 // ServiceType represents the type of an m3 service.
