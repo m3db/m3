@@ -84,7 +84,7 @@ func main() {
 		if err != nil || d.IsDir() {
 			return err
 		}
-		pathParts := checkpointPattern.FindStringSubmatch(path)
+		pathParts := genericPattern.FindStringSubmatch(path)
 		if len(pathParts) != 4 {
 			return fmt.Errorf("failed to parse path %s", path)
 		}
