@@ -408,8 +408,8 @@ func (e *Entry) addUntimed(
 	// so it is guaranteed that actions before when a write lock is acquired
 	// must have all completed. This is used to ensure we never write metrics
 	// for times that have already been flushed.
-	currTime := e.nowFn()
-	e.lastAccessNanos.Store(currTime.UnixNano())
+	currTime := xtime.ToUnixNano(e.nowFn())
+	e.lastAccessNanos.Store(int64(currTime))
 
 	e.mtx.RLock()
 	if e.closed {
@@ -483,7 +483,7 @@ func (e *Entry) addUntimed(
 // NB(xichen): we assume the metadatas are sorted by their cutover times
 // in ascending order.
 func (e *Entry) activeStagedMetadataWithLock(
-	t time.Time,
+	t xtime.UnixNano,
 	metadatas metadata.StagedMetadatas,
 ) (metadata.StagedMetadata, error) {
 	// If we have no metadata to apply, simply bail.
@@ -491,7 +491,7 @@ func (e *Entry) activeStagedMetadataWithLock(
 		e.metrics.untimed.emptyMetadatas.Inc(1)
 		return metadata.DefaultStagedMetadata, errEmptyMetadatas
 	}
-	timeNanos := t.UnixNano()
+	timeNanos := int64(t)
 	for idx := len(metadatas) - 1; idx >= 0; idx-- {
 		if metadatas[idx].CutoverNanos <= timeNanos {
 			return metadatas[idx], nil
@@ -678,7 +678,7 @@ func (e *Entry) updateStagedMetadatasWithLock(
 	return nil
 }
 
-func (e *Entry) addUntimedWithLock(timestamp time.Time, mu unaggregated.MetricUnion) error {
+func (e *Entry) addUntimedWithLock(timestamp xtime.UnixNano, mu unaggregated.MetricUnion) error {
 	var err error
 	for i := range e.aggregations {
 		multierr.AppendInto(&err, e.aggregations[i].elem.Value.(metricElem).AddUnion(timestamp, mu))
@@ -700,8 +700,8 @@ func (e *Entry) addTimed(
 	// so it is guaranteed that actions before when a write lock is acquired
 	// must have all completed. This is used to ensure we never write metrics
 	// for times that have already been flushed.
-	currTime := e.nowFn()
-	e.lastAccessNanos.Store(currTime.UnixNano())
+	currTime := xtime.ToUnixNano(e.nowFn())
+	e.lastAccessNanos.Store(int64(currTime))
 
 	e.mtx.RLock()
 	if e.closed {
@@ -893,7 +893,7 @@ func (e *Entry) addTimedWithLock(
 	value aggregationValue,
 	metric aggregated.Metric,
 ) error {
-	timestamp := time.Unix(0, metric.TimeNanos)
+	timestamp := xtime.UnixNano(metric.TimeNanos)
 	err := e.checkTimestampForTimedMetric(metric, e.nowFn().UnixNano(), value.key.storagePolicy.Resolution().Window)
 	if err != nil {
 		return err
@@ -903,7 +903,7 @@ func (e *Entry) addTimedWithLock(
 
 func (e *Entry) addTimedWithStagedMetadatasAndLock(metric aggregated.Metric) error {
 	var (
-		timestamp = time.Unix(0, metric.TimeNanos)
+		timestamp = xtime.UnixNano(metric.TimeNanos)
 		err       error
 	)
 
@@ -1071,7 +1071,7 @@ func (e *Entry) addForwardedWithLock(
 	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error {
-	timestamp := time.Unix(0, metric.TimeNanos)
+	timestamp := xtime.UnixNano(metric.TimeNanos)
 	err := value.elem.Value.(metricElem).AddUnique(timestamp, metric, metadata)
 	if err == errDuplicateForwardingSource {
 		// Duplicate forwarding sources may occur during a leader re-election and is not

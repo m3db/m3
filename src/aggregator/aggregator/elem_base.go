@@ -111,21 +111,21 @@ type metricElem interface {
 	)
 
 	// AddUnion adds a metric value union at a given timestamp.
-	AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) error
+	AddUnion(timestamp xtime.UnixNano, mu unaggregated.MetricUnion) error
 
 	// AddMetric adds a metric value at a given timestamp.
-	AddValue(timestamp time.Time, value float64, annotation []byte) error
+	AddValue(timestamp xtime.UnixNano, value float64, annotation []byte) error
 
 	// AddUnique adds a metric value from a given source at a given timestamp.
 	// If previous values from the same source/version have already been added to the
 	// same aggregation, the incoming value is discarded.
-	AddUnique(timestamp time.Time, metric aggregated.ForwardedMetric, metadata metadata.ForwardMetadata) error
+	AddUnique(timestamp xtime.UnixNano, metric aggregated.ForwardedMetric, metadata metadata.ForwardMetadata) error
 
 	// Consume consumes values before a given time and removes
 	// them from the element after they are consumed, returning whether
 	// the element can be collected after the consumption is completed.
 	Consume(
-		targetNanos int64,
+		targetNanos xtime.UnixNano,
 		isEarlierThanFn isEarlierThanFn,
 		timestampNanosFn timestampNanosFn,
 		flushLocalFn flushLocalMetricFn,

@@ -296,7 +296,7 @@ func (e *GenericElem) Consume(
 		if e.resendEnabled {
 			// If resend is enabled, we only expire if the value is now outside the buffer past. It is safe to expire
 			// since any metrics intended for this value are rejected for being too late.
-			expiredNanos := targetNanos - e.bufferForPastTimedMetricFn(resolution).Nanoseconds()
+			expiredNanos := targetNanos.Add(-1 * e.bufferForPastTimedMetricFn(resolution))
 			expired = value.startAtNanos < expiredNanos
 		}
 
