@@ -77,7 +77,7 @@ TOOLS :=               \
 	read_index_segments  \
 	read_commitlog       \
 	split_shards         \
-	split_idx_shards     \
+	split_index_shards   \
 	query_index_segments \
 	clone_fileset        \
 	dtest                \
