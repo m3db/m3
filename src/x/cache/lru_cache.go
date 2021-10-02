@@ -229,7 +229,7 @@ func (c *LRU) PutWithTTL(key string, value interface{}, ttl time.Duration) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
 
-	_, _ = c.updateCacheEntryWithLock(key, expiresAt, value, nil)
+	_, _ = c.updateCacheEntryWithLock(key, expiresAt, value, nil, true)
 }
 
 // Get returns the value associated with the key, optionally
@@ -390,7 +390,7 @@ func (c *LRU) cacheLoadComplete(
 		return c.handleCacheLoadErrorWithLock(key, expiresAt, err)
 	}
 
-	return c.updateCacheEntryWithLock(key, expiresAt, value, err)
+	return c.updateCacheEntryWithLock(key, expiresAt, value, err, false)
 }
 
 // handleCacheLoadErrorWithLock handles the results of an error from a cache load. If
@@ -402,7 +402,7 @@ func (c *LRU) handleCacheLoadErrorWithLock(
 	// If the loader is telling us to cache this error, do so unconditionally
 	var cachedErr CachedError
 	if errors.As(err, &cachedErr) {
-		return c.updateCacheEntryWithLock(key, expiresAt, nil, cachedErr.Err)
+		return c.updateCacheEntryWithLock(key, expiresAt, nil, cachedErr.Err, false)
 	}
 
 	// If the cache is configured to cache errors by default, do so unless
@@ -410,7 +410,7 @@ func (c *LRU) handleCacheLoadErrorWithLock(
 	var uncachedErr UncachedError
 	isUncachedError := errors.As(err, &uncachedErr)
 	if c.cacheErrors && !isUncachedError {
-		return c.updateCacheEntryWithLock(key, expiresAt, nil, err)
+		return c.updateCacheEntryWithLock(key, expiresAt, nil, err, false)
 	}
 
 	// Something happened during load, but we don't want to cache this - remove the entry,
@@ -430,10 +430,15 @@ func (c *LRU) handleCacheLoadErrorWithLock(
 // updateCacheEntryWithLock updates a cache entry with a new value or cached error,
 // and marks it as the most recently accessed and most recently loaded entry
 func (c *LRU) updateCacheEntryWithLock(
-	key string, expiresAt time.Time, value interface{}, err error,
+	key string, expiresAt time.Time, value interface{}, err error, enforceLimit bool,
 ) (interface{}, error) {
 	entry := c.entries[key]
 	if entry == nil {
+		if enforceLimit && c.reserveCapacity(1) != nil {
+			// Silently skip adding the new entry if we fail to free up space for it
+			// (which should never be happening).
+			return value, err
+		}
 		entry = &lruCacheEntry{}
 		c.entries[key] = entry
 	}
