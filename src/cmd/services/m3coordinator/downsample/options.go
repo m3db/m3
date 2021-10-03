@@ -91,7 +91,7 @@ const (
 )
 
 var (
-	numShards                   = runtime.NumCPU()
+	numShards                   = runtime.GOMAXPROCS(0)
 	defaultNamespaceTag         = metric.M3MetricsPrefixString + "_namespace__"
 	defaultFilterOutTagPrefixes = [][]byte{
 		metric.M3MetricsPrefix,
@@ -115,7 +115,7 @@ type CustomRuleStoreFn func(clusterclient.Client, instrument.Options) (kv.TxnSto
 
 // DownsamplerOptions is a set of required downsampler options.
 type DownsamplerOptions struct {
-	Storage                    storage.Storage
+	Storage                    storage.Appender
 	StorageFlushConcurrency    int
 	ClusterClient              clusterclient.Client
 	RulesKVStore               kv.Store
@@ -131,6 +131,7 @@ type DownsamplerOptions struct {
 	TagOptions                 models.TagOptions
 	MetricsAppenderPoolOptions pool.ObjectPoolOptions
 	RWOptions                  xio.Options
+	InterruptedCh              <-chan struct{}
 }
 
 // AutoMappingRule is a mapping rule to apply to metrics.
@@ -726,7 +727,8 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetRuleSetOptions(ruleSetOpts).
 		SetKVStore(o.RulesKVStore).
 		SetNamespaceTag([]byte(namespaceTag)).
-		SetRequireNamespaceWatchOnInit(cfg.Matcher.RequireNamespaceWatchOnInit)
+		SetRequireNamespaceWatchOnInit(cfg.Matcher.RequireNamespaceWatchOnInit).
+		SetInterruptedCh(o.InterruptedCh)
 
 	// NB(r): If rules are being explicitly set in config then we are
 	// going to use an in memory KV store for rules and explicitly set them up.

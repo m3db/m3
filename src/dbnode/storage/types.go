@@ -22,11 +22,13 @@ package storage
 
 import (
 	"bytes"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -208,7 +210,7 @@ type Database interface {
 		starts []xtime.UnixNano,
 	) ([]block.FetchBlockResult, error)
 
-	// FetchBlocksMetadata retrieves blocks metadata for a given shard, returns the
+	// FetchBlocksMetadataV2 retrieves blocks metadata for a given shard, returns the
 	// fetched block metadata results, the next page token, and any error encountered.
 	// If we have fetched all the block metadata, we return nil as the next page token.
 	FetchBlocksMetadataV2(
@@ -406,7 +408,7 @@ type databaseNamespace interface {
 		starts []xtime.UnixNano,
 	) ([]block.FetchBlockResult, error)
 
-	// FetchBlocksMetadata retrieves blocks metadata.
+	// FetchBlocksMetadataV2 retrieves blocks metadata.
 	FetchBlocksMetadataV2(
 		ctx context.Context,
 		shardID uint32,
@@ -499,7 +501,7 @@ type Shard interface {
 	// BootstrapState returns the shards' bootstrap state.
 	BootstrapState() BootstrapState
 
-	// OpenStreamingDataReader creates and opens a streaming fs.DataFileSetReader
+	// OpenStreamingReader creates and opens a streaming fs.DataFileSetReader
 	// on the latest volume of the given block.
 	OpenStreamingReader(blockStart xtime.UnixNano) (fs.DataFileSetReader, error)
 
@@ -1267,10 +1269,10 @@ type Options interface {
 	// MultiReaderIteratorPool returns the multiReaderIteratorPool.
 	MultiReaderIteratorPool() encoding.MultiReaderIteratorPool
 
-	// SetIDPool sets the ID pool.
+	// SetIdentifierPool sets the ID pool.
 	SetIdentifierPool(value ident.Pool) Options
 
-	// IDPool returns the ID pool.
+	// IdentifierPool returns the ID pool.
 	IdentifierPool() ident.Pool
 
 	// SetFetchBlockMetadataResultsPool sets the fetchBlockMetadataResultsPool.
@@ -1348,7 +1350,7 @@ type Options interface {
 	// SetSourceLoggerBuilder sets the limit source logger builder.
 	SetSourceLoggerBuilder(value limits.SourceLoggerBuilder) Options
 
-	// SetSourceLoggerBuilder returns the limit source logger builder.
+	// SourceLoggerBuilder returns the limit source logger builder.
 	SourceLoggerBuilder() limits.SourceLoggerBuilder
 
 	// SetMemoryTracker sets the MemoryTracker.
@@ -1486,6 +1488,33 @@ type newFSMergeWithMemFn func(
 // NewBackgroundProcessFn is a function that creates and returns a new BackgroundProcess.
 type NewBackgroundProcessFn func(Database, Options) (BackgroundProcess, error)
 
+// AggregateTilesProcess identifies the process used for the aggregation.
+type AggregateTilesProcess uint8
+
+const (
+	// AggregateTilesRegular indicates regular process.
+	AggregateTilesRegular AggregateTilesProcess = iota
+
+	// AggregateTilesBackfill indicates backfill.
+	AggregateTilesBackfill
+
+	// AggregateTilesAPI indicates invocation via API call.
+	AggregateTilesAPI
+)
+
+func (p AggregateTilesProcess) String() string {
+	switch p {
+	case AggregateTilesRegular:
+		return "regular"
+	case AggregateTilesBackfill:
+		return "backfill"
+	case AggregateTilesAPI:
+		return "api"
+	default:
+		return fmt.Sprintf("unknown (%d)", p)
+	}
+}
+
 // AggregateTilesOptions is the options for large tile aggregation.
 type AggregateTilesOptions struct {
 	// Start and End specify the aggregation window.
@@ -1493,6 +1522,15 @@ type AggregateTilesOptions struct {
 	// Step is the downsampling step.
 	Step       time.Duration
 	InsOptions instrument.Options
+	Process    AggregateTilesProcess
+
+	// MemorizeMetricTypes enables storing data into MetricTypeByName map.
+	MemorizeMetricTypes bool
+	// MemorizeMetricTypes enables assigning metric types from MetricTypeByName map.
+	BackfillMetricTypes bool
+
+	// MetricTypeByName is used when either MemorizeMetricTypes or BackfillMetricTypes is true.
+	MetricTypeByName map[string]annotation.Payload
 }
 
 // TileAggregator is the interface for AggregateTiles.

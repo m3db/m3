@@ -22,9 +22,13 @@ package integration
 
 import (
 	"math"
+	"testing"
 
-	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/stretchr/testify/require"
+
+	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 )
 
@@ -50,7 +54,8 @@ func (c *placementInstanceConfig) newPlacementInstance() placement.Instance {
 		SetID(c.instanceID).
 		SetShards(shards).
 		SetShardSetID(c.shardSetID).
-		SetEndpoint(c.instanceID)
+		SetEndpoint(c.instanceID).
+		SetWeight(1)
 }
 
 func newPlacement(numShards int, instances []placement.Instance) placement.Placement {
@@ -58,25 +63,40 @@ func newPlacement(numShards int, instances []placement.Instance) placement.Place
 	for i := 0; i < numShards; i++ {
 		shards[i] = uint32(i)
 	}
+	var maxShardSetID uint32
+	for _, inst := range instances {
+		if maxShardSetID < inst.ShardSetID() {
+			maxShardSetID = inst.ShardSetID()
+		}
+	}
 	return placement.NewPlacement().
 		SetInstances(instances).
 		SetShards(shards).
-		SetIsSharded(true)
+		SetIsSharded(true).
+		SetMaxShardSetID(maxShardSetID).
+		SetReplicaFactor(1)
 }
 
 func setPlacement(
+	t *testing.T,
 	key string,
-	store kv.Store,
+	clusterClient clusterclient.Client,
 	pl placement.Placement,
-) error {
+) {
+	svcs, err := clusterClient.Services(nil)
+	require.NoError(t, err)
+	ps, err := svcs.PlacementService(services.NewServiceID().SetName(defaultServiceName), placement.NewOptions())
+	require.NoError(t, err)
+	_, err = ps.Set(pl)
+	require.NoError(t, err)
+
+	store, err := clusterClient.KV()
+	require.NoError(t, err)
+
 	stagedPlacement, err := placement.NewPlacementsFromLatest(pl)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	stagedPlacementProto, err := stagedPlacement.Proto()
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	_, err = store.Set(key, stagedPlacementProto)
-	return err
+	require.NoError(t, err)
 }

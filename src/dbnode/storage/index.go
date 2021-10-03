@@ -1021,7 +1021,7 @@ func (i *nsIndex) WarmFlush(
 	// Determine the current flush indexing concurrency.
 	namespaceRuntimeOpts := i.namespaceRuntimeOptsMgr.Get()
 	perCPUFraction := namespaceRuntimeOpts.FlushIndexingPerCPUConcurrencyOrDefault()
-	cpus := math.Ceil(perCPUFraction * float64(goruntime.NumCPU()))
+	cpus := math.Ceil(perCPUFraction * float64(goruntime.GOMAXPROCS(0)))
 	concurrency := int(math.Max(1, cpus))
 
 	builderOpts := i.opts.IndexOptions().SegmentBuilderOptions().
@@ -1746,6 +1746,7 @@ func (i *nsIndex) queryWithSpan(
 	if err != nil {
 		return queryResult{}, err
 	}
+	defer perms.Close()
 
 	var blockIters []*blockIter
 	for b, ok := blocks.Next(); ok; b, ok = b.Next() {

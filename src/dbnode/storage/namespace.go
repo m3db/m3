@@ -164,7 +164,6 @@ type databaseNamespaceMetrics struct {
 	snapshot            instrument.MethodMetrics
 	write               instrument.MethodMetrics
 	writeTagged         instrument.MethodMetrics
-	aggregateTiles      instrument.MethodMetrics
 	read                instrument.MethodMetrics
 	fetchBlocks         instrument.MethodMetrics
 	fetchBlocksMetadata instrument.MethodMetrics
@@ -239,13 +238,6 @@ func newDatabaseNamespaceMetrics(
 	scope tally.Scope,
 	opts instrument.TimerOptions,
 ) databaseNamespaceMetrics {
-	const (
-		// NB: tally.Timer when backed by a Prometheus Summary type is *very* expensive
-		// for high frequency measurements. Overriding sampling rate for writes to avoid this issue.
-		// TODO: make tally.Timers default to Prom Histograms instead of Summary. And update the dashboard
-		// to reflect this.
-		overrideWriteSamplingRate = 0.01
-	)
 	shardsScope := scope.SubScope("dbnamespace").SubScope("shards")
 	tickScope := scope.SubScope("tick")
 	indexTickScope := tickScope.SubScope("index")
@@ -262,7 +254,6 @@ func newDatabaseNamespaceMetrics(
 		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", opts),
 		write:               instrument.NewMethodMetrics(scope, "write", opts),
 		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", opts),
-		aggregateTiles:      instrument.NewMethodMetrics(scope, "aggregate-tiles", opts),
 		read:                instrument.NewMethodMetrics(scope, "read", opts),
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
 		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
@@ -347,7 +338,7 @@ func newDatabaseNamespace(
 
 	scope := iops.MetricsScope().SubScope("database")
 
-	tickWorkersConcurrency := int(math.Max(1, float64(runtime.NumCPU())/8))
+	tickWorkersConcurrency := int(math.Max(1, float64(runtime.GOMAXPROCS(0))/8))
 	tickWorkers := xsync.NewWorkerPool(tickWorkersConcurrency)
 	tickWorkers.Init()
 
@@ -1067,7 +1058,7 @@ func (n *dbNamespace) Bootstrap(
 	}
 
 	// Bootstrap shards using at least half the CPUs available
-	workers := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
+	workers := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.GOMAXPROCS(0)) / 2)))
 	workers.Init()
 
 	var (
@@ -1809,9 +1800,18 @@ func (n *dbNamespace) AggregateTiles(
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
 ) (int64, error) {
-	callStart := n.nowFn()
+	var (
+		callStart = n.nowFn()
+
+		aggregateTilesScope = opts.InsOptions.MetricsScope()
+		timerOpts           = n.opts.InstrumentOptions().TimerOptions()
+		methodMetrics       = instrument.NewMethodMetrics(
+			aggregateTilesScope, "aggregate-tiles", timerOpts)
+	)
+
 	processedTileCount, err := n.aggregateTiles(ctx, sourceNs, opts)
-	n.metrics.aggregateTiles.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+
+	methodMetrics.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 
 	return processedTileCount, err
 }
@@ -1827,7 +1827,9 @@ func (n *dbNamespace) aggregateTiles(
 		targetBlockStart   = opts.Start.Truncate(targetBlockSize)
 		sourceBlockSize    = sourceNs.Options().RetentionOptions().BlockSize()
 		lastSourceBlockEnd = opts.End.Truncate(sourceBlockSize)
-		processedShards    = opts.InsOptions.MetricsScope().Counter("processed-shards")
+
+		scope           = opts.InsOptions.MetricsScope()
+		processedShards = scope.Counter("processed-shards")
 	)
 
 	if targetBlockStart.Add(targetBlockSize).Before(lastSourceBlockEnd) {
@@ -1887,7 +1889,10 @@ func (n *dbNamespace) aggregateTiles(
 	}
 
 	n.log.Info("finished large tiles aggregation for namespace",
-		zap.String("sourceNs", sourceNs.ID().String()),
+		zap.Stringer("sourceNs", sourceNs.ID()),
+		zap.Stringer("process", opts.Process),
+		zap.Bool("memorizeMetricTypes", opts.MemorizeMetricTypes),
+		zap.Bool("backfillMetricTypes", opts.BackfillMetricTypes),
 		zap.Time("targetBlockStart", targetBlockStart.ToTime()),
 		zap.Time("lastSourceBlockEnd", lastSourceBlockEnd.ToTime()),
 		zap.Duration("step", opts.Step),

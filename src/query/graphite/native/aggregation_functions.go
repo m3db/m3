@@ -576,7 +576,7 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 		multiErr xerrors.MultiError
 
 		output         = make([]*ts.Series, 0, len(prefixes))
-		maxConcurrency = runtime.NumCPU() / 2
+		maxConcurrency = runtime.GOMAXPROCS(0) / 2
 	)
 	for _, prefixChunk := range chunkArrayHelper(prefixes, maxConcurrency) {
 		if multiErr.LastError() != nil {

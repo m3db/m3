@@ -855,6 +855,22 @@ func TestMessageWriterQueueFullScanOnWriteErrors(t *testing.T) {
 	require.Equal(t, int64(1), counters["message-processed+consumer=c1,result=drop"].Value())
 }
 
+func TestMessageWriter_WithoutConsumerScope(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testOptions().SetMessageQueueScanBatchSize(1)
+	scope := tally.NewTestScope("", nil)
+	metrics := newMessageWriterMetrics(scope, instrument.TimerOptions{}, true)
+	w := newMessageWriter(200, nil, opts, metrics).(*messageWriterImpl)
+	w.AddConsumerWriter(newConsumerWriter("bad", nil, opts, testConsumerWriterMetrics()))
+
+	snapshot := scope.Snapshot()
+	counters := snapshot.Counters()
+	require.Nil(t, counters["message-processed+consumer=c1,result=write"])
+	require.NotNil(t, counters["message-processed+result=write"])
+}
+
 func isEmptyWithLock(h *acks) bool {
 	h.Lock()
 	defer h.Unlock()
@@ -868,11 +884,11 @@ func testMessagePool(opts Options) messagePool {
 }
 
 func testMessageWriterMetrics() messageWriterMetrics {
-	return newMessageWriterMetrics(tally.NoopScope, instrument.TimerOptions{})
+	return newMessageWriterMetrics(tally.NoopScope, instrument.TimerOptions{}, false)
 }
 
 func testMessageWriterMetricsWithScope(scope tally.TestScope) messageWriterMetrics {
-	return newMessageWriterMetrics(scope, instrument.TimerOptions{})
+	return newMessageWriterMetrics(scope, instrument.TimerOptions{}, false)
 }
 
 func validateMessages(t *testing.T, msgs []*producer.RefCountedMessage, w *messageWriterImpl) {

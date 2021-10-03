@@ -119,6 +119,21 @@ func (mr *MockClientMockRecorder) NewSession() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSession", reflect.TypeOf((*MockClient)(nil).NewSession))
 }
 
+// NewSessionWithOptions mocks base method.
+func (m *MockClient) NewSessionWithOptions(opts Options) (Session, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewSessionWithOptions", opts)
+	ret0, _ := ret[0].(Session)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewSessionWithOptions indicates an expected call of NewSessionWithOptions.
+func (mr *MockClientMockRecorder) NewSessionWithOptions(opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSessionWithOptions", reflect.TypeOf((*MockClient)(nil).NewSessionWithOptions), opts)
+}
+
 // Options mocks base method.
 func (m *MockClient) Options() Options {
 	m.ctrl.T.Helper()
@@ -616,6 +631,21 @@ func (m *MockAdminClient) NewSession() (Session, error) {
 func (mr *MockAdminClientMockRecorder) NewSession() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSession", reflect.TypeOf((*MockAdminClient)(nil).NewSession))
+}
+
+// NewSessionWithOptions mocks base method.
+func (m *MockAdminClient) NewSessionWithOptions(opts Options) (Session, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewSessionWithOptions", opts)
+	ret0, _ := ret[0].(Session)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewSessionWithOptions indicates an expected call of NewSessionWithOptions.
+func (mr *MockAdminClientMockRecorder) NewSessionWithOptions(opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSessionWithOptions", reflect.TypeOf((*MockAdminClient)(nil).NewSessionWithOptions), opts)
 }
 
 // Options mocks base method.
@@ -1296,10 +1326,10 @@ func (mr *MockOptionsMockRecorder) CheckedBytesPool() *gomock.Call {
 }
 
 // CheckedBytesWrapperPoolSize mocks base method.
-func (m *MockOptions) CheckedBytesWrapperPoolSize() int {
+func (m *MockOptions) CheckedBytesWrapperPoolSize() pool.Size {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CheckedBytesWrapperPoolSize")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(pool.Size)
 	return ret0
 }
 
@@ -1366,10 +1396,10 @@ func (mr *MockOptionsMockRecorder) ContextPool() *gomock.Call {
 }
 
 // FetchBatchOpPoolSize mocks base method.
-func (m *MockOptions) FetchBatchOpPoolSize() int {
+func (m *MockOptions) FetchBatchOpPoolSize() pool.Size {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBatchOpPoolSize")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(pool.Size)
 	return ret0
 }
 
@@ -1464,10 +1494,10 @@ func (mr *MockOptionsMockRecorder) HostQueueNewPooledWorkerFn() *gomock.Call {
 }
 
 // HostQueueOpsArrayPoolSize mocks base method.
-func (m *MockOptions) HostQueueOpsArrayPoolSize() int {
+func (m *MockOptions) HostQueueOpsArrayPoolSize() pool.Size {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HostQueueOpsArrayPoolSize")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(pool.Size)
 	return ret0
 }
 
@@ -1702,10 +1732,10 @@ func (mr *MockOptionsMockRecorder) SeriesIteratorArrayPoolBuckets() *gomock.Call
 }
 
 // SeriesIteratorPoolSize mocks base method.
-func (m *MockOptions) SeriesIteratorPoolSize() int {
+func (m *MockOptions) SeriesIteratorPoolSize() pool.Size {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeriesIteratorPoolSize")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(pool.Size)
 	return ret0
 }
 
@@ -1870,7 +1900,7 @@ func (mr *MockOptionsMockRecorder) SetCheckedBytesPool(value interface{}) *gomoc
 }
 
 // SetCheckedBytesWrapperPoolSize mocks base method.
-func (m *MockOptions) SetCheckedBytesWrapperPoolSize(value int) Options {
+func (m *MockOptions) SetCheckedBytesWrapperPoolSize(value pool.Size) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetCheckedBytesWrapperPoolSize", value)
 	ret0, _ := ret[0].(Options)
@@ -1968,7 +1998,7 @@ func (mr *MockOptionsMockRecorder) SetEncodingProto(encodingOpts interface{}) *g
 }
 
 // SetFetchBatchOpPoolSize mocks base method.
-func (m *MockOptions) SetFetchBatchOpPoolSize(value int) Options {
+func (m *MockOptions) SetFetchBatchOpPoolSize(value pool.Size) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetFetchBatchOpPoolSize", value)
 	ret0, _ := ret[0].(Options)
@@ -2066,7 +2096,7 @@ func (mr *MockOptionsMockRecorder) SetHostQueueNewPooledWorkerFn(value interface
 }
 
 // SetHostQueueOpsArrayPoolSize mocks base method.
-func (m *MockOptions) SetHostQueueOpsArrayPoolSize(value int) Options {
+func (m *MockOptions) SetHostQueueOpsArrayPoolSize(value pool.Size) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetHostQueueOpsArrayPoolSize", value)
 	ret0, _ := ret[0].(Options)
@@ -2290,7 +2320,7 @@ func (mr *MockOptionsMockRecorder) SetSeriesIteratorArrayPoolBuckets(value inter
 }
 
 // SetSeriesIteratorPoolSize mocks base method.
-func (m *MockOptions) SetSeriesIteratorPoolSize(value int) Options {
+func (m *MockOptions) SetSeriesIteratorPoolSize(value pool.Size) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetSeriesIteratorPoolSize", value)
 	ret0, _ := ret[0].(Options)
@@ -2332,7 +2362,7 @@ func (mr *MockOptionsMockRecorder) SetTagDecoderOptions(value interface{}) *gomo
 }
 
 // SetTagDecoderPoolSize mocks base method.
-func (m *MockOptions) SetTagDecoderPoolSize(value int) Options {
+func (m *MockOptions) SetTagDecoderPoolSize(value pool.Size) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTagDecoderPoolSize", value)
 	ret0, _ := ret[0].(Options)
@@ -2360,7 +2390,7 @@ func (mr *MockOptionsMockRecorder) SetTagEncoderOptions(value interface{}) *gomo
 }
 
 // SetTagEncoderPoolSize mocks base method.
-func (m *MockOptions) SetTagEncoderPoolSize(value int) Options {
+func (m *MockOptions) SetTagEncoderPoolSize(value pool.Size) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTagEncoderPoolSize", value)
 	ret0, _ := ret[0].(Options)
@@ -2458,7 +2488,7 @@ func (mr *MockOptionsMockRecorder) SetWriteConsistencyLevel(value interface{}) *
 }
 
 // SetWriteOpPoolSize mocks base method.
-func (m *MockOptions) SetWriteOpPoolSize(value int) Options {
+func (m *MockOptions) SetWriteOpPoolSize(value pool.Size) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetWriteOpPoolSize", value)
 	ret0, _ := ret[0].(Options)
@@ -2514,7 +2544,7 @@ func (mr *MockOptionsMockRecorder) SetWriteShardsInitializing(value interface{})
 }
 
 // SetWriteTaggedOpPoolSize mocks base method.
-func (m *MockOptions) SetWriteTaggedOpPoolSize(value int) Options {
+func (m *MockOptions) SetWriteTaggedOpPoolSize(value pool.Size) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetWriteTaggedOpPoolSize", value)
 	ret0, _ := ret[0].(Options)
@@ -2570,10 +2600,10 @@ func (mr *MockOptionsMockRecorder) TagDecoderOptions() *gomock.Call {
 }
 
 // TagDecoderPoolSize mocks base method.
-func (m *MockOptions) TagDecoderPoolSize() int {
+func (m *MockOptions) TagDecoderPoolSize() pool.Size {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TagDecoderPoolSize")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(pool.Size)
 	return ret0
 }
 
@@ -2598,10 +2628,10 @@ func (mr *MockOptionsMockRecorder) TagEncoderOptions() *gomock.Call {
 }
 
 // TagEncoderPoolSize mocks base method.
-func (m *MockOptions) TagEncoderPoolSize() int {
+func (m *MockOptions) TagEncoderPoolSize() pool.Size {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TagEncoderPoolSize")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(pool.Size)
 	return ret0
 }
 
@@ -2710,10 +2740,10 @@ func (mr *MockOptionsMockRecorder) WriteConsistencyLevel() *gomock.Call {
 }
 
 // WriteOpPoolSize mocks base method.
-func (m *MockOptions) WriteOpPoolSize() int {
+func (m *MockOptions) WriteOpPoolSize() pool.Size {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteOpPoolSize")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(pool.Size)
 	return ret0
 }
 
@@ -2766,10 +2796,10 @@ func (mr *MockOptionsMockRecorder) WriteShardsInitializing() *gomock.Call {
 }
 
 // WriteTaggedOpPoolSize mocks base method.
-func (m *MockOptions) WriteTaggedOpPoolSize() int {
+func (m *MockOptions) WriteTaggedOpPoolSize() pool.Size {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTaggedOpPoolSize")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(pool.Size)
 	return ret0
 }
 
@@ -2985,10 +3015,10 @@ func (mr *MockAdminOptionsMockRecorder) CheckedBytesPool() *gomock.Call {
 }
 
 // CheckedBytesWrapperPoolSize mocks base method.
-func (m *MockAdminOptions) CheckedBytesWrapperPoolSize() int {
+func (m *MockAdminOptions) CheckedBytesWrapperPoolSize() pool.Size {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CheckedBytesWrapperPoolSize")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(pool.Size)
 	return ret0
 }
 
@@ -3055,10 +3085,10 @@ func (mr *MockAdminOptionsMockRecorder) ContextPool() *gomock.Call {
 }
 
 // FetchBatchOpPoolSize mocks base method.
-func (m *MockAdminOptions) FetchBatchOpPoolSize() int {
+func (m *MockAdminOptions) FetchBatchOpPoolSize() pool.Size {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBatchOpPoolSize")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(pool.Size)
 	return ret0
 }
 
@@ -3223,10 +3253,10 @@ func (mr *MockAdminOptionsMockRecorder) HostQueueNewPooledWorkerFn() *gomock.Cal
 }
 
 // HostQueueOpsArrayPoolSize mocks base method.
-func (m *MockAdminOptions) HostQueueOpsArrayPoolSize() int {
+func (m *MockAdminOptions) HostQueueOpsArrayPoolSize() pool.Size {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HostQueueOpsArrayPoolSize")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(pool.Size)
 	return ret0
 }
 
@@ -3475,10 +3505,10 @@ func (mr *MockAdminOptionsMockRecorder) SeriesIteratorArrayPoolBuckets() *gomock
 }
 
 // SeriesIteratorPoolSize mocks base method.
-func (m *MockAdminOptions) SeriesIteratorPoolSize() int {
+func (m *MockAdminOptions) SeriesIteratorPoolSize() pool.Size {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeriesIteratorPoolSize")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(pool.Size)
 	return ret0
 }
 
@@ -3657,7 +3687,7 @@ func (mr *MockAdminOptionsMockRecorder) SetCheckedBytesPool(value interface{}) *
 }
 
 // SetCheckedBytesWrapperPoolSize mocks base method.
-func (m *MockAdminOptions) SetCheckedBytesWrapperPoolSize(value int) Options {
+func (m *MockAdminOptions) SetCheckedBytesWrapperPoolSize(value pool.Size) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetCheckedBytesWrapperPoolSize", value)
 	ret0, _ := ret[0].(Options)
@@ -3755,7 +3785,7 @@ func (mr *MockAdminOptionsMockRecorder) SetEncodingProto(encodingOpts interface{
 }
 
 // SetFetchBatchOpPoolSize mocks base method.
-func (m *MockAdminOptions) SetFetchBatchOpPoolSize(value int) Options {
+func (m *MockAdminOptions) SetFetchBatchOpPoolSize(value pool.Size) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetFetchBatchOpPoolSize", value)
 	ret0, _ := ret[0].(Options)
@@ -3923,7 +3953,7 @@ func (mr *MockAdminOptionsMockRecorder) SetHostQueueNewPooledWorkerFn(value inte
 }
 
 // SetHostQueueOpsArrayPoolSize mocks base method.
-func (m *MockAdminOptions) SetHostQueueOpsArrayPoolSize(value int) Options {
+func (m *MockAdminOptions) SetHostQueueOpsArrayPoolSize(value pool.Size) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetHostQueueOpsArrayPoolSize", value)
 	ret0, _ := ret[0].(Options)
@@ -4161,7 +4191,7 @@ func (mr *MockAdminOptionsMockRecorder) SetSeriesIteratorArrayPoolBuckets(value 
 }
 
 // SetSeriesIteratorPoolSize mocks base method.
-func (m *MockAdminOptions) SetSeriesIteratorPoolSize(value int) Options {
+func (m *MockAdminOptions) SetSeriesIteratorPoolSize(value pool.Size) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetSeriesIteratorPoolSize", value)
 	ret0, _ := ret[0].(Options)
@@ -4217,7 +4247,7 @@ func (mr *MockAdminOptionsMockRecorder) SetTagDecoderOptions(value interface{}) 
 }
 
 // SetTagDecoderPoolSize mocks base method.
-func (m *MockAdminOptions) SetTagDecoderPoolSize(value int) Options {
+func (m *MockAdminOptions) SetTagDecoderPoolSize(value pool.Size) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTagDecoderPoolSize", value)
 	ret0, _ := ret[0].(Options)
@@ -4245,7 +4275,7 @@ func (mr *MockAdminOptionsMockRecorder) SetTagEncoderOptions(value interface{}) 
 }
 
 // SetTagEncoderPoolSize mocks base method.
-func (m *MockAdminOptions) SetTagEncoderPoolSize(value int) Options {
+func (m *MockAdminOptions) SetTagEncoderPoolSize(value pool.Size) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTagEncoderPoolSize", value)
 	ret0, _ := ret[0].(Options)
@@ -4343,7 +4373,7 @@ func (mr *MockAdminOptionsMockRecorder) SetWriteConsistencyLevel(value interface
 }
 
 // SetWriteOpPoolSize mocks base method.
-func (m *MockAdminOptions) SetWriteOpPoolSize(value int) Options {
+func (m *MockAdminOptions) SetWriteOpPoolSize(value pool.Size) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetWriteOpPoolSize", value)
 	ret0, _ := ret[0].(Options)
@@ -4399,7 +4429,7 @@ func (mr *MockAdminOptionsMockRecorder) SetWriteShardsInitializing(value interfa
 }
 
 // SetWriteTaggedOpPoolSize mocks base method.
-func (m *MockAdminOptions) SetWriteTaggedOpPoolSize(value int) Options {
+func (m *MockAdminOptions) SetWriteTaggedOpPoolSize(value pool.Size) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetWriteTaggedOpPoolSize", value)
 	ret0, _ := ret[0].(Options)
@@ -4469,10 +4499,10 @@ func (mr *MockAdminOptionsMockRecorder) TagDecoderOptions() *gomock.Call {
 }
 
 // TagDecoderPoolSize mocks base method.
-func (m *MockAdminOptions) TagDecoderPoolSize() int {
+func (m *MockAdminOptions) TagDecoderPoolSize() pool.Size {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TagDecoderPoolSize")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(pool.Size)
 	return ret0
 }
 
@@ -4497,10 +4527,10 @@ func (mr *MockAdminOptionsMockRecorder) TagEncoderOptions() *gomock.Call {
 }
 
 // TagEncoderPoolSize mocks base method.
-func (m *MockAdminOptions) TagEncoderPoolSize() int {
+func (m *MockAdminOptions) TagEncoderPoolSize() pool.Size {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TagEncoderPoolSize")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(pool.Size)
 	return ret0
 }
 
@@ -4609,10 +4639,10 @@ func (mr *MockAdminOptionsMockRecorder) WriteConsistencyLevel() *gomock.Call {
 }
 
 // WriteOpPoolSize mocks base method.
-func (m *MockAdminOptions) WriteOpPoolSize() int {
+func (m *MockAdminOptions) WriteOpPoolSize() pool.Size {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteOpPoolSize")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(pool.Size)
 	return ret0
 }
 
@@ -4665,10 +4695,10 @@ func (mr *MockAdminOptionsMockRecorder) WriteShardsInitializing() *gomock.Call {
 }
 
 // WriteTaggedOpPoolSize mocks base method.
-func (m *MockAdminOptions) WriteTaggedOpPoolSize() int {
+func (m *MockAdminOptions) WriteTaggedOpPoolSize() pool.Size {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTaggedOpPoolSize")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(pool.Size)
 	return ret0
 }
 

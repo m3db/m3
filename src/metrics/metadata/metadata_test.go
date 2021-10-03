@@ -1152,14 +1152,15 @@ func TestVersionedStagedMetadatasMarshalJSON(t *testing.T) {
 	res, err := json.Marshal(vs)
 	require.NoError(t, err)
 
-	expected :=
-		`{"version":12,` +
-			`"stagedMetadatas":` +
-			`[{"metadata":{"pipelines":[` +
-			`{"aggregation":["Sum"],"storagePolicies":["1s:1h","1m:12h"],"ResendEnabled":true},` +
-			`{"aggregation":null,"storagePolicies":["10s:1h"],"ResendEnabled":false}]},` +
-			`"cutoverNanos":4567,` +
-			`"tombstoned":true}]}`
+	expected := `{` +
+		`"stagedMetadatas":` +
+		`[{"metadata":{"pipelines":[` +
+		`{"storagePolicies":["1s:1h","1m:12h"],"aggregation":["Sum"],"resendEnabled":true},` +
+		`{"storagePolicies":["10s:1h"],"aggregation":null}]},` +
+		`"cutoverNanos":4567,` +
+		`"tombstoned":true}],` +
+		`"version":12` +
+		`}`
 	require.Equal(t, expected, string(res))
 }
 
@@ -1247,6 +1248,11 @@ func TestApplyOrRemoveDropPoliciesDropIfOnlyMatchEffective(t *testing.T) {
 	output, result := input.ApplyOrRemoveDropPolicies()
 	require.Equal(t, AppliedEffectiveDropPolicyResult, result)
 	require.True(t, output.Equal(DropPipelineMetadatas))
+
+	// Ensure that modifying output does not affect DropPipelineMetadatas,
+	// to prevent regressions where global variables are returned.
+	output[0].AggregationID = aggregation.MustCompressTypes(aggregation.Count)
+	require.False(t, output.Equal(DropPipelineMetadatas))
 }
 
 func TestApplyOrRemoveDropPoliciesDropIfOnlyMatchMiddleIneffective(t *testing.T) {

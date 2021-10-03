@@ -287,6 +287,12 @@ type QueryOptions interface {
 
 	// SetIncludeUnhealthy sets the value of IncludeUnhealthy.
 	SetIncludeUnhealthy(h bool) QueryOptions
+
+	// InterruptedCh returns the interrupted channel.
+	InterruptedCh() <-chan struct{}
+
+	// SetInterruptedCh sets the interrupted channel.
+	SetInterruptedCh(value <-chan struct{}) QueryOptions
 }
 
 // Metadata contains the metadata for a service.

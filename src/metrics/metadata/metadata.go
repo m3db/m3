@@ -75,26 +75,20 @@ var (
 
 // PipelineMetadata contains pipeline metadata.
 type PipelineMetadata struct {
-	// List of aggregation types.
-	AggregationID aggregation.ID `json:"aggregation,omitempty"`
-
 	// List of storage policies.
 	StoragePolicies policy.StoragePolicies `json:"storagePolicies,omitempty"`
-
 	// Pipeline operations.
-	Pipeline applied.Pipeline `json:"-"` // NB: not needed for JSON marshaling for now.
-
-	// Drop policy.
-	DropPolicy policy.DropPolicy `json:"dropPolicy,omitempty"`
-
+	Pipeline applied.Pipeline `json:"-"`
 	// Tags.
 	Tags []models.Tag `json:"tags,omitempty"`
-
 	// GraphitePrefix is the list of graphite prefixes to apply.
 	GraphitePrefix [][]byte `json:"graphitePrefix,omitempty"`
-
+	// List of aggregation types.
+	AggregationID aggregation.ID `json:"aggregation,omitempty"`
+	// Drop policy.
+	DropPolicy policy.DropPolicy `json:"dropPolicy,omitempty"`
 	// ResendEnabled is true if the Pipeline supports resending aggregate values after the initial flush.
-	ResendEnabled bool
+	ResendEnabled bool `json:"resendEnabled,omitempty"`
 }
 
 func (m PipelineMetadata) String() string {
@@ -279,13 +273,18 @@ func (metadatas PipelineMetadatas) ApplyOrRemoveDropPolicies() (
 		return metadatas, NoDropPolicyPresentResult
 	}
 
+	result := metadatas
+
+	// Drop is effective as no other non drop pipelines, result is a drop
 	if nonDropPipelines == 0 {
-		// Drop is effective as no other non drop pipelines, result is a drop
-		return DropPipelineMetadatas, AppliedEffectiveDropPolicyResult
+		// nb: Do not directly return DropPipelineMetadatas, as the client could potentially save that reference
+		// and modify global state.
+		result = result[:0]
+		result = append(result, DropPipelineMetadata)
+		return result, AppliedEffectiveDropPolicyResult
 	}
 
 	// Remove all non-default drop policies as they must not be effective
-	result := metadatas
 	for i := len(result) - 1; i >= 0; i-- {
 		if !result[i].DropPolicy.IsDefault() {
 			// Remove by moving to tail and decrementing length so we can do in
@@ -392,21 +391,16 @@ func (m *Metadata) FromProto(pb metricpb.Metadata) error {
 
 // ForwardMetadata represents the metadata information associated with forwarded metrics.
 type ForwardMetadata struct {
-	// List of aggregation types.
-	AggregationID aggregation.ID
-
-	// Storage policy.
-	StoragePolicy policy.StoragePolicy
-
 	// Pipeline of operations that may be applied to the metric.
 	Pipeline applied.Pipeline
-
-	// Metric source id that refers to the unique id of the source producing this metric.
-	SourceID uint32
-
+	// Storage policy.
+	StoragePolicy policy.StoragePolicy
+	// List of aggregation types.
+	AggregationID aggregation.ID
 	// Number of times this metric has been forwarded.
 	NumForwardedTimes int
-
+	// Metric source id that refers to the unique id of the source producing this metric.
+	SourceID uint32
 	// ResendEnabled is true if the Pipeline supports resending aggregate values after the initial flush.
 	ResendEnabled bool
 }
@@ -649,8 +643,8 @@ func (sms *StagedMetadatas) fromProto(pb metricpb.StagedMetadatas) error {
 
 // VersionedStagedMetadatas is a versioned staged metadatas.
 type VersionedStagedMetadatas struct {
-	Version         int             `json:"version"`
 	StagedMetadatas StagedMetadatas `json:"stagedMetadatas"`
+	Version         int             `json:"version"`
 }
 
 // TimedMetadata represents the metadata information associated with timed metrics.

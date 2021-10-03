@@ -58,6 +58,9 @@ const (
 	// coordinators used only to serve m3admin APIs.
 	NoopEtcdStorageType BackendStorageType = "noop-etcd"
 
+	// PromRemoteStorageType is a type of storage that is backed by Prometheus Remote Write compatible API.
+	PromRemoteStorageType BackendStorageType = "prom-remote"
+
 	defaultListenAddress = "0.0.0.0:7201"
 
 	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
@@ -131,6 +134,10 @@ type Configuration struct {
 	// endpoints.
 	ClusterManagement ClusterManagementConfiguration `yaml:"clusterManagement"`
 
+	// PrometheusRemoteBackend configures prometheus remote write backend.
+	// Used only when backend property is "prom-remote"
+	PrometheusRemoteBackend *PrometheusRemoteBackendConfiguration `yaml:"prometheusRemoteBackend"`
+
 	// ListenAddress is the server listen address.
 	ListenAddress *string `yaml:"listenAddress"`
 
@@ -143,7 +150,7 @@ type Configuration struct {
 	// HTTP is the HTTP configuration.
 	HTTP HTTPConfiguration `yaml:"http"`
 
-	// Backend is the backend store for query service. We currently support grpc and m3db (default).
+	// Backend is the backend store for query service.
 	Backend BackendStorageType `yaml:"backend"`
 
 	// TagOptions is the tag configuration options.
@@ -484,6 +491,10 @@ type CarbonConfiguration struct {
 	// CompileEscapeAllNotOnlyQuotes will escape all characters when using a backslash
 	// in a quoted string rather than just reserving for escaping quotes.
 	CompileEscapeAllNotOnlyQuotes bool `yaml:"compileEscapeAllNotOnlyQuotes"`
+	// FindResultsIncludeBothExpandableAndLeaf will include both an expandable
+	// node and a leaf node if there is a duplicate path node that is both an
+	// expandable node and a leaf node.
+	FindResultsIncludeBothExpandableAndLeaf bool `yaml:"findResultsIncludeBothExpandableAndLeaf"`
 }
 
 // MiddlewareConfiguration is middleware-specific configuration.
@@ -744,6 +755,33 @@ type RPCConfiguration struct {
 	// ReflectionEnabled will enable reflection on the GRPC server, useful
 	// for testing connectivity with grpcurl, etc.
 	ReflectionEnabled bool `yaml:"reflectionEnabled"`
+}
+
+// PrometheusRemoteBackendConfiguration configures prometheus remote write backend.
+type PrometheusRemoteBackendConfiguration struct {
+	Endpoints       []PrometheusRemoteBackendEndpointConfiguration `yaml:"endpoints"`
+	RequestTimeout  *time.Duration                                 `yaml:"requestTimeout"`
+	ConnectTimeout  *time.Duration                                 `yaml:"connectTimeout"`
+	KeepAlive       *time.Duration                                 `yaml:"keepAlive"`
+	IdleConnTimeout *time.Duration                                 `yaml:"idleConnTimeout"`
+	MaxIdleConns    *int                                           `yaml:"maxIdleConns"`
+}
+
+// PrometheusRemoteBackendEndpointConfiguration configures single endpoint.
+type PrometheusRemoteBackendEndpointConfiguration struct {
+	Name    string `yaml:"name"`
+	Address string `yaml:"address"`
+	// When nil all unaggregated data will be sent to this endpoint.
+	StoragePolicy *PrometheusRemoteBackendStoragePolicyConfiguration `yaml:"storagePolicy"`
+}
+
+// PrometheusRemoteBackendStoragePolicyConfiguration configures storage policy for single endpoint.
+type PrometheusRemoteBackendStoragePolicyConfiguration struct {
+	Resolution time.Duration `yaml:"resolution" validate:"nonzero"`
+	Retention  time.Duration `yaml:"retention" validate:"nonzero"`
+
+	// Downsample is downsampling options to be used with this storage policy.
+	Downsample *m3.DownsampleClusterStaticNamespaceConfiguration `yaml:"downsample"`
 }
 
 // HTTPConfiguration is the HTTP configuration for configuring

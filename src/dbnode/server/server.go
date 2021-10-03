@@ -214,6 +214,13 @@ func Run(runOpts RunOptions) {
 		}()
 	}
 
+	interruptOpts := xos.NewInterruptOptions()
+	if runOpts.InterruptCh != nil {
+		interruptOpts.InterruptCh = runOpts.InterruptCh
+	}
+	intWatchCancel := xos.WatchForInterrupt(logger, interruptOpts)
+	defer intWatchCancel()
+
 	defer logger.Sync()
 
 	cfg.Debug.SetRuntimeValues(logger)
@@ -264,7 +271,11 @@ func Run(runOpts RunOptions) {
 	go bgValidateProcessLimits(logger)
 	debug.SetGCPercent(cfg.GCPercentageOrDefault())
 
-	scope, _, err := cfg.MetricsOrDefault().NewRootScope()
+	defaultServeMux := http.NewServeMux()
+	scope, _, _, err := cfg.MetricsOrDefault().NewRootScopeAndReporters(
+		instrument.NewRootScopeAndReportersOptions{
+			PrometheusDefaultServeMux: defaultServeMux,
+		})
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
 	}
@@ -483,7 +494,7 @@ func Run(runOpts RunOptions) {
 	)
 
 	permitOptions := opts.PermitsOptions().SetSeriesReadPermitsManager(seriesReadPermits)
-	maxIdxConcurrency := int(math.Ceil(float64(runtime.NumCPU()) / 2))
+	maxIdxConcurrency := int(math.Ceil(float64(runtime.GOMAXPROCS(0)) / 2))
 	if cfg.Index.MaxQueryIDsConcurrency > 0 {
 		maxIdxConcurrency = cfg.Index.MaxQueryIDsConcurrency
 		logger.Info("max index query IDs concurrency set",
@@ -636,7 +647,7 @@ func Run(runOpts RunOptions) {
 	case config.CalculationTypeFixed:
 		commitLogQueueSize = specified
 	case config.CalculationTypePerCPU:
-		commitLogQueueSize = specified * runtime.NumCPU()
+		commitLogQueueSize = specified * runtime.GOMAXPROCS(0)
 	default:
 		logger.Fatal("unknown commit log queue size type",
 			zap.Any("type", cfgCommitLog.Queue.CalculationType))
@@ -649,7 +660,7 @@ func Run(runOpts RunOptions) {
 		case config.CalculationTypeFixed:
 			commitLogQueueChannelSize = specified
 		case config.CalculationTypePerCPU:
-			commitLogQueueChannelSize = specified * runtime.NumCPU()
+			commitLogQueueChannelSize = specified * runtime.GOMAXPROCS(0)
 		default:
 			logger.Fatal("unknown commit log queue channel size type",
 				zap.Any("type", cfgCommitLog.Queue.CalculationType))
@@ -742,6 +753,7 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating dynamic config service client with m3cluster")
 
 		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
+			InterruptedCh:          interruptOpts.InterruptedCh,
 			InstrumentOpts:         iOpts,
 			HashingSeed:            cfg.Hashing.Seed,
 			NewDirectoryMode:       newDirectoryMode,
@@ -754,6 +766,7 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating static config service client with m3cluster")
 
 		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
+			InterruptedCh:          interruptOpts.InterruptedCh,
 			InstrumentOpts:         iOpts,
 			HostID:                 hostID,
 			ForceColdWritesEnabled: forceColdWrites,
@@ -865,12 +878,20 @@ func Run(runOpts RunOptions) {
 			}
 		}
 
-		debugClose := startDebugServer(debugWriter, logger, debugListenAddress)
+		debugClose := startDebugServer(debugWriter, logger, debugListenAddress, defaultServeMux)
 		defer debugClose()
 	}
 
 	topo, err := syncCfg.TopologyInitializer.Init()
 	if err != nil {
+		var interruptErr *xos.InterruptError
+		if errors.As(err, &interruptErr) {
+			logger.Warn("interrupt received. closing server", zap.Error(err))
+			// NB(nate): Have not attempted to start the actual database yet so
+			// it's safe for us to just return here.
+			return
+		}
+
 		logger.Fatal("could not initialize m3db topology", zap.Error(err))
 	}
 
@@ -1077,10 +1098,14 @@ func Run(runOpts RunOptions) {
 		)
 	}()
 
-	// Wait for process interrupt.
-	xos.WaitForInterrupt(logger, xos.InterruptOptions{
-		InterruptCh: runOpts.InterruptCh,
-	})
+	// Stop our async watch and now block waiting for the interrupt.
+	intWatchCancel()
+	select {
+	case <-interruptOpts.InterruptedCh:
+		logger.Warn("interrupt already received. closing")
+	default:
+		xos.WaitForInterrupt(logger, interruptOpts)
+	}
 
 	// Attempt graceful server close.
 	closedCh := make(chan struct{})
@@ -1106,8 +1131,9 @@ func startDebugServer(
 	debugWriter xdebug.ZipWriter,
 	logger *zap.Logger,
 	debugListenAddress string,
+	mux *http.ServeMux,
 ) func() {
-	mux := http.DefaultServeMux
+	xdebug.RegisterPProfHandlers(mux)
 	server := http.Server{Addr: debugListenAddress, Handler: mux}
 
 	if debugWriter != nil {

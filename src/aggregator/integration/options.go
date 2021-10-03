@@ -29,9 +29,9 @@ import (
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/sharding"
+	cluster "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/cluster/kv/mem"
-	"github.com/m3db/m3/src/cluster/placement"
+	memcluster "github.com/m3db/m3/src/cluster/mem"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/clock"
@@ -45,6 +45,7 @@ const (
 	defaultServerStateChangeTimeout   = 5 * time.Second
 	defaultClientBatchSize            = 1440
 	defaultWorkerPoolSize             = 4
+	defaultServiceName                = "m3aggregator"
 	defaultInstanceID                 = "localhost"
 	defaultPlacementKVKey             = "/placement"
 	defaultElectionKeyFmt             = "/shardset/%d/lock"
@@ -124,12 +125,6 @@ type testServerOptions interface {
 	// ShardFn returns the sharding function.
 	ShardFn() sharding.ShardFn
 
-	// SetPlacement sets the placement.
-	SetPlacement(value placement.Placement) testServerOptions
-
-	// Placement returns the placement.
-	Placement() placement.Placement
-
 	// SetPlacementKVKey sets the placement kv key.
 	SetPlacementKVKey(value string) testServerOptions
 
@@ -142,11 +137,11 @@ type testServerOptions interface {
 	// FlushTimesKeyFmt returns the flush times key format.
 	FlushTimesKeyFmt() string
 
-	// SetKVStore sets the key value store.
-	SetKVStore(value kv.Store) testServerOptions
+	// SetClusterClient sets the cluster client.
+	SetClusterClient(value cluster.Client) testServerOptions
 
-	// KVStore returns the key value store.
-	KVStore() kv.Store
+	// ClusterClient returns the cluster client.
+	ClusterClient() cluster.Client
 
 	// SetTopicService sets the topic service.
 	SetTopicService(value topic.Service) testServerOptions
@@ -233,36 +228,34 @@ type testServerOptions interface {
 	BufferForPastTimedMetric() time.Duration
 }
 
-// nolint: maligned
 type serverOptions struct {
-	clockOpts                   clock.Options
-	instrumentOpts              instrument.Options
-	aggTypesOpts                aggregation.TypesOptions
-	rawTCPAddr                  string
-	httpAddr                    string
-	m3MsgAddr                   string
-	instanceID                  string
-	electionKeyFmt              string
-	electionCluster             *testCluster
-	shardSetID                  uint32
-	shardFn                     sharding.ShardFn
-	placement                   placement.Placement
-	placementKVKey              string
-	flushTimesKeyFmt            string
-	kvStore                     kv.Store
-	topicService                topic.Service
-	topicName                   string
-	serverStateChangeTimeout    time.Duration
-	workerPoolSize              int
-	clientType                  aggclient.AggregatorClientType
-	clientBatchSize             int
-	clientConnectionOpts        aggclient.ConnectionOptions
-	electionStateChangeTimeout  time.Duration
-	entryCheckInterval          time.Duration
-	jitterEnabled               bool
-	maxJitterFn                 aggregator.FlushJitterFn
-	maxAllowedForwardingDelayFn aggregator.MaxAllowedForwardingDelayFn
-	discardNaNAggregatedValues  bool
+	clockOpts                     clock.Options
+	instrumentOpts                instrument.Options
+	aggTypesOpts                  aggregation.TypesOptions
+	rawTCPAddr                    string
+	httpAddr                      string
+	m3MsgAddr                     string
+	instanceID                    string
+	electionKeyFmt                string
+	electionCluster               *testCluster
+	shardSetID                    uint32
+	shardFn                       sharding.ShardFn
+	placementKVKey                string
+	flushTimesKeyFmt              string
+	clusterClient                 cluster.Client
+	topicService                  topic.Service
+	topicName                     string
+	serverStateChangeTimeout      time.Duration
+	workerPoolSize                int
+	clientType                    aggclient.AggregatorClientType
+	clientBatchSize               int
+	clientConnectionOpts          aggclient.ConnectionOptions
+	electionStateChangeTimeout    time.Duration
+	entryCheckInterval            time.Duration
+	jitterEnabled                 bool
+	maxJitterFn                   aggregator.FlushJitterFn
+	maxAllowedForwardingDelayFn   aggregator.MaxAllowedForwardingDelayFn
+	discardNaNAggregatedValues    bool
 	resendBufferForPastTimeMetric time.Duration
 }
 
@@ -290,10 +283,9 @@ func newTestServerOptions(t *testing.T) testServerOptions {
 		electionKeyFmt:              defaultElectionKeyFmt,
 		shardSetID:                  defaultShardSetID,
 		shardFn:                     sharding.Murmur32Hash.MustShardFn(),
-		placement:                   nil,
 		placementKVKey:              defaultPlacementKVKey,
 		flushTimesKeyFmt:            defaultFlushTimesKeyFmt,
-		kvStore:                     mem.NewStore(),
+		clusterClient:               memcluster.New(kv.NewOverrideOptions()),
 		topicService:                nil,
 		topicName:                   defaultTopicName,
 		serverStateChangeTimeout:    defaultServerStateChangeTimeout,
@@ -420,16 +412,6 @@ func (o *serverOptions) ShardFn() sharding.ShardFn {
 	return o.shardFn
 }
 
-func (o *serverOptions) SetPlacement(value placement.Placement) testServerOptions {
-	opts := *o
-	opts.placement = value
-	return &opts
-}
-
-func (o *serverOptions) Placement() placement.Placement {
-	return o.placement
-}
-
 func (o *serverOptions) SetPlacementKVKey(value string) testServerOptions {
 	opts := *o
 	opts.placementKVKey = value
@@ -450,14 +432,14 @@ func (o *serverOptions) FlushTimesKeyFmt() string {
 	return o.flushTimesKeyFmt
 }
 
-func (o *serverOptions) SetKVStore(value kv.Store) testServerOptions {
+func (o *serverOptions) SetClusterClient(value cluster.Client) testServerOptions {
 	opts := *o
-	opts.kvStore = value
+	opts.clusterClient = value
 	return &opts
 }
 
-func (o *serverOptions) KVStore() kv.Store {
-	return o.kvStore
+func (o *serverOptions) ClusterClient() cluster.Client {
+	return o.clusterClient
 }
 
 func (o *serverOptions) SetTopicService(value topic.Service) testServerOptions {

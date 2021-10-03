@@ -33,7 +33,7 @@ const (
 )
 
 var (
-	defaultNumShards = int64(runtime.NumCPU())
+	defaultNumShards = int64(runtime.GOMAXPROCS(0))
 	defaultNowFn     = time.Now
 )
 
@@ -46,8 +46,8 @@ func NewPooledWorkerPoolOptions() PooledWorkerPoolOptions {
 		growOnDemand:          defaultGrowOnDemand,
 		numShards:             defaultNumShards,
 		killWorkerProbability: defaultKillWorkerProbability,
-		nowFn: defaultNowFn,
-		iOpts: instrument.NewOptions(),
+		nowFn:                 defaultNowFn,
+		iOpts:                 instrument.NewOptions(),
 	}
 }
 

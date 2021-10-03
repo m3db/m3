@@ -57,6 +57,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/fanout"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/promremote"
 	"github.com/m3db/m3/src/query/storage/remote"
 	"github.com/m3db/m3/src/query/stores/m3db"
 	"github.com/m3db/m3/src/x/clock"
@@ -221,6 +222,13 @@ func Run(runOpts RunOptions) RunResult {
 		}()
 	}
 
+	interruptOpts := xos.NewInterruptOptions()
+	if runOpts.InterruptCh != nil {
+		interruptOpts.InterruptCh = runOpts.InterruptCh
+	}
+	intWatchCancel := xos.WatchForInterrupt(logger, interruptOpts)
+	defer intWatchCancel()
+
 	defer logger.Sync()
 
 	cfg.Debug.SetRuntimeValues(logger)
@@ -340,7 +348,7 @@ func Run(runOpts RunOptions) RunResult {
 	}
 
 	var (
-		clusterNamespacesWatcher m3.ClusterNamespacesWatcher
+		clusterNamespacesWatcher = m3.NewClusterNamespacesWatcher()
 		backendStorage           storage.Storage
 		clusterClient            clusterclient.Client
 		downsampler              downsample.Downsampler
@@ -357,6 +365,7 @@ func Run(runOpts RunOptions) RunResult {
 			MatchType: cfg.Query.ConsolidationConfiguration.MatchType,
 		}
 	)
+	defer clusterNamespacesWatcher.Close()
 
 	tagOptions, err := config.TagOptionsFromConfig(cfg.TagOptions)
 	if err != nil {
@@ -451,26 +460,75 @@ func Run(runOpts RunOptions) RunResult {
 		logger.Info("setup noop storage backend with etcd")
 
 	// Empty backend defaults to M3DB.
-	case "":
+	case "", config.M3DBStorageType:
 		// For m3db backend, we need to make connections to the m3db cluster
 		// which generates a session and use the storage with the session.
-		m3dbClusters, clusterNamespacesWatcher, m3dbPoolWrapper, err = initClusters(cfg,
-			runOpts.DBConfig, runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions())
+		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBConfig, clusterNamespacesWatcher,
+			runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions(),
+		)
 		if err != nil {
 			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
 
 		var cleanup cleanupFn
-		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(
-			cfg, m3dbClusters, m3dbPoolWrapper,
-			runOpts, queryCtxOpts, tsdbOpts,
-			runOpts.DownsamplerReadyCh, clusterNamespacesWatcher, rwOpts, clockOpts, instrumentOptions)
-
+		backendStorage, cleanup, err = newM3DBStorage(
+			cfg, m3dbClusters, m3dbPoolWrapper, queryCtxOpts, tsdbOpts, instrumentOptions,
+		)
 		if err != nil {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
 		}
+
 		defer cleanup()
 
+		etcdConfig, err := resolveEtcdForM3DB(cfg)
+		if err != nil {
+			logger.Fatal("unable to resolve etcd config for m3db backend", zap.Error(err))
+		}
+
+		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
+			zap.Int("numAggregatedClusterNamespaces", len(m3dbClusters.ClusterNamespaces())))
+
+		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, etcdConfig, backendStorage,
+			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
+			interruptOpts,
+		)
+		if err != nil {
+			var interruptErr *xos.InterruptError
+			if errors.As(err, &interruptErr) {
+				logger.Warn("interrupt received. closing server", zap.Error(err))
+				return runResult
+			}
+			logger.Fatal("unable to setup downsampler for m3db backend", zap.Error(err))
+		}
+	case config.PromRemoteStorageType:
+		opts, err := promremote.NewOptions(cfg.PrometheusRemoteBackend, scope, instrumentOptions.Logger())
+		if err != nil {
+			logger.Fatal("invalid configuration", zap.Error(err))
+		}
+		backendStorage, err = promremote.NewStorage(opts)
+		if err != nil {
+			logger.Fatal("unable to setup prom remote backend", zap.Error(err))
+		}
+		defer func() {
+			if err := backendStorage.Close(); err != nil {
+				logger.Error("error when closing storage", zap.Error(err))
+			}
+		}()
+
+		logger.Info("configuring downsampler to use with aggregated namespaces",
+			zap.Int("numAggregatedClusterNamespaces", opts.Namespaces().NumAggregatedClusterNamespaces()))
+		err = clusterNamespacesWatcher.Update(opts.Namespaces())
+		if err != nil {
+			logger.Fatal("unable to update namespaces", zap.Error(err))
+		}
+
+		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, cfg.ClusterManagement.Etcd, backendStorage,
+			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
+			interruptOpts,
+		)
+		if err != nil {
+			logger.Fatal("unable to setup downsampler for prom remote backend", zap.Error(err))
+		}
 	default:
 		logger.Fatal("unrecognized backend", zap.String("backend", string(cfg.Backend)))
 	}
@@ -537,21 +595,22 @@ func Run(runOpts RunOptions) RunResult {
 		graphiteStorageOpts            graphite.M3WrappedStorageOptions
 	)
 	if cfg.Carbon != nil {
-		graphiteStorageOpts.AggregateNamespacesAllData =
-			cfg.Carbon.AggregateNamespacesAllData
-		graphiteStorageOpts.ShiftTimeStart = cfg.Carbon.ShiftTimeStart
-		graphiteStorageOpts.ShiftTimeEnd = cfg.Carbon.ShiftTimeEnd
-		graphiteStorageOpts.ShiftStepsStart = cfg.Carbon.ShiftStepsStart
-		graphiteStorageOpts.ShiftStepsEnd = cfg.Carbon.ShiftStepsEnd
-		graphiteStorageOpts.ShiftStepsStartWhenAtResolutionBoundary = cfg.Carbon.ShiftStepsStartWhenAtResolutionBoundary
-		graphiteStorageOpts.ShiftStepsEndWhenAtResolutionBoundary = cfg.Carbon.ShiftStepsEndWhenAtResolutionBoundary
-		graphiteStorageOpts.ShiftStepsEndWhenStartAtResolutionBoundary = cfg.Carbon.ShiftStepsEndWhenStartAtResolutionBoundary
-		graphiteStorageOpts.ShiftStepsStartWhenEndAtResolutionBoundary = cfg.Carbon.ShiftStepsStartWhenEndAtResolutionBoundary
-		graphiteStorageOpts.RenderPartialStart = cfg.Carbon.RenderPartialStart
-		graphiteStorageOpts.RenderPartialEnd = cfg.Carbon.RenderPartialEnd
-		graphiteStorageOpts.RenderSeriesAllNaNs = cfg.Carbon.RenderSeriesAllNaNs
-		graphiteStorageOpts.CompileEscapeAllNotOnlyQuotes = cfg.Carbon.CompileEscapeAllNotOnlyQuotes
-
+		graphiteStorageOpts = graphite.M3WrappedStorageOptions{
+			AggregateNamespacesAllData:                 cfg.Carbon.AggregateNamespacesAllData,
+			ShiftTimeStart:                             cfg.Carbon.ShiftTimeStart,
+			ShiftTimeEnd:                               cfg.Carbon.ShiftTimeEnd,
+			ShiftStepsStart:                            cfg.Carbon.ShiftStepsStart,
+			ShiftStepsEnd:                              cfg.Carbon.ShiftStepsEnd,
+			ShiftStepsStartWhenAtResolutionBoundary:    cfg.Carbon.ShiftStepsStartWhenAtResolutionBoundary,
+			ShiftStepsEndWhenAtResolutionBoundary:      cfg.Carbon.ShiftStepsEndWhenAtResolutionBoundary,
+			ShiftStepsEndWhenStartAtResolutionBoundary: cfg.Carbon.ShiftStepsEndWhenStartAtResolutionBoundary,
+			ShiftStepsStartWhenEndAtResolutionBoundary: cfg.Carbon.ShiftStepsStartWhenEndAtResolutionBoundary,
+			RenderPartialStart:                         cfg.Carbon.RenderPartialStart,
+			RenderPartialEnd:                           cfg.Carbon.RenderPartialEnd,
+			RenderSeriesAllNaNs:                        cfg.Carbon.RenderSeriesAllNaNs,
+			CompileEscapeAllNotOnlyQuotes:              cfg.Carbon.CompileEscapeAllNotOnlyQuotes,
+			FindResultsIncludeBothExpandableAndLeaf:    cfg.Carbon.FindResultsIncludeBothExpandableAndLeaf,
+		}
 		if limits := cfg.Carbon.LimitsFind; limits != nil {
 			fetchOptsBuilderLimitsOpts := limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
 			graphiteFindFetchOptsBuilder, err = handleroptions.NewFetchOptionsBuilder(
@@ -685,123 +744,35 @@ func Run(runOpts RunOptions) RunResult {
 		defer server.Close()
 	}
 
-	// Wait for process interrupt.
-	xos.WaitForInterrupt(logger, xos.InterruptOptions{
-		InterruptCh: runOpts.InterruptCh,
-	})
+	// Stop our async watch and now block waiting for the interrupt.
+	intWatchCancel()
+	select {
+	case <-interruptOpts.InterruptedCh:
+		logger.Warn("interrupt already received. closing")
+	default:
+		xos.WaitForInterrupt(logger, interruptOpts)
+	}
 
 	return runResult
 }
 
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage
-func newM3DBStorage(
-	cfg config.Configuration,
-	clusters m3.Clusters,
-	poolWrapper *pools.PoolWrapper,
-	runOpts RunOptions,
-	queryContextOptions models.QueryContextOptions,
-	tsdbOpts m3.Options,
-	downsamplerReadyCh chan<- struct{},
-	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
-	rwOpts xio.Options,
-	clockOpts clock.Options,
+func newM3DBStorage(cfg config.Configuration, clusters m3.Clusters, poolWrapper *pools.PoolWrapper,
+	queryContextOptions models.QueryContextOptions, tsdbOpts m3.Options,
 	instrumentOptions instrument.Options,
-) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
-	var (
-		logger              = instrumentOptions.Logger()
-		clusterClient       clusterclient.Client
-		clusterClientWaitCh <-chan struct{}
-	)
-	if clusterClientCh := runOpts.ClusterClient; clusterClientCh != nil {
-		// Only use a cluster client if we are going to receive one, that
-		// way passing nil to httpd NewHandler disables the endpoints entirely
-		clusterClientDoneCh := make(chan struct{}, 1)
-		clusterClientWaitCh = clusterClientDoneCh
-		clusterClient = m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
-			return <-clusterClientCh, nil
-		}, clusterClientDoneCh)
-	} else {
-		var etcdCfg *etcdclient.Configuration
-		switch {
-		case cfg.ClusterManagement.Etcd != nil:
-			etcdCfg = cfg.ClusterManagement.Etcd
-		case len(cfg.Clusters) == 1 &&
-			cfg.Clusters[0].Client.EnvironmentConfig != nil:
-			syncCfg, err := cfg.Clusters[0].Client.EnvironmentConfig.Services.SyncCluster()
-			if err != nil {
-				return nil, nil, nil, nil, errors.Wrap(err, "unable to get etcd sync cluster config")
-			}
-			etcdCfg = syncCfg.Service
-		}
-
-		if etcdCfg != nil {
-			// We resolved an etcd configuration for cluster management endpoints
-			var (
-				clusterSvcClientOpts = etcdCfg.NewOptions()
-				err                  error
-			)
-			clusterClient, err = etcdclient.NewConfigServiceClient(clusterSvcClientOpts)
-			if err != nil {
-				return nil, nil, nil, nil, errors.Wrap(err, "unable to create cluster management etcd client")
-			}
-		}
-	}
-
+) (storage.Storage, cleanupFn, error) {
 	fanoutStorage, storageCleanup, err := newStorages(clusters, cfg,
 		poolWrapper, queryContextOptions, tsdbOpts, instrumentOptions)
 	if err != nil {
-		return nil, nil, nil, nil, errors.Wrap(err, "unable to set up storages")
+		return nil, nil, errors.Wrap(err, "unable to set up storages")
 	}
-
-	var (
-		namespaces  = clusters.ClusterNamespaces()
-		downsampler downsample.Downsampler
-	)
-	logger.Info("configuring downsampler to use with aggregated cluster namespaces",
-		zap.Int("numAggregatedClusterNamespaces", len(namespaces)))
-
-	newDownsamplerFn := func() (downsample.Downsampler, error) {
-		ds, err := newDownsampler(
-			cfg.Downsample, clusterClient,
-			fanoutStorage, clusterNamespacesWatcher,
-			tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts.ApplyCustomRuleStore)
-		if err != nil {
-			return nil, err
-		}
-
-		// Notify the downsampler ready channel that
-		// the downsampler has now been created and is ready.
-		if downsamplerReadyCh != nil {
-			downsamplerReadyCh <- struct{}{}
-		}
-
-		return ds, nil
-	}
-
-	if clusterClientWaitCh != nil {
-		// Need to wait before constructing and instead return an async downsampler
-		// since the cluster client will return errors until it's initialized itself
-		// and will fail constructing the downsampler consequently
-		downsampler = downsample.NewAsyncDownsampler(func() (downsample.Downsampler, error) {
-			<-clusterClientWaitCh
-			return newDownsamplerFn()
-		}, nil)
-	} else {
-		// Otherwise we already have a client and can immediately construct the downsampler
-		downsampler, err = newDownsamplerFn()
-		if err != nil {
-			return nil, nil, nil, nil, err
-		}
-	}
-
+	logger := instrumentOptions.Logger()
 	cleanup := func() error {
 		lastErr := storageCleanup()
 		// Don't want to quit on the first error since the full cleanup is important
 		if lastErr != nil {
 			logger.Error("error during storage cleanup", zap.Error(lastErr))
 		}
-
-		clusterNamespacesWatcher.Close()
 
 		if err := clusters.Close(); err != nil {
 			lastErr = errors.Wrap(err, "unable to close M3DB cluster sessions")
@@ -812,19 +783,98 @@ func newM3DBStorage(
 		return lastErr
 	}
 
-	return fanoutStorage, clusterClient, downsampler, cleanup, nil
+	return fanoutStorage, cleanup, err
+}
+
+func resolveEtcdForM3DB(cfg config.Configuration) (*etcdclient.Configuration, error) {
+	etcdConfig := cfg.ClusterManagement.Etcd
+	if etcdConfig == nil && len(cfg.Clusters) == 1 &&
+		cfg.Clusters[0].Client.EnvironmentConfig != nil {
+		syncCfg, err := cfg.Clusters[0].Client.EnvironmentConfig.Services.SyncCluster()
+		if err != nil {
+			return nil, errors.Wrap(err, "unable to get etcd sync cluster config")
+		}
+		etcdConfig = syncCfg.Service
+	}
+	return etcdConfig, nil
+}
+
+func newDownsamplerAsync(
+	cfg downsample.Configuration, etcdCfg *etcdclient.Configuration, storage storage.Appender,
+	clusterNamespacesWatcher m3.ClusterNamespacesWatcher, tagOptions models.TagOptions, clockOpts clock.Options,
+	instrumentOptions instrument.Options, rwOpts xio.Options, runOpts RunOptions, interruptOpts xos.InterruptOptions,
+) (downsample.Downsampler, clusterclient.Client, error) {
+	var (
+		clusterClient       clusterclient.Client
+		clusterClientWaitCh <-chan struct{}
+		err                 error
+	)
+	if clusterClientCh := runOpts.ClusterClient; clusterClientCh != nil {
+		// Only use a cluster client if we are going to receive one, that
+		// way passing nil to httpd NewHandler disables the endpoints entirely
+		clusterClientDoneCh := make(chan struct{}, 1)
+		clusterClientWaitCh = clusterClientDoneCh
+		clusterClient = m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
+			return <-clusterClientCh, nil
+		}, clusterClientDoneCh)
+	} else if etcdCfg != nil {
+		// We resolved an etcd configuration for cluster management endpoints
+		var (
+			clusterSvcClientOpts = etcdCfg.NewOptions()
+			err                  error
+		)
+		clusterClient, err = etcdclient.NewConfigServiceClient(clusterSvcClientOpts)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "unable to create cluster management etcd client")
+		}
+	}
+
+	newDownsamplerFn := func() (downsample.Downsampler, error) {
+		ds, err := newDownsampler(
+			cfg, clusterClient,
+			storage, clusterNamespacesWatcher,
+			tagOptions, clockOpts, instrumentOptions, rwOpts, runOpts.ApplyCustomRuleStore,
+			interruptOpts.InterruptedCh)
+		if err != nil {
+			return nil, err
+		}
+
+		// Notify the downsampler ready channel that
+		// the downsampler has now been created and is ready.
+		if runOpts.DownsamplerReadyCh != nil {
+			runOpts.DownsamplerReadyCh <- struct{}{}
+		}
+
+		return ds, nil
+	}
+
+	if clusterClientWaitCh != nil {
+		// Need to wait before constructing and instead return an async downsampler
+		// since the cluster client will return errors until it's initialized itself
+		// and will fail constructing the downsampler consequently
+		downsampler := downsample.NewAsyncDownsampler(func() (downsample.Downsampler, error) {
+			<-clusterClientWaitCh
+			return newDownsamplerFn()
+		}, nil)
+		return downsampler, clusterClient, err
+	} else {
+		// Otherwise we already have a client and can immediately construct the downsampler
+		downsampler, err := newDownsamplerFn()
+		return downsampler, clusterClient, err
+	}
 }
 
 func newDownsampler(
 	cfg downsample.Configuration,
 	clusterManagementClient clusterclient.Client,
-	storage storage.Storage,
+	storage storage.Appender,
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	tagOptions models.TagOptions,
 	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 	rwOpts xio.Options,
 	applyCustomRuleStore downsample.CustomRuleStoreFn,
+	interruptedCh <-chan struct{},
 ) (downsample.Downsampler, error) {
 	// Namespace the downsampler metrics.
 	instrumentOpts = instrumentOpts.SetMetricsScope(
@@ -880,9 +930,10 @@ func newDownsampler(
 		TagOptions:                 tagOptions,
 		MetricsAppenderPoolOptions: metricsAppenderPoolOptions,
 		RWOptions:                  rwOpts,
+		InterruptedCh:              interruptedCh,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("unable to create downsampler: %v", err)
+		return nil, fmt.Errorf("unable to create downsampler: %w", err)
 	}
 
 	return downsampler, nil
@@ -891,20 +942,20 @@ func newDownsampler(
 func initClusters(
 	cfg config.Configuration,
 	dbCfg *dbconfig.DBConfiguration,
+	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	dbClientCh <-chan client.Client,
 	instrumentOpts instrument.Options,
 	customAdminOptions []client.CustomAdminOption,
-) (m3.Clusters, m3.ClusterNamespacesWatcher, *pools.PoolWrapper, error) {
+) (m3.Clusters, *pools.PoolWrapper, error) {
 	instrumentOpts = instrumentOpts.
 		SetMetricsScope(instrumentOpts.MetricsScope().SubScope("m3db-client"))
 
 	var (
-		logger                   = instrumentOpts.Logger()
-		clusterNamespacesWatcher = m3.NewClusterNamespacesWatcher()
-		clusters                 m3.Clusters
-		poolWrapper              *pools.PoolWrapper
-		staticNamespaceConfig    bool
-		err                      error
+		logger                = instrumentOpts.Logger()
+		clusters              m3.Clusters
+		poolWrapper           *pools.PoolWrapper
+		staticNamespaceConfig bool
+		err                   error
 	)
 	if len(cfg.Clusters) > 0 {
 		for _, clusterCfg := range cfg.Clusters {
@@ -924,7 +975,7 @@ func initClusters(
 			clusters, err = cfg.Clusters.NewDynamicClusters(instrumentOpts, opts, clusterNamespacesWatcher)
 		}
 		if err != nil {
-			return nil, nil, nil, errors.Wrap(err, "unable to connect to clusters")
+			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
 
 		poolWrapper = pools.NewPoolsWrapper(
@@ -939,7 +990,7 @@ func initClusters(
 		}
 
 		if dbClientCh == nil {
-			return nil, nil, nil, errors.New("no clusters configured and not running local cluster")
+			return nil, nil, errors.New("no clusters configured and not running local cluster")
 		}
 
 		sessionInitChan := make(chan struct{})
@@ -952,7 +1003,7 @@ func initClusters(
 		}
 		if !staticNamespaceConfig {
 			if dbCfg == nil {
-				return nil, nil, nil, errors.New("environment config required when dynamically fetching namespaces")
+				return nil, nil, errors.New("environment config required when dynamically fetching namespaces")
 			}
 
 			hostID, err := dbCfg.HostIDOrDefault().Resolve()
@@ -983,7 +1034,7 @@ func initClusters(
 			clusters, err = clustersCfg.NewDynamicClusters(instrumentOpts, cfgOptions, clusterNamespacesWatcher)
 		}
 		if err != nil {
-			return nil, nil, nil, errors.Wrap(err, "unable to connect to clusters")
+			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
 
 		poolWrapper = pools.NewAsyncPoolsWrapper()
@@ -998,7 +1049,7 @@ func initClusters(
 			zap.String("namespace", namespace.NamespaceID().String()))
 	}
 
-	return clusters, clusterNamespacesWatcher, poolWrapper, nil
+	return clusters, poolWrapper, nil
 }
 
 func newStorages(

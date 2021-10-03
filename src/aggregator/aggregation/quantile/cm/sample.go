@@ -22,10 +22,10 @@ package cm
 
 // Sample represents a sampled value.
 type Sample struct {
+	prev     *Sample // previous sample
+	next     *Sample // next sample
 	value    float64 // sampled value
 	numRanks int64   // number of ranks represented
 	delta    int64   // delta between min rank and max rank
-	prev     *Sample // previous sample
-	next     *Sample // next sample
 	idx      int32
 }

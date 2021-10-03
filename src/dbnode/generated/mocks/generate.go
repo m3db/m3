@@ -43,5 +43,6 @@
 //go:generate sh -c "mockgen -package=runtime -destination=$GOPATH/src/$PACKAGE/src/dbnode/runtime/runtime_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/runtime/types.go"
 //go:generate sh -c "mockgen -package=writes -destination=$GOPATH/src/$PACKAGE/src/dbnode/ts/writes/write_batch_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/ts/writes/types.go"
 //go:generate sh -c "mockgen -package=index -destination=$GOPATH/src/$PACKAGE/src/dbnode/storage/index/index_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/storage/index/types.go"
+//go:generate sh -c "mockgen -package=permits -destination=$GOPATH/src/$PACKAGE/src/dbnode/storage/limits/permits/permits_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/storage/limits/permits/types.go"
 
 package mocks

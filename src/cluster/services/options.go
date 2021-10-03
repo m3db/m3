@@ -252,7 +252,17 @@ func NewQueryOptions() QueryOptions { return new(queryOptions) }
 
 type queryOptions struct {
 	includeUnhealthy bool
+	interruptedCh    <-chan struct{}
 }
 
 func (qo *queryOptions) IncludeUnhealthy() bool                  { return qo.includeUnhealthy }
 func (qo *queryOptions) SetIncludeUnhealthy(h bool) QueryOptions { qo.includeUnhealthy = h; return qo }
+
+func (qo *queryOptions) InterruptedCh() <-chan struct{} {
+	return qo.interruptedCh
+}
+
+func (qo *queryOptions) SetInterruptedCh(ch <-chan struct{}) QueryOptions {
+	qo.interruptedCh = ch
+	return qo
+}

@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -126,6 +127,7 @@ func (i *instrumentationContext) bootstrapIndexCompleted() {
 }
 
 type instrumentationReadShardsContext struct {
+	namespaceID             ident.ID
 	nowFn                   clock.NowFn
 	log                     *zap.Logger
 	start                   time.Time
@@ -133,11 +135,13 @@ type instrumentationReadShardsContext struct {
 }
 
 func newInstrumentationReadShardsContext(
+	namespaceID ident.ID,
 	nowFn clock.NowFn,
 	log *zap.Logger,
 	scope tally.Scope,
 ) *instrumentationReadShardsContext {
 	return &instrumentationReadShardsContext{
+		namespaceID:             namespaceID,
 		nowFn:                   nowFn,
 		log:                     log,
 		start:                   nowFn(),
@@ -148,7 +152,9 @@ func newInstrumentationReadShardsContext(
 func (i *instrumentationReadShardsContext) bootstrapShardsCompleted() {
 	duration := i.nowFn().Sub(i.start)
 	i.bootstrapShardsDuration.Record(duration)
-	i.log.Info("bootstrapping shards success", zap.Duration("took", duration))
+	i.log.Info("bootstrapping shards success",
+		zap.Stringer("namespace", i.namespaceID),
+		zap.Duration("took", duration))
 }
 
 type instrumentation struct {
@@ -191,15 +197,18 @@ func (i *instrumentation) peersBootstrapperSourceReadStarted(
 }
 
 func (i *instrumentation) bootstrapShardsStarted(
+	namespaceID ident.ID,
 	count int,
 	concurrency int,
 	shouldPersist bool,
 ) *instrumentationReadShardsContext {
 	i.log.Info("peers bootstrapper bootstrapping shards for ranges",
+		zap.Stringer("namespace", namespaceID),
 		zap.Int("shards", count),
 		zap.Int("concurrency", concurrency),
 		zap.Bool("shouldPersist", shouldPersist))
 	return newInstrumentationReadShardsContext(
+		namespaceID,
 		i.nowFn,
 		i.log,
 		i.scope,

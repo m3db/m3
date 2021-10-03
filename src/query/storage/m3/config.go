@@ -112,7 +112,7 @@ func (c ClusterStaticNamespaceConfiguration) downsampleOptions() (
 		return ClusterNamespaceDownsampleOptions{}, errNotAggregatedClusterNamespace
 	}
 	if c.Downsample == nil {
-		return defaultClusterNamespaceDownsampleOptions, nil
+		return DefaultClusterNamespaceDownsampleOptions, nil
 	}
 
 	return c.Downsample.downsampleOptions(), nil

@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"strconv"
 	"sync"
 	"time"
@@ -99,19 +100,20 @@ type Aggregator interface {
 type aggregator struct {
 	sync.RWMutex
 
-	opts              Options
-	nowFn             clock.NowFn
-	shardFn           sharding.ShardFn
-	checkInterval     time.Duration
-	placementManager  PlacementManager
-	flushTimesManager FlushTimesManager
-	flushTimesChecker flushTimesChecker
-	electionManager   ElectionManager
-	flushManager      FlushManager
-	flushHandler      handler.Handler
-	passthroughWriter writer.Writer
-	adminClient       client.AdminClient
-	resignTimeout     time.Duration
+	opts                               Options
+	nowFn                              clock.NowFn
+	shardFn                            sharding.ShardFn
+	checkInterval                      time.Duration
+	placementManager                   PlacementManager
+	flushTimesManager                  FlushTimesManager
+	flushTimesChecker                  flushTimesChecker
+	electionManager                    ElectionManager
+	flushManager                       FlushManager
+	flushHandler                       handler.Handler
+	passthroughWriter                  writer.Writer
+	adminClient                        client.AdminClient
+	resignTimeout                      time.Duration
+	timedForResendEnabledRollupRegexps []*regexp.Regexp
 
 	shardSetID         uint32
 	shardSetOpen       bool
@@ -133,25 +135,43 @@ func NewAggregator(opts Options) Aggregator {
 	iOpts := opts.InstrumentOptions()
 	scope := iOpts.MetricsScope()
 	timerOpts := iOpts.TimerOptions()
+	logger := iOpts.Logger()
+
 	return &aggregator{
-		opts:              opts,
-		nowFn:             opts.ClockOptions().NowFn(),
-		shardFn:           opts.ShardFn(),
-		checkInterval:     opts.EntryCheckInterval(),
-		placementManager:  opts.PlacementManager(),
-		flushTimesManager: opts.FlushTimesManager(),
-		flushTimesChecker: newFlushTimesChecker(scope.SubScope("tick.shard-check")),
-		electionManager:   opts.ElectionManager(),
-		flushManager:      opts.FlushManager(),
-		flushHandler:      opts.FlushHandler(),
-		passthroughWriter: opts.PassthroughWriter(),
-		adminClient:       opts.AdminClient(),
-		resignTimeout:     opts.ResignTimeout(),
-		doneCh:            make(chan struct{}),
-		sleepFn:           time.Sleep,
-		metrics:           newAggregatorMetrics(scope, timerOpts, opts.MaxAllowedForwardingDelayFn()),
-		logger:            iOpts.Logger(),
+		opts:                               opts,
+		nowFn:                              opts.ClockOptions().NowFn(),
+		shardFn:                            opts.ShardFn(),
+		checkInterval:                      opts.EntryCheckInterval(),
+		placementManager:                   opts.PlacementManager(),
+		flushTimesManager:                  opts.FlushTimesManager(),
+		flushTimesChecker:                  newFlushTimesChecker(scope.SubScope("tick.shard-check")),
+		electionManager:                    opts.ElectionManager(),
+		flushManager:                       opts.FlushManager(),
+		flushHandler:                       opts.FlushHandler(),
+		passthroughWriter:                  opts.PassthroughWriter(),
+		adminClient:                        opts.AdminClient(),
+		resignTimeout:                      opts.ResignTimeout(),
+		timedForResendEnabledRollupRegexps: compileRegexps(logger, opts.TimedForResendEnabledRollupRegexps()),
+		doneCh:                             make(chan struct{}),
+		sleepFn:                            time.Sleep,
+		metrics:                            newAggregatorMetrics(scope, timerOpts, opts.MaxAllowedForwardingDelayFn()),
+		logger:                             logger,
 	}
+}
+
+func compileRegexps(logger *zap.Logger, regexps []string) []*regexp.Regexp {
+	timedForResendEnabledRollupRegexps := make([]*regexp.Regexp, 0, len(regexps))
+	for _, r := range regexps {
+		compiled, err := regexp.Compile(r)
+		if err != nil {
+			logger.Error("failed to compile timed for resend enabled rollup regex",
+				zap.Error(err),
+				zap.String("regexp", r))
+			continue
+		}
+		timedForResendEnabledRollupRegexps = append(timedForResendEnabledRollupRegexps, compiled)
+	}
+	return timedForResendEnabledRollupRegexps
 }
 
 func (agg *aggregator) Open() error {
@@ -219,15 +239,17 @@ func (agg *aggregator) placementTick() {
 	}
 }
 
-func partitionResendEnabled(pipelines metadata.PipelineMetadatas) (
-	metadata.PipelineMetadatas, metadata.PipelineMetadatas) {
+func (agg *aggregator) partitionResendEnabled(pipelines metadata.PipelineMetadatas) (
+	metadata.PipelineMetadatas,
+	metadata.PipelineMetadatas,
+) {
 	if len(pipelines) == 0 {
 		return nil, nil
 	}
 	s := 0
 	e := len(pipelines) - 1
 	for s <= e {
-		if pipelines[s].ResendEnabled {
+		if agg.timedForResendEnabledOnPipeline(pipelines[s]) {
 			s++
 		} else {
 			pipelines[s], pipelines[e] = pipelines[e], pipelines[s]
@@ -252,41 +274,37 @@ func (agg *aggregator) AddUntimed(
 		agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
 		return err
 	}
-	// automatically migrate pipelines that support resending aggregate values to use AddTimed.
-	if agg.opts.TimedForResendEnabled() && len(metadatas) == 1 {
-		prevPipelines := metadatas[0].Pipelines
-		timedPipelines, untimedPipelines := partitionResendEnabled(metadatas[0].Pipelines)
-		if len(timedPipelines) > 0 {
-			metadatas[0].Pipelines = timedPipelines
-			if union.Type != metric.GaugeType {
-				return fmt.Errorf("cannot convert a %s to a timed metric", union.Type)
-			}
-			timedMetric := aggregated.Metric{
-				Type:       metric.GaugeType,
-				ID:         union.ID,
-				TimeNanos:  int64(union.ClientTimeNanos),
-				Value:      union.GaugeVal,
-				Annotation: union.Annotation,
-			}
-			agg.metrics.untimedToTimed.Inc(1)
-			if err = shard.AddTimedWithStagedMetadatas(timedMetric, metadatas); err != nil {
-				agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
-				return err
-			}
+
+	prevPipelines := metadatas[0].Pipelines
+	timedPipelines, untimedPipelines := agg.partitionResendEnabled(metadatas[0].Pipelines)
+	if len(timedPipelines) > 0 {
+		metadatas[0].Pipelines = timedPipelines
+		if union.Type != metric.GaugeType {
+			return fmt.Errorf("cannot convert a %s to a timed metric", union.Type)
 		}
-		if len(untimedPipelines) > 0 {
-			metadatas[0].Pipelines = untimedPipelines
-			if err = shard.AddUntimed(union, metadatas); err != nil {
-				agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
-				return err
-			}
+		timedMetric := aggregated.Metric{
+			Type:       metric.GaugeType,
+			ID:         union.ID,
+			TimeNanos:  int64(union.ClientTimeNanos),
+			Value:      union.GaugeVal,
+			Annotation: union.Annotation,
 		}
-		// reset initial pipelines so the slice can be reused on the next request (i.e restore cap).
-		metadatas[0].Pipelines = prevPipelines
-	} else if err = shard.AddUntimed(union, metadatas); err != nil {
-		agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
-		return err
+		agg.metrics.untimedToTimed.Inc(1)
+		if err = shard.AddTimedWithStagedMetadatas(timedMetric, metadatas); err != nil {
+			agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
+			return err
+		}
 	}
+	if len(untimedPipelines) > 0 {
+		metadatas[0].Pipelines = untimedPipelines
+		if err = shard.AddUntimed(union, metadatas); err != nil {
+			agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
+			return err
+		}
+	}
+	// reset initial pipelines so the slice can be reused on the next request (i.e restore cap).
+	metadatas[0].Pipelines = prevPipelines
+
 	agg.metrics.addUntimed.ReportSuccess()
 	sw.Stop()
 	return nil
@@ -339,8 +357,36 @@ func (agg *aggregator) updateStagedMetadatas(sms metadata.StagedMetadatas) {
 			if agg.opts.AddToReset() {
 				sms[s].Pipelines[p].Pipeline = sms[s].Pipelines[p].Pipeline.WithResets()
 			}
+			if !agg.timedForResendEnabledOnPipeline(sms[s].Pipelines[p]) {
+				// disable resending for the pipeline if the feature flag is off.
+				sms[s].Pipelines[p].ResendEnabled = false
+			}
 		}
 	}
+}
+
+func (agg *aggregator) timedForResendEnabledOnPipeline(p metadata.PipelineMetadata) bool {
+	if !p.ResendEnabled {
+		return false
+	}
+	if len(agg.timedForResendEnabledRollupRegexps) == 0 {
+		return false
+	}
+	for _, op := range p.Pipeline.Operations {
+		if op.Rollup.ID == nil {
+			continue
+		}
+
+		for _, r := range agg.timedForResendEnabledRollupRegexps {
+			if r.Match(op.Rollup.ID) {
+				return true
+			}
+		}
+
+		// Should only have one rollup op in a pipeline so can break after we found one.
+		break
+	}
+	return false
 }
 
 func (agg *aggregator) AddForwarded(

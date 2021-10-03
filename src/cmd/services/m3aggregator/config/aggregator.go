@@ -184,9 +184,10 @@ type AggregatorConfiguration struct {
 	// Must be in sync with m3msg WriterConfiguration.IgnoreCutoffCutover.
 	WritesIgnoreCutoffCutover bool `yaml:"writesIgnoreCutoffCutover"`
 
-	// TimedForResendEnabled is a feature flag that gracefully transitions AddUntimed to AddTimed for pipelines
-	// that support resending aggregate values.
-	TimedForResendEnabled bool `yaml:"timedForResendEnabled"`
+	// TimedForResendEnabledRollupRegexps is a feature flag that gracefully transitions AddUntimed to AddTimed
+	// for pipelines that support resending aggregate values. The regexps are matched against the rollup IDs
+	// to allow for incremental transition of existing rules to this new behavior.
+	TimedForResendEnabledRollupRegexps []string `yaml:"timedForResendEnabledRollupRegexps"`
 }
 
 // InstanceIDType is the instance ID type that defines how the
@@ -497,7 +498,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 
 	opts = opts.
 		SetWritesIgnoreCutoffCutover(c.WritesIgnoreCutoffCutover).
-		SetTimedForResendEnabled(c.TimedForResendEnabled)
+		SetTimedForResendEnabledRollupRegexps(c.TimedForResendEnabledRollupRegexps)
 
 	return opts, nil
 }
@@ -828,7 +829,7 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 		opts = opts.SetMaxJitterFn(maxJitterFn)
 	}
 	if c.NumWorkersPerCPU != 0 {
-		runtimeCPU := float64(runtime.NumCPU())
+		runtimeCPU := float64(runtime.GOMAXPROCS(0))
 		numWorkers := c.NumWorkersPerCPU * runtimeCPU
 		workerPoolSize := int(math.Ceil(numWorkers))
 		if workerPoolSize < 1 {
