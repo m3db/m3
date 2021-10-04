@@ -66,8 +66,6 @@ func TestNewEmbeddedCoordinatorNotStarted(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TODO(nate): add more tests exercising other endpoints once dbnode impl is landed
-
 func TestM3msgTopicFunctions(t *testing.T) {
 	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
 	require.NoError(t, err)
