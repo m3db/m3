@@ -177,6 +177,7 @@ func (i *termsIterFromSegments) Next() bool {
 			}
 		}
 
+		// Continue looping only if everything skipped or term is empty.
 		if !i.currPostingsList.IsEmpty() {
 			break
 		}
