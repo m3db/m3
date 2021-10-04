@@ -237,18 +237,37 @@ tagOptions:
 
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
-	req, err := http.NewRequestWithContext(
-		context.TODO(),
-		http.MethodPost,
-		fmt.Sprintf("http://%s%s", addr, remote.PromWriteURL),
-		promReqBody,
-	)
-	require.NoError(t, err)
+	requestURL := fmt.Sprintf("http://%s%s", addr, remote.PromWriteURL)
+	newRequest := func() *http.Request {
+		req, err := http.NewRequestWithContext(
+			context.TODO(),
+			http.MethodPost,
+			requestURL,
+			promReqBody,
+		)
+		require.NoError(t, err)
+		return req
+	}
 
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
-	assert.NotNil(t, externalFakePromServer.GetLastWriteRequest())
+	t.Run("write request", func(t *testing.T) {
+		defer externalFakePromServer.Reset()
+		resp, err := http.DefaultClient.Do(newRequest())
+		require.NoError(t, err)
+
+		assert.NotNil(t, externalFakePromServer.GetLastWriteRequest())
+		require.NoError(t, resp.Body.Close())
+	})
+
+	t.Run("bad request propagates", func(t *testing.T) {
+		defer externalFakePromServer.Reset()
+		externalFakePromServer.SetError("badRequest", http.StatusBadRequest)
+
+		resp, err := http.DefaultClient.Do(newRequest())
+		require.NoError(t, err)
+
+		assert.Equal(t, 400, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
+	})
 }
 
 func TestGRPCBackend(t *testing.T) {
