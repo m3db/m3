@@ -44,13 +44,15 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-var logger, _ = zap.NewDevelopment()
+var (
+	logger, _ = zap.NewDevelopment()
+	scope     = tally.NewTestScope("test_scope", map[string]string{})
+)
 
 func TestWrite(t *testing.T) {
 	fakeProm := promremotetest.NewServer(t)
 	defer fakeProm.Close()
 
-	scope := tally.NewTestScope("test_scope", map[string]string{})
 	promStorage, err := NewStorage(Options{
 		endpoints: []EndpointOptions{{name: "testEndpoint", address: fakeProm.WriteAddr()}},
 		scope:     scope,
@@ -120,40 +122,37 @@ func TestWriteBasedOnRetention(t *testing.T) {
 		promLongRetention2.Reset()
 	}
 
-	scope := tally.NewTestScope("test_scope", map[string]string{})
+	mediumRetentionAttr := storagemetadata.Attributes{
+		MetricsType: storagemetadata.AggregatedMetricsType,
+		Retention:   720 * time.Hour,
+		Resolution:  5 * time.Minute,
+	}
+	shortRetentionAttr := storagemetadata.Attributes{
+		MetricsType: storagemetadata.AggregatedMetricsType,
+		Retention:   120 * time.Hour,
+		Resolution:  15 * time.Second,
+	}
+	longRetentionAttr := storagemetadata.Attributes{
+		Resolution: 10 * time.Minute,
+		Retention:  8760 * time.Hour,
+	}
 	promStorage, err := NewStorage(Options{
 		endpoints: []EndpointOptions{
 			{
-				address: promShortRetention.WriteAddr(),
-				attributes: storagemetadata.Attributes{
-					MetricsType: storagemetadata.AggregatedMetricsType,
-					Retention:   120 * time.Hour,
-					Resolution:  15 * time.Second,
-				},
+				address:    promShortRetention.WriteAddr(),
+				attributes: shortRetentionAttr,
 			},
 			{
-				address: promMediumRetention.WriteAddr(),
-				attributes: storagemetadata.Attributes{
-					MetricsType: storagemetadata.AggregatedMetricsType,
-					Retention:   720 * time.Hour,
-					Resolution:  5 * time.Minute,
-				},
+				address:    promMediumRetention.WriteAddr(),
+				attributes: mediumRetentionAttr,
 			},
 			{
-				address: promLongRetention.WriteAddr(),
-				attributes: storagemetadata.Attributes{
-					MetricsType: storagemetadata.AggregatedMetricsType,
-					Retention:   8760 * time.Hour,
-					Resolution:  10 * time.Minute,
-				},
+				address:    promLongRetention.WriteAddr(),
+				attributes: longRetentionAttr,
 			},
 			{
-				address: promLongRetention2.WriteAddr(),
-				attributes: storagemetadata.Attributes{
-					MetricsType: storagemetadata.AggregatedMetricsType,
-					Retention:   8760 * time.Hour,
-					Resolution:  10 * time.Minute,
-				},
+				address:    promLongRetention2.WriteAddr(),
+				attributes: longRetentionAttr,
 			},
 		},
 		scope:  scope,
@@ -162,31 +161,9 @@ func TestWriteBasedOnRetention(t *testing.T) {
 	require.NoError(t, err)
 	defer closeWithCheck(t, promStorage)
 
-	sendWrite := func(attr storagemetadata.Attributes) error {
-		//nolint: gosec
-		datapoint := ts.Datapoint{Value: rand.Float64(), Timestamp: xtime.Now()}
-		wq, err := storage.NewWriteQuery(storage.WriteQueryOptions{
-			Tags: models.Tags{
-				Opts: models.NewTagOptions(),
-				Tags: []models.Tag{{
-					Name:  []byte("test_tag_name"),
-					Value: []byte("test_tag_value"),
-				}},
-			},
-			Datapoints: ts.Datapoints{datapoint},
-			Unit:       xtime.Millisecond,
-			Attributes: attr,
-		})
-		require.NoError(t, err)
-		return promStorage.Write(context.TODO(), wq)
-	}
-
 	t.Run("send short retention write", func(t *testing.T) {
 		reset()
-		err := sendWrite(storagemetadata.Attributes{
-			Retention:  120 * time.Hour,
-			Resolution: 15 * time.Second,
-		})
+		err := writeTestMetric(t, promStorage, shortRetentionAttr)
 		require.NoError(t, err)
 		assert.NotNil(t, promShortRetention.GetLastWriteRequest())
 		assert.Nil(t, promMediumRetention.GetLastWriteRequest())
@@ -195,10 +172,7 @@ func TestWriteBasedOnRetention(t *testing.T) {
 
 	t.Run("send medium retention write", func(t *testing.T) {
 		reset()
-		err := sendWrite(storagemetadata.Attributes{
-			Resolution: 5 * time.Minute,
-			Retention:  720 * time.Hour,
-		})
+		err := writeTestMetric(t, promStorage, mediumRetentionAttr)
 		require.NoError(t, err)
 		assert.Nil(t, promShortRetention.GetLastWriteRequest())
 		assert.NotNil(t, promMediumRetention.GetLastWriteRequest())
@@ -207,10 +181,7 @@ func TestWriteBasedOnRetention(t *testing.T) {
 
 	t.Run("send write to multiple instances configured with same retention", func(t *testing.T) {
 		reset()
-		err := sendWrite(storagemetadata.Attributes{
-			Resolution: 10 * time.Minute,
-			Retention:  8760 * time.Hour,
-		})
+		err := writeTestMetric(t, promStorage, longRetentionAttr)
 		require.NoError(t, err)
 		assert.Nil(t, promShortRetention.GetLastWriteRequest())
 		assert.Nil(t, promMediumRetention.GetLastWriteRequest())
@@ -220,14 +191,14 @@ func TestWriteBasedOnRetention(t *testing.T) {
 
 	t.Run("send unconfigured retention write", func(t *testing.T) {
 		reset()
-		err := sendWrite(storagemetadata.Attributes{
-			Resolution: 5*time.Minute + 1,
-			Retention:  720 * time.Hour,
+		err := writeTestMetric(t, promStorage, storagemetadata.Attributes{
+			Resolution: mediumRetentionAttr.Resolution + 1,
+			Retention:  mediumRetentionAttr.Retention,
 		})
 		require.Error(t, err)
-		err = sendWrite(storagemetadata.Attributes{
-			Resolution: 5 * time.Minute,
-			Retention:  720*time.Hour + 1,
+		err = writeTestMetric(t, promStorage, storagemetadata.Attributes{
+			Resolution: mediumRetentionAttr.Resolution,
+			Retention:  mediumRetentionAttr.Retention + 1,
 		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "write did not match any of known endpoints")
@@ -241,33 +212,42 @@ func TestWriteBasedOnRetention(t *testing.T) {
 	t.Run("error should not prevent sending to other instances", func(t *testing.T) {
 		reset()
 		promLongRetention.SetError("test err", http.StatusInternalServerError)
-		err := sendWrite(storagemetadata.Attributes{
-			Resolution: 10 * time.Minute,
-			Retention:  8760 * time.Hour,
-		})
+		err := writeTestMetric(t, promStorage, longRetentionAttr)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "test err")
 		assert.NotNil(t, promLongRetention2.GetLastWriteRequest())
 	})
+}
+
+func TestErrorHandling(t *testing.T) {
+	svr := promremotetest.NewServer(t)
+	defer svr.Close()
+
+	attr := storagemetadata.Attributes{
+		MetricsType: storagemetadata.AggregatedMetricsType,
+		Retention:   720 * time.Hour,
+		Resolution:  5 * time.Minute,
+	}
+	promStorage, err := NewStorage(Options{
+		endpoints: []EndpointOptions{{address: svr.WriteAddr(), attributes: attr}},
+		scope:     scope,
+		logger:    logger,
+	})
+	require.NoError(t, err)
+	defer closeWithCheck(t, promStorage)
 
 	t.Run("wrap non 5xx errors as invalid params error", func(t *testing.T) {
-		reset()
-		promLongRetention.SetError("test err", http.StatusForbidden)
-		err := sendWrite(storagemetadata.Attributes{
-			Resolution: 10 * time.Minute,
-			Retention:  8760 * time.Hour,
-		})
+		svr.Reset()
+		svr.SetError("test err", http.StatusForbidden)
+		err := writeTestMetric(t, promStorage, attr)
 		require.Error(t, err)
 		assert.True(t, xerrors.IsInvalidParams(err))
 	})
 
 	t.Run("429 should not be wrapped as invalid params", func(t *testing.T) {
-		reset()
-		promLongRetention.SetError("test err", http.StatusTooManyRequests)
-		err := sendWrite(storagemetadata.Attributes{
-			Resolution: 10 * time.Minute,
-			Retention:  8760 * time.Hour,
-		})
+		svr.Reset()
+		svr.SetError("test err", http.StatusTooManyRequests)
+		err := writeTestMetric(t, promStorage, attr)
 		require.Error(t, err)
 		assert.False(t, xerrors.IsInvalidParams(err))
 	})
@@ -275,4 +255,23 @@ func TestWriteBasedOnRetention(t *testing.T) {
 
 func closeWithCheck(t *testing.T, c io.Closer) {
 	require.NoError(t, c.Close())
+}
+
+func writeTestMetric(t *testing.T, s storage.Storage, attr storagemetadata.Attributes) error {
+	//nolint: gosec
+	datapoint := ts.Datapoint{Value: rand.Float64(), Timestamp: xtime.Now()}
+	wq, err := storage.NewWriteQuery(storage.WriteQueryOptions{
+		Tags: models.Tags{
+			Opts: models.NewTagOptions(),
+			Tags: []models.Tag{{
+				Name:  []byte("test_tag_name"),
+				Value: []byte("test_tag_value"),
+			}},
+		},
+		Datapoints: ts.Datapoints{datapoint},
+		Unit:       xtime.Millisecond,
+		Attributes: attr,
+	})
+	require.NoError(t, err)
+	return s.Write(context.TODO(), wq)
 }
