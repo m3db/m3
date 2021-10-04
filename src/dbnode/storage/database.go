@@ -294,13 +294,12 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 
 	d.RLock()
 	removes, adds, updates := d.namespaceDeltaWithLock(newNamespaces)
+	d.RUnlock()
 	if err := d.logNamespaceUpdate(removes, adds, updates); err != nil {
 		enrichedErr := fmt.Errorf("unable to log namespace updates: %v", err)
 		d.log.Error(enrichedErr.Error())
-		d.RUnlock()
 		return enrichedErr
 	}
-	d.RUnlock()
 
 	// log that updates and removals are skipped
 	if len(removes) > 0 || len(updates) > 0 {
