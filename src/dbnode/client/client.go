@@ -53,8 +53,8 @@ func newClient(opts Options, asyncOpts ...Options) (*client, error) {
 	return &client{opts: opts, asyncOpts: asyncOpts, newSessionFn: newReplicatedSession}, nil
 }
 
-func (c *client) newSession() (AdminSession, error) {
-	session, err := c.newSessionFn(c.opts, c.asyncOpts)
+func (c *client) newSession(opts Options) (AdminSession, error) {
+	session, err := c.newSessionFn(opts, c.asyncOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (c *client) defaultSession() (AdminSession, error) {
 	}
 	c.Unlock()
 
-	session, err := c.newSession()
+	session, err := c.newSession(c.opts)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,11 @@ func (c *client) Options() Options {
 }
 
 func (c *client) NewSession() (Session, error) {
-	return c.newSession()
+	return c.newSession(c.opts)
+}
+
+func (c *client) NewSessionWithOptions(opts Options) (Session, error) {
+	return c.newSession(opts)
 }
 
 func (c *client) DefaultSession() (Session, error) {
@@ -103,7 +107,7 @@ func (c *client) DefaultSession() (Session, error) {
 }
 
 func (c *client) NewAdminSession() (AdminSession, error) {
-	return c.newSession()
+	return c.newSession(c.opts)
 }
 
 func (c *client) DefaultAdminSession() (AdminSession, error) {

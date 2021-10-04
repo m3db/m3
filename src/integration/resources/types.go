@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -72,11 +73,19 @@ type Admin interface {
 	// CreateDatabase creates a database.
 	CreateDatabase(admin.DatabaseCreateRequest) (admin.DatabaseCreateResponse, error)
 	// GetPlacement gets placements.
-	GetPlacement() (admin.PlacementGetResponse, error)
+	GetPlacement(PlacementRequestOptions) (admin.PlacementGetResponse, error)
+	// InitPlacement initializes placements.
+	InitPlacement(PlacementRequestOptions, admin.PlacementInitRequest) (admin.PlacementGetResponse, error)
 	// WaitForInstances blocks until the given instance is available.
 	WaitForInstances(ids []string) error
 	// WaitForShardsReady waits until all shards gets ready.
 	WaitForShardsReady() error
+	// InitM3msgTopic initializes an m3msg topic.
+	InitM3msgTopic(M3msgTopicOptions, admin.TopicInitRequest) (admin.TopicGetResponse, error)
+	// GetM3msgTopic gets an m3msg topic.
+	GetM3msgTopic(M3msgTopicOptions) (admin.TopicGetResponse, error)
+	// AddM3msgTopicConsumer adds a consumer service to an m3msg topic.
+	AddM3msgTopicConsumer(M3msgTopicOptions, admin.TopicAddRequest) (admin.TopicGetResponse, error)
 	// Close closes the wrapper and releases any held resources, including
 	// deleting docker containers.
 	Close() error
@@ -112,6 +121,22 @@ type Node interface {
 	GoalStateExec(verifier GoalStateVerifier, commands ...string) error
 	// Restart restarts this container.
 	Restart() error
+	// Close closes the wrapper and releases any held resources, including
+	// deleting docker containers.
+	Close() error
+}
+
+// Aggregator is an aggregator instance.
+type Aggregator interface {
+	// IsHealthy determines whether an instance is healthy.
+	IsHealthy(instance string) error
+
+	// Status returns the instance status.
+	Status(instance string) (aggregator.RuntimeStatus, error)
+
+	// Resign asks an aggregator instance to give up its current leader role if applicable.
+	Resign(instance string) error
+
 	// Close closes the wrapper and releases any held resources, including
 	// deleting docker containers.
 	Close() error
@@ -162,3 +187,37 @@ func (n Nodes) WaitForHealthy() error {
 	wg.Wait()
 	return multiErr.FinalError()
 }
+
+// M3msgTopicOptions represents a set of options for an m3msg topic.
+type M3msgTopicOptions struct {
+	// Zone is the zone of the m3msg topic.
+	Zone string
+	// Env is the environment of the m3msg topic.
+	Env string
+	// TopicName is the topic name of the m3msg topic name.
+	TopicName string
+}
+
+// PlacementRequestOptions represents a set of options for placement-related requests.
+type PlacementRequestOptions struct {
+	// Service is the type of service for the placement request.
+	Service ServiceType
+	// Env is the environment of the placement.
+	Env string
+	// Zone is the zone of the placement.
+	Zone string
+}
+
+// ServiceType represents the type of an m3 service.
+type ServiceType int
+
+const (
+	// ServiceTypeUnknown is an unknown service type.
+	ServiceTypeUnknown ServiceType = iota
+	// ServiceTypeM3DB represents M3DB service.
+	ServiceTypeM3DB
+	// ServiceTypeM3Aggregator represents M3aggregator service.
+	ServiceTypeM3Aggregator
+	// ServiceTypeM3Coordinator represents M3coordinator service.
+	ServiceTypeM3Coordinator
+)

@@ -38,7 +38,7 @@ import (
 
 const (
 	_queueMinWriteBufSize = 65536
-	_queueMaxWriteBufSize = 2 * _queueMinWriteBufSize
+	_queueMaxWriteBufSize = 8 * _queueMinWriteBufSize
 )
 
 var (

@@ -222,6 +222,13 @@ func Run(runOpts RunOptions) RunResult {
 		}()
 	}
 
+	interruptOpts := xos.NewInterruptOptions()
+	if runOpts.InterruptCh != nil {
+		interruptOpts.InterruptCh = runOpts.InterruptCh
+	}
+	intWatchCancel := xos.WatchForInterrupt(logger, interruptOpts)
+	defer intWatchCancel()
+
 	defer logger.Sync()
 
 	cfg.Debug.SetRuntimeValues(logger)
@@ -483,6 +490,7 @@ func Run(runOpts RunOptions) RunResult {
 
 		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, etcdConfig, backendStorage,
 			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
+			interruptOpts,
 		)
 		if err != nil {
 			var interruptErr *xos.InterruptError
@@ -516,6 +524,7 @@ func Run(runOpts RunOptions) RunResult {
 
 		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, cfg.ClusterManagement.Etcd, backendStorage,
 			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
+			interruptOpts,
 		)
 		if err != nil {
 			logger.Fatal("unable to setup downsampler for prom remote backend", zap.Error(err))
@@ -586,21 +595,22 @@ func Run(runOpts RunOptions) RunResult {
 		graphiteStorageOpts            graphite.M3WrappedStorageOptions
 	)
 	if cfg.Carbon != nil {
-		graphiteStorageOpts.AggregateNamespacesAllData =
-			cfg.Carbon.AggregateNamespacesAllData
-		graphiteStorageOpts.ShiftTimeStart = cfg.Carbon.ShiftTimeStart
-		graphiteStorageOpts.ShiftTimeEnd = cfg.Carbon.ShiftTimeEnd
-		graphiteStorageOpts.ShiftStepsStart = cfg.Carbon.ShiftStepsStart
-		graphiteStorageOpts.ShiftStepsEnd = cfg.Carbon.ShiftStepsEnd
-		graphiteStorageOpts.ShiftStepsStartWhenAtResolutionBoundary = cfg.Carbon.ShiftStepsStartWhenAtResolutionBoundary
-		graphiteStorageOpts.ShiftStepsEndWhenAtResolutionBoundary = cfg.Carbon.ShiftStepsEndWhenAtResolutionBoundary
-		graphiteStorageOpts.ShiftStepsEndWhenStartAtResolutionBoundary = cfg.Carbon.ShiftStepsEndWhenStartAtResolutionBoundary
-		graphiteStorageOpts.ShiftStepsStartWhenEndAtResolutionBoundary = cfg.Carbon.ShiftStepsStartWhenEndAtResolutionBoundary
-		graphiteStorageOpts.RenderPartialStart = cfg.Carbon.RenderPartialStart
-		graphiteStorageOpts.RenderPartialEnd = cfg.Carbon.RenderPartialEnd
-		graphiteStorageOpts.RenderSeriesAllNaNs = cfg.Carbon.RenderSeriesAllNaNs
-		graphiteStorageOpts.CompileEscapeAllNotOnlyQuotes = cfg.Carbon.CompileEscapeAllNotOnlyQuotes
-
+		graphiteStorageOpts = graphite.M3WrappedStorageOptions{
+			AggregateNamespacesAllData:                 cfg.Carbon.AggregateNamespacesAllData,
+			ShiftTimeStart:                             cfg.Carbon.ShiftTimeStart,
+			ShiftTimeEnd:                               cfg.Carbon.ShiftTimeEnd,
+			ShiftStepsStart:                            cfg.Carbon.ShiftStepsStart,
+			ShiftStepsEnd:                              cfg.Carbon.ShiftStepsEnd,
+			ShiftStepsStartWhenAtResolutionBoundary:    cfg.Carbon.ShiftStepsStartWhenAtResolutionBoundary,
+			ShiftStepsEndWhenAtResolutionBoundary:      cfg.Carbon.ShiftStepsEndWhenAtResolutionBoundary,
+			ShiftStepsEndWhenStartAtResolutionBoundary: cfg.Carbon.ShiftStepsEndWhenStartAtResolutionBoundary,
+			ShiftStepsStartWhenEndAtResolutionBoundary: cfg.Carbon.ShiftStepsStartWhenEndAtResolutionBoundary,
+			RenderPartialStart:                         cfg.Carbon.RenderPartialStart,
+			RenderPartialEnd:                           cfg.Carbon.RenderPartialEnd,
+			RenderSeriesAllNaNs:                        cfg.Carbon.RenderSeriesAllNaNs,
+			CompileEscapeAllNotOnlyQuotes:              cfg.Carbon.CompileEscapeAllNotOnlyQuotes,
+			FindResultsIncludeBothExpandableAndLeaf:    cfg.Carbon.FindResultsIncludeBothExpandableAndLeaf,
+		}
 		if limits := cfg.Carbon.LimitsFind; limits != nil {
 			fetchOptsBuilderLimitsOpts := limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
 			graphiteFindFetchOptsBuilder, err = handleroptions.NewFetchOptionsBuilder(
@@ -734,10 +744,14 @@ func Run(runOpts RunOptions) RunResult {
 		defer server.Close()
 	}
 
-	// Wait for process interrupt.
-	xos.WaitForInterrupt(logger, xos.InterruptOptions{
-		InterruptCh: runOpts.InterruptCh,
-	})
+	// Stop our async watch and now block waiting for the interrupt.
+	intWatchCancel()
+	select {
+	case <-interruptOpts.InterruptedCh:
+		logger.Warn("interrupt already received. closing")
+	default:
+		xos.WaitForInterrupt(logger, interruptOpts)
+	}
 
 	return runResult
 }
@@ -788,7 +802,7 @@ func resolveEtcdForM3DB(cfg config.Configuration) (*etcdclient.Configuration, er
 func newDownsamplerAsync(
 	cfg downsample.Configuration, etcdCfg *etcdclient.Configuration, storage storage.Appender,
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher, tagOptions models.TagOptions, clockOpts clock.Options,
-	instrumentOptions instrument.Options, rwOpts xio.Options, runOpts RunOptions,
+	instrumentOptions instrument.Options, rwOpts xio.Options, runOpts RunOptions, interruptOpts xos.InterruptOptions,
 ) (downsample.Downsampler, clusterclient.Client, error) {
 	var (
 		clusterClient       clusterclient.Client
@@ -820,7 +834,7 @@ func newDownsamplerAsync(
 			cfg, clusterClient,
 			storage, clusterNamespacesWatcher,
 			tagOptions, clockOpts, instrumentOptions, rwOpts, runOpts.ApplyCustomRuleStore,
-			runOpts.InterruptCh)
+			interruptOpts.InterruptedCh)
 		if err != nil {
 			return nil, err
 		}
@@ -860,7 +874,7 @@ func newDownsampler(
 	instrumentOpts instrument.Options,
 	rwOpts xio.Options,
 	applyCustomRuleStore downsample.CustomRuleStoreFn,
-	interruptCh <-chan error,
+	interruptedCh <-chan struct{},
 ) (downsample.Downsampler, error) {
 	// Namespace the downsampler metrics.
 	instrumentOpts = instrumentOpts.SetMetricsScope(
@@ -916,7 +930,7 @@ func newDownsampler(
 		TagOptions:                 tagOptions,
 		MetricsAppenderPoolOptions: metricsAppenderPoolOptions,
 		RWOptions:                  rwOpts,
-		InterruptCh:                interruptCh,
+		InterruptedCh:              interruptedCh,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create downsampler: %w", err)
