@@ -121,7 +121,7 @@ func (i *termsIterFromSegments) setField(field []byte) error {
 }
 
 func (i *termsIterFromSegments) Next() bool {
-	for true {
+	for {
 		if i.err != nil {
 			return false
 		}
