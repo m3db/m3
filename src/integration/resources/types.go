@@ -154,8 +154,9 @@ type M3Resources interface {
 
 // ClusterOptions represents a set of options for a cluster setup.
 type ClusterOptions struct {
-	ReplicationFactor int32
-	NumShards         int32
+	ReplicationFactor  int32
+	NumShards          int32
+	NumIsolationGroups int32
 }
 
 // Nodes is a slice of nodes.
