@@ -127,7 +127,7 @@ type PromWriteHandler struct {
 	metrics                promWriteMetrics
 
 	// Counting the number of times of "literal is too long" error for log sampling purposes.
-	numLiteralIsTooLong int32
+	numLiteralIsTooLong uint32
 }
 
 // NewPromWriteHandler returns a new instance of handler.
@@ -575,7 +575,7 @@ func (h *PromWriteHandler) maybeLogSeriesWithLongestLabels(logger *zap.Logger, t
 		return
 	}
 
-	if atomic.AddInt32(&h.numLiteralIsTooLong, 1) > maxLiteralIsTooLongLogCount {
+	if atomic.AddUint32(&h.numLiteralIsTooLong, 1) > maxLiteralIsTooLongLogCount {
 		return
 	}
 
