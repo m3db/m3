@@ -143,7 +143,7 @@ curl -vvvsS -X POST 0.0.0.0:9003/writetagged -d '{
 }'
 
 echo "Read data"
-ATTEMPTS=10 TIMEOUT=1 retry_with_backoff  \
+ATTEMPTS=3 TIMEOUT=1 retry_with_backoff  \
   '[ "$(curl -sSf -X POST 0.0.0.0:9003/query -d "{
     \"namespace\": \"unagg\",
     \"query\": {
@@ -153,7 +153,7 @@ ATTEMPTS=10 TIMEOUT=1 retry_with_backoff  \
       }
     },
     \"rangeStart\": 0,
-    \"rangeEnd\":\"$(date +%s)\"
+    \"rangeEnd\":'\"$(date +\"%s\")\"'
   }" | jq ".results | length")" == "1" ]'
 
 echo "Deleting placement"

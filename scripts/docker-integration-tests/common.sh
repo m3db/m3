@@ -331,7 +331,7 @@ function wait_for_namespaces {
   }'
 
   echo "Wait until coldWritesRepairAndNoIndex namespace is init'd"
-  ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+  ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/services/m3db/namespace | jq .registry.namespaces.coldWritesRepairAndNoIndex.coldWritesEnabled)" == true ]'
 }
 
