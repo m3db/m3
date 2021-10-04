@@ -849,10 +849,18 @@ type databaseBootstrapManager interface {
 	Bootstrap() (BootstrapResult, error)
 
 	// BootstrapEnqueue performs bootstrapping asynchronously for all namespaces and shards owned.
-	BootstrapEnqueue() *BootstrapAsyncResult
+	BootstrapEnqueue(opts BootstrapEnqueueOptions) *BootstrapAsyncResult
 
 	// Report reports runtime information.
 	Report()
+}
+
+// BootstrapEnqueueOptions is options to pass to BootstrapEnqueue when
+// enqueing a bootstrap.
+type BootstrapEnqueueOptions struct {
+	// OnCompleteFn is an optional function to pass to execute once
+	// the set of queued bootstraps are complete.
+	OnCompleteFn func()
 }
 
 // BootstrapResult is a bootstrap result.
@@ -1049,8 +1057,8 @@ type databaseMediator interface {
 	// Bootstrap bootstraps the database with file operations performed at the end.
 	Bootstrap() (BootstrapResult, error)
 
-	// BootstrapEnqueue bootstraps the database asynchronously with file operations performed at the end.
-	BootstrapEnqueue() *BootstrapAsyncResult
+	// BootstrapEnqueue performs bootstrapping asynchronously for all namespaces and shards owned.
+	BootstrapEnqueue(opts BootstrapEnqueueOptions) *BootstrapAsyncResult
 
 	// DisableFileOpsAndWait disables file operations.
 	DisableFileOpsAndWait()

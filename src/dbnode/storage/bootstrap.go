@@ -79,6 +79,7 @@ type bootstrapManager struct {
 	processProvider             bootstrap.ProcessProvider
 	state                       BootstrapState
 	hasPending                  bool
+	pendingOnCompleteFns        []func()
 	sleepFn                     sleepFn
 	nowFn                       clock.NowFn
 	lastBootstrapCompletionTime xtime.UnixNano
@@ -116,10 +117,13 @@ func (m *bootstrapManager) LastBootstrapCompletionTime() (xtime.UnixNano, bool) 
 	return bsTime, bsTime > 0
 }
 
-func (m *bootstrapManager) BootstrapEnqueue() *BootstrapAsyncResult {
+func (m *bootstrapManager) BootstrapEnqueue(
+	opts BootstrapEnqueueOptions,
+) *BootstrapAsyncResult {
 	bootstrapAsyncResult := newBootstrapAsyncResult()
 	go func(r *BootstrapAsyncResult) {
-		if result, err := m.startBootstrap(r); err != nil && !result.AlreadyBootstrapping {
+		result, err := m.startBootstrap(r, opts.OnCompleteFn)
+		if err != nil && !result.AlreadyBootstrapping {
 			m.instrumentation.emitAndLogInvariantViolation(err, "error bootstrapping")
 		}
 	}(bootstrapAsyncResult)
@@ -128,11 +132,18 @@ func (m *bootstrapManager) BootstrapEnqueue() *BootstrapAsyncResult {
 
 func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 	bootstrapAsyncResult := newBootstrapAsyncResult()
-	return m.startBootstrap(bootstrapAsyncResult)
+	return m.startBootstrap(bootstrapAsyncResult, nil)
 }
 
-func (m *bootstrapManager) startBootstrap(asyncResult *BootstrapAsyncResult) (BootstrapResult, error) {
+func (m *bootstrapManager) startBootstrap(
+	asyncResult *BootstrapAsyncResult,
+	onCompleteFn func(),
+) (BootstrapResult, error) {
 	m.Lock()
+	if onCompleteFn != nil {
+		// Append completeion fn if specified.
+		m.pendingOnCompleteFns = append(m.pendingOnCompleteFns, onCompleteFn)
+	}
 	switch m.state {
 	case Bootstrapping:
 		// NB(r): Already bootstrapping, now a consequent bootstrap
@@ -211,7 +222,19 @@ func (m *bootstrapManager) startBootstrap(asyncResult *BootstrapAsyncResult) (Bo
 	m.Lock()
 	m.lastBootstrapCompletionTime = xtime.ToUnixNano(m.nowFn())
 	m.state = Bootstrapped
+	// NB(r): Clear out the pending completion functions and execute them if
+	// needed.
+	pendingOnCompleteFns := m.pendingOnCompleteFns
+	m.pendingOnCompleteFns = nil
 	m.Unlock()
+
+	if len(pendingOnCompleteFns) > 0 {
+		// Execute any on complete functions that were queued.
+		for _, fn := range pendingOnCompleteFns {
+			fn()
+		}
+	}
+
 	return result, nil
 }
 

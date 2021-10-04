@@ -566,15 +566,9 @@ func (d *db) enqueueBootstrapWithLock(onCompleteFn func()) {
 	// bootstraps since d.bootstraps > 0 will be true.
 	if d.bootstraps > 0 {
 		d.log.Info("enqueuing bootstrap")
-		bootstrapAsyncResult := d.mediator.BootstrapEnqueue()
-		go func() {
-			bootstrapAsyncResult.WaitForComplete()
-			// NB(linasn): We don't want to invoke onCompleteFn if another bootstrap is already
-			// started because we are actually not initiating new bootstrap.
-			if !bootstrapAsyncResult.bootstrapResult.AlreadyBootstrapping {
-				onCompleteFn()
-			}
-		}()
+		d.mediator.BootstrapEnqueue(BootstrapEnqueueOptions{
+			OnCompleteFn: onCompleteFn,
+		})
 		return
 	}
 
