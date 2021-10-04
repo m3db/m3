@@ -29,7 +29,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
@@ -127,8 +127,7 @@ type PromWriteHandler struct {
 	metrics                promWriteMetrics
 
 	// Counting the number of times of "literal is too long" error for log sampling purposes.
-	numLiteralIsTooLong     int
-	numLiteralIsTooLongLock sync.RWMutex
+	numLiteralIsTooLong int32
 }
 
 // NewPromWriteHandler returns a new instance of handler.
@@ -576,22 +575,8 @@ func (h *PromWriteHandler) maybeLogSeriesWithLongestLabels(logger *zap.Logger, t
 		return
 	}
 
-	// Read the value and check if time series should be logged.
-	h.numLiteralIsTooLongLock.RLock()
-	shouldLog := h.numLiteralIsTooLong < maxLiteralIsTooLongLogCount
-	h.numLiteralIsTooLongLock.RUnlock()
-	if !shouldLog {
-		return
-	}
-
-	// Read and update the value if the time series still should be logged.
-	h.numLiteralIsTooLongLock.Lock()
-	shouldLog = h.numLiteralIsTooLong < maxLiteralIsTooLongLogCount
-	if shouldLog {
-		h.numLiteralIsTooLong++
-	}
-	h.numLiteralIsTooLongLock.Unlock()
-	if !shouldLog {
+	n := atomic.LoadInt32(&h.numLiteralIsTooLong)
+	if n >= maxLiteralIsTooLongLogCount || !atomic.CompareAndSwapInt32(&h.numLiteralIsTooLong, n, n+1) {
 		return
 	}
 
