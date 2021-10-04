@@ -435,13 +435,14 @@ func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
 	defer func() {
 		close(mapCh)
 	}()
-
+	var wg sync.WaitGroup
 	// Set a mock mediator to be certain that bootstrap is not called when
 	// no new shards are assigned.
 	mediator := NewMockdatabaseMediator(ctrl)
 	mediator.EXPECT().IsOpen().Return(true)
 	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).DoAndReturn(func(fn func()) error {
-		fn()
+		go fn()
+		wg.Done()
 		return nil
 	})
 	d.mediator = mediator
@@ -450,8 +451,7 @@ func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
 	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns1"))
 	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns2"))
 
-	var wg sync.WaitGroup
-	wg.Add(len(ns))
+	wg.Add(len(ns) + 1)
 	for _, n := range ns {
 		n.EXPECT().AssignShardSet(d.shardSet).Do(func(_ sharding.ShardSet) {
 			wg.Done()
@@ -476,13 +476,15 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	}()
 
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+	var wg sync.WaitGroup
 
 	mediator := NewMockdatabaseMediator(ctrl)
 	mediator.EXPECT().IsOpen().Return(true).AnyTimes()
 	mediator.EXPECT().DisableFileOpsAndWait().AnyTimes()
 	mediator.EXPECT().EnableFileOps().AnyTimes()
 	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).DoAndReturn(func(fn func()) error {
-		fn()
+		go fn()
+		wg.Done()
 		return nil
 	})
 	mediator.EXPECT().Bootstrap().DoAndReturn(func() (BootstrapResult, error) {
@@ -499,8 +501,7 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 
 	ns.EXPECT().AssignShardSet(shardSet)
 
-	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
 	mediator.EXPECT().BootstrapEnqueue().DoAndReturn(func() *BootstrapAsyncResult {
 		asyncResult := newBootstrapAsyncResult()
 		asyncResult.bootstrapStarted = &wg
