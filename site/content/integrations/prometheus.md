@@ -126,24 +126,24 @@ Alternatively, you can configure Grafana to read metrics directly from `M3Coordi
 
 ## Using any Prometheus Remote Write capable storage
 
-M3Coordinator supports any backend that implements Prometheus Remote Write API.
+M3 Coordinator supports any backend that implements the Prometheus Remote Write API.
 
 Start by downloading the [config template](https://github.com/m3db/m3/blob/master/src/query/config/m3coordinator-prom-remote-template.yml).
 
-Update endpoints with your Prometheus Remote Write compatible storage setup.
+Update the endpoints with your Prometheus Remote Write compatible storage setup.
 
 ### Example - running multiple Prometheus receivers
 
-In this example we will be using Prometheus itself as a metrics storage.
-We will setup 2 Prometheus instances:
-- for unaggregated metrics with short 720h retention. This will allow us to have better query accuracy for recent data.
-- for aggregated metrics with longer 1440h retention and resolution. This will allow us to have longer history at the cost of query accuracy.
+This example uses Prometheus as a metrics storage.
+It sets up 2 Prometheus instances:
+- for unaggregated metrics with short 720h retention. This allows better query accuracy for recent data.
+- for aggregated metrics with longer 1440h retention and resolution. This allows longer history at the cost of query accuracy.
 
-M3Coordinator will output metrics to these 2 instances using Prometheus Remote Writes API.
+M3 Coordinator outputs metrics to these 2 instances using the Prometheus Remote Writes API.
 
-Prometheus must be started with `--enable-feature=remote-write-receiver` to be able to accept writes using Prometheus Remote Write API.
+You must start Prometheus with the `--enable-feature=remote-write-receiver` argument to be able to accept writes using the Prometheus Remote Write API.
 
-Instruct M3Coordinator to use different backend type - `prom-remote`
+Instruct M3 Coordinator to use a different backend type - `prom-remote`
 ```yaml
 backend: prom-remote
 
@@ -166,5 +166,5 @@ prometheusRemoteBackend:
 
 ```
 
-Now you could setup multiple datasources in your Grafana. 
-For a more realtime data you could unaggregated Prometheus as datasource and for historical data - aggregated one.
+Now you can setup multiple datasources in Grafana. 
+For more realtime data use unaggregated Prometheus as a datasource and for historical data, use an aggregated one.
