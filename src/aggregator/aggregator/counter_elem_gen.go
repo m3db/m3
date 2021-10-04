@@ -56,9 +56,6 @@ type timedCounter struct {
 	startAtNanos     int64 // start time of an aggregation window
 	lockedAgg        *lockedCounterAggregation
 	onConsumeExpired bool
-	// this is needed to account for the extra data we are
-	// tracking in timeAggregations instead of consumedVals map
-	gcEligible bool
 }
 
 func (ta *timedCounter) Release() {
@@ -234,10 +231,6 @@ func (e *CounterElem) Consume(
 	valuesForConsideration := e.values
 	e.values = e.values[:0]
 	for i, value := range valuesForConsideration {
-		if value.gcEligible {
-			continue
-		}
-
 		if !isEarlierThanFn(value.startAtNanos, resolution, targetNanos) {
 			e.values = append(e.values, value)
 			continue
@@ -259,12 +252,12 @@ func (e *CounterElem) Consume(
 		// Modify the by value copy with whether it needs time flush and accumulate.
 		copiedValue := value
 		copiedValue.onConsumeExpired = expired
-		if !value.onConsumeExpired {
-			e.toConsume = append(e.toConsume, copiedValue)
-		}
+		e.toConsume = append(e.toConsume, copiedValue)
 
 		// Keep item. Expired values are GC'd below after consuming.
-		e.values = append(e.values, value)
+		if !expired {
+			e.values = append(e.values, value)
+		}
 	}
 	canCollect := len(e.values) == 0 && e.tombstoned
 	e.Unlock()
@@ -333,10 +326,10 @@ func (e *CounterElem) Consume(
 
 		e.toConsume[i].lockedAgg.Unlock()
 		if expired {
-			//e.toConsume[i].Release()
-			if prevAgg != nil {
-				//prevAgg.gcEligible = true
-			}
+			e.toConsume[i].Release()
+
+			// TODO:
+			// maybe remove from prevAgg.lockedAgg.consumedVals
 		}
 
 		if prevLockedAgg != nil {
