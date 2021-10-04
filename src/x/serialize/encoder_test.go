@@ -24,11 +24,16 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
+
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 func newTestEncoderOpts() TagEncoderOptions {
@@ -136,6 +141,36 @@ func TestTagEncoderErrorEncoding(t *testing.T) {
 	e.Reset()
 	tags = ident.NewTagsIterator(ident.NewTags(ident.StringTag("abc", "defg")))
 	require.NoError(t, e.Encode(tags))
+}
+
+func TestLiteralIsTooLongLogging(t *testing.T) {
+	observerCore, observedLogs := observer.New(zapcore.InfoLevel)
+	instrumentOpts := instrument.NewOptions().SetLogger(zap.New(observerCore))
+	opts := NewTagEncoderOptions().SetInstrumentOptions(instrumentOpts)
+	e := newTagEncoder(defaultNewCheckedBytesFn, opts, nil)
+	maxLiteralLen := opts.TagSerializationLimits().MaxTagLiteralLength()
+	tags := ident.NewTagsIterator(ident.NewTags(
+		ident.StringTag("abc", "defg"),
+		ident.StringTag("x", nstring(1+int(maxLiteralLen))),
+	))
+
+	for i := 0; i < 2*maxLiteralIsTooLongLogCount; i++ {
+		require.Error(t, e.Encode(tags))
+		e.Reset()
+	}
+
+	filteredLogs := observedLogs.Filter(func(e observer.LoggedEntry) bool {
+		return e.Message == errTagLiteralTooLong.Error()
+	})
+
+	require.Equal(t, maxLiteralIsTooLongLogCount, filteredLogs.Len())
+	for _, e := range filteredLogs.All() {
+		for _, c := range e.Context {
+			if c.Key == "literal" {
+				assert.Len(t, c.String, literalIsTooLongLogPrefixLength)
+			}
+		}
+	}
 }
 
 func TestEmptyTagIterEncode(t *testing.T) {

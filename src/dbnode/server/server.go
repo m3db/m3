@@ -600,8 +600,9 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not get pooling policy", zap.Error(err))
 	}
 
+	tagEncoderOpts := serialize.NewTagEncoderOptions().SetInstrumentOptions(iOpts)
 	tagEncoderPool := serialize.NewTagEncoderPool(
-		serialize.NewTagEncoderOptions(),
+		tagEncoderOpts,
 		poolOptions(
 			policy.TagEncoderPool,
 			scope.SubScope("tag-encoder-pool")))

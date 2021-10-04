@@ -20,6 +20,8 @@
 
 package serialize
 
+import "github.com/m3db/m3/src/x/instrument"
+
 var (
 	// defaultInitialCapacity is the default initial capacity of the bytes
 	// underlying the encoder.
@@ -27,6 +29,7 @@ var (
 )
 
 type encodeOpts struct {
+	instrumentOpts  instrument.Options
 	initialCapacity int
 	limits          TagSerializationLimits
 }
@@ -34,9 +37,20 @@ type encodeOpts struct {
 // NewTagEncoderOptions returns a new TagEncoderOptions.
 func NewTagEncoderOptions() TagEncoderOptions {
 	return &encodeOpts{
+		instrumentOpts:  instrument.NewOptions(),
 		initialCapacity: defaultInitialCapacity,
 		limits:          NewTagSerializationLimits(),
 	}
+}
+
+func (o *encodeOpts) SetInstrumentOptions(v instrument.Options) TagEncoderOptions {
+	opts := *o
+	opts.instrumentOpts = v
+	return &opts
+}
+
+func (o *encodeOpts) InstrumentOptions() instrument.Options {
+	return o.instrumentOpts
 }
 
 func (o *encodeOpts) SetInitialCapacity(v int) TagEncoderOptions {

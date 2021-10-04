@@ -51,6 +51,7 @@ type options struct {
 
 // NewOptions creates new options.
 func NewOptions() Options {
+	instrumentOpts := instrument.NewOptions()
 	// Use a zero size pool by default, override from config.
 	poolOptions := pool.NewObjectPoolOptions().
 		SetSize(0)
@@ -66,8 +67,9 @@ func NewOptions() Options {
 		TagsIteratorPoolOptions: poolOptions,
 	})
 
+	tagEncoderOpts := serialize.NewTagEncoderOptions().SetInstrumentOptions(instrumentOpts)
 	tagEncoderPool := serialize.NewTagEncoderPool(
-		serialize.NewTagEncoderOptions(),
+		tagEncoderOpts,
 		poolOptions)
 	tagEncoderPool.Init()
 
@@ -76,7 +78,7 @@ func NewOptions() Options {
 
 	return &options{
 		clockOpts:                clock.NewOptions(),
-		instrumentOpts:           instrument.NewOptions(),
+		instrumentOpts:           instrumentOpts,
 		idPool:                   idPool,
 		blockMetadataV2Pool:      NewBlockMetadataV2Pool(nil),
 		blockMetadataV2SlicePool: NewBlockMetadataV2SlicePool(nil, 0),

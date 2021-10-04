@@ -901,7 +901,8 @@ func newDownsampler(
 		}
 	}
 
-	tagEncoderOptions := serialize.NewTagEncoderOptions()
+	tagEncoderOptions := serialize.NewTagEncoderOptions().
+		SetInstrumentOptions(instrumentOpts)
 	tagDecoderOptions := serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{})
 	tagEncoderPoolOptions := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(instrumentOpts.

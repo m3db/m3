@@ -113,8 +113,10 @@ type options struct {
 
 // NewOptions creates a new set of fs options
 func NewOptions() Options {
+	instrumentOpts := instrument.NewOptions()
+	tagEncoderOpts := serialize.NewTagEncoderOptions().SetInstrumentOptions(instrumentOpts)
 	tagEncoderPool := serialize.NewTagEncoderPool(
-		serialize.NewTagEncoderOptions(), pool.NewObjectPoolOptions())
+		tagEncoderOpts, pool.NewObjectPoolOptions())
 	tagEncoderPool.Init()
 	tagDecoderPool := serialize.NewTagDecoderPool(
 		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
@@ -124,7 +126,7 @@ func NewOptions() Options {
 
 	return &options{
 		clockOpts:                            clock.NewOptions(),
-		instrumentOpts:                       instrument.NewOptions(),
+		instrumentOpts:                       instrumentOpts,
 		runtimeOptsMgr:                       runtime.NewOptionsManager(),
 		decodingOpts:                         msgpack.NewDecodingOptions(),
 		filePathPrefix:                       defaultFilePathPrefix,

@@ -26,6 +26,8 @@ import (
 	"errors"
 	"fmt"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -49,6 +51,11 @@ import (
  *
  * Where MAGIC_MARKER/NUMBER_TAGS/LENGTH are maximum 2 bytes.
  */
+
+const (
+	maxLiteralIsTooLongLogCount     = 10
+	literalIsTooLongLogPrefixLength = 100
+)
 
 var (
 	// ByteOrder is the byte order used for encoding tags into a byte sequence.
@@ -76,6 +83,8 @@ type encoder struct {
 	checkedBytes      checked.Bytes
 	staticBuffer      [2]byte
 	staticBufferSlice []byte
+
+	numLiteralIsTooLongCount uint32
 
 	opts TagEncoderOptions
 	pool TagEncoderPool
@@ -183,6 +192,18 @@ func (e *encoder) encodeID(i ident.ID) error {
 
 	max := int(e.opts.TagSerializationLimits().MaxTagLiteralLength())
 	if len(d) >= max {
+		e.numLiteralIsTooLongCount++
+		if e.numLiteralIsTooLongCount <= maxLiteralIsTooLongLogCount {
+			var literalPrefix string
+			if len(d) <= literalIsTooLongLogPrefixLength {
+				literalPrefix = string(d)
+			} else {
+				const ellipsis = "..."
+				literalPrefix = string(d[:literalIsTooLongLogPrefixLength-len(ellipsis)]) + ellipsis
+			}
+			e.opts.InstrumentOptions().Logger().Error(errTagLiteralTooLong.Error(),
+				zap.String("literal", literalPrefix))
+		}
 		return errTagLiteralTooLong
 	}
 

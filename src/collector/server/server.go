@@ -108,7 +108,8 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not create reporter", zap.Error(err))
 	}
 
-	tagEncoderOptions := serialize.NewTagEncoderOptions()
+	tagEncoderOptions := serialize.NewTagEncoderOptions().
+		SetInstrumentOptions(instrumentOpts)
 	tagDecoderOptions := serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{})
 	tagEncoderPoolOptions := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(instrumentOpts.

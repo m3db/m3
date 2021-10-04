@@ -25,6 +25,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 const (
@@ -89,6 +90,12 @@ type TagDecoderPool interface {
 
 // TagEncoderOptions sets the knobs for TagEncoder limits.
 type TagEncoderOptions interface {
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(v instrument.Options) TagEncoderOptions
+
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
+
 	// SetInitialCapacity sets the initial capacity of the bytes underlying
 	// the TagEncoder.
 	SetInitialCapacity(v int) TagEncoderOptions
