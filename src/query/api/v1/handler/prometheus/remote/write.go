@@ -76,6 +76,9 @@ const (
 	// maxLiteralIsTooLongLogCount is the number of times the time series labels should be logged
 	// upon "literal is too long" error.
 	maxLiteralIsTooLongLogCount = 10
+	// literalLengthThreshold is the length of the label literal prefix that is logged upon
+	// "literal is too long" error.
+	literalLengthThreshold = 100
 )
 
 var (
@@ -580,60 +583,33 @@ func (h *PromWriteHandler) maybeLogSeriesWithLongestLabels(logger *zap.Logger, t
 	}
 
 	var (
-		longestLabelLength = 0
-		longestLabelIdx    = 0
+		longestLiteralLength = 0
+		longestLiteralLabel  prompb.Label
 	)
-	for i, ts := range timeSeries {
+	for _, ts := range timeSeries {
 		for _, l := range ts.Labels {
-			if len(l.Name) > longestLabelLength {
-				longestLabelLength = len(l.Name)
-				longestLabelIdx = i
+			if len(l.Name) > longestLiteralLength {
+				longestLiteralLength = len(l.Name)
+				longestLiteralLabel = l
 			}
-			if len(l.Value) > longestLabelLength {
-				longestLabelLength = len(l.Value)
-				longestLabelIdx = i
+			if len(l.Value) > longestLiteralLength {
+				longestLiteralLength = len(l.Value)
+				longestLiteralLabel = l
 			}
 		}
 	}
 
-	const totalLengthThreshold = 1000
-
-	labelSummary := labelsToSummaryString(timeSeries[longestLabelIdx].Labels, totalLengthThreshold)
-	logger.Warn("series with too long literal", zap.String("labelSummary", labelSummary))
+	logger.Warn("time series label contains a long literal",
+		zap.String("name", truncateLiteral(longestLiteralLabel.Name, literalLengthThreshold)),
+		zap.String("value", truncateLiteral(longestLiteralLabel.Value, literalLengthThreshold)),
+	)
 }
 
-func labelsToSummaryString(labels []prompb.Label, lengthThreshold int) string {
-	builder := strings.Builder{}
-	builder.WriteRune('{')
-	for i, l := range labels {
-		if !appendLiteral(&builder, l.Name, lengthThreshold) {
-			break
-		}
-		builder.WriteRune('=')
-		if !appendLiteral(&builder, l.Value, lengthThreshold) {
-			break
-		}
-		if i+1 < len(labels) {
-			builder.WriteRune(',')
-		}
+func truncateLiteral(literal []byte, lengthThreshold int) string {
+	if len(literal) <= lengthThreshold {
+		return string(literal)
 	}
-	if builder.Len() < lengthThreshold {
-		builder.WriteRune('}')
-	} else {
-		builder.WriteString("...")
-	}
-	return builder.String()
-}
-
-func appendLiteral(builder *strings.Builder, literal []byte, lengthThreshold int) bool {
-	if builder.Len()+len(literal) <= lengthThreshold {
-		builder.Write(literal)
-		return true
-	}
-
-	n := lengthThreshold - builder.Len()
-	builder.Write(literal[:n])
-	return false
+	return string(literal[:lengthThreshold]) + "..."
 }
 
 func newPromTSIter(

@@ -442,11 +442,15 @@ func TestPromWriteLiteralIsTooLongError(t *testing.T) {
 	handler, err := NewPromWriteHandler(opts)
 	require.NoError(t, err)
 
+	veryLongLiteral := ""
+	for ; len(veryLongLiteral) <= literalLengthThreshold; veryLongLiteral += "very_long_literal_" {
+	}
 	promReq := &prompb.WriteRequest{
 		Timeseries: []prompb.TimeSeries{
 			{
 				Labels: []prompb.Label{
-					{Name: []byte("name"), Value: []byte("value")},
+					{Name: []byte("name1"), Value: []byte("value1")},
+					{Name: []byte("name2"), Value: []byte(veryLongLiteral)},
 				},
 			},
 		},
@@ -460,49 +464,19 @@ func TestPromWriteLiteralIsTooLongError(t *testing.T) {
 		handler.ServeHTTP(httptest.NewRecorder(), req)
 	}
 	filteredLogs := observedLogs.Filter(func(e observer.LoggedEntry) bool {
-		return e.Message == "series with too long literal"
+		return e.Message == "time series label contains a long literal"
 	})
 	require.True(t, filteredLogs.Len() == maxLiteralIsTooLongLogCount,
 		"unexpected number of log messages, expected=%v, actual=%v", maxLiteralIsTooLongLogCount, filteredLogs.Len())
-}
-
-func TestLabelsToSummaryString(t *testing.T) {
-	labels := []prompb.Label{
-		{Name: []byte("name1"), Value: []byte("value1")},
-		{Name: []byte("name2"), Value: []byte("value2")},
-		{Name: []byte("name3"), Value: []byte("value3")},
-	}
-	tests := []struct {
-		name            string
-		lengthThreshold int
-		expected        string
-	}{
-		{
-			name:            "no truncation",
-			lengthThreshold: 100,
-			expected:        "{name1=value1,name2=value2,name3=value3}",
-		},
-		{
-			name:            "exact length",
-			lengthThreshold: 40,
-			expected:        "{name1=value1,name2=value2,name3=value3}",
-		},
-		{
-			name:            "truncate at label value",
-			lengthThreshold: 35,
-			expected:        "{name1=value1,name2=value2,name3=va...",
-		},
-		{
-			name:            "truncate at label name",
-			lengthThreshold: 30,
-			expected:        "{name1=value1,name2=value2,nam...",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := labelsToSummaryString(labels, tt.lengthThreshold)
-			require.Equal(t, tt.expected, actual)
-		})
+	for _, msg := range filteredLogs.All() {
+		for _, f := range msg.Context {
+			switch f.Key {
+			case "name":
+				assert.Equal(t, "name2", f.String)
+			case "value":
+				assert.Equal(t, veryLongLiteral[:literalLengthThreshold]+"...", f.String)
+			}
+		}
 	}
 }
 
