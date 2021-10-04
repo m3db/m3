@@ -51,35 +51,31 @@ func TestNewDBNodeNoSetup(t *testing.T) {
 	require.NoError(t, dbnode.Close())
 }
 
-func TestNewDBNode(t *testing.T) {
-	_, closer := setupNode(t)
-	closer()
-}
-
-func TestHealth(t *testing.T) {
+func TestDBNode(t *testing.T) {
 	dbnode, closer := setupNode(t)
 	defer closer()
 
+	testHealth(t, dbnode)
+	testWaitForBootstrap(t, dbnode)
+	testWriteFetchRoundtrip(t, dbnode)
+	testWriteTaggedFetchTaggedRoundtrip(t, dbnode)
+}
+
+func testHealth(t *testing.T, dbnode resources.Node) {
 	res, err := dbnode.Health()
 	require.NoError(t, err)
 
 	require.True(t, res.Ok)
 }
 
-func TestWaitForBootstrap(t *testing.T) {
-	dbnode, closer := setupNode(t)
-	defer closer()
-
+func testWaitForBootstrap(t *testing.T, dbnode resources.Node) {
 	res, err := dbnode.Health()
 	require.NoError(t, err)
 
 	require.Equal(t, true, res.Bootstrapped)
 }
 
-func TestWriteFetchRoundtrip(t *testing.T) {
-	dbnode, closer := setupNode(t)
-	defer closer()
-
+func testWriteFetchRoundtrip(t *testing.T, dbnode resources.Node) {
 	var (
 		id  = "foo"
 		ts  = time.Now()
@@ -105,17 +101,13 @@ func TestWriteFetchRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, 1, len(res.Datapoints))
-	require.Equal(t, rpc.FetchResult_{
-		Datapoints: []*rpc.Datapoint{
-			{Timestamp: ts.Unix(), Value: val},
-		},
-	}, res.Datapoints[0])
+	require.Equal(t, rpc.Datapoint{
+		Timestamp: ts.Unix(),
+		Value:     val,
+	}, *res.Datapoints[0])
 }
 
-func TestWriteTaggedFetchTaggedRoundtrip(t *testing.T) {
-	dbnode, closer := setupNode(t)
-	defer closer()
-
+func testWriteTaggedFetchTaggedRoundtrip(t *testing.T, dbnode resources.Node) {
 	var (
 		id  = "fooTagged"
 		ts  = time.Now()
@@ -170,8 +162,6 @@ func TestWriteTaggedFetchTaggedRoundtrip(t *testing.T) {
 	validateTag(t, dec.Current(), "job", "bar")
 	require.False(t, dec.Next())
 }
-
-// TODO(nate): tests for remainder of interface
 
 func validateTag(t *testing.T, tag ident.Tag, name string, value string) {
 	require.Equal(t, name, tag.Name.String())

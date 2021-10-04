@@ -36,6 +36,12 @@ import (
 )
 
 func TestNewCoordinator(t *testing.T) {
+	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, dbnode.Close())
+	}()
+
 	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
 	require.NoError(t, err)
 	require.NoError(t, coord.Close())
@@ -49,6 +55,9 @@ func TestNewCoordinator(t *testing.T) {
 func TestNewEmbeddedCoordinator(t *testing.T) {
 	dbnode, err := NewDBNodeFromYAML(embeddedCoordConfig, DBNodeOptions{})
 	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, dbnode.Close())
+	}()
 
 	d, ok := dbnode.(*dbNode)
 	require.True(t, ok)
@@ -56,8 +65,6 @@ func TestNewEmbeddedCoordinator(t *testing.T) {
 
 	_, err = NewEmbeddedCoordinator(d)
 	require.NoError(t, err)
-
-	require.NoError(t, dbnode.Close())
 }
 
 func TestNewEmbeddedCoordinatorNotStarted(t *testing.T) {
@@ -65,8 +72,6 @@ func TestNewEmbeddedCoordinatorNotStarted(t *testing.T) {
 	_, err := NewEmbeddedCoordinator(&dbnode)
 	require.Error(t, err)
 }
-
-// TODO(nate): add more tests exercising other endpoints once dbnode impl is landed
 
 func TestM3msgTopicFunctions(t *testing.T) {
 	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
