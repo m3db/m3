@@ -294,13 +294,12 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 
 	d.RLock()
 	removes, adds, updates := d.namespaceDeltaWithLock(newNamespaces)
+	d.RUnlock()
 	if err := d.logNamespaceUpdate(removes, adds, updates); err != nil {
 		enrichedErr := fmt.Errorf("unable to log namespace updates: %v", err)
 		d.log.Error(enrichedErr.Error())
-		d.RUnlock()
 		return enrichedErr
 	}
-	d.RUnlock()
 
 	// log that updates and removals are skipped
 	if len(removes) > 0 || len(updates) > 0 {
@@ -311,23 +310,63 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	}
 
 	if len(adds) > 0 {
-		// NB: need to disable fileOps and wait for all the background processes to complete
-		// so that we could update namespaces safely. Otherwise, there is a high chance in getting
-		// invariant violation panic because cold/warm flush will receive new namespaces
-		// in the middle of their operations.
-		d.disableFileOpsAndWait()
-		d.Lock()
-		defer d.Unlock()
-		// add any namespaces marked for addition
-		if err := d.addNamespacesWithLock(adds); err != nil {
-			enrichedErr := fmt.Errorf("unable to add namespaces: %w", err)
-			d.log.Error(enrichedErr.Error())
-			d.enableFileOps()
-			return err
+		// if db was not yet bootstrapped, it is safe to add namespaces immediately
+		if d.bootstrapCount() == 0 {
+			d.Lock()
+			defer d.Unlock()
+			return d.addNamespacesWithLock(adds)
 		}
-		// enqueue bootstrap and enable file ops when bootstrap is completed
-		d.enqueueBootstrapWithLock(d.enableFileOps)
+
+		// if mediator is not opened, it is safe to add namespaces immediately
+		if mediator := d.mediator; mediator == nil || !mediator.IsOpen() {
+			d.Lock()
+			defer d.Unlock()
+			if err := d.addNamespacesWithLock(adds); err != nil {
+				enrichedErr := fmt.Errorf("unable to add namespaces: %w", err)
+				d.log.Error(enrichedErr.Error())
+				return err
+			}
+			d.enqueueBootstrapWithLock(func() {
+				d.log.Info("bootstrap completed after namespaces were updated")
+			})
+			return nil
+		}
+
+		if err := d.mediator.EnqueueMutuallyExclusiveFn(func() {
+			if err := d.addNamespaces(adds); err != nil {
+				instrument.EmitAndLogInvariantViolation(d.opts.InstrumentOptions(),
+					func(l *zap.Logger) {
+						l.Error("failed to add namespaces", zap.Error(err))
+					})
+			}
+		}); err != nil {
+			// should not happen.
+			instrument.EmitAndLogInvariantViolation(d.opts.InstrumentOptions(),
+				func(l *zap.Logger) {
+					l.Error("failed to enqueue addNamespaces fn", zap.Error(err))
+				})
+		}
 	}
+	return nil
+}
+
+func (d *db) addNamespaces(namespaces []namespace.Metadata) error {
+	// NB: need to disable fileOps and wait for all the background processes to complete
+	// so that we could update namespaces safely. Otherwise, there is a high chance in getting
+	// invariant violation panic because cold/warm flush will receive new namespaces
+	// in the middle of their operations.
+	d.disableFileOpsAndWait()
+	d.Lock()
+	defer d.Unlock()
+	// add any namespaces marked for addition
+	if err := d.addNamespacesWithLock(namespaces); err != nil {
+		enrichedErr := fmt.Errorf("unable to add namespaces: %w", err)
+		d.log.Error(enrichedErr.Error())
+		d.enableFileOps()
+		return err
+	}
+	// enqueue bootstrap and enable file ops when bootstrap is completed
+	d.enqueueBootstrapWithLock(d.enableFileOps)
 	return nil
 }
 
@@ -343,6 +382,12 @@ func (d *db) enableFileOps() {
 		d.log.Info("enabling file ops")
 		mediator.EnableFileOps()
 	}
+}
+
+func (d *db) bootstrapCount() int {
+	d.RLock()
+	defer d.RUnlock()
+	return d.bootstraps
 }
 
 func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []namespace.Metadata, []namespace.Metadata) {

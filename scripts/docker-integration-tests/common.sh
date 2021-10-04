@@ -296,11 +296,11 @@ function wait_for_namespaces {
   }'
 
   echo "Wait until unagg namespace is init'd"
-  ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+  ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/services/m3db/namespace | jq .registry.namespaces.unagg.indexOptions.enabled)" == true ]'
 
   echo "Wait until unagg namespace is ready"
-  ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+  ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/services/m3db/namespace/ready -d "{ \"name\": \"unagg\"}" | grep -c true)" -eq 1 ]'
 
   echo "Adding coldWritesRepairAndNoIndex namespace"
@@ -331,7 +331,7 @@ function wait_for_namespaces {
   }'
 
   echo "Wait until coldWritesRepairAndNoIndex namespace is init'd"
-  ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
+  ATTEMPTS=100 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/services/m3db/namespace | jq .registry.namespaces.coldWritesRepairAndNoIndex.coldWritesEnabled)" == true ]'
 }
 

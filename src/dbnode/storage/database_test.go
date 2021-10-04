@@ -643,6 +643,81 @@ func TestDatabaseAddNamespace(t *testing.T) {
 	require.Equal(t, md1.Options(), ns3.Options())
 }
 
+type testNamespaceHooks struct {
+	sync.Mutex
+	adds int
+}
+
+func (th *testNamespaceHooks) addCount() int {
+	th.Lock()
+	defer th.Unlock()
+	return th.adds
+}
+
+func (th *testNamespaceHooks) OnCreatedNamespace(Namespace, GetNamespaceFn) error {
+	th.Lock()
+	defer th.Unlock()
+	th.adds++
+	return nil
+}
+
+func TestDatabaseAddNamespaceEnqueue(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	require.NoError(t, d.Open())
+	defer func() {
+		close(mapCh)
+		require.NoError(t, d.Close())
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	// retrieve the update channel to track propatation
+	updateCh := d.opts.NamespaceInitializer().(*mockNsInitializer).updateCh
+
+	nsHooks := &testNamespaceHooks{}
+	d.opts = d.opts.SetNamespaceHooks(nsHooks)
+	d.bootstraps++
+
+	// check initial namespaces
+	nses := d.Namespaces()
+	require.Len(t, nses, 2)
+
+	// construct new namespace Map
+	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
+	require.NoError(t, err)
+	md3, err := namespace.NewMetadata(ident.StringID("and1"), defaultTestNs1Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2, md3})
+	require.NoError(t, err)
+
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	<-updateCh
+	<-updateCh
+
+	// Because ns update will be enqueued and performed later, we need to wait for more time in theory.
+	// Usually this update should complete in a few seconds.
+	require.True(t, xclock.WaitUntil(func() bool {
+		return nsHooks.addCount() == 1
+	}, 10*time.Minute))
+	require.True(t, xclock.WaitUntil(func() bool {
+		return len(d.Namespaces()) == 3
+	}, 2*time.Second))
+
+	// ensure the expected namespaces exist
+	nses = d.Namespaces()
+	require.Len(t, nses, 3)
+	ns3, ok := d.Namespace(ident.StringID("and1"))
+	require.True(t, ok)
+	require.Equal(t, md1.Options(), ns3.Options())
+}
+
 func TestDatabaseUpdateNamespace(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
