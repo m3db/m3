@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -120,6 +121,22 @@ type Node interface {
 	GoalStateExec(verifier GoalStateVerifier, commands ...string) error
 	// Restart restarts this container.
 	Restart() error
+	// Close closes the wrapper and releases any held resources, including
+	// deleting docker containers.
+	Close() error
+}
+
+// Aggregator is an aggregator instance.
+type Aggregator interface {
+	// IsHealthy determines whether an instance is healthy.
+	IsHealthy(instance string) error
+
+	// Status returns the instance status.
+	Status(instance string) (aggregator.RuntimeStatus, error)
+
+	// Resign asks an aggregator instance to give up its current leader role if applicable.
+	Resign(instance string) error
+
 	// Close closes the wrapper and releases any held resources, including
 	// deleting docker containers.
 	Close() error
