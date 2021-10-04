@@ -137,7 +137,7 @@ func (m *bootstrapManager) startBootstrap(
 ) (BootstrapResult, error) {
 	m.Lock()
 	if onCompleteFn != nil {
-		// Append completeion fn if specified.
+		// Append completion fn if specified.
 		m.pendingOnCompleteFns = append(m.pendingOnCompleteFns, onCompleteFn)
 	}
 	switch m.state {
