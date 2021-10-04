@@ -37,9 +37,14 @@ import (
 type TestPromServer struct {
 	mu               sync.Mutex
 	lastWriteRequest *prompb.WriteRequest
-	respErr          error
+	respErr          *respErr
 	t                *testing.T
 	svr              *httptest.Server
+}
+
+type respErr struct {
+	error  string
+	status int
 }
 
 // NewServer creates new instance of a fake server.
@@ -67,7 +72,7 @@ func (s *TestPromServer) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 	s.lastWriteRequest = req
 	if s.respErr != nil {
-		http.Error(w, s.respErr.Error(), http.StatusInternalServerError)
+		http.Error(w, s.respErr.error, s.respErr.status)
 		return
 	}
 }
@@ -85,10 +90,10 @@ func (s *TestPromServer) WriteAddr() string {
 }
 
 // SetError sets error that will be returned for all incoming requests.
-func (s *TestPromServer) SetError(err error) {
+func (s *TestPromServer) SetError(body string, status int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.respErr = err
+	s.respErr = &respErr{error: body, status: status}
 }
 
 // Reset resets state to default.
