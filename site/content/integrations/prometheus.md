@@ -11,7 +11,7 @@ To write to a remote M3DB cluster the simplest configuration is to run `m3coordi
 
 Start by downloading the [config template](https://github.com/m3db/m3/blob/master/src/query/config/m3coordinator-cluster-template.yml). Update the `namespaces` and the `client` section for a new cluster to match your cluster's configuration.
 
-You'll need to specify the static IPs or hostnames of your M3DB seed nodes, and the name and retention values of the namespace you set up.  You can leave the namespace storage metrics type as `unaggregated` since it's required by default to have a cluster that receives all Prometheus metrics unaggregated.  In the future you might also want to aggregate and downsample metrics for longer retention, and you can come back and update the config once you've setup those clusters. You can read more about our aggregation functionality [here](/docs/how_to/m3query).
+You'll need to specify the static IPs or hostnames of your M3DB seed nodes, and the name and retention values of the namespace you set up. You can leave the namespace storage metrics type as `unaggregated` since it's required by default to have a cluster that receives all Prometheus metrics unaggregated.  In the future you might also want to aggregate and downsample metrics for longer retention, and you can come back and update the config once you've setup those clusters. You can read more about our aggregation functionality [here](/docs/how_to/m3query).
 
 It should look something like:
 
@@ -130,7 +130,91 @@ M3 Coordinator supports any backend that implements the Prometheus Remote Write 
 
 Start by downloading the [config template](https://github.com/m3db/m3/blob/master/src/query/config/m3coordinator-prom-remote-template.yml).
 
-Update the endpoints with your Prometheus Remote Write compatible storage setup.
+Update the endpoints with your Prometheus Remote Write compatible storage setup. You should endup with config similar to:
+
+### Running M3 Coordinator sidecar with in memory downsampler
+
+This is a sandbox setup useful for testing things out. 
+We are going to setup:
+- 1 Prometheus instance with `remote-write-receiver` enabled.
+- 1 Prometheus instance scraping M3 Coordinator and Prometheus TSDB which writes through M3 Coordinator.
+- 1 M3 Coordinator with inprocess M3 Aggregator that is donwsampling metrics.
+- `etcd` instance for M3 Coordinator.
+
+For simplicity lets put all config files in one directory and export env variable:
+```shell
+export CONFIG_DIR="<path to your config folder>"
+```
+
+First lets run a Prometheus instance with `remote-write-receiver` enabled:
+
+`prometheus.yml`
+{{< codeinclude file="docs/includes/integrations/prometheus/prometheus.yml" language="yaml" >}}
+
+Run:
+
+```shell
+docker pull prom/prometheus:latest
+docker run -p 9090:9090 --name prometheus \
+  -v "$CONFIG_DIR/prometheus.yml:/etc/prometheus/prometheus.yml" prom/prometheus:latest \
+  --config.file=/etc/prometheus/prometheus.yml \
+  --storage.tsdb.path=/prometheus \
+  --web.console.libraries=/usr/share/prometheus/console_libraries \
+  --web.console.templates=/usr/share/prometheus/consoles \
+  --enable-feature=remote-write-receiver
+```
+
+Run ETCD:
+
+```shell
+docker pull quay.io/coreos/etcd:v3.4.3
+docker run -p 2379:2379 -p 2380:2380 --name etcd quay.io/coreos/etcd:v3.4.3 \
+  etcd --name etcd01 \
+  --listen-peer-urls http://0.0.0.0:2380 \
+  --listen-client-urls http://0.0.0.0:2379 \
+  --advertise-client-urls "http://host.docker.internal:2379" \
+  --initial-cluster-token etcd-cluster-1 \
+  --initial-advertise-peer-urls "http://host.docker.internal:2380" \
+  --initial-cluster "etcd01=http://host.docker.internal:2380" \
+  --initial-cluster-state new --data-dir /var/lib/etcd
+```
+
+`m3_coord_local_downsample.yml`
+{{< codeinclude file="docs/includes/integrations/prometheus/m3_coord_local_downsample.yml" language="yaml" >}}
+
+Run: 
+
+```shell
+# TODO change to latest
+docker pull quay.io/m3db/m3coordinator:master
+docker run -p 7201:7201 -p 3030:3030 --name m3coordinator \
+  -v "$CONFIG_DIR/m3_coord_local_downsample.yml:/etc/m3coordinator/m3coordinator.yml" \
+  quay.io/m3db/m3coordinator:master
+```
+
+`prometheus-scraper.yml`
+{{< codeinclude file="docs/includes/integrations/prometheus/prometheus-scraper.yml" language="yaml" >}}
+
+Run:
+
+```shell
+docker pull prom/prometheus:latest
+docker run --name prometheus-scraper \
+  -v "$CONFIG_DIR/prometheus-scraper.yml:/etc/prometheus/prometheus.yml" prom/prometheus:latest
+```
+
+To explore metrics emitted we can use Grafana.
+
+`datasource.yml`
+{{< codeinclude file="docs/includes/integrations/prometheus/datasource.yml" language="yaml" >}}
+
+Run:
+
+```shell
+docker pull grafana/grafana:latest
+docker run -p 3000:3000 --name grafana \
+  -v "$CONFIG_DIR/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml" grafana/grafana:latest
+```
 
 ### Example - running multiple Prometheus receivers
 
@@ -163,7 +247,6 @@ prometheusRemoteBackend:
         resolution: 5m
         downsample:
           all: true
-
 ```
 
 Now you can setup multiple datasources in Grafana. 
