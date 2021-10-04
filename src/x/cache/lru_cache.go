@@ -363,8 +363,8 @@ func (c *LRU) tryCached(
 
 	if !exists {
 		// The entry doesn't exist, clear enough space for it and then add it
-		if err := c.reserveCapacity(1); err != nil {
-			return nil, false, nil, err
+		if !c.reserveCapacity(1) {
+			return nil, false, nil, ErrCacheFull
 		}
 
 		entry = c.newEntry(key)
@@ -434,7 +434,7 @@ func (c *LRU) updateCacheEntryWithLock(
 ) (interface{}, error) {
 	entry := c.entries[key]
 	if entry == nil {
-		if enforceLimit && c.reserveCapacity(1) != nil {
+		if enforceLimit && !c.reserveCapacity(1) {
 			// Silently skip adding the new entry if we fail to free up space for it
 			// (which should never be happening).
 			return value, err
@@ -476,7 +476,7 @@ func (c *LRU) updateCacheEntryWithLock(
 // reserveCapacity evicts expired and least recently used entries (that aren't loading)
 // until we have at least enough space for new entries.
 // NB(mmihic): Must be called with the cache mutex locked.
-func (c *LRU) reserveCapacity(n int) error {
+func (c *LRU) reserveCapacity(n int) bool {
 	// Unconditionally evict all expired entries. Entries that are expired by
 	// reloading are not in this list, and therefore will not be evicted.
 	oldestElt := c.byLoadTime.Back()
@@ -501,10 +501,10 @@ func (c *LRU) reserveCapacity(n int) error {
 
 	// If we couldn't create enough space, then there are too many entries loading and the cache is simply full
 	if c.maxEntries-len(c.entries) < n {
-		return ErrCacheFull
+		return false
 	}
 
-	return nil
+	return true
 }
 
 // load tries to load from the loader.
