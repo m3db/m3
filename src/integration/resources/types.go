@@ -152,6 +152,19 @@ type M3Resources interface {
 	Coordinator() Coordinator
 }
 
+// ExternalResources represents an external (i.e. non-M3)
+// resource that we'd like to be able to spin up for an
+// integration test.
+type ExternalResources interface {
+	// Setup sets up the external resource so that it's ready
+	// for use.
+	Setup() error
+
+	// Close stops and cleans up all the resources associated with
+	// the external resource.
+	Close() error
+}
+
 // ClusterOptions represents a set of options for a cluster setup.
 type ClusterOptions struct {
 	ReplicationFactor  int32
