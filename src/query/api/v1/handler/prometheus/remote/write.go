@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -613,41 +612,44 @@ func (h *PromWriteHandler) maybeLogSeriesWithLongestLabels(logger *zap.Logger, t
 		}
 	}
 
-	const (
-		literalLengthThreshold = 30
-		totalLengthThreshold   = 1000
-	)
+	const totalLengthThreshold = 1000
 
-	labelSummary := labelsToSummaryString(timeSeries[longestLabelIdx].Labels, literalLengthThreshold, totalLengthThreshold)
+	labelSummary := labelsToSummaryString(timeSeries[longestLabelIdx].Labels, totalLengthThreshold)
 	logger.Warn("series with too long literal", zap.String("labelSummary", labelSummary))
 }
 
-func labelsToSummaryString(labels []prompb.Label, literalLengthThreshold, totalLengthThreshold int) string {
+func labelsToSummaryString(labels []prompb.Label, lengthThreshold int) string {
 	builder := strings.Builder{}
+	builder.WriteRune('{')
 	for i, l := range labels {
-		if builder.Len() > totalLengthThreshold {
-			builder.WriteString(fmt.Sprintf("(%v more labels)", len(labels)-i))
+		if !appendLiteral(&builder, l.Name, lengthThreshold) {
 			break
 		}
-		appendLiteral(&builder, l.Name, literalLengthThreshold)
-		builder.WriteString("=")
-		appendLiteral(&builder, l.Value, literalLengthThreshold)
-		if i+1 < len(labels) {
-			builder.WriteString(",")
+		builder.WriteRune('=')
+		if !appendLiteral(&builder, l.Value, lengthThreshold) {
+			break
 		}
+		if i+1 < len(labels) {
+			builder.WriteRune(',')
+		}
+	}
+	if builder.Len() < lengthThreshold {
+		builder.WriteRune('}')
+	} else {
+		builder.WriteString("...")
 	}
 	return builder.String()
 }
 
-func appendLiteral(builder *strings.Builder, literal []byte, lengthThreshold int) {
-	if len(literal) <= lengthThreshold {
+func appendLiteral(builder *strings.Builder, literal []byte, lengthThreshold int) bool {
+	if builder.Len()+len(literal) <= lengthThreshold {
 		builder.Write(literal)
-	} else {
-		builder.Write(literal[:lengthThreshold])
-		builder.WriteString("(")
-		builder.WriteString(strconv.Itoa(len(literal)))
-		builder.WriteString(")")
+		return true
 	}
+
+	n := lengthThreshold - builder.Len()
+	builder.Write(literal[:n])
+	return false
 }
 
 func newPromTSIter(

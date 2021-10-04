@@ -469,37 +469,38 @@ func TestPromWriteLiteralIsTooLongError(t *testing.T) {
 func TestLabelsToSummaryString(t *testing.T) {
 	labels := []prompb.Label{
 		{Name: []byte("name1"), Value: []byte("value1")},
-		{Name: []byte("name2"), Value: []byte("very_long_value2")},
-		{Name: []byte("very_long_name3"), Value: []byte("value3")},
+		{Name: []byte("name2"), Value: []byte("value2")},
+		{Name: []byte("name3"), Value: []byte("value3")},
 	}
 	tests := []struct {
-		name                   string
-		literalLengthThreshold int
-		totalLengthThreshold   int
-		expected               string
+		name            string
+		lengthThreshold int
+		expected        string
 	}{
 		{
-			name:                   "no truncation",
-			literalLengthThreshold: 20,
-			totalLengthThreshold:   200,
-			expected:               "name1=value1,name2=very_long_value2,very_long_name3=value3",
+			name:            "no truncation",
+			lengthThreshold: 100,
+			expected:        "{name1=value1,name2=value2,name3=value3}",
 		},
 		{
-			name:                   "truncated literals",
-			literalLengthThreshold: 6,
-			totalLengthThreshold:   200,
-			expected:               "name1=value1,name2=very_l(16),very_l(15)=value3",
+			name:            "exact length",
+			lengthThreshold: 40,
+			expected:        "{name1=value1,name2=value2,name3=value3}",
 		},
 		{
-			name:                   "truncated list of labels",
-			literalLengthThreshold: 20,
-			totalLengthThreshold:   20,
-			expected:               "name1=value1,name2=very_long_value2,(1 more labels)",
+			name:            "truncate at label value",
+			lengthThreshold: 35,
+			expected:        "{name1=value1,name2=value2,name3=va...",
+		},
+		{
+			name:            "truncate at label name",
+			lengthThreshold: 30,
+			expected:        "{name1=value1,name2=value2,nam...",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual := labelsToSummaryString(labels, tt.literalLengthThreshold, tt.totalLengthThreshold)
+			actual := labelsToSummaryString(labels, tt.lengthThreshold)
 			require.Equal(t, tt.expected, actual)
 		})
 	}
