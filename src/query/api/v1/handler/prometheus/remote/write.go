@@ -575,10 +575,7 @@ func (h *PromWriteHandler) maybeLogSeriesWithLongestLabels(logger *zap.Logger, t
 		return
 	}
 
-	n := atomic.LoadInt32(&h.numLiteralIsTooLong)
-	if n >= maxLiteralIsTooLongLogCount || !atomic.CompareAndSwapInt32(&h.numLiteralIsTooLong, n, n+1) {
-		// If the value changed in-between the load and compare-and-swap calls, assume that some other series
-		// was already logged by another thread and bail out. It's not critical to log each and every case.
+	if atomic.AddInt32(&h.numLiteralIsTooLong, 1) > maxLiteralIsTooLongLogCount {
 		return
 	}
 
