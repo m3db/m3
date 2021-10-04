@@ -258,6 +258,10 @@ SUBDIR_TARGETS := \
 	all-gen         \
 	all-gen
 
+.PHONY: test-integration-inprocess
+test-integration-inprocess:
+	go test -v -tags=integration_inprocess ./src/integration/...
+
 .PHONY: test-ci-unit
 test-ci-unit: test-base
 	$(process_coverfile) $(coverfile)

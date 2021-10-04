@@ -1,4 +1,4 @@
-// +build integration_v2
+// +build integration_inprocess
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -34,6 +34,8 @@ import (
 )
 
 func TestNewAggregator(t *testing.T) {
+	t.Skip("skip until we resolve sh13723")
+
 	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
 	require.NoError(t, err)
 
