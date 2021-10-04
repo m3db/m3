@@ -292,9 +292,11 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 		}
 	}
 
-	d.RLock()
+	d.Lock()
+	defer d.Unlock()
+
 	removes, adds, updates := d.namespaceDeltaWithLock(newNamespaces)
-	d.RUnlock()
+
 	if err := d.logNamespaceUpdate(removes, adds, updates); err != nil {
 		enrichedErr := fmt.Errorf("unable to log namespace updates: %v", err)
 		d.log.Error(enrichedErr.Error())
@@ -310,8 +312,6 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	}
 
 	if len(adds) > 0 {
-		d.Lock()
-		defer d.Unlock()
 		// if db was not yet bootstrapped, it is safe to add namespaces immediately
 		if d.bootstraps == 0 {
 			return d.addNamespacesWithLock(adds)

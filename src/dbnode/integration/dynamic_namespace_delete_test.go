@@ -144,7 +144,7 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 		_, ok := testSetup.DB().Namespace(ns0.ID())
 		return ok
 	}
-	require.True(t, waitUntil(nsExists, 5*time.Second))
+	require.True(t, waitUntil(nsExists, 30*time.Second))
 	log.Info("new namespace propagated from KV to testSetup")
 
 	// write to new namespace
