@@ -567,7 +567,9 @@ func (d *db) enqueueBootstrapWithLock(onCompleteFn func()) {
 	if d.bootstraps > 0 {
 		d.log.Info("enqueuing bootstrap")
 		d.mediator.BootstrapEnqueue(BootstrapEnqueueOptions{
-			OnCompleteFn: onCompleteFn,
+			OnCompleteFn: func(_ BootstrapResult) {
+				onCompleteFn()
+			},
 		})
 		return
 	}

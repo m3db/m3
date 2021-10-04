@@ -79,7 +79,7 @@ type bootstrapManager struct {
 	processProvider             bootstrap.ProcessProvider
 	state                       BootstrapState
 	hasPending                  bool
-	pendingOnCompleteFns        []func()
+	pendingOnCompleteFns        []BootstrapCompleteFn
 	sleepFn                     sleepFn
 	nowFn                       clock.NowFn
 	lastBootstrapCompletionTime xtime.UnixNano
@@ -119,25 +119,21 @@ func (m *bootstrapManager) LastBootstrapCompletionTime() (xtime.UnixNano, bool) 
 
 func (m *bootstrapManager) BootstrapEnqueue(
 	opts BootstrapEnqueueOptions,
-) *BootstrapAsyncResult {
-	bootstrapAsyncResult := newBootstrapAsyncResult()
-	go func(r *BootstrapAsyncResult) {
-		result, err := m.startBootstrap(r, opts.OnCompleteFn)
+) {
+	go func() {
+		result, err := m.startBootstrap(opts.OnCompleteFn)
 		if err != nil && !result.AlreadyBootstrapping {
 			m.instrumentation.emitAndLogInvariantViolation(err, "error bootstrapping")
 		}
-	}(bootstrapAsyncResult)
-	return bootstrapAsyncResult
+	}()
 }
 
 func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
-	bootstrapAsyncResult := newBootstrapAsyncResult()
-	return m.startBootstrap(bootstrapAsyncResult, nil)
+	return m.startBootstrap(nil)
 }
 
 func (m *bootstrapManager) startBootstrap(
-	asyncResult *BootstrapAsyncResult,
-	onCompleteFn func(),
+	onCompleteFn BootstrapCompleteFn,
 ) (BootstrapResult, error) {
 	m.Lock()
 	if onCompleteFn != nil {
@@ -155,9 +151,6 @@ func (m *bootstrapManager) startBootstrap(
 		m.hasPending = true
 		m.Unlock()
 		result := BootstrapResult{AlreadyBootstrapping: true}
-		asyncResult.bootstrapResult = result
-		asyncResult.bootstrapStarted.Done()
-		asyncResult.bootstrapCompleted.Done()
 		return result, errBootstrapEnqueued
 	default:
 		m.state = Bootstrapping
@@ -171,12 +164,6 @@ func (m *bootstrapManager) startBootstrap(
 	m.instrumentation.log.Info("fileOps disabled")
 
 	var result BootstrapResult
-	asyncResult.bootstrapStarted.Done()
-	defer func() {
-		asyncResult.bootstrapResult = result
-		asyncResult.bootstrapCompleted.Done()
-	}()
-
 	// Keep performing bootstraps until none pending and no error returned.
 	for i := 0; true; i++ {
 		// NB(r): Decouple implementation of bootstrap so can override in tests.
@@ -231,7 +218,7 @@ func (m *bootstrapManager) startBootstrap(
 	if len(pendingOnCompleteFns) > 0 {
 		// Execute any on complete functions that were queued.
 		for _, fn := range pendingOnCompleteFns {
-			fn()
+			fn(result)
 		}
 	}
 
