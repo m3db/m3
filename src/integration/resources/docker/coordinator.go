@@ -58,7 +58,7 @@ func newDockerHTTPCoordinator(
 	opts dockerResourceOptions,
 ) (resources.Coordinator, error) {
 	opts = opts.withDefaults(defaultCoordinatorOptions)
-	opts.mounts = []string{"/etc/m3coordinator/"}
+	opts.tmpfsMounts = []string{"/etc/m3coordinator/"}
 
 	resource, err := newDockerResource(pool, opts)
 	if err != nil {
