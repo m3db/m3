@@ -319,9 +319,9 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 
 		// if mediator is not opened, it is safe to add namespaces immediately
 		if mediator := d.mediator; mediator == nil || !mediator.IsOpen() {
+			d.log.Info("mediator is closed, adding namespaces immediately")
 			if err := d.addNamespacesWithLock(adds); err != nil {
-				enrichedErr := fmt.Errorf("unable to add namespaces: %w", err)
-				d.log.Error(enrichedErr.Error())
+				d.log.Error("unable to add namespaces", zap.Error(err))
 				return err
 			}
 			d.enqueueBootstrapWithLock()
