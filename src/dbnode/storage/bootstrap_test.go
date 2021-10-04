@@ -107,7 +107,6 @@ func testDatabaseBootstrapWithBootstrapError(t *testing.T, async bool) {
 			},
 		})
 		wg.Wait()
-		require.NoError(t, err)
 	} else {
 		result, err = bsm.Bootstrap()
 		require.NoError(t, err)
