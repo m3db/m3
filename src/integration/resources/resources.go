@@ -21,6 +21,7 @@
 package resources
 
 import (
+	"fmt"
 	"time"
 
 	protobuftypes "github.com/gogo/protobuf/types"
@@ -49,11 +50,14 @@ func SetupCluster(cluster M3Resources, opts *ClusterOptions) error { // nolint: 
 	logger := iOpts.Logger().With(zap.String("source", "harness"))
 	hosts := make([]*admin.Host, 0, len(cluster.Nodes()))
 	ids := make([]string, 0, len(cluster.Nodes()))
-	for _, n := range cluster.Nodes() {
+	for i, n := range cluster.Nodes() {
 		h, err := n.HostDetails(9000)
 		if err != nil {
 			logger.Error("could not get host details", zap.Error(err))
 			return err
+		}
+		if opts.NumIsolationGroups > 0 {
+			h.IsolationGroup = fmt.Sprintf("isogroup-%d", int32(i)%opts.NumIsolationGroups)
 		}
 
 		hosts = append(hosts, h)

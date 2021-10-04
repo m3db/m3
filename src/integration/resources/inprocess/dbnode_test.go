@@ -43,6 +43,12 @@ func TestNewDBNodeNoSetup(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, dbnode.Close())
+
+	// Restart and shutdown again to test restarting
+	dbnode, err = NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
+	require.NoError(t, err)
+
+	require.NoError(t, dbnode.Close())
 }
 
 func TestNewDBNode(t *testing.T) {
@@ -173,7 +179,7 @@ func validateTag(t *testing.T, tag ident.Tag, name string, value string) {
 }
 
 func setupNode(t *testing.T) (resources.Node, func()) {
-	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
+	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{GenerateHostID: true})
 	require.NoError(t, err)
 
 	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
@@ -204,7 +210,5 @@ func setupNode(t *testing.T) (resources.Node, func()) {
 
 const defaultDBNodeConfig = `
 db:
-  filesystem:
-    filePathPrefix: "*"
   writeNewSeriesAsync: false
 `
