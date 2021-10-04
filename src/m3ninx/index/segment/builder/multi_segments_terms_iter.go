@@ -121,65 +121,65 @@ func (i *termsIterFromSegments) setField(field []byte) error {
 }
 
 func (i *termsIterFromSegments) Next() bool {
-	if i.err != nil {
-		return false
-	}
-
-	if !i.keyIter.Next() {
-		return false
-	}
-
-	// Create the overlayed postings list for this term
-	i.currPostingsList.Reset()
-	for _, iter := range i.keyIter.CurrentIters() {
-		termsKeyIter := iter.(*termsKeyIter)
-		_, list := termsKeyIter.iter.Current()
-
-		if termsKeyIter.segment.offset == 0 && termsKeyIter.segment.skips == 0 {
-			// No offset, which means is first segment we are combining from
-			// so can just direct union.
-			if err := i.currPostingsList.Union(list); err != nil {
-				i.err = err
-				return false
-			}
-			continue
-		}
-
-		// We have to take into account offset and duplicates/skips.
-		var (
-			iter            = list.Iterator()
-			negativeOffsets = termsKeyIter.segment.negativeOffsets
-			multiErr        = xerrors.NewMultiError()
-		)
-		for iter.Next() {
-			curr := iter.Current()
-			negativeOffset := negativeOffsets[curr]
-			// Then skip the individual if matches.
-			if negativeOffset == -1 {
-				// Skip this value, as itself is a duplicate.
-				continue
-			}
-			value := curr + termsKeyIter.segment.offset - postings.ID(negativeOffset)
-			if err := i.currPostingsList.Insert(value); err != nil {
-				multiErr = multiErr.Add(err)
-				multiErr = multiErr.Add(iter.Close())
-				i.err = multiErr.FinalError()
-				return false
-			}
-		}
-
-		multiErr = multiErr.Add(iter.Err())
-		multiErr = multiErr.Add(iter.Close())
-		i.err = multiErr.FinalError()
+	for true {
 		if i.err != nil {
 			return false
 		}
-	}
 
-	if i.currPostingsList.IsEmpty() {
-		// Everything skipped or term is empty.
-		// TODO: make this non-stack based (i.e. not recursive).
-		return i.Next()
+		if !i.keyIter.Next() {
+			return false
+		}
+
+		// Create the overlayed postings list for this term
+		i.currPostingsList.Reset()
+		for _, iter := range i.keyIter.CurrentIters() {
+			termsKeyIter := iter.(*termsKeyIter)
+			_, list := termsKeyIter.iter.Current()
+
+			if termsKeyIter.segment.offset == 0 && termsKeyIter.segment.skips == 0 {
+				// No offset, which means is first segment we are combining from
+				// so can just direct union.
+				if err := i.currPostingsList.Union(list); err != nil {
+					i.err = err
+					return false
+				}
+				continue
+			}
+
+			// We have to take into account offset and duplicates/skips.
+			var (
+				iter            = list.Iterator()
+				negativeOffsets = termsKeyIter.segment.negativeOffsets
+				multiErr        = xerrors.NewMultiError()
+			)
+			for iter.Next() {
+				curr := iter.Current()
+				negativeOffset := negativeOffsets[curr]
+				// Then skip the individual if matches.
+				if negativeOffset == -1 {
+					// Skip this value, as itself is a duplicate.
+					continue
+				}
+				value := curr + termsKeyIter.segment.offset - postings.ID(negativeOffset)
+				if err := i.currPostingsList.Insert(value); err != nil {
+					multiErr = multiErr.Add(err)
+					multiErr = multiErr.Add(iter.Close())
+					i.err = multiErr.FinalError()
+					return false
+				}
+			}
+
+			multiErr = multiErr.Add(iter.Err())
+			multiErr = multiErr.Add(iter.Close())
+			i.err = multiErr.FinalError()
+			if i.err != nil {
+				return false
+			}
+		}
+
+		if !i.currPostingsList.IsEmpty() {
+			break
+		}
 	}
 
 	return true
