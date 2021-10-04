@@ -1248,6 +1248,11 @@ func TestApplyOrRemoveDropPoliciesDropIfOnlyMatchEffective(t *testing.T) {
 	output, result := input.ApplyOrRemoveDropPolicies()
 	require.Equal(t, AppliedEffectiveDropPolicyResult, result)
 	require.True(t, output.Equal(DropPipelineMetadatas))
+
+	// Ensure that modifying output does not affect DropPipelineMetadatas,
+	// to prevent regressions where global variables are returned.
+	output[0].AggregationID = aggregation.MustCompressTypes(aggregation.Count)
+	require.False(t, output.Equal(DropPipelineMetadatas))
 }
 
 func TestApplyOrRemoveDropPoliciesDropIfOnlyMatchMiddleIneffective(t *testing.T) {
