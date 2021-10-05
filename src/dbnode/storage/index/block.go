@@ -557,11 +557,11 @@ func (b *block) queryWithSpan(
 
 			// Narrow down the range of blocks to scan because the client could have
 			// queried for an arbitrary wide range.
-			if currentBlock < minIndexed {
+			if currentBlock.Before(minIndexed) {
 				currentBlock = minIndexed
 			}
-			if endExclusive > maxIndexed+1 {
-				endExclusive = maxIndexed + 1 // +1 to make it exclusive
+			if endExclusive.After(maxIndexed.Add(time.Nanosecond)) {
+				endExclusive = maxIndexed.Add(time.Nanosecond) // +1ns to make it exclusive
 			}
 
 			currentBlock = currentBlock.Truncate(b.blockSize)

@@ -1755,6 +1755,102 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	require.Equal(t, tracepoint.BlockQuery, spans[4].OperationName)
 }
 
+func TestBlockE2EInsertAddResultsQueryNarrowingBlockRange(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	blockSize := time.Hour
+
+	now := xtime.Now()
+	blockStart := now.Truncate(blockSize)
+
+	nowNotBlockStartAligned := now.
+		Truncate(blockSize).
+		Add(time.Minute)
+
+	blk, err := NewBlock(blockStart, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
+	require.NoError(t, err)
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().OnIndexFinalize(blockStart)
+	h1.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().IndexedRange().Return(blockStart, blockStart.Add(2*blockSize))
+	h1.EXPECT().IndexedForBlockStart(blockStart).Return(false)
+	h1.EXPECT().IndexedForBlockStart(blockStart.Add(1*blockSize)).Return(false)
+	h1.EXPECT().IndexedForBlockStart(blockStart.Add(2*blockSize)).Return(true)
+
+	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().OnIndexFinalize(blockStart)
+	h2.EXPECT().OnIndexSuccess(blockStart)
+	h2.EXPECT().IndexedRange().Return(xtime.UnixNano(0), xtime.UnixNano(0))
+
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: blockSize,
+	})
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h1,
+	}, testDoc1())
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h2,
+	}, testDoc2())
+
+	res, err := b.WriteBatch(batch)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), res.NumSuccess)
+	require.Equal(t, int64(0), res.NumError)
+
+	seg := testSegment(t, testDoc1DupeID())
+	idxResults := result.NewIndexBlockByVolumeType(blockStart)
+	idxResults.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg, true)},
+			result.NewShardTimeRangesFromRange(blockStart, blockStart.Add(blockSize), 1, 2, 3)))
+	require.NoError(t, blk.AddResults(idxResults))
+
+	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
+	require.NoError(t, err)
+
+	ctx := context.NewBackground()
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+	queryIter, err := b.QueryIter(ctx, Query{q})
+	require.NoError(t, err)
+	err = b.QueryWithIter(ctx, QueryOptions{
+		StartInclusive: blockStart.Add(-1000*blockSize),
+		EndExclusive:   blockStart.Add(1000*blockSize),
+	}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
+	require.NoError(t, err)
+	require.Equal(t, 1, results.Size())
+
+	rMap := results.Map()
+	d, ok := rMap.Get(testDoc1().ID)
+	require.True(t, ok)
+	t1 := test.DocumentToTagIter(t, d)
+	require.True(t, ident.NewTagIterMatcher(
+		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
+		t1))
+
+	_, ok = rMap.Get(testDoc2().ID)
+	require.False(t, ok)
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 5)
+	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[0].OperationName)
+	require.Equal(t, tracepoint.SearchExecutorIndexSearch, spans[1].OperationName)
+	require.Equal(t, tracepoint.NSIdxBlockQueryAddDocuments, spans[2].OperationName)
+	require.Equal(t, tracepoint.BlockQuery, spans[3].OperationName)
+}
+
 func TestBlockWriteBackgroundCompact(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
