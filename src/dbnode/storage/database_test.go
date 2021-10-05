@@ -501,12 +501,11 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	mediator.EXPECT().BootstrapEnqueue().DoAndReturn(func() *BootstrapAsyncResult {
-		asyncResult := newBootstrapAsyncResult()
-		asyncResult.bootstrapStarted = &wg
-		wg.Done()
-		return asyncResult
-	})
+	mediator.EXPECT().
+		BootstrapEnqueue(gomock.Any()).
+		Do(func(_ BootstrapEnqueueOptions) {
+			wg.Done()
+		})
 
 	d.AssignShardSet(shardSet)
 

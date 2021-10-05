@@ -849,52 +849,28 @@ type databaseBootstrapManager interface {
 	Bootstrap() (BootstrapResult, error)
 
 	// BootstrapEnqueue performs bootstrapping asynchronously for all namespaces and shards owned.
-	BootstrapEnqueue() *BootstrapAsyncResult
+	BootstrapEnqueue(opts BootstrapEnqueueOptions)
 
 	// Report reports runtime information.
 	Report()
+}
+
+// BootstrapCompleteFn is a callback for when bootstrap is complete when using
+// BootstrapEnqueue method.
+type BootstrapCompleteFn func(BootstrapResult)
+
+// BootstrapEnqueueOptions is options to pass to BootstrapEnqueue when
+// enqueing a bootstrap.
+type BootstrapEnqueueOptions struct {
+	// OnCompleteFn is an optional function to pass to execute once
+	// the set of queued bootstraps are complete.
+	OnCompleteFn BootstrapCompleteFn
 }
 
 // BootstrapResult is a bootstrap result.
 type BootstrapResult struct {
 	ErrorsBootstrap      []error
 	AlreadyBootstrapping bool
-}
-
-// BootstrapAsyncResult is a bootstrap async result.
-type BootstrapAsyncResult struct {
-	bootstrapStarted   *sync.WaitGroup
-	bootstrapCompleted *sync.WaitGroup
-	bootstrapResult    BootstrapResult
-}
-
-func newBootstrapAsyncResult() *BootstrapAsyncResult {
-	var (
-		wgStarted   sync.WaitGroup
-		wgCompleted sync.WaitGroup
-	)
-	wgStarted.Add(1)
-	wgCompleted.Add(1)
-	return &BootstrapAsyncResult{
-		bootstrapStarted:   &wgStarted,
-		bootstrapCompleted: &wgCompleted,
-	}
-}
-
-// Result will wait for bootstrap to complete and return BootstrapResult.
-func (b *BootstrapAsyncResult) Result() BootstrapResult {
-	b.bootstrapCompleted.Wait()
-	return b.bootstrapResult
-}
-
-// WaitForStart waits until bootstrap has been started.
-func (b *BootstrapAsyncResult) WaitForStart() {
-	b.bootstrapStarted.Wait()
-}
-
-// WaitForComplete waits until bootstrap has been completed.
-func (b *BootstrapAsyncResult) WaitForComplete() {
-	b.bootstrapCompleted.Wait()
 }
 
 // databaseFlushManager manages flushing in-memory data to persistent storage.
@@ -1049,8 +1025,8 @@ type databaseMediator interface {
 	// Bootstrap bootstraps the database with file operations performed at the end.
 	Bootstrap() (BootstrapResult, error)
 
-	// BootstrapEnqueue bootstraps the database asynchronously with file operations performed at the end.
-	BootstrapEnqueue() *BootstrapAsyncResult
+	// BootstrapEnqueue performs bootstrapping asynchronously for all namespaces and shards owned.
+	BootstrapEnqueue(opts BootstrapEnqueueOptions)
 
 	// DisableFileOpsAndWait disables file operations.
 	DisableFileOpsAndWait()

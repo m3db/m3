@@ -79,6 +79,7 @@ type bootstrapManager struct {
 	processProvider             bootstrap.ProcessProvider
 	state                       BootstrapState
 	hasPending                  bool
+	pendingOnCompleteFns        []BootstrapCompleteFn
 	sleepFn                     sleepFn
 	nowFn                       clock.NowFn
 	lastBootstrapCompletionTime xtime.UnixNano
@@ -116,23 +117,29 @@ func (m *bootstrapManager) LastBootstrapCompletionTime() (xtime.UnixNano, bool) 
 	return bsTime, bsTime > 0
 }
 
-func (m *bootstrapManager) BootstrapEnqueue() *BootstrapAsyncResult {
-	bootstrapAsyncResult := newBootstrapAsyncResult()
-	go func(r *BootstrapAsyncResult) {
-		if result, err := m.startBootstrap(r); err != nil && !result.AlreadyBootstrapping {
+func (m *bootstrapManager) BootstrapEnqueue(
+	opts BootstrapEnqueueOptions,
+) {
+	go func() {
+		result, err := m.startBootstrap(opts.OnCompleteFn)
+		if err != nil && !result.AlreadyBootstrapping {
 			m.instrumentation.emitAndLogInvariantViolation(err, "error bootstrapping")
 		}
-	}(bootstrapAsyncResult)
-	return bootstrapAsyncResult
+	}()
 }
 
 func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
-	bootstrapAsyncResult := newBootstrapAsyncResult()
-	return m.startBootstrap(bootstrapAsyncResult)
+	return m.startBootstrap(nil)
 }
 
-func (m *bootstrapManager) startBootstrap(asyncResult *BootstrapAsyncResult) (BootstrapResult, error) {
+func (m *bootstrapManager) startBootstrap(
+	onCompleteFn BootstrapCompleteFn,
+) (BootstrapResult, error) {
 	m.Lock()
+	if onCompleteFn != nil {
+		// Append completion fn if specified.
+		m.pendingOnCompleteFns = append(m.pendingOnCompleteFns, onCompleteFn)
+	}
 	switch m.state {
 	case Bootstrapping:
 		// NB(r): Already bootstrapping, now a consequent bootstrap
@@ -144,9 +151,6 @@ func (m *bootstrapManager) startBootstrap(asyncResult *BootstrapAsyncResult) (Bo
 		m.hasPending = true
 		m.Unlock()
 		result := BootstrapResult{AlreadyBootstrapping: true}
-		asyncResult.bootstrapResult = result
-		asyncResult.bootstrapStarted.Done()
-		asyncResult.bootstrapCompleted.Done()
 		return result, errBootstrapEnqueued
 	default:
 		m.state = Bootstrapping
@@ -160,12 +164,6 @@ func (m *bootstrapManager) startBootstrap(asyncResult *BootstrapAsyncResult) (Bo
 	m.instrumentation.log.Info("fileOps disabled")
 
 	var result BootstrapResult
-	asyncResult.bootstrapStarted.Done()
-	defer func() {
-		asyncResult.bootstrapResult = result
-		asyncResult.bootstrapCompleted.Done()
-	}()
-
 	// Keep performing bootstraps until none pending and no error returned.
 	for i := 0; true; i++ {
 		// NB(r): Decouple implementation of bootstrap so can override in tests.
@@ -211,7 +209,19 @@ func (m *bootstrapManager) startBootstrap(asyncResult *BootstrapAsyncResult) (Bo
 	m.Lock()
 	m.lastBootstrapCompletionTime = xtime.ToUnixNano(m.nowFn())
 	m.state = Bootstrapped
+	// NB(r): Clear out the pending completion functions and execute them if
+	// needed.
+	pendingOnCompleteFns := m.pendingOnCompleteFns
+	m.pendingOnCompleteFns = nil
 	m.Unlock()
+
+	if len(pendingOnCompleteFns) > 0 {
+		// Execute any on complete functions that were queued.
+		for _, fn := range pendingOnCompleteFns {
+			fn(result)
+		}
+	}
+
 	return result, nil
 }
 
