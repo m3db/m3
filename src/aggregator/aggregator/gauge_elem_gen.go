@@ -260,7 +260,8 @@ func (e *GaugeElem) Consume(
 	e.Unlock()
 
 	var (
-		cascadeDirty bool
+		cascadeDirty     bool
+		expiredTimeNanos = make([]int64, 0, 0)
 	)
 	// Process the aggregations that are ready for consumption.
 	for i := range e.toConsume {
@@ -322,21 +323,19 @@ func (e *GaugeElem) Consume(
 		}
 
 		e.toConsume[i].lockedAgg.Unlock()
-		if expired {
-			e.toConsume[i].Release()
-
-			// TODO:
-			// maybe remove from prevAgg.lockedAgg.consumedVals
-		}
-
 		if prevLockedAgg != nil {
 			prevLockedAgg.Unlock()
+		}
+
+		if expired {
+			e.toConsume[i].Release()
+			expiredTimeNanos = append(expiredTimeNanos, timeNanos)
 		}
 	}
 
 	if e.parsedPipeline.HasRollup {
 		forwardedAggregationKey, _ := e.ForwardedAggregationKey()
-		onForwardedFlushedFn(e.onForwardedAggregationWrittenFn, forwardedAggregationKey)
+		onForwardedFlushedFn(e.onForwardedAggregationWrittenFn, forwardedAggregationKey, expiredTimeNanos)
 	}
 
 	return canCollect

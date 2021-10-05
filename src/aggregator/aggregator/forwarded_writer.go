@@ -54,7 +54,7 @@ type writeForwardedMetricFn func(
 	annotation []byte,
 )
 
-type onForwardedAggregationDoneFn func(key aggregationKey) error
+type onForwardedAggregationDoneFn func(key aggregationKey, expiredTimeNanos []int64) error
 
 // forwardededMetricWriter writes forwarded metrics.
 type forwardedMetricWriter interface {
@@ -462,7 +462,7 @@ func (agg *forwardedAggregation) write(
 	agg.metrics.write.Inc(1)
 }
 
-func (agg *forwardedAggregation) onDone(key aggregationKey) error {
+func (agg *forwardedAggregation) onDone(key aggregationKey, expiredTimeNanos []int64) error {
 	idx := agg.index(key)
 	agg.byKey[idx].currRefCnt++
 	if agg.byKey[idx].currRefCnt < agg.byKey[idx].totalRefCnt {
@@ -504,6 +504,12 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 				agg.metrics.onDoneWriteSuccess.Inc(1)
 			}
 		}
+
+		// remove expired versions
+		for _, t := range expiredTimeNanos {
+			delete(agg.byKey[idx].versionsByTimeNanos, t)
+		}
+
 		return multiErr.FinalError()
 	}
 	// If the current ref count is higher than total, this is likely a logical error.

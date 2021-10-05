@@ -494,8 +494,9 @@ func (l *baseMetricList) discardForwardedMetric(
 func (l *baseMetricList) onForwardingElemConsumed(
 	onForwardedWrittenFn onForwardedAggregationDoneFn,
 	aggregationKey aggregationKey,
+	expiredTimeNanos []int64,
 ) {
-	if err := onForwardedWrittenFn(aggregationKey); err != nil {
+	if err := onForwardedWrittenFn(aggregationKey, expiredTimeNanos); err != nil {
 		l.metrics.flushForwarded.onConsumedErrors.Inc(1)
 	} else {
 		l.metrics.flushForwarded.onConsumedSuccess.Inc(1)
@@ -506,6 +507,7 @@ func (l *baseMetricList) onForwardingElemConsumed(
 func (l *baseMetricList) onForwardingElemDiscarded(
 	onForwardedWrittenFn onForwardedAggregationDoneFn,
 	aggregationKey aggregationKey,
+	expiredTimeNanos []int64,
 ) {
 	l.metrics.flushForwarded.onDiscarded.Inc(1)
 }
