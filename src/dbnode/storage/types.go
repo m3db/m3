@@ -860,7 +860,7 @@ type databaseBootstrapManager interface {
 type BootstrapCompleteFn func(BootstrapResult)
 
 // BootstrapEnqueueOptions is options to pass to BootstrapEnqueue when
-// enqueing a bootstrap.
+// enqueuing a bootstrap.
 type BootstrapEnqueueOptions struct {
 	// OnCompleteFn is an optional function to pass to execute once
 	// the set of queued bootstraps are complete.
