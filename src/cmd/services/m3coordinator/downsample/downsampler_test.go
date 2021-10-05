@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/client"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	dbclient "github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/aggregation"
@@ -2841,6 +2842,28 @@ func TestDownsamplerWithOverrideNamespace(t *testing.T) {
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerStoreInit(t *testing.T) {
+	t.Run("does not reset namespaces key", func(t *testing.T) {
+		store := mem.NewStore()
+		_, err := store.Set("/namespaces", &rulepb.Namespaces{Namespaces: []*rulepb.Namespace{{}}})
+		require.NoError(t, err)
+
+		_ = newTestDownsampler(t, testDownsamplerOptions{kvStore: store})
+
+		ns := readNamespacesKey(t, store)
+		assert.Len(t, ns.Namespaces, 1)
+	})
+
+	t.Run("initializes namespace key", func(t *testing.T) {
+		store := mem.NewStore()
+
+		_ = newTestDownsampler(t, testDownsamplerOptions{kvStore: store})
+
+		ns := readNamespacesKey(t, store)
+		assert.Len(t, ns.Namespaces, 0)
+	})
+}
+
 func originalStagedMetadata(t *testing.T, testDownsampler testDownsampler) []metricpb.StagedMetadatas {
 	ds, ok := testDownsampler.downsampler.(*downsampler)
 	require.True(t, ok)
@@ -3428,6 +3451,8 @@ type testDownsamplerOptions struct {
 	// Test ingest and expectations overrides
 	ingest *testDownsamplerOptionsIngest
 	expect *testDownsamplerOptionsExpect
+
+	kvStore kv.Store
 }
 
 type testDownsamplerOptionsIngest struct {
@@ -3510,9 +3535,15 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 	cfg.Matcher = opts.matcherConfig
 	cfg.UntimedRollups = opts.untimedRollups
 
+	clusterClient := clusterclient.NewMockClient(gomock.NewController(t))
+	kvStore := opts.kvStore
+	if kvStore == nil {
+		kvStore = mem.NewStore()
+	}
+	clusterClient.EXPECT().KV().Return(kvStore, nil).AnyTimes()
 	instance, err := cfg.NewDownsampler(DownsamplerOptions{
 		Storage:                    storage,
-		ClusterClient:              clusterclient.NewMockClient(gomock.NewController(t)),
+		ClusterClient:              clusterClient,
 		RulesKVStore:               rulesKVStore,
 		ClusterNamespacesWatcher:   m3.NewClusterNamespacesWatcher(),
 		ClockOptions:               clockOpts,
@@ -3616,4 +3647,14 @@ func findWrites(
 
 func testUpdateMetadata() rules.UpdateMetadata {
 	return rules.NewRuleSetUpdateHelper(0).NewUpdateMetadata(time.Now().UnixNano(), "test")
+}
+
+func readNamespacesKey(t *testing.T, store kv.Store) rulepb.Namespaces {
+	v, err := store.Get("/namespaces")
+	require.NoError(t, err)
+	var ns rulepb.Namespaces
+	err = v.Unmarshal(&ns)
+	require.NoError(t, err)
+	require.NotNil(t, ns)
+	return ns
 }

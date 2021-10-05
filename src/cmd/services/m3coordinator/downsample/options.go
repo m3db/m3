@@ -988,7 +988,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 }
 
 func initStoreNamespaces(store kv.Store, nsKey string) error {
-	_, err := store.CheckAndSet(nsKey, 0, &rulepb.Namespaces{})
+	_, err := store.SetIfNotExists(nsKey, &rulepb.Namespaces{})
+	if errors.Is(err, kv.ErrAlreadyExists) {
+		return nil
+	}
 	return err
 }
 
