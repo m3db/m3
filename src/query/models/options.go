@@ -33,15 +33,16 @@ const (
 	defaultAllowTagValueEmpty     = false
 	// NB: this matches the default tag literal length in x/serialize.
 	// https://github.com/m3db/m3/blob/0f671c9fd47a09e19b96b584ae17065690db4a04/src/x/serialize/limits.go#L29-L30
-	defaultMaxTagLiteralLength = math.MaxUint16
+	defaultMaxTagLiteralLength uint16 = math.MaxUint16
 )
 
 var (
 	defaultMetricName = []byte(model.MetricNameLabel)
 	defaultBucketName = []byte("le")
 
-	errNoName   = errors.New("metric name is missing or empty")
-	errNoBucket = errors.New("bucket name is missing or empty")
+	errNoName                   = errors.New("metric name is missing or empty")
+	errNoBucket                 = errors.New("bucket name is missing or empty")
+	errNonPositiveLiteralLength = errors.New("max literal length should be positive")
 )
 
 type tagOptions struct {
@@ -75,6 +76,10 @@ func (o *tagOptions) Validate() error {
 
 	if o.bucketName == nil || len(o.bucketName) == 0 {
 		return errNoBucket
+	}
+
+	if o.maxTagLiteralLength == 0 {
+		return errNonPositiveLiteralLength
 	}
 
 	return o.idScheme.Validate()
