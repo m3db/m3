@@ -43,8 +43,12 @@ type dockerResourceOptions struct {
 	containerName    string
 	image            dockerImage
 	portList         []int
-	mounts           []string
-	iOpts            instrument.Options
+	// mounts creates mounts in the container that map back to a resource
+	// on the host system.
+	mounts []string
+	// tmpfsMounts creates mounts to the container's temporary file system
+	tmpfsMounts []string
+	iOpts       instrument.Options
 }
 
 // NB: this will fill unset fields with given default values.
@@ -68,6 +72,10 @@ func (o dockerResourceOptions) withDefaults(
 
 	if len(o.portList) == 0 {
 		o.portList = defaultOpts.portList
+	}
+
+	if len(o.tmpfsMounts) == 0 {
+		o.tmpfsMounts = defaultOpts.tmpfsMounts
 	}
 
 	if len(o.mounts) == 0 {
