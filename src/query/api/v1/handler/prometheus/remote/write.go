@@ -585,18 +585,17 @@ func (h *PromWriteHandler) maybeLogLabelsWithTooLongLiterals(logger *zap.Logger,
 		return
 	}
 
-	logger.Warn("label exceeds literal length limits",
-		zap.String("name", truncateLiteral(label.Name, literalPrefixLength)),
-		zap.String("value", truncateLiteral(label.Value, literalPrefixLength)),
-	)
-}
-
-func truncateLiteral(literal []byte, lengthThreshold int) string {
-	if len(literal) <= lengthThreshold {
-		return string(literal)
+	safePrefix := func(b []byte, l int) []byte {
+		if len(b) <= l {
+			return b
+		}
+		return b[:l]
 	}
-	const ellipsis = "..."
-	return string(literal[:lengthThreshold]) + ellipsis
+
+	logger.Warn("label exceeds literal length limits",
+		zap.String("namePrefix", string(safePrefix(label.Name, literalPrefixLength))),
+		zap.String("valuePrefix", string(safePrefix(label.Value, literalPrefixLength))),
+	)
 }
 
 func newPromTSIter(
