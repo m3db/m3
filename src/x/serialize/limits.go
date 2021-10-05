@@ -22,12 +22,12 @@ package serialize
 
 import "math"
 
-var (
+const (
 	// defaultMaxNumberTags is the maximum number of tags that can be encoded.
 	defaultMaxNumberTags uint16 = math.MaxUint16
 
-	// defaultMaxTagLiteralLength is the maximum length of a tag Name/Value.
-	defaultMaxTagLiteralLength uint16 = math.MaxUint16
+	// DefaultMaxTagLiteralLength is the maximum length of a tag Name/Value.
+	DefaultMaxTagLiteralLength uint16 = math.MaxUint16
 )
 
 type limits struct {
@@ -39,7 +39,7 @@ type limits struct {
 func NewTagSerializationLimits() TagSerializationLimits {
 	return &limits{
 		maxNumberTags:       defaultMaxNumberTags,
-		maxTagLiteralLength: defaultMaxTagLiteralLength,
+		maxTagLiteralLength: DefaultMaxTagLiteralLength,
 	}
 }
 
