@@ -292,8 +292,17 @@ func (agg *forwardedAggregationWithKey) reset() {
 	agg.currRefCnt = 0
 	for i := 0; i < len(agg.buckets); i++ {
 		agg.buckets[i].values = agg.buckets[i].values[:0]
-		agg.cachedValueArrays = append(agg.cachedValueArrays, agg.buckets[i].values)
+		agg.buckets[i].prevValues = agg.buckets[i].prevValues[:0]
+		// buckets are kept around to support resending. only add back the arrays if they weren't already niled out in
+		// a previous iteration.
+		if agg.buckets[i].values != nil {
+			agg.cachedValueArrays = append(agg.cachedValueArrays, agg.buckets[i].values)
+		}
+		if agg.buckets[i].prevValues != nil {
+			agg.cachedValueArrays = append(agg.cachedValueArrays, agg.buckets[i].prevValues)
+		}
 		agg.buckets[i].values = nil
+		agg.buckets[i].prevValues = nil
 	}
 	agg.buckets = agg.buckets[:0]
 }
