@@ -29,9 +29,14 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -51,11 +56,6 @@ import (
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func makeOptions(ds ingest.DownsamplerAndWriter) options.HandlerOptions {
@@ -432,9 +432,7 @@ func TestPromWriteLiteralIsTooLongError(t *testing.T) {
 	handler, err := NewPromWriteHandler(opts)
 	require.NoError(t, err)
 
-	veryLongLiteral := ""
-	for ; len(veryLongLiteral) <= int(opts.TagOptions().MaxTagLiteralLength()); veryLongLiteral += "very_long_literal_" {
-	}
+	veryLongLiteral := strings.Repeat("x", int(opts.TagOptions().MaxTagLiteralLength())+1)
 	promReq := &prompb.WriteRequest{
 		Timeseries: []prompb.TimeSeries{
 			{
@@ -464,7 +462,7 @@ func TestPromWriteLiteralIsTooLongError(t *testing.T) {
 			case "name":
 				assert.Equal(t, "name2", f.String)
 			case "value":
-				assert.Equal(t, veryLongLiteral[:literalLengthThreshold]+"...", f.String)
+				assert.Equal(t, veryLongLiteral[:literalPrefixLength]+"...", f.String)
 			}
 		}
 	}

@@ -23,17 +23,16 @@ package models
 import (
 	"bytes"
 	"errors"
-	"math"
 
 	"github.com/prometheus/common/model"
+
+	"github.com/m3db/m3/src/x/serialize"
 )
 
 const (
 	defaultAllowTagNameDuplicates = false
 	defaultAllowTagValueEmpty     = false
-	// NB: this matches the default tag literal length in x/serialize.
-	// https://github.com/m3db/m3/blob/0f671c9fd47a09e19b96b584ae17065690db4a04/src/x/serialize/limits.go#L29-L30
-	defaultMaxTagLiteralLength uint16 = math.MaxUint16
+	defaultMaxTagLiteralLength    = serialize.DefaultMaxTagLiteralLength
 )
 
 var (

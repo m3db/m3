@@ -75,9 +75,9 @@ const (
 	// maxLiteralIsTooLongLogCount is the number of times the time series labels should be logged
 	// upon "literal is too long" error.
 	maxLiteralIsTooLongLogCount = 10
-	// literalLengthThreshold is the length of the label literal prefix that is logged upon
+	// literalPrefixLength is the length of the label literal prefix that is logged upon
 	// "literal is too long" error.
-	literalLengthThreshold = 100
+	literalPrefixLength = 100
 )
 
 var (
@@ -586,8 +586,8 @@ func (h *PromWriteHandler) maybeLogLabelsWithTooLongLiterals(logger *zap.Logger,
 	}
 
 	logger.Warn("label exceeds literal length limits",
-		zap.String("name", truncateLiteral(label.Name, literalLengthThreshold)),
-		zap.String("value", truncateLiteral(label.Value, literalLengthThreshold)),
+		zap.String("name", truncateLiteral(label.Name, literalPrefixLength)),
+		zap.String("value", truncateLiteral(label.Value, literalPrefixLength)),
 	)
 }
 
