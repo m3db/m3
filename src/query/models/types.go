@@ -113,6 +113,12 @@ type TagOptions interface {
 	// AllowTagValueEmpty returns the value to allow empty tag values to appear.
 	AllowTagValueEmpty() bool
 
+	// SetMaxTagLiteralLength sets the maximum length of a tag Name/Value.
+	SetMaxTagLiteralLength(value uint16) TagOptions
+
+	// MaxTagLiteralLength returns the maximum length of a tag Name/Value.
+	MaxTagLiteralLength() uint16
+
 	// Equals determines if two tag options are equivalent.
 	Equals(other TagOptions) bool
 }

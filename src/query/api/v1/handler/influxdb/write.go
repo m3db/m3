@@ -22,8 +22,10 @@ package influxdb
 
 import (
 	"bytes"
+	"compress/gzip"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -283,12 +285,41 @@ func NewInfluxWriterHandler(options options.HandlerOptions) http.Handler {
 }
 
 func (iwh *ingestWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	bytes, err := ioutil.ReadAll(r.Body)
+	if r.Body == http.NoBody {
+		xhttp.WriteError(w, xhttp.NewError(errors.New("empty request body"), http.StatusBadRequest))
+		return
+	}
+
+	var bytes []byte
+	var err error
+	var reader io.ReadCloser
+
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		reader, err = gzip.NewReader(r.Body)
+		if err != nil {
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
+			return
+		}
+	} else {
+		reader = r.Body
+	}
+
+	bytes, err = ioutil.ReadAll(reader)
 	if err != nil {
 		xhttp.WriteError(w, err)
 		return
 	}
-	points, err := imodels.ParsePoints(bytes)
+
+	err = reader.Close()
+	if err != nil {
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	// InfluxDB line protocol v1.8 supports following precision values ns, u, ms, s, m and h
+	// If precision is not given, nanosecond precision is assumed
+	precision := r.URL.Query().Get("precision")
+	points, err := imodels.ParsePointsWithPrecision(bytes, time.Now().UTC(), precision)
 	if err != nil {
 		xhttp.WriteError(w, err)
 		return

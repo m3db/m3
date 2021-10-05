@@ -1,4 +1,5 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// +build integration_v2
+// Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,47 +19,41 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package serialize
+package inprocess
 
-import "math"
+import (
+	"testing"
 
-const (
-	// defaultMaxNumberTags is the maximum number of tags that can be encoded.
-	defaultMaxNumberTags uint16 = math.MaxUint16
-
-	// DefaultMaxTagLiteralLength is the maximum length of a tag Name/Value.
-	DefaultMaxTagLiteralLength uint16 = math.MaxUint16
+	"github.com/stretchr/testify/require"
 )
 
-type limits struct {
-	maxNumberTags       uint16
-	maxTagLiteralLength uint16
+func TestNewCluster(t *testing.T) {
+	m3, err := NewCluster(ClusterOptions{
+		Coordinator: CoordinatorClusterOptions{
+			CoordinatorClusterConfig{ConfigString: clusterCoordConfig},
+		},
+		DBNode: DBNodeClusterOptions{
+			Config:             DBNodeClusterConfig{ConfigString: clusterDBNodeConfig},
+			RF:                 3,
+			NumInstances:       1,
+			NumShards:          64,
+			NumIsolationGroups: 3,
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, m3.Nodes().WaitForHealthy())
+	require.NoError(t, m3.Cleanup())
 }
 
-// NewTagSerializationLimits returns a new TagSerializationLimits object.
-func NewTagSerializationLimits() TagSerializationLimits {
-	return &limits{
-		maxNumberTags:       defaultMaxNumberTags,
-		maxTagLiteralLength: DefaultMaxTagLiteralLength,
-	}
-}
+const clusterDBNodeConfig = `
+db:
+  writeNewSeriesAsync: false
+`
 
-func (l *limits) SetMaxNumberTags(v uint16) TagSerializationLimits {
-	lim := *l
-	lim.maxNumberTags = v
-	return &lim
-}
-
-func (l *limits) MaxNumberTags() uint16 {
-	return l.maxNumberTags
-}
-
-func (l *limits) SetMaxTagLiteralLength(v uint16) TagSerializationLimits {
-	lim := *l
-	lim.maxTagLiteralLength = v
-	return &lim
-}
-
-func (l *limits) MaxTagLiteralLength() uint16 {
-	return l.maxTagLiteralLength
-}
+const clusterCoordConfig = `
+clusters:
+  - namespaces:
+      - namespace: default
+        type: unaggregated
+        retention: 1h
+`

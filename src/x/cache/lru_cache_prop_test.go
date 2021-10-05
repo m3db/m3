@@ -37,10 +37,10 @@ import (
 
 func TestLRUPropertyTest(t *testing.T) {
 	testLRUPropFunc := func(input propTestMultiInput) (bool, error) {
-		size := 1000
+		maxSize := 1000
 
 		cacheOpts := &LRUOptions{
-			MaxEntries: size,
+			MaxEntries: maxSize,
 			Now:        time.Now,
 		}
 
@@ -97,6 +97,10 @@ func TestLRUPropertyTest(t *testing.T) {
 		wg.Wait()
 
 		t.Logf("found=%d, not_found=%d\n", found.Load(), notFound.Load())
+
+		if actualSize := len(lru.entries); actualSize > maxSize {
+			return false, fmt.Errorf("cache size %d exceeded MaxSize %d", actualSize, maxSize)
+		}
 
 		return true, nil
 	}

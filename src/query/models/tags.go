@@ -315,16 +315,20 @@ func (t Tags) validate() error {
 		var (
 			allowTagNameDuplicates = t.Opts.AllowTagNameDuplicates()
 			allowTagValueEmpty     = t.Opts.AllowTagValueEmpty()
+			maxTagLiteralLength    = int(t.Opts.MaxTagLiteralLength())
 		)
 		// Sorted alphanumerically otherwise, use bytes.Compare once for
 		// both order and unique test.
 		for i, tag := range t.Tags {
-			if len(tag.Name) == 0 {
+			if nameLen := len(tag.Name); nameLen == 0 {
 				return fmt.Errorf("tag name empty: index=%d", i)
+			} else if nameLen > maxTagLiteralLength {
+				return fmt.Errorf("tag name too long: index=%d, length=%d, maxLength=%d", i, nameLen, maxTagLiteralLength)
 			}
-			if !allowTagValueEmpty && len(tag.Value) == 0 {
-				return fmt.Errorf("tag value empty: index=%d, name=%s",
-					i, t.Tags[i].Name)
+			if valueLen := len(tag.Value); !allowTagValueEmpty && valueLen == 0 {
+				return fmt.Errorf("tag value empty: index=%d, name=%s", i, tag.Name)
+			} else if valueLen > maxTagLiteralLength {
+				return fmt.Errorf("tag value too long: index=%d, length=%d, maxLength=%d", i, valueLen, maxTagLiteralLength)
 			}
 			if i == 0 {
 				continue // Don't check order/unique attributes.

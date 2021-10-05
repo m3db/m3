@@ -23,6 +23,7 @@ require (
 	github.com/golang/protobuf v1.5.2
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.6
+	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/hcl v1.0.1-0.20190611123218-cf7d376da96d // indirect
 	github.com/hydrogen18/stalecucumber v0.0.0-20151102144322-9b38526d4bdf

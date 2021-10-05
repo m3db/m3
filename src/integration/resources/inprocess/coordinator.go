@@ -32,7 +32,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/backoff/v3"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
@@ -50,9 +49,6 @@ import (
 const (
 	interruptTimeout = 5 * time.Second
 	shutdownTimeout  = time.Minute
-
-	retryMaxInterval = 5 * time.Second
-	retryMaxTime     = time.Minute
 )
 
 // coordinator is an in-process implementation of resources.Coordinator for use
@@ -70,6 +66,9 @@ type coordinator struct {
 
 // CoordinatorOptions are options for starting a coordinator server.
 type CoordinatorOptions struct {
+	// GeneratePorts will automatically update the config to use open ports
+	// if set to true. If false, configuration is used as-is re: ports.
+	GeneratePorts bool
 	// Logger is the logger to use for the coordinator. If not provided,
 	// a default one will be created.
 	Logger *zap.Logger
@@ -113,28 +112,29 @@ func NewCoordinatorFromYAML(yamlCfg string, opts CoordinatorOptions) (resources.
 //
 // The coordinator will start up as you specify in your config. However, there is some
 // helper logic to avoid port and filesystem collisions when spinning up multiple components
-// within the process. If you specify a port of 0 in any address, 0 will be automatically
-// replace with an open port. This is similar to the behavior net.Listen provides for you.
-// Similarly, for filepaths, if a "*" is specified in the config, then that field will
-// be updated with a temp directory that will be cleaned up when the coordinator is destroyed.
-// This should ensure that many of the same component can be spun up in-process without any
-// issues with collisions.
+// within the process. If you specify a GeneratePorts: true in the CoordinatorOptions, address ports
+// will be replaced with an open port.
+//
+// Similarly, filepath fields will  be updated with a temp directory that will be cleaned up
+// when the coordinator is destroyed. This should ensure that many of the same component can be
+// spun up in-process without any issues with collisions.
 func NewCoordinator(cfg config.Configuration, opts CoordinatorOptions) (resources.Coordinator, error) {
-	// Replace any "0" ports with an open port
-	cfg, err := updateCoordinatorPorts(cfg)
+	// Massage config so it runs properly in tests.
+	cfg, tmpDirs, err := updateCoordinatorConfig(cfg, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	// Replace any "*" filepath with a temporary directory
-	cfg, tmpDirs, err := updateCoordinatorFilepaths(cfg)
-	if err != nil {
-		return nil, err
+	logging := cfg.LoggingOrDefault()
+	if len(logging.Fields) == 0 {
+		logging.Fields = make(map[string]interface{})
 	}
+	logging.Fields["component"] = "coordinator"
+	cfg.Logging = &logging
 
 	// Configure logger
 	if opts.Logger == nil {
-		opts.Logger, err = zap.NewDevelopment()
+		opts.Logger, err = newLogger()
 		if err != nil {
 			return nil, err
 		}
@@ -333,14 +333,70 @@ func (c *coordinator) RunQuery(
 	return c.client.RunQuery(verifier, query, headers)
 }
 
+func updateCoordinatorConfig(
+	cfg config.Configuration,
+	opts CoordinatorOptions,
+) (config.Configuration, []string, error) {
+	var (
+		tmpDirs []string
+		err     error
+	)
+	if opts.GeneratePorts {
+		// Replace any port with an open port
+		cfg, err = updateCoordinatorPorts(cfg)
+		if err != nil {
+			return config.Configuration{}, nil, err
+		}
+	}
+
+	// Replace any filepath with a temporary directory
+	cfg, tmpDirs, err = updateCoordinatorFilepaths(cfg)
+	if err != nil {
+		return config.Configuration{}, nil, err
+	}
+
+	return cfg, tmpDirs, nil
+}
+
 func updateCoordinatorPorts(cfg config.Configuration) (config.Configuration, error) {
-	if cfg.ListenAddress != nil {
-		addr, _, _, err := nettest.MaybeGeneratePort(*cfg.ListenAddress)
+	addr, _, err := nettest.GeneratePort(cfg.ListenAddressOrDefault())
+	if err != nil {
+		return cfg, err
+	}
+	cfg.ListenAddress = &addr
+
+	metrics := cfg.MetricsOrDefault()
+	if metrics.PrometheusReporter != nil && metrics.PrometheusReporter.ListenAddress != "" {
+		addr, _, err := nettest.GeneratePort(metrics.PrometheusReporter.ListenAddress)
 		if err != nil {
 			return cfg, err
 		}
+		metrics.PrometheusReporter.ListenAddress = addr
+	}
+	cfg.Metrics = metrics
 
-		cfg.ListenAddress = &addr
+	if cfg.RPC != nil && cfg.RPC.ListenAddress != "" {
+		addr, _, err := nettest.GeneratePort(cfg.RPC.ListenAddress)
+		if err != nil {
+			return cfg, err
+		}
+		cfg.RPC.ListenAddress = addr
+	}
+
+	if cfg.Ingest != nil && cfg.Ingest.M3Msg.Server.ListenAddress != "" {
+		addr, _, err := nettest.GeneratePort(cfg.Ingest.M3Msg.Server.ListenAddress)
+		if err != nil {
+			return cfg, err
+		}
+		cfg.Ingest.M3Msg.Server.ListenAddress = addr
+	}
+
+	if cfg.Carbon != nil && cfg.Carbon.Ingester != nil {
+		addr, _, err := nettest.GeneratePort(cfg.Carbon.Ingester.ListenAddressOrDefault())
+		if err != nil {
+			return cfg, err
+		}
+		cfg.Carbon.Ingester.ListenAddress = addr
 	}
 
 	return cfg, nil
@@ -353,7 +409,7 @@ func updateCoordinatorFilepaths(cfg config.Configuration) (config.Configuration,
 		ec := cluster.Client.EnvironmentConfig
 		if ec != nil {
 			for _, svc := range ec.Services {
-				if svc != nil && svc.Service != nil && svc.Service.CacheDir == "*" {
+				if svc != nil && svc.Service != nil {
 					dir, err := ioutil.TempDir("", "m3kv-*")
 					if err != nil {
 						return cfg, tmpDirs, err
@@ -366,12 +422,15 @@ func updateCoordinatorFilepaths(cfg config.Configuration) (config.Configuration,
 		}
 	}
 
-	return cfg, tmpDirs, nil
-}
+	if cfg.ClusterManagement.Etcd != nil {
+		dir, err := ioutil.TempDir("", "m3kv-*")
+		if err != nil {
+			return cfg, tmpDirs, err
+		}
 
-func retry(op func() error) error {
-	bo := backoff.NewExponentialBackOff()
-	bo.MaxInterval = retryMaxInterval
-	bo.MaxElapsedTime = retryMaxTime
-	return backoff.Retry(op, bo)
+		tmpDirs = append(tmpDirs, dir)
+		cfg.ClusterManagement.Etcd.CacheDir = dir
+	}
+
+	return cfg, tmpDirs, nil
 }
