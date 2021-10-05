@@ -557,23 +557,17 @@ func (b *block) queryWithSpan(
 
 			// Narrow down the range of blocks to scan because the client could have
 			// queried for an arbitrary wide range.
-			var (
-				minIndexedInclusive = minIndexed.Add(-b.blockSize)
-				maxIndexedExclusive = maxIndexed.Add(time.Nanosecond)
-			)
-			if currentBlock.Before(minIndexedInclusive) {
-				currentBlock = minIndexedInclusive
+			if currentBlock.Before(minIndexed) {
+				currentBlock = minIndexed
 			}
+			maxIndexedExclusive := maxIndexed.Add(time.Nanosecond)
 			if endExclusive.After(maxIndexedExclusive) {
 				endExclusive = maxIndexedExclusive
 			}
 
-			for !inBlock {
+			for !inBlock && currentBlock.Before(endExclusive) {
 				inBlock = md.OnIndexSeries.IndexedForBlockStart(currentBlock)
 				currentBlock = currentBlock.Add(b.blockSize)
-				if !currentBlock.Before(endExclusive) {
-					break
-				}
 			}
 
 			if !inBlock {

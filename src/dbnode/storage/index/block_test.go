@@ -1536,7 +1536,7 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	err = b.QueryWithIter(ctx, QueryOptions{
 		SeriesLimit:    limit,
 		StartInclusive: blockStart,
-		EndExclusive:   blockStart,
+		EndExclusive:   blockStart.Add(time.Second),
 	}, queryIter, results, time.Now().Add(time.Minute),
 		emptyLogFields)
 	require.NoError(t, err)
@@ -1635,7 +1635,7 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	require.NoError(t, err)
 	err = b.QueryWithIter(ctx, QueryOptions{
 		StartInclusive: blockStart,
-		EndExclusive:   blockStart,
+		EndExclusive:   blockStart.Add(time.Second),
 	}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
 	require.NoError(t, err)
 	require.Equal(t, 2, results.Size())
@@ -1725,7 +1725,7 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	require.NoError(t, err)
 	err = b.QueryWithIter(ctx, QueryOptions{
 		StartInclusive: blockStart,
-		EndExclusive:   blockStart,
+		EndExclusive:   blockStart.Add(time.Second),
 	}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
 	require.NoError(t, err)
 	require.Equal(t, 2, results.Size())
