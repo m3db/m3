@@ -805,7 +805,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		matcherCacheCapacity = *v
 	}
 
-	kvStore, err := o.ClusterClient.Txn()
+	kvStore, err := o.ClusterClient.KV()
 	if err != nil {
 		return agg{}, err
 	}
@@ -987,7 +987,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}, nil
 }
 
-func initStoreNamespaces(store kv.TxnStore, nsKey string) error {
+func initStoreNamespaces(store kv.Store, nsKey string) error {
 	_, err := store.CheckAndSet(nsKey, 0, &rulepb.Namespaces{})
 	return err
 }
