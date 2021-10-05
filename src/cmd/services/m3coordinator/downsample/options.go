@@ -811,9 +811,13 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	// NB(antanas): matcher registers watcher on namespaces key. Making sure it is set, otherwise watcher times out.
-	err = initStoreNamespaces(kvStore, matcherOpts.NamespacesKey())
-	if err != nil {
-		return agg{}, err
+	// With RequireNamespaceWatchOnInit being true we expect namespaces to be set upfront
+	// so we do not initialize them here at all because it might potentially hide human error.
+	if !cfg.Matcher.RequireNamespaceWatchOnInit {
+		err = initStoreNamespaces(kvStore, matcherOpts.NamespacesKey())
+		if err != nil {
+			return agg{}, err
+		}
 	}
 
 	matcher, err := o.newAggregatorMatcher(matcherOpts, matcherCacheCapacity)

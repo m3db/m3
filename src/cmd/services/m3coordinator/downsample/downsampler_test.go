@@ -2842,7 +2842,7 @@ func TestDownsamplerWithOverrideNamespace(t *testing.T) {
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
-func TestDownsamplerStoreInit(t *testing.T) {
+func TestDownsamplerNamespacesEtcdInit(t *testing.T) {
 	t.Run("does not reset namespaces key", func(t *testing.T) {
 		store := mem.NewStore()
 		initialNamespaces := rulepb.Namespaces{Namespaces: []*rulepb.Namespace{{Name: "testNamespace"}}}
@@ -2856,14 +2856,22 @@ func TestDownsamplerStoreInit(t *testing.T) {
 
 	t.Run("initializes namespace key", func(t *testing.T) {
 		store := mem.NewStore()
-		_, err := store.Get(matcher.NewOptions().NamespacesKey())
-		require.Error(t, err)
 
 		_ = newTestDownsampler(t, testDownsamplerOptions{kvStore: store})
 
 		ns := readNamespacesKey(t, store)
 		require.NotNil(t, ns)
 		assert.Len(t, ns.Namespaces, 0)
+	})
+
+	t.Run("do not initialize namespaces when RequireNamespaceWatchOnInit is true", func(t *testing.T) {
+		store := mem.NewStore()
+
+		matcherConfig := MatcherConfiguration{RequireNamespaceWatchOnInit: true}
+		_ = newTestDownsampler(t, testDownsamplerOptions{kvStore: store, matcherConfig: matcherConfig})
+
+		_, err := store.Get(matcher.NewOptions().NamespacesKey())
+		require.Error(t, err)
 	})
 }
 
