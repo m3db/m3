@@ -134,7 +134,10 @@ func TestTagEncoderErrorEncoding(t *testing.T) {
 	require.False(t, ok)
 
 	e.Reset()
-	tags = ident.NewTagsIterator(ident.NewTags(ident.StringTag("abc", "defg")))
+	tags = ident.NewTagsIterator(ident.NewTags(
+		ident.StringTag("abc", "defg"),
+		ident.StringTag("x", nstring(int(maxLiteralLen))),
+	))
 	require.NoError(t, e.Encode(tags))
 }
 
