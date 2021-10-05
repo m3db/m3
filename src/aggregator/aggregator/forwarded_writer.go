@@ -286,6 +286,7 @@ type forwardedAggregationBucket struct {
 	annotation []byte
 }
 
+// add version map here
 type forwardedAggregationWithKey struct {
 	key aggregationKey
 	// totalRefCnt is how many elements will produce this forwarded metric with
@@ -299,14 +300,17 @@ type forwardedAggregationWithKey struct {
 	// all elements producing this forwarded metric with this aggregation key has been processed
 	// for this flush cycle and can now be flushed as a batch, at which point the onDone function
 	// is called.
-	currRefCnt               int
-	cachedValueArrays        [][]float64
-	buckets                  map[int64]forwardedAggregationBucket
+	currRefCnt        int
+	cachedValueArrays [][]float64
+	// this should go back to slice so it is cheaper to scan
+	buckets map[int64]forwardedAggregationBucket
+	// new map to versions
 	bufferForPastTimedMetric int64
 	nowFn                    clock.NowFn
 	resendEnabled            bool
 }
 
+// change back to reset buckets properly (so it is smaller and not needed tracking)
 func (agg *forwardedAggregationWithKey) reset() {
 	agg.currRefCnt = 0
 	for k, v := range agg.buckets {
@@ -511,6 +515,10 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 				ResendEnabled:     agg.byKey[idx].resendEnabled,
 			}
 		)
+		// bucket were temporarily accumulating data
+		// now we store around for 10m to handle version.
+		// instead we should have an actual version map for just lookups.
+		// version per timestamp per forwarded metric
 		for t, b := range agg.byKey[idx].buckets {
 			if len(b.values) == 0 {
 				continue

@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/transformation"
-	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/willf/bitset"
 )
@@ -73,8 +72,7 @@ type GaugeElem struct {
 	values []timedGauge // metric aggregations sorted by time in ascending order
 
 	// internal consume state that does not need to be synchronized.
-	toConsume      []timedGauge // small buffer to avoid memory allocations during consumption
-	consumedValues valuesByTime
+	toConsume []timedGauge // small buffer to avoid memory allocations during consumption
 }
 
 // NewGaugeElem returns a new GaugeElem.
@@ -221,7 +219,6 @@ func (e *GaugeElem) Consume(
 		return false
 	}
 	e.toConsume = e.toConsume[:0]
-	e.consumedValues = nil
 
 	// Evaluate and GC expired items.
 	var (
@@ -509,10 +506,6 @@ func (e *GaugeElem) processValueWithAggregationLock(
 				value = res.Value
 
 			case isBinaryOp:
-				// lazily construct consumedValues since they are only needed by binary transforms.
-				if e.consumedValues == nil {
-					e.consumedValues = make(valuesByTime)
-				}
 				var prevDp transformation.Datapoint
 				if lockedPrevAgg == nil {
 					prevDp = transformation.Datapoint{
@@ -536,12 +529,6 @@ func (e *GaugeElem) processValueWithAggregationLock(
 				// need to keep one value. In the future if we need to support higher-order
 				// derivative transformations, we need to store an array of values here.
 				if !math.IsNaN(curr.Value) {
-					t := xtime.UnixNano(timeNanos)
-					if e.consumedValues[t] == nil {
-						e.consumedValues[t] = make([]transformation.Datapoint, len(e.aggTypes))
-					}
-					e.consumedValues[t][aggTypeIdx] = curr
-
 					lockedAgg.prevConsumed[aggTypeIdx] = value
 				}
 
