@@ -858,20 +858,21 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		return agg{}, errors.New("running in process downsampler with other store " +
 			"then in memory can yield unexpected side effects")
 	}
+	localKVStore := kvStore
 
 	serviceID := services.NewServiceID().
 		SetEnvironment("production").
 		SetName("downsampler").
 		SetZone("embedded")
 
-	placementManager, err := o.newAggregatorPlacementManager(serviceID, kvStore)
+	placementManager, err := o.newAggregatorPlacementManager(serviceID, localKVStore)
 	if err != nil {
 		return agg{}, err
 	}
 
 	flushTimesManager := aggregator.NewFlushTimesManager(
 		aggregator.NewFlushTimesManagerOptions().
-			SetFlushTimesStore(kvStore))
+			SetFlushTimesStore(localKVStore))
 
 	electionManager, err := o.newAggregatorElectionManager(serviceID,
 		placementManager, flushTimesManager, clockOpts)
