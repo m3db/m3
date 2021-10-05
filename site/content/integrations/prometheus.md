@@ -126,7 +126,7 @@ Alternatively, you can configure Grafana to read metrics directly from `M3Coordi
 
 ## Using any Prometheus Remote Write capable storage
 
-M3 Coordinator supports any backend that implements the Prometheus Remote Write API.
+It is also possible to use any Prometheus Remote Write capable backend in place of M3DB.  
 
 Start by downloading the [config template](https://github.com/m3db/m3/blob/master/src/query/config/m3coordinator-prom-remote-template.yml).
 
@@ -163,4 +163,4 @@ prometheusRemoteBackend:
           all: false
 ```
 
-Refer to [How To Guide](docs/how_to/any_remote_storage.md) for more details on possible deployment options.
+Refer to [How To Guide](docs/how_to/any_remote_storage) for more details on possible deployment options.

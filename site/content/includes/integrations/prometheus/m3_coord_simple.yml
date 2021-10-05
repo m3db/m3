@@ -33,7 +33,3 @@ prometheusRemoteBackend:
   endpoints:
     - name: unaggregated
       address: "http://host.docker.internal:9090/api/v1/write"
-
-downsample:
-  matcher:
-    requireNamespaceWatchOnInit: false

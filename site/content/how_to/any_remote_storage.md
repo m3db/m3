@@ -7,10 +7,9 @@ title: "Integrating any Prometheus Remote Write capable backend"
 As mentioned in our integrations guide, M3 Coordinator and M3 Aggregator can be configured to write to any 
 [Prometheus Remote Write](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write) capable backend.
 
-### Simple M3 Coordinator setup
+### Sidecar M3 Coordinator setup
 
-In this setup we show how to run M3 Coordinator with in process M3 Aggregator and send metrics to a Prometheus instance via remote write protocol.
-This setup is not intended for production use and serves as an example.
+In this setup we show how to run M3 Coordinator with in process M3 Aggregator as a sidecar to send metrics to a Prometheus instance via remote write protocol.
 
 {{% notice tip %}}
 It is just a matter of endpoint configuration to use any other backend in place of Prometheus.
@@ -18,8 +17,9 @@ It is just a matter of endpoint configuration to use any other backend in place 
 
 We are going to setup:
 - 1 Prometheus instance with `remote-write-receiver` enabled.
-- 1 Prometheus instance scraping M3 Coordinator and Prometheus TSDB which writes through M3 Coordinator.
-- 1 M3 Coordinator with inprocess M3 Aggregator that is donwsampling metrics.
+  - It will be used as a storage and query engine.
+- 1 Prometheus instance scraping M3 Coordinator and Prometheus TSDB.
+- 1 M3 Coordinator with in process M3 Aggregator that is donwsampling metrics.
 
 For simplicity lets put all config files in one directory and export env variable:
 ```shell
@@ -44,10 +44,12 @@ docker run -p 9090:9090 --name prometheus \
   --enable-feature=remote-write-receiver
 ```
 
+Next we configure and run M3 Coordinator:
+
 `m3_coord_local_downsample.yml`
 {{< codeinclude file="docs/includes/integrations/prometheus/m3_coord_simple.yml" language="yaml" >}}
 
-Run M3 Coordinator:
+Run:
 
 ```shell
 docker pull quay.io/m3db/m3coordinator:latest
@@ -55,6 +57,8 @@ docker run -p 7201:7201 -p 3030:3030 --name m3coordinator \
   -v "$CONFIG_DIR/m3_coord_simple.yml:/etc/m3coordinator/m3coordinator.yml" \
   quay.io/m3db/m3coordinator:latest
 ```
+
+Finally we configure and run another Prometheus instance that is scraping M3 Coordinator and Prometheus TSDB:
 
 `prometheus-scraper.yml`
 {{< codeinclude file="docs/includes/integrations/prometheus/prometheus-scraper.yml" language="yaml" >}}
@@ -67,7 +71,7 @@ docker run --name prometheus-scraper \
   -v "$CONFIG_DIR/prometheus-scraper.yml:/etc/prometheus/prometheus.yml" prom/prometheus:latest
 ```
 
-To explore metrics emitted we can use Grafana.
+To explore metrics we can use Grafana:
 
 `datasource.yml`
 {{< codeinclude file="docs/includes/integrations/prometheus/datasource.yml" language="yaml" >}}
@@ -80,7 +84,7 @@ docker run -p 3000:3000 --name grafana \
   -v "$CONFIG_DIR/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml" grafana/grafana:latest
 ```
 
-You shold be able to access Grafana on `http://localhost:3000` and explore some metrics.
+You should be able to access Grafana on `http://localhost:3000` and explore some metrics.
 
 ### Using rollup and mapping rules
 
@@ -162,13 +166,7 @@ Just follow official [Etcd](https://github.com/etcd-io/etcd/tree/master/Document
 
 **Run M3 Coordinator in Admin mode**
 
-Refer to [Running M3 Coordinator in Admin mode](docs/how_to/m3coordinator_admin.md).
-
-**Configure Remote M3 Aggregator**
-
-Refer to [Aggregate Metrics with M3 Aggregator](https://m3db.io/docs/how_to/m3aggregator) on details how to setup M3 Coordinator with Remote M3 Aggregator.
-
-For administrative operations when configuring topology use M3 Coordinator Admin address from previous step.
+Refer to [Running M3 Coordinator in Admin mode](docs/how_to/m3coordinator_admin).
 
 **Configure Remote Write Endpoints**
 
@@ -205,3 +203,9 @@ prometheusRemoteBackend:
         downsample:
           all: false
 ```
+
+**Configure Remote M3 Aggregator**
+
+Refer to [Aggregate Metrics with M3 Aggregator](https://m3db.io/docs/how_to/m3aggregator) on details how to setup M3 Coordinator with Remote M3 Aggregator.
+
+For administrative operations when configuring topology use M3 Coordinator Admin address from previous step.
