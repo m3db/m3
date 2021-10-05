@@ -813,7 +813,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	// NB(antanas): matcher registers watcher on namespaces key. Making sure it is set, otherwise watcher times out.
 	// With RequireNamespaceWatchOnInit being true we expect namespaces to be set upfront
 	// so we do not initialize them here at all because it might potentially hide human error.
-	if !cfg.Matcher.RequireNamespaceWatchOnInit {
+	if !matcherOpts.RequireNamespaceWatchOnInit() {
 		err = initStoreNamespaces(kvStore, matcherOpts.NamespacesKey())
 		if err != nil {
 			return agg{}, err
@@ -851,6 +851,12 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 			pools:          pools,
 			untimedRollups: cfg.UntimedRollups,
 		}, nil
+	}
+
+	// NB(antanas): to protect against running with real Etcd and overriding existing placements.
+	if !mem.IsMem(kvStore) {
+		return agg{}, errors.New("running in process downsampler with other store " +
+			"then in memory can yield unexpected side effects")
 	}
 
 	serviceID := services.NewServiceID().
