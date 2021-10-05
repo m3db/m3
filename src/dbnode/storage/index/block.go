@@ -545,7 +545,7 @@ func (b *block) queryWithSpan(
 		if md, ok := doc.Metadata(); ok && md.OnIndexSeries != nil {
 			var (
 				inBlock                bool
-				currentBlock           = opts.StartInclusive
+				currentBlock           = opts.StartInclusive.Truncate(b.blockSize)
 				endExclusive           = opts.EndExclusive
 				minIndexed, maxIndexed = md.OnIndexSeries.IndexedRange()
 			)
@@ -557,14 +557,17 @@ func (b *block) queryWithSpan(
 
 			// Narrow down the range of blocks to scan because the client could have
 			// queried for an arbitrary wide range.
-			if currentBlock.Before(minIndexed) {
-				currentBlock = minIndexed
+			var (
+				minIndexedInclusive = minIndexed.Add(-b.blockSize)
+				maxIndexedExclusive = maxIndexed.Add(time.Nanosecond)
+			)
+			if currentBlock.Before(minIndexedInclusive) {
+				currentBlock = minIndexedInclusive
 			}
-			if endExclusive.After(maxIndexed.Add(time.Nanosecond)) {
-				endExclusive = maxIndexed.Add(time.Nanosecond) // +1ns to make it exclusive
+			if endExclusive.After(maxIndexedExclusive) {
+				endExclusive = maxIndexedExclusive
 			}
 
-			currentBlock = currentBlock.Truncate(b.blockSize)
 			for !inBlock {
 				inBlock = md.OnIndexSeries.IndexedForBlockStart(currentBlock)
 				currentBlock = currentBlock.Add(b.blockSize)
