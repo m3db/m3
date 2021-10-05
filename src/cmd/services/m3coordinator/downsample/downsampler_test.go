@@ -2845,21 +2845,24 @@ func TestDownsamplerWithOverrideNamespace(t *testing.T) {
 func TestDownsamplerStoreInit(t *testing.T) {
 	t.Run("does not reset namespaces key", func(t *testing.T) {
 		store := mem.NewStore()
-		_, err := store.Set("/namespaces", &rulepb.Namespaces{Namespaces: []*rulepb.Namespace{{}}})
+		initialNamespaces := rulepb.Namespaces{Namespaces: []*rulepb.Namespace{{Name: "testNamespace"}}}
+		_, err := store.Set(matcher.NewOptions().NamespacesKey(), &initialNamespaces)
 		require.NoError(t, err)
 
 		_ = newTestDownsampler(t, testDownsamplerOptions{kvStore: store})
 
-		ns := readNamespacesKey(t, store)
-		assert.Len(t, ns.Namespaces, 1)
+		assert.Equal(t, initialNamespaces, readNamespacesKey(t, store), 1)
 	})
 
 	t.Run("initializes namespace key", func(t *testing.T) {
 		store := mem.NewStore()
+		_, err := store.Get(matcher.NewOptions().NamespacesKey())
+		require.Error(t, err)
 
 		_ = newTestDownsampler(t, testDownsamplerOptions{kvStore: store})
 
 		ns := readNamespacesKey(t, store)
+		require.NotNil(t, ns)
 		assert.Len(t, ns.Namespaces, 0)
 	})
 }
@@ -3650,7 +3653,7 @@ func testUpdateMetadata() rules.UpdateMetadata {
 }
 
 func readNamespacesKey(t *testing.T, store kv.Store) rulepb.Namespaces {
-	v, err := store.Get("/namespaces")
+	v, err := store.Get(matcher.NewOptions().NamespacesKey())
 	require.NoError(t, err)
 	var ns rulepb.Namespaces
 	err = v.Unmarshal(&ns)
