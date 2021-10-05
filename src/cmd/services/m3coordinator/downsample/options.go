@@ -737,7 +737,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		kvTxnMemStore := mem.NewStore()
 
 		// Initialize the namespaces
-		_, err := kvTxnMemStore.Set(matcherOpts.NamespacesKey(), &rulepb.Namespaces{})
+		err := initStoreNamespaces(kvTxnMemStore, matcherOpts.NamespacesKey())
 		if err != nil {
 			return agg{}, err
 		}
@@ -805,6 +805,16 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		matcherCacheCapacity = *v
 	}
 
+	localKVStore, err := o.ClusterClient.Txn()
+	if err != nil {
+		return agg{}, err
+	}
+
+	err = initStoreNamespaces(localKVStore, matcherOpts.NamespacesKey())
+	if err != nil {
+		return agg{}, err
+	}
+
 	matcher, err := o.newAggregatorMatcher(matcherOpts, matcherCacheCapacity)
 	if err != nil {
 		return agg{}, err
@@ -842,8 +852,6 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetEnvironment("production").
 		SetName("downsampler").
 		SetZone("embedded")
-
-	localKVStore := mem.NewStore()
 
 	placementManager, err := o.newAggregatorPlacementManager(serviceID, localKVStore)
 	if err != nil {
@@ -976,6 +984,11 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		pools:          pools,
 		untimedRollups: cfg.UntimedRollups,
 	}, nil
+}
+
+func initStoreNamespaces(store kv.TxnStore, nsKey string) error {
+	_, err := store.CheckAndSet(nsKey, 0, &rulepb.Namespaces{})
+	return err
 }
 
 type aggPools struct {

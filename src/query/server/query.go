@@ -34,6 +34,7 @@ import (
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/kv"
+	memcluster "github.com/m3db/m3/src/cluster/mem"
 	handleroptions3 "github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
@@ -827,6 +828,10 @@ func newDownsamplerAsync(
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to create cluster management etcd client")
 		}
+	// NB(antanas): M3 Coordinator with in process aggregator can run with in memory cluster client.
+	} else if cfg.RemoteAggregator == nil {
+		instrumentOptions.Logger().Info("no etcd config and no remote aggregator - will run with in memory cluster client.")
+		clusterClient = memcluster.New(kv.NewOverrideOptions())
 	}
 
 	newDownsamplerFn := func() (downsample.Downsampler, error) {
