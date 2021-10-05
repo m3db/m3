@@ -37,9 +37,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -426,9 +423,7 @@ func TestPromWriteLiteralIsTooLongError(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	observerCore, observedLogs := observer.New(zapcore.InfoLevel)
 	opts := makeOptions(ingest.NewMockDownsamplerAndWriter(ctrl))
-	opts = opts.SetInstrumentOpts(opts.InstrumentOpts().SetLogger(zap.New(observerCore)))
 	handler, err := NewPromWriteHandler(opts)
 	require.NoError(t, err)
 
@@ -445,26 +440,14 @@ func TestPromWriteLiteralIsTooLongError(t *testing.T) {
 	}
 
 	// execute write request many times to check that "literal is too long" sampling doesn't error
-	// or deadlock
+	// or deadlock.
 	for i := 0; i < maxLiteralIsTooLongLogCount*2; i++ {
 		promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 		req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
-		handler.ServeHTTP(httptest.NewRecorder(), req)
-	}
-	filteredLogs := observedLogs.Filter(func(e observer.LoggedEntry) bool {
-		return e.Message == "label exceeds literal length limits"
-	})
-	require.True(t, filteredLogs.Len() == maxLiteralIsTooLongLogCount,
-		"unexpected number of log messages, expected=%v, actual=%v", maxLiteralIsTooLongLogCount, filteredLogs.Len())
-	for _, msg := range filteredLogs.All() {
-		for _, f := range msg.Context {
-			switch f.Key {
-			case "name":
-				assert.Equal(t, "name2", f.String)
-			case "value":
-				assert.Equal(t, veryLongLiteral[:literalPrefixLength]+"...", f.String)
-			}
-		}
+		resp := httptest.NewRecorder()
+		handler.ServeHTTP(resp, req)
+		result := resp.Result()
+		require.Equal(t, http.StatusBadRequest, result.StatusCode)
 	}
 }
 
