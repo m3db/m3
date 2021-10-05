@@ -439,8 +439,6 @@ func TestPromWriteLiteralIsTooLongError(t *testing.T) {
 		},
 	}
 
-	// execute write request many times to check that "literal is too long" sampling doesn't error
-	// or deadlock.
 	for i := 0; i < maxLiteralIsTooLongLogCount*2; i++ {
 		promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 		req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
