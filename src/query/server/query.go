@@ -828,10 +828,12 @@ func newDownsamplerAsync(
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to create cluster management etcd client")
 		}
-	// NB(antanas): M3 Coordinator with in process aggregator can run with in memory cluster client.
 	} else if cfg.RemoteAggregator == nil {
-		instrumentOptions.Logger().Info("no etcd config and no remote aggregator - will run with in memory cluster client.")
+		// NB(antanas): M3 Coordinator with in process aggregator can run with in memory cluster client.
+		instrumentOptions.Logger().Info("no etcd config and no remote aggregator - will run with in memory cluster client")
 		clusterClient = memcluster.New(kv.NewOverrideOptions())
+	} else {
+		return nil, nil, fmt.Errorf("no configured cluster management config, must set this config for remote aggregator")
 	}
 
 	newDownsamplerFn := func() (downsample.Downsampler, error) {
@@ -871,7 +873,7 @@ func newDownsamplerAsync(
 
 func newDownsampler(
 	cfg downsample.Configuration,
-	clusterManagementClient clusterclient.Client,
+	clusterClient clusterclient.Client,
 	storage storage.Appender,
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	tagOptions models.TagOptions,
@@ -885,22 +887,17 @@ func newDownsampler(
 	instrumentOpts = instrumentOpts.SetMetricsScope(
 		instrumentOpts.MetricsScope().SubScope("downsampler"))
 
-	if clusterManagementClient == nil {
-		return nil, fmt.Errorf("no configured cluster management config, " +
-			"must set this config for downsampler")
-	}
-
 	var kvStore kv.Store
 	var err error
 
 	if applyCustomRuleStore == nil {
-		kvStore, err = clusterManagementClient.KV()
+		kvStore, err = clusterClient.KV()
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to create KV store from the "+
 				"cluster management config client")
 		}
 	} else {
-		kvStore, err = applyCustomRuleStore(clusterManagementClient, instrumentOpts)
+		kvStore, err = applyCustomRuleStore(clusterClient, instrumentOpts)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to apply custom rule store")
 		}
@@ -923,7 +920,7 @@ func newDownsampler(
 
 	downsampler, err := cfg.NewDownsampler(downsample.DownsamplerOptions{
 		Storage:                    storage,
-		ClusterClient:              clusterManagementClient,
+		ClusterClient:              clusterClient,
 		RulesKVStore:               kvStore,
 		ClusterNamespacesWatcher:   clusterNamespacesWatcher,
 		ClockOptions:               clockOpts,
