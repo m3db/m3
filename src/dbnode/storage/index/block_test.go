@@ -1780,8 +1780,8 @@ func TestBlockE2EInsertAddResultsQueryNarrowingBlockRange(t *testing.T) {
 	h1.EXPECT().OnIndexSuccess(blockStart)
 	h1.EXPECT().IndexedRange().Return(blockStart, blockStart.Add(2*blockSize))
 	h1.EXPECT().IndexedForBlockStart(blockStart).Return(false)
-	h1.EXPECT().IndexedForBlockStart(blockStart.Add(1*blockSize)).Return(false)
-	h1.EXPECT().IndexedForBlockStart(blockStart.Add(2*blockSize)).Return(true)
+	h1.EXPECT().IndexedForBlockStart(blockStart.Add(1 * blockSize)).Return(false)
+	h1.EXPECT().IndexedForBlockStart(blockStart.Add(2 * blockSize)).Return(true)
 
 	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
@@ -1825,8 +1825,8 @@ func TestBlockE2EInsertAddResultsQueryNarrowingBlockRange(t *testing.T) {
 	queryIter, err := b.QueryIter(ctx, Query{q})
 	require.NoError(t, err)
 	err = b.QueryWithIter(ctx, QueryOptions{
-		StartInclusive: blockStart.Add(-1000*blockSize),
-		EndExclusive:   blockStart.Add(1000*blockSize),
+		StartInclusive: blockStart.Add(-1000 * blockSize),
+		EndExclusive:   blockStart.Add(1000 * blockSize),
 	}, queryIter, results, time.Now().Add(time.Minute), emptyLogFields)
 	require.NoError(t, err)
 	require.Equal(t, 1, results.Size())
