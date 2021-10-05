@@ -50,7 +50,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -427,23 +426,14 @@ func TestPromWriteLiteralIsTooLongError(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	literalTooLongErrorLookalike := errors.New(serialize.ErrTagLiteralTooLong.Error())
-	batchErr := ingest.BatchError(xerrors.NewMultiError().Add(literalTooLongErrorLookalike))
-	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
-	mockDownsamplerAndWriter.
-		EXPECT().
-		WriteBatch(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(batchErr).
-		AnyTimes()
-
 	observerCore, observedLogs := observer.New(zapcore.InfoLevel)
-	opts := makeOptions(mockDownsamplerAndWriter)
+	opts := makeOptions(ingest.NewMockDownsamplerAndWriter(ctrl))
 	opts = opts.SetInstrumentOpts(opts.InstrumentOpts().SetLogger(zap.New(observerCore)))
 	handler, err := NewPromWriteHandler(opts)
 	require.NoError(t, err)
 
 	veryLongLiteral := ""
-	for ; len(veryLongLiteral) <= literalLengthThreshold; veryLongLiteral += "very_long_literal_" {
+	for ; len(veryLongLiteral) <= int(opts.TagOptions().MaxTagLiteralLength()); veryLongLiteral += "very_long_literal_" {
 	}
 	promReq := &prompb.WriteRequest{
 		Timeseries: []prompb.TimeSeries{
@@ -464,7 +454,7 @@ func TestPromWriteLiteralIsTooLongError(t *testing.T) {
 		handler.ServeHTTP(httptest.NewRecorder(), req)
 	}
 	filteredLogs := observedLogs.Filter(func(e observer.LoggedEntry) bool {
-		return e.Message == "time series label contains a long literal"
+		return e.Message == "label exceeds literal length limits"
 	})
 	require.True(t, filteredLogs.Len() == maxLiteralIsTooLongLogCount,
 		"unexpected number of log messages, expected=%v, actual=%v", maxLiteralIsTooLongLogCount, filteredLogs.Len())

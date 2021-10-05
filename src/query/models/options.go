@@ -23,15 +23,22 @@ package models
 import (
 	"bytes"
 	"errors"
+	"math"
 
 	"github.com/prometheus/common/model"
 )
 
-var (
-	defaultMetricName             = []byte(model.MetricNameLabel)
-	defaultBucketName             = []byte("le")
+const (
 	defaultAllowTagNameDuplicates = false
 	defaultAllowTagValueEmpty     = false
+	// NB: this matches the default tag literal length in x/serialize.
+	// https://github.com/m3db/m3/blob/0f671c9fd47a09e19b96b584ae17065690db4a04/src/x/serialize/limits.go#L29-L30
+	defaultMaxTagLiteralLength = math.MaxUint16
+)
+
+var (
+	defaultMetricName = []byte(model.MetricNameLabel)
+	defaultBucketName = []byte("le")
 
 	errNoName   = errors.New("metric name is missing or empty")
 	errNoBucket = errors.New("bucket name is missing or empty")
@@ -45,6 +52,7 @@ type tagOptions struct {
 	filters                Filters
 	allowTagNameDuplicates bool
 	allowTagValueEmpty     bool
+	maxTagLiteralLength    uint16
 }
 
 // NewTagOptions builds a new tag options with default values.
@@ -56,6 +64,7 @@ func NewTagOptions() TagOptions {
 		idScheme:               TypeQuoted,
 		allowTagNameDuplicates: defaultAllowTagNameDuplicates,
 		allowTagValueEmpty:     defaultAllowTagValueEmpty,
+		maxTagLiteralLength:    defaultMaxTagLiteralLength,
 	}
 }
 
@@ -131,10 +140,23 @@ func (o *tagOptions) AllowTagValueEmpty() bool {
 	return o.allowTagValueEmpty
 }
 
+// SetMaxTagLiteralLength sets the maximum length of a tag Name/Value.
+func (o *tagOptions) SetMaxTagLiteralLength(value uint16) TagOptions {
+	opts := *o
+	opts.maxTagLiteralLength = value
+	return &opts
+}
+
+// MaxTagLiteralLength returns the maximum length of a tag Name/Value.
+func (o *tagOptions) MaxTagLiteralLength() uint16 {
+	return o.maxTagLiteralLength
+}
+
 func (o *tagOptions) Equals(other TagOptions) bool {
 	return o.idScheme == other.IDSchemeType() &&
 		bytes.Equal(o.metricName, other.MetricName()) &&
 		bytes.Equal(o.bucketName, other.BucketName()) &&
 		o.allowTagNameDuplicates == other.AllowTagNameDuplicates() &&
-		o.allowTagValueEmpty == other.AllowTagValueEmpty()
+		o.allowTagValueEmpty == other.AllowTagValueEmpty() &&
+		o.maxTagLiteralLength == other.MaxTagLiteralLength()
 }

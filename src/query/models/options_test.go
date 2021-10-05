@@ -92,4 +92,8 @@ func TestOptionsEquals(t *testing.T) {
 	opts = opts.SetMetricName(n)
 	opts = opts.SetIDSchemeType(IDSchemeType(10))
 	assert.False(t, opts.Equals(other))
+
+	opts = NewTagOptions()
+	opts.SetMaxTagLiteralLength(42)
+	assert.False(t, opts.Equals(other))
 }

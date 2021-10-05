@@ -51,7 +51,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3/src/x/retry"
-	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -330,14 +329,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			numRegular        int
 			numBadRequest     int
 		)
-		logger := logging.WithContext(r.Context(), h.instrumentOpts)
 		for _, err := range errs {
-			if err.Error() == serialize.ErrTagLiteralTooLong.Error() {
-				// NB: comparing this by string value since the error might have crossed the network
-				// and thus might not be comparable using 'errors.Is()'. This might break if the error
-				// is renamed somewhere in the stack (e.g. by using 'xerrors.NewRenamedError()').
-				h.maybeLogSeriesWithLongestLabels(logger, req.Timeseries)
-			}
 			switch {
 			case client.IsBadRequestError(err):
 				numBadRequest++
@@ -359,6 +351,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status = http.StatusInternalServerError
 		}
 
+		logger := logging.WithContext(r.Context(), h.instrumentOpts)
 		logger.Error("write error",
 			zap.String("remoteAddr", r.RemoteAddr),
 			zap.Int("httpResponseStatusCode", status),
@@ -499,6 +492,20 @@ func (h *PromWriteHandler) parseRequest(
 		}
 	}
 
+	// Check if any of the labels exceed literal length limits and occasionally print them
+	// in a log message for debugging purposes.
+	maxTagLiteralLength := int(h.tagOptions.MaxTagLiteralLength())
+	for _, ts := range req.Timeseries {
+		for _, l := range ts.Labels {
+			if len(l.Name) > maxTagLiteralLength || len(l.Value) > maxTagLiteralLength {
+				h.maybeLogLabelsWithTooLongLiterals(h.instrumentOpts.Logger(), l)
+				err := fmt.Errorf("label literal is too long: nameLength=%d, valueLength=%d, maxLength=%d",
+					len(l.Name), len(l.Value), maxTagLiteralLength)
+				return parseRequestResult{}, err
+			}
+		}
+	}
+
 	return parseRequestResult{
 		Request:        &req,
 		Options:        opts,
@@ -573,35 +580,14 @@ func (h *PromWriteHandler) forward(
 	return nil
 }
 
-func (h *PromWriteHandler) maybeLogSeriesWithLongestLabels(logger *zap.Logger, timeSeries []prompb.TimeSeries) {
-	if len(timeSeries) == 0 {
-		return
-	}
-
+func (h *PromWriteHandler) maybeLogLabelsWithTooLongLiterals(logger *zap.Logger, label prompb.Label) {
 	if atomic.AddUint32(&h.numLiteralIsTooLong, 1) > maxLiteralIsTooLongLogCount {
 		return
 	}
 
-	var (
-		longestLiteralLength = 0
-		longestLiteralLabel  prompb.Label
-	)
-	for _, ts := range timeSeries {
-		for _, l := range ts.Labels {
-			if len(l.Name) > longestLiteralLength {
-				longestLiteralLength = len(l.Name)
-				longestLiteralLabel = l
-			}
-			if len(l.Value) > longestLiteralLength {
-				longestLiteralLength = len(l.Value)
-				longestLiteralLabel = l
-			}
-		}
-	}
-
-	logger.Warn("time series label contains a long literal",
-		zap.String("name", truncateLiteral(longestLiteralLabel.Name, literalLengthThreshold)),
-		zap.String("value", truncateLiteral(longestLiteralLabel.Value, literalLengthThreshold)),
+	logger.Warn("label exceeds literal length limits",
+		zap.String("name", truncateLiteral(label.Name, literalLengthThreshold)),
+		zap.String("value", truncateLiteral(label.Value, literalLengthThreshold)),
 	)
 }
 
@@ -609,7 +595,8 @@ func truncateLiteral(literal []byte, lengthThreshold int) string {
 	if len(literal) <= lengthThreshold {
 		return string(literal)
 	}
-	return string(literal[:lengthThreshold]) + "..."
+	const ellipsis = "..."
+	return string(literal[:lengthThreshold]) + ellipsis
 }
 
 func newPromTSIter(
