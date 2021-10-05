@@ -141,6 +141,21 @@ type metricElem interface {
 	Close()
 }
 
+// Registerable can be registered with the forward writer.
+type Registerable interface {
+	// Type returns the metric type.
+	Type() metric.Type
+
+	// ForwardedID returns the id of the forwarded metric if applicable.
+	ForwardedID() (id.RawID, bool)
+
+	// ForwardedAggregationKey returns the forwarded aggregation key if applicable.
+	ForwardedAggregationKey() (aggregationKey, bool)
+
+	// ResendEnabled returns true if the element can resend aggregated values after the initial flush.
+	ResendEnabled() bool
+}
+
 // ElemData are initialization parameters for an element.
 type ElemData struct {
 	ID                 id.RawID
@@ -180,6 +195,8 @@ type elemBase struct {
 	cachedSourceSets     []map[uint32]*bitset.BitSet // nolint: structcheck
 }
 
+// change to unsorted slice and traversal should be better than the map
+// (test also what if sorted)
 type valuesByTime map[xtime.UnixNano][]transformation.Datapoint
 
 // Return the latest timestamp in the map that is less than the provided timestamp. Returns 0 if a previous timestamp
