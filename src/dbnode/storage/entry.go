@@ -141,6 +141,9 @@ func (entry *Entry) IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool {
 	return isIndexed
 }
 
+// IndexedRange returns minimum and maximum blockStart values covered by index entry.
+// Note that there may be uncovered gaps within that range.
+// Returns (0, 0) for an empty range.
 func (entry *Entry) IndexedRange() (xtime.UnixNano, xtime.UnixNano) {
 	entry.reverseIndex.RLock()
 	defer entry.reverseIndex.RUnlock()
