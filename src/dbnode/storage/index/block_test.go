@@ -49,7 +49,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
@@ -1500,16 +1500,12 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
-	h1.EXPECT().IndexedForBlockStart(blockStart).
-		Return(true).
-		AnyTimes()
+	h1.EXPECT().IndexedRange().Return(blockStart, blockStart)
+	h1.EXPECT().IndexedForBlockStart(blockStart).Return(true)
 
 	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
-	h1.EXPECT().IndexedForBlockStart(blockStart).
-		Return(true).
-		AnyTimes()
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -1592,16 +1588,14 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
-	h1.EXPECT().IndexedForBlockStart(blockStart).
-		Return(true).
-		AnyTimes()
+	h1.EXPECT().IndexedRange().Return(blockStart, blockStart)
+	h1.EXPECT().IndexedForBlockStart(blockStart).Return(true)
 
 	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
-	h2.EXPECT().IndexedForBlockStart(blockStart).
-		Return(true).
-		AnyTimes()
+	h2.EXPECT().IndexedRange().Return(blockStart, blockStart)
+	h2.EXPECT().IndexedForBlockStart(blockStart).Return(true)
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -1694,9 +1688,8 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
-	h1.EXPECT().IndexedForBlockStart(blockStart).
-		Return(true).
-		AnyTimes()
+	h1.EXPECT().IndexedRange().Return(blockStart, blockStart)
+	h1.EXPECT().IndexedForBlockStart(blockStart).Return(true)
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -1950,7 +1943,7 @@ func TestBlockAggregate(t *testing.T) {
 		SetDocsLimitOpts(limits.LookbackLimitOptions{Limit: 50, Lookback: time.Minute}).
 		SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
 		SetAggregateDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
-	queryLimits, err := limits.NewQueryLimits((limitOpts))
+	queryLimits, err := limits.NewQueryLimits(limitOpts)
 	require.NoError(t, err)
 	testOpts = testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
 
@@ -2047,7 +2040,7 @@ func TestBlockAggregateWithAggregateLimits(t *testing.T) {
 			Limit:    int64(seriesLimit),
 			Lookback: time.Minute,
 		})
-	queryLimits, err := limits.NewQueryLimits((limitOpts))
+	queryLimits, err := limits.NewQueryLimits(limitOpts)
 	require.NoError(t, err)
 	aggTestOpts := testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
 
@@ -2565,7 +2558,7 @@ func TestBlockAggregateBatching(t *testing.T) {
 				SetDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
 				SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
 				SetAggregateDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
-			queryLimits, err := limits.NewQueryLimits((limitOpts))
+			queryLimits, err := limits.NewQueryLimits(limitOpts)
 			require.NoError(t, err)
 			testOpts = optionsWithAggResultsPool(tt.batchSize).
 				SetInstrumentOptions(iOpts).
