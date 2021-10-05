@@ -132,102 +132,6 @@ Start by downloading the [config template](https://github.com/m3db/m3/blob/maste
 
 Update the endpoints with your Prometheus Remote Write compatible storage setup. You should endup with config similar to:
 
-### Running M3 Coordinator sidecar with in memory downsampler
-
-This is a sandbox setup useful for testing things out. 
-We are going to setup:
-- 1 Prometheus instance with `remote-write-receiver` enabled.
-- 1 Prometheus instance scraping M3 Coordinator and Prometheus TSDB which writes through M3 Coordinator.
-- 1 M3 Coordinator with inprocess M3 Aggregator that is donwsampling metrics.
-- `etcd` instance for M3 Coordinator.
-
-For simplicity lets put all config files in one directory and export env variable:
-```shell
-export CONFIG_DIR="<path to your config folder>"
-```
-
-First lets run a Prometheus instance with `remote-write-receiver` enabled:
-
-`prometheus.yml`
-{{< codeinclude file="docs/includes/integrations/prometheus/prometheus.yml" language="yaml" >}}
-
-Run:
-
-```shell
-docker pull prom/prometheus:latest
-docker run -p 9090:9090 --name prometheus \
-  -v "$CONFIG_DIR/prometheus.yml:/etc/prometheus/prometheus.yml" prom/prometheus:latest \
-  --config.file=/etc/prometheus/prometheus.yml \
-  --storage.tsdb.path=/prometheus \
-  --web.console.libraries=/usr/share/prometheus/console_libraries \
-  --web.console.templates=/usr/share/prometheus/consoles \
-  --enable-feature=remote-write-receiver
-```
-
-Run ETCD:
-
-```shell
-docker pull quay.io/coreos/etcd:v3.4.3
-docker run -p 2379:2379 -p 2380:2380 --name etcd quay.io/coreos/etcd:v3.4.3 \
-  etcd --name etcd01 \
-  --listen-peer-urls http://0.0.0.0:2380 \
-  --listen-client-urls http://0.0.0.0:2379 \
-  --advertise-client-urls "http://host.docker.internal:2379" \
-  --initial-cluster-token etcd-cluster-1 \
-  --initial-advertise-peer-urls "http://host.docker.internal:2380" \
-  --initial-cluster "etcd01=http://host.docker.internal:2380" \
-  --initial-cluster-state new --data-dir /var/lib/etcd
-```
-
-`m3_coord_local_downsample.yml`
-{{< codeinclude file="docs/includes/integrations/prometheus/m3_coord_local_downsample.yml" language="yaml" >}}
-
-Run: 
-
-```shell
-# TODO change to latest
-docker pull quay.io/m3db/m3coordinator:master
-docker run -p 7201:7201 -p 3030:3030 --name m3coordinator \
-  -v "$CONFIG_DIR/m3_coord_local_downsample.yml:/etc/m3coordinator/m3coordinator.yml" \
-  quay.io/m3db/m3coordinator:master
-```
-
-`prometheus-scraper.yml`
-{{< codeinclude file="docs/includes/integrations/prometheus/prometheus-scraper.yml" language="yaml" >}}
-
-Run:
-
-```shell
-docker pull prom/prometheus:latest
-docker run --name prometheus-scraper \
-  -v "$CONFIG_DIR/prometheus-scraper.yml:/etc/prometheus/prometheus.yml" prom/prometheus:latest
-```
-
-To explore metrics emitted we can use Grafana.
-
-`datasource.yml`
-{{< codeinclude file="docs/includes/integrations/prometheus/datasource.yml" language="yaml" >}}
-
-Run:
-
-```shell
-docker pull grafana/grafana:latest
-docker run -p 3000:3000 --name grafana \
-  -v "$CONFIG_DIR/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml" grafana/grafana:latest
-```
-
-### Example - running multiple Prometheus receivers
-
-This example uses Prometheus as a metrics storage.
-It sets up 2 Prometheus instances:
-- for unaggregated metrics with short 720h retention. This allows better query accuracy for recent data.
-- for aggregated metrics with longer 1440h retention and resolution. This allows longer history at the cost of query accuracy.
-
-M3 Coordinator outputs metrics to these 2 instances using the Prometheus Remote Writes API.
-
-You must start Prometheus with the `--enable-feature=remote-write-receiver` argument to be able to accept writes using the Prometheus Remote Write API.
-
-Instruct M3 Coordinator to use a different backend type - `prom-remote`
 ```yaml
 backend: prom-remote
 
@@ -245,9 +149,18 @@ prometheusRemoteBackend:
         # Resolution instructs M3Aggregator to downsample incoming metrics at given rate.
         # By tuning resolution we can control how much storage Prometheus needs at the cost of query accuracy as range shrinks.
         resolution: 5m
+        # when ommited defaults to
+        #downsample:
+        # all: true
+    # Another example of prometheus configured for a very long retention but with 1h resolution
+    # Because of downsample: all == false metrics are downsampled based on mapping and rollup rules.     
+    - name: historical
+      address: "http://prometheus-hist:9090/api/v1/write"
+      storagePolicy:
+        retention: 8760h
+        resolution: 1h
         downsample:
-          all: true
+          all: false
 ```
 
-Now you can setup multiple datasources in Grafana. 
-For more realtime data use unaggregated Prometheus as a datasource and for historical data, use an aggregated one.
+Refer to [How To Guide](docs/how_to/any_remote_storage.md) for more details on possible deployment options.
