@@ -444,10 +444,11 @@ func TestPromWriteLiteralIsTooLongError(t *testing.T) {
 	for i := 0; i < maxLiteralIsTooLongLogCount*2; i++ {
 		promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 		req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
-		resp := httptest.NewRecorder()
-		handler.ServeHTTP(resp, req)
-		result := resp.Result()
-		require.Equal(t, http.StatusBadRequest, result.StatusCode)
+		writer := httptest.NewRecorder()
+		handler.ServeHTTP(writer, req)
+		resp := writer.Result()
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
 	}
 }
 
