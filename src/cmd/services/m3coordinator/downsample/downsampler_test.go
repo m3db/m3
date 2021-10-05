@@ -2842,7 +2842,7 @@ func TestDownsamplerWithOverrideNamespace(t *testing.T) {
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
-func TestSafeguardInProcessDownsampelr(t *testing.T) {
+func TestSafeguardInProcessDownsampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	store := kv.NewMockStore(ctrl)
