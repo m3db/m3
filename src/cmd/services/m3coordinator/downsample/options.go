@@ -853,12 +853,11 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}, nil
 	}
 
-	// NB(antanas): to protect against running with real Etcd and overriding existing placements.
-	if !mem.IsMem(kvStore) {
-		return agg{}, errors.New("running in process downsampler with other store " +
-			"then in memory can yield unexpected side effects")
-	}
 	localKVStore := kvStore
+	// NB(antanas): to protect against running with real Etcd and overriding existing placements.
+	if !mem.IsMem(localKVStore) {
+		localKVStore = mem.NewStore()
+	}
 
 	serviceID := services.NewServiceID().
 		SetEnvironment("production").

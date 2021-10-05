@@ -2846,11 +2846,13 @@ func TestSafeguardInProcessDownsampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	store := kv.NewMockStore(ctrl)
-	store.EXPECT().SetIfNotExists(gomock.Any(), gomock.Any()).Return(0, nil).AnyTimes()
+	store.EXPECT().SetIfNotExists(gomock.Eq(matcher.NewOptions().NamespacesKey()), gomock.Any()).Return(0, nil).Times(1)
+	store.EXPECT().Set(gomock.Any(), gomock.Any()).Times(0)
+	store.EXPECT().CheckAndSet(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	store.EXPECT().Delete(gomock.Any()).Times(0)
 	_ = newTestDownsampler(t, testDownsamplerOptions{
-		remoteClientMock:     nil,
-		expectConstructError: "other store then in memory can yield unexpected side effects",
-		kvStore:              store,
+		remoteClientMock: nil,
+		kvStore:          store,
 	})
 }
 
@@ -3472,9 +3474,8 @@ type testDownsamplerOptions struct {
 	matcherConfig      MatcherConfiguration
 
 	// Test ingest and expectations overrides
-	ingest               *testDownsamplerOptionsIngest
-	expect               *testDownsamplerOptionsExpect
-	expectConstructError string
+	ingest *testDownsamplerOptionsIngest
+	expect *testDownsamplerOptionsExpect
 
 	kvStore kv.Store
 }
@@ -3580,11 +3581,6 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 		RWOptions:                  xio.NewOptions(),
 		TagOptions:                 models.NewTagOptions(),
 	})
-	if opts.expectConstructError != "" {
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), opts.expectConstructError)
-		return testDownsampler{}
-	}
 	require.NoError(t, err)
 
 	if len(opts.autoMappingRules) > 0 {
