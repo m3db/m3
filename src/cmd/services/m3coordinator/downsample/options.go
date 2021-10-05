@@ -805,12 +805,13 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		matcherCacheCapacity = *v
 	}
 
-	localKVStore, err := o.ClusterClient.Txn()
+	kvStore, err := o.ClusterClient.Txn()
 	if err != nil {
 		return agg{}, err
 	}
 
-	err = initStoreNamespaces(localKVStore, matcherOpts.NamespacesKey())
+	// NB(antanas): matcher registers watcher on namespaces key. Making sure it is set, otherwise watcher times out.
+	err = initStoreNamespaces(kvStore, matcherOpts.NamespacesKey())
 	if err != nil {
 		return agg{}, err
 	}
@@ -853,14 +854,14 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetName("downsampler").
 		SetZone("embedded")
 
-	placementManager, err := o.newAggregatorPlacementManager(serviceID, localKVStore)
+	placementManager, err := o.newAggregatorPlacementManager(serviceID, kvStore)
 	if err != nil {
 		return agg{}, err
 	}
 
 	flushTimesManager := aggregator.NewFlushTimesManager(
 		aggregator.NewFlushTimesManagerOptions().
-			SetFlushTimesStore(localKVStore))
+			SetFlushTimesStore(kvStore))
 
 	electionManager, err := o.newAggregatorElectionManager(serviceID,
 		placementManager, flushTimesManager, clockOpts)
