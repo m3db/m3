@@ -227,7 +227,6 @@ backend: prom-remote
 
 tagOptions:
   allowTagNameDuplicates: true
-
 `, externalFakePromServer.WriteAddr()))
 
 	require.Equal(t, config.PromRemoteStorageType, cfg.Backend)

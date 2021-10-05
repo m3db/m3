@@ -3580,7 +3580,7 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 		RWOptions:                  xio.NewOptions(),
 		TagOptions:                 models.NewTagOptions(),
 	})
-	if opts.expectConstructError == "" {
+	if opts.expectConstructError != "" {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), opts.expectConstructError)
 		return testDownsampler{}
