@@ -1,6 +1,4 @@
-//go:build integration_v2
 // +build integration_v2
-
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -41,10 +39,9 @@ func TestNewCoordinator(t *testing.T) {
 	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
 	require.NoError(t, err)
 	require.NoError(t, coord.Close())
-}
 
-func TestCreateAnotherCoordinatorInProcess(t *testing.T) {
-	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
+	// Restart and shut down again to test restarting.
+	coord, err = NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
 	require.NoError(t, err)
 	require.NoError(t, coord.Close())
 }
@@ -258,7 +255,6 @@ clusters:
           env: default_env
           zone: embedded
           service: m3db
-          cacheDir: "*"
           etcdClusters:
             - zone: embedded
               endpoints:
@@ -278,14 +274,11 @@ coordinator:
             env: default_env
             zone: embedded
             service: m3db
-            cacheDir: "*"
             etcdClusters:
               - zone: embedded
                 endpoints:
                   - 127.0.0.1:2379
 
 db:
-  filesystem:
-    filePathPrefix: "*"
   writeNewSeriesAsync: false
 `

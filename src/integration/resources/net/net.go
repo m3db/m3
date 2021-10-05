@@ -54,7 +54,7 @@ func GetAvailablePort() (int, error) {
 // updated port, a boolean indicating if the address was changed, and
 // an error in case the method failed
 func MaybeGeneratePort(address string) (string, int, bool, error) {
-	h, p, err := net.SplitHostPort(address)
+	_, p, err := net.SplitHostPort(address)
 	if err != nil {
 		return "", 0, false, err
 	}
@@ -65,15 +65,29 @@ func MaybeGeneratePort(address string) (string, int, bool, error) {
 	}
 
 	if port == 0 {
-		newPort, err := GetAvailablePort()
-		if err != nil {
-			return address, 0, false, err
+		if address, port, err = GeneratePort(address); err != nil {
+			return "", 0, false, err
 		}
-
-		newAddr := net.JoinHostPort(h, strconv.Itoa(newPort))
-
-		return newAddr, newPort, true, nil
 	}
 
 	return address, port, false, nil
+}
+
+// GeneratePort takes the address in the string provided and updates
+// the port to one that is open. Returns the complete address, the
+// chosen port, and the error, if any.
+func GeneratePort(address string) (string, int, error) {
+	newPort, err := GetAvailablePort()
+	if err != nil {
+		return "", 0, err
+	}
+
+	h, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return "", 0, err
+	}
+
+	newAddr := net.JoinHostPort(h, strconv.Itoa(newPort))
+
+	return newAddr, newPort, nil
 }
