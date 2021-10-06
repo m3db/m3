@@ -30,6 +30,7 @@ import (
 	"sync"
 	"time"
 
+	raggregation "github.com/m3db/m3/src/aggregator/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
@@ -39,26 +40,36 @@ import (
 	"github.com/willf/bitset"
 )
 
-type lockedCounterAggregation struct {
-	sync.Mutex
+type timedCounter struct {
+	// immutable data
+	startAtNanos int64 // start time of an aggregation window
 
+	// data read/written by incoming aggregation requests, guarded by the lock.
+	// this lock only guards against other write requests. the flusher does not acquire this lock and instead acquires
+	// the coarse grain entry lock.
+	mu          *sync.Mutex
 	dirty       bool
-	flushed     bool
 	closed      bool
 	sourcesSeen map[uint32]*bitset.BitSet
 	aggregation counterAggregation
-	prevValues  []float64 // the previously emitted values (one per aggregation type).
-}
 
-type timedCounter struct {
-	startAtNanos     int64 // start time of an aggregation window
-	lockedAgg        *lockedCounterAggregation
-	onConsumeExpired bool
+	// data read/written only by the flusher, which does not need to be thread safe.
+	// a snapshot of the aggregation values that is the input for the processing. reused across processing rounds.
+	aggValues []float64
+	// the output of the previous processing run for this timestamp. these are used to skip re-emitting values that have
+	// not changed on resends. reused across processing rounds.
+	prevConsumedValues []float64
+	// a copy of the aggregation annotation. reused across processing rounds.
+	annotation []byte
+	flushed    bool
+	expired    bool
 }
 
 func (ta *timedCounter) Release() {
 	ta.startAtNanos = 0
-	ta.lockedAgg = nil
+	ta.aggValues = nil
+	ta.prevConsumedValues = nil
+	ta.annotation = nil
 }
 
 // CounterElem is an element storing time-bucketed aggregations.
@@ -116,36 +127,40 @@ func (e *CounterElem) ResendEnabled() bool {
 // AddUnion adds a metric value union at a given timestamp.
 func (e *CounterElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
-	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{})
+	agg, eLock, err := e.findOrCreate(alignedStart, createAggregationOptions{})
 	if err != nil {
 		return err
 	}
-	lockedAgg.Lock()
-	if lockedAgg.closed {
-		lockedAgg.Unlock()
+	agg.mu.Lock()
+	if agg.closed {
+		agg.mu.Unlock()
+		eLock.Unlock()
 		return errAggregationClosed
 	}
-	lockedAgg.aggregation.AddUnion(timestamp, mu)
-	lockedAgg.dirty = true
-	lockedAgg.Unlock()
+	agg.aggregation.AddUnion(timestamp, mu)
+	agg.dirty = true
+	agg.mu.Unlock()
+	eLock.Unlock()
 	return nil
 }
 
 // AddValue adds a metric value at a given timestamp.
 func (e *CounterElem) AddValue(timestamp time.Time, value float64, annotation []byte) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
-	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{})
+	agg, eLock, err := e.findOrCreate(alignedStart, createAggregationOptions{})
 	if err != nil {
 		return err
 	}
-	lockedAgg.Lock()
-	if lockedAgg.closed {
-		lockedAgg.Unlock()
+	agg.mu.Lock()
+	if agg.closed {
+		agg.mu.Unlock()
+		eLock.Unlock()
 		return errAggregationClosed
 	}
-	lockedAgg.aggregation.Add(timestamp, value, annotation)
-	lockedAgg.dirty = true
-	lockedAgg.Unlock()
+	agg.aggregation.Add(timestamp, value, annotation)
+	agg.dirty = true
+	agg.mu.Unlock()
+	eLock.Unlock()
 	return nil
 }
 
@@ -159,24 +174,26 @@ func (e *CounterElem) AddUnique(
 	metadata metadata.ForwardMetadata,
 ) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
-	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{initSourceSet: true})
+	agg, eLock, err := e.findOrCreate(alignedStart, createAggregationOptions{initSourceSet: true})
 	if err != nil {
 		return err
 	}
-	lockedAgg.Lock()
-	if lockedAgg.closed {
-		lockedAgg.Unlock()
+	agg.mu.Lock()
+	if agg.closed {
+		agg.mu.Unlock()
+		eLock.Unlock()
 		return errAggregationClosed
 	}
-	versionsSeen := lockedAgg.sourcesSeen[metadata.SourceID]
+	versionsSeen := agg.sourcesSeen[metadata.SourceID]
 	if versionsSeen == nil {
 		// N.B - these bitsets will be transitively cached through the cached sources seen.
 		versionsSeen = bitset.New(defaultNumVersions)
-		lockedAgg.sourcesSeen[metadata.SourceID] = versionsSeen
+		agg.sourcesSeen[metadata.SourceID] = versionsSeen
 	}
 	version := uint(metric.Version)
 	if versionsSeen.Test(version) {
-		lockedAgg.Unlock()
+		agg.mu.Unlock()
+		eLock.Unlock()
 		return errDuplicateForwardingSource
 	}
 	versionsSeen.Set(version)
@@ -184,18 +201,19 @@ func (e *CounterElem) AddUnique(
 	if metric.Version > 0 {
 		e.metrics.updatedValues.Inc(1)
 		for i := range metric.Values {
-			if err := lockedAgg.aggregation.UpdateVal(timestamp, metric.Values[i], metric.PrevValues[i]); err != nil {
+			if err := agg.aggregation.UpdateVal(timestamp, metric.Values[i], metric.PrevValues[i]); err != nil {
 				return err
 			}
 		}
 	} else {
 		for _, v := range metric.Values {
-			lockedAgg.aggregation.Add(timestamp, v, metric.Annotation)
+			agg.aggregation.Add(timestamp, v, metric.Annotation)
 		}
 	}
 
-	lockedAgg.dirty = true
-	lockedAgg.Unlock()
+	agg.dirty = true
+	agg.mu.Unlock()
+	eLock.Unlock()
 	return nil
 }
 
@@ -228,21 +246,38 @@ func (e *CounterElem) Consume(
 			e.values = append(e.values, value)
 			continue
 		}
-		expired := true
+		value.expired = true
 		if e.resendEnabled {
 			// If resend is enabled, we only expire if the value is now outside the buffer past. It is safe to expire
 			// since any metrics intended for this value are rejected for being too late.
 			expiredNanos := targetNanos - e.bufferForPastTimedMetricFn(resolution).Nanoseconds()
-			expired = value.startAtNanos < expiredNanos
+			value.expired = value.startAtNanos < expiredNanos
 		}
 
-		// Modify the by value copy with whether it needs time flush and accumulate.
-		copiedValue := value
-		copiedValue.onConsumeExpired = expired
-		e.toConsume = append(e.toConsume, copiedValue)
+		// while holding the entry lock, copy any values that are guarded by the individual aggregations. this allows
+		// the flusher to consume individual aggregations without requiring individual locks.
+		for i, aType := range e.aggTypes {
+			value.aggValues[i] = value.aggregation.ValueOf(aType)
+		}
+		value.annotation = raggregation.MaybeReplaceAnnotation(value.annotation, value.aggregation.Annotation())
+		e.toConsume = append(e.toConsume, value)
+		value.dirty = false
+		value.flushed = true
 
-		if !expired {
-			// Keep item. Expired values are GC'd below after consuming.
+		if value.expired {
+			value.closed = true
+			value.aggregation.Close()
+			if value.sourcesSeen != nil {
+				// This is to make sure there aren't too many cached source sets taking up
+				// too much space.
+				if len(e.cachedSourceSets) < e.opts.MaxNumCachedSourceSets() {
+					e.cachedSourceSets = append(e.cachedSourceSets, value.sourcesSeen)
+				}
+				value.sourcesSeen = nil
+			}
+			value.Release()
+		} else {
+			// Keep item if not expired.
 			e.values = append(e.values, value)
 		}
 	}
@@ -255,51 +290,26 @@ func (e *CounterElem) Consume(
 	)
 	// Process the aggregations that are ready for consumption.
 	for i := range e.toConsume {
-		expired := e.toConsume[i].onConsumeExpired
 		timeNanos := xtime.UnixNano(timestampNanosFn(e.toConsume[i].startAtNanos, resolution))
 		// seed the previous timestamp if this is first consumed value.
 		if prevTimeNanos == 0 {
 			prevTimeNanos = e.consumedValues.previousTimestamp(timeNanos)
 		}
 
-		e.toConsume[i].lockedAgg.Lock()
-
 		// if a previous timestamps was dirty, that value might impact a future derivative calculation, so
 		// cascade the dirty bit to all succeeding values. there is a check later to not resend a value if it doesn't
 		// change, so it's ok to optimistically mark dirty.
-		if cascadeDirty || e.toConsume[i].lockedAgg.dirty {
+		if cascadeDirty || e.toConsume[i].dirty {
 			cascadeDirty = e.processValueWithAggregationLock(
 				timeNanos,
 				prevTimeNanos,
-				e.toConsume[i].lockedAgg,
+				&e.toConsume[i],
 				flushLocalFn,
 				flushForwardedFn,
 				resolution,
 			)
-			e.toConsume[i].lockedAgg.flushed = true
-			e.toConsume[i].lockedAgg.dirty = false
 		}
-
-		// Closes the aggregation object after it's processed.
-		if expired {
-			// Cleanup expired item.
-			e.toConsume[i].lockedAgg.closed = true
-			e.toConsume[i].lockedAgg.aggregation.Close()
-			if e.toConsume[i].lockedAgg.sourcesSeen != nil {
-				e.cachedSourceSetsLock.Lock()
-				// This is to make sure there aren't too many cached source sets taking up
-				// too much space.
-				if len(e.cachedSourceSets) < e.opts.MaxNumCachedSourceSets() {
-					e.cachedSourceSets = append(e.cachedSourceSets, e.toConsume[i].lockedAgg.sourcesSeen)
-				}
-				e.cachedSourceSetsLock.Unlock()
-				e.toConsume[i].lockedAgg.sourcesSeen = nil
-			}
-		}
-
-		e.toConsume[i].lockedAgg.Unlock()
-		if expired {
-			e.toConsume[i].Release()
+		if e.toConsume[i].expired {
 			// the consumed value of the previous timestamp is no longer needed once this value has expired.
 			delete(e.consumedValues, prevTimeNanos)
 		}
@@ -332,8 +342,8 @@ func (e *CounterElem) Close() {
 	e.cachedSourceSets = nil
 	for idx := range e.values {
 		// Close the underlying aggregation objects.
-		e.values[idx].lockedAgg.sourcesSeen = nil
-		e.values[idx].lockedAgg.aggregation.Close()
+		e.values[idx].sourcesSeen = nil
+		e.values[idx].aggregation.Close()
 		e.values[idx].Release()
 	}
 	e.values = e.values[:0]
@@ -352,35 +362,32 @@ func (e *CounterElem) Close() {
 	pool.Put(e)
 }
 
-// findOrCreate finds the aggregation for a given time, or creates one
-// if it doesn't exist.
+// findOrCreate finds the aggregation for a given time, or creates one if it doesn't exist.
+// the function returns the lock (shared or exclusive) that was acquired. It is the responsibility of
+// the caller to unlock the lock. this allows the caller to continue locking out the flusher until it completes.
 func (e *CounterElem) findOrCreate(
 	alignedStart int64,
 	createOpts createAggregationOptions,
-) (*lockedCounterAggregation, error) {
+) (*timedCounter, sync.Locker, error) {
 	e.RLock()
 	if e.closed {
 		e.RUnlock()
-		return nil, errElemClosed
+		return nil, nil, errElemClosed
 	}
 	idx, found := e.indexOfWithLock(alignedStart)
 	if found {
-		agg := e.values[idx].lockedAgg
-		e.RUnlock()
-		return agg, nil
+		return &e.values[idx], e.RWMutex.RLocker(), nil
 	}
 	e.RUnlock()
 
 	e.Lock()
 	if e.closed {
 		e.Unlock()
-		return nil, errElemClosed
+		return nil, nil, errElemClosed
 	}
 	idx, found = e.indexOfWithLock(alignedStart)
 	if found {
-		agg := e.values[idx].lockedAgg
-		e.Unlock()
-		return agg, nil
+		return &e.values[idx], e, nil
 	}
 
 	// If not found, create a new aggregation.
@@ -390,7 +397,6 @@ func (e *CounterElem) findOrCreate(
 
 	var sourcesSeen map[uint32]*bitset.BitSet
 	if createOpts.initSourceSet {
-		e.cachedSourceSetsLock.Lock()
 		if numCachedSourceSets := len(e.cachedSourceSets); numCachedSourceSets > 0 {
 			sourcesSeen = e.cachedSourceSets[numCachedSourceSets-1]
 			e.cachedSourceSets[numCachedSourceSets-1] = nil
@@ -401,19 +407,16 @@ func (e *CounterElem) findOrCreate(
 		} else {
 			sourcesSeen = make(map[uint32]*bitset.BitSet)
 		}
-		e.cachedSourceSetsLock.Unlock()
 	}
 	e.values[idx] = timedCounter{
-		startAtNanos: alignedStart,
-		lockedAgg: &lockedCounterAggregation{
-			sourcesSeen: sourcesSeen,
-			aggregation: e.NewAggregation(e.opts, e.aggOpts),
-			prevValues:  make([]float64, len(e.aggTypes)),
-		},
+		startAtNanos:       alignedStart,
+		sourcesSeen:        sourcesSeen,
+		mu:                 &sync.Mutex{},
+		aggregation:        e.NewAggregation(e.opts, e.aggOpts),
+		aggValues:          make([]float64, len(e.aggTypes)),
+		prevConsumedValues: make([]float64, len(e.aggTypes)),
 	}
-	agg := e.values[idx].lockedAgg
-	e.Unlock()
-	return agg, nil
+	return &e.values[idx], e, nil
 }
 
 // indexOfWithLock finds the smallest element index whose timestamp
@@ -449,7 +452,7 @@ func (e *CounterElem) indexOfWithLock(alignedStart int64) (int, bool) {
 func (e *CounterElem) processValueWithAggregationLock(
 	timeNanos xtime.UnixNano,
 	prevTimeNanos xtime.UnixNano,
-	lockedAgg *lockedCounterAggregation,
+	lockedAgg *timedCounter,
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
 	resolution time.Duration) bool {
@@ -460,7 +463,7 @@ func (e *CounterElem) processValueWithAggregationLock(
 	)
 	for aggTypeIdx, aggType := range e.aggTypes {
 		var extraDp transformation.Datapoint
-		value := lockedAgg.aggregation.ValueOf(aggType)
+		value := lockedAgg.aggValues[aggTypeIdx]
 		for _, transformOp := range transformations {
 			unaryOp, isUnaryOp := transformOp.UnaryTransform()
 			binaryOp, isBinaryOp := transformOp.BinaryTransform()
@@ -523,8 +526,8 @@ func (e *CounterElem) processValueWithAggregationLock(
 
 		// It's ok to send a 0 prevValue on the first forward because it's not used in AddUnique unless it's a
 		// resend (version > 0)
-		prevValue := lockedAgg.prevValues[aggTypeIdx]
-		lockedAgg.prevValues[aggTypeIdx] = value
+		prevValue := lockedAgg.prevConsumedValues[aggTypeIdx]
+		lockedAgg.prevConsumedValues[aggTypeIdx] = value
 		if lockedAgg.flushed {
 			// no need to resend a value that hasn't changed.
 			if (math.IsNaN(prevValue) && math.IsNaN(value)) || (prevValue == value) {
@@ -545,16 +548,16 @@ func (e *CounterElem) processValueWithAggregationLock(
 			for _, point := range toFlush {
 				switch e.idPrefixSuffixType {
 				case NoPrefixNoSuffix:
-					flushLocalFn(nil, e.id, nil, point.TimeNanos, point.Value, lockedAgg.aggregation.Annotation(), e.sp)
+					flushLocalFn(nil, e.id, nil, point.TimeNanos, point.Value, lockedAgg.annotation, e.sp)
 				case WithPrefixWithSuffix:
 					flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType),
-						point.TimeNanos, point.Value, lockedAgg.aggregation.Annotation(), e.sp)
+						point.TimeNanos, point.Value, lockedAgg.annotation, e.sp)
 				}
 			}
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
-				int64(timeNanos), value, prevValue, lockedAgg.aggregation.Annotation())
+				int64(timeNanos), value, prevValue, lockedAgg.annotation)
 		}
 	}
 	return emitted

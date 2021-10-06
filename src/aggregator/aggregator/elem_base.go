@@ -176,7 +176,6 @@ type elemBase struct {
 	// Mutable states.
 	tombstoned           bool
 	closed               bool
-	cachedSourceSetsLock sync.Mutex                  // nolint: structcheck
 	cachedSourceSets     []map[uint32]*bitset.BitSet // nolint: structcheck
 }
 

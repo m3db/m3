@@ -377,7 +377,7 @@ func TestEntryAddBatchTimerWithTimerBatchSizeLimit(t *testing.T) {
 		require.True(t, idx >= 0)
 		elem := e.aggregations[idx].elem.Value.(*TimerElem)
 		require.Equal(t, 1, len(elem.values))
-		require.Equal(t, 18.0, elem.values[0].lockedAgg.aggregation.Sum())
+		require.Equal(t, 18.0, elem.values[0].aggregation.Sum())
 	}
 }
 
@@ -1427,9 +1427,9 @@ func TestEntryAddTimed(t *testing.T) {
 	resolution := testTimedMetadata.StoragePolicy.Resolution().Window
 	expectedNanos := time.Unix(0, testTimedMetric.TimeNanos).Truncate(resolution).UnixNano()
 	require.Equal(t, expectedNanos, values[0].startAtNanos)
-	require.Equal(t, int64(1), values[0].lockedAgg.aggregation.Count())
-	require.Equal(t, int64(1000), values[0].lockedAgg.aggregation.Sum())
-	require.Equal(t, float64(1000), values[0].lockedAgg.aggregation.Mean())
+	require.Equal(t, int64(1), values[0].aggregation.Count())
+	require.Equal(t, int64(1000), values[0].aggregation.Sum())
+	require.Equal(t, float64(1000), values[0].aggregation.Mean())
 
 	// Add the timed metric again with duplicate metadata should not result in an error.
 	require.NoError(t, e.AddTimed(testTimedMetric, testTimedMetadata))
@@ -1439,9 +1439,9 @@ func TestEntryAddTimed(t *testing.T) {
 	expectedElem = e.aggregations[idx].elem
 	values = expectedElem.Value.(*CounterElem).values
 	require.Equal(t, 1, len(values))
-	require.Equal(t, int64(2), values[0].lockedAgg.aggregation.Count())
-	require.Equal(t, int64(2000), values[0].lockedAgg.aggregation.Sum())
-	require.Equal(t, float64(1000), values[0].lockedAgg.aggregation.Mean())
+	require.Equal(t, int64(2), values[0].aggregation.Count())
+	require.Equal(t, int64(2000), values[0].aggregation.Sum())
+	require.Equal(t, float64(1000), values[0].aggregation.Mean())
 
 	// Add the timed metric with different timestamp and same metadata.
 	metric := testTimedMetric
@@ -1455,8 +1455,8 @@ func TestEntryAddTimed(t *testing.T) {
 	require.Equal(t, 2, len(values))
 	expectedNanos += testTimedMetadata.StoragePolicy.Resolution().Window.Nanoseconds()
 	require.Equal(t, expectedNanos, values[1].startAtNanos)
-	require.Equal(t, int64(1), values[1].lockedAgg.aggregation.Count())
-	require.Equal(t, int64(1000), values[1].lockedAgg.aggregation.Sum())
+	require.Equal(t, int64(1), values[1].aggregation.Count())
+	require.Equal(t, int64(1000), values[1].aggregation.Sum())
 
 	// Add the timed metric with a different metadata.
 	metric.ID = make(id.RawID, len(testTimedMetric.ID))
@@ -1496,8 +1496,8 @@ func TestEntryAddTimed(t *testing.T) {
 	resolution = metadata.StoragePolicy.Resolution().Window
 	expectedNanos = time.Unix(0, metric.TimeNanos).Truncate(resolution).UnixNano()
 	require.Equal(t, expectedNanos, values[0].startAtNanos)
-	require.Equal(t, int64(1), values[0].lockedAgg.aggregation.Count())
-	require.Equal(t, int64(1000), values[0].lockedAgg.aggregation.Sum())
+	require.Equal(t, int64(1), values[0].aggregation.Count())
+	require.Equal(t, int64(1000), values[0].aggregation.Sum())
 	require.Equal(t, metric.ID, counterElem.ID())
 
 	// Ensure the ID is properly cloned so mutating the ID externally does not mutate the
@@ -1679,8 +1679,8 @@ func TestEntryAddForwarded(t *testing.T) {
 	resolution := testForwardMetadata1.StoragePolicy.Resolution().Window
 	expectedNanos := time.Unix(0, testForwardedMetric.TimeNanos).Truncate(resolution).UnixNano()
 	require.Equal(t, expectedNanos, values[0].startAtNanos)
-	require.Equal(t, int64(2), values[0].lockedAgg.aggregation.Count())
-	require.Equal(t, int64(100000), values[0].lockedAgg.aggregation.Sum())
+	require.Equal(t, int64(2), values[0].aggregation.Count())
+	require.Equal(t, int64(100000), values[0].aggregation.Sum())
 
 	// Add the forwarded metric again with duplicate metadata should not result in an error.
 	require.NoError(t, e.AddForwarded(testForwardedMetric, testForwardMetadata1))
@@ -1690,8 +1690,8 @@ func TestEntryAddForwarded(t *testing.T) {
 	expectedElem = e.aggregations[idx].elem
 	values = expectedElem.Value.(*CounterElem).values
 	require.Equal(t, 1, len(values))
-	require.Equal(t, int64(2), values[0].lockedAgg.aggregation.Count())
-	require.Equal(t, int64(100000), values[0].lockedAgg.aggregation.Sum())
+	require.Equal(t, int64(2), values[0].aggregation.Count())
+	require.Equal(t, int64(100000), values[0].aggregation.Sum())
 
 	// Add the forwarded metric with same forward metadata and different source ID.
 	metadata := testForwardMetadata1
@@ -1703,8 +1703,8 @@ func TestEntryAddForwarded(t *testing.T) {
 	expectedElem = e.aggregations[idx].elem
 	values = expectedElem.Value.(*CounterElem).values
 	require.Equal(t, 1, len(values))
-	require.Equal(t, int64(4), values[0].lockedAgg.aggregation.Count())
-	require.Equal(t, int64(200000), values[0].lockedAgg.aggregation.Sum())
+	require.Equal(t, int64(4), values[0].aggregation.Count())
+	require.Equal(t, int64(200000), values[0].aggregation.Sum())
 
 	// Add the forwarded metric with different timestamp and same forward metadata.
 	metric := testForwardedMetric
@@ -1718,8 +1718,8 @@ func TestEntryAddForwarded(t *testing.T) {
 	require.Equal(t, 2, len(values))
 	expectedNanos += testForwardMetadata1.StoragePolicy.Resolution().Window.Nanoseconds()
 	require.Equal(t, expectedNanos, values[1].startAtNanos)
-	require.Equal(t, int64(2), values[1].lockedAgg.aggregation.Count())
-	require.Equal(t, int64(100000), values[1].lockedAgg.aggregation.Sum())
+	require.Equal(t, int64(2), values[1].aggregation.Count())
+	require.Equal(t, int64(100000), values[1].aggregation.Sum())
 
 	// Add the forwarded metric with a different metadata.
 	metric.ID = make(id.RawID, len(testForwardedMetric.ID))
@@ -1761,8 +1761,8 @@ func TestEntryAddForwarded(t *testing.T) {
 	resolution = testForwardMetadata2.StoragePolicy.Resolution().Window
 	expectedNanos = time.Unix(0, metric.TimeNanos).Truncate(resolution).UnixNano()
 	require.Equal(t, expectedNanos, values[0].startAtNanos)
-	require.Equal(t, int64(2), values[0].lockedAgg.aggregation.Count())
-	require.Equal(t, int64(100000), values[0].lockedAgg.aggregation.Sum())
+	require.Equal(t, int64(2), values[0].aggregation.Count())
+	require.Equal(t, int64(100000), values[0].aggregation.Sum())
 	require.Equal(t, metric.ID, counterElem.ID())
 
 	// Ensure the ID is properly cloned so mutating the ID externally does not mutate the
@@ -2032,7 +2032,7 @@ func testEntryAddUntimed(
 				} else {
 					require.Equal(t, 1, len(aggregations))
 					require.Equal(t, alignedStart.UnixNano(), aggregations[0].startAtNanos)
-					require.Equal(t, int64(1234), aggregations[0].lockedAgg.aggregation.Sum())
+					require.Equal(t, int64(1234), aggregations[0].aggregation.Sum())
 				}
 			},
 		},
@@ -2047,7 +2047,7 @@ func testEntryAddUntimed(
 				} else {
 					require.Equal(t, 1, len(aggregations))
 					require.Equal(t, alignedStart.UnixNano(), aggregations[0].startAtNanos)
-					require.Equal(t, 18.0, aggregations[0].lockedAgg.aggregation.Sum())
+					require.Equal(t, 18.0, aggregations[0].aggregation.Sum())
 				}
 			},
 		},
@@ -2062,7 +2062,7 @@ func testEntryAddUntimed(
 				} else {
 					require.Equal(t, 1, len(aggregations))
 					require.Equal(t, alignedStart.UnixNano(), aggregations[0].startAtNanos)
-					require.Equal(t, 123.456, aggregations[0].lockedAgg.aggregation.Last())
+					require.Equal(t, 123.456, aggregations[0].aggregation.Last())
 				}
 			},
 		},
