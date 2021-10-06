@@ -23,7 +23,6 @@ package serialize
 import (
 	"bytes"
 	"fmt"
-	"math"
 	"strings"
 	"testing"
 
@@ -183,14 +182,14 @@ func TestDecodeLiteralTooLong(t *testing.T) {
 }
 
 func TestDecodeLiteralOfMaximumPossibleLength(t *testing.T) {
-	name := strings.Repeat("n", math.MaxUint16)
-	value := strings.Repeat("v", math.MaxUint16)
+	name := strings.Repeat("n", int(DefaultMaxTagLiteralLength))
+	value := strings.Repeat("v", int(DefaultMaxTagLiteralLength))
 	b := bytes.Join([][]byte{
 		headerMagicBytes,
-		encodeUInt16(1, make([]byte, 2)),              // num tags
-		encodeUInt16(math.MaxUint16, make([]byte, 2)), // name length
+		encodeUInt16(1, make([]byte, 2)), // num tags
+		encodeUInt16(DefaultMaxTagLiteralLength, make([]byte, 2)), // name length
 		[]byte(name),
-		encodeUInt16(math.MaxUint16, make([]byte, 2)), // value length
+		encodeUInt16(DefaultMaxTagLiteralLength, make([]byte, 2)), // value length
 		[]byte(value),
 	}, nil)
 
