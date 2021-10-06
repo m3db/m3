@@ -472,7 +472,10 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	mediator.EXPECT().DisableFileOpsAndWait().AnyTimes()
 	mediator.EXPECT().EnableFileOps().AnyTimes()
 	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).DoAndReturn(func(fn func()) error {
-		fn()
+		// Spawn async since this method is called while DB holds
+		// lock and expects the mediator to call it asynchronously
+		// (which avoids deadlocking).
+		go fn()
 		return nil
 	})
 	mediator.EXPECT().Bootstrap().DoAndReturn(func() (BootstrapResult, error) {
