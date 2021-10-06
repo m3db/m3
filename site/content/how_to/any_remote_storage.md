@@ -47,7 +47,7 @@ docker run -p 9090:9090 --name prometheus \
 
 Next we configure and run M3 Coordinator:
 
-`m3_coord_local_downsample.yml`
+`m3_coord_simple.yml`
 {{< codeinclude file="docs/includes/integrations/prometheus/m3_coord_simple.yml" language="yaml" >}}
 
 Run:
@@ -212,3 +212,8 @@ prometheusRemoteBackend:
 Refer to [Aggregate Metrics with M3 Aggregator](https://m3db.io/docs/how_to/m3aggregator) on details how to setup M3 Coordinator with Remote M3 Aggregator.
 
 For administrative operations when configuring topology use M3 Coordinator Admin address from previous step.
+
+**Configure scrapers**
+
+At this point you should have a running fleet of M3 Coordinators and M3 Aggregators.
+You should configure your load balancer to route to M3 Coordinators in round-robin fashion.
