@@ -11,11 +11,11 @@ RELATIVE="./../../.."
 prepare_build_cmd() {
     build_cmd="cd $RELATIVE && make clean-build docker-dev-prep && cp -r ./docker ./bin/ && $1"
 }
-DOCKER_ARGS="-d --renew-anon-volumes"
+DOCKER_ARGS="--detach --renew-anon-volumes"
+PROMETHEUS_DOCKER_ARGS="--detach"
 
 M3COORDINATOR_DEV_IMG=$(docker images m3coordinator:dev | fgrep -iv repository | wc -l | xargs)
 M3AGGREGATOR_DEV_IMG=$(docker images m3aggregator:dev | fgrep -iv repository | wc -l | xargs)
-M3COLLECTOR_DEV_IMG=$(docker images m3collector:dev | fgrep -iv repository | wc -l | xargs)
 
 docker-compose -f docker-compose.yml up $DOCKER_ARGS etcd01
 
@@ -32,8 +32,8 @@ else
 fi
 
 echo "Wait for coordinator API to be up"
-ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-  'curl -vvvsSf localhost:7201/health'
+ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff \
+    'curl -vvvsSf localhost:7201/health'
 
 echo "Running aggregator pipeline"
 curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
@@ -59,15 +59,15 @@ curl -vvvsSf -X POST -H "Topic-Name: aggregator_ingest" -H "Cluster-Environment-
 
 echo "Adding m3aggregator as a consumer to the aggregator ingest topic"
 curl -vvvsSf -X POST -H "Topic-Name: aggregator_ingest" -H "Cluster-Environment-Name: default_env" localhost:7201/api/v1/topic -d '{
-"consumerService": {
-    "serviceId": {
-    "name": "m3aggregator",
-    "environment": "default_env",
-    "zone": "embedded"
-    },
-    "consumptionType": "REPLICATED",
-    "messageTtlNanos": "600000000000"
-}
+    "consumerService": {
+        "serviceId": {
+        "name": "m3aggregator",
+        "environment": "default_env",
+        "zone": "embedded"
+        },
+        "consumptionType": "REPLICATED",
+        "messageTtlNanos": "600000000000"
+    }
 }' # msgs will be discarded after 600000000000ns = 10mins
 
 # Create outbound m3msg topic for m3 aggregators to coordinators
@@ -130,11 +130,11 @@ docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
 
 echo "Starting Prometheus"
 if [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_PROMETHEUS" == true ]]; then
-    docker-compose -f docker-compose.yml up --build $DOCKER_ARGS prometheusraw
+    docker-compose -f docker-compose.yml up --build $PROMETHEUS_DOCKER_ARGS prometheusraw
 else
-    docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheusraw
+    docker-compose -f docker-compose.yml up $PROMETHEUS_DOCKER_ARGS prometheusraw
 fi
-docker-compose -f docker-compose.yml up -d prometheusagg
+docker-compose -f docker-compose.yml up $PROMETHEUS_DOCKER_ARGS prometheusagg
 docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheusscraper
 
 echo "Starting Grafana"

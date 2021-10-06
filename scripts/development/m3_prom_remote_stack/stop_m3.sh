@@ -3,7 +3,7 @@
 set -xe
 
 if [[ "$WIPE_DATA" == true ]]; then
-  docker-compose -f docker-compose.yml down
+    docker-compose -f docker-compose.yml down
 else
-  docker-compose -f docker-compose.yml stop
+    docker-compose -f docker-compose.yml stop
 fi
