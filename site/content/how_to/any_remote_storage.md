@@ -20,6 +20,7 @@ We are going to setup:
   - It will be used as a storage and query engine.
 - 1 Prometheus instance scraping M3 Coordinator and Prometheus TSDB.
 - 1 M3 Coordinator with in process M3 Aggregator that is donwsampling metrics.
+- Finally, we are going define some downsampling rules as an example.
 
 For simplicity lets put all config files in one directory and export env variable:
 ```shell
@@ -58,7 +59,7 @@ docker run -p 7201:7201 -p 3030:3030 --name m3coordinator \
   quay.io/m3db/m3coordinator:latest
 ```
 
-Finally we configure and run another Prometheus instance that is scraping M3 Coordinator and Prometheus TSDB:
+Finally, we configure and run another Prometheus instance that is scraping M3 Coordinator and Prometheus TSDB:
 
 `prometheus-scraper.yml`
 {{< codeinclude file="docs/includes/integrations/prometheus/prometheus-scraper.yml" language="yaml" >}}
@@ -66,7 +67,6 @@ Finally we configure and run another Prometheus instance that is scraping M3 Coo
 Run:
 
 ```shell
-docker pull prom/prometheus:latest
 docker run --name prometheus-scraper \
   -v "$CONFIG_DIR/prometheus-scraper.yml:/etc/prometheus/prometheus.yml" prom/prometheus:latest
 ```
@@ -89,9 +89,9 @@ You should be able to access Grafana on `http://localhost:3000` and explore some
 ### Using rollup and mapping rules
 
 So far our setup is just forwarding metrics to a single unaggregated endpoint. This is not really useful.
-Lets make use of our in process M3 Aggregator and add some rollup and mapping rules.
+Let's make use of our in process M3 Aggregator and add some rollup and mapping rules.
 
-Lets change M3 Coordinator configuration file by adding a new endpoint configuration for aggregated metrics:
+Let's change the M3 Coordinator's configuration file by adding a new endpoint configuration for aggregated metrics:
 
 ```yaml
 prometheusRemoteBackend:
@@ -136,6 +136,9 @@ docker run -p 7201:7201 -p 3030:3030 --name m3coordinator \
   quay.io/m3db/m3coordinator:latest
 ```
 
+Navigate to grafana explore tab `http://localhost:3000/explore` and enter `coordinator_ingest_latency_count`. 
+After a while you should see that metric emits at `1m` intervals.
+
 ### Running in production
 
 The following sections describe deployment scenarios that can be used to run M3 Coordinator and remote M3 Aggregator in production.
@@ -148,7 +151,7 @@ Every instance of scraper is living its own life and is unaware of other M3 Coor
 
 This is a pretty straightforward setup however it has limitations:
 - coupling M3 Coordinator to a scraping component means we can only run as many M3 Coordinators as we have scrappers
-- M3 Coordinator is likely to require more resources then scrapping component
+- M3 Coordinator is likely to require more resources than scrapping component
 
 #### Fleet of M3 Coordinators and M3 Aggregators
 
@@ -170,7 +173,7 @@ Refer to [Running M3 Coordinator in Admin mode](docs/how_to/m3coordinator_admin)
 
 **Configure Remote Write Endpoints**
 
-Finally add configuration to M3 Coordinators that will be accepting metrics from scrapers.
+Add configuration to M3 Coordinators that will be accepting metrics from scrapers.
 
 Configuration should be similar to:
 ```yaml

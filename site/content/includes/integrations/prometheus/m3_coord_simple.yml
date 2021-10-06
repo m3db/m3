@@ -1,8 +1,5 @@
 listenAddress: 0.0.0.0:7201
 
-logging:
-  level: info
-
 metrics:
   scope:
     prefix: "coordinator"
@@ -11,21 +8,6 @@ metrics:
     listenAddress: 0.0.0.0:3030
   sanitization: prometheus
   samplingRate: 1.0
-  extended: none
-
-tagOptions:
-  idScheme: quoted
-
-clusterManagement:
-  etcd:
-    env: default_env
-    zone: embedded
-    service: m3db
-    cacheDir: /var/lib/m3kv
-    etcdClusters:
-      - zone: embedded
-        endpoints:
-          - 127.0.0.1:2379
 
 backend: prom-remote
 
