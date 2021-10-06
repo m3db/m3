@@ -292,7 +292,7 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 		}
 	}
 
-	// NB: Can hold lock since all long running tasks are enqueued to run
+	// NB: Can hold lock since all long-running tasks are enqueued to run
 	// async while holding the lock.
 	d.Lock()
 	defer d.Unlock()
@@ -547,7 +547,7 @@ func (d *db) assignShardSet(shardSet sharding.ShardSet) {
 		d.disableFileOpsAndWait()
 	}
 
-	// NB: Can hold lock since all long running tasks are enqueued to run
+	// NB: Can hold lock since all long-running tasks are enqueued to run
 	// async while holding the lock.
 	d.Lock()
 	defer d.Unlock()

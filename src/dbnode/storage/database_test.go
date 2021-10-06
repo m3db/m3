@@ -425,6 +425,47 @@ func TestDatabaseAssignShardSet(t *testing.T) {
 	require.True(t, d.lastReceivedNewShards.After(t1))
 
 	wg.Wait()
+	assertFileOpsEnabled(t, d)
+}
+
+func TestDatabaseAssignShardSetEnqueueBootstrapWhenMediatorClosed(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	mockMediator := NewMockdatabaseMediator(ctrl)
+	mockMediator.EXPECT().IsOpen().Return(false)
+	mockMediator.EXPECT().BootstrapEnqueue(BootstrapEnqueueOptions{})
+	d.mediator = mockMediator
+	d.bootstraps = 1
+
+	var ns []*MockdatabaseNamespace
+	ns = append(ns,
+		dbAddNewMockNamespace(ctrl, d, "testns1"),
+		dbAddNewMockNamespace(ctrl, d, "testns2"))
+
+	shards := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+		sharding.NewShards([]uint32{2}, shard.Initializing)...)
+	shardSet, err := sharding.NewShardSet(shards, nil)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	wg.Add(len(ns))
+	for _, n := range ns {
+		n.EXPECT().AssignShardSet(shardSet).Do(func(_ sharding.ShardSet) {
+			wg.Done()
+		})
+	}
+
+	t1 := d.lastReceivedNewShards
+	d.AssignShardSet(shardSet)
+	require.True(t, d.lastReceivedNewShards.After(t1))
+
+	wg.Wait()
 }
 
 func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
@@ -594,15 +635,7 @@ func TestDatabaseAddNamespace(t *testing.T) {
 	nses := d.Namespaces()
 	require.Len(t, nses, 2)
 
-	// construct new namespace Map
-	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
-	require.NoError(t, err)
-	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
-	require.NoError(t, err)
-	md3, err := namespace.NewMetadata(ident.StringID("and1"), defaultTestNs1Opts)
-	require.NoError(t, err)
-	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2, md3})
-	require.NoError(t, err)
+	md1, md2, _, nsMap := addNamespace(t, "and1")
 
 	// update the database watch with new Map
 	mapCh <- nsMap
@@ -634,6 +667,7 @@ func TestDatabaseAddNamespace(t *testing.T) {
 	ns3, ok := d.Namespace(ident.StringID("and1"))
 	require.True(t, ok)
 	require.Equal(t, md1.Options(), ns3.Options())
+	assertFileOpsEnabled(t, d)
 }
 
 type testNamespaceHooks struct {
@@ -677,15 +711,7 @@ func TestDatabaseAddNamespaceBootstrapEnqueue(t *testing.T) {
 	nses := d.Namespaces()
 	require.Len(t, nses, 2)
 
-	// construct new namespace Map
-	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
-	require.NoError(t, err)
-	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
-	require.NoError(t, err)
-	md3, err := namespace.NewMetadata(ident.StringID("and1"), defaultTestNs1Opts)
-	require.NoError(t, err)
-	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2, md3})
-	require.NoError(t, err)
+	_, _, md3, nsMap := addNamespace(t, "nsNew")
 
 	// update the database watch with new Map
 	mapCh <- nsMap
@@ -706,9 +732,108 @@ func TestDatabaseAddNamespaceBootstrapEnqueue(t *testing.T) {
 	// ensure the expected namespaces exist
 	nses = d.Namespaces()
 	require.Len(t, nses, 3)
-	ns3, ok := d.Namespace(ident.StringID("and1"))
+	ns3, ok := d.Namespace(ident.StringID("nsNew"))
 	require.True(t, ok)
-	require.Equal(t, md1.Options(), ns3.Options())
+	require.Equal(t, md3.Options(), ns3.Options())
+	assertFileOpsEnabled(t, d)
+}
+
+type errorNamespaceHooks struct{}
+
+func (th *errorNamespaceHooks) OnCreatedNamespace(Namespace, GetNamespaceFn) error {
+	return errors.New("failed to create namespace")
+}
+
+func TestDatabaseAddNamespaceErrorAfterWaitForFileOps(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	require.NoError(t, d.Open())
+	defer func() {
+		close(mapCh)
+		require.NoError(t, d.Close())
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	nsHooks := &errorNamespaceHooks{}
+	d.opts = d.opts.SetNamespaceHooks(nsHooks)
+
+	_, _, _, nsMap := addNamespace(t, "testns3")
+	d.bootstraps = 1
+
+	require.Error(t, d.UpdateOwnedNamespaces(nsMap))
+	assertFileOpsEnabled(t, d)
+}
+
+func TestDatabaseAddNamespaceBootstrapEnqueueMediatorClosed(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	require.NoError(t, d.Open())
+	mediator := d.mediator
+	defer func() {
+		close(mapCh)
+		d.mediator = mediator
+		require.NoError(t, d.Close())
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	// retrieve the update channel to track propatation
+	updateCh := d.opts.NamespaceInitializer().(*mockNsInitializer).updateCh
+
+	nsHooks := &testNamespaceHooks{}
+	d.opts = d.opts.SetNamespaceHooks(nsHooks)
+	mockMediator := NewMockdatabaseMediator(ctrl)
+	mockMediator.EXPECT().IsOpen().Return(false).AnyTimes()
+	mockMediator.EXPECT().BootstrapEnqueue(BootstrapEnqueueOptions{})
+	d.mediator = mockMediator
+
+	// check initial namespaces
+	nses := d.Namespaces()
+	require.Len(t, nses, 2)
+
+	_, _, md3, nsMap := addNamespace(t, "testns3")
+	d.bootstraps = 1
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	<-updateCh
+	<-updateCh
+
+	// Because ns update will be enqueued and performed later, we need to wait for more time in theory.
+	// Usually this update should complete in a few seconds.
+	require.True(t, xclock.WaitUntil(func() bool {
+		return nsHooks.addCount() == 1
+	}, time.Minute))
+	require.True(t, xclock.WaitUntil(func() bool {
+		return len(d.Namespaces()) == 3
+	}, 2*time.Second))
+
+	// ensure the expected namespaces exist
+	nses = d.Namespaces()
+	require.Len(t, nses, 3)
+	ns3, ok := d.Namespace(ident.StringID("testns3"))
+	require.True(t, ok)
+	require.Equal(t, md3.Options(), ns3.Options())
+}
+
+func addNamespace(
+	t *testing.T,
+	ns string,
+) (namespace.Metadata, namespace.Metadata, namespace.Metadata, namespace.Map) {
+	// construct new namespace Map
+	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
+	require.NoError(t, err)
+	md3, err := namespace.NewMetadata(ident.StringID(ns), defaultTestNs1Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2, md3})
+	require.NoError(t, err)
+	return md1, md2, md3, nsMap
 }
 
 func TestDatabaseUpdateNamespace(t *testing.T) {
@@ -1428,10 +1553,10 @@ func TestDatabaseIsBootstrapped(t *testing.T) {
 		close(mapCh)
 	}()
 
-	mediator := NewMockdatabaseMediator(ctrl)
-	mediator.EXPECT().IsBootstrapped().Return(true)
-	mediator.EXPECT().IsBootstrapped().Return(false)
-	d.mediator = mediator
+	md := NewMockdatabaseMediator(ctrl)
+	md.EXPECT().IsBootstrapped().Return(true)
+	md.EXPECT().IsBootstrapped().Return(false)
+	d.mediator = md
 
 	assert.True(t, d.IsBootstrapped())
 	assert.False(t, d.IsBootstrapped())
@@ -1621,4 +1746,12 @@ func TestNewAggregateTilesOptions(t *testing.T) {
 	_, err = NewAggregateTilesOptions(start, end, time.Minute, targetNs, process,
 		true, true, map[string]annotation.Payload{}, insOpts)
 	assert.NoError(t, err)
+}
+
+func assertFileOpsEnabled(t *testing.T, d *db) {
+	mediator := d.mediator.(*mediator)
+	coldFlushManager := mediator.databaseColdFlushManager.(*coldFlushManager)
+	fileSystemManager := mediator.databaseFileSystemManager.(*fileSystemManager)
+	require.True(t, coldFlushManager.enabled)
+	require.True(t, fileSystemManager.enabled)
 }
