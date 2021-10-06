@@ -29,8 +29,14 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -47,11 +53,6 @@ import (
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func makeOptions(ds ingest.DownsamplerAndWriter) options.HandlerOptions {
@@ -416,6 +417,37 @@ func TestPromWriteDisabledMetricsTypes(t *testing.T) {
 
 	require.False(t, capturedIter.Next())
 	require.NoError(t, capturedIter.Error())
+}
+
+func TestPromWriteLiteralIsTooLongError(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := makeOptions(ingest.NewMockDownsamplerAndWriter(ctrl))
+	handler, err := NewPromWriteHandler(opts)
+	require.NoError(t, err)
+
+	veryLongLiteral := strings.Repeat("x", int(opts.TagOptions().MaxTagLiteralLength())+1)
+	promReq := &prompb.WriteRequest{
+		Timeseries: []prompb.TimeSeries{
+			{
+				Labels: []prompb.Label{
+					{Name: []byte("name1"), Value: []byte("value1")},
+					{Name: []byte("name2"), Value: []byte(veryLongLiteral)},
+				},
+			},
+		},
+	}
+
+	for i := 0; i < maxLiteralIsTooLongLogCount*2; i++ {
+		promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
+		req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
+		writer := httptest.NewRecorder()
+		handler.ServeHTTP(writer, req)
+		resp := writer.Result()
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
+	}
 }
 
 func BenchmarkWriteDatapoints(b *testing.B) {

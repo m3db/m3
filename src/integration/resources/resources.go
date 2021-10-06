@@ -56,7 +56,7 @@ func SetupCluster(cluster M3Resources, opts *ClusterOptions) error { // nolint: 
 			logger.Error("could not get host details", zap.Error(err))
 			return err
 		}
-		if opts.NumIsolationGroups > 0 {
+		if opts != nil && opts.NumIsolationGroups > 0 {
 			h.IsolationGroup = fmt.Sprintf("isogroup-%d", int32(i)%opts.NumIsolationGroups)
 		}
 
