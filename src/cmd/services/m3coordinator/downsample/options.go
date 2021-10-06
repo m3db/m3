@@ -737,8 +737,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		kvTxnMemStore := mem.NewStore()
 
 		// Initialize the namespaces
-		err := initStoreNamespaces(kvTxnMemStore, matcherOpts.NamespacesKey())
-		if err != nil {
+		if err := initStoreNamespaces(kvTxnMemStore, matcherOpts.NamespacesKey()); err != nil {
 			return agg{}, err
 		}
 
@@ -814,8 +813,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	// With RequireNamespaceWatchOnInit being true we expect namespaces to be set upfront
 	// so we do not initialize them here at all because it might potentially hide human error.
 	if !matcherOpts.RequireNamespaceWatchOnInit() {
-		err = initStoreNamespaces(kvStore, matcherOpts.NamespacesKey())
-		if err != nil {
+		if err := initStoreNamespaces(kvStore, matcherOpts.NamespacesKey()); err != nil {
 			return agg{}, err
 		}
 	}

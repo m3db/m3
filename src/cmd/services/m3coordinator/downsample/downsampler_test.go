@@ -2845,11 +2845,15 @@ func TestDownsamplerWithOverrideNamespace(t *testing.T) {
 func TestSafeguardInProcessDownsampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
 	store := kv.NewMockStore(ctrl)
-	store.EXPECT().SetIfNotExists(gomock.Eq(matcher.NewOptions().NamespacesKey()), gomock.Any()).Return(0, nil).Times(1)
+	store.EXPECT().SetIfNotExists(gomock.Eq(matcher.NewOptions().NamespacesKey()), gomock.Any()).Return(0, nil)
+
+	// explicitly asserting that no more mutations are done for original store.
 	store.EXPECT().Set(gomock.Any(), gomock.Any()).Times(0)
 	store.EXPECT().CheckAndSet(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 	store.EXPECT().Delete(gomock.Any()).Times(0)
+
 	_ = newTestDownsampler(t, testDownsamplerOptions{
 		remoteClientMock: nil,
 		kvStore:          store,
@@ -2878,7 +2882,7 @@ func TestDownsamplerNamespacesEtcdInit(t *testing.T) {
 		assert.Len(t, ns.Namespaces, 0)
 	})
 
-	t.Run("do not initialize namespaces when RequireNamespaceWatchOnInit is true", func(t *testing.T) {
+	t.Run("does not initialize namespaces key when RequireNamespaceWatchOnInit is true", func(t *testing.T) {
 		store := mem.NewStore()
 
 		matcherConfig := MatcherConfiguration{RequireNamespaceWatchOnInit: true}
