@@ -90,6 +90,25 @@ func TestPropertyAnyReasonableTagSlicesAreAight(t *testing.T) {
 	properties.TestingRun(t)
 }
 
+func TestPropertyTagsWithMaximumLengthLiteralsAreFine(t *testing.T) {
+	params := gopter.DefaultTestParameters()
+	params.MinSuccessfulTests = 5
+	properties := gopter.NewProperties(params)
+	properties.Property("tags with maximum length literals are handled fine", prop.ForAllNoShrink(
+		func(tags ident.Tags) (bool, error) {
+			iter := ident.NewTagsIterator(tags)
+			copy, err := encodeAndDecode(iter)
+			if err != nil {
+				return false, err
+			}
+			return tagItersAreEqual(iter, copy)
+		},
+		maximumLiteralLengthTags().WithLabel("input tags"),
+	))
+
+	properties.TestingRun(t)
+}
+
 func encodeAndDecode(t ident.TagIterator) (ident.TagIterator, error) {
 	copy := t.Duplicate()
 	enc := newTagEncoder(defaultNewCheckedBytesFn, newTestEncoderOpts(), nil)
@@ -163,6 +182,23 @@ func anyTag() gopter.Gen {
 
 func anyTags() gopter.Gen {
 	return gen.SliceOf(anyTag()).
+		Map(func(tags []ident.Tag) ident.Tags {
+			return ident.NewTags(tags...)
+		})
+}
+
+func maximumLiteralLengthTag() gopter.Gen {
+	limit := int(testDecodeOpts.TagSerializationLimits().MaxTagLiteralLength())
+	return gopter.CombineGens(gen.SliceOfN(limit, gen.AlphaNumChar()), gen.SliceOfN(limit, gen.AlphaNumChar())).
+		Map(func(values []interface{}) ident.Tag {
+			name := string(values[0].([]rune))
+			value := string(values[1].([]rune))
+			return ident.StringTag(name, value)
+		})
+}
+
+func maximumLiteralLengthTags() gopter.Gen {
+	return gen.SliceOfN(1, maximumLiteralLengthTag()).
 		Map(func(tags []ident.Tag) ident.Tags {
 			return ident.NewTags(tags...)
 		})

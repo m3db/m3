@@ -21,7 +21,10 @@
 package serialize
 
 import (
+	"bytes"
 	"fmt"
+	"math"
+	"strings"
 	"testing"
 
 	"github.com/m3db/m3/src/x/checked"
@@ -177,6 +180,26 @@ func TestDecodeLiteralTooLong(t *testing.T) {
 	require.NoError(t, d.Err())
 	require.False(t, d.Next())
 	require.Error(t, d.Err())
+}
+
+func TestDecodeLiteralOfMaximumPossibleLength(t *testing.T) {
+	name := strings.Repeat("n", math.MaxUint16)
+	value := strings.Repeat("v", math.MaxUint16)
+	b := bytes.Join([][]byte{
+		headerMagicBytes,
+		encodeUInt16(1, make([]byte, 2)),              // num tags
+		encodeUInt16(math.MaxUint16, make([]byte, 2)), // name length
+		[]byte(name),
+		encodeUInt16(math.MaxUint16, make([]byte, 2)), // value length
+		[]byte(value),
+	}, nil)
+
+	d := newTestTagDecoder()
+	d.Reset(wrapAsCheckedBytes(b))
+	assertNextTag(t, d, name, value)
+	require.False(t, d.Next())
+	require.NoError(t, d.Err())
+	d.Close()
 }
 
 func TestDecodeMissingTags(t *testing.T) {
