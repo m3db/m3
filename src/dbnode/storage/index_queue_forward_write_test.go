@@ -124,7 +124,10 @@ func setupForwardIndex(
 	)
 
 	if !expectAggregateQuery {
+		lifecycle.EXPECT().IndexedRange().Return(ts, ts)
 		lifecycle.EXPECT().IndexedForBlockStart(ts).Return(true)
+
+		lifecycle.EXPECT().IndexedRange().Return(next, next)
 		lifecycle.EXPECT().IndexedForBlockStart(next).Return(true)
 	}
 
