@@ -126,7 +126,7 @@ type OnIndexSeries interface {
 	IndexedForBlockStart(blockStart xtime.UnixNano) bool
 
 	// IndexedRange returns minimum and maximum blockStart values covered by index entry.
-	// Note that there may be uncovered gaps within that range.
+	// The range is inclusive. Note that there may be uncovered gaps within the range.
 	// Returns (0, 0) for an empty range.
 	IndexedRange() (xtime.UnixNano, xtime.UnixNano)
 }
