@@ -331,68 +331,6 @@ writeWorkerPoolPolicy:
 	assert.Equal(t, qs.reads, 1)
 }
 
-func TestGRPCBackend(t *testing.T) {
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	grpcAddr := lis.Addr().String()
-	cfg := configFromYAML(t, fmt.Sprintf(`
-rpc:
-  remoteListenAddresses: ["%s"]
-
-backend: grpc
-
-tagOptions:
-  metricName: "bar"
-  idScheme: prepend_meta
-
-readWorkerPoolPolicy:
-  grow: true
-  size: 100
-  shards: 1000
-  killProbability: 0.3
-
-writeWorkerPoolPolicy:
-  grow: true
-  size: 100
-  shards: 1000
-  killProbability: 0.3
-`, grpcAddr))
-
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
-	defer ctrl.Finish()
-
-	s := grpc.NewServer()
-	defer s.GracefulStop()
-	qs := newQueryServer()
-	rpc.RegisterQueryServer(s, qs)
-	go func() {
-		_ = s.Serve(lis)
-	}()
-
-	// No clusters
-	require.Equal(t, 0, len(cfg.Clusters))
-	require.Equal(t, config.GRPCStorageType, cfg.Backend)
-
-	addr, stopServer := runServer(t, runServerOpts{cfg: cfg, ctrl: ctrl})
-	defer stopServer()
-
-	// Send Prometheus read request
-	promReq := test.GeneratePromReadRequest()
-	promReqBody := test.GeneratePromReadRequestBody(t, promReq)
-	req, err := http.NewRequestWithContext(
-		context.TODO(),
-		http.MethodPost,
-		fmt.Sprintf("http://%s%s", addr, remote.PromReadURL),
-		promReqBody,
-	)
-	require.NoError(t, err)
-
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
-	assert.Equal(t, qs.reads, 1)
-}
-
 func testWrite(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller) {
 	// Override the client creation
 	require.Equal(t, 1, len(cfg.Clusters))

@@ -2,8 +2,7 @@
 title: "Running M3 Coordinator in Admin mode"
 ---
 
-
-Sometimes it is useful to run M3 Coordinator in "admin mode". Usually its enough o have a single dedicated instance that is used to perform various administration tasks:
+Sometimes it is useful to run M3 Coordinator in "admin mode". Usually it is enough o have a single dedicated instance that is used to perform various administration tasks:
 - M3DB placement management
 - M3 Aggregator placement management
 - Namespace operations
@@ -21,9 +20,6 @@ Final configuration might look as follows:
 ```yaml
 listenAddress: 0.0.0.0:7201
 
-logging:
-  level: info
-
 metrics:
   scope:
     prefix: "coordinator-admin"
@@ -32,7 +28,6 @@ metrics:
     listenAddress: 0.0.0.0:3030
   sanitization: prometheus
   samplingRate: 1.0
-  extended: none
 
 backend: noop-etcd
 
