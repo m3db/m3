@@ -178,17 +178,17 @@ func (m *mediator) Open() error {
 }
 
 func (m *mediator) DisableFileOpsAndWait() {
-	status := m.databaseFileSystemManager.Disable()
-	for status == fileOpInProgress {
-		m.sleepFn(fileOpCheckInterval)
-		status = m.databaseFileSystemManager.Status()
-	}
+	fsStatus := m.databaseFileSystemManager.Disable()
 	// Even though the cold flush runs separately, its still
 	// considered a fs process.
-	status = m.databaseColdFlushManager.Disable()
-	for status == fileOpInProgress {
+	cfStatus := m.databaseColdFlushManager.Disable()
+	for fsStatus == fileOpInProgress {
 		m.sleepFn(fileOpCheckInterval)
-		status = m.databaseColdFlushManager.Status()
+		fsStatus = m.databaseFileSystemManager.Status()
+	}
+	for cfStatus == fileOpInProgress {
+		m.sleepFn(fileOpCheckInterval)
+		cfStatus = m.databaseColdFlushManager.Status()
 	}
 }
 
