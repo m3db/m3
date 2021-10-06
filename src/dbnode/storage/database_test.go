@@ -724,7 +724,7 @@ func TestDatabaseAddNamespaceBootstrapEnqueue(t *testing.T) {
 	// Usually this update should complete in a few seconds.
 	require.True(t, xclock.WaitUntil(func() bool {
 		return nsHooks.addCount() == 1
-	}, 10*time.Minute))
+	}, 1*time.Minute))
 	require.True(t, xclock.WaitUntil(func() bool {
 		return len(d.Namespaces()) == 3
 	}, 2*time.Second))
@@ -1752,6 +1752,12 @@ func assertFileOpsEnabled(t *testing.T, d *db) {
 	mediator := d.mediator.(*mediator)
 	coldFlushManager := mediator.databaseColdFlushManager.(*coldFlushManager)
 	fileSystemManager := mediator.databaseFileSystemManager.(*fileSystemManager)
+
+	coldFlushManager.RLock()
 	require.True(t, coldFlushManager.enabled)
+	coldFlushManager.RUnlock()
+
+	fileSystemManager.RLock()
 	require.True(t, fileSystemManager.enabled)
+	fileSystemManager.RUnlock()
 }
