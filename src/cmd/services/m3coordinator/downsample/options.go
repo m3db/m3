@@ -851,16 +851,16 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}, nil
 	}
 
+	serviceID := services.NewServiceID().
+		SetEnvironment("production").
+		SetName("downsampler").
+		SetZone("embedded")
+
 	localKVStore := kvStore
 	// NB(antanas): to protect against running with real Etcd and overriding existing placements.
 	if !mem.IsMem(localKVStore) {
 		localKVStore = mem.NewStore()
 	}
-
-	serviceID := services.NewServiceID().
-		SetEnvironment("production").
-		SetName("downsampler").
-		SetZone("embedded")
 
 	placementManager, err := o.newAggregatorPlacementManager(serviceID, localKVStore)
 	if err != nil {
