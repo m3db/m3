@@ -29,6 +29,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
@@ -70,6 +71,13 @@ const (
 
 	// defaultForwardingTimeout is the default forwarding timeout.
 	defaultForwardingTimeout = 15 * time.Second
+
+	// maxLiteralIsTooLongLogCount is the number of times the time series labels should be logged
+	// upon "literal is too long" error.
+	maxLiteralIsTooLongLogCount = 10
+	// literalPrefixLength is the length of the label literal prefix that is logged upon
+	// "literal is too long" error.
+	literalPrefixLength = 100
 )
 
 var (
@@ -119,6 +127,9 @@ type PromWriteHandler struct {
 	nowFn                  clock.NowFn
 	instrumentOpts         instrument.Options
 	metrics                promWriteMetrics
+
+	// Counting the number of times of "literal is too long" error for log sampling purposes.
+	numLiteralIsTooLong uint32
 }
 
 // NewPromWriteHandler returns a new instance of handler.
@@ -481,6 +492,20 @@ func (h *PromWriteHandler) parseRequest(
 		}
 	}
 
+	// Check if any of the labels exceed literal length limits and occasionally print them
+	// in a log message for debugging purposes.
+	maxTagLiteralLength := int(h.tagOptions.MaxTagLiteralLength())
+	for _, ts := range req.Timeseries {
+		for _, l := range ts.Labels {
+			if len(l.Name) > maxTagLiteralLength || len(l.Value) > maxTagLiteralLength {
+				h.maybeLogLabelsWithTooLongLiterals(h.instrumentOpts.Logger(), l)
+				err := fmt.Errorf("label literal is too long: nameLength=%d, valueLength=%d, maxLength=%d",
+					len(l.Name), len(l.Value), maxTagLiteralLength)
+				return parseRequestResult{}, err
+			}
+		}
+	}
+
 	return parseRequestResult{
 		Request:        &req,
 		Options:        opts,
@@ -553,6 +578,24 @@ func (h *PromWriteHandler) forward(
 	}
 
 	return nil
+}
+
+func (h *PromWriteHandler) maybeLogLabelsWithTooLongLiterals(logger *zap.Logger, label prompb.Label) {
+	if atomic.AddUint32(&h.numLiteralIsTooLong, 1) > maxLiteralIsTooLongLogCount {
+		return
+	}
+
+	safePrefix := func(b []byte, l int) []byte {
+		if len(b) <= l {
+			return b
+		}
+		return b[:l]
+	}
+
+	logger.Warn("label exceeds literal length limits",
+		zap.String("namePrefix", string(safePrefix(label.Name, literalPrefixLength))),
+		zap.String("valuePrefix", string(safePrefix(label.Value, literalPrefixLength))),
+	)
 }
 
 func newPromTSIter(

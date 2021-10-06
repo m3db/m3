@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,47 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package serialize
+package inprocess
 
-import "math"
+import (
+	"time"
 
-const (
-	// defaultMaxNumberTags is the maximum number of tags that can be encoded.
-	defaultMaxNumberTags uint16 = math.MaxUint16
-
-	// DefaultMaxTagLiteralLength is the maximum length of a tag Name/Value.
-	DefaultMaxTagLiteralLength uint16 = math.MaxUint16
+	"github.com/cenkalti/backoff/v3"
+	"go.uber.org/zap"
 )
 
-type limits struct {
-	maxNumberTags       uint16
-	maxTagLiteralLength uint16
+const (
+	retryMaxInterval = 5 * time.Second
+	retryMaxTime     = time.Minute
+)
+
+func retry(op func() error) error {
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxInterval = retryMaxInterval
+	bo.MaxElapsedTime = retryMaxTime
+	return backoff.Retry(op, bo)
 }
 
-// NewTagSerializationLimits returns a new TagSerializationLimits object.
-func NewTagSerializationLimits() TagSerializationLimits {
-	return &limits{
-		maxNumberTags:       defaultMaxNumberTags,
-		maxTagLiteralLength: DefaultMaxTagLiteralLength,
-	}
-}
+func newLogger() (*zap.Logger, error) {
+	logCfg := zap.NewDevelopmentConfig()
+	logCfg.DisableStacktrace = true
 
-func (l *limits) SetMaxNumberTags(v uint16) TagSerializationLimits {
-	lim := *l
-	lim.maxNumberTags = v
-	return &lim
-}
-
-func (l *limits) MaxNumberTags() uint16 {
-	return l.maxNumberTags
-}
-
-func (l *limits) SetMaxTagLiteralLength(v uint16) TagSerializationLimits {
-	lim := *l
-	lim.maxTagLiteralLength = v
-	return &lim
-}
-
-func (l *limits) MaxTagLiteralLength() uint16 {
-	return l.maxTagLiteralLength
+	return logCfg.Build()
 }

@@ -41,6 +41,8 @@ var (
 	errMustUseSingleClaimsManager = errors.New("not using single global claims manager")
 
 	globalIndexClaimsManagers uint64
+
+	globalIndexClaimsManagersCheckEnabled = true
 )
 
 // ResetIndexClaimsManagersUnsafe should only be used from tests or integration
@@ -50,6 +52,14 @@ var (
 // concurrency issues can be skipped without realizing.
 func ResetIndexClaimsManagersUnsafe() {
 	atomic.StoreUint64(&globalIndexClaimsManagers, 0)
+}
+
+// DisableIndexClaimsManagersCheckUnsafe disables the global index claims
+// managers check which is useful during tests that spin up multiple DB
+// nodes pointed at different data directories within the same process.
+// Outside of that specific context, this method should never be used.
+func DisableIndexClaimsManagersCheckUnsafe() {
+	globalIndexClaimsManagersCheckEnabled = false
 }
 
 type indexClaimsManager struct {
@@ -72,7 +82,7 @@ type volumeIndexClaim struct {
 // NB(bodu): There should be only a single shared index claim manager among all threads
 // writing index data filesets.
 func NewIndexClaimsManager(opts Options) (IndexClaimsManager, error) {
-	if atomic.AddUint64(&globalIndexClaimsManagers, 1) != 1 {
+	if globalIndexClaimsManagersCheckEnabled && atomic.AddUint64(&globalIndexClaimsManagers, 1) != 1 {
 		err := errMustUseSingleClaimsManager
 		instrument.EmitAndLogInvariantViolation(opts.InstrumentOptions(),
 			func(l *zap.Logger) {

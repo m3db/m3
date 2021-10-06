@@ -1,4 +1,5 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// +build integration_v2
+// Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,47 +19,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package serialize
+package inprocess
 
-import "math"
+import (
+	"testing"
 
-const (
-	// defaultMaxNumberTags is the maximum number of tags that can be encoded.
-	defaultMaxNumberTags uint16 = math.MaxUint16
+	"github.com/m3db/m3/src/integration/resources"
 
-	// DefaultMaxTagLiteralLength is the maximum length of a tag Name/Value.
-	DefaultMaxTagLiteralLength uint16 = math.MaxUint16
+	"github.com/stretchr/testify/require"
 )
 
-type limits struct {
-	maxNumberTags       uint16
-	maxTagLiteralLength uint16
-}
+func TestSetupInprocessCluster(t *testing.T) {
+	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
+	require.NoError(t, err)
 
-// NewTagSerializationLimits returns a new TagSerializationLimits object.
-func NewTagSerializationLimits() TagSerializationLimits {
-	return &limits{
-		maxNumberTags:       defaultMaxNumberTags,
-		maxTagLiteralLength: DefaultMaxTagLiteralLength,
-	}
-}
+	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
+	require.NoError(t, err)
 
-func (l *limits) SetMaxNumberTags(v uint16) TagSerializationLimits {
-	lim := *l
-	lim.maxNumberTags = v
-	return &lim
-}
+	cluster := NewM3Resources(ResourceOptions{
+		Coordinator: coord,
+		DBNodes:     resources.Nodes{dbnode},
+	})
 
-func (l *limits) MaxNumberTags() uint16 {
-	return l.maxNumberTags
-}
-
-func (l *limits) SetMaxTagLiteralLength(v uint16) TagSerializationLimits {
-	lim := *l
-	lim.maxTagLiteralLength = v
-	return &lim
-}
-
-func (l *limits) MaxTagLiteralLength() uint16 {
-	return l.maxTagLiteralLength
+	require.NoError(t, resources.SetupCluster(cluster, nil))
+	require.NoError(t, cluster.Cleanup())
 }

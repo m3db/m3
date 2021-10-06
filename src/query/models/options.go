@@ -25,16 +25,23 @@ import (
 	"errors"
 
 	"github.com/prometheus/common/model"
+
+	"github.com/m3db/m3/src/x/serialize"
+)
+
+const (
+	defaultAllowTagNameDuplicates = false
+	defaultAllowTagValueEmpty     = false
+	defaultMaxTagLiteralLength    = serialize.DefaultMaxTagLiteralLength
 )
 
 var (
-	defaultMetricName             = []byte(model.MetricNameLabel)
-	defaultBucketName             = []byte("le")
-	defaultAllowTagNameDuplicates = false
-	defaultAllowTagValueEmpty     = false
+	defaultMetricName = []byte(model.MetricNameLabel)
+	defaultBucketName = []byte("le")
 
-	errNoName   = errors.New("metric name is missing or empty")
-	errNoBucket = errors.New("bucket name is missing or empty")
+	errNoName                   = errors.New("metric name is missing or empty")
+	errNoBucket                 = errors.New("bucket name is missing or empty")
+	errNonPositiveLiteralLength = errors.New("max literal length should be positive")
 )
 
 type tagOptions struct {
@@ -45,6 +52,7 @@ type tagOptions struct {
 	filters                Filters
 	allowTagNameDuplicates bool
 	allowTagValueEmpty     bool
+	maxTagLiteralLength    uint16
 }
 
 // NewTagOptions builds a new tag options with default values.
@@ -56,6 +64,7 @@ func NewTagOptions() TagOptions {
 		idScheme:               TypeQuoted,
 		allowTagNameDuplicates: defaultAllowTagNameDuplicates,
 		allowTagValueEmpty:     defaultAllowTagValueEmpty,
+		maxTagLiteralLength:    defaultMaxTagLiteralLength,
 	}
 }
 
@@ -66,6 +75,10 @@ func (o *tagOptions) Validate() error {
 
 	if o.bucketName == nil || len(o.bucketName) == 0 {
 		return errNoBucket
+	}
+
+	if o.maxTagLiteralLength == 0 {
+		return errNonPositiveLiteralLength
 	}
 
 	return o.idScheme.Validate()
@@ -131,10 +144,23 @@ func (o *tagOptions) AllowTagValueEmpty() bool {
 	return o.allowTagValueEmpty
 }
 
+// SetMaxTagLiteralLength sets the maximum length of a tag Name/Value.
+func (o *tagOptions) SetMaxTagLiteralLength(value uint16) TagOptions {
+	opts := *o
+	opts.maxTagLiteralLength = value
+	return &opts
+}
+
+// MaxTagLiteralLength returns the maximum length of a tag Name/Value.
+func (o *tagOptions) MaxTagLiteralLength() uint16 {
+	return o.maxTagLiteralLength
+}
+
 func (o *tagOptions) Equals(other TagOptions) bool {
 	return o.idScheme == other.IDSchemeType() &&
 		bytes.Equal(o.metricName, other.MetricName()) &&
 		bytes.Equal(o.bucketName, other.BucketName()) &&
 		o.allowTagNameDuplicates == other.AllowTagNameDuplicates() &&
-		o.allowTagValueEmpty == other.AllowTagValueEmpty()
+		o.allowTagValueEmpty == other.AllowTagValueEmpty() &&
+		o.maxTagLiteralLength == other.MaxTagLiteralLength()
 }
