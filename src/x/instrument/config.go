@@ -182,6 +182,9 @@ func (mc *MetricsConfiguration) NewRootScopeAndReporters(
 		})); err != nil {
 			return nil, nil, MetricsConfigurationReporters{}, fmt.Errorf("could not create process collector: %v", err)
 		}
+		if err := registry.Register(prom.NewGoCollector()); err != nil {
+			return nil, nil, MetricsConfigurationReporters{}, fmt.Errorf("could not create go collector: %w", err)
+		}
 		opts := PrometheusConfigurationOptions{
 			Registry:           registry,
 			ExternalRegistries: opts.PrometheusExternalRegistries,
