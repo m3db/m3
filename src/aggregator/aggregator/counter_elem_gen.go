@@ -40,6 +40,7 @@ import (
 	"github.com/willf/bitset"
 )
 
+//nolint:maligned
 type timedCounter struct {
 	// immutable data
 	startAtNanos int64 // start time of an aggregation window

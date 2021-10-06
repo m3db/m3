@@ -329,6 +329,8 @@ func (e *GenericElem) Consume(
 		value.flushed = true
 
 		if value.expired {
+			// expire anything that is read by the writers before we release the lock.
+			// flush state is not released until after the processing round (below).
 			value.closed = true
 			value.aggregation.Close()
 			if value.sourcesSeen != nil {
@@ -339,7 +341,6 @@ func (e *GenericElem) Consume(
 				}
 				value.sourcesSeen = nil
 			}
-			value.Release()
 		} else {
 			// Keep item if not expired.
 			e.values = append(e.values, value)
@@ -374,6 +375,7 @@ func (e *GenericElem) Consume(
 			)
 		}
 		if e.toConsume[i].expired {
+			e.toConsume[i].Release()
 			// the consumed value of the previous timestamp is no longer needed once this value has expired.
 			delete(e.consumedValues, prevTimeNanos)
 		}
