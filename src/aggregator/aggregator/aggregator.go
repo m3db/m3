@@ -377,14 +377,7 @@ func (agg *aggregator) timedForResendEnabledOnPipeline(p metadata.PipelineMetada
 			continue
 		}
 
-		for _, r := range agg.timedForResendEnabledRollupRegexps {
-			if r.Match(op.Rollup.ID) {
-				return true
-			}
-		}
-
-		// Should only have one rollup op in a pipeline so can break after we found one.
-		break
+		return true
 	}
 	return false
 }
