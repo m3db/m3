@@ -9,7 +9,7 @@ This document is a getting started guide to integrating M3DB with Prometheus.
 
 To write to a remote M3DB cluster the simplest configuration is to run `m3coordinator` as a sidecar alongside Prometheus.
 
-Start by downloading the [config template](https://github.com/m3db/m3/blob/master/src/query/config/m3coordinator-cluster-template.yml). Update the `namespaces` and the `client` section for a new cluster to match your cluster's configuration.
+Start by downloading the [config template](https://github.com/m3db/m3/blob/91db5e12cd34a95658cc00fa44ed9ae14d512710/src/query/config/m3coordinator-prom-remote-template.yml). Update the `namespaces` and the `client` section for a new cluster to match your cluster's configuration.
 
 You'll need to specify the static IPs or hostnames of your M3DB seed nodes, and the name and retention values of the namespace you set up. You can leave the namespace storage metrics type as `unaggregated` since it's required by default to have a cluster that receives all Prometheus metrics unaggregated.  In the future you might also want to aggregate and downsample metrics for longer retention, and you can come back and update the config once you've setup those clusters. You can read more about our aggregation functionality [here](/docs/how_to/m3query).
 
@@ -163,4 +163,4 @@ prometheusRemoteBackend:
           all: false
 ```
 
-Refer to [How To Guide](docs/how_to/any_remote_storage) for more details on possible deployment options.
+Refer to [How To Guide](/docs/how_to/any_remote_storage) for more details on possible deployment options.

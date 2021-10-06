@@ -169,7 +169,7 @@ Just follow official [Etcd](https://github.com/etcd-io/etcd/tree/master/Document
 
 **Run M3 Coordinator in Admin mode**
 
-Refer to [Running M3 Coordinator in Admin mode](docs/how_to/m3coordinator_admin).
+Refer to [Running M3 Coordinator in Admin mode](/docs/how_to/m3coordinator_admin).
 
 **Configure Remote Write Endpoints**
 
@@ -209,7 +209,7 @@ prometheusRemoteBackend:
 
 **Configure Remote M3 Aggregator**
 
-Refer to [Aggregate Metrics with M3 Aggregator](https://m3db.io/docs/how_to/m3aggregator) on details how to setup M3 Coordinator with Remote M3 Aggregator.
+Refer to [Aggregate Metrics with M3 Aggregator](/docs/how_to/m3aggregator) on details how to setup M3 Coordinator with Remote M3 Aggregator.
 
 For administrative operations when configuring topology use M3 Coordinator Admin address from previous step.
 
