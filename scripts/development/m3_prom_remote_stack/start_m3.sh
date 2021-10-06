@@ -35,8 +35,7 @@ echo "Wait for coordinator API to be up"
 ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
   'curl -vvvsSf localhost:7201/health'
 
-    echo "Running aggregator pipeline"
-
+echo "Running aggregator pipeline"
 curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
     "num_shards": 64,
     "replication_factor": 1,
