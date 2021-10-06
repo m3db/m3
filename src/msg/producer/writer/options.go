@@ -50,6 +50,8 @@ const (
 	// Using 65k which provides much better performance comparing
 	// to lower values like 1k ~ 8k.
 	defaultConnectionBufferSize = 2 << 15 // ~65kb
+
+	defaultRetryInitialBackoff = time.Second * 5
 )
 
 // ConnectionOptions configs the connections.
@@ -397,11 +399,13 @@ type writerOptions struct {
 
 // NewOptions creates Options.
 func NewOptions() Options {
+	messageRetryOpts := retry.NewOptions().
+		SetInitialBackoff(defaultRetryInitialBackoff)
 	return &writerOptions{
 		topicWatchInitTimeout:             defaultTopicWatchInitTimeout,
 		placementOpts:                     placement.NewOptions(),
 		placementWatchInitTimeout:         defaultPlacementWatchInitTimeout,
-		messageRetryOpts:                  retry.NewOptions(),
+		messageRetryOpts:                  messageRetryOpts,
 		messageQueueNewWritesScanInterval: defaultMessageQueueNewWritesScanInterval,
 		messageQueueFullScanInterval:      defaultMessageQueueFullScanInterval,
 		messageQueueScanBatchSize:         defaultMessageQueueScanBatchSize,
