@@ -343,7 +343,7 @@ func TestAggregateDocLimits(t *testing.T) {
 				SetDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
 				SetBytesReadLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute}).
 				SetAggregateDocsLimitOpts(limits.LookbackLimitOptions{Lookback: time.Minute})
-			queryLimits, err := limits.NewQueryLimits((limitOpts))
+			queryLimits, err := limits.NewQueryLimits(limitOpts)
 			require.NoError(t, err)
 			testOpts = testOpts.SetInstrumentOptions(iOpts).SetQueryLimits(queryLimits)
 

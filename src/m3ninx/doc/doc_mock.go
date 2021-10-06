@@ -334,6 +334,21 @@ func (mr *MockOnIndexSeriesMockRecorder) IndexedForBlockStart(blockStart interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexedForBlockStart", reflect.TypeOf((*MockOnIndexSeries)(nil).IndexedForBlockStart), blockStart)
 }
 
+// IndexedRange mocks base method.
+func (m *MockOnIndexSeries) IndexedRange() (time.UnixNano, time.UnixNano) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexedRange")
+	ret0, _ := ret[0].(time.UnixNano)
+	ret1, _ := ret[1].(time.UnixNano)
+	return ret0, ret1
+}
+
+// IndexedRange indicates an expected call of IndexedRange.
+func (mr *MockOnIndexSeriesMockRecorder) IndexedRange() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexedRange", reflect.TypeOf((*MockOnIndexSeries)(nil).IndexedRange))
+}
+
 // NeedsIndexGarbageCollected mocks base method.
 func (m *MockOnIndexSeries) NeedsIndexGarbageCollected() bool {
 	m.ctrl.T.Helper()

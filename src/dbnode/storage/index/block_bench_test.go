@@ -131,3 +131,6 @@ func (m mockOnIndexSeries) IndexedForBlockStart(_ xtime.UnixNano) bool { return 
 func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool                { return false }
 func (m mockOnIndexSeries) TryMarkIndexGarbageCollected() bool         { return false }
 func (m mockOnIndexSeries) NeedsIndexGarbageCollected() bool           { return false }
+func (m mockOnIndexSeries) IndexedRange() (xtime.UnixNano, xtime.UnixNano) {
+	return 0, 0
+}
