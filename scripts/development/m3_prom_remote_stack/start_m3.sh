@@ -17,7 +17,7 @@ M3COORDINATOR_DEV_IMG=$(docker images m3coordinator:dev | fgrep -iv repository |
 M3AGGREGATOR_DEV_IMG=$(docker images m3aggregator:dev | fgrep -iv repository | wc -l | xargs)
 M3COLLECTOR_DEV_IMG=$(docker images m3collector:dev | fgrep -iv repository | wc -l | xargs)
 
-    docker-compose -f docker-compose.yml up $DOCKER_ARGS etcd01
+docker-compose -f docker-compose.yml up $DOCKER_ARGS etcd01
 
 cp ./m3coordinator-admin.yml ./m3coordinator.yml.tmp
 
@@ -130,12 +130,20 @@ docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
 ./emit_scrape_configs.sh
 
 echo "Starting Prometheus"
-docker-compose -f docker-compose.yml up -d prometheusraw
+if [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_PROMETHEUS" == true ]]; then
+    docker-compose -f docker-compose.yml up --build $DOCKER_ARGS prometheusraw
+else
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheusraw
+fi
 docker-compose -f docker-compose.yml up -d prometheusagg
 docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheusscraper
 
 echo "Starting Grafana"
-docker-compose -f docker-compose.yml up $DOCKER_ARGS grafana
+if [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_GRAFANA" == true ]]; then
+    docker-compose -f docker-compose.yml up --build $DOCKER_ARGS grafana
+else
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS grafana
+fi
 
 echo "Grafana available at localhost:3000"
 echo "Run ./stop.sh to shutdown nodes when done"

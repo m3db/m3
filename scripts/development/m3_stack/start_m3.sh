@@ -364,7 +364,11 @@ if [[ "$USE_AGGREGATOR" = true ]]; then
 fi
 
 echo "Starting Prometheus"
-docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheus01
+if [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_PROMETHEUS" == true ]]; then
+    docker-compose -f docker-compose.yml up --build $DOCKER_ARGS prometheus01
+else
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheus01
+fi
 
 if [[ "$USE_PROMETHEUS_HA" = true ]] ; then
     echo "Starting Prometheus HA replica"
@@ -372,7 +376,11 @@ if [[ "$USE_PROMETHEUS_HA" = true ]] ; then
 fi
 
 echo "Starting Grafana"
-docker-compose -f docker-compose.yml up $DOCKER_ARGS grafana
+if [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_GRAFANA" == true ]]; then
+    docker-compose -f docker-compose.yml up --build $DOCKER_ARGS grafana
+else
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS grafana
+fi
 
 if [[ "$USE_JAEGER" = true ]] ; then
     echo "Jaeger UI available at localhost:16686"
