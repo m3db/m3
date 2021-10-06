@@ -176,6 +176,10 @@ func testNamespaceIndexHighConcurrentQueries(
 			IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
 			Times(idsPerBlock)
 		onIndexSeries.EXPECT().
+			IndexedRange().
+			Return(min, max).
+			AnyTimes()
+		onIndexSeries.EXPECT().
 			IndexedForBlockStart(gomock.Any()).
 			DoAndReturn(func(ts xtime.UnixNano) bool {
 				return ts.Equal(st)
@@ -323,11 +327,11 @@ func testNamespaceIndexHighConcurrentQueries(
 						continue // this will fail the test anyway, but don't want to panic
 					}
 
-					require.Equal(t, expectedDoc, doc)
+					require.Equal(t, expectedDoc, doc, "docs")
 					hits[id.String()] = struct{}{}
 				}
 				expectedHits := idsPerBlock * (k + 1)
-				require.Equal(t, expectedHits, len(hits))
+				require.Equal(t, expectedHits, len(hits), "hits")
 			}
 		}()
 	}

@@ -133,12 +133,22 @@ func (entry *Entry) IndexedBlockCount() int {
 }
 
 // IndexedForBlockStart returns a bool to indicate if the Entry has been successfully
-// indexed for the given index blockstart.
+// indexed for the given index blockStart.
 func (entry *Entry) IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool {
 	entry.reverseIndex.RLock()
 	isIndexed := entry.reverseIndex.indexedWithRLock(indexBlockStart)
 	entry.reverseIndex.RUnlock()
 	return isIndexed
+}
+
+// IndexedRange returns minimum and maximum blockStart values covered by index entry.
+// The range is inclusive. Note that there may be uncovered gaps within the range.
+// Returns (0, 0) for an empty range.
+func (entry *Entry) IndexedRange() (xtime.UnixNano, xtime.UnixNano) {
+	entry.reverseIndex.RLock()
+	min, max := entry.reverseIndex.indexedRangeWithRLock()
+	entry.reverseIndex.RUnlock()
+	return min, max
 }
 
 // NeedsIndexUpdate returns a bool to indicate if the Entry needs to be indexed
@@ -149,7 +159,7 @@ func (entry *Entry) IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool {
 // is going to be sent to the index, and other go routines should not attempt the
 // same write. Callers are expected to ensure they follow this guideline.
 // Further, every call to NeedsIndexUpdate which returns true needs to have a corresponding
-// OnIndexFinalze() call. This is required for correct lifecycle maintenance.
+// OnIndexFinalize() call. This is required for correct lifecycle maintenance.
 func (entry *Entry) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool {
 	// first we try the low-cost path: acquire a RLock and see if the given block start
 	// has been marked successful or that we've attempted it.
@@ -365,7 +375,8 @@ func (entry *Entry) ReleaseRef() error {
 // have a write for the 12-2p block from the 2-4p block, or we'd drop the late write.
 type entryIndexState struct {
 	sync.RWMutex
-	states map[xtime.UnixNano]entryIndexBlockState
+	states                   map[xtime.UnixNano]entryIndexBlockState
+	minIndexedT, maxIndexedT xtime.UnixNano
 }
 
 // entryIndexBlockState is used to capture the state of indexing for a single shard
@@ -380,6 +391,10 @@ func newEntryIndexState() entryIndexState {
 	return entryIndexState{
 		states: make(map[xtime.UnixNano]entryIndexBlockState, 4),
 	}
+}
+
+func (s *entryIndexState) indexedRangeWithRLock() (xtime.UnixNano, xtime.UnixNano) {
+	return s.minIndexedT, s.maxIndexedT
 }
 
 func (s *entryIndexState) indexedWithRLock(t xtime.UnixNano) bool {
@@ -408,6 +423,13 @@ func (s *entryIndexState) setSuccessWithWLock(t xtime.UnixNano) {
 	// NeedIndexUpdate before we indexed the series.
 	s.states[t] = entryIndexBlockState{
 		success: true,
+	}
+
+	if t > s.maxIndexedT {
+		s.maxIndexedT = t
+	}
+	if t < s.minIndexedT || s.minIndexedT == 0 {
+		s.minIndexedT = t
 	}
 }
 
