@@ -1,26 +1,26 @@
 ---
-title: "Integrating any Prometheus Remote Write capable backend"
+title: "M3 Aggregation for any Prometheus remote write storage"
 ---
 
 ### Prometheus Remote Write
 
 As mentioned in our integrations guide, M3 Coordinator and M3 Aggregator can be configured to write to any 
-[Prometheus Remote Write](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write) capable backend.
+[Prometheus Remote Write](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write) receiver.
 
 ### Sidecar M3 Coordinator setup
 
-In this setup we show how to run M3 Coordinator with in process M3 Aggregator as a sidecar to send metrics to a Prometheus instance via remote write protocol.
+In this setup we show how to run M3 Coordinator with in process M3 Aggregator as a sidecar to receive and send metrics to a Prometheus instance via remote write protocol.
 
 {{% notice tip %}}
-It is just a matter of endpoint configuration to use any other backend in place of Prometheus.
+It is just a matter of endpoint configuration to use any other backend in place of Prometheus such as Thanos or Cortex.
 {{% /notice %}}
 
 We are going to setup:
 - 1 Prometheus instance with `remote-write-receiver` enabled.
   - It will be used as a storage and query engine.
 - 1 Prometheus instance scraping M3 Coordinator and Prometheus TSDB.
-- 1 M3 Coordinator with in process M3 Aggregator that is donwsampling metrics.
-- Finally, we are going define some downsampling rules as an example.
+- 1 M3 Coordinator with in process M3 Aggregator that is aggregating and downsampling metrics.
+- Finally, we are going define some aggregation and downsampling rules as an example.
 
 For simplicity lets put all config files in one directory and export env variable:
 ```shell
@@ -32,7 +32,7 @@ First lets run a Prometheus instance with `remote-write-receiver` enabled:
 `prometheus.yml`
 {{< codeinclude file="docs/includes/integrations/prometheus/prometheus.yml" language="yaml" >}}
 
-Run:
+Now run:
 
 ```shell
 docker pull prom/prometheus:latest
@@ -64,7 +64,7 @@ Finally, we configure and run another Prometheus instance that is scraping M3 Co
 `prometheus-scraper.yml`
 {{< codeinclude file="docs/includes/integrations/prometheus/prometheus-scraper.yml" language="yaml" >}}
 
-Run:
+Now run:
 
 ```shell
 docker run --name prometheus-scraper \
@@ -76,7 +76,7 @@ To explore metrics we can use Grafana:
 `datasource.yml`
 {{< codeinclude file="docs/includes/integrations/prometheus/datasource.yml" language="yaml" >}}
 
-Run:
+Now run:
 
 ```shell
 docker pull grafana/grafana:latest
@@ -88,8 +88,9 @@ You should be able to access Grafana on `http://localhost:3000` and explore some
 
 ### Using rollup and mapping rules
 
-So far our setup is just forwarding metrics to a single unaggregated endpoint. This is not really useful.
-Let's make use of our in process M3 Aggregator and add some rollup and mapping rules.
+So far our setup is just forwarding metrics to a single unaggregated Prometheus instance as a passthrough. This is not really useful.
+
+Let's make use of the in process M3 Aggregator in our M3 Coordinator and add some rollup and mapping rules.
 
 Let's change the M3 Coordinator's configuration file by adding a new endpoint configuration for aggregated metrics:
 
@@ -108,7 +109,7 @@ prometheusRemoteBackend:
 
 **Note:** For the simplicity of this example we are adding endpoint to same Prometheus instance. For production deployments it is likely that this will be a different Prometheus instance with different characteristics for aggregated metrics.
 
-Next we will add some mappings rules. We will make metric `coordinator_ingest_latency_count` be written at different resolution - `1m` and drop the rest.
+Next we will add some mappings rules. We will make metric `coordinator_ingest_latency_count` be written at different resolution - `5m` and drop the rest.
 
 ```yaml
 downsample:
@@ -122,7 +123,7 @@ downsample:
         aggregations: ["Last"]
         storagePolicies:
           - retention: 1440h
-            resolution: 1m
+            resolution: 5m
 ```
 
 Final M3 Coordinator configuration:
@@ -137,7 +138,7 @@ docker run -p 7201:7201 -p 3030:3030 --name m3coordinator \
 ```
 
 Navigate to grafana explore tab `http://localhost:3000/explore` and enter `coordinator_ingest_latency_count`. 
-After a while you should see that metric emits at `1m` intervals.
+After a while you should see that metric emits at `5m` intervals.
 
 ### Running in production
 
@@ -150,8 +151,8 @@ In this setup each metrics scraper has an M3 Coordinator as a sidecar with in pr
 Every instance of scraper is living its own life and is unaware of other M3 Coordinators.
 
 This is a pretty straightforward setup however it has limitations:
-- coupling M3 Coordinator to a scraping component means we can only run as many M3 Coordinators as we have scrappers
-- M3 Coordinator is likely to require more resources than scrapping component
+- Coupling M3 Coordinator to a scraper means we can only run as many M3 Coordinators as we have scrapers
+- M3 Coordinator is likely to require more resources than an individual scraper
 
 #### Fleet of M3 Coordinators and M3 Aggregators
 
@@ -160,14 +161,14 @@ With this setup we are able to scale M3 Coordinators and M3 Aggregators independ
 This requires running 4 components separately:
 - Instance of M3 Coordinator Admin to administer the cluster
 - Fleet of stateless M3 Coordinators
-- Fleet of stateful M3 Aggregators
+- Fleet of in-memory stateful M3 Aggregators
 - [Etcd](https://etcd.io/) cluster
 
 **Setup external Etcd cluster**
 
-Just follow official [Etcd](https://github.com/etcd-io/etcd/tree/master/Documentation) docs.
+The best documentation is to follow the official [etcd docs](https://github.com/etcd-io/etcd/tree/master/Documentation).
 
-**Run M3 Coordinator in Admin mode**
+**Run a M3 Coordinator in Admin mode**
 
 Refer to [Running M3 Coordinator in Admin mode](/docs/how_to/m3coordinator_admin).
 
@@ -213,7 +214,8 @@ Refer to [Aggregate Metrics with M3 Aggregator](/docs/how_to/m3aggregator) on de
 
 For administrative operations when configuring topology use M3 Coordinator Admin address from previous step.
 
-**Configure scrapers**
+**Configure scrapers to send metrics to M3**
 
 At this point you should have a running fleet of M3 Coordinators and M3 Aggregators.
+
 You should configure your load balancer to route to M3 Coordinators in round-robin fashion.

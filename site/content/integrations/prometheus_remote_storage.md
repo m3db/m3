@@ -1,9 +1,9 @@
 ---
-title: "Prometheus"
+title: "Prometheus: Storage, aggregation and query with M3"
 weight: 1
 ---
 
-This document is a getting started guide to integrating M3DB with Prometheus.
+This document is a getting started guide to using M3DB as remote storage for Prometheus.
 
 ## M3 Coordinator configuration
 
@@ -123,44 +123,3 @@ Also, we recommend adding `M3DB` and `M3Coordinator`/`M3Query` to your list of j
 When using the Prometheus integration with Grafana, there are two different ways you can query for your metrics. The first option is to configure Grafana to query Prometheus directly by following [these instructions.](http://docs.grafana.org/features/datasources/prometheus/)
 
 Alternatively, you can configure Grafana to read metrics directly from `M3Coordinator` in which case you will bypass Prometheus entirely and use M3's `PromQL` engine instead. To set this up, follow the same instructions from the previous step, but set the `url` to: `http://<M3_COORDINATOR_HOST_NAME>:7201`.
-
-## Using any Prometheus Remote Write capable storage
-
-It is also possible to use any Prometheus Remote Write capable backend in place of M3DB.  
-
-Start by downloading the [config template](https://github.com/m3db/m3/blob/91db5e12cd34a95658cc00fa44ed9ae14d512710/src/query/config/m3coordinator-prom-remote-template.yml).
-
-Update the endpoints with your Prometheus Remote Write compatible storage setup. You should endup with config similar to:
-
-```yaml
-backend: prom-remote
-
-prometheusRemoteBackend:
-  endpoints:
-    # This points to a Prometheus started with `--storage.tsdb.retention.time=720h`
-    - name: unaggregated
-      address: "http://prometheus-raw:9090/api/v1/write"
-    # This points to a Prometheus started with `--storage.tsdb.retention.time=1440h`      
-    - name: aggregated
-      address: "http://prometheus-agg:9090/api/v1/write"
-      storagePolicy:
-        # Should match retention of a Prometheus instance. Coordinator uses it for routing metrics correctly.
-        retention: 1440h
-        # Resolution instructs M3Aggregator to downsample incoming metrics at given rate.
-        # By tuning resolution we can control how much storage Prometheus needs at the cost of query accuracy as range shrinks.
-        resolution: 5m
-        # when ommited defaults to
-        #downsample:
-        # all: true
-    # Another example of prometheus configured for a very long retention but with 1h resolution
-    # Because of downsample: all == false metrics are downsampled based on mapping and rollup rules.     
-    - name: historical
-      address: "http://prometheus-hist:9090/api/v1/write"
-      storagePolicy:
-        retention: 8760h
-        resolution: 1h
-        downsample:
-          all: false
-```
-
-Refer to [How To Guide](/docs/how_to/any_remote_storage) for more details on possible deployment options.
