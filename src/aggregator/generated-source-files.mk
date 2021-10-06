@@ -14,18 +14,18 @@ genny-aggregator-counter-elem:
 	cat $(m3db_package_path)/src/aggregator/aggregator/generic_elem.go                                    \
 		| awk '/^package/{i++}i'                                                                            \
 		| genny -out=$(m3db_package_path)/src/aggregator/aggregator/counter_elem_gen.go -pkg=aggregator gen \
-		"timedAggregation=timedCounter typeSpecificAggregation=counterAggregation typeSpecificElemBase=counterElemBase genericElemPool=CounterElemPool GenericElem=CounterElem aggToProcess=counterToProcess"
+		"timedAggregation=timedCounter typeSpecificAggregation=counterAggregation typeSpecificElemBase=counterElemBase genericElemPool=CounterElemPool GenericElem=CounterElem"
 
 .PHONY: genny-aggregator-timer-elem
 genny-aggregator-timer-elem:
 	cat $(m3db_package_path)/src/aggregator/aggregator/generic_elem.go                                  \
 		| awk '/^package/{i++}i'                                                                          \
 		| genny -out=$(m3db_package_path)/src/aggregator/aggregator/timer_elem_gen.go -pkg=aggregator gen \
-		"timedAggregation=timedTimer typeSpecificAggregation=timerAggregation typeSpecificElemBase=timerElemBase genericElemPool=TimerElemPool GenericElem=TimerElem aggToProcess=timerToProcess"
+		"timedAggregation=timedTimer typeSpecificAggregation=timerAggregation typeSpecificElemBase=timerElemBase genericElemPool=TimerElemPool GenericElem=TimerElem"
 
 .PHONY: genny-aggregator-gauge-elem
 genny-aggregator-gauge-elem:
 	cat $(m3db_package_path)/src/aggregator/aggregator/generic_elem.go                                  \
 		| awk '/^package/{i++}i'                                                                          \
 		| genny -out=$(m3db_package_path)/src/aggregator/aggregator/gauge_elem_gen.go -pkg=aggregator gen \
-		"timedAggregation=timedGauge typeSpecificAggregation=gaugeAggregation typeSpecificElemBase=gaugeElemBase genericElemPool=GaugeElemPool GenericElem=GaugeElem aggToProcess=guageToProcess"
+		"timedAggregation=timedGauge typeSpecificAggregation=gaugeAggregation typeSpecificElemBase=gaugeElemBase genericElemPool=GaugeElemPool GenericElem=GaugeElem"
