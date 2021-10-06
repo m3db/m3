@@ -97,11 +97,11 @@ func TestPropertyTagsWithMaximumLengthLiteralsAreFine(t *testing.T) {
 	properties.Property("tags with maximum length literals are handled fine", prop.ForAllNoShrink(
 		func(tags ident.Tags) (bool, error) {
 			iter := ident.NewTagsIterator(tags)
-			copy, err := encodeAndDecode(iter)
+			newIter, err := encodeAndDecode(iter)
 			if err != nil {
 				return false, err
 			}
-			return tagItersAreEqual(iter, copy)
+			return tagItersAreEqual(iter, newIter)
 		},
 		maximumLiteralLengthTags().WithLabel("input tags"),
 	))
