@@ -51,14 +51,15 @@ const (
 	shutdownTimeout  = time.Minute
 )
 
-// coordinator is an in-process implementation of resources.Coordinator for use
+// Coordinator is an in-process implementation of resources.Coordinator for use
 // in integration tests.
-type coordinator struct {
+type Coordinator struct {
 	cfg      config.Configuration
 	client   common.CoordinatorClient
 	logger   *zap.Logger
 	tmpDirs  []string
 	embedded bool
+	startFn  StartFn
 
 	interruptCh chan<- error
 	shutdownCh  <-chan struct{}
@@ -69,6 +70,8 @@ type CoordinatorOptions struct {
 	// GeneratePorts will automatically update the config to use open ports
 	// if set to true. If false, configuration is used as-is re: ports.
 	GeneratePorts bool
+	// StartFn is a custom function that can be used to start the Coordinator.
+	StartFn StartFn
 	// Logger is the logger to use for the coordinator. If not provided,
 	// a default one will be created.
 	Logger *zap.Logger
@@ -152,7 +155,7 @@ func NewCoordinator(cfg config.Configuration, opts CoordinatorOptions) (resource
 	}
 
 	// Start the coordinator
-	coord := &coordinator{
+	coord := &Coordinator{
 		cfg: cfg,
 		client: common.NewCoordinatorClient(common.CoordinatorClientOptions{
 			Client:    &http.Client{},
@@ -162,6 +165,7 @@ func NewCoordinator(cfg config.Configuration, opts CoordinatorOptions) (resource
 		}),
 		logger:  opts.Logger,
 		tmpDirs: tmpDirs,
+		startFn: opts.StartFn,
 	}
 	coord.start()
 
@@ -171,7 +175,7 @@ func NewCoordinator(cfg config.Configuration, opts CoordinatorOptions) (resource
 // NewEmbeddedCoordinator creates a coordinator from one embedded within an existing
 // db node. This method expects that the DB node has already been started before
 // being called.
-func NewEmbeddedCoordinator(d *dbNode) (resources.Coordinator, error) {
+func NewEmbeddedCoordinator(d *DBNode) (resources.Coordinator, error) {
 	if !d.started {
 		return nil, errors.New("dbnode must be started to create the embedded coordinator")
 	}
@@ -186,7 +190,7 @@ func NewEmbeddedCoordinator(d *dbNode) (resources.Coordinator, error) {
 		return nil, err
 	}
 
-	return &coordinator{
+	return &Coordinator{
 		cfg: *d.cfg.Coordinator,
 		client: common.NewCoordinatorClient(common.CoordinatorClientOptions{
 			Client:    &http.Client{},
@@ -201,7 +205,12 @@ func NewEmbeddedCoordinator(d *dbNode) (resources.Coordinator, error) {
 	}, nil
 }
 
-func (c *coordinator) start() {
+func (c *Coordinator) start() {
+	if c.startFn != nil {
+		c.interruptCh, c.shutdownCh = c.startFn()
+		return
+	}
+
 	interruptCh := make(chan error, 1)
 	shutdownCh := make(chan struct{}, 1)
 
@@ -217,52 +226,52 @@ func (c *coordinator) start() {
 	c.shutdownCh = shutdownCh
 }
 
-func (c *coordinator) GetNamespace() (admin.NamespaceGetResponse, error) {
+func (c *Coordinator) GetNamespace() (admin.NamespaceGetResponse, error) {
 	return c.client.GetNamespace()
 }
 
-func (c *coordinator) WaitForNamespace(name string) error {
+func (c *Coordinator) WaitForNamespace(name string) error {
 	return c.client.WaitForNamespace(name)
 }
 
-func (c *coordinator) AddNamespace(request admin.NamespaceAddRequest) (admin.NamespaceGetResponse, error) {
+func (c *Coordinator) AddNamespace(request admin.NamespaceAddRequest) (admin.NamespaceGetResponse, error) {
 	return c.client.AddNamespace(request)
 }
 
-func (c *coordinator) UpdateNamespace(request admin.NamespaceUpdateRequest) (admin.NamespaceGetResponse, error) {
+func (c *Coordinator) UpdateNamespace(request admin.NamespaceUpdateRequest) (admin.NamespaceGetResponse, error) {
 	return c.client.UpdateNamespace(request)
 }
 
-func (c *coordinator) DeleteNamespace(namespaceID string) error {
+func (c *Coordinator) DeleteNamespace(namespaceID string) error {
 	return c.client.DeleteNamespace(namespaceID)
 }
 
-func (c *coordinator) CreateDatabase(request admin.DatabaseCreateRequest) (admin.DatabaseCreateResponse, error) {
+func (c *Coordinator) CreateDatabase(request admin.DatabaseCreateRequest) (admin.DatabaseCreateResponse, error) {
 	return c.client.CreateDatabase(request)
 }
 
-func (c *coordinator) GetPlacement(
+func (c *Coordinator) GetPlacement(
 	opts resources.PlacementRequestOptions,
 ) (admin.PlacementGetResponse, error) {
 	return c.client.GetPlacement(opts)
 }
 
-func (c *coordinator) InitPlacement(
+func (c *Coordinator) InitPlacement(
 	opts resources.PlacementRequestOptions,
 	req admin.PlacementInitRequest,
 ) (admin.PlacementGetResponse, error) {
 	return c.client.InitPlacement(opts, req)
 }
 
-func (c *coordinator) WaitForInstances(ids []string) error {
+func (c *Coordinator) WaitForInstances(ids []string) error {
 	return c.client.WaitForInstances(ids)
 }
 
-func (c *coordinator) WaitForShardsReady() error {
+func (c *Coordinator) WaitForShardsReady() error {
 	return c.client.WaitForShardsReady()
 }
 
-func (c *coordinator) Close() error {
+func (c *Coordinator) Close() error {
 	if c.embedded {
 		// NB(nate): for embedded coordinators, close is handled by the dbnode that
 		// it is spun up inside of.
@@ -293,39 +302,39 @@ func (c *coordinator) Close() error {
 	return nil
 }
 
-func (c *coordinator) InitM3msgTopic(
+func (c *Coordinator) InitM3msgTopic(
 	opts resources.M3msgTopicOptions,
 	req admin.TopicInitRequest,
 ) (admin.TopicGetResponse, error) {
 	return c.client.InitM3msgTopic(opts, req)
 }
 
-func (c *coordinator) GetM3msgTopic(
+func (c *Coordinator) GetM3msgTopic(
 	opts resources.M3msgTopicOptions,
 ) (admin.TopicGetResponse, error) {
 	return c.client.GetM3msgTopic(opts)
 }
 
-func (c *coordinator) AddM3msgTopicConsumer(
+func (c *Coordinator) AddM3msgTopicConsumer(
 	opts resources.M3msgTopicOptions,
 	req admin.TopicAddRequest,
 ) (admin.TopicGetResponse, error) {
 	return c.client.AddM3msgTopicConsumer(opts, req)
 }
 
-func (c *coordinator) ApplyKVUpdate(update string) error {
+func (c *Coordinator) ApplyKVUpdate(update string) error {
 	return c.client.ApplyKVUpdate(update)
 }
 
-func (c *coordinator) WriteCarbon(port int, metric string, v float64, t time.Time) error {
+func (c *Coordinator) WriteCarbon(port int, metric string, v float64, t time.Time) error {
 	return c.client.WriteCarbon(fmt.Sprintf("http://0.0.0.0/%d", port), metric, v, t)
 }
 
-func (c *coordinator) WriteProm(name string, tags map[string]string, samples []prompb.Sample) error {
+func (c *Coordinator) WriteProm(name string, tags map[string]string, samples []prompb.Sample) error {
 	return c.client.WriteProm(name, tags, samples)
 }
 
-func (c *coordinator) RunQuery(
+func (c *Coordinator) RunQuery(
 	verifier resources.ResponseVerifier,
 	query string,
 	headers map[string][]string,
