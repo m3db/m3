@@ -1,4 +1,12 @@
 datasources:
+  - name: Prometheus Aggregated
+    type: prometheus
+    access: proxy
+    url: http://prometheusagg:9090
+  - name: Prometheus Unaggregated
+    type: prometheus
+    access: proxy
+    url: http://prometheusraw:9090
   - name: Prometheus
     type: prometheus
     access: proxy
