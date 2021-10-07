@@ -206,7 +206,7 @@ func updateAggregatorHostID(cfg config.Configuration) config.Configuration {
 }
 
 func updateAggregatorPorts(cfg config.Configuration) (config.Configuration, error) {
-	if cfg.HTTP != nil && len(cfg.HTTP.ListenAddress) > 0 {
+	if cfg.HTTP != nil {
 		addr, _, err := nettest.GeneratePort(cfg.HTTP.ListenAddress)
 		if err != nil {
 			return cfg, err
@@ -215,7 +215,7 @@ func updateAggregatorPorts(cfg config.Configuration) (config.Configuration, erro
 		cfg.HTTP.ListenAddress = addr
 	}
 
-	if cfg.Metrics.PrometheusReporter != nil && len(cfg.Metrics.PrometheusReporter.ListenAddress) > 0 {
+	if cfg.Metrics.PrometheusReporter != nil {
 		addr, _, err := nettest.GeneratePort(cfg.Metrics.PrometheusReporter.ListenAddress)
 		if err != nil {
 			return cfg, err
