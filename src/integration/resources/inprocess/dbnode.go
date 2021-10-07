@@ -190,6 +190,7 @@ func (d *DBNode) start() {
 	d.started = true
 }
 
+// HostDetails returns this node's host details on the given port.
 func (d *DBNode) HostDetails(_ int) (*admin.Host, error) {
 	_, p, err := net.SplitHostPort(d.cfg.DB.ListenAddressOrDefault())
 	if err != nil {
@@ -226,10 +227,12 @@ func (d *DBNode) HostDetails(_ int) (*admin.Host, error) {
 	}, nil
 }
 
+// Health gives this node's health.
 func (d *DBNode) Health() (*rpc.NodeHealthResult_, error) {
 	return d.tchanClient.TChannelClientHealth(defaultRPCTimeout)
 }
 
+// WaitForBootstrap blocks until the node has bootstrapped.
 func (d *DBNode) WaitForBootstrap() error {
 	return retry(func() error {
 		health, err := d.Health()
@@ -247,14 +250,18 @@ func (d *DBNode) WaitForBootstrap() error {
 	})
 }
 
+// WritePoint writes a datapoint to the node directly.
 func (d *DBNode) WritePoint(req *rpc.WriteRequest) error {
 	return d.tchanClient.TChannelClientWrite(defaultRPCTimeout, req)
 }
 
+// WriteTaggedPoint writes a datapoint with tags to the node directly.
 func (d *DBNode) WriteTaggedPoint(req *rpc.WriteTaggedRequest) error {
 	return d.tchanClient.TChannelClientWriteTagged(defaultRPCTimeout, req)
 }
 
+// AggregateTiles starts tiles aggregation, waits until it will complete
+// and returns the amount of aggregated tiles.
 func (d *DBNode) AggregateTiles(req *rpc.AggregateTilesRequest) (int64, error) {
 	res, err := d.tchanClient.TChannelClientAggregateTiles(defaultRPCTimeout, req)
 	if err != nil {
@@ -264,14 +271,18 @@ func (d *DBNode) AggregateTiles(req *rpc.AggregateTilesRequest) (int64, error) {
 	return res.ProcessedTileCount, nil
 }
 
+// Fetch fetches datapoints.
 func (d *DBNode) Fetch(req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
 	return d.tchanClient.TChannelClientFetch(defaultRPCTimeout, req)
 }
 
+// FetchTagged fetches datapoints by tag.
 func (d *DBNode) FetchTagged(req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
 	return d.tchanClient.TChannelClientFetchTagged(defaultRPCTimeout, req)
 }
 
+// Exec executes the given commands on the node container, returning
+// stdout and stderr from the container.
 func (d *DBNode) Exec(commands ...string) (string, error) {
 	//nolint:gosec
 	cmd := exec.Command(commands[0], commands[1:]...)
@@ -285,6 +296,8 @@ func (d *DBNode) Exec(commands ...string) (string, error) {
 	return out.String(), nil
 }
 
+// GoalStateExec executes the given commands on the node container, retrying
+// until applying the verifier returns no error or the default timeout.
 func (d *DBNode) GoalStateExec(verifier resources.GoalStateVerifier, commands ...string) error {
 	return retry(func() error {
 		if err := verifier(d.Exec(commands...)); err != nil {
@@ -295,6 +308,7 @@ func (d *DBNode) GoalStateExec(verifier resources.GoalStateVerifier, commands ..
 	})
 }
 
+// Restart restarts this container.
 func (d *DBNode) Restart() error {
 	if err := d.Close(); err != nil {
 		return err
@@ -305,6 +319,8 @@ func (d *DBNode) Restart() error {
 	return nil
 }
 
+// Close closes the wrapper and releases any held resources, including
+// deleting docker containers.
 func (d *DBNode) Close() error {
 	defer func() {
 		for _, dir := range d.tmpDirs {

@@ -226,36 +226,44 @@ func (c *Coordinator) start() {
 	c.shutdownCh = shutdownCh
 }
 
+// GetNamespace gets namespaces.
 func (c *Coordinator) GetNamespace() (admin.NamespaceGetResponse, error) {
 	return c.client.GetNamespace()
 }
 
+// WaitForNamespace blocks until the given namespace is enabled.
 func (c *Coordinator) WaitForNamespace(name string) error {
 	return c.client.WaitForNamespace(name)
 }
 
+// AddNamespace adds a namespace.
 func (c *Coordinator) AddNamespace(request admin.NamespaceAddRequest) (admin.NamespaceGetResponse, error) {
 	return c.client.AddNamespace(request)
 }
 
+// UpdateNamespace updates the namespace.
 func (c *Coordinator) UpdateNamespace(request admin.NamespaceUpdateRequest) (admin.NamespaceGetResponse, error) {
 	return c.client.UpdateNamespace(request)
 }
 
+// DeleteNamespace removes the namespace.
 func (c *Coordinator) DeleteNamespace(namespaceID string) error {
 	return c.client.DeleteNamespace(namespaceID)
 }
 
+// CreateDatabase creates a database.
 func (c *Coordinator) CreateDatabase(request admin.DatabaseCreateRequest) (admin.DatabaseCreateResponse, error) {
 	return c.client.CreateDatabase(request)
 }
 
+// GetPlacement gets placements.
 func (c *Coordinator) GetPlacement(
 	opts resources.PlacementRequestOptions,
 ) (admin.PlacementGetResponse, error) {
 	return c.client.GetPlacement(opts)
 }
 
+// InitPlacement initializes placements.
 func (c *Coordinator) InitPlacement(
 	opts resources.PlacementRequestOptions,
 	req admin.PlacementInitRequest,
@@ -263,14 +271,18 @@ func (c *Coordinator) InitPlacement(
 	return c.client.InitPlacement(opts, req)
 }
 
+// WaitForInstances blocks until the given instance is available.
 func (c *Coordinator) WaitForInstances(ids []string) error {
 	return c.client.WaitForInstances(ids)
 }
 
+// WaitForShardsReady waits until all shards gets ready.
 func (c *Coordinator) WaitForShardsReady() error {
 	return c.client.WaitForShardsReady()
 }
 
+// Close closes the wrapper and releases any held resources, including
+// deleting docker containers.
 func (c *Coordinator) Close() error {
 	if c.embedded {
 		// NB(nate): for embedded coordinators, close is handled by the dbnode that
@@ -302,6 +314,7 @@ func (c *Coordinator) Close() error {
 	return nil
 }
 
+// InitM3msgTopic initializes an m3msg topic.
 func (c *Coordinator) InitM3msgTopic(
 	opts resources.M3msgTopicOptions,
 	req admin.TopicInitRequest,
@@ -309,12 +322,14 @@ func (c *Coordinator) InitM3msgTopic(
 	return c.client.InitM3msgTopic(opts, req)
 }
 
+// GetM3msgTopic gets an m3msg topic.
 func (c *Coordinator) GetM3msgTopic(
 	opts resources.M3msgTopicOptions,
 ) (admin.TopicGetResponse, error) {
 	return c.client.GetM3msgTopic(opts)
 }
 
+// AddM3msgTopicConsumer adds a consumer service to an m3msg topic.
 func (c *Coordinator) AddM3msgTopicConsumer(
 	opts resources.M3msgTopicOptions,
 	req admin.TopicAddRequest,
@@ -322,18 +337,22 @@ func (c *Coordinator) AddM3msgTopicConsumer(
 	return c.client.AddM3msgTopicConsumer(opts, req)
 }
 
+// ApplyKVUpdate applies a KV update.
 func (c *Coordinator) ApplyKVUpdate(update string) error {
 	return c.client.ApplyKVUpdate(update)
 }
 
+// WriteCarbon writes a carbon metric datapoint at a given time.
 func (c *Coordinator) WriteCarbon(port int, metric string, v float64, t time.Time) error {
 	return c.client.WriteCarbon(fmt.Sprintf("http://0.0.0.0/%d", port), metric, v, t)
 }
 
+// WriteProm writes a prometheus metric.
 func (c *Coordinator) WriteProm(name string, tags map[string]string, samples []prompb.Sample) error {
 	return c.client.WriteProm(name, tags, samples)
 }
 
+// RunQuery runs the given query with a given verification function.
 func (c *Coordinator) RunQuery(
 	verifier resources.ResponseVerifier,
 	query string,
