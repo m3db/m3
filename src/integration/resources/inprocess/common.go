@@ -44,7 +44,9 @@ func retry(op func() error) error {
 	return backoff.Retry(op, bo)
 }
 
-func newLogger() (*zap.Logger, error) {
+// NewLogger creates a new development zap logger without stacktraces
+// to cut down on verbosity.
+func NewLogger() (*zap.Logger, error) {
 	logCfg := zap.NewDevelopmentConfig()
 	logCfg.DisableStacktrace = true
 

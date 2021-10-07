@@ -43,17 +43,43 @@ import (
 // ClusterOptions contains options for spinning up a new M3 cluster
 // composed of in-process components.
 type ClusterOptions struct {
-	// Coordinator contains cluster options for spinning up a coordinator.
-	Coordinator CoordinatorClusterOptions
 	// DBNode contains cluster options for spinning up dbnodes.
 	DBNode DBNodeClusterOptions
+
+	// TODO: support for Aggregator cluster options
+}
+
+// ClusterConfigs contain the config to use for components within
+// the cluster.
+type ClusterConfigs struct {
+	// DBNode is the configuration for db nodes.
+	DBNode dbcfg.Configuration
+	// Coordinator is the configuration for the coordinator.
+	Coordinator coordinatorcfg.Configuration
+}
+
+// NewClusterConfigsFromYAML creates a new ClusterConfigs object from YAML strings
+// representing component configs.
+func NewClusterConfigsFromYAML(dbnodeYaml string, coordYaml string) (ClusterConfigs, error) {
+	var dbCfg dbcfg.Configuration
+	if err := yaml.Unmarshal([]byte(dbnodeYaml), &dbCfg); err != nil {
+		return ClusterConfigs{}, err
+	}
+
+	var coordCfg coordinatorcfg.Configuration
+	if err := yaml.Unmarshal([]byte(coordYaml), &coordCfg); err != nil {
+		return ClusterConfigs{}, err
+	}
+
+	return ClusterConfigs{
+		Coordinator: coordCfg,
+		DBNode:      dbCfg,
+	}, nil
 }
 
 // DBNodeClusterOptions contains the cluster options for spinning up
 // dbnodes.
 type DBNodeClusterOptions struct {
-	// Config contains the dbnode configuration.
-	Config DBNodeClusterConfig
 	// RF is the replication factor to use for the cluster.
 	RF int32
 	// NumShards is the number of shards to use for each RF.
@@ -98,134 +124,32 @@ func (d *DBNodeClusterOptions) Validate() error {
 		return errors.New("rf must be less than or equal to numIsolationGroups")
 	}
 
-	return d.Config.Validate()
-}
-
-// CoordinatorClusterOptions contains the options for spinning up
-// a coordinator.
-type CoordinatorClusterOptions struct {
-	// Config contains the coordinator configuration.
-	Config CoordinatorClusterConfig
-}
-
-// Validate validates the CoordinatorClusterOptions.
-func (c *CoordinatorClusterOptions) Validate() error {
-	return c.Config.Validate()
-}
-
-// DBNodeClusterConfig contains the configuration for dbnodes in the
-// cluster. Must specify one of the options but not both.
-type DBNodeClusterConfig struct {
-	// ConfigString contains the configuration as a raw YAML string.
-	ConfigString string
-	// ConfigObject contains the configuration as an inflated object.
-	ConfigObject *dbcfg.Configuration
-}
-
-// Validate validates the DBNodeClusterConfig.
-func (d *DBNodeClusterConfig) Validate() error {
-	if d.ConfigString != "" && d.ConfigObject != nil {
-		return errors.New("must specify either ConfigString or ConfigObject, but not both")
-	}
-
-	if d.ConfigString == "" && d.ConfigObject == nil {
-		return errors.New("ConfigString and ConfigObject cannot both be empty")
-	}
-
 	return nil
-}
-
-// ToConfig generates a dbcfg.Configuration object from the DBNodeClusterConfig.
-func (d *DBNodeClusterConfig) ToConfig() (dbcfg.Configuration, error) {
-	if d.ConfigObject != nil {
-		return *d.ConfigObject, nil
-	}
-
-	var cfg dbcfg.Configuration
-	if err := yaml.Unmarshal([]byte(d.ConfigString), &cfg); err != nil {
-		return dbcfg.Configuration{}, err
-	}
-
-	return cfg, nil
-}
-
-// CoordinatorClusterConfig contains the configuration for coordinators in the
-// cluster. Must specify one of the options but not both.
-type CoordinatorClusterConfig struct {
-	// ConfigString contains the configuration as a raw YAML string.
-	ConfigString string
-	// ConfigObject contains the configuration as an inflated object.
-	ConfigObject *coordinatorcfg.Configuration
-}
-
-// Validate validates the CoordinatorClusterConfig.
-func (c *CoordinatorClusterConfig) Validate() error {
-	if c.ConfigString != "" && c.ConfigObject != nil {
-		return errors.New("must specify either ConfigString or ConfigObject, but not both")
-	}
-
-	if c.ConfigString == "" && c.ConfigObject == nil {
-		return errors.New("ConfigString and ConfigObject cannot both be empty")
-	}
-
-	return nil
-}
-
-// ToConfig generates a coordinatorcfg.Configuration object from the CoordinatorClusterConfig.
-func (c *CoordinatorClusterConfig) ToConfig() (coordinatorcfg.Configuration, error) {
-	if c.ConfigObject != nil {
-		return *c.ConfigObject, nil
-	}
-
-	var cfg coordinatorcfg.Configuration
-	if err := yaml.Unmarshal([]byte(c.ConfigString), &cfg); err != nil {
-		return coordinatorcfg.Configuration{}, err
-	}
-
-	return cfg, nil
 }
 
 // NewCluster creates a new M3 cluster based on the ClusterOptions provided.
 // Expects at least a coordinator and a dbnode config.
-func NewCluster(opts ClusterOptions) (resources.M3Resources, error) {
+func NewCluster(configs ClusterConfigs, opts ClusterOptions) (resources.M3Resources, error) {
 	if err := opts.DBNode.Validate(); err != nil {
 		return nil, err
 	}
 
-	if err := opts.Coordinator.Validate(); err != nil {
+	logger, err := NewLogger()
+	if err != nil {
 		return nil, err
 	}
 
-	logger, err := newLogger()
+	nodeCfgs, nodeOpts, envConfig, err := GenerateDBNodeConfigsForCluster(configs, opts.DBNode)
 	if err != nil {
 		return nil, err
 	}
 
 	var (
-		numNodes            = opts.DBNode.RF * opts.DBNode.NumInstances
-		generatePortsAndIDs = numNodes > 1
-		coord               resources.Coordinator
-		nodes               = make(resources.Nodes, 0, numNodes)
-		defaultDBNodeOpts   = DBNodeOptions{
-			GenerateHostID: generatePortsAndIDs,
-			GeneratePorts:  generatePortsAndIDs,
-		}
+		coord resources.Coordinator
+		nodes = make(resources.Nodes, 0, len(nodeCfgs))
 	)
 
-	// TODO(nate): eventually support clients specifying their own discovery stanza.
-	// Practically, this should cover 99% of cases.
-	//
-	// Generate a discovery config with the dbnode using the generated hostID marked as
-	// the etcd server (i.e. seed node).
-	hostID := uuid.NewString()
-	defaultDBNodesCfg, err := opts.DBNode.Config.ToConfig()
-	if err != nil {
-		return nil, err
-	}
-	discoveryCfg, envConfig, err := generateDefaultDiscoveryConfig(defaultDBNodesCfg, hostID)
-	if err != nil {
-		return nil, err
-	}
+	fs.DisableIndexClaimsManagersCheckUnsafe()
 
 	// Ensure that once we start creating resources, they all get cleaned up even if the function
 	// fails half way.
@@ -235,39 +159,16 @@ func NewCluster(opts ClusterOptions) (resources.M3Resources, error) {
 		}
 	}()
 
-	fs.DisableIndexClaimsManagersCheckUnsafe()
-
-	for i := 0; i < int(numNodes); i++ {
-		var cfg dbcfg.Configuration
-		cfg, err = defaultDBNodesCfg.DeepCopy()
-		if err != nil {
-			return nil, err
-		}
-		dbnodeOpts := defaultDBNodeOpts
-
-		if i == 0 {
-			// Mark the initial node as the etcd seed node.
-			dbnodeOpts.GenerateHostID = false
-			cfg.DB.HostID = &hostid.Configuration{
-				Resolver: hostid.ConfigResolver,
-				Value:    &hostID,
-			}
-		}
-		cfg.DB.Discovery = &discoveryCfg
-
+	for i := 0; i < len(nodeCfgs); i++ {
 		var node resources.Node
-		node, err = NewDBNode(cfg, dbnodeOpts)
+		node, err = NewDBNode(nodeCfgs[i], nodeOpts[i])
 		if err != nil {
 			return nil, err
 		}
 		nodes = append(nodes, node)
 	}
 
-	var coordConfig coordinatorcfg.Configuration
-	coordConfig, err = opts.Coordinator.Config.ToConfig()
-	if err != nil {
-		return nil, err
-	}
+	coordConfig := configs.Coordinator
 	// TODO(nate): refactor to support having envconfig if no DB.
 	coordConfig.Clusters[0].Client.EnvironmentConfig = &envConfig
 	coord, err = NewCoordinator(coordConfig, CoordinatorOptions{})
@@ -288,6 +189,61 @@ func NewCluster(opts ClusterOptions) (resources.M3Resources, error) {
 	}
 
 	return m3, nil
+}
+
+// GenerateDBNodeConfigsForCluster generates the unique configs and options
+// for each DB node that will be instantiated. Additionally, provides
+// default environment config that can be used to connect to embedded KV
+// within the DB nodes.
+func GenerateDBNodeConfigsForCluster(
+	configs ClusterConfigs,
+	opts DBNodeClusterOptions,
+) ([]dbcfg.Configuration, []DBNodeOptions, environment.Configuration, error) {
+	// TODO(nate): eventually support clients specifying their own discovery stanza.
+	// Practically, this should cover 99% of cases.
+	//
+	// Generate a discovery config with the dbnode using the generated hostID marked as
+	// the etcd server (i.e. seed node).
+	hostID := uuid.NewString()
+	defaultDBNodesCfg := configs.DBNode
+	discoveryCfg, envConfig, err := generateDefaultDiscoveryConfig(defaultDBNodesCfg, hostID)
+	if err != nil {
+		return nil, nil, environment.Configuration{}, err
+	}
+
+	var (
+		numNodes            = opts.RF * opts.NumInstances
+		generatePortsAndIDs = numNodes > 1
+		defaultDBNodeOpts   = DBNodeOptions{
+			GenerateHostID: generatePortsAndIDs,
+			GeneratePorts:  generatePortsAndIDs,
+		}
+		cfgs     = make([]dbcfg.Configuration, 0, numNodes)
+		nodeOpts = make([]DBNodeOptions, 0, numNodes)
+	)
+	for i := 0; i < int(numNodes); i++ {
+		var cfg dbcfg.Configuration
+		cfg, err = defaultDBNodesCfg.DeepCopy()
+		if err != nil {
+			return nil, nil, environment.Configuration{}, err
+		}
+		dbnodeOpts := defaultDBNodeOpts
+
+		if i == 0 {
+			// Mark the initial node as the etcd seed node.
+			dbnodeOpts.GenerateHostID = false
+			cfg.DB.HostID = &hostid.Configuration{
+				Resolver: hostid.ConfigResolver,
+				Value:    &hostID,
+			}
+		}
+		cfg.DB.Discovery = &discoveryCfg
+
+		cfgs = append(cfgs, cfg)
+		nodeOpts = append(nodeOpts, dbnodeOpts)
+	}
+
+	return cfgs, nodeOpts, envConfig, nil
 }
 
 // generateDefaultDiscoveryConfig handles creating the correct config

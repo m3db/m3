@@ -28,12 +28,11 @@ import (
 )
 
 func TestNewCluster(t *testing.T) {
-	m3, err := NewCluster(ClusterOptions{
-		Coordinator: CoordinatorClusterOptions{
-			CoordinatorClusterConfig{ConfigString: clusterCoordConfig},
-		},
+	configs, err := NewClusterConfigsFromYAML(clusterDBNodeConfig, clusterCoordConfig)
+	require.NoError(t, err)
+
+	m3, err := NewCluster(configs, ClusterOptions{
 		DBNode: DBNodeClusterOptions{
-			Config:             DBNodeClusterConfig{ConfigString: clusterDBNodeConfig},
 			RF:                 3,
 			NumInstances:       1,
 			NumShards:          64,

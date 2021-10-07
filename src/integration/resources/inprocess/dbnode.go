@@ -149,7 +149,7 @@ func NewDBNode(cfg config.Configuration, opts DBNodeOptions) (resources.Node, er
 
 	// Configure logger
 	if opts.Logger == nil {
-		opts.Logger, err = newLogger()
+		opts.Logger, err = NewLogger()
 		if err != nil {
 			return nil, err
 		}
