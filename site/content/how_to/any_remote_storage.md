@@ -102,7 +102,7 @@ prometheusRemoteBackend:
       address: "http://host.docker.internal:9090/api/v1/write"
       storagePolicy:
         retention: 1440h
-        resolution: 1m
+        resolution: 5m
         downsample:
           all: false
 ```
@@ -127,6 +127,7 @@ downsample:
 ```
 
 Final M3 Coordinator configuration:
+
 `m3_coord_rules.yml`
 {{< codeinclude file="docs/includes/integrations/prometheus/m3_coord_rules.yml" language="yaml" >}}
 
