@@ -22,6 +22,7 @@ package inprocess
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"time"
@@ -34,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/integration/resources"
 	nettest "github.com/m3db/m3/src/integration/resources/net"
+	"github.com/m3db/m3/src/x/config/hostid"
 	xos "github.com/m3db/m3/src/x/os"
 )
 
@@ -50,14 +52,50 @@ type aggregator struct {
 type AggregatorOptions struct {
 	// Logger is the logger to use for the in-process aggregator.
 	Logger *zap.Logger
+
+	// HostID is the host id of the in-process aggregator instance.
+	HostID string
+
+	// M3msgAddr is the m3msg server address of the in-process aggregator instance.
+	M3msgAddr string
+
+	// M3msgPort is the m3msg server port of the in-process aggregator instance.
+	M3msgPort uint32
+}
+
+// NewAggregatorFromYAML creates a new in-process aggregator based on the yaml configuration
+// and options provided.
+func NewAggregatorFromYAML(yamlCfg string, opts AggregatorOptions) (resources.Aggregator, error) {
+	var cfg config.Configuration
+	if err := yaml.Unmarshal([]byte(yamlCfg), &cfg); err != nil {
+		return nil, err
+	}
+
+	return NewAggregator(cfg, opts)
 }
 
 // NewAggregator creates a new in-process aggregator based on the configuration
 // and options provided.
-func NewAggregator(yamlCfg string, opts AggregatorOptions) (resources.Aggregator, error) {
-	var cfg config.Configuration
-	if err := yaml.Unmarshal([]byte(yamlCfg), &cfg); err != nil {
-		return nil, err
+func NewAggregator(cfg config.Configuration, opts AggregatorOptions) (resources.Aggregator, error) {
+	// Configure hostID
+	hostID := "m3aggregator"
+	if len(opts.HostID) > 0 {
+		cfg.Aggregator.HostID = &hostid.Configuration{
+			Resolver: hostid.ConfigResolver,
+			Value:    &opts.HostID,
+		}
+	}
+	if cfg.Aggregator.HostID != nil {
+		var err error
+		hostID, err = cfg.Aggregator.HostID.Resolve()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Configure m3msg address
+	if len(opts.M3msgAddr) > 0 && cfg.M3Msg != nil {
+		cfg.M3Msg.Server.ListenAddress = opts.M3msgAddr
 	}
 
 	// Replace any "0" ports with an open port
@@ -72,9 +110,15 @@ func NewAggregator(yamlCfg string, opts AggregatorOptions) (resources.Aggregator
 		return nil, err
 	}
 
+	// configure logger
+	if len(cfg.Logging.Fields) == 0 {
+		cfg.Logging.Fields = make(map[string]interface{})
+	}
+	cfg.Logging.Fields["component"] = fmt.Sprintf("m3aggregator:%s", hostID)
+
 	if opts.Logger == nil {
 		var err error
-		opts.Logger, err = zap.NewDevelopment()
+		opts.Logger, err = newLogger()
 		if err != nil {
 			return nil, err
 		}
@@ -160,6 +204,15 @@ func updateAggregatorPorts(cfg config.Configuration) (config.Configuration, erro
 		}
 
 		cfg.M3Msg.Server.ListenAddress = addr
+	}
+
+	if cfg.Metrics.PrometheusReporter != nil && len(cfg.Metrics.PrometheusReporter.ListenAddress) > 0 {
+		addr, _, _, err := nettest.MaybeGeneratePort(cfg.Metrics.PrometheusReporter.ListenAddress)
+		if err != nil {
+			return cfg, err
+		}
+
+		cfg.Metrics.PrometheusReporter.ListenAddress = addr
 	}
 
 	return cfg, nil
