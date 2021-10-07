@@ -29,7 +29,6 @@ import (
 // Configuration configures options for retry attempts.
 type Configuration struct {
 	// Initial retry backoff.
-	// Defaults to 5s if unspecified.
 	InitialBackoff time.Duration `yaml:"initialBackoff" validate:"min=0"`
 
 	// Backoff factor for exponential backoff.
