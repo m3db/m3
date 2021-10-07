@@ -154,6 +154,7 @@ clusters:
       connectTimeout: <duration>
       # Configuration for retrying write operations
       writeRetry:
+        # Defaults to 5s.
         initialBackoff: <duration>
         # Factor for exponential backoff
         backoffFactor: <float>
