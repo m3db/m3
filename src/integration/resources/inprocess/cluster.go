@@ -134,33 +134,22 @@ func NewCluster(configs ClusterConfigs, opts ClusterOptions) (resources.M3Resour
 		return nil, err
 	}
 
-	logger, err := newLogger()
+	logger, err := NewLogger()
+	if err != nil {
+		return nil, err
+	}
+
+	nodeCfgs, nodeOpts, envConfig, err := GenerateDBNodeConfigsForCluster(configs, opts.DBNode)
 	if err != nil {
 		return nil, err
 	}
 
 	var (
-		numNodes            = opts.DBNode.RF * opts.DBNode.NumInstances
-		generatePortsAndIDs = numNodes > 1
-		coord               resources.Coordinator
-		nodes               = make(resources.Nodes, 0, numNodes)
-		defaultDBNodeOpts   = DBNodeOptions{
-			GenerateHostID: generatePortsAndIDs,
-			GeneratePorts:  generatePortsAndIDs,
-		}
+		coord resources.Coordinator
+		nodes = make(resources.Nodes, 0, len(nodeCfgs))
 	)
 
-	// TODO(nate): eventually support clients specifying their own discovery stanza.
-	// Practically, this should cover 99% of cases.
-	//
-	// Generate a discovery config with the dbnode using the generated hostID marked as
-	// the etcd server (i.e. seed node).
-	hostID := uuid.NewString()
-	defaultDBNodesCfg := configs.DBNode
-	discoveryCfg, envConfig, err := generateDefaultDiscoveryConfig(defaultDBNodesCfg, hostID)
-	if err != nil {
-		return nil, err
-	}
+	fs.DisableIndexClaimsManagersCheckUnsafe()
 
 	// Ensure that once we start creating resources, they all get cleaned up even if the function
 	// fails half way.
@@ -170,28 +159,9 @@ func NewCluster(configs ClusterConfigs, opts ClusterOptions) (resources.M3Resour
 		}
 	}()
 
-	fs.DisableIndexClaimsManagersCheckUnsafe()
-
-	for i := 0; i < int(numNodes); i++ {
-		var cfg dbcfg.Configuration
-		cfg, err = defaultDBNodesCfg.DeepCopy()
-		if err != nil {
-			return nil, err
-		}
-		dbnodeOpts := defaultDBNodeOpts
-
-		if i == 0 {
-			// Mark the initial node as the etcd seed node.
-			dbnodeOpts.GenerateHostID = false
-			cfg.DB.HostID = &hostid.Configuration{
-				Resolver: hostid.ConfigResolver,
-				Value:    &hostID,
-			}
-		}
-		cfg.DB.Discovery = &discoveryCfg
-
+	for i := 0; i < len(nodeCfgs); i++ {
 		var node resources.Node
-		node, err = NewDBNode(cfg, dbnodeOpts)
+		node, err = NewDBNode(nodeCfgs[i], nodeOpts[i])
 		if err != nil {
 			return nil, err
 		}
@@ -219,6 +189,61 @@ func NewCluster(configs ClusterConfigs, opts ClusterOptions) (resources.M3Resour
 	}
 
 	return m3, nil
+}
+
+// GenerateDBNodeConfigsForCluster generates the unique configs and options
+// for each DB node that will be instantiated. Additionally, provides
+// default environment config that can be used to connect to embedded KV
+// within the DB nodes.
+func GenerateDBNodeConfigsForCluster(
+	configs ClusterConfigs,
+	opts DBNodeClusterOptions,
+) ([]dbcfg.Configuration, []DBNodeOptions, environment.Configuration, error) {
+	// TODO(nate): eventually support clients specifying their own discovery stanza.
+	// Practically, this should cover 99% of cases.
+	//
+	// Generate a discovery config with the dbnode using the generated hostID marked as
+	// the etcd server (i.e. seed node).
+	hostID := uuid.NewString()
+	defaultDBNodesCfg := configs.DBNode
+	discoveryCfg, envConfig, err := generateDefaultDiscoveryConfig(defaultDBNodesCfg, hostID)
+	if err != nil {
+		return nil, nil, environment.Configuration{}, err
+	}
+
+	var (
+		numNodes            = opts.RF * opts.NumInstances
+		generatePortsAndIDs = numNodes > 1
+		defaultDBNodeOpts   = DBNodeOptions{
+			GenerateHostID: generatePortsAndIDs,
+			GeneratePorts:  generatePortsAndIDs,
+		}
+		cfgs     = make([]dbcfg.Configuration, 0, numNodes)
+		nodeOpts = make([]DBNodeOptions, 0, numNodes)
+	)
+	for i := 0; i < int(numNodes); i++ {
+		var cfg dbcfg.Configuration
+		cfg, err = defaultDBNodesCfg.DeepCopy()
+		if err != nil {
+			return nil, nil, environment.Configuration{}, err
+		}
+		dbnodeOpts := defaultDBNodeOpts
+
+		if i == 0 {
+			// Mark the initial node as the etcd seed node.
+			dbnodeOpts.GenerateHostID = false
+			cfg.DB.HostID = &hostid.Configuration{
+				Resolver: hostid.ConfigResolver,
+				Value:    &hostID,
+			}
+		}
+		cfg.DB.Discovery = &discoveryCfg
+
+		cfgs = append(cfgs, cfg)
+		nodeOpts = append(nodeOpts, dbnodeOpts)
+	}
+
+	return cfgs, nodeOpts, envConfig, nil
 }
 
 // generateDefaultDiscoveryConfig handles creating the correct config

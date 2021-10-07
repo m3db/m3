@@ -95,7 +95,7 @@ func NewAggregator(cfg config.Configuration, opts AggregatorOptions) (resources.
 
 	if opts.Logger == nil {
 		var err error
-		opts.Logger, err = newLogger()
+		opts.Logger, err = NewLogger()
 		if err != nil {
 			return nil, err
 		}
