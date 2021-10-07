@@ -27,10 +27,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
-	"github.com/google/uuid"
 	m3agg "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/server"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
@@ -84,6 +84,10 @@ func NewAggregator(cfg config.Configuration, opts AggregatorOptions) (resources.
 
 	// configure logger
 	hostID, err := cfg.Aggregator.HostIDOrDefault().Resolve()
+	if err != nil {
+		return nil, err
+	}
+
 	if len(cfg.Logging.Fields) == 0 {
 		cfg.Logging.Fields = make(map[string]interface{})
 	}

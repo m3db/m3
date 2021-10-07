@@ -506,6 +506,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	return opts, nil
 }
 
+// HostIDOrDefault returns the host ID or default.
 func (c *AggregatorConfiguration) HostIDOrDefault() hostid.Configuration {
 	if c.HostID == nil {
 		return hostid.Configuration{
