@@ -81,6 +81,12 @@ type store struct {
 	watchables map[string]kv.ValueWatchable
 }
 
+// IsMem lets asserting if given store is an in memory one.
+func IsMem(s kv.Store) bool {
+	_, ok := s.(*store)
+	return ok
+}
+
 func (s *store) Get(key string) (kv.Value, error) {
 	s.RLock()
 	defer s.RUnlock()

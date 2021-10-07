@@ -2912,17 +2912,15 @@ func (mr *MockdatabaseBootstrapManagerMockRecorder) Bootstrap() *gomock.Call {
 }
 
 // BootstrapEnqueue mocks base method.
-func (m *MockdatabaseBootstrapManager) BootstrapEnqueue() *BootstrapAsyncResult {
+func (m *MockdatabaseBootstrapManager) BootstrapEnqueue(opts BootstrapEnqueueOptions) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BootstrapEnqueue")
-	ret0, _ := ret[0].(*BootstrapAsyncResult)
-	return ret0
+	m.ctrl.Call(m, "BootstrapEnqueue", opts)
 }
 
 // BootstrapEnqueue indicates an expected call of BootstrapEnqueue.
-func (mr *MockdatabaseBootstrapManagerMockRecorder) BootstrapEnqueue() *gomock.Call {
+func (mr *MockdatabaseBootstrapManagerMockRecorder) BootstrapEnqueue(opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapEnqueue", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).BootstrapEnqueue))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapEnqueue", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).BootstrapEnqueue), opts)
 }
 
 // IsBootstrapped mocks base method.
@@ -3627,17 +3625,15 @@ func (mr *MockdatabaseMediatorMockRecorder) Bootstrap() *gomock.Call {
 }
 
 // BootstrapEnqueue mocks base method.
-func (m *MockdatabaseMediator) BootstrapEnqueue() *BootstrapAsyncResult {
+func (m *MockdatabaseMediator) BootstrapEnqueue(opts BootstrapEnqueueOptions) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BootstrapEnqueue")
-	ret0, _ := ret[0].(*BootstrapAsyncResult)
-	return ret0
+	m.ctrl.Call(m, "BootstrapEnqueue", opts)
 }
 
 // BootstrapEnqueue indicates an expected call of BootstrapEnqueue.
-func (mr *MockdatabaseMediatorMockRecorder) BootstrapEnqueue() *gomock.Call {
+func (mr *MockdatabaseMediatorMockRecorder) BootstrapEnqueue(opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapEnqueue", reflect.TypeOf((*MockdatabaseMediator)(nil).BootstrapEnqueue))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapEnqueue", reflect.TypeOf((*MockdatabaseMediator)(nil).BootstrapEnqueue), opts)
 }
 
 // Close mocks base method.
