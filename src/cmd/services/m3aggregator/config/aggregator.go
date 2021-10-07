@@ -59,7 +59,10 @@ var (
 	errEmptyJitterBucketList   = errors.New("empty jitter bucket list")
 )
 
-var defaultNumPassthroughWriters = 8
+var (
+	defaultNumPassthroughWriters = 8
+	defaultHostID                = "m3aggregator_local"
+)
 
 // AggregatorConfiguration contains aggregator configuration.
 type AggregatorConfiguration struct {
@@ -501,6 +504,17 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		SetTimedForResendEnabledRollupRegexps(c.TimedForResendEnabledRollupRegexps)
 
 	return opts, nil
+}
+
+func (c *AggregatorConfiguration) HostIDOrDefault() hostid.Configuration {
+	if c.HostID == nil {
+		return hostid.Configuration{
+			Resolver: hostid.ConfigResolver,
+			Value:    &defaultHostID,
+		}
+	}
+
+	return *c.HostID
 }
 
 func (c *AggregatorConfiguration) newInstanceID(address string) (string, error) {

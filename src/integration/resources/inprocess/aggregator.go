@@ -30,6 +30,7 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
+	"github.com/google/uuid"
 	m3agg "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/server"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
@@ -53,14 +54,13 @@ type AggregatorOptions struct {
 	// Logger is the logger to use for the in-process aggregator.
 	Logger *zap.Logger
 
-	// HostID is the host id of the in-process aggregator instance.
-	HostID string
+	// GeneratePorts will automatically update the config to use open ports
+	// if set to true. If false, configuration is used as-is re: ports.
+	GeneratePorts bool
 
-	// M3msgAddr is the m3msg server address of the in-process aggregator instance.
-	M3msgAddr string
-
-	// M3msgPort is the m3msg server port of the in-process aggregator instance.
-	M3msgPort uint32
+	// GenerateHostID will automatically update the host ID specified in
+	// the config if set to true. If false, configuration is used as-is re: host ID.
+	GenerateHostID bool
 }
 
 // NewAggregatorFromYAML creates a new in-process aggregator based on the yaml configuration
@@ -77,40 +77,13 @@ func NewAggregatorFromYAML(yamlCfg string, opts AggregatorOptions) (resources.Ag
 // NewAggregator creates a new in-process aggregator based on the configuration
 // and options provided.
 func NewAggregator(cfg config.Configuration, opts AggregatorOptions) (resources.Aggregator, error) {
-	// Configure hostID
-	hostID := "m3aggregator"
-	if len(opts.HostID) > 0 {
-		cfg.Aggregator.HostID = &hostid.Configuration{
-			Resolver: hostid.ConfigResolver,
-			Value:    &opts.HostID,
-		}
-	}
-	if cfg.Aggregator.HostID != nil {
-		var err error
-		hostID, err = cfg.Aggregator.HostID.Resolve()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Configure m3msg address
-	if len(opts.M3msgAddr) > 0 && cfg.M3Msg != nil {
-		cfg.M3Msg.Server.ListenAddress = opts.M3msgAddr
-	}
-
-	// Replace any "0" ports with an open port
-	cfg, err := updateAggregatorPorts(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	// Replace any "*" filepath with a temporary directory
-	cfg, tmpDirs, err := updateAggregatorFilepaths(cfg)
+	cfg, tmpDirs, err := updateAggregatorConfig(cfg, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	// configure logger
+	hostID, err := cfg.Aggregator.HostIDOrDefault().Resolve()
 	if len(cfg.Logging.Fields) == 0 {
 		cfg.Logging.Fields = make(map[string]interface{})
 	}
@@ -187,9 +160,50 @@ func (a *aggregator) start() {
 	a.shutdownCh = shutdownCh
 }
 
+func updateAggregatorConfig(
+	cfg config.Configuration,
+	opts AggregatorOptions,
+) (config.Configuration, []string, error) {
+	var (
+		tmpDirs []string
+		err     error
+	)
+
+	// Replace host ID with a config-based version.
+	if opts.GenerateHostID {
+		cfg = updateAggregatorHostID(cfg)
+	}
+
+	// Replace any ports with open ports
+	if opts.GeneratePorts {
+		cfg, err = updateAggregatorPorts(cfg)
+		if err != nil {
+			return config.Configuration{}, nil, err
+		}
+	}
+
+	// Replace any filepath with a temporary directory
+	cfg, tmpDirs, err = updateAggregatorFilepaths(cfg)
+	if err != nil {
+		return config.Configuration{}, nil, err
+	}
+
+	return cfg, tmpDirs, nil
+}
+
+func updateAggregatorHostID(cfg config.Configuration) config.Configuration {
+	hostID := uuid.New().String()
+	cfg.Aggregator.HostID = &hostid.Configuration{
+		Resolver: hostid.ConfigResolver,
+		Value:    &hostID,
+	}
+
+	return cfg
+}
+
 func updateAggregatorPorts(cfg config.Configuration) (config.Configuration, error) {
 	if cfg.HTTP != nil && len(cfg.HTTP.ListenAddress) > 0 {
-		addr, _, _, err := nettest.MaybeGeneratePort(cfg.HTTP.ListenAddress)
+		addr, _, err := nettest.GeneratePort(cfg.HTTP.ListenAddress)
 		if err != nil {
 			return cfg, err
 		}
@@ -197,17 +211,8 @@ func updateAggregatorPorts(cfg config.Configuration) (config.Configuration, erro
 		cfg.HTTP.ListenAddress = addr
 	}
 
-	if cfg.M3Msg != nil && len(cfg.M3Msg.Server.ListenAddress) > 0 {
-		addr, _, _, err := nettest.MaybeGeneratePort(cfg.M3Msg.Server.ListenAddress)
-		if err != nil {
-			return cfg, err
-		}
-
-		cfg.M3Msg.Server.ListenAddress = addr
-	}
-
 	if cfg.Metrics.PrometheusReporter != nil && len(cfg.Metrics.PrometheusReporter.ListenAddress) > 0 {
-		addr, _, _, err := nettest.MaybeGeneratePort(cfg.Metrics.PrometheusReporter.ListenAddress)
+		addr, _, err := nettest.GeneratePort(cfg.Metrics.PrometheusReporter.ListenAddress)
 		if err != nil {
 			return cfg, err
 		}
