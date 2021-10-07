@@ -59,7 +59,7 @@ func TestNewEmbeddedCoordinator(t *testing.T) {
 		assert.NoError(t, dbnode.Close())
 	}()
 
-	d, ok := dbnode.(*dbNode)
+	d, ok := dbnode.(*DBNode)
 	require.True(t, ok)
 	require.True(t, d.started)
 
@@ -68,7 +68,7 @@ func TestNewEmbeddedCoordinator(t *testing.T) {
 }
 
 func TestNewEmbeddedCoordinatorNotStarted(t *testing.T) {
-	var dbnode dbNode
+	var dbnode DBNode
 	_, err := NewEmbeddedCoordinator(&dbnode)
 	require.Error(t, err)
 }

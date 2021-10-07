@@ -32,6 +32,11 @@ const (
 	retryMaxTime     = time.Minute
 )
 
+// StartFn is a custom function that can be used to start an M3 component.
+// Function must return a channel for interrupting the server and
+// a channel for receiving notifications that the server has shut down.
+type StartFn func() (chan<- error, <-chan struct{})
+
 func retry(op func() error) error {
 	bo := backoff.NewExponentialBackOff()
 	bo.MaxInterval = retryMaxInterval
