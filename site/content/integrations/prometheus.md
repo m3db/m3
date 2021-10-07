@@ -11,7 +11,7 @@ To write to a remote M3DB cluster the simplest configuration is to run `m3coordi
 
 Start by downloading the [config template](https://github.com/m3db/m3/blob/master/src/query/config/m3coordinator-cluster-template.yml). Update the `namespaces` and the `client` section for a new cluster to match your cluster's configuration.
 
-You'll need to specify the static IPs or hostnames of your M3DB seed nodes, and the name and retention values of the namespace you set up. You can leave the namespace storage metrics type as `unaggregated` since it's required by default to have a cluster that receives all Prometheus metrics unaggregated.  In the future you might also want to aggregate and downsample metrics for longer retention, and you can come back and update the config once you've setup those clusters. You can read more about our aggregation functionality [here](/docs/how_to/m3query).
+You'll need to specify the static IPs or hostnames of your M3DB seed nodes, and the name and retention values of the namespace you set up. You can leave the namespace storage metrics type as `unaggregated` since it's required by default to have a cluster that receives all Prometheus metrics unaggregated. In the future you might also want to aggregate and downsample metrics for longer retention, and you can come back and update the config once you've setup those clusters. You can read more about our aggregation functionality [here](/docs/how_to/m3query).
 
 It should look something like:
 
