@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
@@ -178,6 +179,11 @@ func NewPipeline(ops []OpUnion) Pipeline {
 
 // Len returns the number of steps in a pipeline.
 func (p Pipeline) Len() int { return len(p.Operations) }
+
+func (p Pipeline) Swap(i, j int) { p.Operations[i], p.Operations[j] = p.Operations[j], p.Operations[i] }
+func (p Pipeline) Less(i, j int) bool {
+	return strings.Compare(p.Operations[i].String(), p.Operations[j].String()) == -1
+}
 
 // IsEmpty determines whether a pipeline is empty.
 func (p Pipeline) IsEmpty() bool { return len(p.Operations) == 0 }

@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
@@ -1635,10 +1636,45 @@ func TestPartitionResendEnabled(t *testing.T) {
 			expected := tc.expected[agg]
 			t.Run(fmt.Sprintf("%s_agg_%s", tc.name, a.name), func(t *testing.T) {
 				p1, p2 := agg.partitionResendEnabled(in)
+				sortPipelines(expected.timed, expected.untimed, p1, p2)
+				require.True(t, expected.timed.Equal(p1), "timed unexpected")
+				require.True(t, expected.untimed.Equal(p2), "untimed unexpected")
+
+				if len(in) == 0 {
+					return
+				}
+
+				// Confirm that neither order nor proto conversions affect the partition outcomes here
+				// Since proto conversions often re-use previously allocated structs, we do the same here
+				// to ensure this re-use also does not affect outcomes (e.g. we've previously checked the
+				// op.Rollup.ID being non-nil in the partition function which is invalid since this re-use
+				// can lead to truncating existing IDs to empty slices instead of setting to nil).
+				reversed := make(metadata.PipelineMetadatas, 0, 0)
+				for _, p := range in {
+					proto := metricpb.PipelineMetadata{}
+					require.NoError(t, p.ToProto(&proto))
+					for i, j := 0, len(proto.Pipeline.Ops)-1; i < j; i, j = i+1, j-1 {
+						proto.Pipeline.Ops[i], proto.Pipeline.Ops[j] = proto.Pipeline.Ops[j], proto.Pipeline.Ops[i]
+					}
+					require.NoError(t, p.FromProto(proto))
+					reversed = append(reversed, p)
+				}
+
+				p1, p2 = agg.partitionResendEnabled(reversed)
+				sortPipelines(expected.timed, expected.untimed, p1, p2)
 				require.True(t, expected.timed.Equal(p1), "timed unexpected")
 				require.True(t, expected.untimed.Equal(p2), "untimed unexpected")
 			})
 		}
+	}
+}
+
+func sortPipelines(metadatas ...metadata.PipelineMetadatas) {
+	for _, metadata := range metadatas {
+		for _, p := range metadata {
+			sort.Sort(p.Pipeline)
+		}
+		sort.Sort(metadata)
 	}
 }
 
@@ -1650,6 +1686,12 @@ func newPipeline(id string, resendEnabled bool) metadata.PipelineMetadata {
 					Type: pipeline.RollupOpType,
 					Rollup: applied.RollupOp{
 						ID: []byte(id),
+					},
+				},
+				{
+					Type: pipeline.TransformationOpType,
+					Transformation: pipeline.TransformationOp{
+						Type: transformation.Reset,
 					},
 				},
 			},
