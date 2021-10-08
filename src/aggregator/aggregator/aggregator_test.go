@@ -1648,7 +1648,8 @@ func TestPartitionResendEnabled(t *testing.T) {
 				// Since proto conversions often re-use previously allocated structs, we do the same here
 				// to ensure this re-use also does not affect outcomes (e.g. we've previously checked the
 				// op.Rollup.ID being non-nil in the partition function which is invalid since this re-use
-				// can lead to truncating existing IDs to empty slices instead of setting to nil).
+				// can lead to truncating existing IDs to empty slices instead of being able to assume they
+				// have been initialized as nil).
 				reversed := make(metadata.PipelineMetadatas, 0, 0)
 				for _, p := range in {
 					proto := metricpb.PipelineMetadata{}
