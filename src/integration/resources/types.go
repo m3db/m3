@@ -129,7 +129,7 @@ type Node interface {
 // Aggregator is an aggregator instance.
 type Aggregator interface {
 	// IsHealthy determines whether an instance is healthy.
-	IsHealthy(instance string) error
+	IsHealthy() error
 
 	// Status returns the instance status.
 	Status(instance string) (aggregator.RuntimeStatus, error)

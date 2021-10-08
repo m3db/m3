@@ -59,7 +59,7 @@ type Helper interface {
 type helper struct {
 	logger                  *zap.Logger
 	planner                 planner
-	client                  aggregatorClient
+	client                  AggregatorClient
 	mgr                     Manager
 	retrier                 retry.Retrier
 	foreverRetrier          retry.Retrier
@@ -71,7 +71,7 @@ type helper struct {
 
 // NewHelper creates a new deployment helper.
 func NewHelper(opts HelperOptions) (Helper, error) {
-	client := newAggregatorClient(opts.HTTPClient())
+	client := NewAggregatorClient(opts.HTTPClient())
 	planner := newPlanner(client, opts.PlannerOptions())
 	retryOpts := opts.RetryOptions()
 	retrier := retry.NewRetrier(retryOpts)
