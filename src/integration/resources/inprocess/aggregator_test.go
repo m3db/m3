@@ -24,7 +24,6 @@ package inprocess
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
@@ -58,11 +57,13 @@ func TestNewAggregator(t *testing.T) {
 
 	agg, err := NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{GenerateHostID: true})
 	require.NoError(t, err)
+	require.NoError(t, retry(agg.IsHealthy))
 	require.NoError(t, agg.Close())
 
 	// restart an aggregator instance
 	agg, err = NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{GenerateHostID: true})
 	require.NoError(t, err)
+	require.NoError(t, retry(agg.IsHealthy))
 	require.NoError(t, agg.Close())
 }
 
@@ -96,18 +97,17 @@ func TestMultiAggregators(t *testing.T) {
 
 	agg1, err := NewAggregator(cfg1, AggregatorOptions{GeneratePorts: true})
 	require.NoError(t, err)
+	require.NoError(t, retry(agg1.IsHealthy))
 	defer func() {
 		assert.NoError(t, agg1.Close())
 	}()
 
 	agg2, err := NewAggregator(cfg2, AggregatorOptions{GeneratePorts: true})
 	require.NoError(t, err)
+	require.NoError(t, retry(agg2.IsHealthy))
 	defer func() {
 		assert.NoError(t, agg2.Close())
 	}()
-
-	// TODO(siyu): implement the health check and wait until both instances are healthy
-	time.Sleep(5 * time.Second)
 }
 
 func setupM3msgTopic(t *testing.T, coord resources.Coordinator) {

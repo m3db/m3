@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"time"
 
@@ -33,6 +34,7 @@ import (
 
 	m3agg "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/server"
+	"github.com/m3db/m3/src/aggregator/tools/deploy"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/integration/resources"
 	nettest "github.com/m3db/m3/src/integration/resources/net"
@@ -40,10 +42,14 @@ import (
 	xos "github.com/m3db/m3/src/x/os"
 )
 
+var errNoHTTPConfig = errors.New("no http configuration")
+
 type aggregator struct {
 	cfg     config.Configuration
 	logger  *zap.Logger
 	tmpDirs []string
+
+	httpClient deploy.AggregatorClient
 
 	interruptCh chan<- error
 	shutdownCh  <-chan struct{}
@@ -102,17 +108,22 @@ func NewAggregator(cfg config.Configuration, opts AggregatorOptions) (resources.
 	}
 
 	agg := &aggregator{
-		cfg:     cfg,
-		logger:  opts.Logger,
-		tmpDirs: tmpDirs,
+		cfg:        cfg,
+		logger:     opts.Logger,
+		tmpDirs:    tmpDirs,
+		httpClient: deploy.NewAggregatorClient(&http.Client{}),
 	}
 	agg.start()
 
 	return agg, nil
 }
 
-func (a *aggregator) IsHealthy(instance string) error {
-	return nil
+func (a *aggregator) IsHealthy() error {
+	if a.cfg.HTTP == nil {
+		return errNoHTTPConfig
+	}
+
+	return a.httpClient.IsHealthy(a.cfg.HTTP.ListenAddress)
 }
 
 func (a *aggregator) Status(instance string) (m3agg.RuntimeStatus, error) {
