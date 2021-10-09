@@ -126,12 +126,20 @@ func (a *aggregator) IsHealthy() error {
 	return a.httpClient.IsHealthy(a.cfg.HTTP.ListenAddress)
 }
 
-func (a *aggregator) Status(instance string) (m3agg.RuntimeStatus, error) {
-	return m3agg.RuntimeStatus{}, nil
+func (a *aggregator) Status() (m3agg.RuntimeStatus, error) {
+	if a.cfg.HTTP == nil {
+		return m3agg.RuntimeStatus{}, errNoHTTPConfig
+	}
+
+	return a.httpClient.Status(a.cfg.HTTP.ListenAddress)
 }
 
-func (a *aggregator) Resign(instance string) error {
-	return nil
+func (a *aggregator) Resign() error {
+	if a.cfg.HTTP == nil {
+		return errNoHTTPConfig
+	}
+
+	return a.httpClient.Resign(a.cfg.HTTP.ListenAddress)
 }
 
 func (a *aggregator) Close() error {
