@@ -119,7 +119,7 @@ func TestAggregatorStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, followerStatus, status)
 
-	// A follower remains a follwer after resigning
+	// A follower remains a follower after resigning
 	require.NoError(t, agg.Resign())
 	status, err = agg.Status()
 	require.NoError(t, err)
