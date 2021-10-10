@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"testing"
 
+	m3agg "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/integration/resources"
@@ -39,17 +40,8 @@ import (
 )
 
 func TestNewAggregator(t *testing.T) {
-	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
-	require.NoError(t, err)
-
-	coord, err := NewCoordinatorFromYAML(aggregatorCoordConfig, CoordinatorOptions{})
-	require.NoError(t, err)
-
-	defer func() {
-		assert.NoError(t, coord.Close())
-		assert.NoError(t, dbnode.Close())
-	}()
-
+	coord, closer := setupCoordinator(t)
+	defer closer()
 	require.NoError(t, coord.WaitForNamespace(""))
 
 	setupPlacement(t, coord)
@@ -68,17 +60,8 @@ func TestNewAggregator(t *testing.T) {
 }
 
 func TestMultiAggregators(t *testing.T) {
-	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
-	require.NoError(t, err)
-
-	coord, err := NewCoordinatorFromYAML(aggregatorCoordConfig, CoordinatorOptions{})
-	require.NoError(t, err)
-
-	defer func() {
-		assert.NoError(t, coord.Close())
-		assert.NoError(t, dbnode.Close())
-	}()
-
+	coord, closer := setupCoordinator(t)
+	defer closer()
 	require.NoError(t, coord.WaitForNamespace(""))
 
 	args, err := generateTestAggregatorArgs(2)
@@ -108,6 +91,52 @@ func TestMultiAggregators(t *testing.T) {
 	defer func() {
 		assert.NoError(t, agg2.Close())
 	}()
+}
+
+func TestAggregatorStatus(t *testing.T) {
+	coord, closer := setupCoordinator(t)
+	defer closer()
+	require.NoError(t, coord.WaitForNamespace(""))
+
+	setupPlacement(t, coord)
+	setupM3msgTopic(t, coord)
+
+	agg, err := NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{})
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, agg.Close())
+	}()
+
+	followerStatus := m3agg.RuntimeStatus{
+		FlushStatus: m3agg.FlushStatus{
+			ElectionState: m3agg.FollowerState,
+			CanLead:       false,
+		},
+	}
+
+	require.NoError(t, retry(agg.IsHealthy))
+	status, err := agg.Status()
+	require.NoError(t, err)
+	require.Equal(t, followerStatus, status)
+
+	// A follower remains a follower after resigning
+	require.NoError(t, agg.Resign())
+	status, err = agg.Status()
+	require.NoError(t, err)
+	require.Equal(t, followerStatus, status)
+}
+
+func setupCoordinator(t *testing.T) (resources.Coordinator, func()) {
+	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
+	require.NoError(t, err)
+
+	coord, err := NewCoordinatorFromYAML(aggregatorCoordConfig, CoordinatorOptions{})
+	require.NoError(t, err)
+
+	return coord, func() {
+		assert.NoError(t, coord.Close())
+		assert.NoError(t, dbnode.Close())
+	}
 }
 
 func setupM3msgTopic(t *testing.T, coord resources.Coordinator) {
