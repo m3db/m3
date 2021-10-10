@@ -267,6 +267,7 @@ func generateDefaultDiscoveryConfig(
 	// when not using the default ports of 2379 and 2380
 	envConfig.SeedNodes.InitialCluster[0].Endpoint =
 		fmt.Sprintf("http://0.0.0.0:%d", 2380)
+	envConfig.SeedNodes.InitialCluster[0].HostID = hostID
 	envConfig.Services[0].Service.ETCDClusters[0].Endpoints = []string{
 		net.JoinHostPort("0.0.0.0", strconv.Itoa(2379)),
 	}

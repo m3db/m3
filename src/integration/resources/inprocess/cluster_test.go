@@ -44,6 +44,18 @@ func TestNewCluster(t *testing.T) {
 	require.NoError(t, m3.Cleanup())
 }
 
+func TestNewSingleNodeCluster(t *testing.T) {
+	configs, err := NewClusterConfigsFromYAML(clusterDBNodeConfig, clusterCoordConfig)
+	require.NoError(t, err)
+
+	m3, err := NewCluster(configs, ClusterOptions{
+		DBNode: NewDBNodeClusterOptions(),
+	})
+	require.NoError(t, err)
+	require.NoError(t, m3.Nodes().WaitForHealthy())
+	require.NoError(t, m3.Cleanup())
+}
+
 const clusterDBNodeConfig = `
 db:
   writeNewSeriesAsync: false
