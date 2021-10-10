@@ -1,5 +1,23 @@
 # Changelog
 
+# 1.3.0
+
+## Features
+
+- **M3Coordinator**: Add support for Prometheus Remote Write storage backend for sending aggregated and unaggregated metrics ([#3742](https://github.com/m3db/m3/pull/3742), [#3768](https://github.com/m3db/m3/pull/3768), [#3783](https://github.com/m3db/m3/pull/3783), [#3791](https://github.com/m3db/m3/pull/3791), [#3814](https://github.com/m3db/m3/pull/3814), [#3777](https://github.com/m3db/m3/pull/3777))
+- **M3Coordinator**: Add support for InfluxDB write endpoint GZip compression, setting timestamp precision and allowing an empty request body ([#3373](https://github.com/m3db/m3/pull/3373))
+- **M3DB**: Add SYSCTL_VM_MAX_MAP_COUNT env var for sysctl-setter sidecar allowing for custom VM max map count ([#3689](https://github.com/m3db/m3/pull/3689))
+
+## Bug Fixes
+
+- **M3DB**: Fix writes briefly degrading when creating a new namespace due to coarse lock acquisition ([#3765](https://github.com/m3db/m3/pull/3765))
+- **M3DB**: Fix compiled regexp DFA cache eviction on full bug that can lead to slow memory leak with large number of unique regexps ([#3806](https://github.com/m3db/m3/pull/3806))
+
+## Performance
+
+- **M3Coordinator**: Update default M3Msg retry initial backoff from 1s to 5s to reduces timeout and retries in large clusters ([#3820](https://github.com/m3db/m3/pull/3820))
+- **M3DB**: Fix performance of reverse index queries that cover huge time ranges ([#3813](https://github.com/m3db/m3/pull/3813))
+
 # 1.2.0
 
 ## Features
