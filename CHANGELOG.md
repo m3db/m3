@@ -16,7 +16,7 @@
 ## Performance
 
 - **M3Coordinator**: Update default M3Msg retry initial backoff from 1s to 5s to reduces timeout and retries in large clusters ([#3820](https://github.com/m3db/m3/pull/3820))
-- **M3DB**: Fix performance of reverse index queries unanchored by start and end time ([#3813](https://github.com/m3db/m3/pull/3813))
+- **M3DB**: Fix performance of reverse index queries that cover huge time ranges ([#3813](https://github.com/m3db/m3/pull/3813))
 
 # 1.2.0
 
