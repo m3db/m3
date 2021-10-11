@@ -19,10 +19,11 @@
     ]
   },
   "editable": true,
+  "fiscalYearStartMonth": 0,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 7,
   "links": [],
+  "liveNow": false,
   "panels": [
     {
       "datasource": "Prometheus Aggregated",
@@ -258,7 +259,7 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(rate(container_cpu_usage_seconds_total[2m])) by (container)",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"\"}[2m])) by (container)",
           "interval": "",
           "legendFormat": "{{container}}",
           "refId": "A"
@@ -349,7 +350,7 @@
       "type": "timeseries"
     }
   ],
-  "schemaVersion": 30,
+  "schemaVersion": 31,
   "style": "dark",
   "tags": [],
   "templating": {
