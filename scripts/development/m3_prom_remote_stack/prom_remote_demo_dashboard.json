@@ -97,9 +97,9 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(rate(container_cpu_usage_seconds_total_rolled_up[2m])) by (container)",
+          "expr": "sum(rate(container_cpu_usage_seconds_total_rolled_up[2m])) by (container, namespace)",
           "interval": "",
-          "legendFormat": "{{container}}",
+          "legendFormat": "{{container}} {{namespace}}",
           "refId": "A"
         }
       ],
@@ -259,9 +259,9 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"\"}[2m])) by (container)",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"\"}[2m])) by (container, namespace)",
           "interval": "",
-          "legendFormat": "{{container}}",
+          "legendFormat": "{{container}} {{namespace}}",
           "refId": "A"
         }
       ],
