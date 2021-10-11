@@ -149,6 +149,12 @@ type FetchOptions struct {
 	Source []byte
 }
 
+func (o *FetchOptions) PromOptions() PromOptions {
+	return PromOptions{
+		Resolution: o.RestrictQueryOptions.RestrictByType.StoragePolicy.Resolution().Window,
+	}
+}
+
 // FanoutOptions describes which namespaces should be fanned out to for
 // the query.
 type FanoutOptions struct {
@@ -343,4 +349,9 @@ type PromResult struct {
 	PromResult *prompb.QueryResult
 	// ResultMetadata is the metadata for the result.
 	Metadata block.ResultMetadata
+}
+
+// PromOptions are options for decoding prometheus series.
+type PromOptions struct {
+	Resolution time.Duration
 }
