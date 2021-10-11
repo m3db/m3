@@ -23,6 +23,7 @@ package metadata
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
@@ -209,6 +210,20 @@ func (metadatas PipelineMetadatas) Equal(other PipelineMetadatas) bool {
 		}
 	}
 	return true
+}
+
+// Len returns the number of pipelines in the metadata.
+func (metadatas PipelineMetadatas) Len() int { return len(metadatas) }
+
+// Swap swaps the elements with indexes i and j.
+func (metadatas PipelineMetadatas) Swap(i, j int) {
+	metadatas[i], metadatas[j] = metadatas[j], metadatas[i]
+}
+
+// Less returns whether the element with
+// index i should sort before the element with index j.
+func (metadatas PipelineMetadatas) Less(i, j int) bool {
+	return strings.Compare(metadatas[i].String(), metadatas[j].String()) == -1
 }
 
 // Clone clones the list of pipeline metadatas.
