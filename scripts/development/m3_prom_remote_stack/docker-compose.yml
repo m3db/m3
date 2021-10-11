@@ -29,6 +29,10 @@ services:
     volumes:
       - "./m3coordinator.yml.tmp:/etc/m3coordinator/m3coordinator.yml"
   prometheusscraper:
+    expose:
+      - "9090"
+    ports:
+      - "127.0.0.1:9090:9090"
     networks:
       - backend
     image: prom/prometheus:latest
@@ -41,6 +45,10 @@ services:
       - "--web.console.templates=/usr/share/prometheus/consoles"
       - "--log.level=debug"
   prometheusraw:
+    expose:
+      - "9091"
+    ports:
+      - "127.0.0.1:9090:9091"
     networks:
       - backend
     image: prom/prometheus:latest
@@ -53,6 +61,10 @@ services:
       - "--web.console.templates=/usr/share/prometheus/consoles"
       - "--enable-feature=remote-write-receiver"
   prometheusagg:
+    expose:
+      - "9092"
+    ports:
+      - "127.0.0.1:9090:9092"
     networks:
       - backend
     image: prom/prometheus:latest
