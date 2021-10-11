@@ -1388,7 +1388,7 @@ func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) error {
 	}
 	n.RUnlock()
 
-	if !n.nopts.FlushEnabled() || !n.nopts.IndexOptions().Enabled() {
+	if n.ReadOnly() || !n.nopts.FlushEnabled() || !n.nopts.IndexOptions().Enabled() {
 		n.metrics.flushIndex.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
