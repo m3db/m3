@@ -100,9 +100,10 @@ func newTestNamespaceWithIDOpts(
 
 func newTestNamespaceWithOpts(
 	t *testing.T,
+	opts namespace.Options,
 	dopts Options,
 ) (*dbNamespace, closerFn) {
-	nsID, opts := defaultTestNs1ID, defaultTestNs1Opts
+	nsID := defaultTestNs1ID
 	metadata := newTestNamespaceMetadataWithIDOpts(t, nsID, opts)
 	hashFn := func(identifier ident.ID) uint32 { return testShardIDs[0].ID() }
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
@@ -135,7 +136,7 @@ func newTestNamespaceWithTruncateType(
 		SetRuntimeOptionsManager(runtime.NewOptionsManager()).
 		SetTruncateType(truncateType)
 
-	ns, closer := newTestNamespaceWithOpts(t, opts)
+	ns, closer := newTestNamespaceWithOpts(t, defaultTestNs1Opts, opts)
 	ns.reverseIndex = index
 	return ns, closer
 }
@@ -624,14 +625,26 @@ func TestNamespaceFlushDontNeedFlush(t *testing.T) {
 }
 
 func TestNamespaceSkipFlushIfReadOnly(t *testing.T) {
-	ns, closer := newTestNamespace(t)
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	indexOpts := defaultTestNs1Opts.IndexOptions().
+		SetEnabled(true)
+	nsOpts := defaultTestNs1Opts.
+		SetIndexOptions(indexOpts).
+		SetColdWritesEnabled(true)
+
+	opts := DefaultTestOptions().
+		SetOnColdFlush(NewMockOnColdFlush(ctrl))
+
+	ns, closer := newTestNamespaceWithOpts(t, nsOpts, opts)
 	defer closer()
 
 	ns.bootstrapState = Bootstrapped
 	ns.SetReadOnly(true)
-	err := ns.WarmFlush(xtime.Now(), nil)
-	require.NoError(t, err)
+	require.NoError(t, ns.WarmFlush(xtime.Now(), nil))
 	require.NoError(t, ns.ColdFlush(nil))
+	require.NoError(t, ns.FlushIndex(nil))
 }
 
 func TestNamespaceFlushSkipFlushed(t *testing.T) {
