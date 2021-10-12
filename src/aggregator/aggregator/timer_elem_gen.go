@@ -67,8 +67,6 @@ type TimerElem struct {
 	elemBase
 	timerElemBase
 
-	// use this instead of consumedValues
-	//
 	values []timedTimer // metric aggregations sorted by time in ascending order
 
 	// internal consume state that does not need to be synchronized.

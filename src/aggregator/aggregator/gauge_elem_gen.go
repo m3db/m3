@@ -67,8 +67,6 @@ type GaugeElem struct {
 	elemBase
 	gaugeElemBase
 
-	// use this instead of consumedValues
-	//
 	values []timedGauge // metric aggregations sorted by time in ascending order
 
 	// internal consume state that does not need to be synchronized.

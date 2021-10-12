@@ -43,7 +43,6 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/x/pool"
-	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -193,22 +192,6 @@ type elemBase struct {
 	closed               bool
 	cachedSourceSetsLock sync.Mutex                  // nolint: structcheck
 	cachedSourceSets     []map[uint32]*bitset.BitSet // nolint: structcheck
-}
-
-// change to unsorted slice and traversal should be better than the map
-// (test also what if sorted)
-type valuesByTime map[xtime.UnixNano][]transformation.Datapoint
-
-// Return the latest timestamp in the map that is less than the provided timestamp. Returns 0 if a previous timestamp
-// does not exist.
-func (v valuesByTime) previousTimestamp(t xtime.UnixNano) xtime.UnixNano {
-	var previous xtime.UnixNano
-	for ts := range v {
-		if ts.Before(t) && !ts.Before(previous) {
-			previous = ts
-		}
-	}
-	return previous
 }
 
 type elemMetrics struct {

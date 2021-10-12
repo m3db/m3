@@ -67,8 +67,6 @@ type CounterElem struct {
 	elemBase
 	counterElemBase
 
-	// use this instead of consumedValues
-	//
 	values []timedCounter // metric aggregations sorted by time in ascending order
 
 	// internal consume state that does not need to be synchronized.
