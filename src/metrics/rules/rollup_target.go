@@ -104,6 +104,7 @@ func (t rollupTarget) rollupTargetView() view.RollupTarget {
 	return view.RollupTarget{
 		Pipeline:        t.Pipeline,
 		StoragePolicies: t.StoragePolicies,
+		ResendEnabled:   t.ResendEnabled,
 	}
 }
 
