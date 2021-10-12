@@ -33,6 +33,7 @@ import (
 	"go.etcd.io/etcd/embed"
 	"go.etcd.io/etcd/pkg/transport"
 	"go.etcd.io/etcd/pkg/types"
+	"gopkg.in/yaml.v2"
 
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -123,6 +124,19 @@ func (c *Configuration) Components() int {
 	}
 
 	return numComponents
+}
+
+// DeepCopy returns a deep copy of the current configuration object.
+func (c *Configuration) DeepCopy() (Configuration, error) {
+	rawCfg, err := yaml.Marshal(c)
+	if err != nil {
+		return Configuration{}, err
+	}
+	var dupe Configuration
+	if err := yaml.Unmarshal(rawCfg, &dupe); err != nil {
+		return Configuration{}, err
+	}
+	return dupe, nil
 }
 
 // DBConfiguration is the configuration for a DB node.

@@ -25,6 +25,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -220,6 +221,10 @@ func TestQueryStorageMetadataAttributesMultipleStores(t *testing.T) {
 		fetchOpts,
 	)
 	require.NoError(t, err)
+
+	sort.Slice(attrs, func(i, j int) bool {
+		return attrs[i].Retention < attrs[j].Retention
+	})
 	require.Equal(t, []storagemetadata.Attributes{
 		{
 			MetricsType: storagemetadata.AggregatedMetricsType,

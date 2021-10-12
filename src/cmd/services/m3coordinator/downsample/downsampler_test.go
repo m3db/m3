@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/client"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	dbclient "github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/aggregation"
@@ -2841,6 +2842,57 @@ func TestDownsamplerWithOverrideNamespace(t *testing.T) {
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestSafeguardInProcessDownsampler(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := kv.NewMockStore(ctrl)
+	store.EXPECT().SetIfNotExists(gomock.Eq(matcher.NewOptions().NamespacesKey()), gomock.Any()).Return(0, nil)
+
+	// explicitly asserting that no more mutations are done for original store.
+	store.EXPECT().Set(gomock.Any(), gomock.Any()).Times(0)
+	store.EXPECT().CheckAndSet(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	store.EXPECT().Delete(gomock.Any()).Times(0)
+
+	_ = newTestDownsampler(t, testDownsamplerOptions{
+		remoteClientMock: nil,
+		kvStore:          store,
+	})
+}
+
+func TestDownsamplerNamespacesEtcdInit(t *testing.T) {
+	t.Run("does not reset namespaces key", func(t *testing.T) {
+		store := mem.NewStore()
+		initialNamespaces := rulepb.Namespaces{Namespaces: []*rulepb.Namespace{{Name: "testNamespace"}}}
+		_, err := store.Set(matcher.NewOptions().NamespacesKey(), &initialNamespaces)
+		require.NoError(t, err)
+
+		_ = newTestDownsampler(t, testDownsamplerOptions{kvStore: store})
+
+		assert.Equal(t, initialNamespaces, readNamespacesKey(t, store), 1)
+	})
+
+	t.Run("initializes namespace key", func(t *testing.T) {
+		store := mem.NewStore()
+
+		_ = newTestDownsampler(t, testDownsamplerOptions{kvStore: store})
+
+		ns := readNamespacesKey(t, store)
+		require.NotNil(t, ns)
+		assert.Len(t, ns.Namespaces, 0)
+	})
+
+	t.Run("does not initialize namespaces key when RequireNamespaceWatchOnInit is true", func(t *testing.T) {
+		store := mem.NewStore()
+
+		matcherConfig := MatcherConfiguration{RequireNamespaceWatchOnInit: true}
+		_ = newTestDownsampler(t, testDownsamplerOptions{kvStore: store, matcherConfig: matcherConfig})
+
+		_, err := store.Get(matcher.NewOptions().NamespacesKey())
+		require.Error(t, err)
+	})
+}
+
 func originalStagedMetadata(t *testing.T, testDownsampler testDownsampler) []metricpb.StagedMetadatas {
 	ds, ok := testDownsampler.downsampler.(*downsampler)
 	require.True(t, ok)
@@ -3428,6 +3480,8 @@ type testDownsamplerOptions struct {
 	// Test ingest and expectations overrides
 	ingest *testDownsamplerOptionsIngest
 	expect *testDownsamplerOptionsExpect
+
+	kvStore kv.Store
 }
 
 type testDownsamplerOptionsIngest struct {
@@ -3510,9 +3564,15 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 	cfg.Matcher = opts.matcherConfig
 	cfg.UntimedRollups = opts.untimedRollups
 
+	clusterClient := clusterclient.NewMockClient(gomock.NewController(t))
+	kvStore := opts.kvStore
+	if kvStore == nil {
+		kvStore = mem.NewStore()
+	}
+	clusterClient.EXPECT().KV().Return(kvStore, nil).AnyTimes()
 	instance, err := cfg.NewDownsampler(DownsamplerOptions{
 		Storage:                    storage,
-		ClusterClient:              clusterclient.NewMockClient(gomock.NewController(t)),
+		ClusterClient:              clusterClient,
 		RulesKVStore:               rulesKVStore,
 		ClusterNamespacesWatcher:   m3.NewClusterNamespacesWatcher(),
 		ClockOptions:               clockOpts,
@@ -3616,4 +3676,14 @@ func findWrites(
 
 func testUpdateMetadata() rules.UpdateMetadata {
 	return rules.NewRuleSetUpdateHelper(0).NewUpdateMetadata(time.Now().UnixNano(), "test")
+}
+
+func readNamespacesKey(t *testing.T, store kv.Store) rulepb.Namespaces {
+	v, err := store.Get(matcher.NewOptions().NamespacesKey())
+	require.NoError(t, err)
+	var ns rulepb.Namespaces
+	err = v.Unmarshal(&ns)
+	require.NoError(t, err)
+	require.NotNil(t, ns)
+	return ns
 }

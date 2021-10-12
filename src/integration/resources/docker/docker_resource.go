@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -65,9 +66,17 @@ func newDockerResource(
 	opts := exposePorts(newOptions(containerName), portList)
 
 	hostConfigOpts := func(c *dc.HostConfig) {
+		c.AutoRemove = true
 		c.NetworkMode = networkName
-		mounts := make([]dc.HostMount, 0, len(resourceOpts.mounts))
-		for _, m := range resourceOpts.mounts {
+		// Allow the docker container to call services on the host machine.
+		// Docker for OS X and Windows support the host.docker.internal hostname
+		// natively, but Docker for Linux requires us to register host.docker.internal
+		// as an extra host before the hostname works.
+		if runtime.GOOS == "linux" {
+			c.ExtraHosts = []string{"host.docker.internal:172.17.0.1"}
+		}
+		mounts := make([]dc.HostMount, 0, len(resourceOpts.tmpfsMounts))
+		for _, m := range resourceOpts.tmpfsMounts {
 			mounts = append(mounts, dc.HostMount{
 				Target: m,
 				Type:   string(mount.TypeTmpfs),
@@ -89,6 +98,7 @@ func newDockerResource(
 		}
 	} else {
 		opts = useImage(opts, image)
+		opts.Mounts = resourceOpts.mounts
 		imageWithTag := fmt.Sprintf("%v:%v", image.name, image.tag)
 		logger.Info("running container with options",
 			zap.String("image", imageWithTag), zap.Any("options", opts))

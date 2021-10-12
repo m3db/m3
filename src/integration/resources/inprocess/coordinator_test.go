@@ -1,6 +1,4 @@
-//go:build integration_v2
 // +build integration_v2
-
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -38,13 +36,18 @@ import (
 )
 
 func TestNewCoordinator(t *testing.T) {
+	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, dbnode.Close())
+	}()
+
 	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
 	require.NoError(t, err)
 	require.NoError(t, coord.Close())
-}
 
-func TestCreateAnotherCoordinatorInProcess(t *testing.T) {
-	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
+	// Restart and shut down again to test restarting.
+	coord, err = NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
 	require.NoError(t, err)
 	require.NoError(t, coord.Close())
 }
@@ -52,24 +55,23 @@ func TestCreateAnotherCoordinatorInProcess(t *testing.T) {
 func TestNewEmbeddedCoordinator(t *testing.T) {
 	dbnode, err := NewDBNodeFromYAML(embeddedCoordConfig, DBNodeOptions{})
 	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, dbnode.Close())
+	}()
 
-	d, ok := dbnode.(*dbNode)
+	d, ok := dbnode.(*DBNode)
 	require.True(t, ok)
 	require.True(t, d.started)
 
 	_, err = NewEmbeddedCoordinator(d)
 	require.NoError(t, err)
-
-	require.NoError(t, dbnode.Close())
 }
 
 func TestNewEmbeddedCoordinatorNotStarted(t *testing.T) {
-	var dbnode dbNode
+	var dbnode DBNode
 	_, err := NewEmbeddedCoordinator(&dbnode)
 	require.Error(t, err)
 }
-
-// TODO(nate): add more tests exercising other endpoints once dbnode impl is landed
 
 func TestM3msgTopicFunctions(t *testing.T) {
 	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
@@ -258,7 +260,6 @@ clusters:
           env: default_env
           zone: embedded
           service: m3db
-          cacheDir: "*"
           etcdClusters:
             - zone: embedded
               endpoints:
@@ -278,14 +279,11 @@ coordinator:
             env: default_env
             zone: embedded
             service: m3db
-            cacheDir: "*"
             etcdClusters:
               - zone: embedded
                 endpoints:
                   - 127.0.0.1:2379
 
 db:
-  filesystem:
-    filePathPrefix: "*"
   writeNewSeriesAsync: false
 `

@@ -164,8 +164,14 @@ func (p *promStorage) writeSingle(
 			p.logger.Error("error reading body", zap.Error(err))
 			response = errorReadingBody
 		}
-		return fmt.Errorf("expected status code 2XX: actual=%v, address=%v, resp=%s",
-			resp.StatusCode, address, response)
+		genericError := fmt.Errorf(
+			"expected status code 2XX: actual=%v, address=%v, resp=%s",
+			resp.StatusCode, address, response,
+		)
+		if resp.StatusCode < 500 && resp.StatusCode != http.StatusTooManyRequests {
+			return xerrors.NewInvalidParamsError(genericError)
+		}
+		return genericError
 	}
 	metrics.ReportSuccess(methodDuration)
 	return nil

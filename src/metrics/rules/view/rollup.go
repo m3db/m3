@@ -30,6 +30,7 @@ import (
 type RollupTarget struct {
 	Pipeline        pipeline.Pipeline      `json:"pipeline" validate:"required"`
 	StoragePolicies policy.StoragePolicies `json:"storagePolicies" validate:"required"`
+	ResendEnabled   bool                   `json:"resendEnabled"`
 }
 
 // Equal determines whether two rollup targets are equal.

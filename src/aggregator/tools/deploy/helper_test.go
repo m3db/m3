@@ -213,7 +213,7 @@ func TestHelperWaitUntilSafeInstanceIsDeploying(t *testing.T) {
 	helper.foreverRetrier = retry.NewRetrier(retryOpts)
 	helper.mgr = mgr
 
-	client := NewMockaggregatorClient(ctrl)
+	client := NewMockAggregatorClient(ctrl)
 	client.EXPECT().IsHealthy(gomock.Any()).Return(nil).AnyTimes()
 	helper.client = client
 	require.Error(t, helper.waitUntilSafe(testInstanceMetadatas[:2]))
@@ -246,7 +246,7 @@ func TestHelperWaitUntilSafeInstanceUnhealthyFromAPI(t *testing.T) {
 	helper.foreverRetrier = retry.NewRetrier(retryOpts)
 	helper.mgr = mgr
 
-	client := NewMockaggregatorClient(ctrl)
+	client := NewMockAggregatorClient(ctrl)
 	client.EXPECT().IsHealthy(gomock.Any()).Return(errInstanceUnhealthy).AnyTimes()
 	helper.client = client
 	require.Error(t, helper.waitUntilSafe(testInstanceMetadatas[:2]))
@@ -273,7 +273,7 @@ func TestHelperWaitUntilSafeSuccess(t *testing.T) {
 	helper := testHelper(t)
 	helper.mgr = mgr
 
-	client := NewMockaggregatorClient(ctrl)
+	client := NewMockAggregatorClient(ctrl)
 	client.EXPECT().IsHealthy(gomock.Any()).Return(nil).AnyTimes()
 	helper.client = client
 	require.NoError(t, helper.waitUntilSafe(testInstanceMetadatas[:2]))
@@ -319,7 +319,7 @@ func TestHelperResignError(t *testing.T) {
 		SetBackoffFactor(1)
 	helper.retrier = retry.NewRetrier(retryOpts)
 
-	client := NewMockaggregatorClient(ctrl)
+	client := NewMockAggregatorClient(ctrl)
 	client.EXPECT().Resign(gomock.Any()).Return(errResign).AnyTimes()
 	helper.client = client
 	require.Error(t, helper.resign(targets))
@@ -334,7 +334,7 @@ func TestHelperResignSuccess(t *testing.T) {
 		{Instance: testInstanceMetadatas[1]},
 	}
 	helper := testHelper(t)
-	client := NewMockaggregatorClient(ctrl)
+	client := NewMockAggregatorClient(ctrl)
 	client.EXPECT().Resign(gomock.Any()).Return(nil).AnyTimes()
 	helper.client = client
 	require.NoError(t, helper.resign(targets))

@@ -1,0 +1,114 @@
+version: "3.5"
+services:
+  m3aggregator01:
+    expose:
+      - "6001"
+    ports:
+      - "127.0.0.1:6001:6001"
+    networks:
+      - backend
+    environment:
+      - M3AGGREGATOR_HOST_ID=m3aggregator01
+    build:
+      context: ../../../bin
+      dockerfile: ./docker/m3aggregator/development.Dockerfile
+    image: m3aggregator:dev
+    volumes:
+      - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
+  m3coordinator01:
+    expose:
+      - "7201"
+    ports:
+      - "0.0.0.0:7201:7201"
+    networks:
+      - backend
+    build:
+      context: ../../../bin
+      dockerfile: ./docker/m3coordinator/development.Dockerfile
+    image: m3coordinator:dev
+    volumes:
+      - "./m3coordinator.yml.tmp:/etc/m3coordinator/m3coordinator.yml"
+  prometheusscraper:
+    expose:
+      - "9090"
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - backend
+    image: prom/prometheus:latest
+    volumes:
+      - "./prometheus-scraper.yml.tmp:/etc/prometheus/prometheus.yml"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--log.level=debug"
+  prometheusraw:
+    networks:
+      - backend
+    image: prom/prometheus:latest
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--enable-feature=remote-write-receiver"
+  prometheusagg:
+    networks:
+      - backend
+    image: prom/prometheus:latest
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--enable-feature=remote-write-receiver"
+  etcd01:
+    expose:
+      - "2379-2380"
+    ports:
+      - "0.0.0.0:2379-2380:2379-2380"
+    networks:
+      - backend
+    image: quay.io/coreos/etcd:v3.4.3
+    command:
+      - "etcd"
+      - "--name"
+      - "etcd01"
+      - "--listen-peer-urls"
+      - "http://0.0.0.0:2380"
+      - "--listen-client-urls"
+      - "http://0.0.0.0:2379"
+      - "--advertise-client-urls"
+      - "http://etcd01:2379"
+      - "--initial-cluster-token"
+      - "etcd-cluster-1"
+      - "--initial-advertise-peer-urls"
+      - "http://etcd01:2380"
+      - "--initial-cluster"
+      - "etcd01=http://etcd01:2380"
+      - "--initial-cluster-state"
+      - "new"
+      - "--data-dir"
+      - "/var/lib/etcd"
+  grafana:
+    build:
+      context: ../../../
+      dockerfile: ./docker/grafana/Dockerfile
+    expose:
+      - "3000"
+    ports:
+      - "0.0.0.0:3000:3000"
+    networks:
+      - backend
+    image: m3grafana:latest
+networks:
+  backend:
+volumes:
+  prom-raw-data:
+  prom-agg-data:

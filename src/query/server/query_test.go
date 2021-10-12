@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
-	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	m3msgproto "github.com/m3db/m3/src/msg/protocol/proto"
@@ -237,18 +236,37 @@ tagOptions:
 
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
-	req, err := http.NewRequestWithContext(
-		context.TODO(),
-		http.MethodPost,
-		fmt.Sprintf("http://%s%s", addr, remote.PromWriteURL),
-		promReqBody,
-	)
-	require.NoError(t, err)
+	requestURL := fmt.Sprintf("http://%s%s", addr, remote.PromWriteURL)
+	newRequest := func() *http.Request {
+		req, err := http.NewRequestWithContext(
+			context.TODO(),
+			http.MethodPost,
+			requestURL,
+			promReqBody,
+		)
+		require.NoError(t, err)
+		return req
+	}
 
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
-	assert.NotNil(t, externalFakePromServer.GetLastWriteRequest())
+	t.Run("write request", func(t *testing.T) {
+		defer externalFakePromServer.Reset()
+		resp, err := http.DefaultClient.Do(newRequest())
+		require.NoError(t, err)
+
+		assert.NotNil(t, externalFakePromServer.GetLastWriteRequest())
+		require.NoError(t, resp.Body.Close())
+	})
+
+	t.Run("bad request propagates", func(t *testing.T) {
+		defer externalFakePromServer.Reset()
+		externalFakePromServer.SetError("badRequest", http.StatusBadRequest)
+
+		resp, err := http.DefaultClient.Do(newRequest())
+		require.NoError(t, err)
+
+		assert.Equal(t, 400, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
+	})
 }
 
 func TestGRPCBackend(t *testing.T) {
@@ -519,14 +537,15 @@ func runServer(t *testing.T, opts runServerOpts) (string, closeFn) {
 		doneCh          = make(chan struct{})
 		listenerCh      = make(chan net.Listener, 1)
 		clusterClient   = clusterclient.NewMockClient(opts.ctrl)
-		clusterClientCh = make(chan clusterclient.Client, 1)
+		clusterClientCh chan clusterclient.Client
 	)
 
-	store := mem.NewStore()
-	_, err := store.Set("/namespaces", &rulepb.Namespaces{})
-	require.NoError(t, err)
-	clusterClient.EXPECT().KV().Return(store, nil).MaxTimes(1)
-	clusterClientCh <- clusterClient
+	if len(opts.cfg.Clusters) > 0 || opts.cfg.ClusterManagement.Etcd != nil {
+		clusterClientCh = make(chan clusterclient.Client, 1)
+		store := mem.NewStore()
+		clusterClient.EXPECT().KV().Return(store, nil).MaxTimes(2)
+		clusterClientCh <- clusterClient
+	}
 
 	go func() {
 		r := Run(RunOptions{
