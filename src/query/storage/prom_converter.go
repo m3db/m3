@@ -22,6 +22,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -55,6 +56,7 @@ func iteratorToPromResult(
 
 		samples = make([]prompb.Sample, 0, initRawFetchAllocSize)
 	)
+	fmt.Println("iteratorToPromResult")
 	for iter.Next() {
 		dp, _, annotationData := iter.Current()
 
@@ -63,6 +65,7 @@ func iteratorToPromResult(
 				return nil, err
 			}
 			handleResets = annotationPayload.HandleValueResets
+			fmt.Printf("handleResets set to %t on %s\n", handleResets, dp.TimestampNanos.ToTime())
 		}
 
 		firstDP = false
