@@ -144,9 +144,6 @@ type GenericElem struct {
 
 	// internal consume state that does not need to be synchronized.
 	toConsume []timedAggregation // small buffer to avoid memory allocations during consumption
-	// map of the previous consumed values for each timestamp in the buffer. needed to support binary transforms that
-	// need the value from the previous timestamp.
-	consumedValues valuesByTime
 }
 
 // NewGenericElem returns a new GenericElem.

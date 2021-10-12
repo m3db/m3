@@ -81,9 +81,6 @@ type CounterElem struct {
 
 	// internal consume state that does not need to be synchronized.
 	toConsume []timedCounter // small buffer to avoid memory allocations during consumption
-	// map of the previous consumed values for each timestamp in the buffer. needed to support binary transforms that
-	// need the value from the previous timestamp.
-	consumedValues valuesByTime
 }
 
 // NewCounterElem returns a new CounterElem.
