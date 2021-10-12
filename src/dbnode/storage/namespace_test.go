@@ -628,12 +628,15 @@ func TestNamespaceSkipFlushIfReadOnly(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
+	// Configure the namespace so that flushing would only be enabled/disabled by read-only property.
 	indexOpts := namespace.NewIndexOptions().
 		SetEnabled(true)
 	nsOpts := namespace.NewOptions().
-		SetIndexOptions(indexOpts).
-		SetColdWritesEnabled(true)
+		SetFlushEnabled(true).
+		SetColdWritesEnabled(true).
+		SetIndexOptions(indexOpts)
 
+	// Set mocked 'OnColdFlush' so that the test would fail if cold flush would happen.
 	opts := DefaultTestOptions().
 		SetOnColdFlush(NewMockOnColdFlush(ctrl))
 
