@@ -638,7 +638,8 @@ func TestNamespaceSkipFlushIfReadOnly(t *testing.T) {
 
 	// Set mocked 'OnColdFlush' so that the test would fail if cold flush would happen.
 	opts := DefaultTestOptions().
-		SetOnColdFlush(NewMockOnColdFlush(ctrl))
+		SetOnColdFlush(NewMockOnColdFlush(ctrl)).
+		SetRuntimeOptionsManager(runtime.NewOptionsManager())
 
 	ns, closer := newTestNamespaceWithOpts(t, nsOpts, opts)
 	defer closer()
