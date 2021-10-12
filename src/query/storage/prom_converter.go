@@ -73,7 +73,7 @@ func iteratorToPromResult(
 		if handleResets {
 			lastDPEmitted = false
 			if dp.TimestampNanos/resolution != prevDP.TimestampNanos/resolution && !firstDP {
-				// reached next window
+				// reached next window, emit previous DP
 				samples = append(samples, prompb.Sample{
 					Timestamp: TimeToPromTimestamp(prevDP.TimestampNanos),
 					Value:     cumulativeSum,

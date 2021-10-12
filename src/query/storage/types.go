@@ -150,8 +150,13 @@ type FetchOptions struct {
 }
 
 func (o *FetchOptions) PromOptions() PromOptions {
+	var resolution time.Duration
+	if rqo := o.RestrictQueryOptions; rqo != nil && rqo.RestrictByType != nil {
+		resolution = rqo.RestrictByType.StoragePolicy.Resolution().Window
+	}
+
 	return PromOptions{
-		Resolution: o.RestrictQueryOptions.RestrictByType.StoragePolicy.Resolution().Window,
+		Resolution: resolution,
 	}
 }
 
