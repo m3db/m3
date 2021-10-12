@@ -8,7 +8,7 @@ while IFS='' read -r line; do nodes+=("$line"); done < <(curl http://localhost:8
 
 cp prometheus-scraper.yml prometheus-scraper.yml.tmp
 
-limit=10
+limit=30
 
 i=0
 for node in "${nodes[@]}" ; do
