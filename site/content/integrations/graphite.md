@@ -1,6 +1,6 @@
 ---
 title: "Graphite"
-weight: 2
+weight: 3
 ---
 
 This document is a getting started guide to integrating the M3 stack with Graphite.

@@ -22,14 +22,18 @@ package influxdb
 
 import (
 	"bytes"
+	"compress/gzip"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/models"
@@ -40,6 +44,7 @@ import (
 	"go.uber.org/zap"
 
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -74,6 +79,7 @@ type ingestIterator struct {
 	points       []imodels.Point
 	tagOpts      models.TagOptions
 	promRewriter *promRewriter
+	writeTags    models.Tags
 
 	// internal
 	pointIndex int
@@ -160,6 +166,10 @@ func (ii *ingestIterator) Next() bool {
 					copy(name, tag.Key)
 					ii.promRewriter.rewriteLabel(name)
 					tags = tags.AddTagWithoutNormalizing(models.Tag{Name: name, Value: tag.Value})
+				}
+				// Add or update tags given in Map-Tags-JSON header
+				for _, t := range ii.writeTags.Tags {
+					tags = tags.AddOrUpdateTag(t)
 				}
 				// sanity check no duplicate Name's;
 				// after Normalize, they are sorted so
@@ -277,24 +287,96 @@ func (ii *ingestIterator) CurrentMetadata() ts.Metadata {
 
 // NewInfluxWriterHandler returns a new influx write handler.
 func NewInfluxWriterHandler(options options.HandlerOptions) http.Handler {
-	return &ingestWriteHandler{handlerOpts: options,
+	return &ingestWriteHandler{
+		handlerOpts:  options,
 		tagOpts:      options.TagOptions(),
-		promRewriter: newPromRewriter()}
+		promRewriter: newPromRewriter(),
+	}
 }
 
 func (iwh *ingestWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	bytes, err := ioutil.ReadAll(r.Body)
+	if r.Body == http.NoBody {
+		xhttp.WriteError(w, xhttp.NewError(errors.New("empty request body"), http.StatusBadRequest))
+		return
+	}
+
+	var bytes []byte
+	var err error
+	var reader io.ReadCloser
+
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		reader, err = gzip.NewReader(r.Body)
+		if err != nil {
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
+			return
+		}
+	} else {
+		reader = r.Body
+	}
+
+	bytes, err = ioutil.ReadAll(reader)
 	if err != nil {
 		xhttp.WriteError(w, err)
 		return
 	}
-	points, err := imodels.ParsePoints(bytes)
+
+	err = reader.Close()
 	if err != nil {
 		xhttp.WriteError(w, err)
 		return
 	}
+
+	// InfluxDB line protocol v1.8 supports following precision values ns, u, ms, s, m and h
+	// If precision is not given, nanosecond precision is assumed
+	precision := r.URL.Query().Get("precision")
+	points, err := imodels.ParsePointsWithPrecision(bytes, time.Now().UTC(), precision)
+	if err != nil {
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	// Apply tags from "M3-Map-Tags-JSON" header
+	writeTags := models.NewTags(0, iwh.tagOpts)
+	var mapTagsOpts handleroptions.MapTagsOptions
+	if mapStr := r.Header.Get(headers.MapTagsByJSONHeader); mapStr != "" {
+		if err := json.Unmarshal([]byte(mapStr), &mapTagsOpts); err != nil {
+			xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
+			return
+		}
+		for _, mapper := range mapTagsOpts.TagMappers {
+			if err := mapper.Validate(); err != nil {
+				xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
+				return
+			}
+
+			if op := mapper.Write; !op.IsEmpty() {
+				tag := []byte(op.Tag)
+				value := []byte(op.Value)
+				writeTags = writeTags.AddTag(models.Tag{Name: tag, Value: value})
+			}
+
+			if op := mapper.Drop; !op.IsEmpty() {
+				err := errors.New("'drop' operation is not yet supported")
+				xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
+				return
+			}
+
+			if op := mapper.DropWithValue; !op.IsEmpty() {
+				err := errors.New("'dropWithValue' operation is not yet supported")
+				xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
+				return
+			}
+
+			if op := mapper.Replace; !op.IsEmpty() {
+				err := errors.New("'replace' operation is not yet supported")
+				xhttp.WriteError(w, xhttp.NewError(err, http.StatusBadRequest))
+				return
+			}
+		}
+	}
+
 	opts := ingest.WriteOptions{}
-	iter := &ingestIterator{points: points, tagOpts: iwh.tagOpts, promRewriter: iwh.promRewriter}
+	iter := &ingestIterator{points: points, tagOpts: iwh.tagOpts, promRewriter: iwh.promRewriter, writeTags: writeTags}
 	batchErr := iwh.handlerOpts.DownsamplerAndWriter().WriteBatch(r.Context(), iter, opts)
 	if batchErr == nil {
 		w.WriteHeader(http.StatusNoContent)

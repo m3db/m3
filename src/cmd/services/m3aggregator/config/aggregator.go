@@ -59,7 +59,10 @@ var (
 	errEmptyJitterBucketList   = errors.New("empty jitter bucket list")
 )
 
-var defaultNumPassthroughWriters = 8
+var (
+	defaultNumPassthroughWriters = 8
+	defaultHostID                = "m3aggregator_local"
+)
 
 // AggregatorConfiguration contains aggregator configuration.
 type AggregatorConfiguration struct {
@@ -184,9 +187,10 @@ type AggregatorConfiguration struct {
 	// Must be in sync with m3msg WriterConfiguration.IgnoreCutoffCutover.
 	WritesIgnoreCutoffCutover bool `yaml:"writesIgnoreCutoffCutover"`
 
-	// TimedForResendEnabled is a feature flag that gracefully transitions AddUntimed to AddTimed for pipelines
-	// that support resending aggregate values.
-	TimedForResendEnabled bool `yaml:"timedForResendEnabled"`
+	// TimedForResendEnabledRollupRegexps is a feature flag that gracefully transitions AddUntimed to AddTimed
+	// for pipelines that support resending aggregate values. The regexps are matched against the rollup IDs
+	// to allow for incremental transition of existing rules to this new behavior.
+	TimedForResendEnabledRollupRegexps []string `yaml:"timedForResendEnabledRollupRegexps"`
 }
 
 // InstanceIDType is the instance ID type that defines how the
@@ -497,9 +501,21 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 
 	opts = opts.
 		SetWritesIgnoreCutoffCutover(c.WritesIgnoreCutoffCutover).
-		SetTimedForResendEnabled(c.TimedForResendEnabled)
+		SetTimedForResendEnabledRollupRegexps(c.TimedForResendEnabledRollupRegexps)
 
 	return opts, nil
+}
+
+// HostIDOrDefault returns the host ID or default.
+func (c *AggregatorConfiguration) HostIDOrDefault() hostid.Configuration {
+	if c.HostID == nil {
+		return hostid.Configuration{
+			Resolver: hostid.ConfigResolver,
+			Value:    &defaultHostID,
+		}
+	}
+
+	return *c.HostID
 }
 
 func (c *AggregatorConfiguration) newInstanceID(address string) (string, error) {

@@ -62,7 +62,7 @@ func init() {
 
 var (
 	errTagEncoderInUse   = errors.New("encoder already in use")
-	errTagLiteralTooLong = errors.New("literal is too long")
+	errTagLiteralTooLong = xerrors.NewInvalidParamsError(errors.New("literal is too long"))
 	// ErrEmptyTagNameLiteral is an error when encoded tag name is empty.
 	ErrEmptyTagNameLiteral = xerrors.NewInvalidParamsError(errors.New("tag name cannot be empty"))
 )
@@ -182,7 +182,7 @@ func (e *encoder) encodeID(i ident.ID) error {
 	d := i.Bytes()
 
 	max := int(e.opts.TagSerializationLimits().MaxTagLiteralLength())
-	if len(d) >= max {
+	if len(d) > max {
 		return errTagLiteralTooLong
 	}
 

@@ -492,6 +492,36 @@ func TestTagsValidateDuplicateQuotedWithAllowTagNameDuplicates(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestTagsValidateTagNameTooLong(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().
+		SetIDSchemeType(TypeQuoted).
+		SetMaxTagLiteralLength(10))
+	tags = tags.AddTag(Tag{
+		Name:  []byte("name_longer_than_10_characters"),
+		Value: []byte("baz"),
+	})
+	err := tags.Validate()
+	require.EqualError(t, err, "tag name too long: index=0, length=30, maxLength=10")
+	require.True(t, xerrors.IsInvalidParams(err))
+}
+
+func TestTagsValidateTagValueTooLong(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().
+		SetIDSchemeType(TypeQuoted).
+		SetMaxTagLiteralLength(10))
+	tags = tags.AddTag(Tag{
+		Name:  []byte("bar"),
+		Value: []byte("baz"),
+	})
+	tags = tags.AddTag(Tag{
+		Name:  []byte("foo"),
+		Value: []byte("value_longer_than_10_characters"),
+	})
+	err := tags.Validate()
+	require.EqualError(t, err, "tag value too long: index=1, length=31, maxLength=10")
+	require.True(t, xerrors.IsInvalidParams(err))
+}
+
 func TestTagsValidateEmptyNameGraphite(t *testing.T) {
 	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeGraphite))
 	tags = tags.AddTag(Tag{Name: nil, Value: []byte("bar")})

@@ -131,7 +131,7 @@ type DownsamplerOptions struct {
 	TagOptions                 models.TagOptions
 	MetricsAppenderPoolOptions pool.ObjectPoolOptions
 	RWOptions                  xio.Options
-	InterruptCh                <-chan error
+	InterruptedCh              <-chan struct{}
 }
 
 // AutoMappingRule is a mapping rule to apply to metrics.
@@ -728,7 +728,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetKVStore(o.RulesKVStore).
 		SetNamespaceTag([]byte(namespaceTag)).
 		SetRequireNamespaceWatchOnInit(cfg.Matcher.RequireNamespaceWatchOnInit).
-		SetInterruptCh(o.InterruptCh)
+		SetInterruptedCh(o.InterruptedCh)
 
 	// NB(r): If rules are being explicitly set in config then we are
 	// going to use an in memory KV store for rules and explicitly set them up.
@@ -737,8 +737,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		kvTxnMemStore := mem.NewStore()
 
 		// Initialize the namespaces
-		_, err := kvTxnMemStore.Set(matcherOpts.NamespacesKey(), &rulepb.Namespaces{})
-		if err != nil {
+		if err := initStoreNamespaces(kvTxnMemStore, matcherOpts.NamespacesKey()); err != nil {
 			return agg{}, err
 		}
 
@@ -805,6 +804,20 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		matcherCacheCapacity = *v
 	}
 
+	kvStore, err := o.ClusterClient.KV()
+	if err != nil {
+		return agg{}, err
+	}
+
+	// NB(antanas): matcher registers watcher on namespaces key. Making sure it is set, otherwise watcher times out.
+	// With RequireNamespaceWatchOnInit being true we expect namespaces to be set upfront
+	// so we do not initialize them here at all because it might potentially hide human error.
+	if !matcherOpts.RequireNamespaceWatchOnInit() {
+		if err := initStoreNamespaces(kvStore, matcherOpts.NamespacesKey()); err != nil {
+			return agg{}, err
+		}
+	}
+
 	matcher, err := o.newAggregatorMatcher(matcherOpts, matcherCacheCapacity)
 	if err != nil {
 		return agg{}, err
@@ -843,7 +856,11 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetName("downsampler").
 		SetZone("embedded")
 
-	localKVStore := mem.NewStore()
+	localKVStore := kvStore
+	// NB(antanas): to protect against running with real Etcd and overriding existing placements.
+	if !mem.IsMem(localKVStore) {
+		localKVStore = mem.NewStore()
+	}
 
 	placementManager, err := o.newAggregatorPlacementManager(serviceID, localKVStore)
 	if err != nil {
@@ -976,6 +993,14 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		pools:          pools,
 		untimedRollups: cfg.UntimedRollups,
 	}, nil
+}
+
+func initStoreNamespaces(store kv.Store, nsKey string) error {
+	_, err := store.SetIfNotExists(nsKey, &rulepb.Namespaces{})
+	if errors.Is(err, kv.ErrAlreadyExists) {
+		return nil
+	}
+	return err
 }
 
 type aggPools struct {

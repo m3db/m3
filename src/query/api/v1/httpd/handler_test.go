@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/graphite"
+	"github.com/m3db/m3/src/query/api/v1/handler/influxdb"
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
@@ -232,6 +233,20 @@ func TestJSONWritePost(t *testing.T) {
 	h, err := setupHandler(storage)
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
+	h.Router().ServeHTTP(res, req)
+	require.Equal(t, http.StatusBadRequest, res.Code, "Empty request")
+}
+
+func TestInfluxDBWritePost(t *testing.T) {
+	req := httptest.NewRequest(influxdb.InfluxWriteHTTPMethod, influxdb.InfluxWriteURL, nil)
+	res := httptest.NewRecorder()
+	ctrl := gomock.NewController(t)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
+
+	h, err := setupHandler(storage)
+	require.NoError(t, err, "unable to setup handler")
+	err = h.RegisterRoutes()
+	require.NoError(t, err)
 	h.Router().ServeHTTP(res, req)
 	require.Equal(t, http.StatusBadRequest, res.Code, "Empty request")
 }

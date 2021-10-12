@@ -22,6 +22,7 @@ package aggregator
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"sort"
 	"testing"
@@ -37,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
@@ -45,6 +47,7 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
+	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -54,6 +57,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (
@@ -420,24 +424,25 @@ func TestAggregatorAddUntimedSuccessNoPlacementUpdate(t *testing.T) {
 func TestAggregatorAddUntimedToTimed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+	logger := zap.NewNop()
 
 	agg, _ := testAggregator(t, ctrl)
-	agg.opts = agg.opts.SetTimedForResendEnabled(true)
+	agg.timedForResendEnabledRollupRegexps = compileRegexps(logger, []string{".*"})
 	metas := metadata.StagedMetadatas{testStagedMetadatas[0]}
 	// add another pipeline
 	metas[0].Pipelines = append(metas[0].Pipelines, metadata.PipelineMetadata{
 		StoragePolicies: metas[0].Pipelines[0].StoragePolicies,
 		Pipeline: applied.NewPipeline([]applied.OpUnion{
 			{
-				Type: pipeline.TransformationOpType,
-				Transformation: pipeline.TransformationOp{
-					Type: transformation.Increase,
+				Type: pipeline.RollupOpType,
+				Rollup: applied.RollupOp{
+					ID: []byte("abc"),
 				},
 			},
 		}),
 	})
-	metas[0].Pipelines[0].ResendEnabled = true
-	metas[0].Pipelines[1].ResendEnabled = false
+	metas[0].Pipelines[0].ResendEnabled = false
+	metas[0].Pipelines[1].ResendEnabled = true
 	require.NoError(t, agg.Open())
 	agg.shardFn = func([]byte, uint32) uint32 { return 1 }
 	err := agg.AddUntimed(testUntimedGauge, metas)
@@ -469,7 +474,7 @@ func TestAggregatorAddUntimedToTimedDisabled(t *testing.T) {
 	defer ctrl.Finish()
 
 	agg, _ := testAggregator(t, ctrl)
-	agg.opts = agg.opts.SetTimedForResendEnabled(false)
+	agg.timedForResendEnabledRollupRegexps = nil
 	metas := metadata.StagedMetadatas{testStagedMetadatas[0]}
 	// add another pipeline
 	metas[0].Pipelines = append(metas[0].Pipelines, metadata.PipelineMetadata{
@@ -1389,61 +1394,289 @@ func TestAggregatorAddForwardedMetrics(t *testing.T) {
 }
 
 func TestPartitionResendEnabled(t *testing.T) {
-	p1, p2 := partitionResendEnabled(metadata.PipelineMetadatas{
-		newPipeline("1", false),
-		newPipeline("2", true),
-		newPipeline("3", false),
-		newPipeline("4", true),
-	})
-	expected1 := metadata.PipelineMetadatas{
-		newPipeline("4", true),
-		newPipeline("2", true),
-	}
-	expected2 := metadata.PipelineMetadatas{
-		newPipeline("3", false),
-		newPipeline("1", false),
-	}
-	require.Equal(t, expected1, p1)
-	require.Equal(t, expected2, p2)
+	aggAllMatches := NewAggregator(NewOptions(clock.NewOptions()).
+		SetTimedForResendEnabledRollupRegexps([]string{".*"})).(*aggregator)
+	aggEmpty := NewAggregator(NewOptions(clock.NewOptions()).
+		SetTimedForResendEnabledRollupRegexps([]string{})).(*aggregator)
+	aggNoMatches := NewAggregator(NewOptions(clock.NewOptions()).
+		SetTimedForResendEnabledRollupRegexps([]string{".*123|456.*"})).(*aggregator)
+	aggSomeMatches := NewAggregator(NewOptions(clock.NewOptions()).
+		SetTimedForResendEnabledRollupRegexps([]string{"1", "(2|3)"})).(*aggregator)
 
-	p1, p2 = partitionResendEnabled(metadata.PipelineMetadatas{
-		newPipeline("1", true),
-		newPipeline("2", true),
-		newPipeline("3", false),
-		newPipeline("4", false),
-	})
-	expected1 = metadata.PipelineMetadatas{
-		newPipeline("1", true),
-		newPipeline("2", true),
+	aggs := []struct {
+		agg  *aggregator
+		name string
+	}{
+		{
+			agg:  aggAllMatches,
+			name: "all",
+		},
+		{
+			agg:  aggEmpty,
+			name: "empty",
+		},
+		{
+			agg:  aggNoMatches,
+			name: "none",
+		},
+		{
+			agg:  aggSomeMatches,
+			name: "some",
+		},
 	}
-	expected2 = metadata.PipelineMetadatas{
-		newPipeline("4", false),
-		newPipeline("3", false),
-	}
-	require.Equal(t, expected1, p1)
-	require.Equal(t, expected2, p2)
 
-	p1, p2 = partitionResendEnabled(metadata.PipelineMetadatas{
-		newPipeline("1", true),
-	})
-	expected1 = metadata.PipelineMetadatas{
-		newPipeline("1", true),
+	cases := []struct {
+		name     string
+		in       metadata.PipelineMetadatas
+		expected map[*aggregator]struct {
+			timed, untimed metadata.PipelineMetadatas
+		}
+	}{
+		{
+			name: "many 1",
+			in: metadata.PipelineMetadatas{
+				newPipeline("1", false),
+				newPipeline("2", true),
+				newPipeline("3", false),
+				newPipeline("4", true),
+			},
+			expected: map[*aggregator]struct {
+				timed, untimed metadata.PipelineMetadatas
+			}{
+				aggAllMatches: {
+					timed: metadata.PipelineMetadatas{
+						newPipeline("4", true),
+						newPipeline("2", true),
+					},
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("3", false),
+						newPipeline("1", false),
+					},
+				},
+				aggEmpty: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("2", true),
+						newPipeline("3", false),
+						newPipeline("4", true),
+						newPipeline("1", false),
+					},
+				},
+				aggNoMatches: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("2", true),
+						newPipeline("3", false),
+						newPipeline("4", true),
+						newPipeline("1", false),
+					},
+				},
+				aggSomeMatches: {
+					timed: metadata.PipelineMetadatas{
+						newPipeline("2", true),
+					},
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("3", false),
+						newPipeline("4", true),
+						newPipeline("1", false),
+					},
+				},
+			},
+		},
+		{
+			name: "many 2",
+			in: metadata.PipelineMetadatas{
+				newPipeline("1", true),
+				newPipeline("2", true),
+				newPipeline("3", false),
+				newPipeline("4", false),
+			},
+			expected: map[*aggregator]struct {
+				timed, untimed metadata.PipelineMetadatas
+			}{
+				aggAllMatches: {
+					timed: metadata.PipelineMetadatas{
+						newPipeline("1", true),
+						newPipeline("2", true),
+					},
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("4", false),
+						newPipeline("3", false),
+					},
+				},
+				aggEmpty: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("2", true),
+						newPipeline("3", false),
+						newPipeline("4", false),
+						newPipeline("1", true),
+					},
+				},
+				aggNoMatches: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("2", true),
+						newPipeline("3", false),
+						newPipeline("4", false),
+						newPipeline("1", true),
+					},
+				},
+				aggSomeMatches: {
+					timed: metadata.PipelineMetadatas{
+						newPipeline("1", true),
+						newPipeline("2", true),
+					},
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("4", false),
+						newPipeline("3", false),
+					},
+				},
+			},
+		},
+		{
+			name: "single timed",
+			in: metadata.PipelineMetadatas{
+				newPipeline("1", true),
+			},
+			expected: map[*aggregator]struct {
+				timed, untimed metadata.PipelineMetadatas
+			}{
+				aggAllMatches: {
+					timed: metadata.PipelineMetadatas{
+						newPipeline("1", true),
+					},
+					untimed: nil,
+				},
+				aggEmpty: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("1", true),
+					},
+				},
+				aggNoMatches: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("1", true),
+					},
+				},
+				aggSomeMatches: {
+					timed: metadata.PipelineMetadatas{
+						newPipeline("1", true),
+					},
+					untimed: nil,
+				},
+			},
+		},
+		{
+			name: "single untimed",
+			in: metadata.PipelineMetadatas{
+				newPipeline("1", false),
+			},
+			expected: map[*aggregator]struct {
+				timed, untimed metadata.PipelineMetadatas
+			}{
+				aggAllMatches: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("1", false),
+					},
+				},
+				aggEmpty: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("1", false),
+					},
+				},
+				aggNoMatches: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("1", false),
+					},
+				},
+				aggSomeMatches: {
+					timed: nil,
+					untimed: metadata.PipelineMetadatas{
+						newPipeline("1", false),
+					},
+				},
+			},
+		},
+		{
+			name: "empty",
+			in:   metadata.PipelineMetadatas{},
+			expected: map[*aggregator]struct {
+				timed, untimed metadata.PipelineMetadatas
+			}{
+				aggAllMatches: {
+					timed:   nil,
+					untimed: nil,
+				},
+				aggEmpty: {
+					timed:   nil,
+					untimed: nil,
+				},
+				aggNoMatches: {
+					timed:   nil,
+					untimed: nil,
+				},
+				aggSomeMatches: {
+					timed:   nil,
+					untimed: nil,
+				},
+			},
+		},
 	}
-	require.Equal(t, expected1, p1)
-	require.Empty(t, p2)
 
-	p1, p2 = partitionResendEnabled(metadata.PipelineMetadatas{
-		newPipeline("1", false),
-	})
-	expected2 = metadata.PipelineMetadatas{
-		newPipeline("1", false),
+	for _, tc := range cases {
+		tc := tc
+		for _, a := range aggs {
+			agg := a.agg
+			in := tc.in.Clone()
+			expected := tc.expected[agg]
+			t.Run(fmt.Sprintf("%s_agg_%s", tc.name, a.name), func(t *testing.T) {
+				p1, p2 := agg.partitionResendEnabled(in)
+				sortPipelines(expected.timed, expected.untimed, p1, p2)
+				require.True(t, expected.timed.Equal(p1), "timed unexpected")
+				require.True(t, expected.untimed.Equal(p2), "untimed unexpected")
+
+				if len(in) == 0 {
+					return
+				}
+
+				// Confirm that neither order nor proto conversions affect the partition outcomes here
+				// Since proto conversions often re-use previously allocated structs, we do the same here
+				// to ensure this re-use also does not affect outcomes (e.g. we've previously checked the
+				// op.Rollup.ID being non-nil in the partition function which is invalid since this re-use
+				// can lead to truncating existing IDs to empty slices instead of being able to assume they
+				// have been initialized as nil).
+				reversed := make(metadata.PipelineMetadatas, 0)
+				for _, p := range in {
+					proto := metricpb.PipelineMetadata{}
+					require.NoError(t, p.ToProto(&proto))
+					for i, j := 0, len(proto.Pipeline.Ops)-1; i < j; i, j = i+1, j-1 {
+						proto.Pipeline.Ops[i], proto.Pipeline.Ops[j] = proto.Pipeline.Ops[j], proto.Pipeline.Ops[i]
+					}
+					require.NoError(t, p.FromProto(proto))
+					reversed = append(reversed, p)
+				}
+
+				p1, p2 = agg.partitionResendEnabled(reversed)
+				sortPipelines(expected.timed, expected.untimed, p1, p2)
+				require.True(t, expected.timed.Equal(p1), "timed unexpected")
+				require.True(t, expected.untimed.Equal(p2), "untimed unexpected")
+			})
+		}
 	}
-	require.Equal(t, expected2, p2)
-	require.Empty(t, p1)
+}
 
-	p1, p2 = partitionResendEnabled(metadata.PipelineMetadatas{})
-	require.Empty(t, p1)
-	require.Empty(t, p2)
+func sortPipelines(metadatas ...metadata.PipelineMetadatas) {
+	for _, metadata := range metadatas {
+		for _, p := range metadata {
+			sort.Sort(p.Pipeline)
+		}
+		sort.Sort(metadata)
+	}
 }
 
 func newPipeline(id string, resendEnabled bool) metadata.PipelineMetadata {
@@ -1451,8 +1684,15 @@ func newPipeline(id string, resendEnabled bool) metadata.PipelineMetadata {
 		Pipeline: applied.Pipeline{
 			Operations: []applied.OpUnion{
 				{
+					Type: pipeline.RollupOpType,
 					Rollup: applied.RollupOp{
 						ID: []byte(id),
+					},
+				},
+				{
+					Type: pipeline.TransformationOpType,
+					Transformation: pipeline.TransformationOp{
+						Type: transformation.Reset,
 					},
 				},
 			},

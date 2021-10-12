@@ -229,7 +229,7 @@ func (c *LRU) PutWithTTL(key string, value interface{}, ttl time.Duration) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
 
-	_, _ = c.updateCacheEntryWithLock(key, expiresAt, value, nil)
+	_, _ = c.updateCacheEntryWithLock(key, expiresAt, value, nil, true)
 }
 
 // Get returns the value associated with the key, optionally
@@ -363,8 +363,8 @@ func (c *LRU) tryCached(
 
 	if !exists {
 		// The entry doesn't exist, clear enough space for it and then add it
-		if err := c.reserveCapacity(1); err != nil {
-			return nil, false, nil, err
+		if !c.reserveCapacity(1) {
+			return nil, false, nil, ErrCacheFull
 		}
 
 		entry = c.newEntry(key)
@@ -390,7 +390,7 @@ func (c *LRU) cacheLoadComplete(
 		return c.handleCacheLoadErrorWithLock(key, expiresAt, err)
 	}
 
-	return c.updateCacheEntryWithLock(key, expiresAt, value, err)
+	return c.updateCacheEntryWithLock(key, expiresAt, value, err, false)
 }
 
 // handleCacheLoadErrorWithLock handles the results of an error from a cache load. If
@@ -402,7 +402,7 @@ func (c *LRU) handleCacheLoadErrorWithLock(
 	// If the loader is telling us to cache this error, do so unconditionally
 	var cachedErr CachedError
 	if errors.As(err, &cachedErr) {
-		return c.updateCacheEntryWithLock(key, expiresAt, nil, cachedErr.Err)
+		return c.updateCacheEntryWithLock(key, expiresAt, nil, cachedErr.Err, false)
 	}
 
 	// If the cache is configured to cache errors by default, do so unless
@@ -410,7 +410,7 @@ func (c *LRU) handleCacheLoadErrorWithLock(
 	var uncachedErr UncachedError
 	isUncachedError := errors.As(err, &uncachedErr)
 	if c.cacheErrors && !isUncachedError {
-		return c.updateCacheEntryWithLock(key, expiresAt, nil, err)
+		return c.updateCacheEntryWithLock(key, expiresAt, nil, err, false)
 	}
 
 	// Something happened during load, but we don't want to cache this - remove the entry,
@@ -430,10 +430,15 @@ func (c *LRU) handleCacheLoadErrorWithLock(
 // updateCacheEntryWithLock updates a cache entry with a new value or cached error,
 // and marks it as the most recently accessed and most recently loaded entry
 func (c *LRU) updateCacheEntryWithLock(
-	key string, expiresAt time.Time, value interface{}, err error,
+	key string, expiresAt time.Time, value interface{}, err error, enforceLimit bool,
 ) (interface{}, error) {
 	entry := c.entries[key]
 	if entry == nil {
+		if enforceLimit && !c.reserveCapacity(1) {
+			// Silently skip adding the new entry if we fail to free up space for it
+			// (which should never be happening).
+			return value, err
+		}
 		entry = &lruCacheEntry{}
 		c.entries[key] = entry
 	}
@@ -471,7 +476,7 @@ func (c *LRU) updateCacheEntryWithLock(
 // reserveCapacity evicts expired and least recently used entries (that aren't loading)
 // until we have at least enough space for new entries.
 // NB(mmihic): Must be called with the cache mutex locked.
-func (c *LRU) reserveCapacity(n int) error {
+func (c *LRU) reserveCapacity(n int) bool {
 	// Unconditionally evict all expired entries. Entries that are expired by
 	// reloading are not in this list, and therefore will not be evicted.
 	oldestElt := c.byLoadTime.Back()
@@ -496,10 +501,10 @@ func (c *LRU) reserveCapacity(n int) error {
 
 	// If we couldn't create enough space, then there are too many entries loading and the cache is simply full
 	if c.maxEntries-len(c.entries) < n {
-		return ErrCacheFull
+		return false
 	}
 
-	return nil
+	return true
 }
 
 // load tries to load from the loader.

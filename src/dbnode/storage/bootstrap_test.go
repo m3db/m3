@@ -98,9 +98,15 @@ func testDatabaseBootstrapWithBootstrapError(t *testing.T, async bool) {
 
 	var result BootstrapResult
 	if async {
-		asyncResult := bsm.BootstrapEnqueue()
-		asyncResult.WaitForStart()
-		result = asyncResult.Result()
+		var wg sync.WaitGroup
+		wg.Add(1)
+		bsm.BootstrapEnqueue(BootstrapEnqueueOptions{
+			OnCompleteFn: func(r BootstrapResult) {
+				result = r
+				wg.Done()
+			},
+		})
+		wg.Wait()
 	} else {
 		result, err = bsm.Bootstrap()
 		require.NoError(t, err)
