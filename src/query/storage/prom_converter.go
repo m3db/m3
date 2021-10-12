@@ -65,7 +65,7 @@ func iteratorToPromResult(
 				return nil, err
 			}
 			handleResets = annotationPayload.HandleValueResets
-			fmt.Printf("handleResets set to %t on %s\n", handleResets, dp.TimestampNanos.ToTime())
+			fmt.Printf("handleResets set to %t on %s, resolution %s\n", handleResets, dp.TimestampNanos.ToTime(), resolution)
 		}
 
 		firstDP = false
