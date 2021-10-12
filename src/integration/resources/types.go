@@ -132,10 +132,10 @@ type Aggregator interface {
 	IsHealthy() error
 
 	// Status returns the instance status.
-	Status(instance string) (aggregator.RuntimeStatus, error)
+	Status() (aggregator.RuntimeStatus, error)
 
 	// Resign asks an aggregator instance to give up its current leader role if applicable.
-	Resign(instance string) error
+	Resign() error
 
 	// Close closes the wrapper and releases any held resources, including
 	// deleting docker containers.

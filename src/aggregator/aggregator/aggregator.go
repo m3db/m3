@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -373,7 +374,9 @@ func (agg *aggregator) timedForResendEnabledOnPipeline(p metadata.PipelineMetada
 		return false
 	}
 	for _, op := range p.Pipeline.Operations {
-		if op.Rollup.ID == nil {
+		// Scan for a single rollup rule to check if the name matches.
+		// For resending it is expected that there only is at most one present in the pipeline.
+		if op.Type != pipeline.RollupOpType {
 			continue
 		}
 
