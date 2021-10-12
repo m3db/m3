@@ -628,9 +628,9 @@ func TestNamespaceSkipFlushIfReadOnly(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	indexOpts := defaultTestNs1Opts.IndexOptions().
+	indexOpts := namespace.NewIndexOptions().
 		SetEnabled(true)
-	nsOpts := defaultTestNs1Opts.
+	nsOpts := namespace.NewOptions().
 		SetIndexOptions(indexOpts).
 		SetColdWritesEnabled(true)
 

@@ -91,7 +91,9 @@ func DefaultTestOptions() Options {
 		panic(err)
 	}
 
-	return defaultTestOptions.SetIndexClaimsManager(icm)
+	return defaultTestOptions.
+		SetIndexClaimsManager(icm).
+		SetRuntimeOptionsManager(runtime.NewNoOpOptionsManager(runtime.NewOptions()))
 }
 
 // numIntervals returns the number of intervals between [start, end] for a given
