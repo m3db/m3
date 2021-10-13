@@ -27,6 +27,7 @@ import (
 	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/uber-go/tally"
@@ -48,10 +49,11 @@ func newLeaderFlusherMetrics(scope tally.Scope) leaderFlusherMetrics {
 }
 
 type leaderFlushManagerMetrics struct {
-	queueSize tally.Gauge
-	standard  leaderFlusherMetrics
-	forwarded leaderFlusherMetrics
-	timed     leaderFlusherMetrics
+	queueSize    tally.Gauge
+	flushTimeLag tally.Histogram
+	standard     leaderFlusherMetrics
+	forwarded    leaderFlusherMetrics
+	timed        leaderFlusherMetrics
 }
 
 func newLeaderFlushManagerMetrics(scope tally.Scope) leaderFlushManagerMetrics {
@@ -59,10 +61,11 @@ func newLeaderFlushManagerMetrics(scope tally.Scope) leaderFlushManagerMetrics {
 	forwardedScope := scope.Tagged(map[string]string{"flusher-type": "forwarded"})
 	timedScope := scope.Tagged(map[string]string{"flusher-type": "timed"})
 	return leaderFlushManagerMetrics{
-		queueSize: scope.Gauge("queue-size"),
-		standard:  newLeaderFlusherMetrics(standardScope),
-		forwarded: newLeaderFlusherMetrics(forwardedScope),
-		timed:     newLeaderFlusherMetrics(timedScope),
+		queueSize:    scope.Gauge("queue-size"),
+		flushTimeLag: scope.Histogram("flush-time-lag", instrument.DefaultHistogramTimerHistogramBuckets()),
+		standard:     newLeaderFlusherMetrics(standardScope),
+		forwarded:    newLeaderFlusherMetrics(forwardedScope),
+		timed:        newLeaderFlusherMetrics(timedScope),
 	}
 }
 
@@ -154,6 +157,7 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 	if numFlushTimes > 0 {
 		earliestFlush := mgr.flushTimes.Min()
 		if nowNanos >= earliestFlush.timeNanos {
+			mgr.metrics.flushTimeLag.RecordDuration(time.Duration(nowNanos - earliestFlush.timeNanos))
 			shouldFlush = true
 			waitFor = 0
 			bucketIdx := earliestFlush.bucketIdx

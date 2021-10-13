@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -128,6 +129,7 @@ type metricElem interface {
 		targetNanos int64,
 		isEarlierThanFn isEarlierThanFn,
 		timestampNanosFn timestampNanosFn,
+		targetNanosFn targetNanosFn,
 		flushLocalFn flushLocalMetricFn,
 		flushForwardedFn flushForwardedMetricFn,
 		onForwardedFlushedFn onForwardingElemFlushedFn,
@@ -196,6 +198,7 @@ func (v valuesByTime) previousTimestamp(t xtime.UnixNano) xtime.UnixNano {
 
 type elemMetrics struct {
 	updatedValues tally.Counter
+	forwardLag    tally.Histogram
 }
 
 // ElemOptions are the parameters for constructing a new elemBase.
@@ -207,11 +210,13 @@ type ElemOptions struct {
 
 // NewElemOptions constructs a new ElemOptions
 func NewElemOptions(aggregatorOpts Options) ElemOptions {
+	scope := aggregatorOpts.InstrumentOptions().MetricsScope()
 	return ElemOptions{
 		aggregatorOpts:  aggregatorOpts,
 		aggregationOpts: raggregation.NewOptions(aggregatorOpts.InstrumentOptions()),
 		elemMetrics: &elemMetrics{
-			updatedValues: aggregatorOpts.InstrumentOptions().MetricsScope().Counter("updated-values"),
+			updatedValues: scope.Counter("updated-values"),
+			forwardLag:    scope.Histogram("forward-lag", instrument.DefaultHistogramTimerHistogramBuckets()),
 		},
 	}
 }
