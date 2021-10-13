@@ -144,18 +144,6 @@ func (m *mediator) RegisterBackgroundProcess(process BackgroundProcess) error {
 	return nil
 }
 
-func (m *mediator) EnqueueMutuallyExclusiveFn(fn func()) error {
-	m.RLock()
-	if m.state != mediatorOpen {
-		m.RUnlock()
-		return errMediatorNotOpen
-	}
-	m.RUnlock()
-
-	m.mediatorTimeBarrier.externalFnCh <- fn
-	return nil
-}
-
 func (m *mediator) Open() error {
 	m.Lock()
 	defer m.Unlock()
@@ -479,20 +467,6 @@ func (b *mediatorTimeBarrier) maybeRelease() (xtime.UnixNano, error) {
 
 	b.mediatorTime = newMediatorTime
 
-	// If all waiters are waiting, we can safely call mutually exclusive external functions.
-	if numWaiters == b.numMaxWaiters {
-		// Drain the channel.
-	Loop:
-		for {
-			select {
-			case fn := <-b.externalFnCh:
-				fn()
-			default:
-				break Loop
-			}
-		}
-	}
-
 	for i := 0; i < numWaiters; i++ {
 		b.releaseCh <- b.mediatorTime
 	}
@@ -506,6 +480,5 @@ func newMediatorTimeBarrier(nowFn func() time.Time, iOpts instrument.Options, ma
 		iOpts:         iOpts,
 		numMaxWaiters: maxWaiters,
 		releaseCh:     make(chan xtime.UnixNano),
-		externalFnCh:  make(chan func(), defaultExternalChannelSize),
 	}
 }

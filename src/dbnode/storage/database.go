@@ -504,8 +504,24 @@ func (d *db) Options() Options {
 func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	// NB: Can hold lock since all long running tasks are enqueued to run
 	// async while holding the lock.
-	d.Lock()
-	defer d.Unlock()
+	var locked bool
+	lockSafe := func() {
+		locked = true
+		d.Lock()
+	}
+	unlockSafe := func() {
+		locked = false
+		d.Unlock()
+	}
+	defer func() {
+		if locked {
+			unlockSafe()
+		}
+	}()
+
+	lockSafe()
+
+	// TODO: do a delta check and if no-op then just return
 
 	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
 	if receivedNewShards {
@@ -524,23 +540,7 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 		return
 	}
 
-	if err := d.mediator.EnqueueMutuallyExclusiveFn(func() {
-		d.assignShardSet(shardSet)
-	}); err != nil {
-		// should not happen.
-		instrument.EmitAndLogInvariantViolation(d.opts.InstrumentOptions(),
-			func(l *zap.Logger) {
-				l.Error("failed to enqueue assignShardSet fn",
-					zap.Error(err),
-					zap.Uint32s("shards", shardSet.AllIDs()))
-			})
-	}
-}
-
-func (d *db) assignShardSet(shardSet sharding.ShardSet) {
-	d.RLock()
-	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
-	d.RUnlock()
+	unlockSafe()
 
 	if receivedNewShards {
 		// Wait outside of holding lock to disable file operations.
@@ -549,13 +549,19 @@ func (d *db) assignShardSet(shardSet sharding.ShardSet) {
 
 	// NB: Can hold lock since all long-running tasks are enqueued to run
 	// async while holding the lock.
-	d.Lock()
-	defer d.Unlock()
+	lockSafe()
 
 	d.assignShardsWithLock(shardSet)
 
 	if receivedNewShards {
-		d.enqueueBootstrapAsyncWithLock(d.enableFileOps)
+		var wg sync.WaitGroup
+		wg.Add(1)
+		d.enqueueBootstrapAsyncWithLock(func() {
+			d.enableFileOps()
+			wg.Done()
+		})
+		// This makes AssignShardSet synchronous.
+		wg.Wait()
 	}
 }
 
