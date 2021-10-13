@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -67,6 +68,13 @@ func newDockerResource(
 	hostConfigOpts := func(c *dc.HostConfig) {
 		c.AutoRemove = true
 		c.NetworkMode = networkName
+		// Allow the docker container to call services on the host machine.
+		// Docker for OS X and Windows support the host.docker.internal hostname
+		// natively, but Docker for Linux requires us to register host.docker.internal
+		// as an extra host before the hostname works.
+		if runtime.GOOS == "linux" {
+			c.ExtraHosts = []string{"host.docker.internal:172.17.0.1"}
+		}
 		mounts := make([]dc.HostMount, 0, len(resourceOpts.tmpfsMounts))
 		for _, m := range resourceOpts.tmpfsMounts {
 			mounts = append(mounts, dc.HostMount{
