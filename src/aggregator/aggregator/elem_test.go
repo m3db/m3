@@ -611,7 +611,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
-	require.Equal(t, 2, len(e.values))
+	require.Equal(t, 3, len(e.values))
 	require.Equal(t, 1, len(e.toConsume))
 
 	// Consume all values.
@@ -638,7 +638,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 1, len(e.values))
-	require.Equal(t, 1, len(e.toConsume))
+	require.Equal(t, 3, len(e.toConsume))
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true

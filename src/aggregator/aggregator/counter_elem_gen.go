@@ -228,6 +228,7 @@ func (e *CounterElem) Consume(
 	for i, value := range valuesForConsideration {
 		if !isEarlierThanFn(value.startAtNanos, resolution, targetNanos) {
 			e.values = append(e.values, value)
+			fmt.Println("TOO LATE", i, len(valuesForConsideration)-1, value)
 			continue
 		}
 
@@ -244,6 +245,14 @@ func (e *CounterElem) Consume(
 			expired = value.startAtNanos < expiredNanos
 		}
 
+		if i+1 < len(valuesForConsideration) {
+			if !isEarlierThanFn(valuesForConsideration[i+1].startAtNanos, resolution, targetNanos) {
+				expired = false
+			}
+		} else {
+			expired = false
+		}
+
 		// Modify the by value copy with whether it needs time flush and accumulate.
 		copiedValue := value
 		copiedValue.onConsumeExpired = expired
@@ -251,10 +260,15 @@ func (e *CounterElem) Consume(
 
 		// Keep item. Expired values are GC'd below after consuming.
 		if !expired {
+			fmt.Println("KEEP", i, len(valuesForConsideration)-1, value)
 			e.values = append(e.values, value)
+		} else {
+			fmt.Println("EXPIRED", i, len(valuesForConsideration)-1, value)
 		}
 	}
+
 	canCollect := len(e.values) == 0 && e.tombstoned
+	fmt.Println("COLL", canCollect, e.values, e.tombstoned)
 	e.Unlock()
 
 	var (
@@ -271,9 +285,12 @@ func (e *CounterElem) Consume(
 			prevLockedAgg *lockedCounterAggregation
 			prevTimeNanos int64
 		)
+		fmt.Println("ALL", i, e.toConsume)
 		if i > 0 {
 			prevAgg = &e.toConsume[i-1]
 			prevLockedAgg = prevAgg.lockedAgg
+			fmt.Println("PREV AGG", i, prevAgg)
+			fmt.Println("CURR AGG", i, e.toConsume[i])
 			prevTimeNanos = timestampNanosFn(prevAgg.startAtNanos, resolution)
 		} else if prev != nil {
 			prevAgg = prev
@@ -325,8 +342,8 @@ func (e *CounterElem) Consume(
 			prevLockedAgg.Unlock()
 		}
 
-		if expired {
-			e.toConsume[i].Release()
+		if expired && prevAgg != nil {
+			prevAgg.Release()
 			expiredTimeNanos = append(expiredTimeNanos, timeNanos)
 		}
 	}
@@ -500,6 +517,7 @@ func (e *CounterElem) processValueWithAggregationLock(
 
 				res := unaryOp.Evaluate(curr)
 
+				fmt.Println("PRE0", res.Value)
 				value = res.Value
 
 			case isBinaryOp:
@@ -529,6 +547,7 @@ func (e *CounterElem) processValueWithAggregationLock(
 					lockedAgg.prevConsumed[aggTypeIdx] = value
 				}
 
+				fmt.Println("PRE1", res.Value, curr, prevDp)
 				value = res.Value
 			case isUnaryMultiOp:
 				curr := transformation.Datapoint{
@@ -538,6 +557,7 @@ func (e *CounterElem) processValueWithAggregationLock(
 
 				var res transformation.Datapoint
 				res, extraDp = unaryMultiOp.Evaluate(curr, resolution)
+				fmt.Println("PRE2", res.Value)
 				value = res.Value
 			}
 		}
@@ -550,6 +570,7 @@ func (e *CounterElem) processValueWithAggregationLock(
 		// resend (version > 0)
 		prevValue := lockedAgg.prevValues[aggTypeIdx]
 		lockedAgg.prevValues[aggTypeIdx] = value
+		fmt.Println("V", value, prevValue)
 		if lockedAgg.flushed {
 			// no need to resend a value that hasn't changed.
 			if (math.IsNaN(prevValue) && math.IsNaN(value)) || (prevValue == value) {
