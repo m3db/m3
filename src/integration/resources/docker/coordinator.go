@@ -131,6 +131,14 @@ func (c *coordinator) WaitForShardsReady() error {
 	return c.client.WaitForShardsReady()
 }
 
+func (c *coordinator) WaitForClusterReady() error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	return c.client.WaitForClusterReady()
+}
+
 func (c *coordinator) CreateDatabase(
 	addRequest admin.DatabaseCreateRequest,
 ) (admin.DatabaseCreateResponse, error) {
