@@ -551,6 +551,9 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	// async while holding the lock.
 	lockSafe()
 
+	// TODO: either do another delta check and if no-op then just return
+	// BUT make sure to enable file ops if it was a no-op
+
 	d.assignShardsWithLock(shardSet)
 
 	if receivedNewShards {
