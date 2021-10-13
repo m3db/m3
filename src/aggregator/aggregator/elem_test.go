@@ -21,6 +21,7 @@
 package aggregator
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -178,6 +179,7 @@ func TestCounterResetSetData(t *testing.T) {
 	err = ce.ResetSetData(elemData)
 	require.NoError(t, err)
 	requirePipelinesMatch(t, expectedParsedPipeline, ce.parsedPipeline)
+	require.Empty(t, ce.values)
 }
 
 func TestCounterResetSetDataInvalidAggregationType(t *testing.T) {
@@ -187,6 +189,7 @@ func TestCounterResetSetDataInvalidAggregationType(t *testing.T) {
 	elemData.AggTypes = maggregation.Types{maggregation.Last}
 	err := ce.ResetSetData(elemData)
 	require.Error(t, err)
+	require.Empty(t, ce.values)
 }
 
 func TestCounterResetSetDataNoRollup(t *testing.T) {
@@ -501,6 +504,7 @@ func TestCounterElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
 	require.Equal(t, 2, len(e.values))
+	require.Equal(t, 0, len(e.toConsume))
 
 	// Consume one value.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -510,7 +514,8 @@ func TestCounterElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForCounter(testAlignedStarts[1], testStoragePolicy, testAggregationTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, len(e.values))
+	require.Equal(t, 1, len(e.values))
+	require.Equal(t, 1, len(e.toConsume))
 
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -521,6 +526,7 @@ func TestCounterElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
 	require.Equal(t, 0, len(e.values))
+	require.Equal(t, 1, len(e.toConsume))
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true
@@ -588,6 +594,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 3, len(e.values))
+	require.Equal(t, 0, len(e.toConsume))
 
 	// Consume one value.
 	expectedForwardedRes := []testForwardedMetricWithMetadata{
@@ -604,7 +611,8 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
-	require.Equal(t, 3, len(e.values))
+	require.Equal(t, 2, len(e.values))
+	require.Equal(t, 1, len(e.toConsume))
 
 	// Consume all values.
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
@@ -623,10 +631,14 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
 	require.False(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	for i, r := range *forwardRes {
+		fmt.Println("R", i, r)
+	}
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 1, len(e.values))
+	require.Equal(t, 1, len(e.toConsume))
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true

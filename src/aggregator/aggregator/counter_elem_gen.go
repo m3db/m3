@@ -259,7 +259,7 @@ func (e *CounterElem) Consume(
 
 	var (
 		cascadeDirty     bool
-		expiredTimeNanos = make([]int64, 0, 0)
+		expiredTimeNanos = make([]int64, 0)
 	)
 	// Process the aggregations that are ready for consumption.
 	for i := range e.toConsume {
