@@ -111,6 +111,13 @@ func newEncodedBlock(
 	}, nil
 }
 
+func (b *encodedBlock) SeriesIter() (block.SeriesIter, error) {
+	return NewEncodedSeriesIter(
+		b.meta, b.seriesMetas, b.seriesBlockIterators,
+		b.options.Instrumented(),
+	), nil
+}
+
 func (b *encodedBlock) Close() error {
 	for _, bl := range b.seriesBlockIterators {
 		bl.Close()
