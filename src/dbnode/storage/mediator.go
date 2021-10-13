@@ -41,7 +41,7 @@ type (
 
 const (
 	fileOpCheckInterval        = time.Second
-	defaultExternalChannelSize = 8
+	defaultExternalChannelSize = 1024
 
 	mediatorNotOpen mediatorState = iota
 	mediatorOpen
