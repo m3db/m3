@@ -163,6 +163,11 @@ func SetupCluster(cluster M3Resources, opts *ClusterOptions) error { // nolint: 
 		return err
 	}
 
+	logger.Info("waiting for cluster to be ready")
+	if err := coordinator.WaitForClusterReady(); err != nil {
+		return err
+	}
+
 	logger.Info("all healthy")
 	return nil
 }

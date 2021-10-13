@@ -281,6 +281,11 @@ func (c *Coordinator) WaitForShardsReady() error {
 	return c.client.WaitForShardsReady()
 }
 
+// WaitForClusterReady waits until the cluster is ready to receive reads and writes.
+func (c *Coordinator) WaitForClusterReady() error {
+	return c.client.WaitForClusterReady()
+}
+
 // Close closes the wrapper and releases any held resources, including
 // deleting docker containers.
 func (c *Coordinator) Close() error {
