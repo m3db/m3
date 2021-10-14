@@ -263,7 +263,10 @@ func (e *CounterElem) Consume(
 	canCollect := len(e.values) == 0 && e.tombstoned
 	e.Unlock()
 
-	var cascadeDirty bool
+	var (
+		cascadeDirty     bool
+		expiredTimeNanos = make([]int64, 0)
+	)
 	// Process the aggregations that are ready for consumption.
 	for i := range e.toConsume {
 		expired := e.toConsume[i].onConsumeExpired
@@ -310,16 +313,18 @@ func (e *CounterElem) Consume(
 			// then we can safely cleanup previous and current here.
 			if e.toConsume[i].previous != nil {
 				e.toConsume[i].previous.Release()
+				expiredTimeNanos = append(expiredTimeNanos, timestampNanosFn(e.toConsume[i].previous.startAtNanos, resolution))
 			}
 			if canCollect {
 				e.toConsume[i].Release()
+				expiredTimeNanos = append(expiredTimeNanos, timestampNanosFn(e.toConsume[i].startAtNanos, resolution))
 			}
 		}
 	}
 
 	if e.parsedPipeline.HasRollup {
 		forwardedAggregationKey, _ := e.ForwardedAggregationKey()
-		onForwardedFlushedFn(e.onForwardedAggregationWrittenFn, forwardedAggregationKey)
+		onForwardedFlushedFn(e.onForwardedAggregationWrittenFn, forwardedAggregationKey, expiredTimeNanos)
 	}
 
 	return canCollect
