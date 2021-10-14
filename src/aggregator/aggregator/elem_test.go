@@ -605,7 +605,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
-	consumedVal := e.values[0].lockedAgg.prevConsumed
+	consumedVal := e.values[0].consumed
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0])
 
@@ -1109,7 +1109,7 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
-	consumedVal := e.values[0].lockedAgg.prevConsumed
+	consumedVal := e.values[0].consumed
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0])
 
@@ -1798,7 +1798,7 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
-	consumedVal := e.values[0].lockedAgg.prevConsumed
+	consumedVal := e.values[0].consumed
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0])
 
@@ -1995,7 +1995,7 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
-	consumedVal := e.values[0].lockedAgg.prevConsumed
+	consumedVal := e.values[0].consumed
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0])
 
@@ -2021,13 +2021,13 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
-	consumedVal = e.values[0].lockedAgg.prevConsumed
+	consumedVal = e.values[0].consumed
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0])
-	consumedVal = e.values[1].lockedAgg.prevConsumed
+	consumedVal = e.values[1].consumed
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 456.0, consumedVal[0])
-	consumedVal = e.values[2].lockedAgg.prevConsumed
+	consumedVal = e.values[2].consumed
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 589.0, consumedVal[0])
 
@@ -2054,13 +2054,13 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
-	consumedVal = e.values[0].lockedAgg.prevConsumed
+	consumedVal = e.values[0].consumed
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 124.0, consumedVal[0])
-	consumedVal = e.values[1].lockedAgg.prevConsumed
+	consumedVal = e.values[1].consumed
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 456.0, consumedVal[0])
-	consumedVal = e.values[2].lockedAgg.prevConsumed
+	consumedVal = e.values[2].consumed
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 589.0, consumedVal[0])
 }
@@ -2109,7 +2109,7 @@ func TestGaugeElemReset(t *testing.T) {
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
 	require.Equal(t, 3, len(e.values))
-	consumedVal := e.values[0].lockedAgg.prevConsumed
+	consumedVal := e.values[0].consumed
 	require.Equal(t, 1, len(consumedVal))
 	require.Equal(t, 0.0, consumedVal[0])
 
@@ -2327,15 +2327,15 @@ func testCounterElem(
 	e := MustNewCounterElem(elemData, opts)
 	for i, aligned := range alignedstartAtNanos {
 		counter := &lockedCounterAggregation{
-			aggregation:  newCounterAggregation(raggregation.NewCounter(e.aggOpts)),
-			prevValues:   make([]float64, len(e.aggTypes)),
-			prevConsumed: make([]float64, len(e.aggTypes)),
+			aggregation: newCounterAggregation(raggregation.NewCounter(e.aggOpts)),
+			prevValues:  make([]float64, len(e.aggTypes)),
 		}
 		counter.dirty = true
 		counter.aggregation.Update(time.Unix(0, aligned), counterVals[i], nil)
 		e.values = append(e.values, timedCounter{
 			startAtNanos: aligned,
 			lockedAgg:    counter,
+			consumed:     make([]float64, len(e.aggTypes)),
 		})
 	}
 	return e
@@ -2355,15 +2355,15 @@ func testTimerElem(
 	for i, aligned := range alignedstartAtNanos {
 		newTimer := raggregation.NewTimer(opts.AggregationTypesOptions().Quantiles(), opts.StreamOptions(), e.aggOpts)
 		timer := &lockedTimerAggregation{
-			aggregation:  newTimerAggregation(newTimer),
-			prevValues:   make([]float64, len(e.aggTypes)),
-			prevConsumed: make([]float64, len(e.aggTypes)),
+			aggregation: newTimerAggregation(newTimer),
+			prevValues:  make([]float64, len(e.aggTypes)),
 		}
 		timer.dirty = true
 		timer.aggregation.AddBatch(time.Now(), timerBatches[i], nil)
 		e.values = append(e.values, timedTimer{
 			startAtNanos: aligned,
 			lockedAgg:    timer,
+			consumed:     make([]float64, len(e.aggTypes)),
 		})
 	}
 	return e
@@ -2400,10 +2400,9 @@ func testGaugeElemWithData(
 	require.NoError(t, e.ResetSetData(data))
 	for i, aligned := range alignedstartAtNanos {
 		gauge := &lockedGaugeAggregation{
-			aggregation:  newGaugeAggregation(raggregation.NewGauge(e.aggOpts)),
-			prevValues:   make([]float64, len(e.aggTypes)),
-			prevConsumed: make([]float64, len(e.aggTypes)),
-			sourcesSeen:  make(map[uint32]*bitset.BitSet),
+			aggregation: newGaugeAggregation(raggregation.NewGauge(e.aggOpts)),
+			prevValues:  make([]float64, len(e.aggTypes)),
+			sourcesSeen: make(map[uint32]*bitset.BitSet),
 		}
 		gauge.dirty = true
 		// offset the timestamp by 1 so the gauge value can be updated using the aligned timestamp later.
@@ -2411,6 +2410,7 @@ func testGaugeElemWithData(
 		e.values = append(e.values, timedGauge{
 			startAtNanos: aligned,
 			lockedAgg:    gauge,
+			consumed:     make([]float64, len(e.aggTypes)),
 		})
 	}
 	return e
