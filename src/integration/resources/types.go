@@ -132,13 +132,10 @@ type Node interface {
 type Aggregator interface {
 	// IsHealthy determines whether an instance is healthy.
 	IsHealthy() error
-
 	// Status returns the instance status.
 	Status() (aggregator.RuntimeStatus, error)
-
 	// Resign asks an aggregator instance to give up its current leader role if applicable.
 	Resign() error
-
 	// Close closes the wrapper and releases any held resources, including
 	// deleting docker containers.
 	Close() error
