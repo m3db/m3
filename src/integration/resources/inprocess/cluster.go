@@ -26,6 +26,8 @@ import (
 	"net"
 	"strconv"
 
+	xconfig "github.com/m3db/m3/src/x/config"
+
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
@@ -56,6 +58,28 @@ type ClusterConfigs struct {
 	DBNode dbcfg.Configuration
 	// Coordinator is the configuration for the coordinator.
 	Coordinator coordinatorcfg.Configuration
+}
+
+// NewClusterConfigsFromConfigFile creates a new ClusterConfigs object from the
+// provided filepaths for dbnode and coordinator configuration.
+func NewClusterConfigsFromConfigFile(
+	pathToDBNodeCfg string,
+	pathToCoordCfg string,
+) (ClusterConfigs, error) {
+	var dCfg dbcfg.Configuration
+	if err := xconfig.LoadFile(&dCfg, pathToDBNodeCfg, xconfig.Options{}); err != nil {
+		return ClusterConfigs{}, err
+	}
+
+	var cCfg coordinatorcfg.Configuration
+	if err := xconfig.LoadFile(&cCfg, pathToCoordCfg, xconfig.Options{}); err != nil {
+		return ClusterConfigs{}, err
+	}
+
+	return ClusterConfigs{
+		DBNode:      dCfg,
+		Coordinator: cCfg,
+	}, nil
 }
 
 // NewClusterConfigsFromYAML creates a new ClusterConfigs object from YAML strings

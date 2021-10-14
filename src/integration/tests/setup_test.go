@@ -1,6 +1,4 @@
-// +build dtest
-//
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,35 +18,55 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package integration
+package tests
 
 import (
 	"fmt"
 	"os"
+	"path"
+	"runtime"
 	"testing"
 
+	"github.com/m3db/m3/src/integration/resources/inprocess"
+
 	"github.com/m3db/m3/src/integration/resources"
-	"github.com/m3db/m3/src/integration/resources/docker"
 )
 
 var singleDBNodeDockerResources resources.M3Resources
 
 func TestMain(m *testing.M) {
-	var err error
-	singleDBNodeDockerResources, err = docker.SetupSingleM3DBNode(
-		docker.WithExistingCluster("dbnode01", "coord01"),
-	)
+	_, filename, _, _ := runtime.Caller(0)
+	pathToDBCfg := path.Join(path.Dir(filename), "m3dbnode.yml")
+	pathToCoordCfg := path.Join(path.Dir(filename), "m3coordinator.yml")
 
+	cfgs, err := inprocess.NewClusterConfigsFromConfigFile(pathToDBCfg, pathToCoordCfg)
 	if err != nil {
-		fmt.Println("could not set up db docker containers", err)
-		os.Exit(1)
+		fmt.Println("could not create cluster configs", err)
+		terminate(1)
 	}
 
-	if l := len(singleDBNodeDockerResources.Nodes()); l != 1 {
-		fmt.Println("should only have a single node, have", l)
-		os.Exit(1)
+	// Spin up M3 resources
+	singleDBNodeDockerResources, err = inprocess.NewCluster(cfgs,
+		inprocess.ClusterOptions{
+			DBNode: inprocess.NewDBNodeClusterOptions(),
+		},
+	)
+	if err != nil {
+		fmt.Println("could not set up m3 cluster", err)
+		terminate(1)
 	}
 
 	code := m.Run()
 	os.Exit(code)
+}
+
+func terminate(exitCode int) {
+	if singleDBNodeDockerResources != nil {
+		if err := singleDBNodeDockerResources.Cleanup(); err != nil {
+			fmt.Println("error during M3 resource cleanup. " +
+				"shutdown may not be graceful")
+		}
+	}
+
+	os.Exit(exitCode)
 }
