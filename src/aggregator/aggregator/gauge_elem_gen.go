@@ -223,12 +223,22 @@ func (e *GaugeElem) Consume(
 	// Evaluate and GC expired items.
 	valuesForConsideration := e.values
 	e.values = e.values[:0]
+	var (
+		previous *timedGauge
+		expired  bool
+	)
 	for _, value := range valuesForConsideration {
 		if !isEarlierThanFn(value.startAtNanos, resolution, targetNanos) {
+			// Keep the previous expired value to reference.
+			if previous != nil && expired {
+				e.values = append(e.values, *previous)
+				previous = nil
+			}
+
 			e.values = append(e.values, value)
 			continue
 		}
-		expired := true
+		expired = true
 		if e.resendEnabled {
 			// If resend is enabled, we only expire if the value is now outside the buffer past. It is safe to expire
 			// since any metrics intended for this value are rejected for being too late.
@@ -239,12 +249,17 @@ func (e *GaugeElem) Consume(
 		// Modify the by value copy with whether it needs time flush and accumulate.
 		copiedValue := value
 		copiedValue.onConsumeExpired = expired
+		if previous != nil {
+			copiedValue.previous = previous
+		}
 		e.toConsume = append(e.toConsume, copiedValue)
 
 		if !expired {
 			// Keep item. Expired values are GC'd below after consuming.
 			e.values = append(e.values, value)
 		}
+
+		previous = &copiedValue
 	}
 	canCollect := len(e.values) == 0 && e.tombstoned
 	e.Unlock()
@@ -254,11 +269,19 @@ func (e *GaugeElem) Consume(
 	for i := range e.toConsume {
 		expired := e.toConsume[i].onConsumeExpired
 		timeNanos := timestampNanosFn(e.toConsume[i].startAtNanos, resolution)
-		prevTimeNanos := timestampNanosFn(e.toConsume[i].previous.startAtNanos, resolution)
+
+		var (
+			prevTimeNanos int64
+			prevLockedAgg *lockedGaugeAggregation
+		)
+		if e.toConsume[i].previous != nil {
+			prevTimeNanos = timestampNanosFn(e.toConsume[i].previous.startAtNanos, resolution)
+			prevLockedAgg = e.toConsume[i].previous.lockedAgg
+		}
 
 		e.toConsume[i].lockedAgg.Lock()
-		if e.toConsume[i].previous != nil {
-			e.toConsume[i].previous.lockedAgg.Lock()
+		if prevLockedAgg != nil {
+			prevLockedAgg.Lock()
 		}
 
 		// if a previous timestamps was dirty, that value might impact a future derivative calculation, so
@@ -271,7 +294,7 @@ func (e *GaugeElem) Consume(
 				e.toConsume[i].lockedAgg,
 				// previous time + agg
 				prevTimeNanos,
-				e.toConsume[i].previous.lockedAgg,
+				prevLockedAgg,
 				flushLocalFn,
 				flushForwardedFn,
 				resolution,
@@ -297,16 +320,18 @@ func (e *GaugeElem) Consume(
 			}
 		}
 
-		if e.toConsume[i].previous != nil {
-			e.toConsume[i].previous.lockedAgg.Unlock()
-		}
 		e.toConsume[i].lockedAgg.Unlock()
+		if prevLockedAgg != nil {
+			prevLockedAgg.Unlock()
+		}
 
 		if expired {
 			// Release the previous datapoint so that on a following consume the current
 			// is available as a previous. If the consume cycle is fully empty (i.e. canCollect)
 			// then we can safely cleanup previous and current here.
-			e.toConsume[i].previous.Release()
+			if e.toConsume[i].previous != nil {
+				e.toConsume[i].previous.Release()
+			}
 			if canCollect {
 				e.toConsume[i].Release()
 			}
@@ -501,6 +526,8 @@ func (e *GaugeElem) processValueWithAggregationLock(
 					Value:     value,
 				}
 				res := binaryOp.Evaluate(prev, curr, transformation.FeatureFlags{})
+
+				fmt.Println("CALC", res.Value, curr, prev)
 
 				// NB: we only need to record the value needed for derivative transformations.
 				// We currently only support first-order derivative transformations so we only
