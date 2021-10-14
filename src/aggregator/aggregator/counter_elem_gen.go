@@ -41,21 +41,20 @@ import (
 type lockedCounterAggregation struct {
 	sync.Mutex
 
-	dirty        bool
-	flushed      bool
-	closed       bool
-	sourcesSeen  map[uint32]*bitset.BitSet
-	aggregation  counterAggregation
-	prevValues   []float64 // the previously emitted values (one per aggregation type).
-	prevConsumed []float64
+	dirty       bool
+	flushed     bool
+	closed      bool
+	sourcesSeen map[uint32]*bitset.BitSet
+	aggregation counterAggregation
+	prevValues  []float64 // the previously emitted values (one per aggregation type).
 }
 
 type timedCounter struct {
 	startAtNanos     int64 // start time of an aggregation window
 	lockedAgg        *lockedCounterAggregation
 	onConsumeExpired bool
-
-	previous *timedCounter
+	consumed         []float64
+	previous         *timedCounter
 }
 
 func (ta *timedCounter) Release() {
@@ -268,33 +267,16 @@ func (e *CounterElem) Consume(
 	// Process the aggregations that are ready for consumption.
 	for i := range e.toConsume {
 		expired := e.toConsume[i].onConsumeExpired
-		timeNanos := timestampNanosFn(e.toConsume[i].startAtNanos, resolution)
-
-		var (
-			prevTimeNanos int64
-			prevLockedAgg *lockedCounterAggregation
-		)
-		if e.toConsume[i].previous != nil {
-			prevTimeNanos = timestampNanosFn(e.toConsume[i].previous.startAtNanos, resolution)
-			prevLockedAgg = e.toConsume[i].previous.lockedAgg
-		}
 
 		e.toConsume[i].lockedAgg.Lock()
-		if prevLockedAgg != nil {
-			prevLockedAgg.Lock()
-		}
 
 		// if a previous timestamps was dirty, that value might impact a future derivative calculation, so
 		// cascade the dirty bit to all succeeding values. there is a check later to not resend a value if it doesn't
 		// change, so it's ok to optimistically mark dirty.
 		if cascadeDirty || e.toConsume[i].lockedAgg.dirty {
 			cascadeDirty = e.processValueWithAggregationLock(
-				// current time + agg
-				timeNanos,
-				e.toConsume[i].lockedAgg,
-				// previous time + agg
-				prevTimeNanos,
-				prevLockedAgg,
+				e.toConsume[i],
+				timestampNanosFn,
 				flushLocalFn,
 				flushForwardedFn,
 				resolution,
@@ -321,9 +303,6 @@ func (e *CounterElem) Consume(
 		}
 
 		e.toConsume[i].lockedAgg.Unlock()
-		if prevLockedAgg != nil {
-			prevLockedAgg.Unlock()
-		}
 
 		if expired {
 			// Release the previous datapoint so that on a following consume the current
@@ -437,11 +416,11 @@ func (e *CounterElem) findOrCreate(
 	e.values[idx] = timedCounter{
 		startAtNanos: alignedStart,
 		lockedAgg: &lockedCounterAggregation{
-			sourcesSeen:  sourcesSeen,
-			aggregation:  e.NewAggregation(e.opts, e.aggOpts),
-			prevValues:   make([]float64, len(e.aggTypes)),
-			prevConsumed: make([]float64, len(e.aggTypes)),
+			sourcesSeen: sourcesSeen,
+			aggregation: e.NewAggregation(e.opts, e.aggOpts),
+			prevValues:  make([]float64, len(e.aggTypes)),
 		},
+		consumed: make([]float64, len(e.aggTypes)),
 	}
 	agg := e.values[idx].lockedAgg
 	e.Unlock()
@@ -479,21 +458,28 @@ func (e *CounterElem) indexOfWithLock(alignedStart int64) (int, bool) {
 
 // returns true if a datapoint is emitted.
 func (e *CounterElem) processValueWithAggregationLock(
-	timeNanos int64,
-	lockedAgg *lockedCounterAggregation,
-	prevTimeNanos int64,
-	prevLockedAgg *lockedCounterAggregation,
+	agg timedCounter,
+	timestampNanosFn timestampNanosFn,
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
 	resolution time.Duration) bool {
 	var (
 		transformations  = e.parsedPipeline.Transformations
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
+		timeNanos        = timestampNanosFn(agg.startAtNanos, resolution)
+		prevTimeNanos    int64
+		prevAgg          *timedCounter
 		emitted          bool
 	)
+
+	if agg.previous != nil {
+		prevTimeNanos = timestampNanosFn(agg.previous.startAtNanos, resolution)
+		prevAgg = agg.previous
+	}
+
 	for aggTypeIdx, aggType := range e.aggTypes {
 		var extraDp transformation.Datapoint
-		value := lockedAgg.aggregation.ValueOf(aggType)
+		value := agg.lockedAgg.aggregation.ValueOf(aggType)
 		for _, transformOp := range transformations {
 			unaryOp, isUnaryOp := transformOp.UnaryTransform()
 			binaryOp, isBinaryOp := transformOp.BinaryTransform()
@@ -501,7 +487,7 @@ func (e *CounterElem) processValueWithAggregationLock(
 			switch {
 			case isUnaryOp:
 				curr := transformation.Datapoint{
-					TimeNanos: int64(timeNanos),
+					TimeNanos: timeNanos,
 					Value:     value,
 				}
 
@@ -511,14 +497,14 @@ func (e *CounterElem) processValueWithAggregationLock(
 
 			case isBinaryOp:
 				var prev transformation.Datapoint
-				if prevLockedAgg == nil {
+				if prevAgg == nil {
 					prev = transformation.Datapoint{
 						Value: nan,
 					}
 				} else {
 					prev = transformation.Datapoint{
 						TimeNanos: prevTimeNanos,
-						Value:     prevLockedAgg.prevConsumed[aggTypeIdx],
+						Value:     prevAgg.consumed[aggTypeIdx],
 					}
 				}
 				curr := transformation.Datapoint{
@@ -527,14 +513,12 @@ func (e *CounterElem) processValueWithAggregationLock(
 				}
 				res := binaryOp.Evaluate(prev, curr, transformation.FeatureFlags{})
 
-				fmt.Println("CALC", res.Value, curr, prev)
-
 				// NB: we only need to record the value needed for derivative transformations.
 				// We currently only support first-order derivative transformations so we only
 				// need to keep one value. In the future if we need to support higher-order
 				// derivative transformations, we need to store an array of values here.
 				if !math.IsNaN(curr.Value) {
-					lockedAgg.prevConsumed[aggTypeIdx] = value
+					agg.consumed[aggTypeIdx] = value
 				}
 
 				value = res.Value
@@ -556,9 +540,9 @@ func (e *CounterElem) processValueWithAggregationLock(
 
 		// It's ok to send a 0 prevValue on the first forward because it's not used in AddUnique unless it's a
 		// resend (version > 0)
-		prevValue := lockedAgg.prevValues[aggTypeIdx]
-		lockedAgg.prevValues[aggTypeIdx] = value
-		if lockedAgg.flushed {
+		prevValue := agg.lockedAgg.prevValues[aggTypeIdx]
+		agg.lockedAgg.prevValues[aggTypeIdx] = value
+		if agg.lockedAgg.flushed {
 			// no need to resend a value that hasn't changed.
 			if (math.IsNaN(prevValue) && math.IsNaN(value)) || (prevValue == value) {
 				continue
@@ -578,16 +562,16 @@ func (e *CounterElem) processValueWithAggregationLock(
 			for _, point := range toFlush {
 				switch e.idPrefixSuffixType {
 				case NoPrefixNoSuffix:
-					flushLocalFn(nil, e.id, nil, point.TimeNanos, point.Value, lockedAgg.aggregation.Annotation(), e.sp)
+					flushLocalFn(nil, e.id, nil, point.TimeNanos, point.Value, agg.lockedAgg.aggregation.Annotation(), e.sp)
 				case WithPrefixWithSuffix:
 					flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType),
-						point.TimeNanos, point.Value, lockedAgg.aggregation.Annotation(), e.sp)
+						point.TimeNanos, point.Value, agg.lockedAgg.aggregation.Annotation(), e.sp)
 				}
 			}
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
-				int64(timeNanos), value, prevValue, lockedAgg.aggregation.Annotation())
+				timeNanos, value, prevValue, agg.lockedAgg.aggregation.Annotation())
 		}
 	}
 	return emitted
