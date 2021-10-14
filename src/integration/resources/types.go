@@ -86,6 +86,8 @@ type Admin interface {
 	GetM3msgTopic(M3msgTopicOptions) (admin.TopicGetResponse, error)
 	// AddM3msgTopicConsumer adds a consumer service to an m3msg topic.
 	AddM3msgTopicConsumer(M3msgTopicOptions, admin.TopicAddRequest) (admin.TopicGetResponse, error)
+	// WaitForClusterReady waits until the cluster is ready to receive reads and writes.
+	WaitForClusterReady() error
 	// Close closes the wrapper and releases any held resources, including
 	// deleting docker containers.
 	Close() error
@@ -130,13 +132,10 @@ type Node interface {
 type Aggregator interface {
 	// IsHealthy determines whether an instance is healthy.
 	IsHealthy() error
-
 	// Status returns the instance status.
 	Status() (aggregator.RuntimeStatus, error)
-
 	// Resign asks an aggregator instance to give up its current leader role if applicable.
 	Resign() error
-
 	// Close closes the wrapper and releases any held resources, including
 	// deleting docker containers.
 	Close() error
