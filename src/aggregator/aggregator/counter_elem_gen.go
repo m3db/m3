@@ -553,7 +553,7 @@ func (e *CounterElem) processValueWithAggregationLock(
 		if !e.parsedPipeline.HasRollup {
 			toFlush := make([]transformation.Datapoint, 0, 2)
 			toFlush = append(toFlush, transformation.Datapoint{
-				TimeNanos: int64(timeNanos),
+				TimeNanos: timeNanos,
 				Value:     value,
 			})
 			if extraDp.TimeNanos != 0 {
