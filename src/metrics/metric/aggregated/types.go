@@ -187,11 +187,12 @@ func (m *ForwardedMetric) FromProto(pb metricpb.ForwardedMetric) error {
 // String is a string representation of the forwarded metric.
 func (m ForwardedMetric) String() string {
 	return fmt.Sprintf(
-		"{id:%s,timestamp:%s,values:%v,prev_values:%v}",
+		"{id:%s,timestamp:%s,values:%v,prev_values:%v,version:%v}",
 		m.ID.String(),
 		time.Unix(0, m.TimeNanos).String(),
 		m.Values,
 		m.PrevValues,
+		m.Version,
 	)
 }
 

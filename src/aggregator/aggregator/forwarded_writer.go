@@ -334,13 +334,10 @@ func (agg *forwardedAggregationWithKey) reset() {
 				continue
 			}
 		}
+		delete(agg.versionsByTimeNanos, agg.buckets[i].timeNanos)
 	}
 
 	agg.buckets = newBuckets
-
-	for k := range agg.versionsByTimeNanos {
-		delete(agg.versionsByTimeNanos, k)
-	}
 }
 
 func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64, prevValue float64, annotation []byte) {
@@ -377,6 +374,7 @@ func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64, prev
 		annotation: annotation,
 	}
 	agg.buckets = append(agg.buckets, bucket)
+	//agg.versionsByTimeNanos[timeNanos] = 0
 }
 
 type forwardedAggregationMetrics struct {
