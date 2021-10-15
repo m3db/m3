@@ -208,11 +208,14 @@ func (e *GaugeElem) Consume(
 	targetNanos int64,
 	isEarlierThanFn isEarlierThanFn,
 	timestampNanosFn timestampNanosFn,
+	targetNanosFn targetNanosFn,
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
 	onForwardedFlushedFn onForwardingElemFlushedFn,
 ) bool {
 	resolution := e.sp.Resolution().Window
+	// reverse engineer the allowed lateness.
+	latenessAllowed := time.Duration(targetNanos - targetNanosFn(targetNanos))
 	e.Lock()
 	if e.closed {
 		e.Unlock()
@@ -275,6 +278,7 @@ func (e *GaugeElem) Consume(
 				flushLocalFn,
 				flushForwardedFn,
 				resolution,
+				latenessAllowed,
 			)
 			e.toConsume[i].lockedAgg.flushed = true
 			e.toConsume[i].lockedAgg.dirty = false
@@ -452,7 +456,8 @@ func (e *GaugeElem) processValueWithAggregationLock(
 	lockedAgg *lockedGaugeAggregation,
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
-	resolution time.Duration) bool {
+	resolution time.Duration,
+	latenessAllowed time.Duration) bool {
 	var (
 		transformations  = e.parsedPipeline.Transformations
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
@@ -553,6 +558,11 @@ func (e *GaugeElem) processValueWithAggregationLock(
 			}
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
+			// only record lag for the initial flush (not resends)
+			if !lockedAgg.flushed {
+				// latenessAllowed is not due to processing delay, so it remove it from lag calc.
+				e.metrics.forwardLag.RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed)))
+			}
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
 				int64(timeNanos), value, prevValue, lockedAgg.aggregation.Annotation())
 		}

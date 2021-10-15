@@ -27,9 +27,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/x/clock"
-
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/x/clock"
 )
 
 var (
@@ -131,6 +131,7 @@ type flushManager struct {
 	followerMgr   roleBasedFlushManager
 	nowFn         clock.NowFn
 	sleepFn       sleepFn
+	taskRunTime   tally.Histogram
 }
 
 // NewFlushManager creates a new flush manager.
@@ -163,6 +164,17 @@ func NewFlushManager(opts FlushManagerOptions) FlushManager {
 		randFn:        rand.Int63n,
 		nowFn:         nowFn,
 		sleepFn:       time.Sleep,
+		taskRunTime: scope.Histogram("task-run-time", tally.DurationBuckets{
+			10 * time.Millisecond,
+			500 * time.Millisecond,
+			time.Second,
+			2 * time.Second,
+			5 * time.Second,
+			7 * time.Second,
+			10 * time.Second,
+			15 * time.Second,
+			20 * time.Second,
+		}),
 	}
 	mgr.Lock()
 	mgr.resetWithLock()
@@ -316,6 +328,7 @@ func (mgr *flushManager) flush() {
 	defer mgr.Done()
 
 	for {
+		start := mgr.nowFn()
 		mgr.RLock()
 		state := mgr.state
 		electionState := mgr.electionState
@@ -339,6 +352,7 @@ func (mgr *flushManager) flush() {
 		if flushTask != nil {
 			flushTask.Run()
 		}
+		mgr.taskRunTime.RecordDuration(time.Since(start))
 		if waitFor > 0 {
 			mgr.sleepFn(waitFor)
 		}
