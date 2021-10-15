@@ -76,7 +76,7 @@ type TimerElem struct {
 }
 
 // NewTimerElem returns a new TimerElem.
-func NewTimerElem(data ElemData, opts Options) (*TimerElem, error) {
+func NewTimerElem(data ElemData, opts ElemOptions) (*TimerElem, error) {
 	e := &TimerElem{
 		elemBase: newElemBase(opts),
 		values:   make([]timedTimer, 0, defaultNumAggregations), // in most cases values will have two entries
@@ -88,7 +88,7 @@ func NewTimerElem(data ElemData, opts Options) (*TimerElem, error) {
 }
 
 // MustNewTimerElem returns a new TimerElem and panics if an error occurs.
-func MustNewTimerElem(data ElemData, opts Options) *TimerElem {
+func MustNewTimerElem(data ElemData, opts ElemOptions) *TimerElem {
 	elem, err := NewTimerElem(data, opts)
 	if err != nil {
 		panic(fmt.Errorf("unable to create element: %v", err))

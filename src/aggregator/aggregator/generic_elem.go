@@ -140,7 +140,7 @@ type GenericElem struct {
 }
 
 // NewGenericElem returns a new GenericElem.
-func NewGenericElem(data ElemData, opts Options) (*GenericElem, error) {
+func NewGenericElem(data ElemData, opts ElemOptions) (*GenericElem, error) {
 	e := &GenericElem{
 		elemBase: newElemBase(opts),
 		values:   make([]timedAggregation, 0, defaultNumAggregations), // in most cases values will have two entries
@@ -152,7 +152,7 @@ func NewGenericElem(data ElemData, opts Options) (*GenericElem, error) {
 }
 
 // MustNewGenericElem returns a new GenericElem and panics if an error occurs.
-func MustNewGenericElem(data ElemData, opts Options) *GenericElem {
+func MustNewGenericElem(data ElemData, opts ElemOptions) *GenericElem {
 	elem, err := NewGenericElem(data, opts)
 	if err != nil {
 		panic(fmt.Errorf("unable to create element: %v", err))

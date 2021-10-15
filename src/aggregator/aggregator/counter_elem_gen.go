@@ -76,7 +76,7 @@ type CounterElem struct {
 }
 
 // NewCounterElem returns a new CounterElem.
-func NewCounterElem(data ElemData, opts Options) (*CounterElem, error) {
+func NewCounterElem(data ElemData, opts ElemOptions) (*CounterElem, error) {
 	e := &CounterElem{
 		elemBase: newElemBase(opts),
 		values:   make([]timedCounter, 0, defaultNumAggregations), // in most cases values will have two entries
@@ -88,7 +88,7 @@ func NewCounterElem(data ElemData, opts Options) (*CounterElem, error) {
 }
 
 // MustNewCounterElem returns a new CounterElem and panics if an error occurs.
-func MustNewCounterElem(data ElemData, opts Options) *CounterElem {
+func MustNewCounterElem(data ElemData, opts ElemOptions) *CounterElem {
 	elem, err := NewCounterElem(data, opts)
 	if err != nil {
 		panic(fmt.Errorf("unable to create element: %v", err))

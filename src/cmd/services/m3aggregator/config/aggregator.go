@@ -465,8 +465,10 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	counterElemPoolOpts := c.CounterElemPool.NewObjectPoolOptions(iOpts)
 	counterElemPool := aggregator.NewCounterElemPool(counterElemPoolOpts)
 	opts = opts.SetCounterElemPool(counterElemPool)
+	// use a singleton ElemOptions to avoid allocs per elem.
+	elemOpts := aggregator.NewElemOptions(opts)
 	counterElemPool.Init(func() *aggregator.CounterElem {
-		return aggregator.MustNewCounterElem(aggregator.ElemData{}, opts)
+		return aggregator.MustNewCounterElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	// Set timer elem pool.
@@ -475,7 +477,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	timerElemPool := aggregator.NewTimerElemPool(timerElemPoolOpts)
 	opts = opts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem {
-		return aggregator.MustNewTimerElem(aggregator.ElemData{}, opts)
+		return aggregator.MustNewTimerElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	// Set gauge elem pool.
@@ -484,7 +486,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	gaugeElemPool := aggregator.NewGaugeElemPool(gaugeElemPoolOpts)
 	opts = opts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem {
-		return aggregator.MustNewGaugeElem(aggregator.ElemData{}, opts)
+		return aggregator.MustNewGaugeElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	// Set entry pool.

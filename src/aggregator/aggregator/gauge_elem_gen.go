@@ -76,7 +76,7 @@ type GaugeElem struct {
 }
 
 // NewGaugeElem returns a new GaugeElem.
-func NewGaugeElem(data ElemData, opts Options) (*GaugeElem, error) {
+func NewGaugeElem(data ElemData, opts ElemOptions) (*GaugeElem, error) {
 	e := &GaugeElem{
 		elemBase: newElemBase(opts),
 		values:   make([]timedGauge, 0, defaultNumAggregations), // in most cases values will have two entries
@@ -88,7 +88,7 @@ func NewGaugeElem(data ElemData, opts Options) (*GaugeElem, error) {
 }
 
 // MustNewGaugeElem returns a new GaugeElem and panics if an error occurs.
-func MustNewGaugeElem(data ElemData, opts Options) *GaugeElem {
+func MustNewGaugeElem(data ElemData, opts ElemOptions) *GaugeElem {
 	elem, err := NewGaugeElem(data, opts)
 	if err != nil {
 		panic(fmt.Errorf("unable to create element: %v", err))

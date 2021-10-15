@@ -128,7 +128,7 @@ func TestCounterResetSetData(t *testing.T) {
 	opts := newTestOptions()
 	elemData := testCounterElemData
 	elemData.NumForwardedTimes = 1
-	ce, err := NewCounterElem(elemData, opts)
+	ce, err := NewCounterElem(elemData, NewElemOptions(opts))
 	require.NoError(t, err)
 	require.Equal(t, opts.AggregationTypesOptions().DefaultCounterAggregationTypes(), ce.aggTypes)
 	require.True(t, ce.useDefaultAggregation)
@@ -184,7 +184,7 @@ func TestCounterResetSetData(t *testing.T) {
 
 func TestCounterResetSetDataInvalidAggregationType(t *testing.T) {
 	opts := newTestOptions()
-	ce := MustNewCounterElem(testCounterElemData, opts)
+	ce := MustNewCounterElem(testCounterElemData, NewElemOptions(opts))
 	elemData := testCounterElemData
 	elemData.AggTypes = maggregation.Types{maggregation.Last}
 	err := ce.ResetSetData(elemData)
@@ -193,7 +193,7 @@ func TestCounterResetSetDataInvalidAggregationType(t *testing.T) {
 
 func TestCounterResetSetDataNoRollup(t *testing.T) {
 	opts := newTestOptions()
-	ce := MustNewCounterElem(testCounterElemData, opts)
+	ce := MustNewCounterElem(testCounterElemData, NewElemOptions(opts))
 
 	pipelineNoRollup := applied.NewPipeline([]applied.OpUnion{
 		{
@@ -208,7 +208,7 @@ func TestCounterResetSetDataNoRollup(t *testing.T) {
 }
 
 func TestCounterElemAddUnion(t *testing.T) {
-	e, err := NewCounterElem(testCounterElemData, newTestOptions())
+	e, err := NewCounterElem(testCounterElemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
 
 	// Add a counter metric.
@@ -252,7 +252,7 @@ func TestCounterElemAddUnion(t *testing.T) {
 func TestCounterElemAddUnionWithCustomAggregation(t *testing.T) {
 	elemData := testCounterElemData
 	elemData.AggTypes = testAggregationTypesExpensive
-	e, err := NewCounterElem(elemData, newTestOptions())
+	e, err := NewCounterElem(elemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
 
 	// Add a counter metric.
@@ -290,7 +290,7 @@ func TestCounterElemAddUnionWithCustomAggregation(t *testing.T) {
 }
 
 func TestCounterElemAddUnique(t *testing.T) {
-	e, err := NewCounterElem(testCounterElemData, newTestOptions())
+	e, err := NewCounterElem(testCounterElemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
 
 	// Add a metric.
@@ -366,7 +366,7 @@ func TestCounterElemAddUnique(t *testing.T) {
 func TestCounterElemAddUniqueWithCustomAggregation(t *testing.T) {
 	elemData := testCounterElemData
 	elemData.AggTypes = testAggregationTypesExpensive
-	e, err := NewCounterElem(elemData, newTestOptions())
+	e, err := NewCounterElem(elemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
 
 	// Add a counter metric.
@@ -687,7 +687,7 @@ func TestCounterElemClose(t *testing.T) {
 }
 
 func TestCounterFindOrCreateNoSourceSet(t *testing.T) {
-	e, err := NewCounterElem(testCounterElemData, newTestOptions())
+	e, err := NewCounterElem(testCounterElemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
 
 	inputs := []int64{10, 10, 20, 10, 15}
@@ -712,7 +712,7 @@ func TestCounterFindOrCreateNoSourceSet(t *testing.T) {
 }
 
 func TestCounterFindOrCreateWithSourceSet(t *testing.T) {
-	e, err := NewCounterElem(testCounterElemData, newTestOptions())
+	e, err := NewCounterElem(testCounterElemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
 	e.cachedSourceSets = make([]map[uint32]*bitset.BitSet, 0)
 
@@ -737,7 +737,7 @@ func TestCounterFindOrCreateWithSourceSet(t *testing.T) {
 
 func TestTimerResetSetData(t *testing.T) {
 	opts := newTestOptions()
-	te, err := NewTimerElem(testTimerElemData, opts)
+	te, err := NewTimerElem(testTimerElemData, NewElemOptions(opts))
 	require.NoError(t, err)
 	require.Nil(t, te.quantilesPool)
 	require.NotNil(t, te.quantiles)
@@ -794,7 +794,7 @@ func TestTimerResetSetData(t *testing.T) {
 
 func TestTimerResetSetDataInvalidAggregationType(t *testing.T) {
 	opts := newTestOptions()
-	te := MustNewTimerElem(testTimerElemData, opts)
+	te := MustNewTimerElem(testTimerElemData, NewElemOptions(opts))
 	elemData := testTimerElemData
 	elemData.AggTypes = maggregation.Types{maggregation.Last}
 	err := te.ResetSetData(elemData)
@@ -803,7 +803,7 @@ func TestTimerResetSetDataInvalidAggregationType(t *testing.T) {
 
 func TestTimerResetSetDataNoRollup(t *testing.T) {
 	opts := newTestOptions()
-	te := MustNewTimerElem(testTimerElemData, opts)
+	te := MustNewTimerElem(testTimerElemData, NewElemOptions(opts))
 
 	pipelineNoRollup := applied.NewPipeline([]applied.OpUnion{
 		{
@@ -818,7 +818,7 @@ func TestTimerResetSetDataNoRollup(t *testing.T) {
 }
 
 func TestTimerElemAddUnion(t *testing.T) {
-	e, err := NewTimerElem(testTimerElemData, newTestOptions())
+	e, err := NewTimerElem(testTimerElemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
 
 	// Add a timer metric.
@@ -864,7 +864,7 @@ func TestTimerElemAddUnion(t *testing.T) {
 }
 
 func TestTimerElemAddUnique(t *testing.T) {
-	e, err := NewTimerElem(testTimerElemData, newTestOptions())
+	e, err := NewTimerElem(testTimerElemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
 
 	// Add a metric.
@@ -1206,7 +1206,7 @@ func TestTimerElemClose(t *testing.T) {
 }
 
 func TestTimerFindOrCreateNoSourceSet(t *testing.T) {
-	e, err := NewTimerElem(testTimerElemData, newTestOptions())
+	e, err := NewTimerElem(testTimerElemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
 
 	inputs := []int64{10, 10, 20, 10, 15}
@@ -1230,7 +1230,7 @@ func TestTimerFindOrCreateNoSourceSet(t *testing.T) {
 }
 
 func TestTimerFindOrCreateWithSourceSet(t *testing.T) {
-	e, err := NewTimerElem(testTimerElemData, newTestOptions())
+	e, err := NewTimerElem(testTimerElemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
 	e.cachedSourceSets = make([]map[uint32]*bitset.BitSet, 0)
 
@@ -1255,7 +1255,7 @@ func TestTimerFindOrCreateWithSourceSet(t *testing.T) {
 
 func TestGaugeResetSetData(t *testing.T) {
 	opts := newTestOptions()
-	ge, err := NewGaugeElem(testGaugeElemData, opts)
+	ge, err := NewGaugeElem(testGaugeElemData, NewElemOptions(opts))
 	require.NoError(t, err)
 	require.Equal(t, opts.AggregationTypesOptions().DefaultGaugeAggregationTypes(), ge.aggTypes)
 	require.True(t, ge.useDefaultAggregation)
@@ -1307,7 +1307,7 @@ func TestGaugeResetSetData(t *testing.T) {
 }
 
 func TestGaugeElemAddUnion(t *testing.T) {
-	e, err := NewGaugeElem(testGaugeElemData, newTestOptions())
+	e, err := NewGaugeElem(testGaugeElemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
 
 	// Add a gauge metric.
@@ -1345,7 +1345,7 @@ func TestGaugeElemAddUnion(t *testing.T) {
 func TestGaugeElemAddUnionWithCustomAggregation(t *testing.T) {
 	elemData := testGaugeElemData
 	elemData.AggTypes = testAggregationTypesExpensive
-	e, err := NewGaugeElem(elemData, newTestOptions())
+	e, err := NewGaugeElem(elemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
 
 	// Add a gauge metric.
@@ -1383,7 +1383,7 @@ func TestGaugeElemAddUnionWithCustomAggregation(t *testing.T) {
 }
 
 func TestGaugeElemAddUnique(t *testing.T) {
-	e, err := NewGaugeElem(testGaugeElemData, newTestOptions())
+	e, err := NewGaugeElem(testGaugeElemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
 
 	// Add a metric.
@@ -1477,7 +1477,7 @@ func TestGaugeElemAddUnique(t *testing.T) {
 func TestGaugeElemAddUniqueWithCustomAggregation(t *testing.T) {
 	elemData := testGaugeElemData
 	elemData.AggTypes = testAggregationTypesExpensive
-	e, err := NewGaugeElem(elemData, newTestOptions())
+	e, err := NewGaugeElem(elemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
 
 	// Add a gauge metric.
@@ -2218,7 +2218,7 @@ func TestGaugeElemClose(t *testing.T) {
 }
 
 func TestGaugeFindOrCreateNoSourceSet(t *testing.T) {
-	e, err := NewGaugeElem(testGaugeElemData, newTestOptions())
+	e, err := NewGaugeElem(testGaugeElemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
 
 	inputs := []int64{10, 10, 20, 10, 15}
@@ -2242,7 +2242,7 @@ func TestGaugeFindOrCreateNoSourceSet(t *testing.T) {
 }
 
 func TestGaugeFindOrCreateWithSourceSet(t *testing.T) {
-	e, err := NewGaugeElem(testGaugeElemData, newTestOptions())
+	e, err := NewGaugeElem(testGaugeElemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
 	e.cachedSourceSets = make([]map[uint32]*bitset.BitSet, 0)
 
@@ -2365,7 +2365,7 @@ func testCounterElem(
 	elemData := testCounterElemData
 	elemData.AggTypes = aggTypes
 	elemData.Pipeline = pipeline
-	e := MustNewCounterElem(elemData, opts)
+	e := MustNewCounterElem(elemData, NewElemOptions(opts))
 	for i, aligned := range alignedstartAtNanos {
 		counter := &lockedCounterAggregation{
 			aggregation: newCounterAggregation(raggregation.NewCounter(e.aggOpts)),
@@ -2391,7 +2391,7 @@ func testTimerElem(
 	elemData := testTimerElemData
 	elemData.Pipeline = pipeline
 	elemData.AggTypes = aggTypes
-	e := MustNewTimerElem(elemData, opts)
+	e := MustNewTimerElem(elemData, NewElemOptions(opts))
 	for i, aligned := range alignedstartAtNanos {
 		newTimer := raggregation.NewTimer(opts.AggregationTypesOptions().Quantiles(), opts.StreamOptions(), e.aggOpts)
 		timer := &lockedTimerAggregation{
@@ -2435,7 +2435,7 @@ func testGaugeElemWithData(
 	data ElemData,
 	opts Options,
 ) *GaugeElem {
-	e := MustNewGaugeElem(data, opts)
+	e := MustNewGaugeElem(data, NewElemOptions(opts))
 	require.NoError(t, e.ResetSetData(data))
 	for i, aligned := range alignedstartAtNanos {
 		gauge := &lockedGaugeAggregation{

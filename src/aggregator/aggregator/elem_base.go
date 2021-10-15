@@ -169,7 +169,7 @@ type elemBase struct {
 	idPrefixSuffixType              IDPrefixSuffixType
 	writeForwardedMetricFn          writeForwardedMetricFn
 	onForwardedAggregationWrittenFn onForwardedAggregationDoneFn
-	metrics                         elemMetrics
+	metrics                         *elemMetrics
 	resendEnabled                   bool
 	bufferForPastTimedMetricFn      BufferForPastTimedMetricFn
 
@@ -198,16 +198,31 @@ type elemMetrics struct {
 	updatedValues tally.Counter
 }
 
-func newElemBase(opts Options) elemBase {
-	scope := opts.InstrumentOptions().MetricsScope()
-	return elemBase{
-		opts:         opts,
-		aggTypesOpts: opts.AggregationTypesOptions(),
-		aggOpts:      raggregation.NewOptions(opts.InstrumentOptions()),
-		metrics: elemMetrics{
-			updatedValues: scope.Counter("updated-values"),
+// ElemOptions are the parameters for constructing a new elemBase.
+type ElemOptions struct {
+	aggregatorOpts  Options
+	elemMetrics     *elemMetrics
+	aggregationOpts raggregation.Options
+}
+
+// NewElemOptions constructs a new ElemOptions
+func NewElemOptions(aggregatorOpts Options) ElemOptions {
+	return ElemOptions{
+		aggregatorOpts:  aggregatorOpts,
+		aggregationOpts: raggregation.NewOptions(aggregatorOpts.InstrumentOptions()),
+		elemMetrics: &elemMetrics{
+			updatedValues: aggregatorOpts.InstrumentOptions().MetricsScope().Counter("updated-values"),
 		},
-		bufferForPastTimedMetricFn: opts.BufferForPastTimedMetricFn(),
+	}
+}
+
+func newElemBase(opts ElemOptions) elemBase {
+	return elemBase{
+		opts:                       opts.aggregatorOpts,
+		aggTypesOpts:               opts.aggregatorOpts.AggregationTypesOptions(),
+		aggOpts:                    opts.aggregationOpts,
+		metrics:                    opts.elemMetrics,
+		bufferForPastTimedMetricFn: opts.aggregatorOpts.BufferForPastTimedMetricFn(),
 	}
 }
 
