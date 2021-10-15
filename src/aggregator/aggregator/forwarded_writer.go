@@ -337,6 +337,9 @@ func (agg *forwardedAggregationWithKey) reset() {
 		}
 	}
 	agg.buckets = agg.buckets[:0]
+	for k := range agg.versionsByTimeNanos {
+		delete(agg.versionsByTimeNanos, k)
+	}
 }
 
 func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64, prevValue float64, annotation []byte) {
@@ -533,9 +536,7 @@ func (agg *forwardedAggregation) onDone(key aggregationKey, expiredTimeNanos []i
 				Version:    agg.byKey[idx].versionsByTimeNanos[b.timeNanos],
 			}
 
-			fmt.Println("A", agg.byKey[idx].versionsByTimeNanos[b.timeNanos])
 			agg.byKey[idx].versionsByTimeNanos[b.timeNanos]++
-			fmt.Println("B", agg.byKey[idx].versionsByTimeNanos[b.timeNanos])
 
 			if err := agg.client.WriteForwarded(metric, meta); err != nil {
 				multiErr = multiErr.Add(err)
