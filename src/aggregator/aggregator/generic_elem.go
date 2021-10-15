@@ -136,6 +136,7 @@ type GenericElem struct {
 
 	// internal consume state that does not need to be synchronized.
 	toConsume []timedAggregation // small buffer to avoid memory allocations during consumption
+	toExpire  []int64
 }
 
 // NewGenericElem returns a new GenericElem.
@@ -327,10 +328,8 @@ func (e *GenericElem) Consume(
 	canCollect := len(e.values) == 0 && e.tombstoned
 	e.Unlock()
 
-	var (
-		cascadeDirty     bool
-		expiredTimeNanos = make([]int64, 0)
-	)
+	var cascadeDirty bool
+	e.toExpire = e.toExpire[:0]
 	// Process the aggregations that are ready for consumption.
 	for i := range e.toConsume {
 		expired := e.toConsume[i].onConsumeExpired
@@ -377,18 +376,18 @@ func (e *GenericElem) Consume(
 			// then we can safely cleanup previous and current here.
 			if e.toConsume[i].previous != nil {
 				e.toConsume[i].previous.Release()
-				expiredTimeNanos = append(expiredTimeNanos, timestampNanosFn(e.toConsume[i].previous.startAtNanos, resolution))
+				e.toExpire = append(e.toExpire, timestampNanosFn(e.toConsume[i].previous.startAtNanos, resolution))
 			}
 			if canCollect {
 				e.toConsume[i].Release()
-				expiredTimeNanos = append(expiredTimeNanos, timestampNanosFn(e.toConsume[i].startAtNanos, resolution))
+				e.toExpire = append(e.toExpire, timestampNanosFn(e.toConsume[i].startAtNanos, resolution))
 			}
 		}
 	}
 
 	if e.parsedPipeline.HasRollup {
 		forwardedAggregationKey, _ := e.ForwardedAggregationKey()
-		onForwardedFlushedFn(e.onForwardedAggregationWrittenFn, forwardedAggregationKey, expiredTimeNanos)
+		onForwardedFlushedFn(e.onForwardedAggregationWrittenFn, forwardedAggregationKey, e.toExpire)
 	}
 
 	return canCollect
