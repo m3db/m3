@@ -48,13 +48,12 @@ var testForwardedWriterAggregationKey = aggregationKey{
 func TestCachedValuesGrowth(t *testing.T) {
 	timeNanos := time.Now().UnixNano()
 	key := forwardedAggregationWithKey{
-		key:                      aggregationKey{},
-		totalRefCnt:              1,
-		currRefCnt:               0,
-		buckets:                  make(map[int64]forwardedAggregationBucket),
-		bufferForPastTimedMetric: int64(time.Minute * 5),
-		nowFn:                    time.Now,
-		resendEnabled:            true,
+		key:                 aggregationKey{},
+		totalRefCnt:         1,
+		currRefCnt:          0,
+		buckets:             make([]forwardedAggregationBucket, 0, 0),
+		versionsByTimeNanos: make(map[int64]uint32, 0),
+		resendEnabled:       true,
 	}
 	for i := 0; i < 100; i++ {
 		for n := 0; n < 3; n++ {
@@ -167,26 +166,26 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 	// Validate that writeFn can be used to write data to the aggregation.
 	writeFn(aggKey, 1234, 5.67, 5.0, nil)
 	require.Equal(t, 1, len(agg.byKey[0].buckets))
-	require.Equal(t, int64(1234), agg.byKey[0].buckets[1234].timeNanos)
-	require.Equal(t, []float64{5.67}, agg.byKey[0].buckets[1234].values)
-	require.Equal(t, []float64{5.0}, agg.byKey[0].buckets[1234].prevValues)
-	require.Equal(t, uint32(0), agg.byKey[0].buckets[1234].version)
+	require.Equal(t, int64(1234), agg.byKey[0].buckets[0].timeNanos)
+	require.Equal(t, []float64{5.67}, agg.byKey[0].buckets[0].values)
+	require.Equal(t, []float64{5.0}, agg.byKey[0].buckets[0].prevValues)
+	require.Equal(t, uint32(0), agg.byKey[0].versionsByTimeNanos[1234])
 	require.Nil(t, agg.byKey[0].buckets[0].annotation)
 
 	writeFn(aggKey, 1234, 1.78, 1.0, testAnnot)
 	require.Equal(t, 1, len(agg.byKey[0].buckets))
-	require.Equal(t, int64(1234), agg.byKey[0].buckets[1234].timeNanos)
-	require.Equal(t, []float64{5.67, 1.78}, agg.byKey[0].buckets[1234].values)
-	require.Equal(t, []float64{5.0, 1.0}, agg.byKey[0].buckets[1234].prevValues)
-	require.Equal(t, uint32(0), agg.byKey[0].buckets[1234].version)
-	require.Equal(t, testAnnot, agg.byKey[0].buckets[1234].annotation)
+	require.Equal(t, int64(1234), agg.byKey[0].buckets[0].timeNanos)
+	require.Equal(t, []float64{5.67, 1.78}, agg.byKey[0].buckets[0].values)
+	require.Equal(t, []float64{5.0, 1.0}, agg.byKey[0].buckets[0].prevValues)
+	require.Equal(t, testAnnot, agg.byKey[0].buckets[0].annotation)
+	require.Equal(t, uint32(0), agg.byKey[0].versionsByTimeNanos[1234])
 
 	writeFn(aggKey, 1240, -2.95, 0.0, nil)
 	require.Equal(t, 2, len(agg.byKey[0].buckets))
-	require.Equal(t, int64(1240), agg.byKey[0].buckets[1240].timeNanos)
-	require.Equal(t, []float64{-2.95}, agg.byKey[0].buckets[1240].values)
-	require.Equal(t, []float64{0.0}, agg.byKey[0].buckets[1240].prevValues)
-	require.Equal(t, uint32(0), agg.byKey[0].buckets[1240].version)
+	require.Equal(t, int64(1240), agg.byKey[0].buckets[1].timeNanos)
+	require.Equal(t, []float64{-2.95}, agg.byKey[0].buckets[1].values)
+	require.Equal(t, []float64{0.0}, agg.byKey[0].buckets[1].prevValues)
+	require.Equal(t, uint32(0), agg.byKey[0].versionsByTimeNanos[1240])
 
 	// Validate that onDoneFn can be used to flush data out.
 	expectedMetric1 := aggregated.ForwardedMetric{
@@ -213,7 +212,7 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 	}
 	c.EXPECT().WriteForwarded(expectedMetric1, expectedMeta).Return(nil)
 	c.EXPECT().WriteForwarded(expectedMetric2, expectedMeta).Return(nil)
-	require.NoError(t, onDoneFn(aggKey))
+	require.NoError(t, onDoneFn(aggKey, nil))
 	require.Equal(t, 1, agg.byKey[0].currRefCnt)
 }
 
@@ -442,8 +441,8 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	c.EXPECT().WriteForwarded(expectedMetric2, expectedMeta).Return(nil).Times(2)
 	c.EXPECT().WriteForwarded(expectedMetric3, expectedMeta).Return(nil).Times(2)
 	c.EXPECT().WriteForwarded(expectedMetric4, expectedMeta).Return(nil).Times(2)
-	require.NoError(t, onDoneFn(aggKey))
-	require.NoError(t, onDoneFn2(aggKey))
+	require.NoError(t, onDoneFn(aggKey, nil))
+	require.NoError(t, onDoneFn2(aggKey, nil))
 
 	fw := w.(*forwardedWriter)
 	require.Equal(t, 2, len(fw.aggregations))
@@ -483,8 +482,8 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	writeFn(aggKey, 1240, 98.2, 98.0, nil)
 	writeFn2(aggKey, 1238, 3.4, 0.0, nil)
 	writeFn2(aggKey, 1239, 3.5, 0.0, nil)
-	require.NoError(t, onDoneFn(aggKey))
-	require.NoError(t, onDoneFn2(aggKey))
+	require.NoError(t, onDoneFn(aggKey, nil))
+	require.NoError(t, onDoneFn2(aggKey, nil))
 
 	require.Equal(t, 2, len(fw.aggregations))
 	agg, exists = fw.aggregations[newIDKey(mt, mid)]
@@ -590,8 +589,8 @@ func TestForwardedWriterResend(t *testing.T) {
 	c.EXPECT().WriteForwarded(expectedMetric2, expectedMeta).Return(nil)
 	c.EXPECT().WriteForwarded(expectedMetric3, expectedMeta).Return(nil)
 	c.EXPECT().WriteForwarded(expectedMetric4, expectedMeta).Return(nil)
-	require.NoError(t, onDoneFn(aggKey))
-	require.NoError(t, onDoneFn2(aggKey))
+	require.NoError(t, onDoneFn(aggKey, nil))
+	require.NoError(t, onDoneFn2(aggKey, nil))
 
 	fw := w.(*forwardedWriter)
 	require.Equal(t, 2, len(fw.aggregations))
@@ -642,8 +641,8 @@ func TestForwardedWriterResend(t *testing.T) {
 	c.EXPECT().WriteForwarded(expectedMetric3, expectedMeta).Return(nil)
 	c.EXPECT().WriteForwarded(expectedMetric4, expectedMeta).Return(nil)
 
-	require.NoError(t, onDoneFn(aggKey))
-	require.NoError(t, onDoneFn2(aggKey))
+	require.NoError(t, onDoneFn(aggKey, nil))
+	require.NoError(t, onDoneFn2(aggKey, nil))
 
 	require.Equal(t, 2, len(fw.aggregations))
 	agg, exists = fw.aggregations[newIDKey(mt, mid)]

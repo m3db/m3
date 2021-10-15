@@ -103,4 +103,5 @@ type flushForwardedMetricFn func(
 type onForwardingElemFlushedFn func(
 	onDoneFn onForwardedAggregationDoneFn,
 	aggregationKey aggregationKey,
+	expiredTimeNanos []int64,
 )
