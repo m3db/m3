@@ -310,12 +310,10 @@ type forwardedAggregationWithKey struct {
 }
 
 func (agg *forwardedAggregationWithKey) reset() {
+	bucketLen := len(agg.buckets)
+	newBuckets := make(forwardedAggregationBuckets, 0)
 	agg.currRefCnt = 0
-	for i := 0; i < len(agg.buckets); i++ {
-		agg.buckets[i].values = agg.buckets[i].values[:0]
-		agg.cachedValueArrays = append(agg.cachedValueArrays, agg.buckets[i].values)
-		agg.buckets[i].values = nil
-
+	for i := 0; i < bucketLen; i++ {
 		agg.buckets[i].values = agg.buckets[i].values[:0]
 		agg.buckets[i].prevValues = agg.buckets[i].prevValues[:0]
 		// buckets are kept around to support resending. only add back the arrays if they weren't already niled out in
@@ -332,11 +330,14 @@ func (agg *forwardedAggregationWithKey) reset() {
 		// keep buckets around for the buffer period.
 		if agg.resendEnabled {
 			if agg.nowFn().UnixNano()-agg.buckets[i].timeNanos <= agg.bufferForPastTimedMetric {
+				newBuckets = append(newBuckets, agg.buckets[i])
 				continue
 			}
 		}
 	}
-	agg.buckets = agg.buckets[:0]
+
+	agg.buckets = newBuckets
+
 	for k := range agg.versionsByTimeNanos {
 		delete(agg.versionsByTimeNanos, k)
 	}
@@ -463,7 +464,7 @@ func (agg *forwardedAggregation) add(metric Registerable) error {
 		totalRefCnt:              1,
 		currRefCnt:               0,
 		buckets:                  make([]forwardedAggregationBucket, 0),
-		versionsByTimeNanos:      make(map[int64]uint32, 0),
+		versionsByTimeNanos:      make(map[int64]uint32),
 		bufferForPastTimedMetric: int64(agg.bufferForPastTimedMetricFn(key.storagePolicy.Resolution().Window)),
 		nowFn:                    agg.nowFn,
 		resendEnabled:            metric.ResendEnabled(),
