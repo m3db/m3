@@ -561,7 +561,8 @@ func (e *TimerElem) processValueWithAggregationLock(
 			// only record lag for the initial flush (not resends)
 			if !lockedAgg.flushed {
 				// latenessAllowed is not due to processing delay, so it remove it from lag calc.
-				e.metrics.forwardLag.RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed)))
+				lateness := time.Since(timeNanos.ToTime().Add(-latenessAllowed))
+				e.metrics.forwardLag.recordDurationForResolution(resolution, lateness)
 			}
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
 				int64(timeNanos), value, prevValue, lockedAgg.aggregation.Annotation())

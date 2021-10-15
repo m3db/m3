@@ -34,9 +34,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var (
-	errWriterClosed = errors.New("writer is closed")
-)
+var errWriterClosed = errors.New("writer is closed")
 
 type randFn func() float64
 
@@ -117,6 +115,7 @@ func (w *protobufWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) err
 	}
 
 	w.metrics.encodeSuccess.Inc(1)
+	//////
 	if err := w.p.Produce(newMessage(shard, mp.StoragePolicy, w.encoder.Buffer())); err != nil {
 		w.metrics.routeErrors.Inc(1)
 		return err
