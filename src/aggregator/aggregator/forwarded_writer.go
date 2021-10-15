@@ -374,7 +374,6 @@ func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64, prev
 		annotation: annotation,
 	}
 	agg.buckets = append(agg.buckets, bucket)
-	//agg.versionsByTimeNanos[timeNanos] = 0
 }
 
 type forwardedAggregationMetrics struct {
