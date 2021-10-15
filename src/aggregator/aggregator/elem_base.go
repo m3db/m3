@@ -211,6 +211,7 @@ func (e *elemMetrics) forwardLagMetric(resolution time.Duration) tally.Histogram
 		e.RUnlock()
 		return m
 	}
+	e.RUnlock()
 	e.Lock()
 	m, ok = e.forwardLags[resolution]
 	if ok {
