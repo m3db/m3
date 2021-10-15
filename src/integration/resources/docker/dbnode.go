@@ -171,6 +171,23 @@ func (c *dbNode) WriteTaggedPoint(req *rpc.WriteTaggedRequest) error {
 	return nil
 }
 
+// WriteTaggedBatchRaw writes a batch of writes to the node directly.
+func (c *dbNode) WriteTaggedBatchRaw(req *rpc.WriteTaggedBatchRawRequest) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	logger := c.resource.logger.With(common.ZapMethod("write-tagged-batch-raw"))
+	err := c.tchanClient.TChannelClientWriteTaggedBatchRaw(timeout, req)
+	if err != nil {
+		logger.Error("writeTaggedBatchRaw call failed", zap.Error(err))
+		return err
+	}
+
+	logger.Info("wrote")
+	return nil
+}
+
 func (c *dbNode) AggregateTiles(req *rpc.AggregateTilesRequest) (int64, error) {
 	if c.resource.closed {
 		return 0, errClosed

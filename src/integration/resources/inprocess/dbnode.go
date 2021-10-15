@@ -260,6 +260,11 @@ func (d *DBNode) WriteTaggedPoint(req *rpc.WriteTaggedRequest) error {
 	return d.tchanClient.TChannelClientWriteTagged(defaultRPCTimeout, req)
 }
 
+// WriteTaggedBatchRaw writes a batch of writes to the node directly.
+func (d *DBNode) WriteTaggedBatchRaw(req *rpc.WriteTaggedBatchRawRequest) error {
+	return d.tchanClient.TChannelClientWriteTaggedBatchRaw(defaultRPCTimeout, req)
+}
+
 // AggregateTiles starts tiles aggregation, waits until it will complete
 // and returns the amount of aggregated tiles.
 func (d *DBNode) AggregateTiles(req *rpc.AggregateTilesRequest) (int64, error) {

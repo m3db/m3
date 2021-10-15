@@ -108,6 +108,8 @@ type Node interface {
 	WritePoint(req *rpc.WriteRequest) error
 	// WriteTaggedPoint writes a datapoint with tags to the node directly.
 	WriteTaggedPoint(req *rpc.WriteTaggedRequest) error
+	// WriteTaggedBatchRaw writes a batch of writes to the node directly.
+	WriteTaggedBatchRaw(req *rpc.WriteTaggedBatchRawRequest) error
 	// AggregateTiles starts tiles aggregation, waits until it will complete
 	// and returns the amount of aggregated tiles.
 	AggregateTiles(req *rpc.AggregateTilesRequest) (int64, error)
