@@ -238,6 +238,7 @@ func (e *elemMetrics) forwardLagMetric(resolution time.Duration) tally.Histogram
 			120 * time.Second,
 		})
 	e.forwardLags[resolution] = m
+	e.Unlock()
 	return m
 }
 
