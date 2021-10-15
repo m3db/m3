@@ -315,6 +315,26 @@ func (agg *forwardedAggregationWithKey) reset() {
 		agg.buckets[i].values = agg.buckets[i].values[:0]
 		agg.cachedValueArrays = append(agg.cachedValueArrays, agg.buckets[i].values)
 		agg.buckets[i].values = nil
+
+		agg.buckets[i].values = agg.buckets[i].values[:0]
+		agg.buckets[i].prevValues = agg.buckets[i].prevValues[:0]
+		// buckets are kept around to support resending. only add back the arrays if they weren't already niled out in
+		// a previous iteration.
+		if agg.buckets[i].values != nil {
+			agg.cachedValueArrays = append(agg.cachedValueArrays, agg.buckets[i].values)
+		}
+		if agg.buckets[i].prevValues != nil {
+			agg.cachedValueArrays = append(agg.cachedValueArrays, agg.buckets[i].prevValues)
+		}
+		agg.buckets[i].values = nil
+		agg.buckets[i].prevValues = nil
+
+		// keep buckets around for the buffer period.
+		if agg.resendEnabled {
+			if agg.nowFn().UnixNano()-agg.buckets[i].timeNanos <= agg.bufferForPastTimedMetric {
+				continue
+			}
+		}
 	}
 	agg.buckets = agg.buckets[:0]
 }
@@ -513,7 +533,9 @@ func (agg *forwardedAggregation) onDone(key aggregationKey, expiredTimeNanos []i
 				Version:    agg.byKey[idx].versionsByTimeNanos[b.timeNanos],
 			}
 
+			fmt.Println("A", agg.byKey[idx].versionsByTimeNanos[b.timeNanos])
 			agg.byKey[idx].versionsByTimeNanos[b.timeNanos]++
+			fmt.Println("B", agg.byKey[idx].versionsByTimeNanos[b.timeNanos])
 
 			if err := agg.client.WriteForwarded(metric, meta); err != nil {
 				multiErr = multiErr.Add(err)
