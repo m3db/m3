@@ -594,7 +594,9 @@ func (h *PromWriteHandler) maybeLogLabelsWithTooLongLiterals(logger *zap.Logger,
 
 	logger.Warn("label exceeds literal length limits",
 		zap.String("namePrefix", string(safePrefix(label.Name, literalPrefixLength))),
+		zap.Int("nameLength", len(label.Name)),
 		zap.String("valuePrefix", string(safePrefix(label.Value, literalPrefixLength))),
+		zap.Int("valueLength", len(label.Value)),
 	)
 }
 
