@@ -238,20 +238,21 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	// Set up elem pools.
 	counterElemPool := aggregator.NewCounterElemPool(nil)
 	aggregatorOpts = aggregatorOpts.SetCounterElemPool(counterElemPool)
+	elemOpts := aggregator.NewElemOptions(aggregatorOpts)
 	counterElemPool.Init(func() *aggregator.CounterElem {
-		return aggregator.MustNewCounterElem(aggregator.ElemData{}, aggregatorOpts)
+		return aggregator.MustNewCounterElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	timerElemPool := aggregator.NewTimerElemPool(nil)
 	aggregatorOpts = aggregatorOpts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem {
-		return aggregator.MustNewTimerElem(aggregator.ElemData{}, aggregatorOpts)
+		return aggregator.MustNewTimerElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	gaugeElemPool := aggregator.NewGaugeElemPool(nil)
 	aggregatorOpts = aggregatorOpts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem {
-		return aggregator.MustNewGaugeElem(aggregator.ElemData{}, aggregatorOpts)
+		return aggregator.MustNewGaugeElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	return &testServerSetup{
