@@ -27,7 +27,6 @@ import (
 	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/uber-go/tally"
@@ -61,11 +60,28 @@ func newLeaderFlushManagerMetrics(scope tally.Scope) leaderFlushManagerMetrics {
 	forwardedScope := scope.Tagged(map[string]string{"flusher-type": "forwarded"})
 	timedScope := scope.Tagged(map[string]string{"flusher-type": "timed"})
 	return leaderFlushManagerMetrics{
-		queueSize:    scope.Gauge("queue-size"),
-		flushTimeLag: scope.Histogram("flush-time-lag", instrument.DefaultHistogramTimerHistogramBuckets()),
-		standard:     newLeaderFlusherMetrics(standardScope),
-		forwarded:    newLeaderFlusherMetrics(forwardedScope),
-		timed:        newLeaderFlusherMetrics(timedScope),
+		queueSize: scope.Gauge("queue-size"),
+		flushTimeLag: scope.Histogram("flush-time-lag", tally.DurationBuckets{
+			10 * time.Millisecond,
+			500 * time.Millisecond,
+			time.Second,
+			2 * time.Second,
+			5 * time.Second,
+			10 * time.Second,
+			15 * time.Second,
+			20 * time.Second,
+			25 * time.Second,
+			30 * time.Second,
+			35 * time.Second,
+			40 * time.Second,
+			45 * time.Second,
+			60 * time.Second,
+			90 * time.Second,
+			120 * time.Second,
+		}),
+		standard:  newLeaderFlusherMetrics(standardScope),
+		forwarded: newLeaderFlusherMetrics(forwardedScope),
+		timed:     newLeaderFlusherMetrics(timedScope),
 	}
 }
 

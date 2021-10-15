@@ -42,7 +42,6 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
-	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -216,7 +215,24 @@ func NewElemOptions(aggregatorOpts Options) ElemOptions {
 		aggregationOpts: raggregation.NewOptions(aggregatorOpts.InstrumentOptions()),
 		elemMetrics: &elemMetrics{
 			updatedValues: scope.Counter("updated-values"),
-			forwardLag:    scope.Histogram("forward-lag", instrument.DefaultHistogramTimerHistogramBuckets()),
+			forwardLag: scope.Histogram("forward-lag", tally.DurationBuckets{
+				10 * time.Millisecond,
+				500 * time.Millisecond,
+				time.Second,
+				2 * time.Second,
+				5 * time.Second,
+				10 * time.Second,
+				15 * time.Second,
+				20 * time.Second,
+				25 * time.Second,
+				30 * time.Second,
+				35 * time.Second,
+				40 * time.Second,
+				45 * time.Second,
+				60 * time.Second,
+				90 * time.Second,
+				120 * time.Second,
+			}),
 		},
 	}
 }

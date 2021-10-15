@@ -27,10 +27,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/x/clock"
 )
 
 var (
@@ -165,7 +164,17 @@ func NewFlushManager(opts FlushManagerOptions) FlushManager {
 		randFn:        rand.Int63n,
 		nowFn:         nowFn,
 		sleepFn:       time.Sleep,
-		taskRunTime:   scope.Histogram("task-run-time", instrument.DefaultHistogramTimerHistogramBuckets()),
+		taskRunTime: scope.Histogram("task-run-time", tally.DurationBuckets{
+			10 * time.Millisecond,
+			500 * time.Millisecond,
+			time.Second,
+			2 * time.Second,
+			5 * time.Second,
+			7 * time.Second,
+			10 * time.Second,
+			15 * time.Second,
+			20 * time.Second,
+		}),
 	}
 	mgr.Lock()
 	mgr.resetWithLock()
