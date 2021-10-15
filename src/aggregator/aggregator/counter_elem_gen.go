@@ -72,6 +72,7 @@ type CounterElem struct {
 
 	// internal consume state that does not need to be synchronized.
 	toConsume []timedCounter // small buffer to avoid memory allocations during consumption
+	toExpire  []int64
 }
 
 // NewCounterElem returns a new CounterElem.
@@ -264,6 +265,7 @@ func (e *CounterElem) Consume(
 	e.Unlock()
 
 	var cascadeDirty bool
+	e.toExpire = e.toExpire[:0]
 	// Process the aggregations that are ready for consumption.
 	for i := range e.toConsume {
 		expired := e.toConsume[i].onConsumeExpired
@@ -310,16 +312,18 @@ func (e *CounterElem) Consume(
 			// then we can safely cleanup previous and current here.
 			if e.toConsume[i].previous != nil {
 				e.toConsume[i].previous.Release()
+				e.toExpire = append(e.toExpire, timestampNanosFn(e.toConsume[i].previous.startAtNanos, resolution))
 			}
 			if canCollect {
 				e.toConsume[i].Release()
+				e.toExpire = append(e.toExpire, timestampNanosFn(e.toConsume[i].startAtNanos, resolution))
 			}
 		}
 	}
 
 	if e.parsedPipeline.HasRollup {
 		forwardedAggregationKey, _ := e.ForwardedAggregationKey()
-		onForwardedFlushedFn(e.onForwardedAggregationWrittenFn, forwardedAggregationKey)
+		onForwardedFlushedFn(e.onForwardedAggregationWrittenFn, forwardedAggregationKey, e.toExpire)
 	}
 
 	return canCollect

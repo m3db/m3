@@ -2307,6 +2307,7 @@ func testOnForwardedFlushedFn() (
 	return func(
 		onDoneFn onForwardedAggregationDoneFn,
 		aggregationKey aggregationKey,
+		expiredTimeNanos []int64,
 	) {
 		result = append(result, testOnForwardedFlushedData{
 			aggregationKey: aggregationKey,

@@ -55,7 +55,7 @@ type writeForwardedMetricFn func(
 	annotation []byte,
 )
 
-type onForwardedAggregationDoneFn func(key aggregationKey) error
+type onForwardedAggregationDoneFn func(key aggregationKey, expiredTimeNanos []int64) error
 
 // forwardededMetricWriter writes forwarded metrics.
 type forwardedMetricWriter interface {
@@ -278,11 +278,12 @@ func newIDKey(
 	}
 }
 
+type forwardedAggregationBuckets []forwardedAggregationBucket
+
 type forwardedAggregationBucket struct {
 	timeNanos  int64
 	values     []float64
 	prevValues []float64
-	version    uint32
 	annotation []byte
 }
 
@@ -301,47 +302,54 @@ type forwardedAggregationWithKey struct {
 	// is called.
 	currRefCnt               int
 	cachedValueArrays        [][]float64
-	buckets                  map[int64]forwardedAggregationBucket
+	buckets                  forwardedAggregationBuckets
+	versionsByTimeNanos      map[int64]uint32
 	bufferForPastTimedMetric int64
 	nowFn                    clock.NowFn
 	resendEnabled            bool
 }
 
 func (agg *forwardedAggregationWithKey) reset() {
+	bucketLen := len(agg.buckets)
+	newBuckets := make(forwardedAggregationBuckets, 0)
 	agg.currRefCnt = 0
-	for k, v := range agg.buckets {
-		v.values = v.values[:0]
-		v.prevValues = v.prevValues[:0]
+	for i := 0; i < bucketLen; i++ {
+		agg.buckets[i].values = agg.buckets[i].values[:0]
+		agg.buckets[i].prevValues = agg.buckets[i].prevValues[:0]
 		// buckets are kept around to support resending. only add back the arrays if they weren't already niled out in
 		// a previous iteration.
-		if v.values != nil {
-			agg.cachedValueArrays = append(agg.cachedValueArrays, v.values)
+		if agg.buckets[i].values != nil {
+			agg.cachedValueArrays = append(agg.cachedValueArrays, agg.buckets[i].values)
 		}
-		if v.prevValues != nil {
-			agg.cachedValueArrays = append(agg.cachedValueArrays, v.prevValues)
+		if agg.buckets[i].prevValues != nil {
+			agg.cachedValueArrays = append(agg.cachedValueArrays, agg.buckets[i].prevValues)
 		}
-		v.values = nil
-		v.prevValues = nil
-		agg.buckets[k] = v
+		agg.buckets[i].values = nil
+		agg.buckets[i].prevValues = nil
+
 		// keep buckets around for the buffer period.
 		if agg.resendEnabled {
-			if agg.nowFn().UnixNano()-k <= agg.bufferForPastTimedMetric {
+			if agg.nowFn().UnixNano()-agg.buckets[i].timeNanos <= agg.bufferForPastTimedMetric {
+				newBuckets = append(newBuckets, agg.buckets[i])
 				continue
 			}
 		}
-		delete(agg.buckets, k)
+		delete(agg.versionsByTimeNanos, agg.buckets[i].timeNanos)
 	}
+
+	agg.buckets = newBuckets
 }
 
 func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64, prevValue float64, annotation []byte) {
-	if b, ok := agg.buckets[timeNanos]; ok {
-		b.values = append(b.values, value)
-		b.prevValues = append(b.prevValues, prevValue)
-		if annotation != nil {
-			b.annotation = annotation
+	for i := 0; i < len(agg.buckets); i++ {
+		if agg.buckets[i].timeNanos == timeNanos {
+			agg.buckets[i].values = append(agg.buckets[i].values, value)
+			agg.buckets[i].prevValues = append(agg.buckets[i].prevValues, prevValue)
+			if annotation != nil {
+				agg.buckets[i].annotation = annotation
+			}
+			return
 		}
-		agg.buckets[timeNanos] = b
-		return
 	}
 	var (
 		values     []float64
@@ -365,7 +373,7 @@ func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64, prev
 		prevValues: prevValues,
 		annotation: annotation,
 	}
-	agg.buckets[timeNanos] = bucket
+	agg.buckets = append(agg.buckets, bucket)
 }
 
 type forwardedAggregationMetrics struct {
@@ -452,7 +460,8 @@ func (agg *forwardedAggregation) add(metric Registerable) error {
 		key:                      key,
 		totalRefCnt:              1,
 		currRefCnt:               0,
-		buckets:                  make(map[int64]forwardedAggregationBucket),
+		buckets:                  make([]forwardedAggregationBucket, 0),
+		versionsByTimeNanos:      make(map[int64]uint32),
 		bufferForPastTimedMetric: int64(agg.bufferForPastTimedMetricFn(key.storagePolicy.Resolution().Window)),
 		nowFn:                    agg.nowFn,
 		resendEnabled:            metric.ResendEnabled(),
@@ -492,7 +501,7 @@ func (agg *forwardedAggregation) write(
 	agg.metrics.write.Inc(1)
 }
 
-func (agg *forwardedAggregation) onDone(key aggregationKey) error {
+func (agg *forwardedAggregation) onDone(key aggregationKey, expiredTimeNanos []int64) error {
 	idx := agg.index(key)
 	agg.byKey[idx].currRefCnt++
 	if agg.byKey[idx].currRefCnt < agg.byKey[idx].totalRefCnt {
@@ -511,7 +520,7 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 				ResendEnabled:     agg.byKey[idx].resendEnabled,
 			}
 		)
-		for t, b := range agg.byKey[idx].buckets {
+		for _, b := range agg.byKey[idx].buckets {
 			if len(b.values) == 0 {
 				continue
 			}
@@ -522,19 +531,26 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 				Values:     b.values,
 				PrevValues: b.prevValues,
 				Annotation: b.annotation,
-				Version:    b.version,
+				Version:    agg.byKey[idx].versionsByTimeNanos[b.timeNanos],
 			}
-			b.version++
+
+			agg.byKey[idx].versionsByTimeNanos[b.timeNanos]++
+
 			if err := agg.client.WriteForwarded(metric, meta); err != nil {
 				multiErr = multiErr.Add(err)
 				agg.metrics.onDoneWriteErrors.Inc(1)
 			} else {
 				agg.metrics.onDoneWriteSuccess.Inc(1)
 			}
-			agg.byKey[idx].buckets[t] = b
 		}
 		return multiErr.FinalError()
 	}
+
+	// remove expired versions
+	for _, t := range expiredTimeNanos {
+		delete(agg.byKey[idx].versionsByTimeNanos, t)
+	}
+
 	// If the current ref count is higher than total, this is likely a logical error.
 	agg.metrics.onDoneUnexpectedRefCnt.Inc(1)
 	return fmt.Errorf("unexpected refcount: current=%d, total=%d", agg.byKey[idx].currRefCnt, agg.byKey[idx].totalRefCnt)
