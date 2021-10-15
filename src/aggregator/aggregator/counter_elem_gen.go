@@ -38,6 +38,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/willf/bitset"
+	"go.uber.org/zap"
 )
 
 type lockedCounterAggregation struct {

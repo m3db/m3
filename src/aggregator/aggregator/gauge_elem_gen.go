@@ -38,6 +38,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/willf/bitset"
+	"go.uber.org/zap"
 )
 
 type lockedGaugeAggregation struct {
@@ -284,7 +285,6 @@ func (e *GaugeElem) Consume(
 	flushForwardedFn flushForwardedMetricFn,
 	onForwardedFlushedFn onForwardingElemFlushedFn,
 ) bool {
-	fmt.Printf("consuming %s\n", time.Unix(0, targetNanos))
 	resolution := e.sp.Resolution().Window
 	// reverse engineer the allowed lateness.
 	latenessAllowed := time.Duration(targetNanos - targetNanosFn(targetNanos))
