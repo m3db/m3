@@ -42,7 +42,7 @@ var (
 	defaultCounterPrefix              = []byte("counts.")
 	defaultTimerPrefix                = []byte("timers.")
 	defaultGaugePrefix                = []byte("gauges.")
-	defaultEntryTTL                   = time.Hour
+	defaultEntryTTL                   = time.Second
 	defaultEntryCheckInterval         = time.Hour
 	defaultEntryCheckBatchPercent     = 0.01
 	defaultMaxTimerBatchSizePerWrite  = 0
