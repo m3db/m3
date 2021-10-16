@@ -105,6 +105,16 @@ func (c *coordinator) InitPlacement(
 	return c.client.InitPlacement(opts, req)
 }
 
+func (c *coordinator) DeleteAllPlacements(
+	opts resources.PlacementRequestOptions,
+) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	return c.client.DeleteAllPlacements(opts)
+}
+
 func (c *coordinator) WaitForNamespace(name string) error {
 	if c.resource.closed {
 		return errClosed

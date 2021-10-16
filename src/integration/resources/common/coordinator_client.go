@@ -176,6 +176,43 @@ func (c *CoordinatorClient) InitPlacement(
 	return response, nil
 }
 
+// DeleteAllPlacements deletes all placements for the specified service.
+func (c *CoordinatorClient) DeleteAllPlacements(opts resources.PlacementRequestOptions) error {
+	var handlerurl string
+	switch opts.Service {
+	case resources.ServiceTypeM3DB:
+		handlerurl = placementhandler.M3DBDeleteAllURL
+	case resources.ServiceTypeM3Aggregator:
+		handlerurl = placementhandler.M3AggDeleteAllURL
+	case resources.ServiceTypeM3Coordinator:
+		handlerurl = placementhandler.M3CoordinatorDeleteAllURL
+	default:
+		return errUnknownServiceType
+	}
+	url := c.makeURL(handlerurl)
+	logger := c.logger.With(
+		ZapMethod("deleteAllPlacements"), zap.String("url", url))
+
+	resp, err := c.makeRequest(
+		logger, url, placementhandler.DeleteAllHTTPMethod, nil, placementOptsToMap(opts),
+	)
+	if err != nil {
+		logger.Error("failed to delete all placements", zap.Error(err))
+		return err
+	}
+
+	if resp.StatusCode/100 != 2 {
+		logger.Error("status code not 2xx",
+			zap.Int("status code", resp.StatusCode),
+			zap.String("status", resp.Status))
+		return fmt.Errorf("status code %d", resp.StatusCode)
+	}
+
+	logger.Info("placements deleted")
+
+	return nil
+}
+
 // WaitForNamespace blocks until the given namespace is enabled.
 // NB: if the name string is empty, this will instead
 // check for a successful response.

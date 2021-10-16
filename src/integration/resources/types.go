@@ -76,6 +76,9 @@ type Admin interface {
 	GetPlacement(PlacementRequestOptions) (admin.PlacementGetResponse, error)
 	// InitPlacement initializes placements.
 	InitPlacement(PlacementRequestOptions, admin.PlacementInitRequest) (admin.PlacementGetResponse, error)
+	// DeleteAllPlacements deletes all placements for the service specified
+	// in the PlacementRequestOptions.
+	DeleteAllPlacements(PlacementRequestOptions) error
 	// WaitForInstances blocks until the given instance is available.
 	WaitForInstances(ids []string) error
 	// WaitForShardsReady waits until all shards gets ready.

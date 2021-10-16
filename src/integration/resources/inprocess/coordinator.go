@@ -271,6 +271,14 @@ func (c *Coordinator) InitPlacement(
 	return c.client.InitPlacement(opts, req)
 }
 
+// DeleteAllPlacements deletes all placements for the service specified
+// in the PlacementRequestOptions.
+func (c *Coordinator) DeleteAllPlacements(
+	opts resources.PlacementRequestOptions,
+) error {
+	return c.client.DeleteAllPlacements(opts)
+}
+
 // WaitForInstances blocks until the given instance is available.
 func (c *Coordinator) WaitForInstances(ids []string) error {
 	return c.client.WaitForInstances(ids)
