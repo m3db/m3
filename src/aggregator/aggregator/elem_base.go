@@ -151,6 +151,7 @@ type ElemData struct {
 	NumForwardedTimes  int
 	IDPrefixSuffixType IDPrefixSuffixType
 	ResendEnabled      bool
+	ListType           metricListType
 }
 
 // nolint: maligned
@@ -173,6 +174,7 @@ type elemBase struct {
 	metrics                         *elemMetrics
 	resendEnabled                   bool
 	bufferForPastTimedMetricFn      BufferForPastTimedMetricFn
+	listType                        metricListType
 
 	// Mutable states.
 	tombstoned           bool
@@ -180,7 +182,7 @@ type elemBase struct {
 	cachedSourceSetsLock sync.Mutex                  // nolint: structcheck
 	cachedSourceSets     []map[uint32]*bitset.BitSet // nolint: structcheck
 	// a cache of the lag metrics that don't require grabbing a lock to access.
-	forwardLagMetrics map[time.Duration]tally.Histogram
+	forwardLagMetrics map[forwardLagKey]tally.Histogram
 }
 
 type valuesByTime map[xtime.UnixNano][]transformation.Datapoint
@@ -201,25 +203,33 @@ type elemMetrics struct {
 	sync.RWMutex
 	scope         tally.Scope
 	updatedValues tally.Counter
-	forwardLags   map[time.Duration]tally.Histogram
+	forwardLags   map[forwardLagKey]tally.Histogram
 }
 
-func (e *elemMetrics) forwardLagMetric(resolution time.Duration) tally.Histogram {
+type forwardLagKey struct {
+	resolution time.Duration
+	listType   metricListType
+}
+
+func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
 	e.RLock()
-	m, ok := e.forwardLags[resolution]
+	m, ok := e.forwardLags[key]
 	if ok {
 		e.RUnlock()
 		return m
 	}
 	e.RUnlock()
 	e.Lock()
-	m, ok = e.forwardLags[resolution]
+	m, ok = e.forwardLags[key]
 	if ok {
 		e.Unlock()
 		return m
 	}
 	m = e.scope.
-		Tagged(map[string]string{"resolution": resolution.String()}).
+		Tagged(map[string]string{
+			"resolution": key.resolution.String(),
+			"list-type":  key.listType.String(),
+		}).
 		Histogram("forward-lag", tally.DurationBuckets{
 			10 * time.Millisecond,
 			500 * time.Millisecond,
@@ -238,7 +248,7 @@ func (e *elemMetrics) forwardLagMetric(resolution time.Duration) tally.Histogram
 			90 * time.Second,
 			120 * time.Second,
 		})
-	e.forwardLags[resolution] = m
+	e.forwardLags[key] = m
 	e.Unlock()
 	return m
 }
@@ -259,7 +269,7 @@ func NewElemOptions(aggregatorOpts Options) ElemOptions {
 		elemMetrics: &elemMetrics{
 			updatedValues: scope.Counter("updated-values"),
 			scope:         scope,
-			forwardLags:   make(map[time.Duration]tally.Histogram),
+			forwardLags:   make(map[forwardLagKey]tally.Histogram),
 		},
 	}
 }
@@ -271,16 +281,20 @@ func newElemBase(opts ElemOptions) elemBase {
 		aggOpts:                    opts.aggregationOpts,
 		metrics:                    opts.elemMetrics,
 		bufferForPastTimedMetricFn: opts.aggregatorOpts.BufferForPastTimedMetricFn(),
-		forwardLagMetrics:          make(map[time.Duration]tally.Histogram),
+		forwardLagMetrics:          make(map[forwardLagKey]tally.Histogram),
 	}
 }
 
 func (e *elemBase) forwardLagMetric(resolution time.Duration) tally.Histogram {
-	m, ok := e.forwardLagMetrics[resolution]
+	key := forwardLagKey{
+		resolution: resolution,
+		listType:   e.listType,
+	}
+	m, ok := e.forwardLagMetrics[key]
 	if !ok {
 		// if not cached locally, get from the singleton map that requires locking.
-		m = e.metrics.forwardLagMetric(resolution)
-		e.forwardLagMetrics[resolution] = m
+		m = e.metrics.forwardLagMetric(key)
+		e.forwardLagMetrics[key] = m
 	}
 	return m
 }
@@ -304,6 +318,7 @@ func (e *elemBase) resetSetData(data ElemData, useDefaultAggregation bool) error
 	e.closed = false
 	e.idPrefixSuffixType = data.IDPrefixSuffixType
 	e.resendEnabled = data.ResendEnabled
+	e.listType = data.ListType
 	return nil
 }
 

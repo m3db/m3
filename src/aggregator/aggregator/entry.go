@@ -600,6 +600,7 @@ func (e *Entry) addNewAggregationKeyWithLock(
 		NumForwardedTimes:  key.numForwardedTimes,
 		IDPrefixSuffixType: key.idPrefixSuffixType,
 		ResendEnabled:      resendEnabled,
+		ListType:           listID.listType,
 	}); err != nil {
 		return nil, err
 	}
