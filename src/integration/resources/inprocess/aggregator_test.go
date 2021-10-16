@@ -33,10 +33,10 @@ import (
 	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/x/config/hostid"
-	"gopkg.in/yaml.v2"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 )
 
 func TestNewAggregator(t *testing.T) {
@@ -49,13 +49,13 @@ func TestNewAggregator(t *testing.T) {
 
 	agg, err := NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{GenerateHostID: true})
 	require.NoError(t, err)
-	require.NoError(t, retry(agg.IsHealthy))
+	require.NoError(t, resources.Retry(agg.IsHealthy))
 	require.NoError(t, agg.Close())
 
 	// restart an aggregator instance
 	agg, err = NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{GenerateHostID: true})
 	require.NoError(t, err)
-	require.NoError(t, retry(agg.IsHealthy))
+	require.NoError(t, resources.Retry(agg.IsHealthy))
 	require.NoError(t, agg.Close())
 }
 
@@ -80,14 +80,14 @@ func TestMultiAggregators(t *testing.T) {
 
 	agg1, err := NewAggregator(cfg1, AggregatorOptions{GeneratePorts: true})
 	require.NoError(t, err)
-	require.NoError(t, retry(agg1.IsHealthy))
+	require.NoError(t, resources.Retry(agg1.IsHealthy))
 	defer func() {
 		assert.NoError(t, agg1.Close())
 	}()
 
 	agg2, err := NewAggregator(cfg2, AggregatorOptions{GeneratePorts: true})
 	require.NoError(t, err)
-	require.NoError(t, retry(agg2.IsHealthy))
+	require.NoError(t, resources.Retry(agg2.IsHealthy))
 	defer func() {
 		assert.NoError(t, agg2.Close())
 	}()
@@ -114,7 +114,7 @@ func TestAggregatorStatus(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, retry(agg.IsHealthy))
+	require.NoError(t, resources.Retry(agg.IsHealthy))
 	status, err := agg.Status()
 	require.NoError(t, err)
 	require.Equal(t, followerStatus, status)

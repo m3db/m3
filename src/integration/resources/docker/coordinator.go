@@ -28,7 +28,6 @@ import (
 	"github.com/ory/dockertest/v3"
 
 	"github.com/m3db/m3/src/integration/resources"
-	"github.com/m3db/m3/src/integration/resources/common"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 )
@@ -50,7 +49,7 @@ var (
 
 type coordinator struct {
 	resource *dockerResource
-	client   common.CoordinatorClient
+	client   resources.CoordinatorClient
 }
 
 func newDockerHTTPCoordinator(
@@ -67,7 +66,7 @@ func newDockerHTTPCoordinator(
 
 	return &coordinator{
 		resource: resource,
-		client: common.NewCoordinatorClient(common.CoordinatorClientOptions{
+		client: resources.NewCoordinatorClient(resources.CoordinatorClientOptions{
 			Client:    http.DefaultClient,
 			HTTPPort:  7201,
 			Logger:    resource.logger,

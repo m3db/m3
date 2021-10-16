@@ -37,7 +37,6 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/integration/resources"
-	"github.com/m3db/m3/src/integration/resources/common"
 	nettest "github.com/m3db/m3/src/integration/resources/net"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -55,7 +54,7 @@ const (
 // in integration tests.
 type Coordinator struct {
 	cfg      config.Configuration
-	client   common.CoordinatorClient
+	client   resources.CoordinatorClient
 	logger   *zap.Logger
 	tmpDirs  []string
 	embedded bool
@@ -137,7 +136,7 @@ func NewCoordinator(cfg config.Configuration, opts CoordinatorOptions) (resource
 
 	// Configure logger
 	if opts.Logger == nil {
-		opts.Logger, err = NewLogger()
+		opts.Logger, err = resources.NewLogger()
 		if err != nil {
 			return nil, err
 		}
@@ -157,11 +156,11 @@ func NewCoordinator(cfg config.Configuration, opts CoordinatorOptions) (resource
 	// Start the coordinator
 	coord := &Coordinator{
 		cfg: cfg,
-		client: common.NewCoordinatorClient(common.CoordinatorClientOptions{
+		client: resources.NewCoordinatorClient(resources.CoordinatorClientOptions{
 			Client:    &http.Client{},
 			HTTPPort:  port,
 			Logger:    opts.Logger,
-			RetryFunc: retry,
+			RetryFunc: resources.Retry,
 		}),
 		logger:  opts.Logger,
 		tmpDirs: tmpDirs,
@@ -192,11 +191,11 @@ func NewEmbeddedCoordinator(d *DBNode) (resources.Coordinator, error) {
 
 	return &Coordinator{
 		cfg: *d.cfg.Coordinator,
-		client: common.NewCoordinatorClient(common.CoordinatorClientOptions{
+		client: resources.NewCoordinatorClient(resources.CoordinatorClientOptions{
 			Client:    &http.Client{},
 			HTTPPort:  port,
 			Logger:    d.logger,
-			RetryFunc: retry,
+			RetryFunc: resources.Retry,
 		}),
 		embedded:    true,
 		logger:      d.logger,
