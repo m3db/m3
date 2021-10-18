@@ -477,10 +477,6 @@ func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
 		close(mapCh)
 	}()
 
-	var ns []*MockdatabaseNamespace
-	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns1"))
-	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns2"))
-
 	t1 := d.lastReceivedNewShards
 	d.AssignShardSet(d.shardSet)
 	// Ensure that lastReceivedNewShards is not updated if no new shards are assigned.

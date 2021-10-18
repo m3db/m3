@@ -579,15 +579,13 @@ func (d *db) shardsDeltaWithLock(incoming sharding.ShardSet) (bool, bool, bool) 
 		existingShard, ok := existingSet[shard.ID()]
 		if !ok {
 			added = true
-		} else {
-			if !existingShard.Equals(shard) {
-				updated = true
-			}
+		} else if !existingShard.Equals(shard) {
+			updated = true
 		}
 	}
 
-	for shardId := range existingSet {
-		_, ok := incomingSet[shardId]
+	for shardID := range existingSet {
+		_, ok := incomingSet[shardID]
 		if !ok {
 			removed = true
 			break
