@@ -464,6 +464,26 @@ func (e *CounterElem) insertDirty(alignedStart xtime.UnixNano) {
 	e.dirty[left] = alignedStart
 }
 
+func (e *CounterElem) len() int {
+	e.RLock()
+	defer e.RUnlock()
+	return len(e.values)
+}
+
+// find finds the aggregation for a given time, or returns nil.
+func (e *CounterElem) find(alignedStartNanos xtime.UnixNano) (*lockedCounterAggregation, error) {
+	e.RLock()
+	defer e.RUnlock()
+	if e.closed {
+		return nil, errElemClosed
+	}
+	timedAgg, ok := e.values[alignedStartNanos]
+	if ok && timedAgg.lockedAgg.dirty {
+		return timedAgg.lockedAgg, nil
+	}
+	return nil, nil
+}
+
 // findOrCreate finds the aggregation for a given time, or creates one
 // if it doesn't exist.
 func (e *CounterElem) findOrCreate(
@@ -471,17 +491,13 @@ func (e *CounterElem) findOrCreate(
 	createOpts createAggregationOptions,
 ) (*lockedCounterAggregation, error) {
 	alignedStart := xtime.UnixNano(alignedStartNanos)
-	e.RLock()
-	if e.closed {
-		e.RUnlock()
-		return nil, errElemClosed
+	found, err := e.find(alignedStart)
+	if err != nil {
+		return nil, err
 	}
-	timedAgg, ok := e.values[alignedStart]
-	if ok && timedAgg.lockedAgg.dirty {
-		e.RUnlock()
-		return timedAgg.lockedAgg, nil
+	if found != nil {
+		return found, err
 	}
-	e.RUnlock()
 
 	e.Lock()
 	if e.closed {
@@ -489,7 +505,7 @@ func (e *CounterElem) findOrCreate(
 		return nil, errElemClosed
 	}
 
-	timedAgg, ok = e.values[alignedStart]
+	timedAgg, ok := e.values[alignedStart]
 	if ok {
 		if !timedAgg.lockedAgg.dirty {
 			timedAgg.lockedAgg.dirty = true
