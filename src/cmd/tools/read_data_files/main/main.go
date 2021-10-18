@@ -74,8 +74,6 @@ func main() {
 			"Filters metrics that have no annotation in first datapoint of the block")
 		annotationRewrittenFilter = getopt.BoolLong("annotation-rewritten", 'R', "Filters metrics with annotation rewrites")
 
-		dontPrintDatapoints = getopt.BoolLong("dont-print-datapoints", 'D', "Do not print datapoints")
-
 		benchmark = getopt.StringLong(
 			"benchmark", 'B', "", "benchmark mode (optional), [series|datapoints]")
 	)
@@ -208,18 +206,12 @@ func main() {
 				dp, _, annotation := iter.Current()
 				if benchMode == benchmarkNone {
 					// Use fmt package so it goes to stdout instead of stderr
-					fmt.Printf("{id: %s", id.String()) // nolint: forbidigo
-					if !*dontPrintDatapoints {
-						fmt.Printf(", dp: %+v", dp) // nolint: forbidigo
-						if len(annotation) > 0 {
-							fmt.Printf(", annotation: %s", // nolint: forbidigo
-								base64.StdEncoding.EncodeToString(annotation))
-						}
+					fmt.Printf("{id: %s, dp: %+v", id.String(), dp) // nolint: forbidigo
+					if len(annotation) > 0 {
+						fmt.Printf(", annotation: %s", // nolint: forbidigo
+							base64.StdEncoding.EncodeToString(annotation))
 					}
 					fmt.Println("}") // nolint: forbidigo
-					if *dontPrintDatapoints {
-						break
-					}
 				}
 				annotationSizeTotal += uint64(len(annotation))
 				datapointCount++
