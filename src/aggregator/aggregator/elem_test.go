@@ -21,6 +21,7 @@
 package aggregator
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -669,6 +670,9 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 1, len(e.values))
+	for k, v := range e.consumedValues {
+		fmt.Println("CONSUMED VAL", k, v)
+	}
 	require.Len(t, e.consumedValues, 2)
 	consumedVal = e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
 	require.Len(t, consumedVal, 1)
@@ -689,7 +693,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
-	require.Equal(t, 1, len(e.values)) // leftover to keep previous value
+	require.Equal(t, 1, len(e.values))
 
 	// Reading and discarding values from a closed element is no op.
 	e.closed = true
@@ -701,7 +705,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 1, len(e.values)) // leftover to keep previous value
+	require.Equal(t, 1, len(e.values))
 }
 
 func TestCounterElemClose(t *testing.T) {
