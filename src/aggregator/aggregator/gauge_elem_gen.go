@@ -478,7 +478,7 @@ func (e *GaugeElem) find(alignedStartNanos xtime.UnixNano) (*lockedGaugeAggregat
 		return nil, errElemClosed
 	}
 	timedAgg, ok := e.values[alignedStartNanos]
-	if ok {
+	if ok && timedAgg.lockedAgg.dirty {
 		return timedAgg.lockedAgg, nil
 	}
 	return nil, nil
@@ -495,7 +495,7 @@ func (e *GaugeElem) findOrCreate(
 	if err != nil {
 		return nil, err
 	}
-	if found != nil && found.dirty {
+	if found != nil {
 		return found, err
 	}
 

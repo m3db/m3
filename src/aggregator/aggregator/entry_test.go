@@ -377,9 +377,7 @@ func TestEntryAddBatchTimerWithTimerBatchSizeLimit(t *testing.T) {
 		require.True(t, idx >= 0)
 		elem := e.aggregations[idx].elem.Value.(*TimerElem)
 		require.Equal(t, 1, len(elem.values))
-		for k := range elem.values {
-			require.Equal(t, 18.0, elem.values[k].lockedAgg.aggregation.Sum())
-		}
+		require.Equal(t, 18.0, elem.values[0].lockedAgg.aggregation.Sum())
 	}
 }
 
