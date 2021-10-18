@@ -202,7 +202,7 @@ func (e *CounterElem) AddUnique(
 
 // remove expired aggregations from the values map.
 func (e *CounterElem) expireValuesWithLock(
-	targetNanos xtime.UnixNano,
+	expiredNanos xtime.UnixNano,
 	timestampNanosFn timestampNanosFn,
 	isEarlierThanFn isEarlierThanFn) {
 	e.toExpire = e.toExpire[:0]
@@ -211,12 +211,6 @@ func (e *CounterElem) expireValuesWithLock(
 		return
 	}
 	resolution := e.sp.Resolution().Window
-	expiredNanos := targetNanos.Add(-resolution)
-	if e.resendEnabled {
-		// If resend is enabled, we only expire if the value is now outside the buffer past. It is safe to expire
-		// since any metrics intended for this value are rejected for being too late.
-		expiredNanos = targetNanos.Add(-e.bufferForPastTimedMetricFn(resolution))
-	}
 
 	// always keep at least one value in the map for when calculating binary transforms. need to reference the previous
 	// value.
@@ -228,6 +222,7 @@ func (e *CounterElem) expireValuesWithLock(
 
 			v.Release()
 			delete(e.values, e.minStartAlignedTime)
+			fmt.Println("REMOVE VAL", int64(e.minStartAlignedTime))
 		}
 		e.minStartAlignedTime = e.minStartAlignedTime.Add(resolution)
 	}
@@ -284,6 +279,14 @@ func (e *CounterElem) Consume(
 	flushForwardedFn flushForwardedMetricFn,
 	onForwardedFlushedFn onForwardingElemFlushedFn,
 ) bool {
+	fmt.Println("\nCONSUME", targetNanos)
+	for _, v := range e.dirty {
+		fmt.Println("DIRTY", int64(v))
+	}
+	for k, v := range e.values {
+		fmt.Println("VAL", int64(k), v)
+	}
+
 	resolution := e.sp.Resolution().Window
 	// reverse engineer the allowed lateness.
 	latenessAllowed := time.Duration(targetNanos - targetNanosFn(targetNanos))
@@ -293,6 +296,11 @@ func (e *CounterElem) Consume(
 		return false
 	}
 	e.toConsume = e.toConsume[:0]
+
+	// consume: t1 (values {t1})
+	// consume: t2
+
+	// process(curr: t2, prev: t1)
 
 	// Evaluate and GC expired items.
 	dirtyTimes := e.dirty
@@ -327,9 +335,21 @@ func (e *CounterElem) Consume(
 		}
 	}
 
-	// note: expire values from the map while we still hold the lock. this method saves the aggs that are expired so
-	// we can clean them up after processing.
-	e.expireValuesWithLock(xtime.UnixNano(targetNanos), timestampNanosFn, isEarlierThanFn)
+	// To expire values, we want to expire anything earlier than a time
+	// after we would not accept new writes
+	minUpdateableTimeNanos := xtime.UnixNano(targetNanos)
+	if e.resendEnabled {
+		// If resend is enabled we are NOT waiting until the buffer expires to flush,
+		// and therefore we need to expire only up to (consumeTime - bufferPast).
+		// If resend is disabled, we can just expire up to the consumeTime
+		// because the flushing already accounts for the entire buffer past range.
+		minUpdateableTimeNanos = minUpdateableTimeNanos.Add(-e.bufferForPastTimedMetricFn(resolution))
+	}
+
+	expiredNanos, ok := e.previousStartAlignedWithLock(minUpdateableTimeNanos)
+	if ok {
+		e.expireValuesWithLock(expiredNanos, timestampNanosFn, isEarlierThanFn)
+	}
 
 	canCollect := len(e.dirty) == 0 && e.tombstoned
 	e.Unlock()
@@ -338,6 +358,7 @@ func (e *CounterElem) Consume(
 	for i := range e.toConsume {
 		timeNanos := xtime.UnixNano(timestampNanosFn(int64(e.toConsume[i].startAtNanos), resolution))
 		e.toConsume[i].lockedAgg.Lock()
+		fmt.Println("PROCESS", int64(timeNanos), int64(e.toConsume[i].previousTimeNanos))
 		_ = e.processValueWithAggregationLock(
 			timeNanos,
 			e.toConsume[i].previousTimeNanos,
@@ -369,6 +390,7 @@ func (e *CounterElem) Consume(
 		e.toExpire[i].Release()
 
 		// Remove previous consumed value to reference from binary op.
+		fmt.Println("REMOVE CONSUMED VAL", int64(e.toExpire[i].previousTimeNanos))
 		delete(e.consumedValues, e.toExpire[i].previousTimeNanos)
 	}
 
