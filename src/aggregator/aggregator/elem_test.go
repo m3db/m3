@@ -639,7 +639,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
-	//require.Equal(t, 2, e.len())
+	require.Equal(t, 3, e.len())
 	require.Len(t, e.consumedValues, 1)
 	consumedVal := e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
 	require.Len(t, consumedVal, 1)
@@ -668,8 +668,12 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
-	//require.Equal(t, 0, len(e.values))
-	//require.Len(t, e.consumedValues, 1)
+	require.Equal(t, 1, len(e.values))
+	require.Len(t, e.consumedValues, 2)
+	consumedVal = e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
+	require.Len(t, consumedVal, 1)
+	require.Equal(t, 456.0, consumedVal[0].Value)
+	require.Equal(t, time.Unix(230, 0).UnixNano(), consumedVal[0].TimeNanos)
 	consumedVal = e.consumedValues[xtime.UnixNano(expectedForwardedRes[1].timeNanos)]
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 589.0, consumedVal[0].Value)
@@ -685,7 +689,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
-	//require.Equal(t, 0, len(e.values))
+	require.Equal(t, 1, len(e.values)) // leftover to keep previous value
 
 	// Reading and discarding values from a closed element is no op.
 	e.closed = true
@@ -697,7 +701,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	//require.Equal(t, 0, len(e.values))
+	require.Equal(t, 1, len(e.values)) // leftover to keep previous value
 }
 
 func TestCounterElemClose(t *testing.T) {
