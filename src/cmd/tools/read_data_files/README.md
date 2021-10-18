@@ -7,24 +7,23 @@
 $ git clone git@github.com:m3db/m3.git
 $ make read_data_files
 $ ./bin/read_data_files
-Usage: read_data_files [-DNR] [-B value] [-b value] [-f value] [-n value] [-p value] [-s value] [-t value] [-v value] [parameters ...]
+Usage: read_data_files [-NR] [-B value] [-b value] [-f value] [-n value] [-p value] [-s value] [-t value] [-v value] [parameters ...]
  -B, --benchmark=value
                     benchmark mode (optional), [series|datapoints]
  -b, --block-start=value
                     Block Start Time [in nsec]
- -D, --dont-print-datapoints
-                    Do not print datapoints
  -f, --id-filter=value
                     ID Contains Filter (optional)
  -n, --namespace=value
                     Namespace [e.g. metrics]
  -N, --no-initial-annotation
                     Filters metrics that have no annotation in first datapoint
-                    of the block
+                    of the block and prints their series IDs
  -p, --path-prefix=value
                     Path prefix [e.g. /var/lib/m3db]
  -R, --annotation-rewritten
-                    Filters metrics with annotation rewrites
+                    Filters metrics with annotation rewrites and prints their
+                    series IDs
  -s, --shard=value  Shard [expected format uint32]
  -t, --fileset-type=value
                     flush|snapshot
