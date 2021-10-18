@@ -211,7 +211,7 @@ func (e *TimerElem) expireValuesWithLock(
 		return
 	}
 	resolution := e.sp.Resolution().Window
-	expiredNanos := targetNanos.Add(-resolution)
+	expiredNanos := targetNanos
 	if e.resendEnabled {
 		// If resend is enabled, we only expire if the value is now outside the buffer past. It is safe to expire
 		// since any metrics intended for this value are rejected for being too late.
@@ -222,13 +222,14 @@ func (e *TimerElem) expireValuesWithLock(
 	// value.
 	for len(e.values) > 1 && isEarlierThanFn(int64(e.minStartAlignedTime), resolution, int64(expiredNanos)) {
 		if v, ok := e.values[e.minStartAlignedTime]; ok {
-			// calculate the potential prevTimeNanos that would have been used by the timeNanos for this startAlignedTime.
-			v.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(e.minStartAlignedTime), resolution)).Add(-resolution)
 			e.toExpire = append(e.toExpire, v)
-
 			v.Release()
 			delete(e.values, e.minStartAlignedTime)
 		}
+		// calculate the potential prevTimeNanos that would have been used by the timeNanos for this startAlignedTime.
+		prevTimeNanos := xtime.UnixNano(timestampNanosFn(int64(e.minStartAlignedTime), resolution)).Add(-resolution)
+		// note: these keys might not exist in the map. ok to delete non-existent keys.
+		delete(e.consumedValues, prevTimeNanos)
 		e.minStartAlignedTime = e.minStartAlignedTime.Add(resolution)
 	}
 }
@@ -367,9 +368,6 @@ func (e *TimerElem) Consume(
 			e.toExpire[i].lockedAgg.sourcesSeen = nil
 		}
 		e.toExpire[i].Release()
-
-		// Remove previous consumed value to reference from binary op.
-		delete(e.consumedValues, e.toExpire[i].previousTimeNanos)
 	}
 
 	if e.parsedPipeline.HasRollup {

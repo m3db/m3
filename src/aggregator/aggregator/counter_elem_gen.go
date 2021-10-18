@@ -220,15 +220,17 @@ func (e *CounterElem) expireValuesWithLock(
 
 	// always keep at least one value in the map for when calculating binary transforms. need to reference the previous
 	// value.
-	for len(e.values) > 1 && isEarlierThanFn(int64(e.minStartAlignedTime), resolution, int64(expiredNanos)) {
+	for len(e.values) > 2 && isEarlierThanFn(int64(e.minStartAlignedTime), resolution, int64(expiredNanos)) {
 		if v, ok := e.values[e.minStartAlignedTime]; ok {
-			// calculate the potential prevTimeNanos that would have been used by the timeNanos for this startAlignedTime.
-			v.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(e.minStartAlignedTime), resolution)).Add(-resolution)
 			e.toExpire = append(e.toExpire, v)
-
 			v.Release()
 			delete(e.values, e.minStartAlignedTime)
 		}
+		// calculate the potential prevTimeNanos that would have been used by the timeNanos for this startAlignedTime.
+		prevTimeNanos := xtime.UnixNano(timestampNanosFn(int64(e.minStartAlignedTime), resolution)).Add(-resolution)
+		// note: these keys might not exist in the map. ok to delete non-existent keys.
+		fmt.Println("REMOVE", int64(prevTimeNanos), e.consumedValues[prevTimeNanos])
+		delete(e.consumedValues, prevTimeNanos)
 		e.minStartAlignedTime = e.minStartAlignedTime.Add(resolution)
 	}
 }
@@ -241,8 +243,10 @@ func (e *CounterElem) previousStartAlignedWithLock(startAligned xtime.UnixNano) 
 	}
 	resolution := e.sp.Resolution().Window
 	ts := startAligned.Add(-resolution)
+	fmt.Println("CHECK PREV", int64(startAligned), int64(ts), int64(e.minStartAlignedTime))
 	for !ts.Before(e.minStartAlignedTime) {
 		_, ok := e.values[ts]
+		fmt.Println("PREV ITER", int64(startAligned), int64(ts), ok)
 		if ok {
 			return ts, true
 		}
@@ -284,6 +288,13 @@ func (e *CounterElem) Consume(
 	flushForwardedFn flushForwardedMetricFn,
 	onForwardedFlushedFn onForwardingElemFlushedFn,
 ) bool {
+	fmt.Println("\nCONSUME", targetNanos)
+	for _, v := range e.dirty {
+		fmt.Println("DIRTY", int64(v))
+	}
+	for k, v := range e.values {
+		fmt.Println("VAL", int64(k), v)
+	}
 	resolution := e.sp.Resolution().Window
 	// reverse engineer the allowed lateness.
 	latenessAllowed := time.Duration(targetNanos - targetNanosFn(targetNanos))
@@ -315,6 +326,7 @@ func (e *CounterElem) Consume(
 		if ok {
 			agg.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(previousStartAligned), resolution))
 		}
+		fmt.Println("CONSUME AGG", agg, "PREV: ", int64(agg.previousTimeNanos))
 		e.toConsume = append(e.toConsume, agg)
 
 		// add the nextAgg to the dirty set as well in case we need to cascade the value.
@@ -323,6 +335,7 @@ func (e *CounterElem) Consume(
 		// only add nextAgg if not already in the dirty set
 		if ok && !nextAgg.lockedAgg.dirty {
 			nextAgg.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(dirtyTime), resolution))
+			fmt.Println("CONSUME NEXT AGG", nextAgg, "PREV: ", int64(nextAgg.previousTimeNanos))
 			e.toConsume = append(e.toConsume, nextAgg)
 		}
 	}
@@ -338,6 +351,7 @@ func (e *CounterElem) Consume(
 	for i := range e.toConsume {
 		timeNanos := xtime.UnixNano(timestampNanosFn(int64(e.toConsume[i].startAtNanos), resolution))
 		e.toConsume[i].lockedAgg.Lock()
+		fmt.Println("PROCESS", int64(timeNanos), int64(e.toConsume[i].previousTimeNanos))
 		_ = e.processValueWithAggregationLock(
 			timeNanos,
 			e.toConsume[i].previousTimeNanos,
@@ -367,9 +381,6 @@ func (e *CounterElem) Consume(
 			e.toExpire[i].lockedAgg.sourcesSeen = nil
 		}
 		e.toExpire[i].Release()
-
-		// Remove previous consumed value to reference from binary op.
-		delete(e.consumedValues, e.toExpire[i].previousTimeNanos)
 	}
 
 	if e.parsedPipeline.HasRollup {
@@ -438,6 +449,12 @@ func (e *CounterElem) Close() {
 
 func (e *CounterElem) insertDirty(alignedStart xtime.UnixNano) {
 	numValues := len(e.dirty)
+
+	for _, d := range e.dirty {
+		if d.Equal(alignedStart) {
+			panic("duplicate")
+		}
+	}
 
 	// Optimize for the common case.
 	if numValues > 0 && e.dirty[numValues-1] == alignedStart {
@@ -598,7 +615,8 @@ func (e *CounterElem) processValueWithAggregationLock(
 					Value:     value,
 				}
 				res := binaryOp.Evaluate(prev, curr, transformation.FeatureFlags{})
-
+				fmt.Println("CUR/PREV", curr, prev)
+				fmt.Println("RES", res.Value)
 				// NB: we only need to record the value needed for derivative transformations.
 				// We currently only support first-order derivative transformations so we only
 				// need to keep one value. In the future if we need to support higher-order
