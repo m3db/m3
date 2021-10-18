@@ -1,3 +1,5 @@
+// +build cluster_integration
+//
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -18,9 +20,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package inprocess
+package simple
 
-// StartFn is a custom function that can be used to start an M3 component.
-// Function must return a channel for interrupting the server and
-// a channel for receiving notifications that the server has shut down.
-type StartFn func() (chan<- error, <-chan struct{})
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/integration/resources"
+	"github.com/m3db/m3/src/integration/resources/inprocess"
+)
+
+func TestSimple(t *testing.T) {
+	m3, closer := testSetup(t)
+	defer closer()
+
+	RunTest(t, m3)
+}
+
+func testSetup(t *testing.T) (resources.M3Resources, func()) {
+	cfgs, err := inprocess.NewClusterConfigsFromYAML(
+		TestSimpleDBNodeConfig, TestSimpleCoordinatorConfig,
+	)
+	require.NoError(t, err)
+
+	m3, err := inprocess.NewCluster(cfgs,
+		inprocess.ClusterOptions{
+			DBNode: inprocess.NewDBNodeClusterOptions(),
+		},
+	)
+	require.NoError(t, err)
+
+	return m3, func() {
+		assert.NoError(t, m3.Cleanup())
+	}
+}
