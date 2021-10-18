@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
@@ -97,8 +98,9 @@ type increasingIndex interface {
 
 type db struct {
 	sync.RWMutex
-	opts  Options
-	nowFn clock.NowFn
+	assignShardSetMutex sync.Mutex
+	opts                Options
+	nowFn               clock.NowFn
 
 	nsWatch                namespace.NamespaceWatch
 	namespaces             *databaseNamespacesMap
@@ -502,13 +504,22 @@ func (d *db) Options() Options {
 }
 
 func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
+	// NB: Use assignShardSetMutex to protect from competing calls.
+	d.assignShardSetMutex.Lock()
+	defer d.assignShardSetMutex.Unlock()
 	// NB: Can hold lock since all long running tasks are enqueued to run
 	// async while holding the lock.
 	d.Lock()
 	defer d.Unlock()
 
-	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
-	if receivedNewShards {
+	added, removed, updated := d.shardsDeltaWithLock(shardSet)
+
+	if !added && !removed && !updated {
+		d.log.Info("received identical shardSet, skipping shard assignment")
+		return
+	}
+
+	if added {
 		d.lastReceivedNewShards = d.nowFn()
 	}
 
@@ -524,37 +535,16 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 		return
 	}
 
-	if err := d.mediator.EnqueueMutuallyExclusiveFn(func() {
-		d.assignShardSet(shardSet)
-	}); err != nil {
-		// should not happen.
-		instrument.EmitAndLogInvariantViolation(d.opts.InstrumentOptions(),
-			func(l *zap.Logger) {
-				l.Error("failed to enqueue assignShardSet fn",
-					zap.Error(err),
-					zap.Uint32s("shards", shardSet.AllIDs()))
-			})
-	}
-}
-
-func (d *db) assignShardSet(shardSet sharding.ShardSet) {
-	d.RLock()
-	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
-	d.RUnlock()
-
-	if receivedNewShards {
+	if added {
 		// Wait outside of holding lock to disable file operations.
+		d.Unlock()
 		d.disableFileOpsAndWait()
+		d.Lock()
 	}
-
-	// NB: Can hold lock since all long-running tasks are enqueued to run
-	// async while holding the lock.
-	d.Lock()
-	defer d.Unlock()
 
 	d.assignShardsWithLock(shardSet)
 
-	if receivedNewShards {
+	if added {
 		d.enqueueBootstrapAsyncWithLock(d.enableFileOps)
 	}
 }
@@ -566,6 +556,45 @@ func (d *db) assignShardsWithLock(shardSet sharding.ShardSet) {
 		ns := elem.Value()
 		ns.AssignShardSet(shardSet)
 	}
+}
+
+func (d *db) shardsDeltaWithLock(incoming sharding.ShardSet) (bool, bool, bool) {
+	var (
+		existing       = d.shardSet
+		existingShards = existing.All()
+		incomingShards = incoming.All()
+		existingSet    = make(map[uint32]shard.Shard, len(existingShards))
+		incomingSet    = make(map[uint32]shard.Shard, len(incomingShards))
+		added          bool
+		removed        bool
+		updated        bool
+	)
+
+	for _, shard := range existingShards {
+		existingSet[shard.ID()] = shard
+	}
+
+	for _, shard := range incomingShards {
+		incomingSet[shard.ID()] = shard
+		existingShard, ok := existingSet[shard.ID()]
+		if !ok {
+			added = true
+		} else {
+			if !existingShard.Equals(shard) {
+				updated = true
+			}
+		}
+	}
+
+	for shardId := range existingSet {
+		_, ok := incomingSet[shardId]
+		if !ok {
+			removed = true
+			break
+		}
+	}
+
+	return added, removed, updated
 }
 
 func (d *db) hasReceivedNewShardsWithLock(incoming sharding.ShardSet) bool {

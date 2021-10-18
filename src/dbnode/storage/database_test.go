@@ -481,20 +481,10 @@ func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
 	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns1"))
 	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns2"))
 
-	var wg sync.WaitGroup
-	wg.Add(len(ns))
-	for _, n := range ns {
-		n.EXPECT().AssignShardSet(d.shardSet).Do(func(_ sharding.ShardSet) {
-			wg.Done()
-		})
-	}
-
 	t1 := d.lastReceivedNewShards
 	d.AssignShardSet(d.shardSet)
 	// Ensure that lastReceivedNewShards is not updated if no new shards are assigned.
 	require.True(t, d.lastReceivedNewShards.Equal(t1))
-
-	wg.Wait()
 }
 
 func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
@@ -512,13 +502,6 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	mediator.EXPECT().IsOpen().Return(true).AnyTimes()
 	mediator.EXPECT().DisableFileOpsAndWait().AnyTimes()
 	mediator.EXPECT().EnableFileOps().AnyTimes()
-	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).DoAndReturn(func(fn func()) error {
-		// Spawn async since this method is called while DB holds
-		// lock and expects the mediator to call it asynchronously
-		// (which avoids deadlocking).
-		go fn()
-		return nil
-	})
 	mediator.EXPECT().Bootstrap().DoAndReturn(func() (BootstrapResult, error) {
 		return BootstrapResult{}, nil
 	})
@@ -544,32 +527,6 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	d.AssignShardSet(shardSet)
 
 	wg.Wait()
-}
-
-func TestDatabaseAssignShardSetShouldPanic(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
-	defer func() {
-		close(mapCh)
-	}()
-
-	d.bootstraps = 1
-	mediator := NewMockdatabaseMediator(ctrl)
-	mediator.EXPECT().IsOpen().Return(true)
-	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).Return(errors.New("unknown error"))
-	d.mediator = mediator
-
-	shards := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
-		sharding.NewShards([]uint32{2}, shard.Initializing)...)
-	shardSet, err := sharding.NewShardSet(shards, nil)
-	require.NoError(t, err)
-
-	defer instrument.SetShouldPanicEnvironmentVariable(true)()
-	require.Panics(t, func() {
-		d.AssignShardSet(shardSet)
-	})
 }
 
 func TestDatabaseRemoveNamespace(t *testing.T) {
@@ -1746,6 +1703,113 @@ func TestNewAggregateTilesOptions(t *testing.T) {
 	_, err = NewAggregateTilesOptions(start, end, time.Minute, targetNs, process,
 		true, true, map[string]annotation.Payload{}, insOpts)
 	assert.NoError(t, err)
+}
+
+func TestShardsDelta(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewBackground()
+	defer ctx.Close()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	shards := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+		sharding.NewShards([]uint32{2}, shard.Initializing)...)
+	shardSet, err := sharding.NewShardSet(shards, nil)
+	require.NoError(t, err)
+
+	d.shardSet = shardSet
+
+	t.Run("unchanged", func(t *testing.T) {
+		incoming := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+			sharding.NewShards([]uint32{2}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incoming, nil)
+		require.NoError(t, err)
+
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.False(t, added)
+		require.False(t, removed)
+		require.False(t, updated)
+	})
+
+	t.Run("added-updated-deleted", func(t *testing.T) {
+		incomingAddedRemovedUpdated := append(sharding.NewShards([]uint32{1, 2}, shard.Available),
+			sharding.NewShards([]uint32{3}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incomingAddedRemovedUpdated, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.True(t, added)
+		require.True(t, removed)
+		require.True(t, updated)
+	})
+
+	t.Run("added", func(t *testing.T) {
+		incomingAdded := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+			sharding.NewShards([]uint32{2, 3}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incomingAdded, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.True(t, added)
+		require.False(t, removed)
+		require.False(t, updated)
+	})
+
+	t.Run("updated", func(t *testing.T) {
+		incomingUpdated := sharding.NewShards([]uint32{0, 1, 2}, shard.Available)
+		shardSet, err = sharding.NewShardSet(incomingUpdated, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.False(t, added)
+		require.False(t, removed)
+		require.True(t, updated)
+	})
+
+	t.Run("removed", func(t *testing.T) {
+		incomingRemoved := sharding.NewShards([]uint32{0, 1}, shard.Available)
+		shardSet, err = sharding.NewShardSet(incomingRemoved, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.False(t, added)
+		require.True(t, removed)
+		require.False(t, updated)
+	})
+
+	t.Run("added-updated", func(t *testing.T) {
+		incomingAddedUpdated := append(sharding.NewShards([]uint32{0, 1, 2}, shard.Available),
+			sharding.NewShards([]uint32{3}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incomingAddedUpdated, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.True(t, added)
+		require.False(t, removed)
+		require.True(t, updated)
+	})
+
+	t.Run("added-removed", func(t *testing.T) {
+		incomingAddedRemoved := append(sharding.NewShards([]uint32{1}, shard.Available),
+			sharding.NewShards([]uint32{3}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incomingAddedRemoved, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.True(t, added)
+		require.True(t, removed)
+		require.False(t, updated)
+	})
+
+	t.Run("updated-removed", func(t *testing.T) {
+		incomingUpdatedRemoved := append(sharding.NewShards([]uint32{0}, shard.Available),
+			sharding.NewShards([]uint32{1}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incomingUpdatedRemoved, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.False(t, added)
+		require.True(t, removed)
+		require.True(t, updated)
+	})
 }
 
 func assertFileOpsEnabled(t *testing.T, d *db) {
