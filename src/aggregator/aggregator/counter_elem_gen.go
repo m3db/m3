@@ -216,13 +216,11 @@ func (e *CounterElem) expireValuesWithLock(
 	// value.
 	for len(e.values) > 1 && isEarlierThanFn(int64(e.minStartAlignedTime), resolution, int64(expiredNanos)) {
 		if v, ok := e.values[e.minStartAlignedTime]; ok {
-			// calculate the potential prevTimeNanos that would have been used by the timeNanos for this startAlignedTime.
-			v.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(e.minStartAlignedTime), resolution)).Add(-resolution)
 			e.toExpire = append(e.toExpire, v)
 
 			v.Release()
 			delete(e.values, e.minStartAlignedTime)
-			fmt.Println("REMOVE VAL", int64(e.minStartAlignedTime))
+			delete(e.consumedValues, e.minStartAlignedTime)
 		}
 		e.minStartAlignedTime = e.minStartAlignedTime.Add(resolution)
 	}
@@ -279,14 +277,6 @@ func (e *CounterElem) Consume(
 	flushForwardedFn flushForwardedMetricFn,
 	onForwardedFlushedFn onForwardingElemFlushedFn,
 ) bool {
-	fmt.Println("\nCONSUME", targetNanos)
-	for _, v := range e.dirty {
-		fmt.Println("DIRTY", int64(v))
-	}
-	for k, v := range e.values {
-		fmt.Println("VAL", int64(k), v)
-	}
-
 	resolution := e.sp.Resolution().Window
 	// reverse engineer the allowed lateness.
 	latenessAllowed := time.Duration(targetNanos - targetNanosFn(targetNanos))
@@ -296,11 +286,6 @@ func (e *CounterElem) Consume(
 		return false
 	}
 	e.toConsume = e.toConsume[:0]
-
-	// consume: t1 (values {t1})
-	// consume: t2
-
-	// process(curr: t2, prev: t1)
 
 	// Evaluate and GC expired items.
 	dirtyTimes := e.dirty
@@ -358,7 +343,6 @@ func (e *CounterElem) Consume(
 	for i := range e.toConsume {
 		timeNanos := xtime.UnixNano(timestampNanosFn(int64(e.toConsume[i].startAtNanos), resolution))
 		e.toConsume[i].lockedAgg.Lock()
-		fmt.Println("PROCESS", int64(timeNanos), int64(e.toConsume[i].previousTimeNanos))
 		_ = e.processValueWithAggregationLock(
 			timeNanos,
 			e.toConsume[i].previousTimeNanos,
@@ -388,10 +372,6 @@ func (e *CounterElem) Consume(
 			e.toExpire[i].lockedAgg.sourcesSeen = nil
 		}
 		e.toExpire[i].Release()
-
-		// Remove previous consumed value to reference from binary op.
-		fmt.Println("REMOVE CONSUMED VAL", int64(e.toExpire[i].previousTimeNanos))
-		delete(e.consumedValues, e.toExpire[i].previousTimeNanos)
 	}
 
 	if e.parsedPipeline.HasRollup {

@@ -202,7 +202,7 @@ func (e *GaugeElem) AddUnique(
 
 // remove expired aggregations from the values map.
 func (e *GaugeElem) expireValuesWithLock(
-	targetNanos xtime.UnixNano,
+	expiredNanos xtime.UnixNano,
 	timestampNanosFn timestampNanosFn,
 	isEarlierThanFn isEarlierThanFn) {
 	e.toExpire = e.toExpire[:0]
@@ -211,23 +211,16 @@ func (e *GaugeElem) expireValuesWithLock(
 		return
 	}
 	resolution := e.sp.Resolution().Window
-	expiredNanos := targetNanos.Add(-resolution)
-	if e.resendEnabled {
-		// If resend is enabled, we only expire if the value is now outside the buffer past. It is safe to expire
-		// since any metrics intended for this value are rejected for being too late.
-		expiredNanos = targetNanos.Add(-e.bufferForPastTimedMetricFn(resolution))
-	}
 
 	// always keep at least one value in the map for when calculating binary transforms. need to reference the previous
 	// value.
 	for len(e.values) > 1 && isEarlierThanFn(int64(e.minStartAlignedTime), resolution, int64(expiredNanos)) {
 		if v, ok := e.values[e.minStartAlignedTime]; ok {
-			// calculate the potential prevTimeNanos that would have been used by the timeNanos for this startAlignedTime.
-			v.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(e.minStartAlignedTime), resolution)).Add(-resolution)
 			e.toExpire = append(e.toExpire, v)
 
 			v.Release()
 			delete(e.values, e.minStartAlignedTime)
+			delete(e.consumedValues, e.minStartAlignedTime)
 		}
 		e.minStartAlignedTime = e.minStartAlignedTime.Add(resolution)
 	}
@@ -327,9 +320,21 @@ func (e *GaugeElem) Consume(
 		}
 	}
 
-	// note: expire values from the map while we still hold the lock. this method saves the aggs that are expired so
-	// we can clean them up after processing.
-	e.expireValuesWithLock(xtime.UnixNano(targetNanos), timestampNanosFn, isEarlierThanFn)
+	// To expire values, we want to expire anything earlier than a time
+	// after we would not accept new writes
+	minUpdateableTimeNanos := xtime.UnixNano(targetNanos)
+	if e.resendEnabled {
+		// If resend is enabled we are NOT waiting until the buffer expires to flush,
+		// and therefore we need to expire only up to (consumeTime - bufferPast).
+		// If resend is disabled, we can just expire up to the consumeTime
+		// because the flushing already accounts for the entire buffer past range.
+		minUpdateableTimeNanos = minUpdateableTimeNanos.Add(-e.bufferForPastTimedMetricFn(resolution))
+	}
+
+	expiredNanos, ok := e.previousStartAlignedWithLock(minUpdateableTimeNanos)
+	if ok {
+		e.expireValuesWithLock(expiredNanos, timestampNanosFn, isEarlierThanFn)
+	}
 
 	canCollect := len(e.dirty) == 0 && e.tombstoned
 	e.Unlock()
@@ -367,9 +372,6 @@ func (e *GaugeElem) Consume(
 			e.toExpire[i].lockedAgg.sourcesSeen = nil
 		}
 		e.toExpire[i].Release()
-
-		// Remove previous consumed value to reference from binary op.
-		delete(e.consumedValues, e.toExpire[i].previousTimeNanos)
 	}
 
 	if e.parsedPipeline.HasRollup {
