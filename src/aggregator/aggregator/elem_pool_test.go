@@ -31,7 +31,7 @@ import (
 func TestCounterElemPool(t *testing.T) {
 	p := NewCounterElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *CounterElem {
-		return MustNewCounterElem(ElemData{}, newTestOptions())
+		return MustNewCounterElem(ElemData{}, NewElemOptions(newTestOptions()))
 	})
 
 	// Retrieve an element from the pool.
@@ -52,7 +52,7 @@ func TestCounterElemPool(t *testing.T) {
 func TestTimerElemPool(t *testing.T) {
 	p := NewTimerElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *TimerElem {
-		return MustNewTimerElem(ElemData{}, newTestOptions())
+		return MustNewTimerElem(ElemData{}, NewElemOptions(newTestOptions()))
 	})
 
 	// Retrieve an element from the pool.
@@ -73,7 +73,7 @@ func TestTimerElemPool(t *testing.T) {
 func TestGaugeElemPool(t *testing.T) {
 	p := NewGaugeElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *GaugeElem {
-		return MustNewGaugeElem(testGaugeElemData, newTestOptions())
+		return MustNewGaugeElem(testGaugeElemData, NewElemOptions(newTestOptions()))
 	})
 
 	// Retrieve an element from the pool.

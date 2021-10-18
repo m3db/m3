@@ -937,8 +937,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	)
 	counterElemPool := aggregator.NewCounterElemPool(counterElemPoolOpts)
 	aggregatorOpts = aggregatorOpts.SetCounterElemPool(counterElemPool)
+	// use a singleton ElemOptions to avoid allocs per elem.
+	elemOpts := aggregator.NewElemOptions(aggregatorOpts)
 	counterElemPool.Init(func() *aggregator.CounterElem {
-		return aggregator.MustNewCounterElem(aggregator.ElemData{}, aggregatorOpts)
+		return aggregator.MustNewCounterElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	// Set timer elem pool.
@@ -948,7 +950,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	timerElemPool := aggregator.NewTimerElemPool(timerElemPoolOpts)
 	aggregatorOpts = aggregatorOpts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem {
-		return aggregator.MustNewTimerElem(aggregator.ElemData{}, aggregatorOpts)
+		return aggregator.MustNewTimerElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	// Set gauge elem pool.
@@ -958,7 +960,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	gaugeElemPool := aggregator.NewGaugeElemPool(gaugeElemPoolOpts)
 	aggregatorOpts = aggregatorOpts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem {
-		return aggregator.MustNewGaugeElem(aggregator.ElemData{}, aggregatorOpts)
+		return aggregator.MustNewGaugeElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	adminAggClient := newAggregatorLocalAdminClient()
