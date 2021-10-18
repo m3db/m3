@@ -269,6 +269,32 @@ func (c *CoordinatorClient) WaitForShardsReady() error {
 	})
 }
 
+// WaitForClusterReady waits until the cluster is ready to receive reads and writes.
+func (c *CoordinatorClient) WaitForClusterReady() error {
+	var (
+		url    = c.makeURL("ready")
+		logger = c.logger.With(ZapMethod("waitForClusterReady"), zap.String("url", url))
+	)
+	return c.retryFunc(func() error {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+		if err != nil {
+			logger.Error("failed to create request", zap.Error(err))
+			return err
+		}
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			logger.Error("failed checking cluster readiness", zap.Error(err))
+			return err
+		}
+		resp.Body.Close()
+
+		logger.Info("cluster ready to receive reads and writes")
+
+		return nil
+	})
+}
+
 // CreateDatabase creates a database.
 func (c *CoordinatorClient) CreateDatabase(
 	addRequest admin.DatabaseCreateRequest,
@@ -532,7 +558,7 @@ func (c *CoordinatorClient) WriteProm(name string, tags map[string]string, sampl
 	}
 
 	logger := c.logger.With(
-		ZapMethod("createDatabase"), zap.String("url", url),
+		ZapMethod("writeProm"), zap.String("url", url),
 		zap.String("request", writeRequest.String()))
 
 	body, err := proto.Marshal(&writeRequest)

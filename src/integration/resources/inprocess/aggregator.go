@@ -44,10 +44,13 @@ import (
 
 var errNoHTTPConfig = errors.New("no http configuration")
 
-type aggregator struct {
+// Aggregator is an in-process implementation of resources.Aggregator for use
+// in integration tests.
+type Aggregator struct {
 	cfg     config.Configuration
 	logger  *zap.Logger
 	tmpDirs []string
+	startFn StartFn
 
 	httpClient deploy.AggregatorClient
 
@@ -59,11 +62,11 @@ type aggregator struct {
 type AggregatorOptions struct {
 	// Logger is the logger to use for the in-process aggregator.
 	Logger *zap.Logger
-
+	// StartFn is a custom function that can be used to start the Aggregator.
+	StartFn StartFn
 	// GeneratePorts will automatically update the config to use open ports
 	// if set to true. If false, configuration is used as-is re: ports.
 	GeneratePorts bool
-
 	// GenerateHostID will automatically update the host ID specified in
 	// the config if set to true. If false, configuration is used as-is re: host ID.
 	GenerateHostID bool
@@ -107,10 +110,11 @@ func NewAggregator(cfg config.Configuration, opts AggregatorOptions) (resources.
 		}
 	}
 
-	agg := &aggregator{
+	agg := &Aggregator{
 		cfg:        cfg,
 		logger:     opts.Logger,
 		tmpDirs:    tmpDirs,
+		startFn:    opts.StartFn,
 		httpClient: deploy.NewAggregatorClient(&http.Client{}),
 	}
 	agg.start()
@@ -118,7 +122,8 @@ func NewAggregator(cfg config.Configuration, opts AggregatorOptions) (resources.
 	return agg, nil
 }
 
-func (a *aggregator) IsHealthy() error {
+// IsHealthy determines whether an instance is healthy.
+func (a *Aggregator) IsHealthy() error {
 	if a.cfg.HTTP == nil {
 		return errNoHTTPConfig
 	}
@@ -126,7 +131,8 @@ func (a *aggregator) IsHealthy() error {
 	return a.httpClient.IsHealthy(a.cfg.HTTP.ListenAddress)
 }
 
-func (a *aggregator) Status() (m3agg.RuntimeStatus, error) {
+// Status returns the instance status.
+func (a *Aggregator) Status() (m3agg.RuntimeStatus, error) {
 	if a.cfg.HTTP == nil {
 		return m3agg.RuntimeStatus{}, errNoHTTPConfig
 	}
@@ -134,7 +140,8 @@ func (a *aggregator) Status() (m3agg.RuntimeStatus, error) {
 	return a.httpClient.Status(a.cfg.HTTP.ListenAddress)
 }
 
-func (a *aggregator) Resign() error {
+// Resign asks an aggregator instance to give up its current leader role if applicable.
+func (a *Aggregator) Resign() error {
 	if a.cfg.HTTP == nil {
 		return errNoHTTPConfig
 	}
@@ -142,7 +149,9 @@ func (a *aggregator) Resign() error {
 	return a.httpClient.Resign(a.cfg.HTTP.ListenAddress)
 }
 
-func (a *aggregator) Close() error {
+// Close closes the wrapper and releases any held resources, including
+// deleting docker containers.
+func (a *Aggregator) Close() error {
 	defer func() {
 		for _, dir := range a.tmpDirs {
 			if err := os.RemoveAll(dir); err != nil {
@@ -167,7 +176,12 @@ func (a *aggregator) Close() error {
 	return nil
 }
 
-func (a *aggregator) start() {
+func (a *Aggregator) start() {
+	if a.startFn != nil {
+		a.interruptCh, a.shutdownCh = a.startFn()
+		return
+	}
+
 	interruptCh := make(chan error, 1)
 	shutdownCh := make(chan struct{}, 1)
 

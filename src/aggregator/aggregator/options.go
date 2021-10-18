@@ -852,19 +852,20 @@ func (o *options) initPools() {
 		return NewEntryWithMetrics(nil, metrics, defaultRuntimeOpts, o)
 	})
 
+	elemOpts := NewElemOptions(o)
 	o.counterElemPool = NewCounterElemPool(nil)
 	o.counterElemPool.Init(func() *CounterElem {
-		return MustNewCounterElem(ElemData{}, o)
+		return MustNewCounterElem(ElemData{}, elemOpts)
 	})
 
 	o.timerElemPool = NewTimerElemPool(nil)
 	o.timerElemPool.Init(func() *TimerElem {
-		return MustNewTimerElem(ElemData{}, o)
+		return MustNewTimerElem(ElemData{}, elemOpts)
 	})
 
 	o.gaugeElemPool = NewGaugeElemPool(nil)
 	o.gaugeElemPool.Init(func() *GaugeElem {
-		return MustNewGaugeElem(ElemData{}, o)
+		return MustNewGaugeElem(ElemData{}, elemOpts)
 	})
 }
 

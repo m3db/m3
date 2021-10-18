@@ -35,36 +35,26 @@ func NewEncodedSeriesIter(
 	meta block.Metadata,
 	seriesMetas []block.SeriesMeta,
 	seriesIters []encoding.SeriesIterator,
-	lookback time.Duration,
 	instrumented bool,
 ) block.SeriesIter {
 	return &encodedSeriesIter{
-		idx:              -1,
-		meta:             meta,
-		seriesMeta:       seriesMetas,
-		seriesIters:      seriesIters,
-		lookbackDuration: lookback,
-		instrumented:     instrumented,
+		idx:          -1,
+		meta:         meta,
+		seriesMeta:   seriesMetas,
+		seriesIters:  seriesIters,
+		instrumented: instrumented,
 	}
 }
 
 type encodedSeriesIter struct {
-	idx              int
-	lookbackDuration time.Duration
-	err              error
-	meta             block.Metadata
-	datapoints       ts.Datapoints
-	series           block.UnconsolidatedSeries
-	seriesMeta       []block.SeriesMeta
-	seriesIters      []encoding.SeriesIterator
-	instrumented     bool
-}
-
-func (b *encodedBlock) SeriesIter() (block.SeriesIter, error) {
-	return NewEncodedSeriesIter(
-		b.meta, b.seriesMetas, b.seriesBlockIterators,
-		b.options.LookbackDuration(), b.options.Instrumented(),
-	), nil
+	idx          int
+	err          error
+	meta         block.Metadata
+	datapoints   ts.Datapoints
+	series       block.UnconsolidatedSeries
+	seriesMeta   []block.SeriesMeta
+	seriesIters  []encoding.SeriesIterator
+	instrumented bool
 }
 
 func (it *encodedSeriesIter) Current() block.UnconsolidatedSeries {
@@ -195,7 +185,7 @@ func iteratorBatchingFn(
 
 		iter := NewEncodedSeriesIter(
 			meta, seriesMetas[start:end], seriesBlockIterators[start:end],
-			opts.LookbackDuration(), opts.Instrumented(),
+			opts.Instrumented(),
 		)
 
 		iters = append(iters, block.SeriesIterBatch{
