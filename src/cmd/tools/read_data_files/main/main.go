@@ -70,7 +70,8 @@ func main() {
 		fileSetTypeArg = getopt.StringLong("fileset-type", 't', flushType, fmt.Sprintf("%s|%s", flushType, snapshotType))
 
 		idFilter                  = getopt.StringLong("id-filter", 'f', "", "ID Contains Filter (optional)")
-		noAnnotationFilter        = getopt.BoolLong("no-annotation", 'N', "Filters metrics without type")
+		noInitialAnnotationFilter = getopt.BoolLong("no-initial-annotation", 'N',
+			"Filters metrics that have no annotation in first datapoint of the block")
 		annotationRewrittenFilter = getopt.BoolLong("annotation-rewritten", 'R', "Filters metrics with annotation rewrites")
 
 		benchmark = getopt.StringLong(
@@ -168,28 +169,34 @@ func main() {
 		}
 
 		if benchMode != benchmarkSeries {
-			if *noAnnotationFilter || *annotationRewrittenFilter {
+			if *noInitialAnnotationFilter || *annotationRewrittenFilter {
 				var (
 					iter = m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
 
 					previousAnnotationBase64 *string
-					noAnnotation             = true
+					noInitialAnnotation      = true
 					annotationRewritten      = false
+
+					firstDatapoint = true
 				)
 
 				for iter.Next() {
 					_, _, annotation := iter.Current()
 					if len(annotation) > 0 {
-						noAnnotation = false
+						if firstDatapoint {
+							noInitialAnnotation = false
+						}
 						annotationBase64 := base64.StdEncoding.EncodeToString(annotation)
 						if previousAnnotationBase64 != nil && *previousAnnotationBase64 != annotationBase64 {
 							annotationRewritten = true
 						}
 						previousAnnotationBase64 = &annotationBase64
 					}
+					firstDatapoint = false
 				}
+				iter.Close()
 
-				if (*noAnnotationFilter && !noAnnotation) || (*annotationRewrittenFilter && !annotationRewritten) {
+				if (*noInitialAnnotationFilter && !noInitialAnnotation) || (*annotationRewrittenFilter && !annotationRewritten) {
 					continue
 				}
 			}
