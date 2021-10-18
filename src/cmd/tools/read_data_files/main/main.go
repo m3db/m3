@@ -71,8 +71,9 @@ func main() {
 
 		idFilter                  = getopt.StringLong("id-filter", 'f', "", "ID Contains Filter (optional)")
 		noInitialAnnotationFilter = getopt.BoolLong("no-initial-annotation", 'N',
-			"Filters metrics that have no annotation in first datapoint of the block")
-		annotationRewrittenFilter = getopt.BoolLong("annotation-rewritten", 'R', "Filters metrics with annotation rewrites")
+			"Filters metrics that have no annotation in first datapoint of the block and prints their series IDs")
+		annotationRewrittenFilter = getopt.BoolLong("annotation-rewritten", 'R',
+			"Filters metrics with annotation rewrites and prints their series IDs")
 
 		benchmark = getopt.StringLong(
 			"benchmark", 'B', "", "benchmark mode (optional), [series|datapoints]")
@@ -168,61 +169,66 @@ func main() {
 			continue
 		}
 
-		if benchMode != benchmarkSeries {
-			if *noInitialAnnotationFilter || *annotationRewrittenFilter {
-				var (
-					iter = m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
+		seriesCount++
+		if benchMode == benchmarkSeries {
+			continue
+		}
 
-					previousAnnotationBase64 *string
-					noInitialAnnotation      = true
-					annotationRewritten      = false
+		if *noInitialAnnotationFilter || *annotationRewrittenFilter {
+			var (
+				iter = m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
 
-					firstDatapoint = true
-				)
+				previousAnnotationBase64 *string
+				noInitialAnnotation      = true
+				annotationRewritten      = false
 
-				for iter.Next() {
-					_, _, annotation := iter.Current()
-					if len(annotation) > 0 {
-						if firstDatapoint {
-							noInitialAnnotation = false
-						}
-						annotationBase64 := base64.StdEncoding.EncodeToString(annotation)
-						if previousAnnotationBase64 != nil && *previousAnnotationBase64 != annotationBase64 {
-							annotationRewritten = true
-						}
-						previousAnnotationBase64 = &annotationBase64
-					}
-					firstDatapoint = false
-				}
-				iter.Close()
+				firstDatapoint = true
+			)
 
-				if (*noInitialAnnotationFilter && !noInitialAnnotation) || (*annotationRewrittenFilter && !annotationRewritten) {
-					continue
-				}
-			}
-
-			iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
 			for iter.Next() {
-				dp, _, annotation := iter.Current()
-				if benchMode == benchmarkNone {
-					// Use fmt package so it goes to stdout instead of stderr
-					fmt.Printf("{id: %s, dp: %+v", id.String(), dp) // nolint: forbidigo
-					if len(annotation) > 0 {
-						fmt.Printf(", annotation: %s", // nolint: forbidigo
-							base64.StdEncoding.EncodeToString(annotation))
+				_, _, annotation := iter.Current()
+				if len(annotation) > 0 {
+					if firstDatapoint {
+						noInitialAnnotation = false
 					}
-					fmt.Println("}") // nolint: forbidigo
+					annotationBase64 := base64.StdEncoding.EncodeToString(annotation)
+					if previousAnnotationBase64 != nil && *previousAnnotationBase64 != annotationBase64 {
+						annotationRewritten = true
+					}
+					previousAnnotationBase64 = &annotationBase64
 				}
-				annotationSizeTotal += uint64(len(annotation))
-				datapointCount++
+				firstDatapoint = false
 			}
 			if err := iter.Err(); err != nil {
 				log.Fatalf("unable to iterate original data: %v", err)
 			}
 			iter.Close()
+
+			if (*noInitialAnnotationFilter && noInitialAnnotation) || (*annotationRewrittenFilter && annotationRewritten) {
+				fmt.Println(id.String()) // nolint: forbidigo
+			}
+			continue
 		}
 
-		seriesCount++
+		iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
+		for iter.Next() {
+			dp, _, annotation := iter.Current()
+			if benchMode == benchmarkNone {
+				// Use fmt package so it goes to stdout instead of stderr
+				fmt.Printf("{id: %s, dp: %+v", id.String(), dp) // nolint: forbidigo
+				if len(annotation) > 0 {
+					fmt.Printf(", annotation: %s", // nolint: forbidigo
+						base64.StdEncoding.EncodeToString(annotation))
+				}
+				fmt.Println("}") // nolint: forbidigo
+			}
+			annotationSizeTotal += uint64(len(annotation))
+			datapointCount++
+		}
+		if err := iter.Err(); err != nil {
+			log.Fatalf("unable to iterate original data: %v", err)
+		}
+		iter.Close()
 	}
 
 	if seriesCount != reader.Entries() {
