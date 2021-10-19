@@ -464,6 +464,9 @@ func (b *mediatorTimeBarrier) maybeRelease() (xtime.UnixNano, error) {
 	}
 
 	b.mediatorTime = newMediatorTime
+	for i := 0; i < numWaiters; i++ {
+		b.releaseCh <- b.mediatorTime
+	}
 
 	return b.mediatorTime, nil
 }
