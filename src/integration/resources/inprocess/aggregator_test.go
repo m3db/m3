@@ -22,8 +22,10 @@
 package inprocess
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	m3agg "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
@@ -32,8 +34,12 @@ import (
 	nettest "github.com/m3db/m3/src/integration/resources/net"
 	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/config/hostid"
+	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -124,6 +130,36 @@ func TestAggregatorStatus(t *testing.T) {
 	status, err = agg.Status()
 	require.NoError(t, err)
 	require.Equal(t, followerStatus, status)
+}
+
+func TestAggregatorWriteWithCluster(t *testing.T) {
+	cfgs, err := NewClusterConfigsFromYAML(defaultDBNodeConfig, aggregatorCoordConfig)
+	require.NoError(t, err)
+
+	cluster, err := NewCluster(cfgs,
+		ClusterOptions{
+			DBNode: NewDBNodeClusterOptions(),
+		},
+	)
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, cluster.Cleanup())
+	}()
+
+	coord := cluster.Coordinator()
+
+	setupPlacement(t, coord)
+	setupM3msgTopic(t, coord)
+
+	agg, err := NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{})
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, agg.Close())
+	}()
+
+	require.NoError(t, resources.Retry(agg.IsHealthy))
+
+	testAggMetrics(t, coord)
 }
 
 func setupCoordinator(t *testing.T) (resources.Coordinator, func()) {
@@ -320,6 +356,72 @@ type testAggregatorArgs struct {
 	m3msgPort uint32
 }
 
+func testAggMetrics(t *testing.T, coord resources.Coordinator) {
+	var (
+		ts  = time.Now()
+		ts1 = xtime.ToUnixNano(ts)
+		ts2 = xtime.ToUnixNano(ts.Add(1 * time.Millisecond))
+		ts3 = xtime.ToUnixNano(ts.Add(2 * time.Millisecond))
+	)
+	samples := []prompb.Sample{
+		{Value: 1, Timestamp: storage.TimeToPromTimestamp(ts1)},
+		{Value: 2, Timestamp: storage.TimeToPromTimestamp(ts2)},
+		{Value: 3, Timestamp: storage.TimeToPromTimestamp(ts3)},
+	}
+	assert.NoError(t, resources.Retry(func() error {
+		return coord.WriteProm("cpu", map[string]string{"host": "host1"}, samples)
+	}))
+	queryHeaders := map[string][]string{"M3-Metrics-Type": {"aggregated"}, "M3-Storage-Policy": {"10s:6h"}}
+	instantQ := "api/v1/query?query=cpu"
+	assert.NoError(t, coord.RunQuery(verify, instantQ, queryHeaders))
+}
+
+type jsonResponse struct {
+	Status string
+	Data   QueryResult
+}
+
+type QueryResult struct {
+	ResultType model.ValueType
+	Result     model.Vector
+}
+
+func verify(
+	status int,
+	headers map[string][]string,
+	resp string,
+	err error,
+) error {
+	if err != nil {
+		return err
+	}
+
+	if status != 200 {
+		return fmt.Errorf("expected 200, received %v", status)
+	}
+
+	if contentType, ok := headers["Content-Type"]; !ok {
+		return fmt.Errorf("missing Content-Type header")
+	} else if len(contentType) != 1 || contentType[0] != "application/json" { //nolint:goconst
+		return fmt.Errorf("expected json content type, got %v", contentType)
+	}
+
+	var parsedResp jsonResponse
+	if err := json.Unmarshal([]byte(resp), &parsedResp); err != nil {
+		return err
+	}
+
+	if parsedResp.Data.Result.Len() != 1 {
+		return fmt.Errorf("wrong amount of query results")
+	}
+
+	if parsedResp.Data.Result[0].Value != 6 {
+		return fmt.Errorf("wrong metric value")
+	}
+
+	return nil
+}
+
 const defaultAggregatorConfig = `
 metrics:
   prometheus:
@@ -420,6 +522,10 @@ clusters:
       - namespace: default
         type: unaggregated
         retention: 1h
+      - namespace: aggregated
+        type: aggregated
+        resolution: 10s
+        retention: 6h
     client:
       config:
         service:
@@ -431,6 +537,15 @@ clusters:
             - zone: embedded
               endpoints:
                 - 127.0.0.1:2379
+downsample:
+  rules:
+    mappingRules:
+      - name: "agged metrics"
+        filter: "host:*"
+        aggregations: ["Sum"]
+        storagePolicies:
+          - resolution: 10s
+            retention: 6h
 ingest:
   ingester:
     workerPoolSize: 10000
