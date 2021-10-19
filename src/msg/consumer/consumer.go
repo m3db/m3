@@ -25,6 +25,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/clock"
@@ -168,8 +170,12 @@ func (c *consumer) tryAck(m msgpb.Metadata) {
 		c.Unlock()
 		return
 	}
-	if err := c.encodeAckWithLock(ackLen); err != nil {
-		c.conn.Close()
+	if err := c.sendAckWithLock(ackLen); err != nil {
+		c.opts.InstrumentOptions().Logger().Error("failed to send ack. closing connection.", zap.Error(err))
+		if err := c.conn.Close(); err != nil {
+			c.opts.InstrumentOptions().Logger().Error("failed to close connection after failed ack.",
+				zap.Error(err))
+		}
 	}
 	c.Unlock()
 }
@@ -192,13 +198,13 @@ func (c *consumer) ackUntilClose() {
 func (c *consumer) tryAckAndFlush() {
 	c.Lock()
 	if ackLen := len(c.ackPb.Metadata); ackLen > 0 {
-		c.encodeAckWithLock(ackLen)
+		c.sendAckWithLock(ackLen)
 	}
 	c.w.Flush()
 	c.Unlock()
 }
 
-func (c *consumer) encodeAckWithLock(ackLen int) error {
+func (c *consumer) sendAckWithLock(ackLen int) error {
 	err := c.encoder.Encode(&c.ackPb)
 	c.ackPb.Metadata = c.ackPb.Metadata[:0]
 	if err != nil {
