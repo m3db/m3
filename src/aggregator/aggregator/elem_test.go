@@ -21,7 +21,6 @@
 package aggregator
 
 import (
-	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -670,9 +669,6 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 1, len(e.values))
-	for k, v := range e.consumedValues {
-		fmt.Println("CONSUMED VAL", k, v)
-	}
 	require.Len(t, e.consumedValues, 2)
 	consumedVal = e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
 	require.Len(t, consumedVal, 1)

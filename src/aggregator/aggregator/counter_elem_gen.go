@@ -219,9 +219,7 @@ func (e *CounterElem) expireValuesWithLock(
 			e.toExpire = append(e.toExpire, v)
 
 			v.Release()
-			fmt.Println("DELETE", int64(e.minStartAlignedTime))
 			delete(e.values, e.minStartAlignedTime)
-			//delete(e.consumedValues, e.minStartAlignedTime)
 		}
 		e.minStartAlignedTime = e.minStartAlignedTime.Add(resolution)
 	}
@@ -278,13 +276,6 @@ func (e *CounterElem) Consume(
 	flushForwardedFn flushForwardedMetricFn,
 	onForwardedFlushedFn onForwardingElemFlushedFn,
 ) bool {
-	fmt.Println("\nCONSUME", targetNanos)
-	for _, v := range e.values {
-		fmt.Println("VAL", int64(v.startAtNanos))
-	}
-	for _, v := range e.dirty {
-		fmt.Println("DIRTY", int64(v))
-	}
 	resolution := e.sp.Resolution().Window
 	// reverse engineer the allowed lateness.
 	latenessAllowed := time.Duration(targetNanos - targetNanosFn(targetNanos))
@@ -340,8 +331,6 @@ func (e *CounterElem) Consume(
 	}
 
 	expiredNanos, ok := e.previousStartAlignedWithLock(minUpdateableTimeNanos)
-	fmt.Println("TARGET", int64(targetNanos))
-	fmt.Println("EXPIRE", int64(expiredNanos), int64(minUpdateableTimeNanos))
 	if ok {
 		e.expireValuesWithLock(expiredNanos, timestampNanosFn, isEarlierThanFn)
 	}

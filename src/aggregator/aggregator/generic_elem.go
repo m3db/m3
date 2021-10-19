@@ -284,7 +284,6 @@ func (e *GenericElem) expireValuesWithLock(
 
 			v.Release()
 			delete(e.values, e.minStartAlignedTime)
-			delete(e.consumedValues, e.minStartAlignedTime)
 		}
 		e.minStartAlignedTime = e.minStartAlignedTime.Add(resolution)
 	}
@@ -436,6 +435,8 @@ func (e *GenericElem) Consume(
 			e.toExpire[i].lockedAgg.sourcesSeen = nil
 		}
 		e.toExpire[i].Release()
+
+		delete(e.consumedValues, e.toExpire[i].startAtNanos)
 	}
 
 	if e.parsedPipeline.HasRollup {
