@@ -30,15 +30,18 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
+	aggcfg "github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	dbcfg "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/discovery"
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/integration/resources"
+	nettest "github.com/m3db/m3/src/integration/resources/net"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/hostid"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // ClusterOptions contains options for spinning up a new M3 cluster
@@ -47,7 +50,8 @@ type ClusterOptions struct {
 	// DBNode contains cluster options for spinning up dbnodes.
 	DBNode DBNodeClusterOptions
 
-	// TODO: support for Aggregator cluster options
+	// Aggregator contains cluster options for spinning up aggregators.
+	Aggregator AggregatorClusterOptions
 }
 
 // ClusterConfigs contain the config to use for components within
@@ -57,6 +61,8 @@ type ClusterConfigs struct {
 	DBNode dbcfg.Configuration
 	// Coordinator is the configuration for the coordinator.
 	Coordinator coordinatorcfg.Configuration
+	// Aggregator is the configuration for aggregators.
+	Aggregator *aggcfg.Configuration
 }
 
 // NewClusterConfigsFromConfigFile creates a new ClusterConfigs object from the
@@ -64,6 +70,7 @@ type ClusterConfigs struct {
 func NewClusterConfigsFromConfigFile(
 	pathToDBNodeCfg string,
 	pathToCoordCfg string,
+	pathToAggCfg string,
 ) (ClusterConfigs, error) {
 	var dCfg dbcfg.Configuration
 	if err := xconfig.LoadFile(&dCfg, pathToDBNodeCfg, xconfig.Options{}); err != nil {
@@ -75,15 +82,23 @@ func NewClusterConfigsFromConfigFile(
 		return ClusterConfigs{}, err
 	}
 
+	var aCfg aggcfg.Configuration
+	if len(pathToAggCfg) > 0 {
+		if err := xconfig.LoadFile(&aCfg, pathToAggCfg, xconfig.Options{}); err != nil {
+			return ClusterConfigs{}, err
+		}
+	}
+
 	return ClusterConfigs{
 		DBNode:      dCfg,
 		Coordinator: cCfg,
+		Aggregator:  &aCfg,
 	}, nil
 }
 
 // NewClusterConfigsFromYAML creates a new ClusterConfigs object from YAML strings
 // representing component configs.
-func NewClusterConfigsFromYAML(dbnodeYaml string, coordYaml string) (ClusterConfigs, error) {
+func NewClusterConfigsFromYAML(dbnodeYaml string, coordYaml string, aggYaml string) (ClusterConfigs, error) {
 	var dbCfg dbcfg.Configuration
 	if err := yaml.Unmarshal([]byte(dbnodeYaml), &dbCfg); err != nil {
 		return ClusterConfigs{}, err
@@ -94,66 +109,24 @@ func NewClusterConfigsFromYAML(dbnodeYaml string, coordYaml string) (ClusterConf
 		return ClusterConfigs{}, err
 	}
 
+	var aggCfg aggcfg.Configuration
+	if len(aggYaml) > 0 {
+		if err := yaml.Unmarshal([]byte(aggYaml), &aggCfg); err != nil {
+			return ClusterConfigs{}, err
+		}
+	}
+
 	return ClusterConfigs{
 		Coordinator: coordCfg,
 		DBNode:      dbCfg,
+		Aggregator:  &aggCfg,
 	}, nil
 }
 
-// DBNodeClusterOptions contains the cluster options for spinning up
-// dbnodes.
-type DBNodeClusterOptions struct {
-	// RF is the replication factor to use for the cluster.
-	RF int32
-	// NumShards is the number of shards to use for each RF.
-	NumShards int32
-	// NumInstances is the number of dbnode instances per RF.
-	NumInstances int32
-	// NumIsolationGroups is the number of isolation groups to split
-	// nodes into.
-	NumIsolationGroups int32
-}
-
-// NewDBNodeClusterOptions creates DBNodeClusteOptions with sane defaults.
-// DBNode config must still be provided.
-func NewDBNodeClusterOptions() DBNodeClusterOptions {
-	return DBNodeClusterOptions{
-		RF:                 1,
-		NumShards:          4,
-		NumInstances:       1,
-		NumIsolationGroups: 1,
-	}
-}
-
-// Validate validates the DBNodeClusterOptions.
-func (d *DBNodeClusterOptions) Validate() error {
-	if d.RF < 1 {
-		return errors.New("rf must be at least 1")
-	}
-
-	if d.NumShards < 1 {
-		return errors.New("numShards must be at least 1")
-	}
-
-	if d.NumInstances < 1 {
-		return errors.New("numInstances must be at least 1")
-	}
-
-	if d.NumIsolationGroups < 1 {
-		return errors.New("numIsolationGroups must be at least 1")
-	}
-
-	if d.RF > d.NumIsolationGroups {
-		return errors.New("rf must be less than or equal to numIsolationGroups")
-	}
-
-	return nil
-}
-
 // NewCluster creates a new M3 cluster based on the ClusterOptions provided.
-// Expects at least a coordinator and a dbnode config.
+// Expects at least a coordinator, a dbnode and an aggregator config.
 func NewCluster(configs ClusterConfigs, opts ClusterOptions) (resources.M3Resources, error) {
-	if err := opts.DBNode.Validate(); err != nil {
+	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -167,9 +140,18 @@ func NewCluster(configs ClusterConfigs, opts ClusterOptions) (resources.M3Resour
 		return nil, err
 	}
 
+	var aggCfgs []aggcfg.Configuration
+	if opts.Aggregator.Enabled {
+		aggCfgs, err = GenerateAggregatorConfigsForCluster(configs, opts.Aggregator)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	var (
 		coord resources.Coordinator
 		nodes = make(resources.Nodes, 0, len(nodeCfgs))
+		aggs  = make(resources.Aggregators, 0, len(aggCfgs))
 	)
 
 	fs.DisableIndexClaimsManagersCheckUnsafe()
@@ -178,7 +160,7 @@ func NewCluster(configs ClusterConfigs, opts ClusterOptions) (resources.M3Resour
 	// fails half way.
 	defer func() {
 		if err != nil {
-			cleanup(logger, nodes, coord)
+			cleanup(logger, nodes, coord, aggs)
 		}
 	}()
 
@@ -209,6 +191,35 @@ func NewCluster(configs ClusterConfigs, opts ClusterOptions) (resources.M3Resour
 		NumIsolationGroups: opts.DBNode.NumIsolationGroups,
 	}); err != nil {
 		return nil, err
+	}
+
+	if opts.Aggregator.Enabled {
+		aggClusterOptions := resources.AggregatorClusterOptions{
+			ReplicationFactor:  opts.Aggregator.RF,
+			NumShards:          opts.Aggregator.NumShards,
+			NumIsolationGroups: opts.Aggregator.NumIsolationGroups,
+		}
+		if err = resources.SetupPlacement(coord, aggClusterOptions, aggCfgs); err != nil {
+			return nil, err
+		}
+
+		if err = resources.SetupM3msgTopics(coord, aggCfgs); err != nil {
+			return nil, err
+		}
+
+		for i := 0; i < len(aggCfgs); i++ {
+			agg, err := NewAggregator(aggCfgs[i], AggregatorOptions{})
+			if err != nil {
+				return nil, err
+			}
+			aggs = append(aggs, agg)
+		}
+
+		m3 = NewM3Resources(ResourceOptions{
+			Coordinator: coord,
+			DBNodes:     nodes,
+			Aggregators: aggs,
+		})
 	}
 
 	return m3, nil
@@ -301,7 +312,7 @@ func generateDefaultDiscoveryConfig(
 	}, envConfig, nil
 }
 
-func cleanup(logger *zap.Logger, nodes resources.Nodes, coord resources.Coordinator) {
+func cleanup(logger *zap.Logger, nodes resources.Nodes, coord resources.Coordinator, aggs resources.Aggregators) {
 	var multiErr xerrors.MultiError
 	for _, n := range nodes {
 		multiErr = multiErr.Add(n.Close())
@@ -311,7 +322,195 @@ func cleanup(logger *zap.Logger, nodes resources.Nodes, coord resources.Coordina
 		multiErr = multiErr.Add(coord.Close())
 	}
 
+	for _, a := range aggs {
+		multiErr = multiErr.Add(a.Close())
+	}
+
 	if !multiErr.Empty() {
 		logger.Warn("failed closing resources", zap.Error(multiErr.FinalError()))
 	}
+}
+
+// GenerateAggregatorConfigsForCluster generates the unique configs for each aggregator instance.
+func GenerateAggregatorConfigsForCluster(
+	configs ClusterConfigs,
+	opts AggregatorClusterOptions,
+) ([]aggcfg.Configuration, error) {
+	if configs.Aggregator == nil {
+		return nil, nil
+	}
+
+	cfgs := make([]aggcfg.Configuration, 0, int(opts.NumInstances))
+	for i := 0; i < int(opts.NumInstances); i++ {
+		cfg, err := configs.Aggregator.DeepCopy()
+		if err != nil {
+			return nil, err
+		}
+
+		hostID := fmt.Sprintf("m3aggregator%02d", i)
+		aggCfg := cfg.AggregatorOrDefault()
+		aggCfg.HostID = &hostid.Configuration{
+			Resolver: hostid.ConfigResolver,
+			Value:    &hostID,
+		}
+		cfg.Aggregator = &aggCfg
+
+		m3msgCfg := cfg.M3MsgOrDefault()
+		addr, _, err := nettest.GeneratePort("0.0.0.0:0")
+		if err != nil {
+			return nil, err
+		}
+		m3msgCfg.Server.ListenAddress = addr
+		cfg.M3Msg = &m3msgCfg
+
+		httpCfg := cfg.HTTPOrDefault()
+		addr, _, err = nettest.GeneratePort(httpCfg.ListenAddress)
+		if err != nil {
+			return nil, err
+		}
+		httpCfg.ListenAddress = addr
+		cfg.HTTP = &httpCfg
+
+		metricsCfg := cfg.MetricsOrDefault()
+		addr, _, err = nettest.GeneratePort(metricsCfg.PrometheusReporter.ListenAddress)
+		if err != nil {
+			return nil, err
+		}
+		metricsCfg.PrometheusReporter = &instrument.PrometheusConfiguration{
+			OnError:       "none",
+			HandlerPath:   "/metrics",
+			ListenAddress: addr,
+			TimerType:     "histogram",
+		}
+		cfg.Metrics = &metricsCfg
+
+		cfgs = append(cfgs, cfg)
+	}
+
+	return cfgs, nil
+}
+
+// Validate validates the ClusterOptions.
+func (opts *ClusterOptions) Validate() error {
+	if err := opts.DBNode.Validate(); err != nil {
+		return fmt.Errorf("invalid dbnode cluster options: %w", err)
+	}
+
+	if err := opts.Aggregator.Validate(); err != nil {
+		return fmt.Errorf("invalid aggregator cluster options: %w", err)
+	}
+
+	return nil
+}
+
+// DBNodeClusterOptions contains the cluster options for spinning up
+// dbnodes.
+type DBNodeClusterOptions struct {
+	// RF is the replication factor to use for the cluster.
+	RF int32
+	// NumShards is the number of shards to use for each RF.
+	NumShards int32
+	// NumInstances is the number of dbnode instances per RF.
+	NumInstances int32
+	// NumIsolationGroups is the number of isolation groups to split
+	// nodes into.
+	NumIsolationGroups int32
+}
+
+// NewDBNodeClusterOptions creates DBNodeClusteOptions with sane defaults.
+// DBNode config must still be provided.
+func NewDBNodeClusterOptions() DBNodeClusterOptions {
+	return DBNodeClusterOptions{
+		RF:                 1,
+		NumShards:          4,
+		NumInstances:       1,
+		NumIsolationGroups: 1,
+	}
+}
+
+// Validate validates the DBNodeClusterOptions.
+func (d *DBNodeClusterOptions) Validate() error {
+	if d.RF < 1 {
+		return errors.New("rf must be at least 1")
+	}
+
+	if d.NumShards < 1 {
+		return errors.New("numShards must be at least 1")
+	}
+
+	if d.NumInstances < 1 {
+		return errors.New("numInstances must be at least 1")
+	}
+
+	if d.NumIsolationGroups < 1 {
+		return errors.New("numIsolationGroups must be at least 1")
+	}
+
+	if d.RF > d.NumIsolationGroups {
+		return errors.New("rf must be less than or equal to numIsolationGroups")
+	}
+
+	return nil
+}
+
+// AggregatorClusterOptions contains the cluster options for spinning up
+// aggregators.
+type AggregatorClusterOptions struct {
+	// Enabled indicates if aggregators should be added to the cluster.
+	Enabled bool
+	// RF is the replication factor to use for aggregators.
+	// It should be 1 for non-replicated mode and 2 for leader-follower mode.
+	RF int32
+	// NumShards is the number of shards to use for each RF.
+	NumShards int32
+	// NumInstances is the number of aggregator instances in total.
+	NumInstances int32
+	// NumIsolationGroups is the number of isolation groups to split
+	// aggregators into.
+	NumIsolationGroups int32
+}
+
+// NewAggregatorClusterOptions creates AggregatorClusterOptions with sane defaults.
+// Aggregator config must still be provided.
+func NewAggregatorClusterOptions() AggregatorClusterOptions {
+	return AggregatorClusterOptions{
+		Enabled:            true,
+		RF:                 1,
+		NumShards:          4,
+		NumInstances:       1,
+		NumIsolationGroups: 1,
+	}
+}
+
+// Validate validates the AggregatorClusterOptions.
+func (a *AggregatorClusterOptions) Validate() error {
+	if !a.Enabled {
+		return nil
+	}
+
+	if a.RF < 1 {
+		return errors.New("rf must be at least 1")
+	}
+
+	if a.RF > 2 {
+		return errors.New("rf must be at most 2")
+	}
+
+	if a.NumShards < 1 {
+		return errors.New("numShards must be at least 1")
+	}
+
+	if a.NumInstances < 1 {
+		return errors.New("numInstances must be at least 1")
+	}
+
+	if a.NumIsolationGroups < 1 {
+		return errors.New("numIsolationGroups must be at least 1")
+	}
+
+	if a.RF > a.NumIsolationGroups {
+		return errors.New("rf must be less than or equal to numIsolationGroups")
+	}
+
+	return nil
 }

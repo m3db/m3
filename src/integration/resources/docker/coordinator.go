@@ -75,6 +75,11 @@ func newDockerHTTPCoordinator(
 	}, nil
 }
 
+func (c *coordinator) HostDetails() (*admin.Host, error) {
+	// TODO: add implementation
+	return nil, nil
+}
+
 func (c *coordinator) GetNamespace() (admin.NamespaceGetResponse, error) {
 	if c.resource.closed {
 		return admin.NamespaceGetResponse{}, errClosed

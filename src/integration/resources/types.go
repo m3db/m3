@@ -46,6 +46,9 @@ type GoalStateVerifier func(string, error) error
 type Coordinator interface {
 	Admin
 
+	// HostDetails returns this coordinator instance's host details.
+	HostDetails() (*admin.Host, error)
+
 	// ApplyKVUpdate applies a KV update.
 	ApplyKVUpdate(update string) error
 	// WriteCarbon writes a carbon metric datapoint at a given time.
@@ -154,6 +157,8 @@ type M3Resources interface {
 	Nodes() Nodes
 	// Coordinator returns the coordinator resource.
 	Coordinator() Coordinator
+	// Aggregators returns all aggregator resources.
+	Aggregators() Aggregators
 }
 
 // ExternalResources represents an external (i.e. non-M3)
@@ -204,6 +209,43 @@ func (n Nodes) WaitForHealthy() error {
 
 	wg.Wait()
 	return multiErr.FinalError()
+}
+
+// Aggregators is a slice of aggregators.
+type Aggregators []Aggregator
+
+// WaitForHealthy waits for each Aggregator in Aggregators to be healthy
+func (a Aggregators) WaitForHealthy() error {
+	var (
+		multiErr errors.MultiError
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+	)
+
+	for _, agg := range a {
+		wg.Add(1)
+		agg := agg
+		go func() {
+			defer wg.Done()
+			err := Retry(agg.IsHealthy)
+			if err != nil {
+				mu.Lock()
+				multiErr = multiErr.Add(err)
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+	return multiErr.FinalError()
+}
+
+// AggregatorClusterOptions represents a set of options for aggregators in a cluster setup.
+type AggregatorClusterOptions struct {
+	ReplicationFactor  int32
+	NumShards          int32
+	NumIsolationGroups int32
+	M3msgPorts         []int32
 }
 
 // M3msgTopicOptions represents a set of options for an m3msg topic.

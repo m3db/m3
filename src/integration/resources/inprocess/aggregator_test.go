@@ -1,4 +1,5 @@
 // +build integration_v2
+
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -132,7 +133,7 @@ func TestAggregatorStatus(t *testing.T) {
 }
 
 func TestAggregatorWriteWithCluster(t *testing.T) {
-	cfgs, err := NewClusterConfigsFromYAML(defaultDBNodeConfig, aggregatorCoordConfig)
+	cfgs, err := NewClusterConfigsFromYAML(defaultDBNodeConfig, aggregatorCoordConfig, defaultAggregatorConfig)
 	require.NoError(t, err)
 
 	cluster, err := NewCluster(cfgs,

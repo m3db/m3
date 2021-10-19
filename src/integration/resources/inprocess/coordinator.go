@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/server"
 	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/headers"
 	xos "github.com/m3db/m3/src/x/os"
 )
 
@@ -223,6 +224,27 @@ func (c *Coordinator) start() {
 
 	c.interruptCh = interruptCh
 	c.shutdownCh = shutdownCh
+}
+
+// HostDetails returns the coordinator's host details.
+func (c *Coordinator) HostDetails() (*admin.Host, error) {
+	addr, p, err := net.SplitHostPort(c.cfg.Ingest.M3Msg.Server.ListenAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	port, err := strconv.Atoi(p)
+	if err != nil {
+		return nil, err
+	}
+
+	return &admin.Host{
+		Id:      "m3coordinator",
+		Zone:    headers.DefaultServiceZone,
+		Weight:  1024,
+		Address: addr,
+		Port:    uint32(port),
+	}, nil
 }
 
 // GetNamespace gets namespaces.

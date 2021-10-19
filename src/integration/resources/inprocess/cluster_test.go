@@ -1,4 +1,5 @@
 // +build integration_v2
+
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -25,10 +26,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 )
 
 func TestNewCluster(t *testing.T) {
-	configs, err := NewClusterConfigsFromYAML(clusterDBNodeConfig, clusterCoordConfig)
+	configs, err := NewClusterConfigsFromYAML(clusterDBNodeConfig, clusterCoordConfig, "")
 	require.NoError(t, err)
 
 	m3, err := NewCluster(configs, ClusterOptions{
@@ -45,7 +47,7 @@ func TestNewCluster(t *testing.T) {
 }
 
 func TestNewSingleNodeCluster(t *testing.T) {
-	configs, err := NewClusterConfigsFromYAML(clusterDBNodeConfig, clusterCoordConfig)
+	configs, err := NewClusterConfigsFromYAML(clusterDBNodeConfig, clusterCoordConfig, "")
 	require.NoError(t, err)
 
 	m3, err := NewCluster(configs, ClusterOptions{
@@ -53,6 +55,27 @@ func TestNewSingleNodeCluster(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, m3.Nodes().WaitForHealthy())
+	require.NoError(t, m3.Cleanup())
+}
+
+func TestNewClusterWithAgg(t *testing.T) {
+	aggCfg, err := loadDefaultAggregatorConfig()
+	require.NoError(t, err)
+	aggCfgBytes, err := yaml.Marshal(aggCfg)
+	require.NoError(t, err)
+
+	configs, err := NewClusterConfigsFromYAML(clusterDBNodeConfig, aggregatorCoordConfig, string(aggCfgBytes))
+	require.NoError(t, err)
+
+	aggClusterOpts := NewAggregatorClusterOptions()
+	aggClusterOpts.NumInstances = 2
+	m3, err := NewCluster(configs, ClusterOptions{
+		DBNode:     NewDBNodeClusterOptions(),
+		Aggregator: aggClusterOpts,
+	})
+	require.NoError(t, err)
+	require.NoError(t, m3.Nodes().WaitForHealthy())
+	require.NoError(t, m3.Aggregators().WaitForHealthy())
 	require.NoError(t, m3.Cleanup())
 }
 
