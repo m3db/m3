@@ -209,6 +209,9 @@ func getShards(pathPrefix string, fileSetType persist.FileSetType, namespace str
 
 	shards := make([]uint32, 0)
 	for _, f := range files {
+		if !f.IsDir() {
+			continue
+		}
 		i, err := strconv.Atoi(f.Name())
 		if err != nil {
 			return nil, fmt.Errorf("failed extracting shard number: %w", err)
