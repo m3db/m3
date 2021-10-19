@@ -723,54 +723,49 @@ func TestCounterElemClose(t *testing.T) {
 	require.NotNil(t, e.values)
 }
 
-//func TestCounterFindOrCreateNoSourceSet(t *testing.T) {
-//	e, err := NewCounterElem(testCounterElemData, NewElemOptions(newTestOptions()))
-//	require.NoError(t, err)
-//
-//	inputs := []int64{10, 10, 20, 10, 15}
-//	expected := []testIndexData{
-//		{index: 0, data: []int64{10}},
-//		{index: 0, data: []int64{10}},
-//		{index: 1, data: []int64{10, 20}},
-//		{index: 0, data: []int64{10, 20}},
-//		{index: 1, data: []int64{10, 15, 20}},
-//	}
-//	for idx, input := range inputs {
-//		res, err := e.findOrCreate(input, createAggregationOptions{initSourceSet: false})
-//		require.NoError(t, err)
-//		var times []int64
-//		for _, v := range e.values {
-//			times = append(times, v.startAtNanos)
-//		}
-//		require.Equal(t, e.values[expected[idx].index].lockedAgg, res)
-//		require.Nil(t, e.values[expected[idx].index].lockedAgg.sourcesSeen)
-//		require.Equal(t, expected[idx].data, times)
-//	}
-//}
-//
-//func TestCounterFindOrCreateWithSourceSet(t *testing.T) {
-//	e, err := NewCounterElem(testCounterElemData, NewElemOptions(newTestOptions()))
-//	require.NoError(t, err)
-//	e.cachedSourceSets = make([]map[uint32]*bitset.BitSet, 0)
-//
-//	inputs := []int64{10, 20}
-//	expected := []testIndexData{
-//		{index: 0, data: []int64{10}},
-//		{index: 1, data: []int64{10, 20}},
-//	}
-//	for idx, input := range inputs {
-//		res, err := e.findOrCreate(input, createAggregationOptions{initSourceSet: true})
-//		require.NoError(t, err)
-//		var times []int64
-//		for _, v := range e.values {
-//			times = append(times, v.startAtNanos)
-//		}
-//		require.Equal(t, e.values[expected[idx].index].lockedAgg, res)
-//		require.Equal(t, expected[idx].data, times)
-//		require.NotNil(t, e.values[expected[idx].index].lockedAgg.sourcesSeen)
-//	}
-//	require.Equal(t, 0, len(e.cachedSourceSets))
-//}
+func TestCounterFindOrCreateNoSourceSet(t *testing.T) {
+	e, err := NewCounterElem(testCounterElemData, NewElemOptions(newTestOptions()))
+	require.NoError(t, err)
+
+	inputs := []xtime.UnixNano{10, 10, 20, 10, 15}
+	expected := make(map[xtime.UnixNano]bool)
+	for _, inputNanos := range inputs {
+		expected[inputNanos] = true
+		res, err := e.findOrCreate(int64(inputNanos), createAggregationOptions{initSourceSet: false})
+		require.NoError(t, err)
+		require.Equal(t, e.values[inputNanos].lockedAgg, res)
+		require.Nil(t, e.values[inputNanos].lockedAgg.sourcesSeen)
+		require.Equal(t, len(expected), len(e.values))
+		for k := range e.values {
+			_, ok := expected[k]
+			require.True(t, ok)
+		}
+	}
+}
+
+// func TestCounterFindOrCreateWithSourceSet(t *testing.T) {
+// 	e, err := NewCounterElem(testCounterElemData, NewElemOptions(newTestOptions()))
+// 	require.NoError(t, err)
+// 	e.cachedSourceSets = make([]map[uint32]*bitset.BitSet, 0)
+
+// 	inputs := []int64{10, 20}
+// 	expected := []testIndexData{
+// 		{index: 0, data: []int64{10}},
+// 		{index: 1, data: []int64{10, 20}},
+// 	}
+// 	for idx, input := range inputs {
+// 		res, err := e.findOrCreate(input, createAggregationOptions{initSourceSet: true})
+// 		require.NoError(t, err)
+// 		var times []int64
+// 		for _, v := range e.values {
+// 			times = append(times, v.startAtNanos)
+// 		}
+// 		require.Equal(t, e.values[expected[idx].index].lockedAgg, res)
+// 		require.Equal(t, expected[idx].data, times)
+// 		require.NotNil(t, e.values[expected[idx].index].lockedAgg.sourcesSeen)
+// 	}
+// 	require.Equal(t, 0, len(e.cachedSourceSets))
+// }
 
 func TestTimerResetSetData(t *testing.T) {
 	opts := newTestOptions()
