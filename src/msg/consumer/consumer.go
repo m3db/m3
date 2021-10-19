@@ -170,13 +170,7 @@ func (c *consumer) tryAck(m msgpb.Metadata) {
 		c.Unlock()
 		return
 	}
-	if err := c.sendAckWithLock(ackLen); err != nil {
-		c.opts.InstrumentOptions().Logger().Error("failed to send ack. closing connection.", zap.Error(err))
-		if err := c.conn.Close(); err != nil {
-			c.opts.InstrumentOptions().Logger().Error("failed to close connection after failed ack.",
-				zap.Error(err))
-		}
-	}
+	c.trySendAcksWithLock(ackLen)
 	c.Unlock()
 }
 
@@ -198,30 +192,39 @@ func (c *consumer) ackUntilClose() {
 func (c *consumer) tryAckAndFlush() {
 	c.Lock()
 	if ackLen := len(c.ackPb.Metadata); ackLen > 0 {
-		c.sendAckWithLock(ackLen)
+		c.trySendAcksWithLock(ackLen)
 	}
 	c.w.Flush()
 	c.Unlock()
 }
 
-func (c *consumer) sendAckWithLock(ackLen int) error {
+// if acks fail to send the client will retry sending the messages.
+func (c *consumer) trySendAcksWithLock(ackLen int) {
 	err := c.encoder.Encode(&c.ackPb)
+	log := c.opts.InstrumentOptions().Logger()
 	c.ackPb.Metadata = c.ackPb.Metadata[:0]
 	if err != nil {
 		c.m.ackEncodeError.Inc(1)
-		return err
+		log.Error("failed to encode ack. client will retry sending message.", zap.Error(err))
 	}
 	_, err = c.w.Write(c.encoder.Bytes())
 	if err != nil {
 		c.m.ackWriteError.Inc(1)
-		return err
+		log.Error("failed to write ack. client will retry sending message.", zap.Error(err))
+		c.tryCloseConn()
 	}
 	if err := c.w.Flush(); err != nil {
 		c.m.ackWriteError.Inc(1)
-		return err
+		log.Error("failed to flush ack. client will retry sending message.", zap.Error(err))
+		c.tryCloseConn()
 	}
 	c.m.ackSent.Inc(int64(ackLen))
-	return nil
+}
+
+func (c *consumer) tryCloseConn() {
+	if err := c.conn.Close(); err != nil {
+		c.opts.InstrumentOptions().Logger().Error("failed to close connection.", zap.Error(err))
+	}
 }
 
 func (c *consumer) Close() {
