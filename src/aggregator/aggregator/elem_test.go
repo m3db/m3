@@ -639,7 +639,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
-	//require.Equal(t, 3, e.len())
+	require.Equal(t, 3, e.len())
 	require.Len(t, e.consumedValues, 1)
 	consumedVal := e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
 	require.Len(t, consumedVal, 1)
@@ -669,11 +669,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 1, len(e.values))
-	require.Len(t, e.consumedValues, 2)
-	consumedVal = e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
-	require.Len(t, consumedVal, 1)
-	require.Equal(t, 456.0, consumedVal[0].Value)
-	require.Equal(t, time.Unix(230, 0).UnixNano(), consumedVal[0].TimeNanos)
+	require.Len(t, e.consumedValues, 1)
 	consumedVal = e.consumedValues[xtime.UnixNano(expectedForwardedRes[1].timeNanos)]
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 589.0, consumedVal[0].Value)
@@ -1646,7 +1642,7 @@ func TestGaugeElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForGauge(testAlignedStarts[1], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 2, e.len())
 
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -1657,7 +1653,7 @@ func TestGaugeElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForGauge(testAlignedStarts[2], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 0, len(e.values))
+	require.Equal(t, 1, len(e.values))
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true
@@ -1669,7 +1665,7 @@ func TestGaugeElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 0, len(e.values))
+	require.Equal(t, 1, len(e.values))
 
 	// Reading and discarding values from a closed element is no op.
 	e.closed = true
@@ -1681,7 +1677,7 @@ func TestGaugeElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 0, len(e.values))
+	require.Equal(t, 1, len(e.values))
 }
 
 func TestGaugeElemConsumeResendBuffer(t *testing.T) {
@@ -1782,7 +1778,7 @@ func TestGaugeElemConsumeResendBuffer(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 2, e.len())
 
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
@@ -1822,7 +1818,7 @@ func TestGaugeElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForGauge(testAlignedStarts[1], testStoragePolicy, testAggregationTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 2, e.len())
 
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -1833,7 +1829,7 @@ func TestGaugeElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForGauge(testAlignedStarts[2], testStoragePolicy, testAggregationTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 0, len(e.values))
+	require.Equal(t, 1, len(e.values))
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true
@@ -1845,7 +1841,7 @@ func TestGaugeElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 0, len(e.values))
+	require.Equal(t, 1, len(e.values))
 
 	// Reading and discarding values from a closed element is no op.
 	e.closed = true
@@ -1857,7 +1853,7 @@ func TestGaugeElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 0, len(e.values))
+	require.Equal(t, 1, len(e.values))
 }
 
 func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
@@ -1921,7 +1917,7 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 3, e.len())
 	require.Len(t, e.consumedValues, 1)
 	consumedVal := e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
 	require.Len(t, consumedVal, 1)
@@ -1949,7 +1945,7 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
-	require.Equal(t, 0, len(e.values))
+	require.Equal(t, 1, len(e.values))
 	require.Len(t, e.consumedValues, 1)
 	consumedVal = e.consumedValues[xtime.UnixNano(expectedForwardedRes[1].timeNanos)]
 	require.Len(t, consumedVal, 1)
@@ -1966,7 +1962,7 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
-	require.Equal(t, 0, len(e.values))
+	require.Equal(t, 1, len(e.values))
 
 	// Reading and discarding values from a closed element is no op.
 	e.closed = true
@@ -1978,7 +1974,7 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 0, len(e.values))
+	require.Equal(t, 1, len(e.values))
 }
 
 func TestGaugeElemResendSumReset(t *testing.T) {
@@ -2262,7 +2258,7 @@ func TestGaugeElemReset(t *testing.T) {
 	require.Equal(t, (*localRes)[1].value, 0.0)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 3, e.len())
 	require.Equal(t, 0, len(e.consumedValues))
 
 	// Consume all values.

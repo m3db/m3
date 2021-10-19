@@ -216,6 +216,7 @@ func (e *TimerElem) expireValuesWithLock(
 	// value.
 	for len(e.values) > 1 && isEarlierThanFn(int64(e.minStartAlignedTime), resolution, int64(expiredNanos)) {
 		if v, ok := e.values[e.minStartAlignedTime]; ok {
+			v.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(e.minStartAlignedTime), resolution))
 			e.toExpire = append(e.toExpire, v)
 
 			v.Release()
@@ -372,7 +373,7 @@ func (e *TimerElem) Consume(
 		}
 		e.toExpire[i].Release()
 
-		delete(e.consumedValues, e.toExpire[i].startAtNanos)
+		delete(e.consumedValues, e.toExpire[i].previousTimeNanos)
 	}
 
 	if e.parsedPipeline.HasRollup {

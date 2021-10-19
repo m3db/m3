@@ -216,6 +216,7 @@ func (e *GaugeElem) expireValuesWithLock(
 	// value.
 	for len(e.values) > 1 && isEarlierThanFn(int64(e.minStartAlignedTime), resolution, int64(expiredNanos)) {
 		if v, ok := e.values[e.minStartAlignedTime]; ok {
+			v.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(e.minStartAlignedTime), resolution))
 			e.toExpire = append(e.toExpire, v)
 
 			v.Release()
@@ -372,7 +373,7 @@ func (e *GaugeElem) Consume(
 		}
 		e.toExpire[i].Release()
 
-		delete(e.consumedValues, e.toExpire[i].startAtNanos)
+		delete(e.consumedValues, e.toExpire[i].previousTimeNanos)
 	}
 
 	if e.parsedPipeline.HasRollup {
@@ -483,7 +484,7 @@ func (e *GaugeElem) find(alignedStartNanos xtime.UnixNano) (*lockedGaugeAggregat
 		return nil, errElemClosed
 	}
 	timedAgg, ok := e.values[alignedStartNanos]
-	if ok && timedAgg.lockedAgg.dirty {
+	if ok {
 		return timedAgg.lockedAgg, nil
 	}
 	return nil, nil
@@ -500,7 +501,7 @@ func (e *GaugeElem) findOrCreate(
 	if err != nil {
 		return nil, err
 	}
-	if found != nil {
+	if found != nil && found.dirty {
 		return found, err
 	}
 
