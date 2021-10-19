@@ -54,11 +54,12 @@ const (
 func main() {
 	var (
 		optPathPrefix  = getopt.StringLong("path-prefix", 'p', "", "Path prefix [e.g. /var/lib/m3db]")
-		optNamespace   = getopt.StringLong("namespace", 'n', "default", "Namespace [e.g. metrics]")
-		optShard       = getopt.IntLong("shard", 's', allShards, "Shard [expected format uint32]")
-		optBlockstart  = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
-		volume         = getopt.Int64Long("volume", 'v', 0, "Volume number")
 		fileSetTypeArg = getopt.StringLong("fileset-type", 't', flushType, fmt.Sprintf("%s|%s", flushType, snapshotType))
+		optNamespace   = getopt.StringLong("namespace", 'n', "default", "Namespace [e.g. metrics]")
+		optShard       = getopt.IntLong("shard", 's', allShards,
+			fmt.Sprintf("Shard number, or %v for all shards in the directory", allShards))
+		optBlockstart = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
+		volume        = getopt.Int64Long("volume", 'v', 0, "Volume number")
 
 		annotationRewrittenFilter = getopt.BoolLong("annotation-rewritten", 'R', "Filters metrics with annotation rewrites")
 	)
