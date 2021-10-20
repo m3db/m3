@@ -152,6 +152,7 @@ type dbShard struct {
 	shard                    uint32
 	coldWritesEnabled        bool
 	indexEnabled             bool
+	readOnly                 bool
 }
 
 // NB(r): dbShardRuntimeOptions does not contain its own
@@ -251,6 +252,7 @@ func newDatabaseShard(
 	needsBootstrap bool,
 	opts Options,
 	seriesOpts series.Options,
+	readOnly bool,
 ) databaseShard {
 	scope := opts.InstrumentOptions().MetricsScope().
 		SubScope("dbshard")
@@ -285,6 +287,7 @@ func newDatabaseShard(
 		logger:               opts.InstrumentOptions().Logger(),
 		metrics:              newDatabaseShardMetrics(shard, scope),
 		tileAggregator:       opts.TileAggregator(),
+		readOnly:             readOnly,
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
 		s.nowFn, scope, opts.InstrumentOptions().Logger())
@@ -1998,7 +2001,8 @@ func (s *dbShard) UpdateFlushStates() {
 	blockSize := s.namespace.Options().RetentionOptions().BlockSize()
 	indexBlockSize := s.namespace.Options().IndexOptions().BlockSize()
 
-	indexFlushedBlockStarts := s.reverseIndex.WarmFlushBlockStarts()
+	warmFlushOnly := !s.readOnly
+	indexFlushedBlockStarts := s.reverseIndex.FlushBlockStarts(warmFlushOnly)
 	for _, blockStart := range indexFlushedBlockStarts {
 		// Index block size is wider than data block size, so we want to set all data blockStarts
 		// within the range of a given index blockStart

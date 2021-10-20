@@ -539,7 +539,7 @@ func (n *dbNamespace) assignShardSet(
 		// shard created for this shard ID.
 		n.shards[shard] = newDatabaseShard(metadata, shard, n.blockRetriever,
 			n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
-			opts.needsBootstrap, n.opts, n.seriesOpts)
+			opts.needsBootstrap, n.opts, n.seriesOpts, n.ReadOnly())
 		createdShardIds = append(createdShardIds, shard)
 		// NB(bodu): We only record shard add metrics for shards created in non
 		// initial assignments.

@@ -760,7 +760,7 @@ type NamespaceIndex interface {
 	// CleanupDuplicateFileSets removes duplicate fileset files.
 	CleanupDuplicateFileSets(activeShards []uint32) error
 
-	// Tick performs internal house keeping in the index, including block rotation,
+	// Tick performs internal housekeeping in the index, including block rotation,
 	// data eviction, and so on.
 	Tick(c context.Cancellable, startTime xtime.UnixNano) (namespaceIndexTickResult, error)
 
@@ -771,12 +771,12 @@ type NamespaceIndex interface {
 		shards []databaseShard,
 	) error
 
-	// WarmFlushBlockStarts returns all index blockStarts which have been flushed to disk.
-	WarmFlushBlockStarts() []xtime.UnixNano
+	// FlushBlockStarts returns all index blockStarts which have been flushed to disk.
+	FlushBlockStarts(warmFlushOnly bool) []xtime.UnixNano
 
 	// ColdFlush performs any cold flushes that the index has outstanding using
 	// the owned shards of the database. Also returns a callback to be called when
-	// cold flushing completes to perform houskeeping.
+	// cold flushing completes to perform housekeeping.
 	ColdFlush(shards []databaseShard) (OnColdFlushDone, error)
 
 	// DebugMemorySegments allows for debugging memory segments.
@@ -789,7 +789,7 @@ type NamespaceIndex interface {
 	Close() error
 }
 
-// OnColdFlushDone is a callback that performs house keeping once cold flushing completes.
+// OnColdFlushDone is a callback that performs housekeeping once cold flushing completes.
 type OnColdFlushDone func() error
 
 // DebugMemorySegmentsOptions is a set of options to debug memory segments.
@@ -1191,7 +1191,7 @@ type Options interface {
 		value block.DatabaseBlockRetrieverManager,
 	) Options
 
-	// NewBlockRetrieverFn returns the new block retriever constructor to
+	// DatabaseBlockRetrieverManager returns the new block retriever constructor to
 	// use when bootstrapping retrievable blocks instead of blocks
 	// containing data.
 	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
@@ -1325,7 +1325,7 @@ type Options interface {
 	// SetForceColdWritesEnabled sets options for forcing cold writes.
 	SetForceColdWritesEnabled(value bool) Options
 
-	// SetForceColdWritesEnabled returns options for forcing cold writes.
+	// ForceColdWritesEnabled returns options for forcing cold writes.
 	ForceColdWritesEnabled() bool
 
 	// SetSourceLoggerBuilder sets the limit source logger builder.

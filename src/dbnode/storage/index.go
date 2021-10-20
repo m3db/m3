@@ -1112,13 +1112,13 @@ func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
 	}, nil
 }
 
-// WarmFlushBlockStarts returns all index blockStarts which have been flushed to disk.
-func (i *nsIndex) WarmFlushBlockStarts() []xtime.UnixNano {
+// FlushBlockStarts returns all index blockStarts which have been flushed to disk.
+func (i *nsIndex) FlushBlockStarts(warmFlushOnly bool) []xtime.UnixNano {
 	flushed := make([]xtime.UnixNano, 0)
 	infoFiles := i.readInfoFilesAsMap()
 
 	for blockStart := range infoFiles {
-		if i.hasIndexWarmFlushedToDisk(infoFiles, blockStart) {
+		if i.hasIndexFlushedToDisk(infoFiles, blockStart, warmFlushOnly) {
 			flushed = append(flushed, blockStart)
 		}
 	}
@@ -1203,7 +1203,7 @@ func (i *nsIndex) canFlushBlockWithRLock(
 		// `block.NeedsMutableSegmentsEvicted()` since bootstrap writes for cold block starts
 		// get marked as warm writes if there doesn't already exist data on disk and need to
 		// properly go through the warm flush lifecycle.
-		if !block.IsSealed() || i.hasIndexWarmFlushedToDisk(infoFiles, blockStart) {
+		if !block.IsSealed() || i.hasIndexFlushedToDisk(infoFiles, blockStart, true) {
 			return false, nil
 		}
 	case series.ColdWrite:
@@ -1250,9 +1250,10 @@ func (i *nsIndex) blockStartsFromIndexBlockStart(blockStart xtime.UnixNano) []xt
 	return blockStarts
 }
 
-func (i *nsIndex) hasIndexWarmFlushedToDisk(
+func (i *nsIndex) hasIndexFlushedToDisk(
 	infoFiles map[xtime.UnixNano][]fs.ReadIndexInfoFileResult,
 	blockStart xtime.UnixNano,
+	warmFlushOnly bool,
 ) bool {
 	// NB(bodu): We consider the block to have been warm flushed if there are any
 	// filesets on disk. This is consistent with the "has warm flushed" check in the db shard.
@@ -1267,7 +1268,8 @@ func (i *nsIndex) hasIndexWarmFlushedToDisk(
 		if fileInfo.Info.IndexVolumeType != nil {
 			indexVolumeType = idxpersist.IndexVolumeType(fileInfo.Info.IndexVolumeType.Value)
 		}
-		match := fileInfo.ID.BlockStart == blockStart && indexVolumeType == idxpersist.DefaultIndexVolumeType
+		match := fileInfo.ID.BlockStart == blockStart &&
+			(indexVolumeType == idxpersist.DefaultIndexVolumeType || !warmFlushOnly)
 		if match {
 			return true
 		}

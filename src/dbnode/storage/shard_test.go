@@ -91,7 +91,7 @@ func testDatabaseShardWithIndexFn(
 		SetColdWritesEnabled(coldWritesEnabled)
 
 	return newDatabaseShard(metadata, 0, nil, nsReaderMgr,
-		&testIncreasingIndex{}, idx, true, opts, seriesOpts).(*dbShard)
+		&testIncreasingIndex{}, idx, true, opts, seriesOpts, false).(*dbShard)
 }
 
 func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID, tags ident.Tags, index uint64) *series.MockDatabaseSeries {
@@ -113,7 +113,7 @@ func TestShardDontNeedBootstrap(t *testing.T) {
 	defer closer()
 	seriesOpts := NewSeriesOptionsFromOptions(opts, testNs.Options().RetentionOptions())
 	shard := newDatabaseShard(testNs.metadata, 0, nil, nil,
-		&testIncreasingIndex{}, nil, false, opts, seriesOpts).(*dbShard)
+		&testIncreasingIndex{}, nil, false, opts, seriesOpts, false).(*dbShard)
 	defer shard.Close()
 
 	require.Equal(t, Bootstrapped, shard.bootstrapState)
@@ -126,7 +126,7 @@ func TestShardErrorIfDoubleBootstrap(t *testing.T) {
 	defer closer()
 	seriesOpts := NewSeriesOptionsFromOptions(opts, testNs.Options().RetentionOptions())
 	shard := newDatabaseShard(testNs.metadata, 0, nil, nil,
-		&testIncreasingIndex{}, nil, false, opts, seriesOpts).(*dbShard)
+		&testIncreasingIndex{}, nil, false, opts, seriesOpts, false).(*dbShard)
 	defer shard.Close()
 
 	require.Equal(t, Bootstrapped, shard.bootstrapState)
