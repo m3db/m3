@@ -2003,6 +2003,9 @@ func (s *dbShard) UpdateFlushStates() {
 
 	warmFlushOnly := !s.readOnly
 	indexFlushedBlockStarts := s.reverseIndex.FlushBlockStarts(warmFlushOnly)
+	s.logger.Info("UpdateFlushStates",
+		zap.Reflect("indexFlushedBlockStarts", indexFlushedBlockStarts),
+		zap.Uint32("shard", s.shard))
 	for _, blockStart := range indexFlushedBlockStarts {
 		// Index block size is wider than data block size, so we want to set all data blockStarts
 		// within the range of a given index blockStart
