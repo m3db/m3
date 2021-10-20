@@ -208,8 +208,6 @@ func (e *GaugeElem) expireValuesWithLock(
 	expiredNanos xtime.UnixNano,
 	timestampNanosFn timestampNanosFn,
 	isEarlierThanFn isEarlierThanFn) {
-	e.toExpire = e.toExpire[:0]
-
 	if len(e.values) == 0 {
 		return
 	}
