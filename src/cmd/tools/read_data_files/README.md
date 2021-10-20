@@ -7,17 +7,23 @@
 $ git clone git@github.com:m3db/m3.git
 $ make read_data_files
 $ ./bin/read_data_files
-Usage: read_data_files [-b value] [-n value] [-p value] [-s value] [parameters ...]
+Usage: read_data_files [-B value] [-b value] [-f value] [-n value] [-p value] [-s value] [-t value] [-v value] [parameters ...]
+ -B, --benchmark=value
+                    benchmark mode (optional), [series|datapoints]
  -b, --block-start=value
-       Block Start Time [in nsec]
+                    Block Start Time [in nsec]
  -f, --id-filter=value
-       ID Contains Filter [e.g. xyz]
+                    ID Contains Filter (optional)
  -n, --namespace=value
-       Namespace [e.g. metrics]
+                    Namespace [e.g. metrics]
  -p, --path-prefix=value
-       Path prefix [e.g. /var/lib/m3db]
- -s, --shard=value
-       Shard [expected format uint32]
+                    Path prefix [e.g. /var/lib/m3db]
+ -s, --shard=value  Shard [expected format uint32], or -1 for all shards in the
+                    directory
+ -t, --fileset-type=value
+                    flush|snapshot
+ -v, --volume=value
+                    Volume number
 
 # example usage
 # read_data_files -b1480960800000000000 -n metrics -p /var/lib/m3db -s 451 -f 'metric-name' > /tmp/sample-data.out
