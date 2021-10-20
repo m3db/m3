@@ -53,13 +53,16 @@ func TestNewAggregator(t *testing.T) {
 	setupPlacement(t, coord)
 	setupM3msgTopic(t, coord)
 
-	agg, err := NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{GenerateHostID: true})
+	cfg, err := defaultAggregatorConfig()
+	require.NoError(t, err)
+
+	agg, err := NewAggregator(cfg, AggregatorOptions{GenerateHostID: true})
 	require.NoError(t, err)
 	require.NoError(t, resources.Retry(agg.IsHealthy))
 	require.NoError(t, agg.Close())
 
 	// restart an aggregator instance
-	agg, err = NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{GenerateHostID: true})
+	agg, err = NewAggregator(cfg, AggregatorOptions{GenerateHostID: true})
 	require.NoError(t, err)
 	require.NoError(t, resources.Retry(agg.IsHealthy))
 	require.NoError(t, agg.Close())
@@ -75,14 +78,9 @@ func TestMultiAggregators(t *testing.T) {
 	setupPlacementMultiAggs(t, coord, args)
 	setupM3msgTopic(t, coord)
 
-	var (
-		cfg1 config.Configuration
-		cfg2 config.Configuration
-	)
-	require.NoError(t, yaml.Unmarshal([]byte(defaultAggregatorConfig), &cfg1))
+	cfg1, err := defaultAggregatorConfig()
+	require.NoError(t, err)
 	updateTestAggConfig(&cfg1, args[0])
-	require.NoError(t, yaml.Unmarshal([]byte(defaultAggregatorConfig), &cfg2))
-	updateTestAggConfig(&cfg2, args[1])
 
 	agg1, err := NewAggregator(cfg1, AggregatorOptions{GeneratePorts: true})
 	require.NoError(t, err)
@@ -90,6 +88,10 @@ func TestMultiAggregators(t *testing.T) {
 	defer func() {
 		assert.NoError(t, agg1.Close())
 	}()
+
+	cfg2, err := defaultAggregatorConfig()
+	require.NoError(t, err)
+	updateTestAggConfig(&cfg2, args[1])
 
 	agg2, err := NewAggregator(cfg2, AggregatorOptions{GeneratePorts: true})
 	require.NoError(t, err)
@@ -107,7 +109,10 @@ func TestAggregatorStatus(t *testing.T) {
 	setupPlacement(t, coord)
 	setupM3msgTopic(t, coord)
 
-	agg, err := NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{})
+	cfg, err := defaultAggregatorConfig()
+	require.NoError(t, err)
+
+	agg, err := NewAggregator(cfg, AggregatorOptions{})
 	require.NoError(t, err)
 	defer func() {
 		assert.NoError(t, agg.Close())
@@ -151,7 +156,10 @@ func TestAggregatorWriteWithCluster(t *testing.T) {
 	setupPlacement(t, coord)
 	setupM3msgTopic(t, coord)
 
-	agg, err := NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{})
+	cfg, err := defaultAggregatorConfig()
+	require.NoError(t, err)
+
+	agg, err := NewAggregator(cfg, AggregatorOptions{})
 	require.NoError(t, err)
 	defer func() {
 		assert.NoError(t, agg.Close())
@@ -232,12 +240,12 @@ func setupPlacement(t *testing.T, coord resources.Coordinator) {
 			ReplicationFactor: 1,
 			Instances: []*placementpb.Instance{
 				{
-					Id:             "m3aggregator01",
+					Id:             "m3aggregator_local",
 					IsolationGroup: "rack1",
 					Zone:           "embedded",
 					Weight:         1,
 					Endpoint:       "0.0.0.0:6000",
-					Hostname:       "m3aggregator01",
+					Hostname:       "m3aggregator_local",
 					Port:           6000,
 				},
 			},
@@ -340,14 +348,33 @@ func generateTestAggregatorArgs(numAggs int) ([]testAggregatorArgs, error) {
 }
 
 func updateTestAggConfig(cfg *config.Configuration, args testAggregatorArgs) {
-	cfg.Aggregator.HostID = &hostid.Configuration{
+	aggCfg := cfg.AggregatorOrDefault()
+	aggCfg.HostID = &hostid.Configuration{
 		Resolver: hostid.ConfigResolver,
 		Value:    &args.hostID,
 	}
+	cfg.Aggregator = &aggCfg
 
-	if cfg.M3Msg != nil {
-		cfg.M3Msg.Server.ListenAddress = args.m3msgAddr
+	m3msgCfg := cfg.M3MsgOrDefault()
+	m3msgCfg.Server.ListenAddress = args.m3msgAddr
+	cfg.M3Msg = &m3msgCfg
+}
+
+func defaultAggregatorConfig() (config.Configuration, error) {
+	var cfg config.Configuration
+	if err := yaml.Unmarshal([]byte(aggregatorConfig), &cfg); err != nil {
+		return config.Configuration{}, err
 	}
+
+	// TODO(nate): this is a hack to workaround the fact that
+	// aggregator waits for this duration during shutdown in
+	// an uninterruptible way. We need to fix this so that this
+	// wait can be preempted. Until then, shrink wait to 1 second
+	aggCfg := cfg.AggregatorOrDefault()
+	aggCfg.EntryCheckInterval = 1 * time.Second
+	cfg.Aggregator = &aggCfg
+
+	return cfg, nil
 }
 
 type testAggregatorArgs struct {
@@ -422,99 +449,7 @@ func verify(
 	return nil
 }
 
-const defaultAggregatorConfig = `
-metrics:
-  prometheus:
-    handlerPath: /metrics
-    listenAddress: 0.0.0.0:6002
-    timerType: histogram
-  sanitization: prometheus
-  samplingRate: 1.0
-http:
-  listenAddress: 0.0.0.0:6001
-  readTimeout: 60s
-  writeTimeout: 60s
-m3msg:
-  server:
-    listenAddress: 0.0.0.0:6000
-    retry:
-      maxBackoff: 10s
-      jitter: true
-  consumer:
-    messagePool:
-      size: 16384
-      watermark:
-        low: 0.2
-        high: 0.5
-kvClient:
-  etcd:
-    env: default_env
-    zone: embedded
-    service: m3aggregator
-    cacheDir: "*"
-    etcdClusters:
-      - zone: embedded
-        endpoints:
-        - 127.0.0.1:2379
-aggregator:
-  hostID:
-    resolver: config
-    value: m3aggregator01
-  instanceID:
-    type: host_id
-  stream:
-    eps: 0.001
-    capacity: 32
-  client:
-    type: m3msg
-    m3msg:
-      producer:
-        writer:
-          topicName: aggregator_ingest
-          topicServiceOverride:
-            zone: embedded
-            environment: default_env
-          placement:
-            isStaged: true
-          placementServiceOverride:
-            namespaces:
-              placement: /placement
-          messagePool:
-            size: 16384
-            watermark:
-              low: 0.2
-              high: 0.5
-          ignoreCutoffCutover: true
-  placementManager:
-    kvConfig:
-      namespace: /placement
-      environment: default_env
-      zone: embedded
-    placementWatcher:
-      key: m3aggregator
-  electionManager:
-    serviceID:
-      name: m3aggregator
-      environment: default_env
-      zone: embedded
-  flush:
-    handlers:
-      - dynamicBackend:
-          name: m3msg
-          hashType: murmur32
-          producer:
-            writer:
-              topicName: aggregated_metrics
-              topicServiceOverride:
-                zone: embedded
-                environment: default_env
-              messagePool:
-                size: 16384
-                watermark:
-                  low: 0.2
-                  high: 0.5
-  entryCheckInterval: 1s
-`
+const aggregatorConfig = `{}`
 
 const aggregatorCoordConfig = `
 clusters:
@@ -532,7 +467,6 @@ clusters:
           env: default_env
           zone: embedded
           service: m3db
-          cacheDir: "*"
           etcdClusters:
             - zone: embedded
               endpoints:
@@ -549,16 +483,7 @@ downsample:
 ingest:
   ingester:
     workerPoolSize: 10000
-    opPool:
-      size: 10000
-    retry:
-      maxRetries: 3
-      jitter: true
-    logSampleRate: 0.01
   m3msg:
     server:
       listenAddress: "0.0.0.0:7507"
-      retry:
-        maxBackoff: 10s
-        jitter: true
 `
