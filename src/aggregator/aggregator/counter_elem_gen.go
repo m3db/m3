@@ -223,6 +223,10 @@ func (e *CounterElem) Consume(
 	}
 	e.toConsume = e.toConsume[:0]
 
+	// Anything prior to this time is before the buffer past and so should be considered expired
+	// and not to be included in this aggregation.
+	bufferPastMinNanos := targetNanos - e.bufferForPastTimedMetricFn(resolution).Nanoseconds()
+
 	// Evaluate and GC expired items.
 	valuesForConsideration := e.values
 	e.values = e.values[:0]
@@ -235,8 +239,7 @@ func (e *CounterElem) Consume(
 		if e.resendEnabled {
 			// If resend is enabled, we only expire if the value is now outside the buffer past. It is safe to expire
 			// since any metrics intended for this value are rejected for being too late.
-			expiredNanos := targetNanos - e.bufferForPastTimedMetricFn(resolution).Nanoseconds()
-			expired = value.startAtNanos < expiredNanos
+			expired = value.startAtNanos < bufferPastMinNanos
 		}
 
 		// Modify the by value copy with whether it needs time flush and accumulate.
@@ -256,12 +259,21 @@ func (e *CounterElem) Consume(
 		cascadeDirty  bool
 		prevTimeNanos xtime.UnixNano
 	)
-	// Process the aggregations that are ready for consumption.
 	for i := range e.toConsume {
 		expired := e.toConsume[i].onConsumeExpired
 		timeNanos := xtime.UnixNano(timestampNanosFn(e.toConsume[i].startAtNanos, resolution))
 		// seed the previous timestamp if this is first consumed value.
 		if prevTimeNanos == 0 {
+			// when a datapoint is considered expired, the datapoint previous to it is cleared
+			// while the current is left so that the next datapoint has a previous dp to reference.
+			// this, though, means that if a next dp comes much later (past buffer past) then there
+			// will be a previous dp that should not actually be included in aggregations since it is
+			// expired.
+			if e.resendEnabled {
+				e.consumedValues.removeOlderThan(xtime.UnixNano(bufferPastMinNanos))
+			}
+
+			// scan back to find the preceding datapoint to timeNanos
 			prevTimeNanos = e.consumedValues.previousTimestamp(timeNanos)
 		}
 
