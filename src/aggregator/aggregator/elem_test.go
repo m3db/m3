@@ -149,7 +149,6 @@ func TestCounterResetSetData(t *testing.T) {
 	require.False(t, ce.closed)
 	require.False(t, ce.useDefaultAggregation)
 	require.True(t, ce.aggOpts.HasExpensiveAggregations)
-	require.Nil(t, ce.consumedValues)
 	require.Equal(t, 2, ce.numForwardedTimes)
 
 	// Reset element with a pipeline containing a derivative transformation.
@@ -179,7 +178,6 @@ func TestCounterResetSetData(t *testing.T) {
 	err = ce.ResetSetData(elemData)
 	require.NoError(t, err)
 	requirePipelinesMatch(t, expectedParsedPipeline, ce.parsedPipeline)
-	require.Empty(t, ce.consumedValues)
 }
 
 func TestCounterResetSetDataInvalidAggregationType(t *testing.T) {
@@ -455,7 +453,7 @@ func TestCounterElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForCounter(testAlignedStarts[1], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 1, len(e.values))
+	require.Equal(t, 2, len(e.values))
 
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -519,7 +517,7 @@ func TestCounterElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForCounter(testAlignedStarts[1], testStoragePolicy, testAggregationTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 1, len(e.values))
+	require.Equal(t, 2, len(e.values))
 
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -618,12 +616,10 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
-	require.Equal(t, 2, len(e.values))
-	require.Len(t, e.consumedValues, 1)
-	consumedVal := e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
+	require.Equal(t, 3, len(e.values))
+	consumedVal := e.values[0].consumed
 	require.Len(t, consumedVal, 1)
-	require.Equal(t, 123.0, consumedVal[0].Value)
-	require.Equal(t, time.Unix(220, 0).UnixNano(), consumedVal[0].TimeNanos)
+	require.Equal(t, 123.0, consumedVal[0])
 
 	// Consume all values.
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
@@ -647,11 +643,6 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(e.values))
-	require.Len(t, e.consumedValues, 1)
-	consumedVal = e.consumedValues[xtime.UnixNano(expectedForwardedRes[1].timeNanos)]
-	require.Len(t, consumedVal, 1)
-	require.Equal(t, 589.0, consumedVal[0].Value)
-	require.Equal(t, time.Unix(240, 0).UnixNano(), consumedVal[0].TimeNanos)
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true
@@ -697,7 +688,6 @@ func TestCounterElemClose(t *testing.T) {
 	require.Nil(t, e.cachedSourceSets)
 	require.Equal(t, 0, len(e.values))
 	require.Equal(t, 0, len(e.toConsume))
-	require.Equal(t, 0, len(e.consumedValues))
 	require.NotNil(t, e.values)
 }
 
@@ -776,7 +766,6 @@ func TestTimerResetSetData(t *testing.T) {
 	require.False(t, te.aggOpts.HasExpensiveAggregations)
 	require.Equal(t, []float64{0.999}, te.quantiles)
 	require.NotNil(t, te.quantilesPool)
-	require.Nil(t, te.consumedValues)
 
 	// Reset element with a pipeline containing a derivative transformation.
 	expectedParsedPipeline := parsedPipeline{
@@ -804,7 +793,6 @@ func TestTimerResetSetData(t *testing.T) {
 	err = te.ResetSetData(elemData)
 	require.NoError(t, err)
 	requirePipelinesMatch(t, expectedParsedPipeline, te.parsedPipeline)
-	require.Empty(t, te.consumedValues)
 }
 
 func TestTimerResetSetDataInvalidAggregationType(t *testing.T) {
@@ -975,7 +963,7 @@ func TestTimerElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForTimer(testAlignedStarts[1], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 1, len(e.values))
+	require.Equal(t, 2, len(e.values))
 
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -1044,7 +1032,7 @@ func TestTimerElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForTimer(testAlignedStarts[1], testStoragePolicy, testTimerAggregationTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 1, len(e.values))
+	require.Equal(t, 2, len(e.values))
 
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -1147,12 +1135,10 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
-	require.Equal(t, 2, len(e.values))
-	require.Len(t, e.consumedValues, 1)
-	consumedVal := e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
+	require.Equal(t, 3, len(e.values))
+	consumedVal := e.values[0].consumed
 	require.Len(t, consumedVal, 1)
-	require.Equal(t, 123.0, consumedVal[0].Value)
-	require.Equal(t, time.Unix(220, 0).UnixNano(), consumedVal[0].TimeNanos)
+	require.Equal(t, 123.0, consumedVal[0])
 
 	// Consume all values.
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
@@ -1176,11 +1162,6 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(e.values))
-	require.Len(t, e.consumedValues, 1)
-	consumedVal = e.consumedValues[xtime.UnixNano(expectedForwardedRes[1].timeNanos)]
-	require.Len(t, consumedVal, 1)
-	require.Equal(t, 589.0, consumedVal[0].Value)
-	require.Equal(t, time.Unix(240, 0).UnixNano(), consumedVal[0].TimeNanos)
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true
@@ -1231,7 +1212,6 @@ func TestTimerElemClose(t *testing.T) {
 	require.Nil(t, e.cachedSourceSets)
 	require.Equal(t, 0, len(e.values))
 	require.Equal(t, 0, len(e.toConsume))
-	require.Equal(t, 0, len(e.consumedValues))
 	require.NotNil(t, e.values)
 }
 
@@ -1305,7 +1285,6 @@ func TestGaugeResetSetData(t *testing.T) {
 	require.False(t, ge.closed)
 	require.False(t, ge.useDefaultAggregation)
 	require.True(t, ge.aggOpts.HasExpensiveAggregations)
-	require.Nil(t, ge.consumedValues)
 
 	// Reset element with a pipeline containing a derivative transformation.
 	expectedParsedPipeline := parsedPipeline{
@@ -1333,7 +1312,6 @@ func TestGaugeResetSetData(t *testing.T) {
 	err = ge.ResetSetData(elemData)
 	require.NoError(t, err)
 	requirePipelinesMatch(t, expectedParsedPipeline, ge.parsedPipeline)
-	require.Empty(t, ge.consumedValues)
 }
 
 func TestGaugeElemAddUnion(t *testing.T) {
@@ -1596,7 +1574,7 @@ func TestGaugeElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForGauge(testAlignedStarts[1], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 1, len(e.values))
+	require.Equal(t, 2, len(e.values))
 
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -1767,7 +1745,7 @@ func TestGaugeElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForGauge(testAlignedStarts[1], testStoragePolicy, testAggregationTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 1, len(e.values))
+	require.Equal(t, 2, len(e.values))
 
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -1866,12 +1844,10 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
-	require.Equal(t, 2, len(e.values))
-	require.Len(t, e.consumedValues, 1)
-	consumedVal := e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
+	require.Equal(t, 3, len(e.values))
+	consumedVal := e.values[0].consumed
 	require.Len(t, consumedVal, 1)
-	require.Equal(t, 123.0, consumedVal[0].Value)
-	require.Equal(t, time.Unix(220, 0).UnixNano(), consumedVal[0].TimeNanos)
+	require.Equal(t, 123.0, consumedVal[0])
 
 	// Consume all values.
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
@@ -1895,11 +1871,6 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(e.values))
-	require.Len(t, e.consumedValues, 1)
-	consumedVal = e.consumedValues[xtime.UnixNano(expectedForwardedRes[1].timeNanos)]
-	require.Len(t, consumedVal, 1)
-	require.Equal(t, 589.0, consumedVal[0].Value)
-	require.Equal(t, time.Unix(240, 0).UnixNano(), consumedVal[0].TimeNanos)
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true
@@ -2078,13 +2049,9 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
-	require.Len(t, e.consumedValues, 1)
-	consumedVal := e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
+	consumedVal := e.values[0].consumed
 	require.Len(t, consumedVal, 1)
-	require.Equal(t, transformation.Datapoint{
-		Value:     123.0,
-		TimeNanos: time.Unix(220, 0).UnixNano(),
-	}, consumedVal[0])
+	require.Equal(t, 123.0, consumedVal[0])
 
 	// Consume all values.
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
@@ -2109,19 +2076,15 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
-	require.Len(t, e.consumedValues, 3)
-	require.Equal(t, transformation.Datapoint{
-		Value:     123.0,
-		TimeNanos: time.Unix(220, 0).UnixNano(),
-	}, e.consumedValues[xtime.ToUnixNano(time.Unix(220, 0))][0])
-	require.Equal(t, transformation.Datapoint{
-		Value:     456.0,
-		TimeNanos: time.Unix(230, 0).UnixNano(),
-	}, e.consumedValues[xtime.ToUnixNano(time.Unix(230, 0))][0])
-	require.Equal(t, transformation.Datapoint{
-		Value:     589.0,
-		TimeNanos: time.Unix(240, 0).UnixNano(),
-	}, e.consumedValues[xtime.ToUnixNano(time.Unix(240, 0))][0])
+	consumedVal = e.values[0].consumed
+	require.Len(t, consumedVal, 1)
+	require.Equal(t, 123.0, consumedVal[0])
+	consumedVal = e.values[1].consumed
+	require.Len(t, consumedVal, 1)
+	require.Equal(t, 456.0, consumedVal[0])
+	consumedVal = e.values[2].consumed
+	require.Len(t, consumedVal, 1)
+	require.Equal(t, 589.0, consumedVal[0])
 
 	// Update a previous value
 	require.NoError(t, e.AddValue(time.Unix(210, 0), 124.0, nil))
@@ -2147,19 +2110,15 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
-	require.Len(t, e.consumedValues, 3)
-	require.Equal(t, transformation.Datapoint{
-		Value:     124.0,
-		TimeNanos: time.Unix(220, 0).UnixNano(),
-	}, e.consumedValues[xtime.ToUnixNano(time.Unix(220, 0))][0])
-	require.Equal(t, transformation.Datapoint{
-		Value:     456.0,
-		TimeNanos: time.Unix(230, 0).UnixNano(),
-	}, e.consumedValues[xtime.ToUnixNano(time.Unix(230, 0))][0])
-	require.Equal(t, transformation.Datapoint{
-		Value:     589.0,
-		TimeNanos: time.Unix(240, 0).UnixNano(),
-	}, e.consumedValues[xtime.ToUnixNano(time.Unix(240, 0))][0])
+	consumedVal = e.values[0].consumed
+	require.Len(t, consumedVal, 1)
+	require.Equal(t, 124.0, consumedVal[0])
+	consumedVal = e.values[1].consumed
+	require.Len(t, consumedVal, 1)
+	require.Equal(t, 456.0, consumedVal[0])
+	consumedVal = e.values[2].consumed
+	require.Len(t, consumedVal, 1)
+	require.Equal(t, 589.0, consumedVal[0])
 }
 
 func TestGaugeElemReset(t *testing.T) {
@@ -2207,8 +2166,10 @@ func TestGaugeElemReset(t *testing.T) {
 	require.Equal(t, (*localRes)[1].value, 0.0)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, len(e.values))
-	require.Equal(t, 0, len(e.consumedValues))
+	require.Equal(t, 3, len(e.values))
+	consumedVal := e.values[0].consumed
+	require.Equal(t, 1, len(consumedVal))
+	require.Equal(t, 0.0, consumedVal[0])
 
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -2227,7 +2188,6 @@ func TestGaugeElemReset(t *testing.T) {
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
 	require.Equal(t, 0, len(e.values))
-	require.Equal(t, 0, len(e.consumedValues))
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true
@@ -2274,7 +2234,6 @@ func TestGaugeElemClose(t *testing.T) {
 	require.Nil(t, e.cachedSourceSets)
 	require.Equal(t, 0, len(e.values))
 	require.Equal(t, 0, len(e.toConsume))
-	require.Equal(t, 0, len(e.consumedValues))
 	require.NotNil(t, e.values)
 }
 
@@ -2437,6 +2396,7 @@ func testCounterElem(
 		e.values = append(e.values, timedCounter{
 			startAtNanos: aligned,
 			lockedAgg:    counter,
+			consumed:     make([]float64, len(e.aggTypes)),
 		})
 	}
 	return e
@@ -2464,6 +2424,7 @@ func testTimerElem(
 		e.values = append(e.values, timedTimer{
 			startAtNanos: aligned,
 			lockedAgg:    timer,
+			consumed:     make([]float64, len(e.aggTypes)),
 		})
 	}
 	return e
@@ -2510,6 +2471,7 @@ func testGaugeElemWithData(
 		e.values = append(e.values, timedGauge{
 			startAtNanos: aligned,
 			lockedAgg:    gauge,
+			consumed:     make([]float64, len(e.aggTypes)),
 		})
 	}
 	return e
