@@ -357,7 +357,6 @@ func (e *CounterElem) Consume(
 		)
 		e.toConsume[i].lockedAgg.flushed = true
 		e.toConsume[i].lockedAgg.Unlock()
-		e.toConsume[i].Release()
 	}
 
 	// Cleanup expired item after consuming since consuming still has a ref to the locked aggregation.
