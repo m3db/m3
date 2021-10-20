@@ -1849,6 +1849,8 @@ func (n *dbNamespace) aggregateTiles(
 		return 0, errNamespaceNotBootstrapped
 	}
 
+	// Create an empty warm index fileset because the block
+	// will not be queryable if it has no warm index.
 	if err := n.createEmptyWarmIndexIfNotExistsFn(targetBlockStart); err != nil {
 		return 0, err
 	}
