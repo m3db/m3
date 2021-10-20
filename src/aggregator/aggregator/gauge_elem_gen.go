@@ -58,10 +58,6 @@ type timedGauge struct {
 	previousTimeNanos xtime.UnixNano
 }
 
-func (ta *timedGauge) Release() {
-	ta.lockedAgg = nil
-}
-
 // GaugeElem is an element storing time-bucketed aggregations.
 type GaugeElem struct {
 	elemBase
@@ -373,7 +369,6 @@ func (e *GaugeElem) Consume(
 			e.cachedSourceSetsLock.Unlock()
 			e.toExpire[i].lockedAgg.sourcesSeen = nil
 		}
-		e.toExpire[i].Release()
 
 		delete(e.consumedValues, e.toExpire[i].previousTimeNanos)
 	}
@@ -420,7 +415,6 @@ func (e *GaugeElem) Close() {
 		if v, ok := e.values[e.minStartAlignedTime]; ok {
 			v.lockedAgg.sourcesSeen = nil
 			v.lockedAgg.aggregation.Close()
-			v.Release()
 			delete(e.values, e.minStartAlignedTime)
 		}
 		e.minStartAlignedTime = e.minStartAlignedTime.Add(resolution)

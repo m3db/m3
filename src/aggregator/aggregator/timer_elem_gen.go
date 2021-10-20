@@ -58,10 +58,6 @@ type timedTimer struct {
 	previousTimeNanos xtime.UnixNano
 }
 
-func (ta *timedTimer) Release() {
-	ta.lockedAgg = nil
-}
-
 // TimerElem is an element storing time-bucketed aggregations.
 type TimerElem struct {
 	elemBase
@@ -373,7 +369,6 @@ func (e *TimerElem) Consume(
 			e.cachedSourceSetsLock.Unlock()
 			e.toExpire[i].lockedAgg.sourcesSeen = nil
 		}
-		e.toExpire[i].Release()
 
 		delete(e.consumedValues, e.toExpire[i].previousTimeNanos)
 	}
@@ -420,7 +415,6 @@ func (e *TimerElem) Close() {
 		if v, ok := e.values[e.minStartAlignedTime]; ok {
 			v.lockedAgg.sourcesSeen = nil
 			v.lockedAgg.aggregation.Close()
-			v.Release()
 			delete(e.values, e.minStartAlignedTime)
 		}
 		e.minStartAlignedTime = e.minStartAlignedTime.Add(resolution)
