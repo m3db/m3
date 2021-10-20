@@ -21,7 +21,6 @@
 package aggregator
 
 import (
-	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -215,7 +214,7 @@ func TestCounterElemAddUnion(t *testing.T) {
 	// Add a counter metric.
 	testCounter.Annotation = []byte{1}
 	require.NoError(t, e.AddUnion(testTimestamps[0], testCounter))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err := e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.Equal(t, testCounter.CounterVal, v.aggregation.Sum())
@@ -227,7 +226,7 @@ func TestCounterElemAddUnion(t *testing.T) {
 	// but still within the same aggregation interval.
 	testCounter.Annotation = []byte{}
 	require.NoError(t, e.AddUnion(testTimestamps[1], testCounter))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err = e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.Equal(t, 2*testCounter.CounterVal, v.aggregation.Sum())
@@ -238,7 +237,7 @@ func TestCounterElemAddUnion(t *testing.T) {
 	// Add the counter metric in the next aggregation interval.
 	testCounter.Annotation = []byte{2}
 	require.NoError(t, e.AddUnion(testTimestamps[2], testCounter))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	v1, err := e.find(xtime.UnixNano(testAlignedStarts[1]))
 	require.NoError(t, err)
 	require.Equal(t, testCounter.CounterVal, v1.aggregation.Sum())
@@ -260,7 +259,7 @@ func TestCounterElemAddUnionWithCustomAggregation(t *testing.T) {
 	// Add a counter metric.
 	testCounter.Annotation = []byte{1}
 	require.NoError(t, e.AddUnion(testTimestamps[0], testCounter))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err := e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.Equal(t, testCounter.CounterVal, v.aggregation.Sum())
@@ -272,7 +271,7 @@ func TestCounterElemAddUnionWithCustomAggregation(t *testing.T) {
 	// but still within the same aggregation interval.
 	testCounter.Annotation = []byte{}
 	require.NoError(t, e.AddUnion(testTimestamps[1], testCounter))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err = e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.Equal(t, 2*testCounter.CounterVal, v.aggregation.Sum())
@@ -281,7 +280,7 @@ func TestCounterElemAddUnionWithCustomAggregation(t *testing.T) {
 
 	// Add the counter metric in the next aggregation interval.
 	require.NoError(t, e.AddUnion(testTimestamps[2], testCounter))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	for i := 0; i < len(e.values); i++ {
 		require.Equal(t, xtime.UnixNano(testAlignedStarts[i]), e.values[e.dirty[i]].startAtNanos)
 	}
@@ -304,7 +303,7 @@ func TestCounterElemAddUnique(t *testing.T) {
 	require.NoError(t, e.AddUnique(testTimestamps[0],
 		aggregated.ForwardedMetric{Values: []float64{345}},
 		metadata.ForwardMetadata{SourceID: source1}))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err := e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.Equal(t, int64(345), v.aggregation.Sum())
@@ -321,7 +320,7 @@ func TestCounterElemAddUnique(t *testing.T) {
 	require.NoError(t, e.AddUnique(testTimestamps[1],
 		aggregated.ForwardedMetric{Values: []float64{500}, Annotation: testAnnot},
 		metadata.ForwardMetadata{SourceID: source2}))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err = e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.Equal(t, int64(845), v.aggregation.Sum())
@@ -336,7 +335,7 @@ func TestCounterElemAddUnique(t *testing.T) {
 	require.NoError(t, e.AddUnique(testTimestamps[2],
 		aggregated.ForwardedMetric{Values: []float64{278}},
 		metadata.ForwardMetadata{SourceID: source1}))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	for i := 0; i < len(e.values); i++ {
 		require.Equal(t, xtime.UnixNano(testAlignedStarts[i]), e.values[e.dirty[i]].startAtNanos)
 	}
@@ -355,7 +354,7 @@ func TestCounterElemAddUnique(t *testing.T) {
 	require.Equal(t, errDuplicateForwardingSource, e.AddUnique(testTimestamps[2],
 		aggregated.ForwardedMetric{Values: []float64{278}},
 		metadata.ForwardMetadata{SourceID: source1}))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	v1, err = e.find(xtime.UnixNano(testAlignedStarts[1]))
 	require.NoError(t, err)
 	for i := 0; i < len(e.values); i++ {
@@ -386,7 +385,7 @@ func TestCounterElemAddUniqueWithCustomAggregation(t *testing.T) {
 	require.NoError(t, e.AddUnique(testTimestamps[0],
 		aggregated.ForwardedMetric{Values: []float64{12}},
 		metadata.ForwardMetadata{SourceID: source1}))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err := e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.Equal(t, int64(12), v.aggregation.Sum())
@@ -402,7 +401,7 @@ func TestCounterElemAddUniqueWithCustomAggregation(t *testing.T) {
 	require.NoError(t, e.AddUnique(testTimestamps[1],
 		aggregated.ForwardedMetric{Values: []float64{14}},
 		metadata.ForwardMetadata{SourceID: source2}))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err = e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.Equal(t, int64(26), v.aggregation.Sum())
@@ -412,10 +411,10 @@ func TestCounterElemAddUniqueWithCustomAggregation(t *testing.T) {
 	require.NoError(t, e.AddUnique(testTimestamps[2],
 		aggregated.ForwardedMetric{Values: []float64{20}},
 		metadata.ForwardMetadata{SourceID: source1}))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	v1, err := e.find(xtime.UnixNano(testAlignedStarts[1]))
 	require.NoError(t, err)
-	for i := 0; i < e.len(); i++ {
+	for i := 0; i < len(e.values); i++ {
 		require.Equal(t, xtime.UnixNano(testAlignedStarts[i]), e.values[e.dirty[i]].startAtNanos)
 	}
 	require.Equal(t, int64(20), v1.aggregation.Sum())
@@ -427,10 +426,10 @@ func TestCounterElemAddUniqueWithCustomAggregation(t *testing.T) {
 	require.Equal(t, errDuplicateForwardingSource, e.AddUnique(testTimestamps[2],
 		aggregated.ForwardedMetric{Values: []float64{30}},
 		metadata.ForwardMetadata{SourceID: source1}))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	v1, err = e.find(xtime.UnixNano(testAlignedStarts[1]))
 	require.NoError(t, err)
-	for i := 0; i < e.len(); i++ {
+	for i := 0; i < len(e.values); i++ {
 		require.Equal(t, xtime.UnixNano(testAlignedStarts[i]), e.values[e.dirty[i]].startAtNanos)
 	}
 	require.Equal(t, int64(20), v1.aggregation.Sum())
@@ -462,7 +461,7 @@ func TestCounterElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 
 	// Consume one value.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -473,7 +472,7 @@ func TestCounterElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForCounter(testAlignedStarts[1], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -526,7 +525,7 @@ func TestCounterElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 
 	// Consume one value.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -537,7 +536,7 @@ func TestCounterElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForCounter(testAlignedStarts[1], testStoragePolicy, testAggregationTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -619,7 +618,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
-	require.Equal(t, 3, e.len())
+	require.Equal(t, 3, len(e.values))
 
 	// Consume one value.
 	expectedForwardedRes := []testForwardedMetricWithMetadata{
@@ -638,7 +637,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
-	require.Equal(t, 3, e.len())
+	require.Equal(t, 3, len(e.values))
 	require.Len(t, e.consumedValues, 1)
 	consumedVal := e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
 	require.Len(t, consumedVal, 1)
@@ -852,7 +851,7 @@ func TestTimerElemAddUnion(t *testing.T) {
 
 	// Add a timer metric.
 	require.NoError(t, e.AddUnion(testTimestamps[0], testBatchTimer))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err := e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	timer := v.aggregation
@@ -866,7 +865,7 @@ func TestTimerElemAddUnion(t *testing.T) {
 	// Add the timer metric at slightly different time
 	// but still within the same aggregation interval.
 	require.NoError(t, e.AddUnion(testTimestamps[1], testBatchTimer))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err = e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	timer = v.aggregation
@@ -878,7 +877,7 @@ func TestTimerElemAddUnion(t *testing.T) {
 
 	// Add the timer metric in the next aggregation interval.
 	require.NoError(t, e.AddUnion(testTimestamps[2], testBatchTimer))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	v1, err := e.find(xtime.UnixNano(testAlignedStarts[1]))
 	require.NoError(t, err)
 	for i := 0; i < len(e.values); i++ {
@@ -910,7 +909,7 @@ func TestTimerElemAddUnique(t *testing.T) {
 	require.NoError(t, e.AddUnique(testTimestamps[0],
 		aggregated.ForwardedMetric{Values: []float64{13.3}},
 		metadata.ForwardMetadata{SourceID: 3}))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err := e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	timer := v.aggregation
@@ -923,7 +922,7 @@ func TestTimerElemAddUnique(t *testing.T) {
 	require.NoError(t, e.AddUnique(testTimestamps[1],
 		aggregated.ForwardedMetric{Values: []float64{14.4}},
 		metadata.ForwardMetadata{SourceID: 4}))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err = e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	timer = v.aggregation
@@ -934,7 +933,7 @@ func TestTimerElemAddUnique(t *testing.T) {
 	require.NoError(t, e.AddUnique(testTimestamps[2],
 		aggregated.ForwardedMetric{Values: []float64{20.0}},
 		metadata.ForwardMetadata{SourceID: 1}))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	v1, err := e.find(xtime.UnixNano(testAlignedStarts[1]))
 	require.NoError(t, err)
 	for i := 0; i < len(e.values); i++ {
@@ -949,7 +948,7 @@ func TestTimerElemAddUnique(t *testing.T) {
 	require.Equal(t, errDuplicateForwardingSource, e.AddUnique(testTimestamps[2],
 		aggregated.ForwardedMetric{Values: []float64{30.0}},
 		metadata.ForwardMetadata{SourceID: 1}))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	for i := 0; i < len(e.values); i++ {
 		require.Equal(t, xtime.UnixNano(testAlignedStarts[i]), e.values[e.dirty[i]].startAtNanos)
 	}
@@ -986,7 +985,7 @@ func TestTimerElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 
 	// Consume one value.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -997,7 +996,7 @@ func TestTimerElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForTimer(testAlignedStarts[1], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -1054,7 +1053,7 @@ func TestTimerElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 
 	// Consume one value.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -1066,7 +1065,7 @@ func TestTimerElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForTimer(testAlignedStarts[1], testStoragePolicy, testTimerAggregationTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -1151,7 +1150,7 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
-	require.Equal(t, 3, e.len())
+	require.Equal(t, 3, len(e.values))
 
 	// Consume one value.
 	expectedForwardedRes := []testForwardedMetricWithMetadata{
@@ -1169,7 +1168,7 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
-	require.Equal(t, 3, e.len())
+	require.Equal(t, 3, len(e.values))
 	require.Len(t, e.consumedValues, 1)
 	consumedVal := e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
 	require.Len(t, consumedVal, 1)
@@ -1352,7 +1351,7 @@ func TestGaugeElemAddUnion(t *testing.T) {
 
 	// Add a gauge metric.
 	require.NoError(t, e.AddUnion(testTimestamps[0], testGauge))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err := e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.Equal(t, testGauge.GaugeVal, v.aggregation.Last())
@@ -1362,7 +1361,7 @@ func TestGaugeElemAddUnion(t *testing.T) {
 	// Add the gauge metric at slightly different time
 	// but still within the same aggregation interval.
 	require.NoError(t, e.AddUnion(testTimestamps[1], testGauge))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err = e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.Equal(t, testGauge.GaugeVal, v.aggregation.Last())
@@ -1371,7 +1370,7 @@ func TestGaugeElemAddUnion(t *testing.T) {
 
 	// Add the gauge metric in the next aggregation interval.
 	require.NoError(t, e.AddUnion(testTimestamps[2], testGauge))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	v1, err := e.find(xtime.UnixNano(testAlignedStarts[1]))
 	require.NoError(t, err)
 	for i := 0; i < len(e.values); i++ {
@@ -1394,7 +1393,7 @@ func TestGaugeElemAddUnionWithCustomAggregation(t *testing.T) {
 
 	// Add a gauge metric.
 	require.NoError(t, e.AddUnion(testTimestamps[0], testGauge))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err := e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.Equal(t, testGauge.GaugeVal, v.aggregation.Last())
@@ -1406,7 +1405,7 @@ func TestGaugeElemAddUnionWithCustomAggregation(t *testing.T) {
 	// Add the gauge metric at slightly different time
 	// but still within the same aggregation interval.
 	require.NoError(t, e.AddUnion(testTimestamps[1], testGauge))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err = e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.Equal(t, testGauge.GaugeVal, v.aggregation.Last())
@@ -1416,7 +1415,7 @@ func TestGaugeElemAddUnionWithCustomAggregation(t *testing.T) {
 
 	// Add the gauge metric in the next aggregation interval.
 	require.NoError(t, e.AddUnion(testTimestamps[2], testGauge))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	v1, err := e.find(xtime.UnixNano(testAlignedStarts[1]))
 	require.NoError(t, err)
 	for i := 0; i < len(e.values); i++ {
@@ -1439,7 +1438,7 @@ func TestGaugeElemAddUnique(t *testing.T) {
 	require.NoError(t, e.AddUnique(testTimestamps[0],
 		aggregated.ForwardedMetric{Values: []float64{12.3, 34.5}},
 		metadata.ForwardMetadata{SourceID: source1}))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err := e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.Equal(t, 46.8, v.aggregation.Sum())
@@ -1456,7 +1455,7 @@ func TestGaugeElemAddUnique(t *testing.T) {
 	require.NoError(t, e.AddUnique(testTimestamps[1],
 		aggregated.ForwardedMetric{Values: []float64{50}, Annotation: testAnnot},
 		metadata.ForwardMetadata{SourceID: source2}))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err = e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.Equal(t, 96.8, v.aggregation.Sum())
@@ -1472,7 +1471,7 @@ func TestGaugeElemAddUnique(t *testing.T) {
 		aggregated.ForwardedMetric{Values: []float64{27.8}},
 		metadata.ForwardMetadata{SourceID: source1}))
 	require.Equal(t, testAnnot, v.aggregation.Annotation())
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	v1, err := e.find(xtime.UnixNano(testAlignedStarts[1]))
 	require.NoError(t, err)
 	for i := 0; i < len(e.values); i++ {
@@ -1490,7 +1489,7 @@ func TestGaugeElemAddUnique(t *testing.T) {
 	require.Equal(t, errDuplicateForwardingSource, e.AddUnique(testTimestamps[2],
 		aggregated.ForwardedMetric{Values: []float64{27.8}},
 		metadata.ForwardMetadata{SourceID: source1}))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	for i := 0; i < len(e.values); i++ {
 		require.Equal(t, xtime.UnixNano(testAlignedStarts[i]), e.values[e.dirty[i]].startAtNanos)
 	}
@@ -1537,7 +1536,7 @@ func TestGaugeElemAddUniqueWithCustomAggregation(t *testing.T) {
 	require.NoError(t, e.AddUnique(testTimestamps[0],
 		aggregated.ForwardedMetric{Values: []float64{1.2}},
 		metadata.ForwardMetadata{SourceID: source1}))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err := e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.Equal(t, 1.2, v.aggregation.Sum())
@@ -1553,7 +1552,7 @@ func TestGaugeElemAddUniqueWithCustomAggregation(t *testing.T) {
 	require.NoError(t, e.AddUnique(testTimestamps[1],
 		aggregated.ForwardedMetric{Values: []float64{1.4}},
 		metadata.ForwardMetadata{SourceID: source2}))
-	require.Equal(t, 1, e.len())
+	require.Equal(t, 1, len(e.values))
 	v, err = e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.InEpsilon(t, 2.6, v.aggregation.Sum(), 1e-10)
@@ -1563,7 +1562,7 @@ func TestGaugeElemAddUniqueWithCustomAggregation(t *testing.T) {
 	require.NoError(t, e.AddUnique(testTimestamps[2],
 		aggregated.ForwardedMetric{Values: []float64{2.0}},
 		metadata.ForwardMetadata{SourceID: source1}))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	v1, err := e.find(xtime.UnixNano(testAlignedStarts[1]))
 	require.NoError(t, err)
 	for i := 0; i < len(e.values); i++ {
@@ -1578,7 +1577,7 @@ func TestGaugeElemAddUniqueWithCustomAggregation(t *testing.T) {
 	require.Equal(t, errDuplicateForwardingSource, e.AddUnique(testTimestamps[2],
 		aggregated.ForwardedMetric{Values: []float64{3.0}},
 		metadata.ForwardMetadata{SourceID: source1}))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	for i := 0; i < len(e.values); i++ {
 		require.Equal(t, xtime.UnixNano(testAlignedStarts[i]), e.values[e.dirty[i]].startAtNanos)
 	}
@@ -1611,7 +1610,7 @@ func TestGaugeElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 
 	// Consume one value.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -1622,7 +1621,7 @@ func TestGaugeElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForGauge(testAlignedStarts[1], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -1693,7 +1692,7 @@ func TestGaugeElemConsumeResendBuffer(t *testing.T) {
 		expectedLocalMetricsForGauge(testAlignedStarts[1], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 
 	v, err := e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
@@ -1717,7 +1716,7 @@ func TestGaugeElemConsumeResendBuffer(t *testing.T) {
 		*localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	require.False(t, v.dirty)
 	require.True(t, v.flushed)
 	require.False(t, v1.dirty)
@@ -1741,7 +1740,7 @@ func TestGaugeElemConsumeResendBuffer(t *testing.T) {
 	require.Equal(t, exp, *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	require.False(t, v.dirty)
 	require.True(t, v.flushed)
 	require.False(t, v1.dirty)
@@ -1758,7 +1757,7 @@ func TestGaugeElemConsumeResendBuffer(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
@@ -1787,7 +1786,7 @@ func TestGaugeElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 
 	// Consume one value.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -1798,7 +1797,7 @@ func TestGaugeElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	require.Equal(t, expectedLocalMetricsForGauge(testAlignedStarts[1], testStoragePolicy, testAggregationTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -1879,7 +1878,7 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
-	require.Equal(t, 3, e.len())
+	require.Equal(t, 3, len(e.values))
 
 	// Consume one value.
 	expectedForwardedRes := []testForwardedMetricWithMetadata{
@@ -1897,7 +1896,7 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
-	require.Equal(t, 3, e.len())
+	require.Equal(t, 3, len(e.values))
 	require.Len(t, e.consumedValues, 1)
 	consumedVal := e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
 	require.Len(t, consumedVal, 1)
@@ -1998,12 +1997,11 @@ func TestGaugeElemResendSumReset(t *testing.T) {
 	require.Equal(t, exp, *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
+	require.Equal(t, 2, len(e.values))
 	v, err := e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	v1, err := e.find(xtime.UnixNano(testAlignedStarts[1]))
 	require.NoError(t, err)
-	fmt.Println(v, v1)
 	require.False(t, v.dirty)
 	require.True(t, v.flushed)
 	require.True(t, v1.dirty)
@@ -2030,11 +2028,11 @@ func TestGaugeElemResendSumReset(t *testing.T) {
 	require.Equal(t, exp, *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 2, e.len())
-	//require.False(t, v.dirty)
-	//require.True(t, v.flushed)
-	//require.True(t, v1.dirty)
-	//require.False(t, v1.flushed)
+	require.Equal(t, 2, len(e.values))
+	require.False(t, v.dirty)
+	require.True(t, v.flushed)
+	require.True(t, v1.dirty)
+	require.False(t, v1.flushed)
 }
 
 func TestGaugeElemResendBufferForwarding(t *testing.T) {
@@ -2094,7 +2092,7 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
-	require.Equal(t, 3, e.len())
+	require.Equal(t, 3, len(e.values))
 
 	// Consume one value.
 	expectedForwardedRes := []testForwardedMetricWithMetadata{
@@ -2113,7 +2111,7 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
-	require.Equal(t, 3, e.len())
+	require.Equal(t, 3, len(e.values))
 	require.Len(t, e.consumedValues, 1)
 	consumedVal := e.consumedValues[xtime.UnixNano(expectedForwardedRes[0].timeNanos)]
 	require.Len(t, consumedVal, 1)
@@ -2144,7 +2142,7 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
-	require.Equal(t, 3, e.len())
+	require.Equal(t, 3, len(e.values))
 	require.Len(t, e.consumedValues, 3)
 	require.Equal(t, transformation.Datapoint{
 		Value:     123.0,
@@ -2182,7 +2180,7 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
-	require.Equal(t, 3, e.len())
+	require.Equal(t, 3, len(e.values))
 	require.Len(t, e.consumedValues, 3)
 	require.Equal(t, transformation.Datapoint{
 		Value:     124.0,
@@ -2229,7 +2227,7 @@ func TestGaugeElemReset(t *testing.T) {
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
-	require.Equal(t, 3, e.len())
+	require.Equal(t, 3, len(e.values))
 
 	// Consume one value.
 	localFn, localRes = testFlushLocalMetricFn()
@@ -2243,7 +2241,7 @@ func TestGaugeElemReset(t *testing.T) {
 	require.Equal(t, (*localRes)[1].value, 0.0)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
-	require.Equal(t, 3, e.len())
+	require.Equal(t, 3, len(e.values))
 	require.Equal(t, 0, len(e.consumedValues))
 
 	// Consume all values.

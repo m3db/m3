@@ -1502,7 +1502,7 @@ func TestEntryAddTimed(t *testing.T) {
 	values = counterElem.values
 	require.Equal(t, 1, len(values))
 	resolution = metadata.StoragePolicy.Resolution().Window
-	expectedNanos = xtime.ToUnixNano(time.Unix(0, metric.TimeNanos).Truncate(resolution))
+	expectedNanos = xtime.UnixNano(metric.TimeNanos).Truncate(resolution)
 	require.Equal(t, expectedNanos, values[0].startAtNanos)
 	require.Equal(t, int64(1), values[0].lockedAgg.aggregation.Count())
 	require.Equal(t, int64(1000), values[0].lockedAgg.aggregation.Sum())

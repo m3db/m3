@@ -538,14 +538,6 @@ func (e *GenericElem) insertDirty(alignedStart xtime.UnixNano) {
 	e.dirty[left] = alignedStart
 }
 
-// len returns the length of the values in the element.
-//nolint: dupl
-func (e *GenericElem) len() int {
-	e.RLock()
-	defer e.RUnlock()
-	return len(e.values)
-}
-
 // find finds the aggregation for a given time, or returns nil.
 //nolint: dupl
 func (e *GenericElem) find(alignedStartNanos xtime.UnixNano) (*lockedAggregation, error) {

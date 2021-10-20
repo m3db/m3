@@ -474,14 +474,6 @@ func (e *TimerElem) insertDirty(alignedStart xtime.UnixNano) {
 	e.dirty[left] = alignedStart
 }
 
-// len returns the length of the values in the element.
-//nolint: dupl
-func (e *TimerElem) len() int {
-	e.RLock()
-	defer e.RUnlock()
-	return len(e.values)
-}
-
 // find finds the aggregation for a given time, or returns nil.
 //nolint: dupl
 func (e *TimerElem) find(alignedStartNanos xtime.UnixNano) (*lockedTimerAggregation, error) {
