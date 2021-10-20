@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -2001,7 +2002,7 @@ func (s *dbShard) UpdateFlushStates() {
 	blockSize := s.namespace.Options().RetentionOptions().BlockSize()
 	indexBlockSize := s.namespace.Options().IndexOptions().BlockSize()
 
-	warmFlushOnly := !s.readOnly
+	warmFlushOnly := !strings.HasPrefix(s.namespace.ID().String(), "down")
 	indexFlushedBlockStarts := s.reverseIndex.FlushBlockStarts(warmFlushOnly)
 	s.logger.Info("UpdateFlushStates",
 		zap.Reflect("indexFlushedBlockStarts", indexFlushedBlockStarts),
