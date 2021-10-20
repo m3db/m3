@@ -1343,6 +1343,7 @@ func newPromQLEngine(
 		return nil, errors.New("lookbackDelta cannot be negative")
 	}
 
+	instrumentOpts.Logger().Info("creating new PromQL engine", zap.Duration("lookbackDelta", lookbackDelta))
 	var (
 		kitLogger = kitlogzap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
 		opts      = prometheuspromql.EngineOpts{
