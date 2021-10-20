@@ -67,9 +67,12 @@ type TimerElem struct {
 	elemBase
 	timerElemBase
 
-	values              map[xtime.UnixNano]timedTimer // startTime -> agg (new one per every resolution)
-	dirty               []xtime.UnixNano              // sorted timestamps that have been written to since the last flush
-	minStartAlignedTime xtime.UnixNano                // min time in the values map. allow for iterating through map.
+	// startTime -> agg (new one per every resolution)
+	values map[xtime.UnixNano]timedTimer
+	// sorted timestamps that have been written to since the last flush
+	dirty []xtime.UnixNano
+	// min time in the values map. allow for iterating through map.
+	minStartAlignedTime xtime.UnixNano
 
 	// internal consume state that does not need to be synchronized.
 	toConsume []timedTimer // small buffer to avoid memory allocations during consumption
@@ -489,7 +492,7 @@ func (e *TimerElem) find(alignedStartNanos xtime.UnixNano) (*lockedTimerAggregat
 		return nil, errElemClosed
 	}
 	timedAgg, ok := e.values[alignedStartNanos]
-	if ok && timedAgg.lockedAgg.dirty {
+	if ok {
 		return timedAgg.lockedAgg, nil
 	}
 	return nil, nil
@@ -506,7 +509,7 @@ func (e *TimerElem) findOrCreate(
 	if err != nil {
 		return nil, err
 	}
-	if found != nil {
+	if found != nil && found.dirty {
 		return found, err
 	}
 

@@ -131,9 +131,12 @@ type GenericElem struct {
 	elemBase
 	typeSpecificElemBase
 
-	values              map[xtime.UnixNano]timedAggregation // startTime -> agg (new one per every resolution)
-	dirty               []xtime.UnixNano                    // sorted timestamps that have been written to since the last flush
-	minStartAlignedTime xtime.UnixNano                      // min time in the values map. allow for iterating through map.
+	// startTime -> agg (new one per every resolution)
+	values map[xtime.UnixNano]timedAggregation
+	// sorted timestamps that have been written to since the last flush
+	dirty []xtime.UnixNano
+	// min time in the values map. allow for iterating through map.
+	minStartAlignedTime xtime.UnixNano
 
 	// internal consume state that does not need to be synchronized.
 	toConsume []timedAggregation // small buffer to avoid memory allocations during consumption
@@ -553,7 +556,7 @@ func (e *GenericElem) find(alignedStartNanos xtime.UnixNano) (*lockedAggregation
 		return nil, errElemClosed
 	}
 	timedAgg, ok := e.values[alignedStartNanos]
-	if ok && timedAgg.lockedAgg.dirty {
+	if ok {
 		return timedAgg.lockedAgg, nil
 	}
 	return nil, nil
@@ -570,7 +573,7 @@ func (e *GenericElem) findOrCreate(
 	if err != nil {
 		return nil, err
 	}
-	if found != nil {
+	if found != nil && found.dirty {
 		return found, err
 	}
 

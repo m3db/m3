@@ -21,6 +21,7 @@
 package aggregator
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -264,7 +265,7 @@ func TestCounterElemAddUnionWithCustomAggregation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, testCounter.CounterVal, v.aggregation.Sum())
 	require.Equal(t, testCounter.CounterVal, v.aggregation.Max())
-	require.Equal(t, int64(testCounter.CounterVal*testCounter.CounterVal), v.aggregation.SumSq())
+	require.Equal(t, testCounter.CounterVal*testCounter.CounterVal, v.aggregation.SumSq())
 	require.Equal(t, []byte{1}, v.aggregation.Annotation())
 
 	// Add the counter metric at slightly different time
@@ -1256,53 +1257,41 @@ func TestTimerElemClose(t *testing.T) {
 	require.NotNil(t, e.values)
 }
 
-//func TestTimerFindOrCreateNoSourceSet(t *testing.T) {
-//	e, err := NewTimerElem(testTimerElemData, NewElemOptions(newTestOptions()))
-//	require.NoError(t, err)
-//
-//	inputs := []int64{10, 10, 20, 10, 15}
-//	expected := []testIndexData{
-//		{index: 0, data: []int64{10}},
-//		{index: 0, data: []int64{10}},
-//		{index: 1, data: []int64{10, 20}},
-//		{index: 0, data: []int64{10, 20}},
-//		{index: 1, data: []int64{10, 15, 20}},
-//	}
-//	for idx, input := range inputs {
-//		res, err := e.findOrCreate(input, createAggregationOptions{initSourceSet: false})
-//		require.NoError(t, err)
-//		var times []int64
-//		for _, v := range e.values {
-//			times = append(times, v.startAtNanos)
-//		}
-//		require.Equal(t, e.values[expected[idx].index].lockedAgg, res)
-//		require.Equal(t, expected[idx].data, times)
-//	}
-//}
-//
-//func TestTimerFindOrCreateWithSourceSet(t *testing.T) {
-//	e, err := NewTimerElem(testTimerElemData, NewElemOptions(newTestOptions()))
-//	require.NoError(t, err)
-//	e.cachedSourceSets = make([]map[uint32]*bitset.BitSet, 0)
-//
-//	inputs := []int64{10, 20}
-//	expected := []testIndexData{
-//		{index: 0, data: []int64{10}},
-//		{index: 1, data: []int64{10, 20}},
-//	}
-//	for idx, input := range inputs {
-//		res, err := e.findOrCreate(input, createAggregationOptions{initSourceSet: true})
-//		require.NoError(t, err)
-//		var times []int64
-//		for _, v := range e.values {
-//			times = append(times, v.startAtNanos)
-//		}
-//		require.Equal(t, e.values[expected[idx].index].lockedAgg, res)
-//		require.Equal(t, expected[idx].data, times)
-//		require.NotNil(t, e.values[expected[idx].index].lockedAgg.sourcesSeen)
-//	}
-//	require.Equal(t, 0, len(e.cachedSourceSets))
-//}
+func TestTimerFindOrCreateNoSourceSet(t *testing.T) {
+	e, err := NewTimerElem(testTimerElemData, NewElemOptions(newTestOptions()))
+	require.NoError(t, err)
+
+	inputs := []xtime.UnixNano{10, 10, 20, 10, 15}
+	expected := make(map[xtime.UnixNano]bool)
+	for _, inputNanos := range inputs {
+		expected[inputNanos] = true
+		res, err := e.findOrCreate(int64(inputNanos), createAggregationOptions{initSourceSet: false})
+		require.NoError(t, err)
+		require.Equal(t, e.values[inputNanos].lockedAgg, res)
+	}
+}
+
+func TestTimerFindOrCreateWithSourceSet(t *testing.T) {
+	e, err := NewTimerElem(testTimerElemData, NewElemOptions(newTestOptions()))
+	require.NoError(t, err)
+	e.cachedSourceSets = make([]map[uint32]*bitset.BitSet, 0)
+
+	inputs := []xtime.UnixNano{10, 20}
+	expected := make(map[xtime.UnixNano]bool)
+	for _, inputNanos := range inputs {
+		expected[inputNanos] = true
+		res, err := e.findOrCreate(int64(inputNanos), createAggregationOptions{initSourceSet: true})
+		require.NoError(t, err)
+		require.Equal(t, e.values[inputNanos].lockedAgg, res)
+		require.NotNil(t, e.values[inputNanos].lockedAgg.sourcesSeen)
+		require.Equal(t, len(expected), len(e.values))
+		for k := range e.values {
+			_, ok := expected[k]
+			require.True(t, ok)
+		}
+	}
+	require.Equal(t, 0, len(e.cachedSourceSets))
+}
 
 func TestGaugeResetSetData(t *testing.T) {
 	opts := newTestOptions()
@@ -2010,10 +1999,15 @@ func TestGaugeElemResendSumReset(t *testing.T) {
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
 	require.Equal(t, 2, e.len())
-	//require.False(t, v.dirty)
-	//require.True(t, v.flushed)
-	//require.True(t, v1.dirty)
-	//require.False(t, v1.flushed)
+	v, err := e.find(xtime.UnixNano(testAlignedStarts[0]))
+	require.NoError(t, err)
+	v1, err := e.find(xtime.UnixNano(testAlignedStarts[1]))
+	require.NoError(t, err)
+	fmt.Println(v, v1)
+	require.False(t, v.dirty)
+	require.True(t, v.flushed)
+	require.True(t, v1.dirty)
+	require.False(t, v1.flushed)
 
 	// Update the first value after flushing
 	require.NoError(t, e.AddUnique(time.Unix(0, testAlignedStarts[0]), aggregated.ForwardedMetric{
@@ -2275,7 +2269,7 @@ func TestGaugeElemReset(t *testing.T) {
 	e.tombstoned = true
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
-	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
+	onForwardedFlushedFn, _ = testOnForwardedFlushedFn()
 	require.True(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, standardMetricTargetNanos,
 		localFn, forwardFn, onForwardedFlushedFn))
 	//verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
@@ -2320,53 +2314,46 @@ func TestGaugeElemClose(t *testing.T) {
 	require.NotNil(t, e.values)
 }
 
-//func TestGaugeFindOrCreateNoSourceSet(t *testing.T) {
-//	e, err := NewGaugeElem(testGaugeElemData, NewElemOptions(newTestOptions()))
-//	require.NoError(t, err)
-//
-//	inputs := []int64{10, 10, 20, 10, 15}
-//	expected := []testIndexData{
-//		{index: 0, data: []int64{10}},
-//		{index: 0, data: []int64{10}},
-//		{index: 1, data: []int64{10, 20}},
-//		{index: 0, data: []int64{10, 20}},
-//		{index: 1, data: []int64{10, 15, 20}},
-//	}
-//	for idx, input := range inputs {
-//		res, err := e.findOrCreate(input, createAggregationOptions{initSourceSet: false})
-//		require.NoError(t, err)
-//		var times []int64
-//		for _, v := range e.values {
-//			times = append(times, v.startAtNanos)
-//		}
-//		require.Equal(t, e.values[expected[idx].index].lockedAgg, res)
-//		require.Equal(t, expected[idx].data, times)
-//	}
-//}
-//
-//func TestGaugeFindOrCreateWithSourceSet(t *testing.T) {
-//	e, err := NewGaugeElem(testGaugeElemData, NewElemOptions(newTestOptions()))
-//	require.NoError(t, err)
-//	e.cachedSourceSets = make([]map[uint32]*bitset.BitSet, 0)
-//
-//	inputs := []int64{10, 20}
-//	expected := []testIndexData{
-//		{index: 0, data: []int64{10}},
-//		{index: 1, data: []int64{10, 20}},
-//	}
-//	for idx, input := range inputs {
-//		res, err := e.findOrCreate(input, createAggregationOptions{initSourceSet: true})
-//		require.NoError(t, err)
-//		var times []int64
-//		for _, v := range e.values {
-//			times = append(times, v.startAtNanos)
-//		}
-//		require.Equal(t, e.values[expected[idx].index].lockedAgg, res)
-//		require.Equal(t, expected[idx].data, times)
-//		require.NotNil(t, e.values[expected[idx].index].lockedAgg.sourcesSeen)
-//	}
-//	require.Equal(t, 0, len(e.cachedSourceSets))
-//}
+func TestGaugeFindOrCreateNoSourceSet(t *testing.T) {
+	e, err := NewGaugeElem(testGaugeElemData, NewElemOptions(newTestOptions()))
+	require.NoError(t, err)
+
+	inputs := []xtime.UnixNano{10, 10, 20, 10, 15}
+	expected := make(map[xtime.UnixNano]bool)
+	for _, inputNanos := range inputs {
+		expected[inputNanos] = true
+		res, err := e.findOrCreate(int64(inputNanos), createAggregationOptions{initSourceSet: false})
+		require.NoError(t, err)
+		require.Equal(t, e.values[inputNanos].lockedAgg, res)
+		require.Equal(t, len(expected), len(e.values))
+		for k := range e.values {
+			_, ok := expected[k]
+			require.True(t, ok)
+		}
+	}
+}
+
+func TestGaugeFindOrCreateWithSourceSet(t *testing.T) {
+	e, err := NewGaugeElem(testGaugeElemData, NewElemOptions(newTestOptions()))
+	require.NoError(t, err)
+	e.cachedSourceSets = make([]map[uint32]*bitset.BitSet, 0)
+
+	inputs := []xtime.UnixNano{10, 20}
+	expected := make(map[xtime.UnixNano]bool)
+	for _, inputNanos := range inputs {
+		expected[inputNanos] = true
+		res, err := e.findOrCreate(int64(inputNanos), createAggregationOptions{initSourceSet: true})
+		require.NoError(t, err)
+		require.Equal(t, e.values[inputNanos].lockedAgg, res)
+		require.NotNil(t, e.values[inputNanos].lockedAgg.sourcesSeen)
+		require.Equal(t, len(expected), len(e.values))
+		for k := range e.values {
+			_, ok := expected[k]
+			require.True(t, ok)
+		}
+	}
+	require.Equal(t, 0, len(e.cachedSourceSets))
+}
 
 type testIndexData struct {
 	index int
