@@ -638,14 +638,15 @@ func Run(runOpts RunOptions) RunResult {
 		}
 	}
 
-	prometheusEngine, err := newPromQLEngine(cfg, prometheusEngineRegistry,
-		instrumentOptions)
+	prometheusEngineFn := func(lookbackDuration time.Duration) (*prometheuspromql.Engine, error) {
+		return newPromQLEngine(lookbackDuration, cfg, prometheusEngineRegistry, instrumentOptions)
+	}
 	if err != nil {
 		logger.Fatal("unable to create PromQL engine", zap.Error(err))
 	}
 
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
-		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
+		tagOptions, engine, prometheusEngineFn, m3dbClusters, clusterClient, cfg,
 		runOpts.DBConfig, fetchOptsBuilder, graphiteFindFetchOptsBuilder, graphiteRenderFetchOptsBuilder,
 		queryCtxOpts, instrumentOptions, cpuProfileDuration, []string{handleroptions3.M3DBServiceName},
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
@@ -1333,13 +1334,13 @@ func newDownsamplerAndWriter(
 }
 
 func newPromQLEngine(
+	lookbackDelta time.Duration,
 	cfg config.Configuration,
 	registry *extprom.Registry,
 	instrumentOpts instrument.Options,
 ) (*prometheuspromql.Engine, error) {
-	lookbackDelta, err := cfg.LookbackDurationOrDefault()
-	if err != nil {
-		return nil, err
+	if lookbackDelta < 0 {
+		return nil, errors.New("lookbackDelta cannot be negative")
 	}
 
 	var (
