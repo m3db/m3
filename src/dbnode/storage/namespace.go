@@ -23,11 +23,13 @@ package storage
 import (
 	"errors"
 	"fmt"
+	iofs "io/fs"
 	"math"
 	"runtime"
 	"sync"
 	"time"
 
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -1841,6 +1843,10 @@ func (n *dbNamespace) aggregateTiles(
 		return 0, errNamespaceNotBootstrapped
 	}
 
+	if err := n.createEmptyWarmIndexIfNotExists(targetBlockStart); err != nil {
+		return 0, err
+	}
+
 	// Cold flusher builds the reverse index for target (current) ns.
 	cfOpts := NewColdFlushNsOpts(false)
 	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n, cfOpts)
@@ -1908,4 +1914,42 @@ func (n *dbNamespace) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 		return doc.Metadata{}, false, err
 	}
 	return shard.DocRef(id)
+}
+
+func (n *dbNamespace) createEmptyWarmIndexIfNotExists(blockStart xtime.UnixNano) error {
+	fsOpts := n.opts.CommitLogOptions().FilesystemOptions()
+
+	shardIds := make(map[uint32]struct{}, len(n.OwnedShards()))
+	for _, shard := range n.OwnedShards() {
+		shardIds[shard.ID()] = struct{}{}
+	}
+
+	fileSetID := fs.FileSetFileIdentifier{
+		FileSetContentType: persist.FileSetIndexContentType,
+		Namespace:          n.ID(),
+		BlockStart:         blockStart,
+		VolumeIndex:        0,
+	}
+
+	warmIndexOpts := fs.IndexWriterOpenOptions{
+		BlockSize:       n.Metadata().Options().IndexOptions().BlockSize(),
+		FileSetType:     persist.FileSetFlushType,
+		Identifier:      fileSetID,
+		Shards:          shardIds,
+		IndexVolumeType: idxpersist.DefaultIndexVolumeType,
+	}
+
+	warmIndexWriter, err := fs.NewIndexWriter(fsOpts)
+	if err != nil {
+		return err
+	}
+
+	if err = warmIndexWriter.Open(warmIndexOpts); err != nil {
+		if errors.Is(err, iofs.ErrExist) {
+			return nil
+		}
+		return err
+	}
+
+	return warmIndexWriter.Close()
 }
