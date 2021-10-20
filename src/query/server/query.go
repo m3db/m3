@@ -639,7 +639,7 @@ func Run(runOpts RunOptions) RunResult {
 	}
 
 	prometheusEngineFn := func(lookbackDuration time.Duration) (*prometheuspromql.Engine, error) {
-		return newPromQLEngine(lookbackDuration, cfg, prometheusEngineRegistry, instrumentOptions)
+		return newPromQLEngine(lookbackDuration, cfg, nil, instrumentOptions)
 	}
 	if err != nil {
 		logger.Fatal("unable to create PromQL engine", zap.Error(err))
