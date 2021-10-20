@@ -122,6 +122,10 @@ type timedAggregation struct {
 	previousTimeNanos xtime.UnixNano
 }
 
+func (ta *timedAggregation) Release() {
+	ta.lockedAgg = nil
+}
+
 // GenericElem is an element storing time-bucketed aggregations.
 type GenericElem struct {
 	elemBase
@@ -433,6 +437,7 @@ func (e *GenericElem) Consume(
 			e.cachedSourceSetsLock.Unlock()
 			e.toExpire[i].lockedAgg.sourcesSeen = nil
 		}
+		e.toExpire[i].Release()
 
 		delete(e.consumedValues, e.toExpire[i].previousTimeNanos)
 	}
@@ -479,6 +484,7 @@ func (e *GenericElem) Close() {
 		if v, ok := e.values[e.minStartAlignedTime]; ok {
 			v.lockedAgg.sourcesSeen = nil
 			v.lockedAgg.aggregation.Close()
+			v.Release()
 			delete(e.values, e.minStartAlignedTime)
 		}
 		e.minStartAlignedTime = e.minStartAlignedTime.Add(resolution)

@@ -58,6 +58,10 @@ type timedCounter struct {
 	previousTimeNanos xtime.UnixNano
 }
 
+func (ta *timedCounter) Release() {
+	ta.lockedAgg = nil
+}
+
 // CounterElem is an element storing time-bucketed aggregations.
 type CounterElem struct {
 	elemBase
@@ -369,6 +373,7 @@ func (e *CounterElem) Consume(
 			e.cachedSourceSetsLock.Unlock()
 			e.toExpire[i].lockedAgg.sourcesSeen = nil
 		}
+		e.toExpire[i].Release()
 
 		delete(e.consumedValues, e.toExpire[i].previousTimeNanos)
 	}
@@ -415,6 +420,7 @@ func (e *CounterElem) Close() {
 		if v, ok := e.values[e.minStartAlignedTime]; ok {
 			v.lockedAgg.sourcesSeen = nil
 			v.lockedAgg.aggregation.Close()
+			v.Release()
 			delete(e.values, e.minStartAlignedTime)
 		}
 		e.minStartAlignedTime = e.minStartAlignedTime.Add(resolution)
