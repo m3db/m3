@@ -21,6 +21,7 @@
 package bitset
 
 import (
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -74,4 +75,11 @@ func TestBitSetLargeRangeSetPartial(t *testing.T) {
 			require.False(t, bs.All(uint(i)))
 		}
 	}
+}
+
+func TestRlimits(t *testing.T) {
+	var l syscall.Rlimit
+	syscall.Getrlimit(syscall.RLIMIT_NOFILE, &l)
+	t.Logf("%+v\n", l)
+	t.FailNow()
 }
