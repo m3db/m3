@@ -1945,7 +1945,7 @@ func (n *dbNamespace) createEmptyWarmIndexIfNotExists(blockStart xtime.UnixNano)
 	}
 
 	if err = warmIndexWriter.Open(warmIndexOpts); err != nil {
-		if errors.Is(err, iofs.ErrExist) {
+		if xerrors.Is(err, iofs.ErrExist) {
 			return nil
 		}
 		return err
