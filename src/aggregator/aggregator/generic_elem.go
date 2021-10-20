@@ -540,17 +540,17 @@ func (e *GenericElem) insertDirty(alignedStart xtime.UnixNano) {
 
 // find finds the aggregation for a given time, or returns nil.
 //nolint: dupl
-func (e *GenericElem) find(alignedStartNanos xtime.UnixNano) (*lockedAggregation, error) {
+func (e *GenericElem) find(alignedStartNanos xtime.UnixNano) (*lockedAggregation, bool, error) {
 	e.RLock()
 	defer e.RUnlock()
 	if e.closed {
-		return nil, errElemClosed
+		return nil, false, errElemClosed
 	}
 	timedAgg, ok := e.values[alignedStartNanos]
 	if ok {
-		return timedAgg.lockedAgg, nil
+		return timedAgg.lockedAgg, timedAgg.lockedAgg.dirty, nil
 	}
-	return nil, nil
+	return nil, false, nil
 }
 
 // findOrCreate finds the aggregation for a given time, or creates one
@@ -560,11 +560,11 @@ func (e *GenericElem) findOrCreate(
 	createOpts createAggregationOptions,
 ) (*lockedAggregation, error) {
 	alignedStart := xtime.UnixNano(alignedStartNanos)
-	found, err := e.find(alignedStart)
+	found, isDirty, err := e.find(alignedStart)
 	if err != nil {
 		return nil, err
 	}
-	if found != nil && found.dirty {
+	if found != nil && isDirty {
 		return found, err
 	}
 
