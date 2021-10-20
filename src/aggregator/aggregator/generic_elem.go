@@ -357,6 +357,7 @@ func (e *GenericElem) Consume(
 	for _, dirtyTime := range dirtyTimes {
 		agg, ok := e.values[dirtyTime]
 		if !ok {
+			dirtyTime := dirtyTime
 			instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
 				l.Error("dirty timestamp not in map", zap.Time("ts", dirtyTime.ToTime()))
 			})
@@ -470,6 +471,7 @@ func (e *GenericElem) Close() {
 	// this allows to catch any bugs with unexpected entries still in the map.
 	for k := range e.values {
 		if k < e.minStartAlignedTime {
+			k := k
 			instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
 				l.Error("aggregate timestamp is less than min",
 					zap.Time("ts", k.ToTime()),
@@ -534,6 +536,8 @@ func (e *GenericElem) insertDirty(alignedStart xtime.UnixNano) {
 	e.dirty[left] = alignedStart
 }
 
+// len returns the length of the values in the element.
+//nolint: dupl
 func (e *GenericElem) len() int {
 	e.RLock()
 	defer e.RUnlock()
@@ -541,6 +545,7 @@ func (e *GenericElem) len() int {
 }
 
 // find finds the aggregation for a given time, or returns nil.
+//nolint: dupl
 func (e *GenericElem) find(alignedStartNanos xtime.UnixNano) (*lockedAggregation, error) {
 	e.RLock()
 	defer e.RUnlock()

@@ -293,6 +293,7 @@ func (e *GaugeElem) Consume(
 	for _, dirtyTime := range dirtyTimes {
 		agg, ok := e.values[dirtyTime]
 		if !ok {
+			dirtyTime := dirtyTime
 			instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
 				l.Error("dirty timestamp not in map", zap.Time("ts", dirtyTime.ToTime()))
 			})
@@ -406,6 +407,7 @@ func (e *GaugeElem) Close() {
 	// this allows to catch any bugs with unexpected entries still in the map.
 	for k := range e.values {
 		if k < e.minStartAlignedTime {
+			k := k
 			instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
 				l.Error("aggregate timestamp is less than min",
 					zap.Time("ts", k.ToTime()),
@@ -470,6 +472,8 @@ func (e *GaugeElem) insertDirty(alignedStart xtime.UnixNano) {
 	e.dirty[left] = alignedStart
 }
 
+// len returns the length of the values in the element.
+//nolint: dupl
 func (e *GaugeElem) len() int {
 	e.RLock()
 	defer e.RUnlock()
@@ -477,6 +481,7 @@ func (e *GaugeElem) len() int {
 }
 
 // find finds the aggregation for a given time, or returns nil.
+//nolint: dupl
 func (e *GaugeElem) find(alignedStartNanos xtime.UnixNano) (*lockedGaugeAggregation, error) {
 	e.RLock()
 	defer e.RUnlock()
@@ -484,7 +489,7 @@ func (e *GaugeElem) find(alignedStartNanos xtime.UnixNano) (*lockedGaugeAggregat
 		return nil, errElemClosed
 	}
 	timedAgg, ok := e.values[alignedStartNanos]
-	if ok {
+	if ok && timedAgg.lockedAgg.dirty {
 		return timedAgg.lockedAgg, nil
 	}
 	return nil, nil
@@ -501,7 +506,7 @@ func (e *GaugeElem) findOrCreate(
 	if err != nil {
 		return nil, err
 	}
-	if found != nil && found.dirty {
+	if found != nil {
 		return found, err
 	}
 

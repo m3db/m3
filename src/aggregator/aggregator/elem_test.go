@@ -402,8 +402,6 @@ func TestCounterElemAddUniqueWithCustomAggregation(t *testing.T) {
 		aggregated.ForwardedMetric{Values: []float64{14}},
 		metadata.ForwardMetadata{SourceID: source2}))
 	require.Equal(t, 1, e.len())
-	v, err = e.find(xtime.UnixNano(testAlignedStarts[1]))
-	require.NoError(t, err)
 	v, err = e.find(xtime.UnixNano(testAlignedStarts[0]))
 	require.NoError(t, err)
 	require.Equal(t, int64(26), v.aggregation.Sum())
@@ -743,29 +741,27 @@ func TestCounterFindOrCreateNoSourceSet(t *testing.T) {
 	}
 }
 
-// func TestCounterFindOrCreateWithSourceSet(t *testing.T) {
-// 	e, err := NewCounterElem(testCounterElemData, NewElemOptions(newTestOptions()))
-// 	require.NoError(t, err)
-// 	e.cachedSourceSets = make([]map[uint32]*bitset.BitSet, 0)
+func TestCounterFindOrCreateWithSourceSet(t *testing.T) {
+	e, err := NewCounterElem(testCounterElemData, NewElemOptions(newTestOptions()))
+	require.NoError(t, err)
+	e.cachedSourceSets = make([]map[uint32]*bitset.BitSet, 0)
 
-// 	inputs := []int64{10, 20}
-// 	expected := []testIndexData{
-// 		{index: 0, data: []int64{10}},
-// 		{index: 1, data: []int64{10, 20}},
-// 	}
-// 	for idx, input := range inputs {
-// 		res, err := e.findOrCreate(input, createAggregationOptions{initSourceSet: true})
-// 		require.NoError(t, err)
-// 		var times []int64
-// 		for _, v := range e.values {
-// 			times = append(times, v.startAtNanos)
-// 		}
-// 		require.Equal(t, e.values[expected[idx].index].lockedAgg, res)
-// 		require.Equal(t, expected[idx].data, times)
-// 		require.NotNil(t, e.values[expected[idx].index].lockedAgg.sourcesSeen)
-// 	}
-// 	require.Equal(t, 0, len(e.cachedSourceSets))
-// }
+	inputs := []xtime.UnixNano{10, 20}
+	expected := make(map[xtime.UnixNano]bool)
+	for _, inputNanos := range inputs {
+		expected[inputNanos] = true
+		res, err := e.findOrCreate(int64(inputNanos), createAggregationOptions{initSourceSet: true})
+		require.NoError(t, err)
+		require.Equal(t, e.values[inputNanos].lockedAgg, res)
+		require.NotNil(t, e.values[inputNanos].lockedAgg.sourcesSeen)
+		require.Equal(t, len(expected), len(e.values))
+		for k := range e.values {
+			_, ok := expected[k]
+			require.True(t, ok)
+		}
+	}
+	require.Equal(t, 0, len(e.cachedSourceSets))
+}
 
 func TestTimerResetSetData(t *testing.T) {
 	opts := newTestOptions()

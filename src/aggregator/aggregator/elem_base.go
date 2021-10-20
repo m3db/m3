@@ -183,18 +183,6 @@ type elemBase struct {
 
 type valuesByTime map[xtime.UnixNano][]transformation.Datapoint
 
-// Return the latest timestamp in the map that is less than the provided timestamp. Returns 0 if a previous timestamp
-// does not exist.
-func (v valuesByTime) previousTimestamp(t xtime.UnixNano) xtime.UnixNano {
-	var previous xtime.UnixNano
-	for ts := range v {
-		if ts.Before(t) && !ts.Before(previous) {
-			previous = ts
-		}
-	}
-	return previous
-}
-
 type elemMetrics struct {
 	updatedValues tally.Counter
 	forwardLag    tally.Histogram

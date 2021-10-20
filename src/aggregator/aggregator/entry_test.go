@@ -1443,7 +1443,7 @@ func TestEntryAddTimed(t *testing.T) {
 	expectedElem = e.aggregations[idx].elem
 	values = expectedElem.Value.(*CounterElem).values
 	require.Equal(t, 1, len(values))
-	v, ok = values[xtime.UnixNano(expectedNanos)]
+	v, ok = values[expectedNanos]
 	require.True(t, ok)
 	require.Equal(t, int64(2), v.lockedAgg.aggregation.Count())
 	require.Equal(t, int64(2000), v.lockedAgg.aggregation.Sum())
@@ -1460,7 +1460,7 @@ func TestEntryAddTimed(t *testing.T) {
 	values = expectedElem.Value.(*CounterElem).values
 	require.Equal(t, 2, len(values))
 	expectedNanos = expectedNanos.Add(testTimedMetadata.StoragePolicy.Resolution().Window)
-	v, ok = values[xtime.UnixNano(expectedNanos)]
+	v, ok = values[expectedNanos]
 	require.True(t, ok)
 	require.Equal(t, expectedNanos, v.startAtNanos)
 	require.Equal(t, int64(1), v.lockedAgg.aggregation.Count())
