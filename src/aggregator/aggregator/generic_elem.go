@@ -398,6 +398,7 @@ func (e *GenericElem) Consume(
 		minUpdateableTimeNanos = minUpdateableTimeNanos.Add(-e.bufferForPastTimedMetricFn(resolution))
 	}
 
+	e.toExpire = e.toExpire[:0]
 	expiredNanos, ok := e.previousStartAlignedWithLock(minUpdateableTimeNanos)
 	if ok {
 		e.expireValuesWithLock(expiredNanos, timestampNanosFn, isEarlierThanFn)
