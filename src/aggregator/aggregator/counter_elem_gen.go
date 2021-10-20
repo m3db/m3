@@ -222,7 +222,6 @@ func (e *CounterElem) expireValuesWithLock(
 			v.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(e.minStartAlignedTime), resolution))
 			e.toExpire = append(e.toExpire, v)
 
-			v.Release()
 			delete(e.values, e.minStartAlignedTime)
 		}
 		e.minStartAlignedTime = e.minStartAlignedTime.Add(resolution)
