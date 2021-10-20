@@ -53,16 +53,13 @@ func TestNewAggregator(t *testing.T) {
 	setupPlacement(t, coord)
 	setupM3msgTopic(t, coord)
 
-	cfg, err := defaultAggregatorConfig()
-	require.NoError(t, err)
-
-	agg, err := NewAggregator(cfg, AggregatorOptions{GenerateHostID: true})
+	agg, err := NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{GenerateHostID: true})
 	require.NoError(t, err)
 	require.NoError(t, resources.Retry(agg.IsHealthy))
 	require.NoError(t, agg.Close())
 
 	// restart an aggregator instance
-	agg, err = NewAggregator(cfg, AggregatorOptions{GenerateHostID: true})
+	agg, err = NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{GenerateHostID: true})
 	require.NoError(t, err)
 	require.NoError(t, resources.Retry(agg.IsHealthy))
 	require.NoError(t, agg.Close())
@@ -78,7 +75,7 @@ func TestMultiAggregators(t *testing.T) {
 	setupPlacementMultiAggs(t, coord, args)
 	setupM3msgTopic(t, coord)
 
-	cfg1, err := defaultAggregatorConfig()
+	cfg1, err := loadDefaultAggregatorConfig()
 	require.NoError(t, err)
 	updateTestAggConfig(&cfg1, args[0])
 
@@ -89,7 +86,7 @@ func TestMultiAggregators(t *testing.T) {
 		assert.NoError(t, agg1.Close())
 	}()
 
-	cfg2, err := defaultAggregatorConfig()
+	cfg2, err := loadDefaultAggregatorConfig()
 	require.NoError(t, err)
 	updateTestAggConfig(&cfg2, args[1])
 
@@ -109,10 +106,7 @@ func TestAggregatorStatus(t *testing.T) {
 	setupPlacement(t, coord)
 	setupM3msgTopic(t, coord)
 
-	cfg, err := defaultAggregatorConfig()
-	require.NoError(t, err)
-
-	agg, err := NewAggregator(cfg, AggregatorOptions{})
+	agg, err := NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{})
 	require.NoError(t, err)
 	defer func() {
 		assert.NoError(t, agg.Close())
@@ -156,10 +150,7 @@ func TestAggregatorWriteWithCluster(t *testing.T) {
 	setupPlacement(t, coord)
 	setupM3msgTopic(t, coord)
 
-	cfg, err := defaultAggregatorConfig()
-	require.NoError(t, err)
-
-	agg, err := NewAggregator(cfg, AggregatorOptions{})
+	agg, err := NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{})
 	require.NoError(t, err)
 	defer func() {
 		assert.NoError(t, agg.Close())
@@ -360,19 +351,11 @@ func updateTestAggConfig(cfg *config.Configuration, args testAggregatorArgs) {
 	cfg.M3Msg = &m3msgCfg
 }
 
-func defaultAggregatorConfig() (config.Configuration, error) {
+func loadDefaultAggregatorConfig() (config.Configuration, error) {
 	var cfg config.Configuration
-	if err := yaml.Unmarshal([]byte(aggregatorConfig), &cfg); err != nil {
+	if err := yaml.Unmarshal([]byte(defaultAggregatorConfig), &cfg); err != nil {
 		return config.Configuration{}, err
 	}
-
-	// TODO(nate): this is a hack to workaround the fact that
-	// aggregator waits for this duration during shutdown in
-	// an uninterruptible way. We need to fix this so that this
-	// wait can be preempted. Until then, shrink wait to 1 second
-	aggCfg := cfg.AggregatorOrDefault()
-	aggCfg.EntryCheckInterval = 1 * time.Second
-	cfg.Aggregator = &aggCfg
 
 	return cfg, nil
 }
@@ -449,7 +432,7 @@ func verify(
 	return nil
 }
 
-const aggregatorConfig = `{}`
+const defaultAggregatorConfig = `{}`
 
 const aggregatorCoordConfig = `
 clusters:

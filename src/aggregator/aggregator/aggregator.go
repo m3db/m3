@@ -125,7 +125,6 @@ type aggregator struct {
 	state              aggregatorState
 	doneCh             chan struct{}
 	wg                 sync.WaitGroup
-	sleepFn            sleepFn
 	shardsPendingClose atomic.Int32
 	metrics            aggregatorMetrics
 	logger             *zap.Logger
@@ -154,7 +153,6 @@ func NewAggregator(opts Options) Aggregator {
 		resignTimeout:                      opts.ResignTimeout(),
 		timedForResendEnabledRollupRegexps: compileRegexps(logger, opts.TimedForResendEnabledRollupRegexps()),
 		doneCh:                             make(chan struct{}),
-		sleepFn:                            time.Sleep,
 		metrics:                            newAggregatorMetrics(scope, timerOpts, opts.MaxAllowedForwardingDelayFn()),
 		logger:                             logger,
 	}
@@ -828,7 +826,7 @@ func (agg *aggregator) tickInternal() {
 	agg.metrics.shards.owned.Update(float64(numShards))
 	agg.metrics.shards.pendingClose.Update(float64(agg.shardsPendingClose.Load()))
 	if numShards == 0 {
-		agg.sleepFn(agg.checkInterval)
+		agg.waitForInterval(agg.checkInterval)
 		return
 	}
 	var (
@@ -843,7 +841,14 @@ func (agg *aggregator) tickInternal() {
 	tickDuration := agg.nowFn().Sub(start)
 	agg.metrics.tick.Report(tickResult, tickDuration)
 	if tickDuration < agg.checkInterval {
-		agg.sleepFn(agg.checkInterval - tickDuration)
+		agg.waitForInterval(agg.checkInterval - tickDuration)
+	}
+}
+
+func (agg *aggregator) waitForInterval(wait time.Duration) {
+	select {
+	case <-agg.doneCh:
+	case <-time.After(wait):
 	}
 }
 
