@@ -29,7 +29,6 @@ import (
 	"sync"
 	"time"
 
-	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -50,6 +49,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -105,6 +105,8 @@ var commitLogWriteNoOp = commitLogWriter(commitLogWriterFn(func(
 	return nil
 }))
 
+type createEmptyWarmIndexIfNotExistsFn func(blockStart xtime.UnixNano) error
+
 type dbNamespace struct {
 	sync.RWMutex
 
@@ -137,6 +139,8 @@ type dbNamespace struct {
 	increasingIndex increasingIndex
 	commitLogWriter commitLogWriter
 	reverseIndex    NamespaceIndex
+
+	createEmptyWarmIndexIfNotExistsFn createEmptyWarmIndexIfNotExistsFn
 
 	tickWorkers            xsync.WorkerPool
 	tickWorkersConcurrency int
@@ -385,6 +389,8 @@ func newDatabaseNamespace(
 		tickWorkersConcurrency: tickWorkersConcurrency,
 		metrics:                newDatabaseNamespaceMetrics(scope, iops.TimerOptions()),
 	}
+
+	n.createEmptyWarmIndexIfNotExistsFn = n.createEmptyWarmIndexIfNotExists
 
 	sl, err := opts.SchemaRegistry().RegisterListener(id, n)
 	// Fail to create namespace is schema listener can not be registered successfully.
@@ -1843,7 +1849,7 @@ func (n *dbNamespace) aggregateTiles(
 		return 0, errNamespaceNotBootstrapped
 	}
 
-	if err := n.createEmptyWarmIndexIfNotExists(targetBlockStart); err != nil {
+	if err := n.createEmptyWarmIndexIfNotExistsFn(targetBlockStart); err != nil {
 		return 0, err
 	}
 
@@ -1872,9 +1878,8 @@ func (n *dbNamespace) aggregateTiles(
 
 	for _, targetShard := range n.OwnedShards() {
 		if !targetShard.IsBootstrapped() {
-			n.log.
-				With(zap.Uint32("shard", targetShard.ID())).
-				Debug("skipping aggregateTiles due to shard not bootstrapped")
+			n.log.Debug("skipping aggregateTiles due to shard not bootstrapped",
+				zap.Uint32("shard", targetShard.ID()))
 			continue
 		}
 
@@ -1921,7 +1926,9 @@ func (n *dbNamespace) createEmptyWarmIndexIfNotExists(blockStart xtime.UnixNano)
 
 	shardIds := make(map[uint32]struct{}, len(n.OwnedShards()))
 	for _, shard := range n.OwnedShards() {
-		shardIds[shard.ID()] = struct{}{}
+		if shard.IsBootstrapped() {
+			shardIds[shard.ID()] = struct{}{}
+		}
 	}
 
 	fileSetID := fs.FileSetFileIdentifier{
@@ -1946,6 +1953,10 @@ func (n *dbNamespace) createEmptyWarmIndexIfNotExists(blockStart xtime.UnixNano)
 
 	if err = warmIndexWriter.Open(warmIndexOpts); err != nil {
 		if xerrors.Is(err, iofs.ErrExist) {
+			n.log.Debug("warm index already exists",
+				zap.Stringer("namespace", n.id),
+				zap.Stringer("blockStart", blockStart),
+				zap.Reflect("shardIds", shardIds))
 			return nil
 		}
 		return err

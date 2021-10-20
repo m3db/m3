@@ -22,15 +22,18 @@ package fs
 
 import (
 	"fmt"
+	iofs "io/fs"
 	"io/ioutil"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
+	xerror "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -153,4 +156,32 @@ func TestSnapshotIndexWriter(t *testing.T) {
 		err = reader.Close()
 		require.NoError(t, err)
 	}
+}
+
+func TestIndexWriterFilesetErrExists(t *testing.T) {
+	test := newIndexWriteTestSetup(t)
+	defer test.cleanup()
+
+	writer := newTestIndexWriter(t, test.filePathPrefix)
+
+	indexWriterOpenOptions := IndexWriterOpenOptions{
+		Identifier:  test.fileSetID,
+		BlockSize:   test.blockSize,
+		FileSetType: persist.FileSetSnapshotType,
+		Shards:      map[uint32]struct{}{3: {}},
+	}
+
+	writeFn := func() error {
+		if err := writer.Open(indexWriterOpenOptions); err != nil {
+			return err
+		}
+		return writer.Close()
+	}
+
+	err := writeFn()
+	require.NoError(t, err)
+
+	err = writeFn()
+	require.Error(t, err)
+	assert.True(t, xerror.Is(err, iofs.ErrExist))
 }
