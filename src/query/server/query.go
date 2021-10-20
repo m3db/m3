@@ -1348,7 +1348,6 @@ func newPromQLEngine(
 		kitLogger = kitlogzap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
 		opts      = prometheuspromql.EngineOpts{
 			Logger:        log.With(kitLogger, "component", "prometheus_engine"),
-			Reg:           registry,
 			MaxSamples:    cfg.Query.Prometheus.MaxSamplesPerQueryOrDefault(),
 			Timeout:       cfg.Query.TimeoutOrDefault(),
 			LookbackDelta: lookbackDelta,
