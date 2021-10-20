@@ -148,17 +148,19 @@ func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter TestSeriesIterator
 
 // Write test data.
 func (w TestIndexWrites) Write(t *testing.T, ns ident.ID, s client.Session) {
+	require.NoError(t, w.WriteAttempt(ns, s))
+}
+
+func (w TestIndexWrites) WriteAttempt(ns ident.ID, s client.Session) error {
 	for i := 0; i < len(w); i++ {
 		wi := w[i]
-		require.NoError(t, s.WriteTagged(ns,
-			wi.ID,
-			wi.Tags.Duplicate(),
-			wi.Timestamp,
-			wi.Value,
-			xtime.Second,
-			nil,
-		), "%v", wi)
+		err := s.WriteTagged(ns, wi.ID, wi.Tags.Duplicate(), wi.Timestamp,
+			wi.Value, xtime.Second, nil)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // NumIndexed gets number of indexed series.
