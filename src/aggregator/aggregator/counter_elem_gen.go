@@ -56,9 +56,10 @@ type timedCounter struct {
 	startAtNanos xtime.UnixNano // start time of an aggregation window
 	lockedAgg    *lockedCounterAggregation
 
-	// this is mutable data for specifying on each Consume which previous value the current agg can reference (i.e. for binary ops).
-	// it must be mutable since the set of vals within the buffer past can change and so on each consume a given agg's previous
-	// depends on the state of values preceding the current at that point in time.
+	// this is mutable data for specifying on each Consume which previous value the
+	// current agg can reference (i.e. for binary ops). it must be mutable since the
+	// set of vals within the buffer past can change and so on each consume a given agg's
+	// previous depends on the state of values preceding the current at that point in time.
 	previousTimeNanos xtime.UnixNano
 }
 
@@ -500,6 +501,7 @@ func (e *CounterElem) find(alignedStartNanos xtime.UnixNano) (*lockedCounterAggr
 
 // findOrCreate finds the aggregation for a given time, or creates one
 // if it doesn't exist.
+//nolint: dupl
 func (e *CounterElem) findOrCreate(
 	alignedStartNanos int64,
 	createOpts createAggregationOptions,
