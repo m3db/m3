@@ -29,7 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	xerror "github.com/m3db/m3/src/x/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -183,5 +183,5 @@ func TestIndexWriterFilesetErrExists(t *testing.T) {
 
 	err = writeFn()
 	require.Error(t, err)
-	assert.True(t, xerror.Is(err, iofs.ErrExist))
+	assert.True(t, xerrors.Is(err, iofs.ErrExist))
 }
