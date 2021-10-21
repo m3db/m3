@@ -75,7 +75,7 @@ const (
 	// the memory tracker will allow.
 	defaultNumLoadedBytesLimit = 2 << 30
 
-	defaultMediatorTickInterval = 5 * time.Second
+	defaultMediatorTickInterval = 1 * time.Second
 
 	// defaultWideBatchSize is the default batch size for wide queries.
 	defaultWideBatchSize = 1024

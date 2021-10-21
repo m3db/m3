@@ -38,9 +38,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	errFlushOperationsInProgress = errors.New("flush operations already in progress")
-)
+var errFlushOperationsInProgress = errors.New("flush operations already in progress")
 
 type flushManagerState int
 
@@ -162,6 +160,7 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 	if err := m.indexFlush(namespaces); err != nil {
 		multiErr = multiErr.Add(err)
 	}
+	m.logger.Info("completed warm index flush")
 
 	return multiErr.FinalError()
 }
@@ -227,7 +226,6 @@ func (m *flushManager) dataSnapshot(
 		for _, snapshotBlockStart := range snapshotBlockStarts {
 			err := ns.Snapshot(
 				snapshotBlockStart, startTime, snapshotPersist)
-
 			if err != nil {
 				detailedErr := fmt.Errorf(
 					"namespace %s failed to snapshot data for blockStart %s: %v",

@@ -389,9 +389,7 @@ func (m *mutableSegments) NumSegmentsAndDocs() (int64, int64) {
 }
 
 func numSegmentsAndDocs(segs []*readableSeg) (int64, int64) {
-	var (
-		numSegments, numDocs int64
-	)
+	var numSegments, numDocs int64
 	for _, seg := range segs {
 		numSegments++
 		numDocs += seg.Segment().Size()
@@ -1385,6 +1383,7 @@ func (m *mutableSegments) cleanupForegroundCompactWithLock() {
 		m.compact.segmentBuilder = nil
 	}
 }
+
 func (m *mutableSegments) cleanupCompactWithLock() {
 	// If not compacting, trigger a cleanup so that all frozen segments get
 	// closed, otherwise after the current running compaction the compacted

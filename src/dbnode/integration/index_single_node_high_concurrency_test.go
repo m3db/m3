@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -31,8 +32,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/integration/resources"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -45,6 +48,25 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
+
+func TestIndexReadFailure(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow() // Just skip if we're doing a short run
+	}
+
+	testIndexSingleNodeHighConcurrency(t, testIndexHighConcurrencyOptions{
+		concurrencyEnqueueWorker:         8,
+		concurrencyWrites:                50,
+		enqueuePerWorker:                 1000,
+		numTags:                          2,
+		concurrencyQueryDuringWrites:     0,
+		concurrencyQueryDuringWritesType: indexQuery,
+		retentionOptions: DefaultIntegrationTestRetentionOpts.
+			SetBlockSize(5 * time.Second).
+			SetBufferPast(1 * time.Second).
+			SetBufferFuture(1 * time.Second),
+	})
+}
 
 func TestIndexSingleNodeHighConcurrencyManyTagsLowCardinality(t *testing.T) {
 	if testing.Short() {
@@ -147,16 +169,21 @@ type testIndexHighConcurrencyOptions struct {
 	// which is useful if just sanity checking can write/read concurrently
 	// without issue/errors and the stats look good.
 	skipVerify bool
+
+	retentionOptions retention.Options
 }
 
 func testIndexSingleNodeHighConcurrency(
 	t *testing.T,
 	opts testIndexHighConcurrencyOptions,
 ) {
+	if opts.retentionOptions == nil {
+		opts.retentionOptions = DefaultIntegrationTestRetentionOpts
+	}
 	// Test setup
 	md, err := namespace.NewMetadata(testNamespaces[0],
 		namespace.NewOptions().
-			SetRetentionOptions(DefaultIntegrationTestRetentionOpts).
+			SetRetentionOptions(opts.retentionOptions).
 			SetCleanupEnabled(false).
 			SetSnapshotEnabled(false).
 			SetFlushEnabled(false).
@@ -241,6 +268,19 @@ func testIndexSingleNodeHighConcurrency(
 					} else {
 						numTotalSuccess.Inc()
 					}
+
+					resources.Retry(func() error {
+						ok, err := isIndexedChecked(t, session, md.ID(), id, tags)
+						if err != nil {
+							return fmt.Errorf("isIndexedChecked failed: %w", err)
+						} else if !ok {
+							log.Info("is not yet indexed")
+							return errors.New("not indexed")
+						} else {
+							log.Info("is indexed")
+						}
+						return nil
+					})
 				})
 			}
 		}()
@@ -250,6 +290,7 @@ func testIndexSingleNodeHighConcurrency(
 	queryConcDuringWritesCloseCh := make(chan struct{}, 1)
 	numTotalQueryMatches := atomic.NewUint32(0)
 	numTotalQueryErrors := atomic.NewUint32(0)
+	numTotalIndexMisses := atomic.NewUint32(0)
 	checkNumTotalQueryMatches := false
 	if opts.concurrencyQueryDuringWrites == 0 {
 		log.Info("no concurrent queries during writes configured")
@@ -283,6 +324,8 @@ func testIndexSingleNodeHighConcurrency(
 						}
 						if ok {
 							numTotalQueryMatches.Inc()
+						} else {
+							numTotalIndexMisses.Inc()
 						}
 					case indexAggregateQuery:
 						randI := rng.Intn(opts.concurrencyEnqueueWorker)
@@ -337,7 +380,8 @@ func testIndexSingleNodeHighConcurrency(
 		zap.Duration("took", time.Since(start)),
 		zap.Int("written", int(numTotalSuccess.Load())),
 		zap.Time("serverTime", nowFn()),
-		zap.Uint32("queryMatches", numTotalQueryMatches.Load()))
+		zap.Uint32("queryMatches", numTotalQueryMatches.Load()),
+		zap.Uint32("indexMisses", numTotalIndexMisses.Load()))
 
 	log.Info("data indexing verify start")
 
@@ -354,7 +398,7 @@ func testIndexSingleNodeHighConcurrency(
 			return false
 		}
 		return int(counter.Value()) == expectNumIndex
-	}, time.Minute*5)
+	}, time.Minute)
 
 	counters := testSetup.Scope().Snapshot().Counters()
 	counter, ok := counters[expectStatProcess]

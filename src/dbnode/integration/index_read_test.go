@@ -18,35 +18,4 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package resources
-
-import (
-	"time"
-
-	"github.com/cenkalti/backoff/v3"
-	"go.uber.org/zap"
-)
-
-const (
-	retryMaxInterval = 1 * time.Second
-	retryMaxTime     = 5 * time.Second
-)
-
-// Retry is a function for retrying an operation in integration tests.
-// Exponentially backs off between retries with a max wait of 5 seconds
-// Waits up to a minute total for an operation to complete.
-func Retry(op func() error) error {
-	bo := backoff.NewExponentialBackOff()
-	bo.MaxInterval = retryMaxInterval
-	bo.MaxElapsedTime = retryMaxTime
-	return backoff.Retry(op, bo)
-}
-
-// NewLogger creates a new development zap logger without stacktraces
-// to cut down on verbosity.
-func NewLogger() (*zap.Logger, error) {
-	logCfg := zap.NewDevelopmentConfig()
-	logCfg.DisableStacktrace = true
-
-	return logCfg.Build()
-}
+package integration

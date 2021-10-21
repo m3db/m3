@@ -838,6 +838,10 @@ func (i *nsIndex) writeBatchForBlockStart(
 	// Note: attemptTotal should = attemptSkip + attemptWrite.
 	i.metrics.asyncInsertAttemptWrite.Inc(int64(numPending))
 
+	for _, doc := range batch.PendingDocs() {
+		i.logger.Info(fmt.Sprintf("inserted into index: %v", string(doc.ID)))
+	}
+
 	// i.e. we have the block and the inserts, perform the writes.
 	result, err := i.activeBlock.WriteBatch(batch)
 
