@@ -1,4 +1,6 @@
+//go:build integration_v2
 // +build integration_v2
+
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,7 +24,7 @@
 package inprocess
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -40,7 +42,6 @@ import (
 	"github.com/m3db/m3/src/x/config/hostid"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -373,55 +374,47 @@ func testAggMetrics(t *testing.T, coord resources.Coordinator) {
 	assert.NoError(t, resources.Retry(func() error {
 		return coord.WriteProm("cpu", map[string]string{"host": "host1"}, samples)
 	}))
+
 	queryHeaders := map[string][]string{"M3-Metrics-Type": {"aggregated"}, "M3-Storage-Policy": {"10s:6h"}}
-	instantQ := "api/v1/query?query=cpu"
-	assert.NoError(t, coord.RunQuery(verify, instantQ, queryHeaders))
-}
 
-type jsonResponse struct {
-	Status string
-	Data   QueryResult
-}
+	require.NoError(t, resources.Retry(func() error {
+		result, err := coord.InstantQuery(resources.QueryRequest{QueryExpr: "query=cpu"}, queryHeaders)
+		if err != nil {
+			return err
+		}
+		if len(result) != 1 {
+			return errors.New("wrong amount of datapoints")
+		}
+		if result[0].Value != 6 {
+			return errors.New("wrong data point value")
+		}
+		return nil
+	}))
 
-type QueryResult struct {
-	ResultType model.ValueType
-	Result     model.Vector
-}
-
-func verify(
-	status int,
-	headers map[string][]string,
-	resp string,
-	err error,
-) error {
-	if err != nil {
-		return err
-	}
-
-	if status != 200 {
-		return fmt.Errorf("expected 200, received %v", status)
-	}
-
-	if contentType, ok := headers["Content-Type"]; !ok {
-		return fmt.Errorf("missing Content-Type header")
-	} else if len(contentType) != 1 || contentType[0] != "application/json" { //nolint:goconst
-		return fmt.Errorf("expected json content type, got %v", contentType)
-	}
-
-	var parsedResp jsonResponse
-	if err := json.Unmarshal([]byte(resp), &parsedResp); err != nil {
-		return err
-	}
-
-	if parsedResp.Data.Result.Len() != 1 {
-		return fmt.Errorf("wrong amount of query results")
-	}
-
-	if parsedResp.Data.Result[0].Value != 6 {
-		return fmt.Errorf("wrong metric value")
-	}
-
-	return nil
+	require.NoError(t, resources.Retry(func() error {
+		result, err := coord.RangeQuery(
+			resources.RangeQueryRequest{
+				QueryRequest: resources.QueryRequest{QueryExpr: "query=cpu"},
+				StartTime:    time.Now().Add(-30 * time.Second),
+				EndTime:      time.Now(),
+				Step:         1,
+			},
+			queryHeaders,
+		)
+		if err != nil {
+			return err
+		}
+		if len(result) != 1 {
+			return errors.New("wrong amount of series in the range query result")
+		}
+		if len(result[0].Values) == 0 {
+			return errors.New("empty range query result")
+		}
+		if result[0].Values[0].Value != 6 {
+			return errors.New("wrong range query value")
+		}
+		return nil
+	}))
 }
 
 const defaultAggregatorConfig = `{}`

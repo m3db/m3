@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
@@ -56,6 +58,10 @@ type Coordinator interface {
 	WriteProm(name string, tags map[string]string, samples []prompb.Sample) error
 	// RunQuery runs the given query with a given verification function.
 	RunQuery(verifier ResponseVerifier, query string, headers map[string][]string) error
+	// InstantQuery runs an instant query with provided headers
+	InstantQuery(req QueryRequest, headers map[string][]string) (model.Vector, error)
+	// RangeQuery runs a range query with provided headers
+	RangeQuery(req RangeQueryRequest, headers map[string][]string) (model.Matrix, error)
 }
 
 // Admin is a wrapper for admin functions.
@@ -252,4 +258,18 @@ func (a Aggregators) WaitForHealthy() error {
 
 	wg.Wait()
 	return multiErr.FinalError()
+}
+
+// QueryRequest represents an instant query request
+type QueryRequest struct {
+	QueryExpr string
+}
+
+// RangeQueryRequest represents a range query request
+type RangeQueryRequest struct {
+	QueryRequest
+
+	StartTime time.Time
+	EndTime   time.Time
+	Step      int64
 }
