@@ -41,7 +41,6 @@ import (
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/hostid"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/instrument"
 )
 
 // ClusterOptions contains options for spinning up a new M3 cluster
@@ -376,12 +375,9 @@ func GenerateAggregatorConfigsForCluster(
 		if err != nil {
 			return nil, err
 		}
-		metricsCfg.PrometheusReporter = &instrument.PrometheusConfiguration{
-			OnError:       "none",
-			HandlerPath:   "/metrics",
-			ListenAddress: addr,
-			TimerType:     "histogram",
-		}
+		promReporter := *metricsCfg.PrometheusReporter
+		promReporter.ListenAddress = addr
+		metricsCfg.PrometheusReporter = &promReporter
 		cfg.Metrics = &metricsCfg
 
 		cfgs = append(cfgs, cfg)
