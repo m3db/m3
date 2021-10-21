@@ -117,8 +117,12 @@ type lockedAggregation struct {
 }
 
 type timedAggregation struct {
-	startAtNanos      xtime.UnixNano // start time of an aggregation window
-	lockedAgg         *lockedAggregation
+	startAtNanos xtime.UnixNano // start time of an aggregation window
+	lockedAgg    *lockedAggregation
+
+	// this is mutable data for specifying on each Consume which previous value the current agg can reference (i.e. for binary ops).
+	// it must be mutable since the set of vals within the buffer past can change and so on each consume a given agg's previous
+	// depends on the state of values preceding the current at that point in time.
 	previousTimeNanos xtime.UnixNano
 }
 
@@ -133,10 +137,10 @@ type GenericElem struct {
 
 	// startTime -> agg (new one per every resolution)
 	values map[xtime.UnixNano]timedAggregation
-	// sorted timestamps that have been written to since the last flush
+	// sorted start aligned times that have been written to since the last flush
 	dirty []xtime.UnixNano
 	// min time in the values map. allow for iterating through map.
-	minStartAlignedTime xtime.UnixNano
+	minStartTime xtime.UnixNano
 
 	// internal consume state that does not need to be synchronized.
 	toConsume []timedAggregation // small buffer to avoid memory allocations during consumption
@@ -269,7 +273,7 @@ func (e *GenericElem) AddUnique(
 
 // remove expired aggregations from the values map.
 func (e *GenericElem) expireValuesWithLock(
-	expiredNanos xtime.UnixNano,
+	expireStartTimeBefore xtime.UnixNano,
 	timestampNanosFn timestampNanosFn,
 	isEarlierThanFn isEarlierThanFn) {
 	if len(e.values) == 0 {
@@ -279,14 +283,16 @@ func (e *GenericElem) expireValuesWithLock(
 
 	// always keep at least one value in the map for when calculating binary transforms. need to reference the previous
 	// value.
-	for isEarlierThanFn(int64(e.minStartAlignedTime), resolution, int64(expiredNanos)) {
-		if v, ok := e.values[e.minStartAlignedTime]; ok {
-			v.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(e.minStartAlignedTime), resolution))
+	for isEarlierThanFn(int64(e.minStartTime), resolution, int64(expireStartTimeBefore)) {
+		if v, ok := e.values[e.minStartTime]; ok {
+			// Previous times are used to key into consumedValues, which are non-start-aligned. And so
+			// we convert from startAligned here when setting previous.
+			v.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(e.minStartTime), resolution))
 			e.toExpire = append(e.toExpire, v)
 
-			delete(e.values, e.minStartAlignedTime)
+			delete(e.values, e.minStartTime)
 		}
-		e.minStartAlignedTime = e.minStartAlignedTime.Add(resolution)
+		e.minStartTime = e.minStartTime.Add(resolution)
 	}
 }
 
@@ -298,7 +304,7 @@ func (e *GenericElem) previousStartAlignedWithLock(timestamp xtime.UnixNano) (xt
 	}
 	resolution := e.sp.Resolution().Window
 	startAligned := timestamp.Truncate(resolution).Add(-resolution)
-	for !startAligned.Before(e.minStartAlignedTime) {
+	for !startAligned.Before(e.minStartTime) {
 		_, ok := e.values[startAligned]
 		if ok {
 			return startAligned, true
@@ -376,7 +382,6 @@ func (e *GenericElem) Consume(
 		e.toConsume = append(e.toConsume, agg)
 
 		// add the nextAgg to the dirty set as well in case we need to cascade the value.
-		// TODO: we only need to do this on resends
 		nextAgg, ok := e.nextAggWithLock(dirtyTime, targetNanos, isEarlierThanFn)
 		// only add nextAgg if not already in the dirty set
 		if ok && !nextAgg.lockedAgg.dirty {
@@ -473,23 +478,23 @@ func (e *GenericElem) Close() {
 	// note: this is not in the hot path so it's ok to iterate over the map.
 	// this allows to catch any bugs with unexpected entries still in the map.
 	for k := range e.values {
-		if k < e.minStartAlignedTime {
+		if k < e.minStartTime {
 			k := k
 			instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
 				l.Error("aggregate timestamp is less than min",
 					zap.Time("ts", k.ToTime()),
-					zap.Time("min", e.minStartAlignedTime.ToTime()))
+					zap.Time("min", e.minStartTime.ToTime()))
 			})
 		}
 		delete(e.values, k)
 		// Close the underlying aggregation objects.
-		if v, ok := e.values[e.minStartAlignedTime]; ok {
+		if v, ok := e.values[e.minStartTime]; ok {
 			v.lockedAgg.sourcesSeen = nil
 			v.lockedAgg.aggregation.Close()
 			v.Release()
-			delete(e.values, e.minStartAlignedTime)
+			delete(e.values, e.minStartTime)
 		}
-		e.minStartAlignedTime = e.minStartAlignedTime.Add(resolution)
+		e.minStartTime = e.minStartTime.Add(resolution)
 	}
 	e.typeSpecificElemBase.Close()
 	aggTypesPool := e.aggTypesOpts.TypesPool()
@@ -501,7 +506,7 @@ func (e *GenericElem) Close() {
 	e.dirty = e.dirty[:0]
 	e.toExpire = e.toExpire[:0]
 	e.consumedValues = nil
-	e.minStartAlignedTime = 0
+	e.minStartTime = 0
 
 	if !e.useDefaultAggregation {
 		aggTypesPool.Put(e.aggTypes)
@@ -543,14 +548,17 @@ func (e *GenericElem) insertDirty(alignedStart xtime.UnixNano) {
 //nolint: dupl
 func (e *GenericElem) find(alignedStartNanos xtime.UnixNano) (*lockedAggregation, bool, error) {
 	e.RLock()
-	defer e.RUnlock()
 	if e.closed {
+		e.RUnlock()
 		return nil, false, errElemClosed
 	}
 	timedAgg, ok := e.values[alignedStartNanos]
 	if ok {
-		return timedAgg.lockedAgg, timedAgg.lockedAgg.dirty, nil
+		dirty := timedAgg.lockedAgg.dirty
+		e.RUnlock()
+		return timedAgg.lockedAgg, dirty, nil
 	}
+	e.RUnlock()
 	return nil, false, nil
 }
 
@@ -611,8 +619,8 @@ func (e *GenericElem) findOrCreate(
 	}
 	e.values[alignedStart] = timedAgg
 	e.insertDirty(alignedStart)
-	if len(e.values) == 1 || e.minStartAlignedTime > alignedStart {
-		e.minStartAlignedTime = alignedStart
+	if len(e.values) == 1 || e.minStartTime > alignedStart {
+		e.minStartTime = alignedStart
 	}
 	e.Unlock()
 	return timedAgg.lockedAgg, nil
