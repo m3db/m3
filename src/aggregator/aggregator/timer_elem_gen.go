@@ -215,11 +215,13 @@ func (e *TimerElem) expireValuesWithLock(
 
 	// always keep at least one value in the map for when calculating binary transforms. need to reference the previous
 	// value.
-	for len(e.values) > 1 && isEarlierThanFn(int64(e.minStartAlignedTime), resolution, int64(expiredNanos)) {
+	fmt.Println("EXPIRE", int64(expiredNanos))
+	for isEarlierThanFn(int64(e.minStartAlignedTime), resolution, int64(expiredNanos)) {
 		if v, ok := e.values[e.minStartAlignedTime]; ok {
 			v.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(e.minStartAlignedTime), resolution))
 			e.toExpire = append(e.toExpire, v)
 
+			fmt.Println("TO EXP", int64(e.minStartAlignedTime))
 			delete(e.values, e.minStartAlignedTime)
 		}
 		e.minStartAlignedTime = e.minStartAlignedTime.Add(resolution)
@@ -228,18 +230,18 @@ func (e *TimerElem) expireValuesWithLock(
 
 // return the timestamp in the values map that is before the provided time. returns false if the provided time is the
 // smallest time or the map is empty.
-func (e *TimerElem) previousStartAlignedWithLock(startAligned xtime.UnixNano) (xtime.UnixNano, bool) {
+func (e *TimerElem) previousStartAlignedWithLock(timestamp xtime.UnixNano) (xtime.UnixNano, bool) {
 	if len(e.values) == 0 {
 		return 0, false
 	}
 	resolution := e.sp.Resolution().Window
-	ts := startAligned.Add(-resolution)
-	for !ts.Before(e.minStartAlignedTime) {
-		_, ok := e.values[ts]
+	startAligned := timestamp.Truncate(resolution).Add(-resolution)
+	for !startAligned.Before(e.minStartAlignedTime) {
+		_, ok := e.values[startAligned]
 		if ok {
-			return ts, true
+			return startAligned, true
 		}
-		ts = ts.Add(-resolution)
+		startAligned = startAligned.Add(-resolution)
 	}
 	return 0, false
 }

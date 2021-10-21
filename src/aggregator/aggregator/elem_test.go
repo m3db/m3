@@ -661,7 +661,9 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
 
-	require.False(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, standardMetricTargetNanos,
+	// Test a consume time well past the latest value in the buffer to ensure we always keep around
+	// one value to reference in the future as a previous.
+	require.False(t, e.Consume(alignedstartAtNanos[3]+int64(time.Second*20), isEarlierThanFn, timestampNanosFn, standardMetricTargetNanos,
 		localFn, forwardFn, onForwardedFlushedFn))
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)

@@ -279,7 +279,7 @@ func (e *GenericElem) expireValuesWithLock(
 
 	// always keep at least one value in the map for when calculating binary transforms. need to reference the previous
 	// value.
-	for len(e.values) > 1 && isEarlierThanFn(int64(e.minStartAlignedTime), resolution, int64(expiredNanos)) {
+	for isEarlierThanFn(int64(e.minStartAlignedTime), resolution, int64(expiredNanos)) {
 		if v, ok := e.values[e.minStartAlignedTime]; ok {
 			v.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(e.minStartAlignedTime), resolution))
 			e.toExpire = append(e.toExpire, v)
@@ -292,18 +292,18 @@ func (e *GenericElem) expireValuesWithLock(
 
 // return the timestamp in the values map that is before the provided time. returns false if the provided time is the
 // smallest time or the map is empty.
-func (e *GenericElem) previousStartAlignedWithLock(startAligned xtime.UnixNano) (xtime.UnixNano, bool) {
+func (e *GenericElem) previousStartAlignedWithLock(timestamp xtime.UnixNano) (xtime.UnixNano, bool) {
 	if len(e.values) == 0 {
 		return 0, false
 	}
 	resolution := e.sp.Resolution().Window
-	ts := startAligned.Add(-resolution)
-	for !ts.Before(e.minStartAlignedTime) {
-		_, ok := e.values[ts]
+	startAligned := timestamp.Truncate(resolution).Add(-resolution)
+	for !startAligned.Before(e.minStartAlignedTime) {
+		_, ok := e.values[startAligned]
 		if ok {
-			return ts, true
+			return startAligned, true
 		}
-		ts = ts.Add(-resolution)
+		startAligned = startAligned.Add(-resolution)
 	}
 	return 0, false
 }
@@ -396,6 +396,9 @@ func (e *GenericElem) Consume(
 		minUpdateableTimeNanos = minUpdateableTimeNanos.Add(-e.bufferForPastTimedMetricFn(resolution))
 	}
 
+	// When expiring, we search for the previous existing value first, and then expire anything preceding that.
+	// This ensures that we never entirely clear all values since we need to ensure one latest value at any given
+	// point in time so that any future value will still have a previous reference.
 	e.toExpire = e.toExpire[:0]
 	expiredNanos, ok := e.previousStartAlignedWithLock(minUpdateableTimeNanos)
 	if ok {
