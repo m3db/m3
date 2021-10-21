@@ -131,7 +131,6 @@ type flushManager struct {
 	followerMgr   roleBasedFlushManager
 	nowFn         clock.NowFn
 	sleepFn       sleepFn
-	taskRunTime   tally.Histogram
 }
 
 // NewFlushManager creates a new flush manager.
@@ -164,17 +163,6 @@ func NewFlushManager(opts FlushManagerOptions) FlushManager {
 		randFn:        rand.Int63n,
 		nowFn:         nowFn,
 		sleepFn:       time.Sleep,
-		taskRunTime: scope.Histogram("task-run-time", tally.DurationBuckets{
-			10 * time.Millisecond,
-			500 * time.Millisecond,
-			time.Second,
-			2 * time.Second,
-			5 * time.Second,
-			7 * time.Second,
-			10 * time.Second,
-			15 * time.Second,
-			20 * time.Second,
-		}),
 	}
 	mgr.Lock()
 	mgr.resetWithLock()
@@ -328,7 +316,6 @@ func (mgr *flushManager) flush() {
 	defer mgr.Done()
 
 	for {
-		start := mgr.nowFn()
 		mgr.RLock()
 		state := mgr.state
 		electionState := mgr.electionState
@@ -352,7 +339,6 @@ func (mgr *flushManager) flush() {
 		if flushTask != nil {
 			flushTask.Run()
 		}
-		mgr.taskRunTime.RecordDuration(time.Since(start))
 		if waitFor > 0 {
 			mgr.sleepFn(waitFor)
 		}
@@ -388,6 +374,7 @@ type flushBucket struct {
 	offset   time.Duration
 	flushers []flushingMetricList
 	duration tally.Timer
+	flushLag tally.Histogram
 }
 
 func newBucket(
@@ -400,6 +387,24 @@ func newBucket(
 		interval: interval,
 		offset:   offset,
 		duration: scope.Timer("duration"),
+		flushLag: scope.Histogram("flush-lag", tally.DurationBuckets{
+			10 * time.Millisecond,
+			500 * time.Millisecond,
+			time.Second,
+			2 * time.Second,
+			5 * time.Second,
+			10 * time.Second,
+			15 * time.Second,
+			20 * time.Second,
+			25 * time.Second,
+			30 * time.Second,
+			35 * time.Second,
+			40 * time.Second,
+			45 * time.Second,
+			60 * time.Second,
+			90 * time.Second,
+			120 * time.Second,
+		}),
 	}
 }
 

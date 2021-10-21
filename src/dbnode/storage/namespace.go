@@ -23,6 +23,7 @@ package storage
 import (
 	"errors"
 	"fmt"
+	iofs "io/fs"
 	"math"
 	"runtime"
 	"sync"
@@ -48,6 +49,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -103,6 +105,8 @@ var commitLogWriteNoOp = commitLogWriter(commitLogWriterFn(func(
 	return nil
 }))
 
+type createEmptyWarmIndexIfNotExistsFn func(blockStart xtime.UnixNano) error
+
 type dbNamespace struct {
 	sync.RWMutex
 
@@ -135,6 +139,8 @@ type dbNamespace struct {
 	increasingIndex increasingIndex
 	commitLogWriter commitLogWriter
 	reverseIndex    NamespaceIndex
+
+	createEmptyWarmIndexIfNotExistsFn createEmptyWarmIndexIfNotExistsFn
 
 	tickWorkers            xsync.WorkerPool
 	tickWorkersConcurrency int
@@ -383,6 +389,8 @@ func newDatabaseNamespace(
 		tickWorkersConcurrency: tickWorkersConcurrency,
 		metrics:                newDatabaseNamespaceMetrics(scope, iops.TimerOptions()),
 	}
+
+	n.createEmptyWarmIndexIfNotExistsFn = n.createEmptyWarmIndexIfNotExists
 
 	sl, err := opts.SchemaRegistry().RegisterListener(id, n)
 	// Fail to create namespace is schema listener can not be registered successfully.
@@ -1841,6 +1849,12 @@ func (n *dbNamespace) aggregateTiles(
 		return 0, errNamespaceNotBootstrapped
 	}
 
+	// Create an empty warm index fileset because the block
+	// will not be queryable if it has no warm index.
+	if err := n.createEmptyWarmIndexIfNotExistsFn(targetBlockStart); err != nil {
+		return 0, err
+	}
+
 	// Cold flusher builds the reverse index for target (current) ns.
 	cfOpts := NewColdFlushNsOpts(false)
 	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n, cfOpts)
@@ -1866,9 +1880,8 @@ func (n *dbNamespace) aggregateTiles(
 
 	for _, targetShard := range n.OwnedShards() {
 		if !targetShard.IsBootstrapped() {
-			n.log.
-				With(zap.Uint32("shard", targetShard.ID())).
-				Debug("skipping aggregateTiles due to shard not bootstrapped")
+			n.log.Debug("skipping aggregateTiles due to shard not bootstrapped",
+				zap.Uint32("shard", targetShard.ID()))
 			continue
 		}
 
@@ -1908,4 +1921,48 @@ func (n *dbNamespace) DocRef(id ident.ID) (doc.Metadata, bool, error) {
 		return doc.Metadata{}, false, err
 	}
 	return shard.DocRef(id)
+}
+
+func (n *dbNamespace) createEmptyWarmIndexIfNotExists(blockStart xtime.UnixNano) error {
+	fsOpts := n.opts.CommitLogOptions().FilesystemOptions()
+
+	shardIds := make(map[uint32]struct{}, len(n.OwnedShards()))
+	for _, shard := range n.OwnedShards() {
+		if shard.IsBootstrapped() {
+			shardIds[shard.ID()] = struct{}{}
+		}
+	}
+
+	fileSetID := fs.FileSetFileIdentifier{
+		FileSetContentType: persist.FileSetIndexContentType,
+		Namespace:          n.ID(),
+		BlockStart:         blockStart,
+		VolumeIndex:        0,
+	}
+
+	warmIndexOpts := fs.IndexWriterOpenOptions{
+		BlockSize:       n.Metadata().Options().IndexOptions().BlockSize(),
+		FileSetType:     persist.FileSetFlushType,
+		Identifier:      fileSetID,
+		Shards:          shardIds,
+		IndexVolumeType: idxpersist.DefaultIndexVolumeType,
+	}
+
+	warmIndexWriter, err := fs.NewIndexWriter(fsOpts)
+	if err != nil {
+		return err
+	}
+
+	if err = warmIndexWriter.Open(warmIndexOpts); err != nil {
+		if xerrors.Is(err, iofs.ErrExist) {
+			n.log.Debug("warm index already exists",
+				zap.Stringer("namespace", n.id),
+				zap.Stringer("blockStart", blockStart),
+				zap.Reflect("shardIds", shardIds))
+			return nil
+		}
+		return err
+	}
+
+	return warmIndexWriter.Close()
 }

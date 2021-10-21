@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -27,9 +27,11 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"sort"
 	"strconv"
-	"strings"
-	"time"
+
+	"github.com/pborman/getopt"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -40,9 +42,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/pborman/getopt"
-	"go.uber.org/zap"
 )
 
 const (
@@ -52,31 +51,17 @@ const (
 	allShards = -1
 )
 
-type benchmarkMode uint8
-
-const (
-	// benchmarkNone prints the data read to the standard output and does not measure performance.
-	benchmarkNone benchmarkMode = iota
-
-	// benchmarkSeries benchmarks time series read performance (skipping datapoint decoding).
-	benchmarkSeries
-
-	// benchmarkDatapoints benchmarks series read, including datapoint decoding.
-	benchmarkDatapoints
-)
-
 func main() {
 	var (
-		optPathPrefix = getopt.StringLong("path-prefix", 'p', "", "Path prefix [e.g. /var/lib/m3db]")
-		optNamespace  = getopt.StringLong("namespace", 'n', "default", "Namespace [e.g. metrics]")
-		optShard      = getopt.IntLong("shard", 's', allShards,
-			fmt.Sprintf("Shard [expected format uint32], or %v for all shards in the directory", allShards))
-		optBlockstart  = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
-		volume         = getopt.Int64Long("volume", 'v', 0, "Volume number")
+		optPathPrefix  = getopt.StringLong("path-prefix", 'p', "", "Path prefix [e.g. /var/lib/m3db]")
 		fileSetTypeArg = getopt.StringLong("fileset-type", 't', flushType, fmt.Sprintf("%s|%s", flushType, snapshotType))
-		idFilter       = getopt.StringLong("id-filter", 'f', "", "ID Contains Filter (optional)")
-		benchmark      = getopt.StringLong(
-			"benchmark", 'B', "", "benchmark mode (optional), [series|datapoints]")
+		optNamespace   = getopt.StringLong("namespace", 'n', "default", "Namespace [e.g. metrics]")
+		optShard       = getopt.IntLong("shard", 's', allShards,
+			fmt.Sprintf("Shard number, or %v for all shards in the directory", allShards))
+		optBlockstart = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
+		volume        = getopt.Int64Long("volume", 'v', 0, "Volume number")
+
+		annotationRewrittenFilter = getopt.BoolLong("annotation-rewritten", 'R', "Filters metrics with annotation rewrites")
 	)
 	getopt.Parse()
 
@@ -106,15 +91,12 @@ func main() {
 		log.Fatalf("unknown fileset type: %s", *fileSetTypeArg)
 	}
 
-	var benchMode benchmarkMode
-	switch *benchmark {
-	case "":
-	case "series":
-		benchMode = benchmarkSeries
-	case "datapoints":
-		benchMode = benchmarkDatapoints
-	default:
-		log.Fatalf("unknown benchmark type: %s", *benchmark)
+	shards := []uint32{uint32(*optShard)}
+	if *optShard == allShards {
+		shards, err = getShards(*optPathPrefix, fileSetType, *optNamespace)
+		if err != nil {
+			log.Fatalf("failed extracting the list of shards: %v", err)
+		}
 	}
 
 	// Not using bytes pool with streaming reads/writes to avoid the fixed memory overhead.
@@ -122,28 +104,14 @@ func main() {
 	encodingOpts := encoding.NewOptions().SetBytesPool(bytesPool)
 
 	fsOpts := fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
-
-	shards := []uint32{uint32(*optShard)}
-	if *optShard == allShards {
-		shards, err = getShards(*optPathPrefix, fileSetType, *optNamespace)
-		if err != nil {
-			log.Fatalf("failed to resolve shards: %v", err)
-		}
-	}
-
 	reader, err := fs.NewReader(bytesPool, fsOpts)
 	if err != nil {
 		log.Fatalf("could not create new reader: %v", err)
 	}
 
-	for _, shard := range shards {
-		var (
-			seriesCount         = 0
-			datapointCount      = 0
-			annotationSizeTotal uint64
-			start               = time.Now()
-		)
+	metricsMap := make(map[string]struct{})
 
+	for _, shard := range shards {
 		openOpts := fs.DataReaderOpenOptions{
 			Identifier: fs.FileSetFileIdentifier{
 				Namespace:   ident.StringID(*optNamespace),
@@ -169,67 +137,62 @@ func main() {
 				log.Fatalf("err reading metadata: %v", err)
 			}
 
-			var (
-				id   = entry.ID
-				data = entry.Data
-			)
-
-			if *idFilter != "" && !strings.Contains(id.String(), *idFilter) {
-				continue
+			noInitialAnnotation, annotationRewritten, err := checkAnnotations(entry.Data, encodingOpts)
+			if err != nil {
+				log.Fatalf("failed checking annotations: %v", err)
 			}
 
-			if benchMode != benchmarkSeries {
-				iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
-				for iter.Next() {
-					dp, _, annotation := iter.Current()
-					if benchMode == benchmarkNone {
-						// Use fmt package so it goes to stdout instead of stderr
-						fmt.Printf("{id: %s, dp: %+v", id.String(), dp) // nolint: forbidigo
-						if len(annotation) > 0 {
-							fmt.Printf(", annotation: %s", // nolint: forbidigo
-								base64.StdEncoding.EncodeToString(annotation))
-						}
-						fmt.Println("}") // nolint: forbidigo
-					}
-					annotationSizeTotal += uint64(len(annotation))
-					datapointCount++
-				}
-				if err := iter.Err(); err != nil {
-					log.Fatalf("unable to iterate original data: %v", err)
-				}
-				iter.Close()
+			if (!*annotationRewrittenFilter && noInitialAnnotation) || (*annotationRewrittenFilter && annotationRewritten) {
+				metricsMap[entry.ID.String()] = struct{}{}
 			}
-
-			seriesCount++
 		}
 
-		if seriesCount != reader.Entries() {
-			log.Warnf("actual time series count (%d) did not match info file data (%d)",
-				seriesCount, reader.Entries())
-		}
-
-		if benchMode != benchmarkNone {
-			runTime := time.Since(start)
-			fmt.Printf("Running time: %s\n", runTime)     // nolint: forbidigo
-			fmt.Printf("\n%d series read\n", seriesCount) // nolint: forbidigo
-			if runTime > 0 {
-				fmt.Printf("(%.2f series/second)\n", float64(seriesCount)/runTime.Seconds()) // nolint: forbidigo
-			}
-
-			if benchMode == benchmarkDatapoints {
-				fmt.Printf("\n%d datapoints decoded\n", datapointCount) // nolint: forbidigo
-				if runTime > 0 {
-					fmt.Printf("(%.2f datapoints/second)\n", float64(datapointCount)/runTime.Seconds()) // nolint: forbidigo
-				}
-
-				fmt.Printf("\nTotal annotation size: %d bytes\n", annotationSizeTotal) // nolint: forbidigo
-			}
+		if err := reader.Close(); err != nil {
+			log.Fatalf("unable to close reader: %v", err)
 		}
 	}
 
-	if err := reader.Close(); err != nil {
-		log.Fatalf("unable to close reader: %v", err)
+	metrics := make([]string, 0)
+	for m := range metricsMap {
+		metrics = append(metrics, m)
 	}
+	sort.Strings(metrics)
+	for _, metric := range metrics {
+		fmt.Println(metric) // nolint: forbidigo
+	}
+}
+
+func checkAnnotations(data []byte, encodingOpts encoding.Options) (bool, bool, error) {
+	iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
+	defer iter.Close()
+
+	var (
+		previousAnnotationBase64 *string
+		noInitialAnnotation      = true
+		annotationRewritten      = false
+
+		firstDatapoint = true
+	)
+
+	for iter.Next() {
+		_, _, annotation := iter.Current()
+		if len(annotation) > 0 {
+			if firstDatapoint {
+				noInitialAnnotation = false
+			}
+			annotationBase64 := base64.StdEncoding.EncodeToString(annotation)
+			if previousAnnotationBase64 != nil && *previousAnnotationBase64 != annotationBase64 {
+				annotationRewritten = true
+			}
+			previousAnnotationBase64 = &annotationBase64
+		}
+		firstDatapoint = false
+	}
+	if err := iter.Err(); err != nil {
+		return false, false, fmt.Errorf("unable to iterate original data: %w", err)
+	}
+
+	return noInitialAnnotation, annotationRewritten, nil
 }
 
 func getShards(pathPrefix string, fileSetType persist.FileSetType, namespace string) ([]uint32, error) {

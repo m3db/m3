@@ -149,7 +149,7 @@ func NewDBNode(cfg config.Configuration, opts DBNodeOptions) (resources.Node, er
 
 	// Configure logger
 	if opts.Logger == nil {
-		opts.Logger, err = NewLogger()
+		opts.Logger, err = resources.NewLogger()
 		if err != nil {
 			return nil, err
 		}
@@ -234,7 +234,7 @@ func (d *DBNode) Health() (*rpc.NodeHealthResult_, error) {
 
 // WaitForBootstrap blocks until the node has bootstrapped.
 func (d *DBNode) WaitForBootstrap() error {
-	return retry(func() error {
+	return resources.Retry(func() error {
 		health, err := d.Health()
 		if err != nil {
 			return err
@@ -258,6 +258,11 @@ func (d *DBNode) WritePoint(req *rpc.WriteRequest) error {
 // WriteTaggedPoint writes a datapoint with tags to the node directly.
 func (d *DBNode) WriteTaggedPoint(req *rpc.WriteTaggedRequest) error {
 	return d.tchanClient.TChannelClientWriteTagged(defaultRPCTimeout, req)
+}
+
+// WriteTaggedBatchRaw writes a batch of writes to the node directly.
+func (d *DBNode) WriteTaggedBatchRaw(req *rpc.WriteTaggedBatchRawRequest) error {
+	return d.tchanClient.TChannelClientWriteTaggedBatchRaw(defaultRPCTimeout, req)
 }
 
 // AggregateTiles starts tiles aggregation, waits until it will complete
@@ -299,7 +304,7 @@ func (d *DBNode) Exec(commands ...string) (string, error) {
 // GoalStateExec executes the given commands on the node container, retrying
 // until applying the verifier returns no error or the default timeout.
 func (d *DBNode) GoalStateExec(verifier resources.GoalStateVerifier, commands ...string) error {
-	return retry(func() error {
+	return resources.Retry(func() error {
 		if err := verifier(d.Exec(commands...)); err != nil {
 			d.logger.Info("goal state verification failed. retrying")
 			return err

@@ -70,6 +70,7 @@ SUBDIRS :=    \
 	ctl         \
 
 TOOLS :=               \
+	annotation_checker   \
 	read_ids             \
 	read_index_ids       \
 	read_data_files      \

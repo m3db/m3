@@ -34,7 +34,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/integration/resources"
-	"github.com/m3db/m3/src/integration/resources/common"
 )
 
 type dockerResource struct {
@@ -135,7 +134,7 @@ func (c *dockerResource) exec(commands ...string) (string, error) {
 
 	// NB: this is prefixed with a `/` that should be trimmed off.
 	name := strings.TrimLeft(c.resource.Container.Name, "/")
-	logger := c.logger.With(common.ZapMethod("exec"))
+	logger := c.logger.With(resources.ZapMethod("exec"))
 	client := c.pool.Client
 	exec, err := client.CreateExec(dc.CreateExecOptions{
 		AttachStdout: true,
@@ -185,7 +184,7 @@ func (c *dockerResource) goalStateExec(
 		return errClosed
 	}
 
-	logger := c.logger.With(common.ZapMethod("goalStateExec"))
+	logger := c.logger.With(resources.ZapMethod("goalStateExec"))
 	return c.pool.Retry(func() error {
 		err := verifier(c.exec(commands...))
 		if err != nil {

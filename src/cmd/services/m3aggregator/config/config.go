@@ -29,10 +29,10 @@ import (
 // Configuration contains top-level configuration.
 type Configuration struct {
 	// Logging configuration.
-	Logging log.Configuration `yaml:"logging"`
+	Logging *log.Configuration `yaml:"logging"`
 
 	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+	Metrics *instrument.MetricsConfiguration `yaml:"metrics"`
 
 	// M3Msg server configuration.
 	// Optional.
@@ -47,14 +47,77 @@ type Configuration struct {
 	HTTP *HTTPServerConfiguration `yaml:"http"`
 
 	// Client configuration for key value store.
-	KVClient KVClientConfiguration `yaml:"kvClient" validate:"nonzero"`
+	KVClient *KVClientConfiguration `yaml:"kvClient" validate:"nonzero"`
 
 	// Runtime options configuration.
-	RuntimeOptions RuntimeOptionsConfiguration `yaml:"runtimeOptions"`
+	RuntimeOptions *RuntimeOptionsConfiguration `yaml:"runtimeOptions"`
 
 	// Aggregator configuration.
-	Aggregator AggregatorConfiguration `yaml:"aggregator"`
+	Aggregator *AggregatorConfiguration `yaml:"aggregator"`
 
 	// Debug configuration.
 	Debug config.DebugConfiguration `yaml:"debug"`
+}
+
+// LoggingOrDefault returns the logging configuration or defaults.
+func (c *Configuration) LoggingOrDefault() log.Configuration {
+	if c.Logging != nil {
+		return *c.Logging
+	}
+
+	return defaultLogging
+}
+
+// MetricsOrDefault returns the metrics config or default.
+func (c *Configuration) MetricsOrDefault() instrument.MetricsConfiguration {
+	if c.Metrics != nil {
+		return *c.Metrics
+	}
+
+	return defaultMetrics
+}
+
+// M3MsgOrDefault returns the m3msg config or default.
+func (c *Configuration) M3MsgOrDefault() M3MsgServerConfiguration {
+	if c.M3Msg != nil {
+		return *c.M3Msg
+	}
+
+	return defaultM3Msg
+}
+
+// HTTPOrDefault returns the http config or default.
+func (c *Configuration) HTTPOrDefault() HTTPServerConfiguration {
+	if c.HTTP != nil {
+		return *c.HTTP
+	}
+
+	return defaultHTTP
+}
+
+// KVClientOrDefault returns the kv client or default.
+func (c *Configuration) KVClientOrDefault() KVClientConfiguration {
+	if c.KVClient != nil {
+		return *c.KVClient
+	}
+
+	return defaultKV
+}
+
+// RuntimeOptionsOrDefault returns the runtime options or default.
+func (c *Configuration) RuntimeOptionsOrDefault() RuntimeOptionsConfiguration {
+	if c.RuntimeOptions != nil {
+		return *c.RuntimeOptions
+	}
+
+	return defaultRuntimeOptions
+}
+
+// AggregatorOrDefault returns the aggregator config or default.
+func (c *Configuration) AggregatorOrDefault() AggregatorConfiguration {
+	if c.Aggregator != nil {
+		return *c.Aggregator
+	}
+
+	return defaultAggregator
 }
