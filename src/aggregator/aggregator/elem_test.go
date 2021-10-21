@@ -2470,7 +2470,7 @@ func testCounterElem(
 		}
 		e.dirty = append(e.dirty, startAligned)
 	}
-	e.minStartAlignedTime = xtime.UnixNano(alignedstartAtNanos[0])
+	e.minStartTime = xtime.UnixNano(alignedstartAtNanos[0])
 	return e
 }
 
