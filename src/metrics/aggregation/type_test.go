@@ -303,8 +303,8 @@ func TestQuantiles(t *testing.T) {
 	require.Nil(t, res3)
 	require.False(t, ok)
 
-	res4, ok := Types{P10, P20, P30, P40, P50, Median, P60, P70, P80, P90, P95, P99, P999, P9999}.PooledQuantiles(p)
-	require.Equal(t, []float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999}, res4)
+	res4, ok := Types{P10, P20, P25, P30, P40, P50, Median, P60, P70, P75, P80, P90, P95, P99, P999, P9999}.PooledQuantiles(p)
+	require.Equal(t, []float64{0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999}, res4)
 	require.True(t, ok)
 }
 
