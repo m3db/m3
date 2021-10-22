@@ -161,12 +161,19 @@ func generateClusters(t *testing.T, ctrl *gomock.Controller) Clusters {
 	return clusters
 }
 
+// used to generate storage.RelatedQueries during a test
+type testTimeOffsets struct {
+	startOffset time.Duration
+	endOffset 	time.Duration
+}
+
 var testCases = []struct {
 	name                     string
 	queryLength              time.Duration
 	opts                     *storage.FanoutOptions
 	restrict                 *storage.RestrictQueryOptions
 	expectedType             consolidators.QueryFanoutType
+	relatedQueryOffsets		 []testTimeOffsets
 	expectedClusterNames     []string
 	expectedErr              error
 	expectedErrContains      string
@@ -416,6 +423,18 @@ var testCases = []struct {
 		expectedType:         consolidators.NamespaceCoversAllQueryRange,
 		expectedClusterNames: []string{"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE"},
 	},
+	{
+		name: "all enabled short range w/ related queries",
+		queryLength: time.Minute,
+		opts: &storage.FanoutOptions{
+			FanoutUnaggregated:        storage.FanoutForceEnable,
+			FanoutAggregated:          storage.FanoutForceEnable,
+			FanoutAggregatedOptimized: storage.FanoutForceEnable,
+		},
+		relatedQueryOffsets: []testTimeOffsets{{startOffset: time.Hour, endOffset: 0}},
+		expectedType:         consolidators.NamespaceCoversPartialQueryRange,
+		expectedClusterNames: []string{"AGG_NO_FILTER", "AGG_NO_FILTER_COMPLETE"},
+	},
 }
 
 func TestResolveClusterNamespacesForQueryWithOptions(t *testing.T) {
@@ -433,7 +452,13 @@ func TestResolveClusterNamespacesForQueryWithOptions(t *testing.T) {
 				start = start.Add(time.Hour * -2)
 			}
 
-			fanoutType, clusters, err := resolveClusterNamespacesForQuery(now, start, end, clusters, tt.opts, tt.restrict, nil)
+			relatedQueries := make([]storage.QueryTimespan, len(tt.relatedQueryOffsets))
+			for _, offset := range tt.relatedQueryOffsets {
+				timespan := storage.QueryTimespan{Start: now.Add(-offset.startOffset), End: now.Add(-offset.endOffset)}
+				relatedQueries = append(relatedQueries, timespan)
+			}
+
+			fanoutType, clusters, err := resolveClusterNamespacesForQuery(now, start, end, clusters, tt.opts, tt.restrict, &storage.RelatedQueryOptions{TimeRanges: relatedQueries})
 			if tt.expectedErr != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.expectedErr, err)
