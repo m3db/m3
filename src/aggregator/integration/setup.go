@@ -126,7 +126,8 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetBufferForPastTimedMetricFn(func(resolution time.Duration) time.Duration {
 			return resolution + opts.BufferForPastTimedMetric()
 		}).
-		SetDiscardNaNAggregatedValues(opts.DiscardNaNAggregatedValues())
+		SetDiscardNaNAggregatedValues(opts.DiscardNaNAggregatedValues()).
+		SetEntryTTL(opts.EntryTTL())
 
 	// Set up placement manager.
 	kvStore, err := opts.ClusterClient().KV()
