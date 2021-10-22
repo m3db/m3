@@ -543,32 +543,7 @@ func (b *block) queryWithSpan(
 		// Ensure that the block contains any of the relevant time segments for the query range.
 		doc := iter.Current()
 		if md, ok := doc.Metadata(); ok && md.OnIndexSeries != nil {
-			var (
-				inBlock                bool
-				currentBlock           = opts.StartInclusive.Truncate(b.blockSize)
-				endExclusive           = opts.EndExclusive
-				minIndexed, maxIndexed = md.OnIndexSeries.IndexedRange()
-			)
-
-			if maxIndexed == 0 {
-				// Empty range.
-				continue
-			}
-
-			// Narrow down the range of blocks to scan because the client could have
-			// queried for an arbitrary wide range.
-			if currentBlock.Before(minIndexed) {
-				currentBlock = minIndexed
-			}
-			maxIndexedExclusive := maxIndexed.Add(time.Nanosecond)
-			if endExclusive.After(maxIndexedExclusive) {
-				endExclusive = maxIndexedExclusive
-			}
-
-			for !inBlock && currentBlock.Before(endExclusive) {
-				inBlock = md.OnIndexSeries.IndexedForBlockStart(currentBlock)
-				currentBlock = currentBlock.Add(b.blockSize)
-			}
+			inBlock := md.OnIndexSeries.IndexedForBlockStart(b.blockStart)
 
 			if !inBlock {
 				continue
