@@ -439,7 +439,7 @@ var testCases = []struct {
 			FanoutAggregated:          storage.FanoutForceEnable,
 			FanoutAggregatedOptimized: storage.FanoutForceEnable,
 		},
-		relatedQueryOffsets:  []testTimeOffsets{{startOffset: time.Hour, endOffset: 0}},
+		relatedQueryOffsets:  []testTimeOffsets{{startOffset: time.Hour * 1000, endOffset: 0}},
 		expectedType:         consolidators.NamespaceCoversPartialQueryRange,
 		expectedClusterNames: []string{"AGG_NO_FILTER", "AGG_NO_FILTER_COMPLETE"},
 	},
