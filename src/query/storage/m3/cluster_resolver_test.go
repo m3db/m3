@@ -111,8 +111,10 @@ func TestGraphitePath(t *testing.T) {
 	_, clusters, err := resolveClusterNamespacesForQuery(start, start, end, store.clusters, opts, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, 4, len(clusters))
-	expected := []string{"metrics_aggregated_1m:30d", "metrics_aggregated_5m:90d",
-		"metrics_aggregated_partial_1m:180d", "metrics_aggregated_10m:365d"}
+	expected := []string{
+		"metrics_aggregated_1m:30d", "metrics_aggregated_5m:90d",
+		"metrics_aggregated_partial_1m:180d", "metrics_aggregated_10m:365d",
+	}
 
 	for i, cluster := range clusters {
 		assert.Equal(t, expected[i], cluster.NamespaceID().String())
@@ -164,7 +166,7 @@ func generateClusters(t *testing.T, ctrl *gomock.Controller) Clusters {
 // used to generate storage.RelatedQueries during a test
 type testTimeOffsets struct {
 	startOffset time.Duration
-	endOffset 	time.Duration
+	endOffset   time.Duration
 }
 
 var testCases = []struct {
@@ -173,7 +175,7 @@ var testCases = []struct {
 	opts                     *storage.FanoutOptions
 	restrict                 *storage.RestrictQueryOptions
 	expectedType             consolidators.QueryFanoutType
-	relatedQueryOffsets		 []testTimeOffsets
+	relatedQueryOffsets      []testTimeOffsets
 	expectedClusterNames     []string
 	expectedErr              error
 	expectedErrContains      string
@@ -249,8 +251,10 @@ var testCases = []struct {
 			FanoutAggregatedOptimized: storage.FanoutForceDisable,
 		},
 		expectedType: consolidators.NamespaceCoversPartialQueryRange,
-		expectedClusterNames: []string{"AGG_FILTERED", "AGG_NO_FILTER",
-			"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE"},
+		expectedClusterNames: []string{
+			"AGG_FILTERED", "AGG_NO_FILTER",
+			"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE",
+		},
 	},
 	{
 		name:        "agg enabled short range",
@@ -261,8 +265,10 @@ var testCases = []struct {
 			FanoutAggregatedOptimized: storage.FanoutForceDisable,
 		},
 		expectedType: consolidators.NamespaceCoversAllQueryRange,
-		expectedClusterNames: []string{"AGG_FILTERED", "AGG_NO_FILTER",
-			"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE"},
+		expectedClusterNames: []string{
+			"AGG_FILTERED", "AGG_NO_FILTER",
+			"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE",
+		},
 	},
 	{
 		name: "unagg and agg enabled",
@@ -272,8 +278,10 @@ var testCases = []struct {
 			FanoutAggregatedOptimized: storage.FanoutForceDisable,
 		},
 		expectedType: consolidators.NamespaceCoversPartialQueryRange,
-		expectedClusterNames: []string{"UNAGG", "AGG_FILTERED", "AGG_NO_FILTER",
-			"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE"},
+		expectedClusterNames: []string{
+			"UNAGG", "AGG_FILTERED", "AGG_NO_FILTER",
+			"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE",
+		},
 	},
 	{
 		name:        "unagg and agg enabled short range",
@@ -424,14 +432,14 @@ var testCases = []struct {
 		expectedClusterNames: []string{"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE"},
 	},
 	{
-		name: "all enabled short range w/ related queries",
+		name:        "all enabled short range w/ related queries",
 		queryLength: time.Minute,
 		opts: &storage.FanoutOptions{
 			FanoutUnaggregated:        storage.FanoutForceEnable,
 			FanoutAggregated:          storage.FanoutForceEnable,
 			FanoutAggregatedOptimized: storage.FanoutForceEnable,
 		},
-		relatedQueryOffsets: []testTimeOffsets{{startOffset: time.Hour, endOffset: 0}},
+		relatedQueryOffsets:  []testTimeOffsets{{startOffset: time.Hour, endOffset: 0}},
 		expectedType:         consolidators.NamespaceCoversPartialQueryRange,
 		expectedClusterNames: []string{"AGG_NO_FILTER", "AGG_NO_FILTER_COMPLETE"},
 	},
@@ -452,7 +460,7 @@ func TestResolveClusterNamespacesForQueryWithOptions(t *testing.T) {
 				start = start.Add(time.Hour * -2)
 			}
 
-			relatedQueries := make([]storage.QueryTimespan, len(tt.relatedQueryOffsets))
+			relatedQueries := make([]storage.QueryTimespan, 0, len(tt.relatedQueryOffsets))
 			for _, offset := range tt.relatedQueryOffsets {
 				timespan := storage.QueryTimespan{Start: now.Add(-offset.startOffset), End: now.Add(-offset.endOffset)}
 				relatedQueries = append(relatedQueries, timespan)
@@ -594,8 +602,10 @@ func TestExampleCase(t *testing.T) {
 
 		// NB: order does not matter.
 		sort.Strings(actualNames)
-		assert.Equal(t, []string{"metrics_10s_24h",
-			"metrics_180s_360h", "metrics_600s_17520h"}, actualNames)
+		assert.Equal(t, []string{
+			"metrics_10s_24h",
+			"metrics_180s_360h", "metrics_600s_17520h",
+		}, actualNames)
 		assert.Equal(t, consolidators.NamespaceCoversPartialQueryRange, fanoutType)
 	}
 }

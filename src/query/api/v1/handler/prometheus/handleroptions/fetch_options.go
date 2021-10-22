@@ -24,13 +24,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/m3db/m3/src/query/util"
-	xtime "github.com/m3db/m3/src/x/time"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/m3db/m3/src/query/util"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/errors"
@@ -443,7 +444,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 
 	if relatedQueryOpts, ok, err := ParseRelatedQueryOptions(req); err != nil {
 		err = fmt.Errorf(
-			"could not parse related query options: err=%v", err)
+			"could not parse related query options: err=%w", err)
 		return nil, nil, err
 	} else if ok {
 		// check conflicting headers?
@@ -622,7 +623,7 @@ func ParseRelatedQueryOptions(r *http.Request) (*storage.RelatedQueryOptions, bo
 
 	// ParseForm is called by FormValue above so no need to call it again
 	vals := r.Form[RelatedQueriesParam]
-	queryRanges := make([]storage.QueryTimespan, len(vals))
+	queryRanges := make([]storage.QueryTimespan, 0,  len(vals))
 
 	// we must have something at this point
 	for _, formVal := range vals {
@@ -633,15 +634,13 @@ func ParseRelatedQueryOptions(r *http.Request) (*storage.RelatedQueryOptions, bo
 			continue
 		}
 
-		startTs, endTs := parts[0], parts[1]
-		startTime, err := util.ParseTimeString(startTs)
-
+		startTS, endTS := parts[0], parts[1]
+		startTime, err := util.ParseTimeString(startTS)
 		if err != nil {
 			continue
 		}
 
-		endTime, err := util.ParseTimeString(endTs)
-
+		endTime, err := util.ParseTimeString(endTS)
 		if err != nil {
 			continue
 		}
