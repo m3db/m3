@@ -33,13 +33,13 @@ import (
 )
 
 func TestTypeIsValid(t *testing.T) {
-	require.True(t, P9999.IsValid())
-	require.False(t, Type(int(P9999)+1).IsValid())
+	require.True(t, P75.IsValid())
+	require.False(t, Type(int(P75)+1).IsValid())
 }
 
 func TestTypeMaxID(t *testing.T) {
-	require.Equal(t, maxTypeID, P9999.ID())
-	require.Equal(t, P9999, Type(maxTypeID))
+	require.Equal(t, maxTypeID, P75.ID())
+	require.Equal(t, P75, Type(maxTypeID))
 	require.Equal(t, maxTypeID, len(ValidTypes))
 }
 
@@ -303,8 +303,12 @@ func TestQuantiles(t *testing.T) {
 	require.Nil(t, res3)
 	require.False(t, ok)
 
-	res4, ok := Types{P10, P20, P25, P30, P40, P50, Median, P60, P70, P75, P80, P90, P95, P99, P999, P9999}.PooledQuantiles(p)
-	require.Equal(t, []float64{0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999}, res4)
+	res4, ok := Types{P10, P20, P25, P30, P40, P50, Median, P60, P70, P75, P80, P90, P95, P99, P999, P9999}.
+		PooledQuantiles(p)
+	require.Equal(
+		t,
+		[]float64{0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999},
+		res4)
 	require.True(t, ok)
 }
 
