@@ -24,6 +24,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/m3db/m3/src/query/util"
+	xtime "github.com/m3db/m3/src/x/time"
 	"math"
 	"net/http"
 	"strconv"
@@ -49,7 +51,10 @@ const (
 	// LookbackParam is the lookback parameter.
 	LookbackParam = "lookback"
 	// TimeoutParam is the timeout parameter.
-	TimeoutParam           = "timeout"
+	TimeoutParam = "timeout"
+	// RelatedQueriesParam is the form key for related queries
+	RelatedQueriesParam
+
 	requireExhaustiveParam = "requireExhaustive"
 	requireNoWaitParam     = "requireNoWait"
 	maxInt64               = float64(math.MaxInt64)
@@ -436,6 +441,15 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		fetchOpts.LookbackDuration = &lookback
 	}
 
+	if relatedQueryOpts, ok, err := ParseRelatedQueryOptions(req); err != nil {
+		err = fmt.Errorf(
+			"could not parse related query options: err=%v", err)
+		return nil, nil, err
+	} else if ok {
+		// check conflicting headers?
+		fetchOpts.RelatedQueryOptions = relatedQueryOpts
+	}
+
 	fetchOpts.Timeout, err = ParseRequestTimeout(req, b.opts.Timeout)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not parse timeout: err=%w", err)
@@ -596,6 +610,49 @@ func ParseRequestTimeout(
 	}
 
 	return duration, nil
+}
+
+func ParseRelatedQueryOptions(r *http.Request) (*storage.RelatedQueryOptions, bool, error) {
+	// This is awkward, but there's really no way around awkward without passing JSON or doing something weird.
+	// We're taking this from the API as a potentially multi-valued form field w/ comma separated start and end dates.
+
+	if v := r.FormValue(RelatedQueriesParam); v == "" {
+		return nil, false, nil
+	}
+
+	// ParseForm is called by FormValue above so no need to call it again
+	vals := r.Form[RelatedQueriesParam]
+	queryRanges := make([]storage.QueryTimespan, len(vals))
+
+	// we must have something at this point
+	for _, formVal := range vals {
+		parts := strings.Split(formVal, ",")
+
+		if len(parts) != 2 {
+			// We'll just ignore broken form values
+			continue
+		}
+
+		startTs, endTs := parts[0], parts[1]
+		startTime, err := util.ParseTimeString(startTs)
+
+		if err != nil {
+			continue
+		}
+
+		endTime, err := util.ParseTimeString(endTs)
+
+		if err != nil {
+			continue
+		}
+
+		val := storage.QueryTimespan{Start: xtime.ToUnixNano(startTime), End: xtime.ToUnixNano(endTime)}
+		queryRanges = append(queryRanges, val)
+	}
+
+	return &storage.RelatedQueryOptions{
+		TimeRanges: queryRanges,
+	}, true, nil
 }
 
 func validateTimeout(v time.Duration) error {

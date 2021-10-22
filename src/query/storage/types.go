@@ -147,6 +147,17 @@ type FetchOptions struct {
 	Timeout time.Duration
 	// Source is the source for the query.
 	Source []byte
+
+	RelatedQueryOptions *RelatedQueryOptions
+}
+
+type QueryTimespan struct {
+	Start xtime.UnixNano
+	End   xtime.UnixNano
+}
+
+type RelatedQueryOptions struct {
+	TimeRanges []QueryTimespan
 }
 
 // FanoutOptions describes which namespaces should be fanned out to for
