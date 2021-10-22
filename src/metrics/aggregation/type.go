@@ -53,6 +53,8 @@ const (
 	P99
 	P999
 	P9999
+	P25
+	P75
 
 	nextTypeID = iota
 )
@@ -87,11 +89,13 @@ var (
 		Stdev:  emptyStruct,
 		P10:    emptyStruct,
 		P20:    emptyStruct,
+		P25:    emptyStruct,
 		P30:    emptyStruct,
 		P40:    emptyStruct,
 		P50:    emptyStruct,
 		P60:    emptyStruct,
 		P70:    emptyStruct,
+		P75:    emptyStruct,
 		P80:    emptyStruct,
 		P90:    emptyStruct,
 		P95:    emptyStruct,
@@ -114,11 +118,13 @@ var (
 		Stdev:  []byte("stdev"),
 		P10:    []byte("p10"),
 		P20:    []byte("p20"),
+		P25:    []byte("p25"),
 		P30:    []byte("p30"),
 		P40:    []byte("p40"),
 		P50:    []byte("p50"),
 		P60:    []byte("p60"),
 		P70:    []byte("p70"),
+		P75:    []byte("p75"),
 		P80:    []byte("p80"),
 		P90:    []byte("p90"),
 		P95:    []byte("p95"),
@@ -130,11 +136,13 @@ var (
 	typeQuantileBytes = map[Type][]byte{
 		P10:   []byte("0.1"),
 		P20:   []byte("0.2"),
+		P25:   []byte("0.25"),
 		P30:   []byte("0.3"),
 		P40:   []byte("0.4"),
 		P50:   []byte("0.5"),
 		P60:   []byte("0.6"),
 		P70:   []byte("0.7"),
+		P75:   []byte("0.75"),
 		P80:   []byte("0.8"),
 		P90:   []byte("0.9"),
 		P95:   []byte("0.95"),
@@ -204,6 +212,8 @@ func (a Type) Quantile() (float64, bool) {
 		return 0.1, true
 	case P20:
 		return 0.2, true
+	case P25:
+		return 0.25, true
 	case P30:
 		return 0.3, true
 	case P40:
@@ -214,6 +224,8 @@ func (a Type) Quantile() (float64, bool) {
 		return 0.6, true
 	case P70:
 		return 0.7, true
+	case P75:
+		return 0.75, true
 	case P80:
 		return 0.8, true
 	case P90:
