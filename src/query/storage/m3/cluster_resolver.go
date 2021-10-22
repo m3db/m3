@@ -85,7 +85,6 @@ func resolveClusterNamespacesForQuery(
 	restrict *storage.RestrictQueryOptions,
 	relatedQueryOpts *storage.RelatedQueryOptions,
 ) (consolidators.QueryFanoutType, ClusterNamespaces, error) {
-
 	// Only finding min start time b/c that's all we actually use
 	namespaceSelectionStart := start
 	if relatedQueryOpts != nil && relatedQueryOpts.TimeRanges != nil {

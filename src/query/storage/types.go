@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -34,8 +36,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
 )
 
 var errWriteQueryNoDatapoints = errors.New("write query with no datapoints")

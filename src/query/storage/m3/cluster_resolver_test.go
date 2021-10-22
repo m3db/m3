@@ -26,6 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/storage"
@@ -34,10 +38,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFanoutAggregatedOptimizationDisabledGivesAllClustersAsPartial(t *testing.T) {
@@ -466,7 +466,8 @@ func TestResolveClusterNamespacesForQueryWithOptions(t *testing.T) {
 				relatedQueries = append(relatedQueries, timespan)
 			}
 
-			fanoutType, clusters, err := resolveClusterNamespacesForQuery(now, start, end, clusters, tt.opts, tt.restrict, &storage.RelatedQueryOptions{TimeRanges: relatedQueries})
+			fanoutType, clusters, err := resolveClusterNamespacesForQuery(now,
+				start, end, clusters, tt.opts, tt.restrict, &storage.RelatedQueryOptions{TimeRanges: relatedQueries})
 			if tt.expectedErr != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.expectedErr, err)

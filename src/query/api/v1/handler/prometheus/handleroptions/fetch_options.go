@@ -30,15 +30,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/query/util"
-	xtime "github.com/m3db/m3/src/x/time"
-
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
+	"github.com/m3db/m3/src/query/util"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/headers"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type headerKey string
@@ -613,6 +612,8 @@ func ParseRequestTimeout(
 	return duration, nil
 }
 
+// ParseRelatedQueryOptions parses the RelatedQueryOptions struct out of the request
+// it returns ok==false if no such options exist
 func ParseRelatedQueryOptions(r *http.Request) (*storage.RelatedQueryOptions, bool, error) {
 	// This is awkward, but there's really no way around awkward without passing JSON or doing something weird.
 	// We're taking this from the API as a potentially multi-valued form field w/ comma separated start and end dates.
@@ -623,7 +624,7 @@ func ParseRelatedQueryOptions(r *http.Request) (*storage.RelatedQueryOptions, bo
 
 	// ParseForm is called by FormValue above so no need to call it again
 	vals := r.Form[RelatedQueriesParam]
-	queryRanges := make([]storage.QueryTimespan, 0,  len(vals))
+	queryRanges := make([]storage.QueryTimespan, 0, len(vals))
 
 	// we must have something at this point
 	for _, formVal := range vals {
