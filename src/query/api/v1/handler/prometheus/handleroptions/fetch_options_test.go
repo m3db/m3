@@ -511,53 +511,79 @@ func TestParseRequestTimeout(t *testing.T) {
 }
 
 func TestParseRelatedQueryOptions(t *testing.T) {
-	req := httptest.NewRequest("GET", "/read?related_queries=1635160222,1635166222", nil)
-	options, ok, err := ParseRelatedQueryOptions(req)
-	require.NoError(t, err)
-	require.True(t, ok)
+	t.Parallel()
 
-	assert.Equal(t, &storage.RelatedQueryOptions{
-		TimeRanges: []storage.QueryTimespan{{Start: 1635160222000000000, End: 1635166222000000000}},
-	}, options)
+	tests := map[string]struct {
+		path string
+		expectErr bool
+		expectedOk bool
+		expectedResult *storage.RelatedQueryOptions
+	} {
+		"simple": {path: "/read?related_queries=1635160222,1635166222",
+			expectErr: false,
+			expectedOk: true,
+			expectedResult: &storage.RelatedQueryOptions{
+				TimeRanges: []storage.QueryTimespan{{Start: 1635160222000000000, End: 1635166222000000000}},
+			},
+		},
+		"multiple queries": {path: "/read?related_queries=1635160222,1635166222&related_queries=1635161222,1635165222",
+			expectErr: false,
+			expectedOk: true,
+			expectedResult: &storage.RelatedQueryOptions{
+				TimeRanges: []storage.QueryTimespan{{Start: 1635160222000000000, End: 1635166222000000000},
+					{Start: 1635161222000000000, End: 1635165222000000000}},
+			},
+		},
+		"no related_queries": {path: "/read?timeout=2m",
+			expectErr: false,
+			expectedOk: false,
+			expectedResult: nil,
+		},
+		"incomplete pair": {path: "/read?related_queries=1635160222",
+			expectErr: true,
+			expectedOk: false,
+			expectedResult: nil,
+		},
+		"invalid pair (start time)": {path: "/read?related_queries=2m,6m",
+			expectErr: true,
+			expectedOk: false,
+			expectedResult: nil,
+		},
+		"invalid pair (end time)": {path: "/read?related_queries=1635160222,6m",
+			expectErr: true,
+			expectedOk: false,
+			expectedResult: nil,
+		},
+		"invalid pair (end time after start time)": { path: "/read?related_queries=1635166222,1635160222",
+			expectErr: true,
+			expectedOk: false,
+			expectedResult: nil,
+		},
+	}
 
-	req = httptest.NewRequest("GET", "/read?related_queries=1635160222,1635166222&related_queries=1635161222,1635165222", nil)
-	options, ok, err = ParseRelatedQueryOptions(req)
-	require.NoError(t, err)
-	require.True(t, ok)
-	assert.Equal(t, &storage.RelatedQueryOptions{
-		TimeRanges: []storage.QueryTimespan{{Start: 1635160222000000000, End: 1635166222000000000},
-			{Start: 1635161222000000000, End: 1635165222000000000}},
-	}, options)
+	for name, tc := range tests {
+		name, tc := name, tc
+		t.Run(name, func (t *testing.T) {
+			t.Parallel()
 
-	req = httptest.NewRequest("GET", "/read?timeout=2m", nil)
-	options, ok, err = ParseRelatedQueryOptions(req)
-	require.NoError(t, err)
-	require.False(t, ok)
-	assert.Nil(t, options)
+			req := httptest.NewRequest("GET", tc.path, nil)
+			options, ok, err := ParseRelatedQueryOptions(req)
+			assert.Equal(t, tc.expectedOk, ok, "Expected result of ok to be %v got %v", tc.expectedOk, ok)
 
-	req = httptest.NewRequest("GET", "/read?related_queries=1635160222", nil)
-	options, ok, err = ParseRelatedQueryOptions(req)
-	require.Error(t, err)
-	require.False(t, ok)
-	assert.Nil(t, options)
+			if tc.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 
-	req = httptest.NewRequest("GET", "/read?related_queries=2m,6m", nil)
-	options, ok, err = ParseRelatedQueryOptions(req)
-	require.Error(t, err)
-	require.False(t, ok)
-	assert.Nil(t, options)
-
-	req = httptest.NewRequest("GET", "/read?related_queries=1635160222,6m", nil)
-	options, ok, err = ParseRelatedQueryOptions(req)
-	require.Error(t, err)
-	require.False(t, ok)
-	assert.Nil(t, options)
-
-	req = httptest.NewRequest("GET", "/read?related_queries=1635166222,1635160222", nil)
-	options, ok, err = ParseRelatedQueryOptions(req)
-	require.Error(t, err)
-	require.False(t, ok)
-	assert.Nil(t, options)
+			if tc.expectedResult == nil {
+				assert.Nil(t, options)
+			} else {
+				assert.NotNil(t, options)
+				assert.Equal(t, tc.expectedResult, options)
+			}
+		})
+	}
 }
 
 func TestTimeoutParseWithHeader(t *testing.T) {
