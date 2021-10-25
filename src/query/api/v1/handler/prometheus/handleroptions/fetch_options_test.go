@@ -514,21 +514,31 @@ func TestParseRelatedQueryOptions(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]struct {
-		path           string
 		expectErr      bool
 		expectedOk     bool
+		headers        []string
 		expectedResult *storage.RelatedQueryOptions
 	}{
 		"simple": {
-			path:       "/read?related_queries=1635160222,1635166222",
+			headers:    []string{"1635160222:1635166222"},
 			expectErr:  false,
 			expectedOk: true,
 			expectedResult: &storage.RelatedQueryOptions{
 				TimeRanges: []storage.QueryTimespan{{Start: 1635160222000000000, End: 1635166222000000000}},
 			},
 		},
-		"multiple queries": {
-			path:       "/read?related_queries=1635160222,1635166222&related_queries=1635161222,1635165222",
+		"multiple queries (second header ignored)": {
+			headers:    []string{"1635160222:1635166222", "1635161222:1635165222"},
+			expectErr:  false,
+			expectedOk: true,
+			expectedResult: &storage.RelatedQueryOptions{
+				TimeRanges: []storage.QueryTimespan{
+					{Start: 1635160222000000000, End: 1635166222000000000},
+				},
+			},
+		},
+		"multiple queries same header.": {
+			headers:    []string{"1635160222:1635166222,1635161222:1635165222"},
 			expectErr:  false,
 			expectedOk: true,
 			expectedResult: &storage.RelatedQueryOptions{
@@ -539,31 +549,31 @@ func TestParseRelatedQueryOptions(t *testing.T) {
 			},
 		},
 		"no related_queries": {
-			path:           "/read?timeout=2m",
+			headers:        []string{},
 			expectErr:      false,
 			expectedOk:     false,
 			expectedResult: nil,
 		},
 		"incomplete pair": {
-			path:           "/read?related_queries=1635160222",
+			headers:        []string{"1635160222"},
 			expectErr:      true,
 			expectedOk:     false,
 			expectedResult: nil,
 		},
 		"invalid pair (start time)": {
-			path:           "/read?related_queries=2m,6m",
+			headers:        []string{"2m:6m"},
 			expectErr:      true,
 			expectedOk:     false,
 			expectedResult: nil,
 		},
 		"invalid pair (end time)": {
-			path:           "/read?related_queries=1635160222,6m",
+			headers:        []string{"1635160222:6m"},
 			expectErr:      true,
 			expectedOk:     false,
 			expectedResult: nil,
 		},
 		"invalid pair (end time after start time)": {
-			path:           "/read?related_queries=1635166222,1635160222",
+			headers:        []string{"1635166222:1635160222"},
 			expectErr:      true,
 			expectedOk:     false,
 			expectedResult: nil,
@@ -575,7 +585,10 @@ func TestParseRelatedQueryOptions(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest("GET", tc.path, nil)
+			req := httptest.NewRequest("GET", "/read", nil)
+			for _, header := range tc.headers {
+				req.Header.Add(headers.RelatedQueriesHeader, header)
+			}
 			options, ok, err := ParseRelatedQueryOptions(req)
 			assert.Equal(t, tc.expectedOk, ok, "Expected result of ok to be %v got %v", tc.expectedOk, ok)
 

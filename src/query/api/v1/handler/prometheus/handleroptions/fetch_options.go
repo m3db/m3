@@ -52,8 +52,6 @@ const (
 	LookbackParam = "lookback"
 	// TimeoutParam is the timeout parameter.
 	TimeoutParam = "timeout"
-	// RelatedQueriesParam is the form key for related queries
-	RelatedQueriesParam = "related_queries"
 
 	requireExhaustiveParam = "requireExhaustive"
 	requireNoWaitParam     = "requireNoWait"
@@ -360,12 +358,14 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		fetchOpts.RestrictQueryOptions.RestrictByType.StoragePolicy = sp
 	}
 
+	metricsRestrictByStorageHeaderFound := false
 	if str := req.Header.Get(headers.MetricsRestrictByStoragePoliciesHeader); str != "" {
 		if metricsTypeHeaderFound || metricsStoragePolicyHeaderFound {
 			err = fmt.Errorf(
 				"restrict by policies is incompatible with M3-Metrics-Type and M3-Storage-Policy headers")
 			return nil, nil, err
 		}
+		metricsRestrictByStorageHeaderFound = true
 		policyStrs := strings.Split(str, ";")
 		if len(policyStrs) == 0 {
 			err = fmt.Errorf(
@@ -446,7 +446,12 @@ func (b fetchOptionsBuilder) newFetchOptions(
 			"could not parse related query options: err=%w", err)
 		return nil, nil, err
 	} else if ok {
-		// check conflicting headers?
+		if metricsStoragePolicyHeaderFound || metricsTypeHeaderFound || metricsRestrictByStorageHeaderFound {
+			err = fmt.Errorf(
+				"restrict by policies is incompatible with M3-Metrics-Type, " +
+					"Restrict-By-Storage-Policies, and M3-Storage-Policy headers")
+			return nil, nil, err
+		}
 		fetchOpts.RelatedQueryOptions = relatedQueryOpts
 	}
 
@@ -615,46 +620,46 @@ func ParseRequestTimeout(
 // ParseRelatedQueryOptions parses the RelatedQueryOptions struct out of the request
 // it returns ok==false if no such options exist
 func ParseRelatedQueryOptions(r *http.Request) (*storage.RelatedQueryOptions, bool, error) {
-	// This is awkward, but there's really no way around awkward without passing JSON or doing something weird.
-	// We're taking this from the API as a potentially multi-valued form field w/ comma separated start and end dates.
+	str := r.Header.Get(headers.RelatedQueriesHeader)
 
-	if v := r.FormValue(RelatedQueriesParam); v == "" {
+	if str == "" {
 		return nil, false, nil
 	}
 
-	// ParseForm is called by FormValue above so no need to call it again
-	vals := r.Form[RelatedQueriesParam]
+	vals := strings.Split(str, ",")
+
 	queryRanges := make([]storage.QueryTimespan, 0, len(vals))
 
 	// we must have something at this point
-	for _, formVal := range vals {
-		parts := strings.Split(formVal, ",")
+	for _, headerVal := range vals {
+		parts := strings.Split(headerVal, ":")
 
 		if len(parts) != 2 {
 			return nil, false, xerrors.NewInvalidParamsError(
-				fmt.Errorf("invalid '%s': expecting a comma-separated pair of values %v", RelatedQueriesParam,
-					formVal))
+				fmt.Errorf("invalid '%s': expecting a colon-separated pair of values %v",
+					headers.RelatedQueriesHeader,
+					headerVal))
 		}
 
 		startTS, endTS := parts[0], parts[1]
 		startTime, err := util.ParseTimeString(startTS)
 		if err != nil {
 			return nil, false, xerrors.NewInvalidParamsError(
-				fmt.Errorf("invalid '%s': Cannot parse %v to time in pair %v", RelatedQueriesParam,
-					startTS, formVal))
+				fmt.Errorf("invalid '%s': Cannot parse %v to time in pair %v", headers.RelatedQueriesHeader,
+					startTS, headerVal))
 		}
 
 		endTime, err := util.ParseTimeString(endTS)
 		if err != nil {
 			return nil, false, xerrors.NewInvalidParamsError(
-				fmt.Errorf("invalid '%s': Cannot parse %v to time in pair %v", RelatedQueriesParam,
-					endTS, formVal))
+				fmt.Errorf("invalid '%s': Cannot parse %v to time in pair %v", headers.RelatedQueriesHeader,
+					endTS, headerVal))
 		}
 
 		if startTime.After(endTime) {
 			return nil, false, xerrors.NewInvalidParamsError(
-				fmt.Errorf("invalid '%s': endTime after startTime in pair %v", RelatedQueriesParam,
-					formVal))
+				fmt.Errorf("invalid '%s': endTime after startTime in pair %v", headers.RelatedQueriesHeader,
+					headerVal))
 		}
 		val := storage.QueryTimespan{Start: xtime.ToUnixNano(startTime), End: xtime.ToUnixNano(endTime)}
 		queryRanges = append(queryRanges, val)

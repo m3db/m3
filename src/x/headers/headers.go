@@ -186,4 +186,10 @@ const (
 	// CustomResponseMetricsType is a header that, if set, will override the `type` tag
 	// on the request's response metrics.
 	CustomResponseMetricsType = M3HeaderPrefix + "Custom-Response-Metrics-Type"
+
+	// RelatedQueriesHeader is a header that, if set, will be used by clients to send a set of colon separated
+	// start/end time pairs as unix timestamps with second precision (e.g. 1635160222:1635166222). Multiple
+	// RelatedQueriesHeader headers may NOT be sent. When multiple values are required, they can be comma-separated
+	// (e.g. startTs:endTs,startTs:endTs).
+	RelatedQueriesHeader = M3HeaderPrefix + "Related-Queries"
 )
