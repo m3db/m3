@@ -43,7 +43,6 @@ type Options struct {
 }
 
 type handlerMetrics struct {
-	messageReadError             tally.Counter
 	metricAccepted               tally.Counter
 	droppedMetricBlackholePolicy tally.Counter
 	droppedMetricDecodeError     tally.Counter
@@ -52,7 +51,6 @@ type handlerMetrics struct {
 func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 	messageScope := scope.SubScope("metric")
 	return handlerMetrics{
-		messageReadError: scope.Counter("message-read-error"),
 		metricAccepted:   messageScope.Counter("accepted"),
 		droppedMetricDecodeError: messageScope.Tagged(map[string]string{
 			"reason": "decode-error",
