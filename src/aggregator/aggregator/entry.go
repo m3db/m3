@@ -650,7 +650,7 @@ func (e *Entry) updateStagedMetadatasWithLock(
 				resendEnabled = sm.Pipelines[i].ResendEnabled
 				listID        metricListID
 			)
-			if timed && !resendEnabled {
+			if timed {
 				listID = timedMetricListID{
 					resolution: storagePolicies[j].Resolution().Window,
 				}.toMetricListID()

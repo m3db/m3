@@ -117,7 +117,6 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	// Creating the aggregator options.
 	clockOpts := opts.ClockOptions()
 	aggregatorOpts := aggregator.NewOptions(clockOpts).
-		SetTimedForResendEnabledRollupRegexps([]string{".*"}).
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetAggregationTypesOptions(opts.AggregationTypesOptions()).
 		SetEntryCheckInterval(opts.EntryCheckInterval()).

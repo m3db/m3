@@ -128,6 +128,10 @@ func (e *TimerElem) ResendEnabled() bool {
 
 // AddUnion adds a metric value union at a given timestamp.
 func (e *TimerElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) error {
+	// if the pipeline has resends enabled, use the client provided timestamp instead of the server received timestamp.
+	if e.resendEnabled && mu.ClientTimeNanos > 0 {
+		timestamp = mu.ClientTimeNanos.ToTime()
+	}
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
 	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{})
 	if err != nil {
