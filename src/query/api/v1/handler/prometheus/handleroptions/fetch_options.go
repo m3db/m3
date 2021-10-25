@@ -53,7 +53,7 @@ const (
 	// TimeoutParam is the timeout parameter.
 	TimeoutParam = "timeout"
 	// RelatedQueriesParam is the form key for related queries
-	RelatedQueriesParam
+	RelatedQueriesParam = "related_queries"
 
 	requireExhaustiveParam = "requireExhaustive"
 	requireNoWaitParam     = "requireNoWait"
@@ -631,21 +631,31 @@ func ParseRelatedQueryOptions(r *http.Request) (*storage.RelatedQueryOptions, bo
 		parts := strings.Split(formVal, ",")
 
 		if len(parts) != 2 {
-			// We'll just ignore broken form values
-			continue
+			return nil, false, xerrors.NewInvalidParamsError(
+				fmt.Errorf("invalid '%s': expecting a comma-separated pair of values %v", RelatedQueriesParam,
+					formVal))
 		}
 
 		startTS, endTS := parts[0], parts[1]
 		startTime, err := util.ParseTimeString(startTS)
 		if err != nil {
-			continue
+			return nil, false, xerrors.NewInvalidParamsError(
+				fmt.Errorf("invalid '%s': Cannot parse %v to time in pair %v", RelatedQueriesParam,
+					startTS, formVal))
 		}
 
 		endTime, err := util.ParseTimeString(endTS)
 		if err != nil {
-			continue
+			return nil, false, xerrors.NewInvalidParamsError(
+				fmt.Errorf("invalid '%s': Cannot parse %v to time in pair %v", RelatedQueriesParam,
+					endTS, formVal))
 		}
 
+		if startTime.After(endTime) {
+			return nil, false, xerrors.NewInvalidParamsError(
+				fmt.Errorf("invalid '%s': endTime after startTime in pair %v", RelatedQueriesParam,
+					formVal))
+		}
 		val := storage.QueryTimespan{Start: xtime.ToUnixNano(startTime), End: xtime.ToUnixNano(endTime)}
 		queryRanges = append(queryRanges, val)
 	}

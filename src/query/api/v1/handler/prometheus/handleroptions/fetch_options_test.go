@@ -510,6 +510,56 @@ func TestParseRequestTimeout(t *testing.T) {
 	assert.Equal(t, 2*time.Minute, dur)
 }
 
+func TestParseRelatedQueryOptions(t *testing.T) {
+	req := httptest.NewRequest("GET", "/read?related_queries=1635160222,1635166222", nil)
+	options, ok, err := ParseRelatedQueryOptions(req)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	assert.Equal(t, &storage.RelatedQueryOptions{
+		TimeRanges: []storage.QueryTimespan{{Start: 1635160222000000000, End: 1635166222000000000}},
+	}, options)
+
+	req = httptest.NewRequest("GET", "/read?related_queries=1635160222,1635166222&related_queries=1635161222,1635165222", nil)
+	options, ok, err = ParseRelatedQueryOptions(req)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, &storage.RelatedQueryOptions{
+		TimeRanges: []storage.QueryTimespan{{Start: 1635160222000000000, End: 1635166222000000000},
+			{Start: 1635161222000000000, End: 1635165222000000000}},
+	}, options)
+
+	req = httptest.NewRequest("GET", "/read?timeout=2m", nil)
+	options, ok, err = ParseRelatedQueryOptions(req)
+	require.NoError(t, err)
+	require.False(t, ok)
+	assert.Nil(t, options)
+
+	req = httptest.NewRequest("GET", "/read?related_queries=1635160222", nil)
+	options, ok, err = ParseRelatedQueryOptions(req)
+	require.Error(t, err)
+	require.False(t, ok)
+	assert.Nil(t, options)
+
+	req = httptest.NewRequest("GET", "/read?related_queries=2m,6m", nil)
+	options, ok, err = ParseRelatedQueryOptions(req)
+	require.Error(t, err)
+	require.False(t, ok)
+	assert.Nil(t, options)
+
+	req = httptest.NewRequest("GET", "/read?related_queries=1635160222,6m", nil)
+	options, ok, err = ParseRelatedQueryOptions(req)
+	require.Error(t, err)
+	require.False(t, ok)
+	assert.Nil(t, options)
+
+	req = httptest.NewRequest("GET", "/read?related_queries=1635166222,1635160222", nil)
+	options, ok, err = ParseRelatedQueryOptions(req)
+	require.Error(t, err)
+	require.False(t, ok)
+	assert.Nil(t, options)
+}
+
 func TestTimeoutParseWithHeader(t *testing.T) {
 	req := httptest.NewRequest("POST", "/dummy", nil)
 	req.Header.Add("timeout", "1ms")
