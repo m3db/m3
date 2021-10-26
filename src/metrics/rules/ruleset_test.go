@@ -782,6 +782,7 @@ func TestRuleSetAddRollupRuleNewRule(t *testing.T) {
 				StoragePolicies: policy.StoragePolicies{
 					policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
 				},
+				ResendEnabled: true,
 			},
 		},
 	}
@@ -814,6 +815,7 @@ func TestRuleSetAddRollupRuleNewRule(t *testing.T) {
 				StoragePolicies: policy.StoragePolicies{
 					policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
 				},
+				ResendEnabled: true,
 			},
 		},
 		lastUpdatedBy:      testUser,

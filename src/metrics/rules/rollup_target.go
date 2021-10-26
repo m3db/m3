@@ -97,6 +97,7 @@ func newRollupTargetFromView(rtv view.RollupTarget) rollupTarget {
 	return rollupTarget{
 		Pipeline:        rtv.Pipeline,
 		StoragePolicies: rtv.StoragePolicies,
+		ResendEnabled:   rtv.ResendEnabled,
 	}
 }
 
