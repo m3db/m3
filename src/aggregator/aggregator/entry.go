@@ -528,8 +528,14 @@ func (e *Entry) shouldUpdateStagedMetadatasWithLock(sm metadata.StagedMetadata) 
 				pipeline:           sm.Pipelines[i].Pipeline,
 				idPrefixSuffixType: WithPrefixWithSuffix,
 			}
-			idx := e.aggregations.index(key)
+			val, idx := e.aggregations.get(key)
 			if idx < 0 {
+				return true
+			}
+			if val.resendEnabled != sm.Pipelines[i].ResendEnabled {
+				// If resendEnabled has changed force an update of the staged metadata. This won't actually change
+				// the aggregations, since the aggregationKeys have not changed. However, it will allow toggling
+				// the resendEnabled state on the aggregations.
 				return true
 			}
 			bs.Set(uint(idx))
@@ -572,7 +578,11 @@ func (e *Entry) addNewAggregationKeyWithLock(
 		return newAggregations, nil
 	}
 	if idx := e.aggregations.index(key); idx >= 0 {
-		newAggregations = append(newAggregations, e.aggregations[idx])
+		// updating staged metadata was triggered, but the aggregation keys did not change. most likely becaue the
+		// resendEnabled state changed, which we update below.
+		a := e.aggregations[idx]
+		a.resendEnabled = resendEnabled
+		newAggregations = append(newAggregations, a)
 		return newAggregations, nil
 	}
 	aggTypes, err := e.decompressor.Decompress(key.aggregationID)
@@ -599,7 +609,6 @@ func (e *Entry) addNewAggregationKeyWithLock(
 		Pipeline:           key.pipeline,
 		NumForwardedTimes:  key.numForwardedTimes,
 		IDPrefixSuffixType: key.idPrefixSuffixType,
-		ResendEnabled:      resendEnabled,
 		ListType:           listID.listType,
 	}); err != nil {
 		return nil, err
@@ -612,7 +621,11 @@ func (e *Entry) addNewAggregationKeyWithLock(
 	if err != nil {
 		return nil, err
 	}
-	newAggregations = append(newAggregations, aggregationValue{key: key, elem: newListElem})
+	newAggregations = append(newAggregations, aggregationValue{
+		key:           key,
+		elem:          newListElem,
+		resendEnabled: resendEnabled,
+	})
 	return newAggregations, nil
 }
 
@@ -682,7 +695,20 @@ func (e *Entry) updateStagedMetadatasWithLock(
 func (e *Entry) addUntimedWithLock(timestamp time.Time, mu unaggregated.MetricUnion) error {
 	var err error
 	for i := range e.aggregations {
-		multierr.AppendInto(&err, e.aggregations[i].elem.Value.(metricElem).AddUnion(timestamp, mu))
+		resendEnabled := e.aggregations[i].resendEnabled
+		if resendEnabled && mu.ClientTimeNanos > 0 {
+			timestamp = mu.ClientTimeNanos.ToTime()
+			if multierr.AppendInto(
+				&err,
+				e.checkTimestampForMetric(
+					int64(mu.ClientTimeNanos),
+					e.nowFn().UnixNano(),
+					e.aggregations[i].key.storagePolicy.Resolution().Window),
+			) {
+				continue
+			}
+		}
+		multierr.AppendInto(&err, e.aggregations[i].elem.Value.(metricElem).AddUnion(timestamp, mu, resendEnabled))
 	}
 	return err
 }
@@ -815,12 +841,11 @@ func (e *Entry) addTimed(
 }
 
 // Reject datapoints that arrive too late or too early.
-func (e *Entry) checkTimestampForTimedMetric(
-	metric aggregated.Metric,
+func (e *Entry) checkTimestampForMetric(
+	metricTimeNanos int64,
 	currNanos int64,
 	resolution time.Duration,
 ) error {
-	metricTimeNanos := metric.TimeNanos
 	e.metrics.timed.ingestDelay.RecordDuration(time.Duration(e.nowFn().UnixNano() - metricTimeNanos))
 	timedBufferFuture := e.opts.BufferForFutureTimedMetric()
 	if metricTimeNanos-currNanos > timedBufferFuture.Nanoseconds() {
@@ -895,7 +920,8 @@ func (e *Entry) addTimedWithLock(
 	metric aggregated.Metric,
 ) error {
 	timestamp := time.Unix(0, metric.TimeNanos)
-	err := e.checkTimestampForTimedMetric(metric, e.nowFn().UnixNano(), value.key.storagePolicy.Resolution().Window)
+	err := e.checkTimestampForMetric(metric.TimeNanos, e.nowFn().UnixNano(),
+		value.key.storagePolicy.Resolution().Window)
 	if err != nil {
 		return err
 	}
@@ -911,8 +937,8 @@ func (e *Entry) addTimedWithStagedMetadatasAndLock(metric aggregated.Metric) err
 	for i := range e.aggregations {
 		if multierr.AppendInto(
 			&err,
-			e.checkTimestampForTimedMetric(
-				metric,
+			e.checkTimestampForMetric(
+				metric.TimeNanos,
 				e.nowFn().UnixNano(),
 				e.aggregations[i].key.storagePolicy.Resolution().Window),
 		) {
@@ -1108,13 +1134,19 @@ func (e *Entry) applyValueRateLimit(numValues int64, m rateLimitEntryMetrics) er
 type aggregationValue struct {
 	elem *list.Element
 	key  aggregationKey
+
+	// mutable data that is not part of the aggregationKey.
+	// This allows changing the resendEnabled bit without creating a new aggregation. This allows seamlessly
+	// transitioning to resendEnabled without a gap in the aggregation.
+	resendEnabled bool
 }
 
 // TODO(xichen): benchmark the performance of using a single slice
 // versus a map with a partial key versus a map with a hash of full key.
 type aggregationValues []aggregationValue
 
-func (vals aggregationValues) index(k aggregationKey) int {
+// returns the aggregation value and the index position. if not found, the index position is -1.
+func (vals aggregationValues) get(k aggregationKey) (aggregationValue, int) {
 	// keep in sync with aggregationKey.Equal()
 	// this is >2x slower if not inlined manually.
 	for i := range vals {
@@ -1123,10 +1155,15 @@ func (vals aggregationValues) index(k aggregationKey) int {
 			vals[i].key.pipeline.Equal(k.pipeline) &&
 			vals[i].key.numForwardedTimes == k.numForwardedTimes &&
 			vals[i].key.idPrefixSuffixType == k.idPrefixSuffixType {
-			return i
+			return vals[i], i
 		}
 	}
-	return -1
+	return aggregationValue{}, -1
+}
+
+func (vals aggregationValues) index(k aggregationKey) int {
+	_, i := vals.get(k)
+	return i
 }
 
 func (vals aggregationValues) contains(k aggregationKey) bool {
