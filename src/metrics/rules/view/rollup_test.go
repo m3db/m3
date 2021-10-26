@@ -195,6 +195,22 @@ func TestRollupTargetNotEqual(t *testing.T) {
 				policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
 			},
 		},
+		{
+			Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+				{
+					Type:           pipeline.TransformationOpType,
+					Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+				},
+				{
+					Type:   pipeline.RollupOpType,
+					Rollup: rr4,
+				},
+			}),
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+			},
+			ResendEnabled: true,
+		},
 	}
 
 	for i := 0; i < len(targets); i++ {
