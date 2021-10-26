@@ -179,8 +179,8 @@ type ExternalResources interface {
 
 // InstanceInfo represents the host information for an instance.
 type InstanceInfo struct {
-	// Id is the name of the host. It can be hostname or UUID or any other string.
-	Id string
+	// ID is the name of the host. It can be hostname or UUID or any other string.
+	ID string
 	// Zone specifies the zone the host resides in.
 	Zone string
 	// Address can be IP address or hostname, this is used to connect to the host.

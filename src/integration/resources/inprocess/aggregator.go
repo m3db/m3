@@ -65,10 +65,10 @@ type Aggregator struct {
 type AggregatorOptions struct {
 	// Logger is the logger to use for the in-process aggregator.
 	Logger *zap.Logger
-	// Start indicates whether to start the aggregator instance
-	Start bool
 	// StartFn is a custom function that can be used to start the Aggregator.
 	StartFn StartFn
+	// Start indicates whether to start the aggregator instance
+	Start bool
 	// GeneratePorts will automatically update the config to use open ports
 	// if set to true. If false, configuration is used as-is re: ports.
 	GeneratePorts bool
@@ -150,7 +150,7 @@ func (a *Aggregator) HostDetails() (*resources.InstanceInfo, error) {
 	}
 
 	return &resources.InstanceInfo{
-		Id:      id,
+		ID:      id,
 		Zone:    a.cfg.KVClientOrDefault().Etcd.Zone,
 		Address: addr,
 		Port:    uint32(port),
@@ -159,7 +159,7 @@ func (a *Aggregator) HostDetails() (*resources.InstanceInfo, error) {
 
 // Start starts the aggregator instance.
 func (a *Aggregator) Start() {
-	if a.started == true {
+	if a.started {
 		a.logger.Warn("aggregator instance has started already")
 	}
 	a.started = true

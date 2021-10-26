@@ -247,7 +247,7 @@ func (c *Coordinator) HostDetails() (*resources.InstanceInfo, error) {
 	}
 
 	return &resources.InstanceInfo{
-		Id:      "m3coordinator",
+		ID:      "m3coordinator",
 		Zone:    zone,
 		Address: addr,
 		Port:    uint32(port),

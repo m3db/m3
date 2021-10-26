@@ -276,12 +276,12 @@ func setupPlacementMultiAggs(t *testing.T, coord resources.Coordinator, hostDeta
 	for _, info := range hostDetails {
 		fmt.Println("****", *info)
 		instance := &placementpb.Instance{
-			Id:             info.Id,
-			IsolationGroup: info.Id,
+			Id:             info.ID,
+			IsolationGroup: info.ID,
 			Zone:           info.Zone,
 			Weight:         1,
 			Endpoint:       fmt.Sprintf("%s:%d", info.Address, info.Port),
-			Hostname:       info.Id,
+			Hostname:       info.ID,
 			Port:           info.Port,
 		}
 

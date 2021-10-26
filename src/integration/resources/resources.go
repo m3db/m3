@@ -53,7 +53,11 @@ const (
 )
 
 // SetupCluster setups m3 cluster on provided docker containers.
-func SetupCluster(cluster M3Resources, opts *ClusterOptions, aggOpts *AggregatorClusterOptions) error { // nolint: gocyclo
+func SetupCluster(
+	cluster M3Resources,
+	opts *ClusterOptions,
+	aggOpts *AggregatorClusterOptions,
+) error { // nolint: gocyclo
 	coordinator := cluster.Coordinator()
 	iOpts := instrument.NewOptions()
 	logger := iOpts.Logger().With(zap.String("source", "harness"))
@@ -217,12 +221,12 @@ func setupPlacement(
 		}
 
 		instance := &placementpb.Instance{
-			Id:             info.Id,
+			Id:             info.ID,
 			IsolationGroup: fmt.Sprintf("isogroup-%02d", i%int(opts.NumIsolationGroups)),
 			Zone:           info.Zone,
 			Weight:         1,
 			Endpoint:       net.JoinHostPort(info.Address, strconv.Itoa(int(info.Port))),
-			Hostname:       info.Id,
+			Hostname:       info.ID,
 			Port:           info.Port,
 		}
 
@@ -264,10 +268,10 @@ func setupPlacement(
 		admin.PlacementInitRequest{
 			Instances: []*placementpb.Instance{
 				{
-					Id:       coordHost.Id,
+					Id:       coordHost.ID,
 					Zone:     coordHost.Zone,
 					Endpoint: net.JoinHostPort(coordHost.Address, strconv.Itoa(int(coordHost.Port))),
-					Hostname: coordHost.Id,
+					Hostname: coordHost.ID,
 					Port:     coordHost.Port,
 				},
 			},
