@@ -220,9 +220,8 @@ func (e *TimerElem) expireValuesWithLock(
 	}
 	resolution := e.sp.Resolution().Window
 
-	prevStart := e.minStartTime
 	// start after the minimum to ensure we always keep at least one value in the map for binary transformations.
-	currStart := prevStart.Add(resolution)
+	currStart := e.minStartTime.Add(resolution)
 	resendExpire := targetNanos - int64(e.bufferForPastTimedMetricFn(resolution))
 
 	for isEarlierThanFn(int64(currStart), resolution, targetNanos) {
@@ -236,16 +235,15 @@ func (e *TimerElem) expireValuesWithLock(
 			// if this current value is eligible to be expired it will no longer be written to. this means it's safe
 			// to remove the _previous_ value since it will no longer be needed for binary transformations. when the
 			// next value is eligible to be expired, this current value will actually be removed.
-			if prevV, ok := e.values[prevStart]; ok {
+			if prevV, ok := e.values[e.minStartTime]; ok {
 				// Previous times are used to key into consumedValues, which are non-start-aligned. And so
 				// we convert from startAligned here when setting previous.
-				prevV.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(prevStart), resolution))
+				prevV.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(e.minStartTime), resolution))
 				e.toExpire = append(e.toExpire, prevV)
-				delete(e.values, prevStart)
+				delete(e.values, e.minStartTime)
 				e.minStartTime = currStart
 			}
 		}
-		prevStart = currStart
 		currStart = currStart.Add(resolution)
 	}
 }
@@ -525,8 +523,8 @@ func (e *TimerElem) findOrCreate(
 			timedAgg.lockedAgg.dirty = true
 			e.insertDirty(alignedStart)
 		}
-		found.resendEnabled = createOpts.resendEnabled
-		e.values[alignedStart] = found
+		timedAgg.resendEnabled = createOpts.resendEnabled
+		e.values[alignedStart] = timedAgg
 		e.Unlock()
 		return timedAgg.lockedAgg, nil
 	}

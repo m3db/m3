@@ -2536,6 +2536,7 @@ func testTimerElem(
 		}
 		e.dirty = append(e.dirty, startAligned)
 	}
+	e.minStartTime = xtime.UnixNano(alignedstartAtNanos[0])
 	return e
 }
 
@@ -2586,6 +2587,7 @@ func testGaugeElemWithData(
 		}
 		e.dirty = append(e.dirty, startAligned)
 	}
+	e.minStartTime = xtime.UnixNano(alignedstartAtNanos[0])
 	return e
 }
 
