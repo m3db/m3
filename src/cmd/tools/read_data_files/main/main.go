@@ -203,7 +203,7 @@ func main() {
 			seriesCount++
 		}
 
-		if seriesCount != reader.Entries() {
+		if seriesCount != reader.Entries() && *idFilter == "" {
 			log.Warnf("actual time series count (%d) did not match info file data (%d)",
 				seriesCount, reader.Entries())
 		}
