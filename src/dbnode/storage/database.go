@@ -506,7 +506,13 @@ func (d *db) Options() Options {
 func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	// NB: Use assignShardSetMutex to protect from competing calls.
 	d.assignShardSetMutex.Lock()
-	defer d.assignShardSetMutex.Unlock()
+	asyncUnlock := false
+	defer func() {
+		if !asyncUnlock {
+			// Unlock only if asyncUnlock is not set. Otherwise, we will unlock asynchronously.
+			d.assignShardSetMutex.Unlock()
+		}
+	}()
 	// NB: Can hold lock since all long running tasks are enqueued to run
 	// async while holding the lock.
 	d.Lock()
@@ -545,7 +551,11 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	d.assignShardsWithLock(shardSet)
 
 	if added {
-		d.enqueueBootstrapAsyncWithLock(d.enableFileOps)
+		asyncUnlock = true
+		d.enqueueBootstrapAsyncWithLock(func() {
+			d.enableFileOps()
+			d.assignShardSetMutex.Unlock()
+		})
 	}
 }
 
