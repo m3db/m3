@@ -114,7 +114,7 @@ func SetupSingleM3DBNode(opts ...SetupOptions) (resources.M3Resources, error) { 
 		nodes:       dbNodes,
 		pool:        pool,
 	}
-	err = resources.SetupCluster(cluster, nil)
+	err = resources.SetupCluster(cluster, nil, nil)
 
 	logger := iOpts.Logger().With(zap.String("source", "harness"))
 	logger.Info("all healthy")

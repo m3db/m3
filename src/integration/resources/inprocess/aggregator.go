@@ -24,8 +24,10 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,6 +44,8 @@ import (
 	xos "github.com/m3db/m3/src/x/os"
 )
 
+var errAggregatorNotStarted = errors.New("aggregator instance has not started")
+
 // Aggregator is an in-process implementation of resources.Aggregator for use
 // in integration tests.
 type Aggregator struct {
@@ -50,6 +54,7 @@ type Aggregator struct {
 	tmpDirs []string
 	startFn StartFn
 
+	started    bool
 	httpClient deploy.AggregatorClient
 
 	interruptCh chan<- error
@@ -60,6 +65,8 @@ type Aggregator struct {
 type AggregatorOptions struct {
 	// Logger is the logger to use for the in-process aggregator.
 	Logger *zap.Logger
+	// Start indicates whether to start the aggregator instance
+	Start bool
 	// StartFn is a custom function that can be used to start the Aggregator.
 	StartFn StartFn
 	// GeneratePorts will automatically update the config to use open ports
@@ -114,56 +121,49 @@ func NewAggregator(cfg config.Configuration, opts AggregatorOptions) (resources.
 		logger:     opts.Logger,
 		tmpDirs:    tmpDirs,
 		startFn:    opts.StartFn,
+		started:    false,
 		httpClient: deploy.NewAggregatorClient(&http.Client{}),
 	}
-	agg.start()
+
+	if opts.Start {
+		agg.Start()
+	}
 
 	return agg, nil
 }
 
-// IsHealthy determines whether an instance is healthy.
-func (a *Aggregator) IsHealthy() error {
-	return a.httpClient.IsHealthy(a.cfg.HTTPOrDefault().ListenAddress)
-}
-
-// Status returns the instance status.
-func (a *Aggregator) Status() (m3agg.RuntimeStatus, error) {
-	return a.httpClient.Status(a.cfg.HTTPOrDefault().ListenAddress)
-}
-
-// Resign asks an aggregator instance to give up its current leader role if applicable.
-func (a *Aggregator) Resign() error {
-	return a.httpClient.Resign(a.cfg.HTTPOrDefault().ListenAddress)
-}
-
-// Close closes the wrapper and releases any held resources, including
-// deleting docker containers.
-func (a *Aggregator) Close() error {
-	defer func() {
-		for _, dir := range a.tmpDirs {
-			if err := os.RemoveAll(dir); err != nil {
-				a.logger.Error("error removing temp directory", zap.String("dir", dir), zap.Error(err))
-			}
-		}
-	}()
-
-	select {
-	case a.interruptCh <- xos.NewInterruptError("in-process aggregator being shut down"):
-	case <-time.After(interruptTimeout):
-		return errors.New("timeout sending interrupt. closing without graceful shutdown")
+// HostDetails returns the aggregator's host details.
+func (a *Aggregator) HostDetails() (*resources.InstanceInfo, error) {
+	id, err := a.cfg.AggregatorOrDefault().HostID.Resolve()
+	if err != nil {
+		return nil, err
 	}
 
-	select {
-	case <-a.shutdownCh:
-	case <-time.After(shutdownTimeout):
-		return errors.New("timeout waiting for shutdown notification. server closing may" +
-			" not be completely graceful")
+	addr, p, err := net.SplitHostPort(a.cfg.M3MsgOrDefault().Server.ListenAddress)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil
+	port, err := strconv.Atoi(p)
+	if err != nil {
+		return nil, err
+	}
+
+	return &resources.InstanceInfo{
+		Id:      id,
+		Zone:    a.cfg.KVClientOrDefault().Etcd.Zone,
+		Address: addr,
+		Port:    uint32(port),
+	}, nil
 }
 
-func (a *Aggregator) start() {
+// Start starts the aggregator instance.
+func (a *Aggregator) Start() {
+	if a.started == true {
+		a.logger.Warn("aggregator instance has started already")
+	}
+	a.started = true
+
 	if a.startFn != nil {
 		a.interruptCh, a.shutdownCh = a.startFn()
 		return
@@ -182,6 +182,65 @@ func (a *Aggregator) start() {
 
 	a.interruptCh = interruptCh
 	a.shutdownCh = shutdownCh
+}
+
+// IsHealthy determines whether an instance is healthy.
+func (a *Aggregator) IsHealthy() error {
+	if !a.started {
+		return errAggregatorNotStarted
+	}
+
+	return a.httpClient.IsHealthy(a.cfg.HTTPOrDefault().ListenAddress)
+}
+
+// Status returns the instance status.
+func (a *Aggregator) Status() (m3agg.RuntimeStatus, error) {
+	if !a.started {
+		return m3agg.RuntimeStatus{}, errAggregatorNotStarted
+	}
+
+	return a.httpClient.Status(a.cfg.HTTPOrDefault().ListenAddress)
+}
+
+// Resign asks an aggregator instance to give up its current leader role if applicable.
+func (a *Aggregator) Resign() error {
+	if !a.started {
+		return errAggregatorNotStarted
+	}
+
+	return a.httpClient.Resign(a.cfg.HTTPOrDefault().ListenAddress)
+}
+
+// Close closes the wrapper and releases any held resources, including
+// deleting docker containers.
+func (a *Aggregator) Close() error {
+	if !a.started {
+		return errAggregatorNotStarted
+	}
+
+	defer func() {
+		for _, dir := range a.tmpDirs {
+			if err := os.RemoveAll(dir); err != nil {
+				a.logger.Error("error removing temp directory", zap.String("dir", dir), zap.Error(err))
+			}
+		}
+		a.started = false
+	}()
+
+	select {
+	case a.interruptCh <- xos.NewInterruptError("in-process aggregator being shut down"):
+	case <-time.After(interruptTimeout):
+		return errors.New("timeout sending interrupt. closing without graceful shutdown")
+	}
+
+	select {
+	case <-a.shutdownCh:
+	case <-time.After(shutdownTimeout):
+		return errors.New("timeout waiting for shutdown notification. server closing may" +
+			" not be completely graceful")
+	}
+
+	return nil
 }
 
 func updateAggregatorConfig(
@@ -242,9 +301,21 @@ func updateAggregatorPorts(cfg config.Configuration) (config.Configuration, erro
 		if err != nil {
 			return cfg, err
 		}
-		metricsCfg.PrometheusReporter.ListenAddress = addr
+		promReporter := *metricsCfg.PrometheusReporter
+		promReporter.ListenAddress = addr
+		metricsCfg.PrometheusReporter = &promReporter
 	}
 	cfg.Metrics = &metricsCfg
+
+	m3msgCfg := cfg.M3MsgOrDefault()
+	if m3msgAddr := m3msgCfg.Server.ListenAddress; m3msgAddr != "" {
+		addr, _, err := nettest.GeneratePort(m3msgAddr)
+		if err != nil {
+			return cfg, err
+		}
+		m3msgCfg.Server.ListenAddress = addr
+	}
+	cfg.M3Msg = &m3msgCfg
 
 	return cfg, nil
 }

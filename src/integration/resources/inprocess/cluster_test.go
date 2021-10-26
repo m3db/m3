@@ -1,5 +1,4 @@
 // +build integration_v2
-
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -71,7 +70,7 @@ func TestNewClusterWithAgg(t *testing.T) {
 	aggClusterOpts.NumInstances = 2
 	m3, err := NewCluster(configs, ClusterOptions{
 		DBNode:     NewDBNodeClusterOptions(),
-		Aggregator: aggClusterOpts,
+		Aggregator: &aggClusterOpts,
 	})
 	require.NoError(t, err)
 	require.NoError(t, m3.Nodes().WaitForHealthy())

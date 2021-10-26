@@ -47,8 +47,7 @@ type Coordinator interface {
 	Admin
 
 	// HostDetails returns this coordinator instance's host details.
-	HostDetails() (*admin.Host, error)
-
+	HostDetails() (*InstanceInfo, error)
 	// ApplyKVUpdate applies a KV update.
 	ApplyKVUpdate(update string) error
 	// WriteCarbon writes a carbon metric datapoint at a given time.
@@ -138,6 +137,10 @@ type Node interface {
 
 // Aggregator is an aggregator instance.
 type Aggregator interface {
+	// Start starts the aggregator instance.
+	Start()
+	// HostDetails returns this aggregator instance's host details.
+	HostDetails() (*InstanceInfo, error)
 	// IsHealthy determines whether an instance is healthy.
 	IsHealthy() error
 	// Status returns the instance status.
@@ -172,6 +175,18 @@ type ExternalResources interface {
 	// Close stops and cleans up all the resources associated with
 	// the external resource.
 	Close() error
+}
+
+// InstanceInfo represents the host information for an instance.
+type InstanceInfo struct {
+	// Id is the name of the host. It can be hostname or UUID or any other string.
+	Id string
+	// Zone specifies the zone the host resides in.
+	Zone string
+	// Address can be IP address or hostname, this is used to connect to the host.
+	Address string
+	// Port is  listen address.
+	Port uint32
 }
 
 // ClusterOptions represents a set of options for a cluster setup.

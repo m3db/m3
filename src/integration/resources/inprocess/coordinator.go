@@ -227,7 +227,7 @@ func (c *Coordinator) start() {
 }
 
 // HostDetails returns the coordinator's host details.
-func (c *Coordinator) HostDetails() (*admin.Host, error) {
+func (c *Coordinator) HostDetails() (*resources.InstanceInfo, error) {
 	addr, p, err := net.SplitHostPort(c.cfg.Ingest.M3Msg.Server.ListenAddress)
 	if err != nil {
 		return nil, err
@@ -238,10 +238,17 @@ func (c *Coordinator) HostDetails() (*admin.Host, error) {
 		return nil, err
 	}
 
-	return &admin.Host{
+	zone := headers.DefaultServiceZone
+	if len(c.cfg.Clusters) > 0 && c.cfg.Clusters[0].Client.EnvironmentConfig != nil {
+		envCfg := c.cfg.Clusters[0].Client.EnvironmentConfig
+		if len(envCfg.Services) > 0 && envCfg.Services[0].Service != nil {
+			zone = envCfg.Services[0].Service.Zone
+		}
+	}
+
+	return &resources.InstanceInfo{
 		Id:      "m3coordinator",
-		Zone:    headers.DefaultServiceZone,
-		Weight:  1024,
+		Zone:    zone,
 		Address: addr,
 		Port:    uint32(port),
 	}, nil

@@ -49,8 +49,9 @@ type ClusterOptions struct {
 	// DBNode contains cluster options for spinning up dbnodes.
 	DBNode DBNodeClusterOptions
 
-	// Aggregator contains cluster options for spinning up aggregators.
-	Aggregator AggregatorClusterOptions
+	// Aggregator is the optional cluster options for spinning up aggregators.
+	// If Aggregator is nil, the cluster contains only m3coordinator and dbnodes.
+	Aggregator *AggregatorClusterOptions
 }
 
 // ClusterConfigs contain the config to use for components within
@@ -61,6 +62,7 @@ type ClusterConfigs struct {
 	// Coordinator is the configuration for the coordinator.
 	Coordinator coordinatorcfg.Configuration
 	// Aggregator is the configuration for aggregators.
+	// If Aggregator is nil, the cluster contains only m3coordinator and dbnodes.
 	Aggregator *aggcfg.Configuration
 }
 
@@ -82,7 +84,7 @@ func NewClusterConfigsFromConfigFile(
 	}
 
 	var aCfg aggcfg.Configuration
-	if len(pathToAggCfg) > 0 {
+	if pathToAggCfg != "" {
 		if err := xconfig.LoadFile(&aCfg, pathToAggCfg, xconfig.Options{}); err != nil {
 			return ClusterConfigs{}, err
 		}
@@ -109,7 +111,7 @@ func NewClusterConfigsFromYAML(dbnodeYaml string, coordYaml string, aggYaml stri
 	}
 
 	var aggCfg aggcfg.Configuration
-	if len(aggYaml) > 0 {
+	if aggYaml != "" {
 		if err := yaml.Unmarshal([]byte(aggYaml), &aggCfg); err != nil {
 			return ClusterConfigs{}, err
 		}
@@ -140,7 +142,7 @@ func NewCluster(configs ClusterConfigs, opts ClusterOptions) (resources.M3Resour
 	}
 
 	var aggCfgs []aggcfg.Configuration
-	if opts.Aggregator.Enabled {
+	if opts.Aggregator != nil {
 		aggCfgs, err = GenerateAggregatorConfigsForCluster(configs, opts.Aggregator)
 		if err != nil {
 			return nil, err
@@ -180,45 +182,36 @@ func NewCluster(configs ClusterConfigs, opts ClusterOptions) (resources.M3Resour
 		return nil, err
 	}
 
+	for _, aggCfg := range aggCfgs {
+		var agg resources.Aggregator
+		agg, err = NewAggregator(aggCfg, AggregatorOptions{Start: false})
+		if err != nil {
+			return nil, err
+		}
+		aggs = append(aggs, agg)
+	}
+
 	m3 := NewM3Resources(ResourceOptions{
 		Coordinator: coord,
 		DBNodes:     nodes,
+		Aggregators: aggs,
 	})
-	if err = resources.SetupCluster(m3, &resources.ClusterOptions{
+
+	dbOpts := &resources.ClusterOptions{
 		ReplicationFactor:  opts.DBNode.RF,
 		NumShards:          opts.DBNode.NumShards,
 		NumIsolationGroups: opts.DBNode.NumIsolationGroups,
-	}); err != nil {
-		return nil, err
 	}
-
-	if opts.Aggregator.Enabled {
-		aggClusterOptions := resources.AggregatorClusterOptions{
+	var aggOpts *resources.AggregatorClusterOptions
+	if opts.Aggregator != nil {
+		aggOpts = &resources.AggregatorClusterOptions{
 			ReplicationFactor:  opts.Aggregator.RF,
 			NumShards:          opts.Aggregator.NumShards,
 			NumIsolationGroups: opts.Aggregator.NumIsolationGroups,
 		}
-		if err = resources.SetupPlacement(coord, aggClusterOptions, aggCfgs); err != nil {
-			return nil, err
-		}
-
-		if err = resources.SetupM3msgTopics(coord, aggCfgs); err != nil {
-			return nil, err
-		}
-
-		for i := 0; i < len(aggCfgs); i++ {
-			agg, err := NewAggregator(aggCfgs[i], AggregatorOptions{})
-			if err != nil {
-				return nil, err
-			}
-			aggs = append(aggs, agg)
-		}
-
-		m3 = NewM3Resources(ResourceOptions{
-			Coordinator: coord,
-			DBNodes:     nodes,
-			Aggregators: aggs,
-		})
+	}
+	if err = resources.SetupCluster(m3, dbOpts, aggOpts); err != nil {
+		return nil, err
 	}
 
 	return m3, nil
@@ -333,7 +326,7 @@ func cleanup(logger *zap.Logger, nodes resources.Nodes, coord resources.Coordina
 // GenerateAggregatorConfigsForCluster generates the unique configs for each aggregator instance.
 func GenerateAggregatorConfigsForCluster(
 	configs ClusterConfigs,
-	opts AggregatorClusterOptions,
+	opts *AggregatorClusterOptions,
 ) ([]aggcfg.Configuration, error) {
 	if configs.Aggregator == nil {
 		return nil, nil
@@ -392,8 +385,10 @@ func (opts *ClusterOptions) Validate() error {
 		return fmt.Errorf("invalid dbnode cluster options: %w", err)
 	}
 
-	if err := opts.Aggregator.Validate(); err != nil {
-		return fmt.Errorf("invalid aggregator cluster options: %w", err)
+	if opts.Aggregator != nil {
+		if err := opts.Aggregator.Validate(); err != nil {
+			return fmt.Errorf("invalid aggregator cluster options: %w", err)
+		}
 	}
 
 	return nil
@@ -452,8 +447,6 @@ func (d *DBNodeClusterOptions) Validate() error {
 // AggregatorClusterOptions contains the cluster options for spinning up
 // aggregators.
 type AggregatorClusterOptions struct {
-	// Enabled indicates if aggregators should be added to the cluster.
-	Enabled bool
 	// RF is the replication factor to use for aggregators.
 	// It should be 1 for non-replicated mode and 2 for leader-follower mode.
 	RF int32
@@ -470,7 +463,6 @@ type AggregatorClusterOptions struct {
 // Aggregator config must still be provided.
 func NewAggregatorClusterOptions() AggregatorClusterOptions {
 	return AggregatorClusterOptions{
-		Enabled:            true,
 		RF:                 1,
 		NumShards:          4,
 		NumInstances:       1,
@@ -480,10 +472,6 @@ func NewAggregatorClusterOptions() AggregatorClusterOptions {
 
 // Validate validates the AggregatorClusterOptions.
 func (a *AggregatorClusterOptions) Validate() error {
-	if !a.Enabled {
-		return nil
-	}
-
 	if a.RF < 1 {
 		return errors.New("rf must be at least 1")
 	}
