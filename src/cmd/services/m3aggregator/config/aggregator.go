@@ -133,7 +133,7 @@ type AggregatorConfiguration struct {
 	FlushManager flushManagerConfiguration `yaml:"flushManager"`
 
 	// Flushing handler configuration.
-	Flush handler.FlushHandlerConfiguration `yaml:"flush"`
+	Flush handler.FlushConfiguration `yaml:"flush"`
 
 	// Passthrough controls the passthrough knobs.
 	Passthrough *passthroughConfiguration `yaml:"passthrough"`

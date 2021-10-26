@@ -20,35 +20,7 @@
 
 package inprocess
 
-import (
-	"time"
-
-	"github.com/cenkalti/backoff/v3"
-	"go.uber.org/zap"
-)
-
-const (
-	retryMaxInterval = 5 * time.Second
-	retryMaxTime     = time.Minute
-)
-
 // StartFn is a custom function that can be used to start an M3 component.
 // Function must return a channel for interrupting the server and
 // a channel for receiving notifications that the server has shut down.
 type StartFn func() (chan<- error, <-chan struct{})
-
-func retry(op func() error) error {
-	bo := backoff.NewExponentialBackOff()
-	bo.MaxInterval = retryMaxInterval
-	bo.MaxElapsedTime = retryMaxTime
-	return backoff.Retry(op, bo)
-}
-
-// NewLogger creates a new development zap logger without stacktraces
-// to cut down on verbosity.
-func NewLogger() (*zap.Logger, error) {
-	logCfg := zap.NewDevelopmentConfig()
-	logCfg.DisableStacktrace = true
-
-	return logCfg.Build()
-}

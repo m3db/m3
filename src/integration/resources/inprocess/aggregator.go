@@ -42,8 +42,6 @@ import (
 	xos "github.com/m3db/m3/src/x/os"
 )
 
-var errNoHTTPConfig = errors.New("no http configuration")
-
 // Aggregator is an in-process implementation of resources.Aggregator for use
 // in integration tests.
 type Aggregator struct {
@@ -92,19 +90,20 @@ func NewAggregator(cfg config.Configuration, opts AggregatorOptions) (resources.
 	}
 
 	// configure logger
-	hostID, err := cfg.Aggregator.HostIDOrDefault().Resolve()
+	hostID, err := cfg.AggregatorOrDefault().HostID.Resolve()
 	if err != nil {
 		return nil, err
 	}
 
-	if len(cfg.Logging.Fields) == 0 {
-		cfg.Logging.Fields = make(map[string]interface{})
+	loggingCfg := cfg.LoggingOrDefault()
+	if len(loggingCfg.Fields) == 0 {
+		loggingCfg.Fields = make(map[string]interface{})
 	}
-	cfg.Logging.Fields["component"] = fmt.Sprintf("m3aggregator:%s", hostID)
+	loggingCfg.Fields["component"] = fmt.Sprintf("m3aggregator:%s", hostID)
 
 	if opts.Logger == nil {
 		var err error
-		opts.Logger, err = NewLogger()
+		opts.Logger, err = resources.NewLogger()
 		if err != nil {
 			return nil, err
 		}
@@ -124,29 +123,17 @@ func NewAggregator(cfg config.Configuration, opts AggregatorOptions) (resources.
 
 // IsHealthy determines whether an instance is healthy.
 func (a *Aggregator) IsHealthy() error {
-	if a.cfg.HTTP == nil {
-		return errNoHTTPConfig
-	}
-
-	return a.httpClient.IsHealthy(a.cfg.HTTP.ListenAddress)
+	return a.httpClient.IsHealthy(a.cfg.HTTPOrDefault().ListenAddress)
 }
 
 // Status returns the instance status.
 func (a *Aggregator) Status() (m3agg.RuntimeStatus, error) {
-	if a.cfg.HTTP == nil {
-		return m3agg.RuntimeStatus{}, errNoHTTPConfig
-	}
-
-	return a.httpClient.Status(a.cfg.HTTP.ListenAddress)
+	return a.httpClient.Status(a.cfg.HTTPOrDefault().ListenAddress)
 }
 
 // Resign asks an aggregator instance to give up its current leader role if applicable.
 func (a *Aggregator) Resign() error {
-	if a.cfg.HTTP == nil {
-		return errNoHTTPConfig
-	}
-
-	return a.httpClient.Resign(a.cfg.HTTP.ListenAddress)
+	return a.httpClient.Resign(a.cfg.HTTPOrDefault().ListenAddress)
 }
 
 // Close closes the wrapper and releases any held resources, including
@@ -230,46 +217,51 @@ func updateAggregatorConfig(
 
 func updateAggregatorHostID(cfg config.Configuration) config.Configuration {
 	hostID := uuid.New().String()
-	cfg.Aggregator.HostID = &hostid.Configuration{
+	aggCfg := cfg.AggregatorOrDefault()
+	aggCfg.HostID = &hostid.Configuration{
 		Resolver: hostid.ConfigResolver,
 		Value:    &hostID,
 	}
+	cfg.Aggregator = &aggCfg
 
 	return cfg
 }
 
 func updateAggregatorPorts(cfg config.Configuration) (config.Configuration, error) {
-	if cfg.HTTP != nil {
-		addr, _, err := nettest.GeneratePort(cfg.HTTP.ListenAddress)
+	httpCfg := cfg.HTTPOrDefault()
+	addr, _, err := nettest.GeneratePort(httpCfg.ListenAddress)
+	if err != nil {
+		return cfg, err
+	}
+	httpCfg.ListenAddress = addr
+	cfg.HTTP = &httpCfg
+
+	metricsCfg := cfg.MetricsOrDefault()
+	if metricsCfg.PrometheusReporter != nil && metricsCfg.PrometheusReporter.ListenAddress != "" {
+		addr, _, err := nettest.GeneratePort(metricsCfg.PrometheusReporter.ListenAddress)
 		if err != nil {
 			return cfg, err
 		}
-
-		cfg.HTTP.ListenAddress = addr
+		metricsCfg.PrometheusReporter.ListenAddress = addr
 	}
-
-	if cfg.Metrics.PrometheusReporter != nil {
-		addr, _, err := nettest.GeneratePort(cfg.Metrics.PrometheusReporter.ListenAddress)
-		if err != nil {
-			return cfg, err
-		}
-
-		cfg.Metrics.PrometheusReporter.ListenAddress = addr
-	}
+	cfg.Metrics = &metricsCfg
 
 	return cfg, nil
 }
 
 func updateAggregatorFilepaths(cfg config.Configuration) (config.Configuration, []string, error) {
 	tmpDirs := make([]string, 0, 1)
-	if cfg.KVClient.Etcd != nil && cfg.KVClient.Etcd.CacheDir == "*" {
+
+	kvCfg := cfg.KVClientOrDefault()
+	if kvCfg.Etcd != nil {
 		dir, err := ioutil.TempDir("", "m3agg-*")
 		if err != nil {
 			return cfg, tmpDirs, err
 		}
 		tmpDirs = append(tmpDirs, dir)
-		cfg.KVClient.Etcd.CacheDir = dir
+		kvCfg.Etcd.CacheDir = dir
 	}
+	cfg.KVClient = &kvCfg
 
 	return cfg, tmpDirs, nil
 }

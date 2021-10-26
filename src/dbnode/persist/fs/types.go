@@ -338,13 +338,14 @@ type IndexWriterSnapshotOptions struct {
 
 // IndexWriterOpenOptions is a set of options when opening an index file set writer.
 type IndexWriterOpenOptions struct {
-	Identifier  FileSetFileIdentifier
-	BlockSize   time.Duration
-	FileSetType persist.FileSetType
-	Shards      map[uint32]struct{}
-	// Only used when writing snapshot files
-	Snapshot        IndexWriterSnapshotOptions
+	Identifier      FileSetFileIdentifier
+	BlockSize       time.Duration
+	FileSetType     persist.FileSetType
+	Shards          map[uint32]struct{}
 	IndexVolumeType idxpersist.IndexVolumeType
+
+	// Only used when writing snapshot files.
+	Snapshot IndexWriterSnapshotOptions
 }
 
 // IndexFileSetWriter is a index file set writer.
@@ -530,7 +531,7 @@ type Options interface {
 	// FSTOptions returns the fst options.
 	FSTOptions() fst.Options
 
-	// SetFStWriterOptions sets the fst writer options.
+	// SetFSTWriterOptions sets the fst writer options.
 	SetFSTWriterOptions(value fst.WriterOptions) Options
 
 	// FSTWriterOptions returns the fst writer options.

@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/integration/resources"
+	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/hostid"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
@@ -56,6 +57,28 @@ type ClusterConfigs struct {
 	DBNode dbcfg.Configuration
 	// Coordinator is the configuration for the coordinator.
 	Coordinator coordinatorcfg.Configuration
+}
+
+// NewClusterConfigsFromConfigFile creates a new ClusterConfigs object from the
+// provided filepaths for dbnode and coordinator configuration.
+func NewClusterConfigsFromConfigFile(
+	pathToDBNodeCfg string,
+	pathToCoordCfg string,
+) (ClusterConfigs, error) {
+	var dCfg dbcfg.Configuration
+	if err := xconfig.LoadFile(&dCfg, pathToDBNodeCfg, xconfig.Options{}); err != nil {
+		return ClusterConfigs{}, err
+	}
+
+	var cCfg coordinatorcfg.Configuration
+	if err := xconfig.LoadFile(&cCfg, pathToCoordCfg, xconfig.Options{}); err != nil {
+		return ClusterConfigs{}, err
+	}
+
+	return ClusterConfigs{
+		DBNode:      dCfg,
+		Coordinator: cCfg,
+	}, nil
 }
 
 // NewClusterConfigsFromYAML creates a new ClusterConfigs object from YAML strings
@@ -134,7 +157,7 @@ func NewCluster(configs ClusterConfigs, opts ClusterOptions) (resources.M3Resour
 		return nil, err
 	}
 
-	logger, err := NewLogger()
+	logger, err := resources.NewLogger()
 	if err != nil {
 		return nil, err
 	}

@@ -122,6 +122,8 @@ func TestResendAggregatedValueStress(t *testing.T) {
 		SetMaxAllowedForwardingDelayFn(func(resolution time.Duration, numForwardedTimes int) time.Duration {
 			return resolution
 		}).
+		// allow testing entry Closing
+		SetEntryTTL(time.Second).
 		SetInstrumentOptions(instrumentOpts).
 		SetElectionCluster(electionCluster).
 		SetHTTPAddr(serverSetup.httpAddr).
@@ -229,7 +231,7 @@ func TestResendAggregatedValueStress(t *testing.T) {
 					expectedTs, actualVal, zero, round)
 			}
 
-			if round > 1000 {
+			if round > 2000 {
 				stop1 <- struct{}{}
 				stop2 <- struct{}{}
 				ticker.Stop()
@@ -240,6 +242,9 @@ func TestResendAggregatedValueStress(t *testing.T) {
 
 	wg.Wait()
 	log.Sugar().Infof("done. Ran for %v\n", time.Since(start))
+
+	// give time for the aggregations to Close.
+	time.Sleep(time.Second * 5)
 
 	require.NoError(t, c1.close())
 	require.NoError(t, c2.close())
