@@ -94,8 +94,8 @@ func TestMixedRoundTrip(t *testing.T) {
 
 func TestPrecision(t *testing.T) {
 	var (
-		num = 100
-		input = make([]ts.Datapoint, 0, num)
+		num       = 100
+		input     = make([]ts.Datapoint, 0, num)
 		timestamp = xtime.Now()
 	)
 
