@@ -69,7 +69,8 @@ func TestFanoutUnaggregatedDisableReturnsAggregatedNamespaces(t *testing.T) {
 
 	start := xtime.Now()
 	end := start.Add(time.Hour * 24 * -90)
-	_, clusters, err := resolveClusterNamespacesForQuery(start, start, end, store.clusters, opts, nil, nil)
+	_, clusters, err := resolveClusterNamespacesForQuery(start, start, end, store.clusters, opts,
+		nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(clusters))
 	assert.Equal(t, "metrics_aggregated_1m:30d", clusters[0].NamespaceID().String())
@@ -108,7 +109,8 @@ func TestGraphitePath(t *testing.T) {
 
 	start := xtime.Now()
 	end := start.Add(time.Second * -30)
-	_, clusters, err := resolveClusterNamespacesForQuery(start, start, end, store.clusters, opts, nil, nil)
+	_, clusters, err := resolveClusterNamespacesForQuery(start, start, end, store.clusters, opts,
+		nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, 4, len(clusters))
 	expected := []string{
@@ -462,12 +464,16 @@ func TestResolveClusterNamespacesForQueryWithOptions(t *testing.T) {
 
 			relatedQueries := make([]storage.QueryTimespan, 0, len(tt.relatedQueryOffsets))
 			for _, offset := range tt.relatedQueryOffsets {
-				timespan := storage.QueryTimespan{Start: now.Add(-offset.startOffset), End: now.Add(-offset.endOffset)}
+				timespan := storage.QueryTimespan{
+					Start: now.Add(-offset.startOffset),
+					End:   now.Add(-offset.endOffset),
+				}
 				relatedQueries = append(relatedQueries, timespan)
 			}
 
 			fanoutType, clusters, err := resolveClusterNamespacesForQuery(now,
-				start, end, clusters, tt.opts, tt.restrict, &storage.RelatedQueryOptions{TimeRanges: relatedQueries})
+				start, end, clusters, tt.opts, tt.restrict,
+				&storage.RelatedQueryOptions{TimeRanges: relatedQueries})
 			if tt.expectedErr != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.expectedErr, err)
@@ -546,7 +552,8 @@ func TestLongUnaggregatedRetention(t *testing.T) {
 		FanoutAggregatedOptimized: storage.FanoutForceEnable,
 	}
 
-	fanoutType, ns, err := resolveClusterNamespacesForQuery(now, start, end, clusters, opts, nil, nil)
+	fanoutType, ns, err := resolveClusterNamespacesForQuery(now, start, end, clusters,
+		opts, nil, nil)
 
 	require.NoError(t, err)
 	actualNames := make([]string, len(ns))
@@ -593,7 +600,8 @@ func TestExampleCase(t *testing.T) {
 
 	for i := 27; i < 17520; i++ {
 		start := now.Add(time.Hour * -1 * time.Duration(i))
-		fanoutType, clusters, err := resolveClusterNamespacesForQuery(now, start, end, ns, &storage.FanoutOptions{}, nil, nil)
+		fanoutType, clusters, err := resolveClusterNamespacesForQuery(now, start, end, ns,
+			&storage.FanoutOptions{}, nil, nil)
 
 		require.NoError(t, err)
 		actualNames := make([]string, len(clusters))
@@ -639,7 +647,8 @@ func TestDeduplicatePartialAggregateNamespaces(t *testing.T) {
 	end := now
 
 	start := now.Add(-48 * time.Hour)
-	fanoutType, clusters, err := resolveClusterNamespacesForQuery(now, start, end, ns, &storage.FanoutOptions{}, nil, nil)
+	fanoutType, clusters, err := resolveClusterNamespacesForQuery(now, start, end, ns,
+		&storage.FanoutOptions{}, nil, nil)
 	require.NoError(t, err)
 
 	actualNames := make([]string, len(clusters))

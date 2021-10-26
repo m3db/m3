@@ -448,7 +448,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	} else if ok {
 		if metricsStoragePolicyHeaderFound || metricsTypeHeaderFound || metricsRestrictByStorageHeaderFound {
 			err = fmt.Errorf(
-				"restrict by policies is incompatible with M3-Metrics-Type, " +
+				"related queries are incompatible with M3-Metrics-Type, " +
 					"Restrict-By-Storage-Policies, and M3-Storage-Policy headers")
 			return nil, nil, err
 		}
@@ -621,22 +621,17 @@ func ParseRequestTimeout(
 // it returns ok==false if no such options exist
 func ParseRelatedQueryOptions(r *http.Request) (*storage.RelatedQueryOptions, bool, error) {
 	str := r.Header.Get(headers.RelatedQueriesHeader)
-
 	if str == "" {
 		return nil, false, nil
 	}
 
-	vals := strings.Split(str, ",")
-
+	vals := strings.Split(str, ";")
 	queryRanges := make([]storage.QueryTimespan, 0, len(vals))
-
-	// we must have something at this point
 	for _, headerVal := range vals {
 		parts := strings.Split(headerVal, ":")
-
 		if len(parts) != 2 {
 			return nil, false, xerrors.NewInvalidParamsError(
-				fmt.Errorf("invalid '%s': expecting a colon-separated pair of values %v",
+				fmt.Errorf("invalid '%s': expected colon-separated pair of start/end timestamps, but got %v",
 					headers.RelatedQueriesHeader,
 					headerVal))
 		}
@@ -645,20 +640,20 @@ func ParseRelatedQueryOptions(r *http.Request) (*storage.RelatedQueryOptions, bo
 		startTime, err := util.ParseTimeString(startTS)
 		if err != nil {
 			return nil, false, xerrors.NewInvalidParamsError(
-				fmt.Errorf("invalid '%s': Cannot parse %v to time in pair %v", headers.RelatedQueriesHeader,
-					startTS, headerVal))
+				fmt.Errorf("invalid '%s': Cannot parse %v to time in pair %v",
+					headers.RelatedQueriesHeader,
+					startTS,
+					headerVal))
 		}
-
 		endTime, err := util.ParseTimeString(endTS)
 		if err != nil {
 			return nil, false, xerrors.NewInvalidParamsError(
 				fmt.Errorf("invalid '%s': Cannot parse %v to time in pair %v", headers.RelatedQueriesHeader,
 					endTS, headerVal))
 		}
-
 		if startTime.After(endTime) {
 			return nil, false, xerrors.NewInvalidParamsError(
-				fmt.Errorf("invalid '%s': endTime after startTime in pair %v", headers.RelatedQueriesHeader,
+				fmt.Errorf("invalid '%s': startTime after endTime in pair %v", headers.RelatedQueriesHeader,
 					headerVal))
 		}
 		val := storage.QueryTimespan{Start: xtime.ToUnixNano(startTime), End: xtime.ToUnixNano(endTime)}

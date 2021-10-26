@@ -524,7 +524,9 @@ func TestParseRelatedQueryOptions(t *testing.T) {
 			expectErr:  false,
 			expectedOk: true,
 			expectedResult: &storage.RelatedQueryOptions{
-				TimeRanges: []storage.QueryTimespan{{Start: 1635160222000000000, End: 1635166222000000000}},
+				TimeRanges: []storage.QueryTimespan{
+					{Start: 1635160222000000000, End: 1635166222000000000},
+				},
 			},
 		},
 		"multiple queries (second header ignored)": {
@@ -538,7 +540,7 @@ func TestParseRelatedQueryOptions(t *testing.T) {
 			},
 		},
 		"multiple queries same header.": {
-			headers:    []string{"1635160222:1635166222,1635161222:1635165222"},
+			headers:    []string{"1635160222:1635166222;1635161222:1635165222"},
 			expectErr:  false,
 			expectedOk: true,
 			expectedResult: &storage.RelatedQueryOptions{
@@ -590,7 +592,8 @@ func TestParseRelatedQueryOptions(t *testing.T) {
 				req.Header.Add(headers.RelatedQueriesHeader, header)
 			}
 			options, ok, err := ParseRelatedQueryOptions(req)
-			assert.Equal(t, tc.expectedOk, ok, "Expected result of ok to be %v got %v", tc.expectedOk, ok)
+			assert.Equal(t, tc.expectedOk, ok,
+				"Expected result of ok to be %v got %v", tc.expectedOk, ok)
 
 			if tc.expectErr {
 				assert.Error(t, err)
