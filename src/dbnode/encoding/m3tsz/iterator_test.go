@@ -454,7 +454,7 @@ func TestReaderIteratorDecodingDecreaseTolerance(t *testing.T) {
 			name:      "tolerance expires in the middle",
 			given:     []float64{200, 199.99, 200, 199.99, 200, 199.99},
 			tolerance: 0.0001,
-			until:     now.Add(3*time.Minute),
+			until:     now.Add(3 * time.Minute),
 			want:      []float64{200, 200, 200, 199.99, 200, 199.99},
 		},
 	}
