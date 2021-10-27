@@ -21,8 +21,10 @@
 package docker
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/ory/dockertest/v3"
 
@@ -92,7 +94,33 @@ func (p *prometheus) Setup() error {
 
 	p.resource = res
 
-	return nil
+	return p.waitForHealthy()
+}
+
+func (p *prometheus) waitForHealthy() error {
+	return resources.Retry(func() error {
+		req, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"http://0.0.0.0:9090/-/ready",
+			nil,
+		)
+		if err != nil {
+			return err
+		}
+
+		client := http.Client{}
+		res, _ := client.Do(req)
+		if res != nil {
+			_ = res.Body.Close()
+
+			if res.StatusCode == http.StatusOK {
+				return nil
+			}
+		}
+
+		return errors.New("prometheus not ready")
+	})
 }
 
 func (p *prometheus) Close() error {
