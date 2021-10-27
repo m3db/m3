@@ -152,7 +152,7 @@ type M3TSZEncodingConfiguration struct {
 	// ValueDecreaseTolerance allows for setting a specific amount of tolerance
 	// to avoid returning a decrease if it's below a certain tolerance.
 	// This is useful for applications that have precision issues emitting
-	// monotonic increasing data and will accidently make it seem like the
+	// monotonic increasing data and will accidentally make it seem like the
 	// counter value decreases when it hasn't changed.
 	ValueDecreaseTolerance float64 `yaml:"valueDecreaseTolerance"`
 	// ValueDecreaseToleranceUntil allows for setting a a time threshold on

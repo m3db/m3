@@ -127,7 +127,8 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 	}
 
 	store := NewStorage(stores, filterFunc(output), filterFunc(output),
-		filterCompleteTagsFunc(output), models.NewTagOptions(), storagem3.NewOptions(encoding.NewOptions()), instrument.NewOptions())
+		filterCompleteTagsFunc(output), models.NewTagOptions(),
+		storagem3.NewOptions(encoding.NewOptions()), instrument.NewOptions())
 	return store
 }
 
