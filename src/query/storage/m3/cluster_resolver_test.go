@@ -473,7 +473,7 @@ func TestResolveClusterNamespacesForQueryWithOptions(t *testing.T) {
 
 			fanoutType, clusters, err := resolveClusterNamespacesForQuery(now,
 				start, end, clusters, tt.opts, tt.restrict,
-				&storage.RelatedQueryOptions{TimeRanges: relatedQueries})
+				&storage.RelatedQueryOptions{Timespans: relatedQueries})
 			if tt.expectedErr != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.expectedErr, err)

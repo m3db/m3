@@ -524,7 +524,7 @@ func TestParseRelatedQueryOptions(t *testing.T) {
 			expectErr:  false,
 			expectedOk: true,
 			expectedResult: &storage.RelatedQueryOptions{
-				TimeRanges: []storage.QueryTimespan{
+				Timespans: []storage.QueryTimespan{
 					{Start: 1635160222000000000, End: 1635166222000000000},
 				},
 			},
@@ -534,7 +534,7 @@ func TestParseRelatedQueryOptions(t *testing.T) {
 			expectErr:  false,
 			expectedOk: true,
 			expectedResult: &storage.RelatedQueryOptions{
-				TimeRanges: []storage.QueryTimespan{
+				Timespans: []storage.QueryTimespan{
 					{Start: 1635160222000000000, End: 1635166222000000000},
 				},
 			},
@@ -544,7 +544,7 @@ func TestParseRelatedQueryOptions(t *testing.T) {
 			expectErr:  false,
 			expectedOk: true,
 			expectedResult: &storage.RelatedQueryOptions{
-				TimeRanges: []storage.QueryTimespan{
+				Timespans: []storage.QueryTimespan{
 					{Start: 1635160222000000000, End: 1635166222000000000},
 					{Start: 1635161222000000000, End: 1635165222000000000},
 				},

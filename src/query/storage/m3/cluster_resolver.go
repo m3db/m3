@@ -89,8 +89,8 @@ func resolveClusterNamespacesForQuery(
 	// NB: We do not calculate a new end time because it does not factor
 	// into namespace selection.
 	namespaceSelectionStart := start
-	if relatedQueryOpts != nil && relatedQueryOpts.TimeRanges != nil {
-		for _, timeRange := range relatedQueryOpts.TimeRanges {
+	if relatedQueryOpts != nil {
+		for _, timeRange := range relatedQueryOpts.Timespans {
 			if timeRange.Start < namespaceSelectionStart {
 				namespaceSelectionStart = timeRange.Start
 			}

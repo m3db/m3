@@ -358,14 +358,14 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		fetchOpts.RestrictQueryOptions.RestrictByType.StoragePolicy = sp
 	}
 
-	metricsRestrictByStorageHeaderFound := false
+	metricsRestrictByStoragePoliciesHeaderFound := false
 	if str := req.Header.Get(headers.MetricsRestrictByStoragePoliciesHeader); str != "" {
 		if metricsTypeHeaderFound || metricsStoragePolicyHeaderFound {
 			err = fmt.Errorf(
 				"restrict by policies is incompatible with M3-Metrics-Type and M3-Storage-Policy headers")
 			return nil, nil, err
 		}
-		metricsRestrictByStorageHeaderFound = true
+		metricsRestrictByStoragePoliciesHeaderFound = true
 		policyStrs := strings.Split(str, ";")
 		if len(policyStrs) == 0 {
 			err = fmt.Errorf(
@@ -446,7 +446,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 			"could not parse related query options: err=%w", err)
 		return nil, nil, err
 	} else if ok {
-		if metricsStoragePolicyHeaderFound || metricsTypeHeaderFound || metricsRestrictByStorageHeaderFound {
+		if metricsStoragePolicyHeaderFound || metricsTypeHeaderFound || metricsRestrictByStoragePoliciesHeaderFound {
 			err = fmt.Errorf(
 				"related queries are incompatible with M3-Metrics-Type, " +
 					"Restrict-By-Storage-Policies, and M3-Storage-Policy headers")
@@ -661,7 +661,7 @@ func ParseRelatedQueryOptions(r *http.Request) (*storage.RelatedQueryOptions, bo
 	}
 
 	return &storage.RelatedQueryOptions{
-		TimeRanges: queryRanges,
+		Timespans: queryRanges,
 	}, true, nil
 }
 

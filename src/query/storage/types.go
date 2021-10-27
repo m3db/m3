@@ -158,7 +158,7 @@ type QueryTimespan struct {
 // RelatedQueryOptions describes the timespan of any related queries the client might be making
 // This is used to align the resolution of returned data across all queries.
 type RelatedQueryOptions struct {
-	TimeRanges []QueryTimespan
+	Timespans []QueryTimespan
 }
 
 // FanoutOptions describes which namespaces should be fanned out to for
