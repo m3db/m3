@@ -99,7 +99,14 @@ func (it *readerIterator) Next() bool {
 	if !it.intOptimized || it.isFloat {
 		it.curr.Value = math.Float64frombits(it.floatIter.PrevFloatBits)
 	} else {
-		it.curr.Value = convertFromIntFloat(it.intVal, it.mult)
+		prevValue := it.curr.Value
+		currValue := convertFromIntFloat(it.intVal, it.mult)
+		decreaseTolerance, toleranceUntil := it.opts.ValueDecreaseTolerance()
+		if decreaseTolerance > 0 && it.curr.TimestampNanos.Before(toleranceUntil) &&
+			!first && currValue < prevValue && currValue > prevValue*(1-decreaseTolerance) {
+			currValue = prevValue
+		}
+		it.curr.Value = currValue
 	}
 
 	return it.hasNext()

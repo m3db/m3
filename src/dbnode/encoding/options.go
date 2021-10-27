@@ -53,6 +53,9 @@ type options struct {
 	iStreamReaderSizeM3TSZ  int
 	iStreamReaderSizeProto  int
 	metrics                 Metrics
+
+	valueDecreaseTolerance      float64
+	valueDecreaseToleranceUntil xtime.UnixNano
 }
 
 func newOptions() Options {
@@ -190,4 +193,20 @@ func (o *options) SetMetrics(value Metrics) Options {
 
 func (o *options) Metrics() Metrics {
 	return o.metrics
+}
+
+func (o *options) SetValueDecreaseTolerance(value float64) Options {
+	opts := *o
+	opts.valueDecreaseTolerance = value
+	return &opts
+}
+
+func (o *options) SetValueDecreaseToleranceUntil(value xtime.UnixNano) Options {
+	opts := *o
+	opts.valueDecreaseToleranceUntil = value
+	return &opts
+}
+
+func (o *options) ValueDecreaseTolerance() (float64, xtime.UnixNano) {
+	return o.valueDecreaseTolerance, o.valueDecreaseToleranceUntil
 }
