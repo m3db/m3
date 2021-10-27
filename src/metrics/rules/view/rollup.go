@@ -41,7 +41,8 @@ func (t *RollupTarget) Equal(other *RollupTarget) bool {
 	if t == nil || other == nil {
 		return false
 	}
-	return t.Pipeline.Equal(other.Pipeline) && t.StoragePolicies.Equal(other.StoragePolicies)
+	return t.Pipeline.Equal(other.Pipeline) && t.StoragePolicies.Equal(other.StoragePolicies) &&
+		t.ResendEnabled == other.ResendEnabled
 }
 
 // RollupRule is rollup rule model.

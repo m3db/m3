@@ -92,6 +92,21 @@ func TestMixedRoundTrip(t *testing.T) {
 	}
 }
 
+func TestPrecision(t *testing.T) {
+	var (
+		num       = 100
+		input     = make([]ts.Datapoint, 0, num)
+		timestamp = xtime.Now()
+	)
+
+	for i := 0; i < num; i++ {
+		input = append(input, ts.Datapoint{TimestampNanos: timestamp, Value: 187.80131100000006})
+		timestamp = timestamp.Add(time.Minute)
+	}
+
+	testRoundTrip(t, input)
+}
+
 func TestIntOverflow(t *testing.T) {
 	testRoundTrip(t, generateOverflowDatapoints())
 }
@@ -159,10 +174,10 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 			expectedAnnotation = nil
 		}
 
-		require.Equal(t, input[i].TimestampNanos, v.TimestampNanos)
-		require.Equal(t, input[i].Value, v.Value)
-		require.Equal(t, timeUnits[i], u)
-		require.Equal(t, expectedAnnotation, a)
+		require.Equal(t, input[i].TimestampNanos, v.TimestampNanos, "datapoint #%d", i)
+		require.Equal(t, input[i].Value, v.Value, "datapoint #%d", i)
+		require.Equal(t, timeUnits[i], u, "datapoint #%d", i)
+		require.Equal(t, expectedAnnotation, a, "datapoint #%d", i)
 
 		i++
 	}
