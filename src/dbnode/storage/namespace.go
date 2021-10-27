@@ -731,6 +731,7 @@ func (n *dbNamespace) Write(
 	seriesWrite, err := shard.Write(ctx, id, timestamp,
 		value, unit, annotation, opts)
 	if err == nil && len(annotation) == 0 {
+		n.log.Info("metric without annotation", zap.String("id", id.String()))
 		n.metrics.writesWithoutAnnotation.Inc(1)
 	}
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
@@ -771,6 +772,7 @@ func (n *dbNamespace) WriteTagged(
 	seriesWrite, err := shard.WriteTagged(ctx, id, tagResolver, timestamp,
 		value, unit, annotation, opts)
 	if err == nil && len(annotation) == 0 {
+		n.log.Info("metric without annotation", zap.String("id", id.String()))
 		n.metrics.writesWithoutAnnotation.Inc(1)
 	}
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
