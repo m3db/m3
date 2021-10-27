@@ -163,9 +163,10 @@ func newForwardedEntryMetrics(scope tally.Scope) forwardedEntryMetrics {
 }
 
 type entryMetrics struct {
-	untimed   untimedEntryMetrics
-	timed     timedEntryMetrics
-	forwarded forwardedEntryMetrics
+	resendEnabled tally.Counter
+	untimed       untimedEntryMetrics
+	timed         timedEntryMetrics
+	forwarded     forwardedEntryMetrics
 }
 
 // NewEntryMetrics creates new entry metrics.
@@ -176,6 +177,7 @@ func NewEntryMetrics(scope tally.Scope) *entryMetrics {
 	timedEntryScope := scope.Tagged(map[string]string{"entry-type": "timed"})
 	forwardedEntryScope := scope.Tagged(map[string]string{"entry-type": "forwarded"})
 	return &entryMetrics{
+		resendEnabled: scope.Counter("resend-enabled"),
 		untimed:   newUntimedEntryMetrics(untimedEntryScope),
 		timed:     newTimedEntryMetrics(timedEntryScope),
 		forwarded: newForwardedEntryMetrics(forwardedEntryScope),
@@ -697,6 +699,7 @@ func (e *Entry) addUntimedWithLock(timestamp time.Time, mu unaggregated.MetricUn
 	for i := range e.aggregations {
 		resendEnabled := e.aggregations[i].resendEnabled
 		if resendEnabled && mu.ClientTimeNanos > 0 {
+			e.metrics.resendEnabled.Inc(1)
 			timestamp = mu.ClientTimeNanos.ToTime()
 			if multierr.AppendInto(
 				&err,
