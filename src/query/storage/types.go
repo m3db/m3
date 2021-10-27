@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -34,13 +36,9 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
 )
 
-var (
-	errWriteQueryNoDatapoints = errors.New("write query with no datapoints")
-)
+var errWriteQueryNoDatapoints = errors.New("write query with no datapoints")
 
 // Type describes the type of storage.
 type Type int
@@ -147,6 +145,20 @@ type FetchOptions struct {
 	Timeout time.Duration
 	// Source is the source for the query.
 	Source []byte
+
+	RelatedQueryOptions *RelatedQueryOptions
+}
+
+// QueryTimespan represents the start and end time of a query
+type QueryTimespan struct {
+	Start xtime.UnixNano
+	End   xtime.UnixNano
+}
+
+// RelatedQueryOptions describes the timespan of any related queries the client might be making
+// This is used to align the resolution of returned data across all queries.
+type RelatedQueryOptions struct {
+	Timespans []QueryTimespan
 }
 
 // FanoutOptions describes which namespaces should be fanned out to for
