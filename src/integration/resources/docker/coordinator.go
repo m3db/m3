@@ -21,6 +21,7 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -73,6 +74,11 @@ func newDockerHTTPCoordinator(
 			RetryFunc: resource.pool.Retry,
 		}),
 	}, nil
+}
+
+func (c *coordinator) HostDetails() (*resources.InstanceInfo, error) {
+	// TODO: add implementation
+	return nil, errors.New("not implemented")
 }
 
 func (c *coordinator) GetNamespace() (admin.NamespaceGetResponse, error) {

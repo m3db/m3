@@ -21,6 +21,8 @@
 package config
 
 import (
+	"gopkg.in/yaml.v2"
+
 	"github.com/m3db/m3/src/x/debug/config"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/log"
@@ -120,4 +122,17 @@ func (c *Configuration) AggregatorOrDefault() AggregatorConfiguration {
 	}
 
 	return defaultAggregator
+}
+
+// DeepCopy returns a deep copy of the current configuration object.
+func (c *Configuration) DeepCopy() (Configuration, error) {
+	rawCfg, err := yaml.Marshal(c)
+	if err != nil {
+		return Configuration{}, err
+	}
+	var dupe Configuration
+	if err := yaml.Unmarshal(rawCfg, &dupe); err != nil {
+		return Configuration{}, err
+	}
+	return dupe, nil
 }

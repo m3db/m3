@@ -114,7 +114,7 @@ func SetupSingleM3DBNode(opts ...SetupOptions) (resources.M3Resources, error) { 
 		nodes:       dbNodes,
 		pool:        pool,
 	}
-	err = resources.SetupCluster(cluster, nil)
+	err = resources.SetupCluster(cluster, resources.ClusterOptions{})
 
 	logger := iOpts.Logger().With(zap.String("source", "harness"))
 	logger.Info("all healthy")
@@ -186,3 +186,4 @@ func (r *dockerResources) Cleanup() error {
 
 func (r *dockerResources) Nodes() resources.Nodes             { return r.nodes }
 func (r *dockerResources) Coordinator() resources.Coordinator { return r.coordinator }
+func (r *dockerResources) Aggregators() resources.Aggregators { return nil }

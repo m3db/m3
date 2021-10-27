@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/server"
 	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/headers"
 	xos "github.com/m3db/m3/src/x/os"
 )
 
@@ -223,6 +224,54 @@ func (c *Coordinator) start() {
 
 	c.interruptCh = interruptCh
 	c.shutdownCh = shutdownCh
+}
+
+// HostDetails returns the coordinator's host details.
+func (c *Coordinator) HostDetails() (*resources.InstanceInfo, error) {
+	addr, p, err := net.SplitHostPort(c.cfg.ListenAddressOrDefault())
+	if err != nil {
+		return nil, err
+	}
+
+	port, err := strconv.Atoi(p)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		m3msgAddr string
+		m3msgPort int
+	)
+	if c.cfg.Ingest != nil {
+		a, p, err := net.SplitHostPort(c.cfg.Ingest.M3Msg.Server.ListenAddress)
+		if err != nil {
+			return nil, err
+		}
+
+		mp, err := strconv.Atoi(p)
+		if err != nil {
+			return nil, err
+		}
+
+		m3msgAddr, m3msgPort = a, mp
+	}
+
+	zone := headers.DefaultServiceZone
+	if len(c.cfg.Clusters) > 0 && c.cfg.Clusters[0].Client.EnvironmentConfig != nil {
+		envCfg := c.cfg.Clusters[0].Client.EnvironmentConfig
+		if len(envCfg.Services) > 0 && envCfg.Services[0].Service != nil {
+			zone = envCfg.Services[0].Service.Zone
+		}
+	}
+
+	return &resources.InstanceInfo{
+		ID:           "m3coordinator",
+		Zone:         zone,
+		Address:      addr,
+		Port:         uint32(port),
+		M3msgAddress: m3msgAddr,
+		M3msgPort:    uint32(m3msgPort),
+	}, nil
 }
 
 // GetNamespace gets namespaces.
