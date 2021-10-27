@@ -825,6 +825,9 @@ func (s *m3storage) writeSingle(
 ) error {
 	namespaceID := namespace.NamespaceID()
 	session := namespace.Session()
+	if len(query.Annotation()) == 0 {
+		s.logger.Info("metric without annotation", zap.String("id", identID.String()))
+	}
 	return session.WriteTagged(namespaceID, identID, iterator,
 		datapoint.Timestamp, datapoint.Value, query.Unit(), query.Annotation())
 }
