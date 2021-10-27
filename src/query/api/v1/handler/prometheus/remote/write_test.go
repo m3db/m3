@@ -328,7 +328,7 @@ func TestPromWriteMetricsTypes(t *testing.T) {
 	secondValue := verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER, true)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, false)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, false)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_SUMMARY, true)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_SUMMARY, false)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_HISTOGRAM, true)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE_HISTOGRAM, false)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_INFO, false)

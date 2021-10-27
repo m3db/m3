@@ -88,14 +88,16 @@ func convertToIntFloat(v float64, curMaxMult uint8) (float64, uint8, bool, error
 		return 0.0, 0, false, errInvalidMultiplier
 	}
 
-	val := v * multipliers[int(curMaxMult)]
 	sign := 1.0
 	if v < 0 {
 		sign = -1.0
-		val = val * -1.0
 	}
 
-	for mult := curMaxMult; mult <= maxMult && val < maxOptInt; mult++ {
+	for mult := curMaxMult; mult <= maxMult; mult++ {
+		val := v * multipliers[int(mult)] * sign
+		if val >= maxOptInt {
+			break
+		}
 		i, r := math.Modf(val)
 		if r == 0 {
 			return sign * i, mult, false, nil
@@ -111,7 +113,6 @@ func convertToIntFloat(v float64, curMaxMult uint8) (float64, uint8, bool, error
 				return sign * next, mult, false, nil
 			}
 		}
-		val = val * 10.0
 	}
 
 	return v, 0, true, nil
