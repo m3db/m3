@@ -139,7 +139,7 @@ func (a *Aggregator) HostDetails() (*resources.InstanceInfo, error) {
 		return nil, err
 	}
 
-	addr, p, err := net.SplitHostPort(a.cfg.M3MsgOrDefault().Server.ListenAddress)
+	addr, p, err := net.SplitHostPort(a.cfg.HTTPOrDefault().ListenAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -149,11 +149,24 @@ func (a *Aggregator) HostDetails() (*resources.InstanceInfo, error) {
 		return nil, err
 	}
 
+	m3msgAddr, m3msgP, err := net.SplitHostPort(a.cfg.M3MsgOrDefault().Server.ListenAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	m3msgPort, err := strconv.Atoi(m3msgP)
+	if err != nil {
+		return nil, err
+	}
+
 	return &resources.InstanceInfo{
-		ID:      id,
-		Zone:    a.cfg.KVClientOrDefault().Etcd.Zone,
-		Address: addr,
-		Port:    uint32(port),
+		ID:           id,
+		Env:          a.cfg.KVClientOrDefault().Etcd.Env,
+		Zone:         a.cfg.KVClientOrDefault().Etcd.Zone,
+		Address:      addr,
+		Port:         uint32(port),
+		M3msgAddress: m3msgAddr,
+		M3msgPort:    uint32(m3msgPort),
 	}, nil
 }
 
@@ -161,6 +174,7 @@ func (a *Aggregator) HostDetails() (*resources.InstanceInfo, error) {
 func (a *Aggregator) Start() {
 	if a.started {
 		a.logger.Warn("aggregator instance has started already")
+		return
 	}
 	a.started = true
 

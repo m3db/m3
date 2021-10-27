@@ -29,6 +29,7 @@ import (
 
 	m3agg "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/integration/resources"
 	nettest "github.com/m3db/m3/src/integration/resources/net"
@@ -142,8 +143,8 @@ func TestAggregatorWriteWithCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	cluster, err := NewCluster(cfgs,
-		ClusterOptions{
-			DBNode: NewDBNodeClusterOptions(),
+		resources.ClusterOptions{
+			DBNode: resources.NewDBNodeClusterOptions(),
 		},
 	)
 	require.NoError(t, err)
@@ -193,7 +194,7 @@ func setupM3msgTopic(t *testing.T, coord resources.Coordinator) {
 	_, err = coord.AddM3msgTopicConsumer(m3msgTopicOpts, admin.TopicAddRequest{
 		ConsumerService: &topicpb.ConsumerService{
 			ServiceId: &topicpb.ServiceID{
-				Name:        "m3aggregator",
+				Name:        handleroptions.M3AggregatorServiceName,
 				Environment: m3msgTopicOpts.Env,
 				Zone:        m3msgTopicOpts.Zone,
 			},
@@ -214,7 +215,7 @@ func setupM3msgTopic(t *testing.T, coord resources.Coordinator) {
 	_, err = coord.AddM3msgTopicConsumer(aggregatedTopicOpts, admin.TopicAddRequest{
 		ConsumerService: &topicpb.ConsumerService{
 			ServiceId: &topicpb.ServiceID{
-				Name:        "m3coordinator",
+				Name:        handleroptions.M3CoordinatorServiceName,
 				Environment: aggregatedTopicOpts.Env,
 				Zone:        aggregatedTopicOpts.Zone,
 			},
@@ -274,15 +275,14 @@ func setupPlacement(t *testing.T, coord resources.Coordinator) {
 func setupPlacementMultiAggs(t *testing.T, coord resources.Coordinator, hostDetails []*resources.InstanceInfo) {
 	instances := make([]*placementpb.Instance, 0, len(hostDetails))
 	for _, info := range hostDetails {
-		fmt.Println("****", *info)
 		instance := &placementpb.Instance{
 			Id:             info.ID,
 			IsolationGroup: info.ID,
 			Zone:           info.Zone,
 			Weight:         1,
-			Endpoint:       fmt.Sprintf("%s:%d", info.Address, info.Port),
+			Endpoint:       fmt.Sprintf("%s:%d", info.M3msgAddress, info.M3msgPort),
 			Hostname:       info.ID,
-			Port:           info.Port,
+			Port:           info.M3msgPort,
 		}
 
 		instances = append(instances, instance)

@@ -21,6 +21,7 @@
 package resources
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -30,10 +31,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
-	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -55,8 +56,7 @@ const (
 // SetupCluster setups m3 cluster on provided docker containers.
 func SetupCluster(
 	cluster M3Resources,
-	opts *ClusterOptions,
-	aggOpts *AggregatorClusterOptions,
+	opts ClusterOptions,
 ) error { // nolint: gocyclo
 	coordinator := cluster.Coordinator()
 	iOpts := instrument.NewOptions()
@@ -69,8 +69,8 @@ func SetupCluster(
 			logger.Error("could not get host details", zap.Error(err))
 			return err
 		}
-		if opts != nil && opts.NumIsolationGroups > 0 {
-			h.IsolationGroup = fmt.Sprintf("isogroup-%d", int32(i)%opts.NumIsolationGroups)
+		if opts.DBNode != nil && opts.DBNode.NumIsolationGroups > 0 {
+			h.IsolationGroup = fmt.Sprintf("isogroup-%d", int32(i)%opts.DBNode.NumIsolationGroups)
 		}
 
 		hosts = append(hosts, h)
@@ -79,12 +79,12 @@ func SetupCluster(
 
 	replicationFactor := int32(1)
 	numShards := int32(4)
-	if opts != nil {
-		if opts.ReplicationFactor > 0 {
-			replicationFactor = opts.ReplicationFactor
+	if opts.DBNode != nil {
+		if opts.DBNode.RF > 0 {
+			replicationFactor = opts.DBNode.RF
 		}
-		if opts.NumShards > 0 {
-			numShards = opts.NumShards
+		if opts.DBNode.NumShards > 0 {
+			numShards = opts.DBNode.NumShards
 		}
 	}
 
@@ -183,14 +183,22 @@ func SetupCluster(
 
 	logger.Info("all healthy")
 
-	if aggOpts != nil {
+	if opts.Aggregator != nil {
 		aggregators := cluster.Aggregators()
+		if len(aggregators) == 0 {
+			return errors.New("no aggregators have been initiazted")
+		}
 
-		if err := setupPlacement(coordinator, aggregators, *aggOpts); err != nil {
+		if err := setupPlacement(coordinator, aggregators, *opts.Aggregator); err != nil {
 			return err
 		}
 
-		if err := setupM3msgTopics(coordinator); err != nil {
+		aggInstanceInfo, err := aggregators[0].HostDetails()
+		if err != nil {
+			return err
+		}
+
+		if err := setupM3msgTopics(coordinator, *aggInstanceInfo, opts); err != nil {
 			return err
 		}
 
@@ -207,8 +215,8 @@ func setupPlacement(
 	aggs Aggregators,
 	opts AggregatorClusterOptions,
 ) error {
-	var zone string
 	// Setup aggregator placement.
+	var env, zone string
 	instances := make([]*placementpb.Instance, 0, len(aggs))
 	for i, agg := range aggs {
 		info, err := agg.HostDetails()
@@ -217,6 +225,7 @@ func setupPlacement(
 		}
 
 		if i == 0 {
+			env = info.Env
 			zone = info.Zone
 		}
 
@@ -225,9 +234,9 @@ func setupPlacement(
 			IsolationGroup: fmt.Sprintf("isogroup-%02d", i%int(opts.NumIsolationGroups)),
 			Zone:           info.Zone,
 			Weight:         1,
-			Endpoint:       net.JoinHostPort(info.Address, strconv.Itoa(int(info.Port))),
+			Endpoint:       net.JoinHostPort(info.M3msgAddress, strconv.Itoa(int(info.M3msgPort))),
 			Hostname:       info.ID,
-			Port:           info.Port,
+			Port:           info.M3msgPort,
 		}
 
 		instances = append(instances, instance)
@@ -236,15 +245,14 @@ func setupPlacement(
 	aggPlacementRequestOptions := PlacementRequestOptions{
 		Service: ServiceTypeM3Aggregator,
 		Zone:    zone,
-		// TODO: env from aggCfgs
-		Env: headers.DefaultServiceEnvironment,
+		Env:     env,
 	}
 
 	_, err := coordinator.InitPlacement(
 		aggPlacementRequestOptions,
 		admin.PlacementInitRequest{
 			NumShards:         opts.NumShards,
-			ReplicationFactor: opts.ReplicationFactor,
+			ReplicationFactor: opts.RF,
 			Instances:         instances,
 		},
 	)
@@ -253,15 +261,15 @@ func setupPlacement(
 	}
 
 	// Setup coordinator placement.
-	coordPlacementRequestOptions := PlacementRequestOptions{
-		Service: ServiceTypeM3Coordinator,
-		// TODO: get zone and env from aggCfgs
-		Zone: headers.DefaultServiceZone,
-		Env:  headers.DefaultServiceEnvironment,
-	}
 	coordHost, err := coordinator.HostDetails()
 	if err != nil {
 		return fmt.Errorf("failed to get coordinator host details: %w", err)
+	}
+
+	coordPlacementRequestOptions := PlacementRequestOptions{
+		Service: ServiceTypeM3Coordinator,
+		Zone:    coordHost.Zone,
+		Env:     coordHost.Env,
 	}
 	_, err = coordinator.InitPlacement(
 		coordPlacementRequestOptions,
@@ -270,9 +278,9 @@ func setupPlacement(
 				{
 					Id:       coordHost.ID,
 					Zone:     coordHost.Zone,
-					Endpoint: net.JoinHostPort(coordHost.Address, strconv.Itoa(int(coordHost.Port))),
+					Endpoint: net.JoinHostPort(coordHost.M3msgAddress, strconv.Itoa(int(coordHost.M3msgPort))),
 					Hostname: coordHost.ID,
-					Port:     coordHost.Port,
+					Port:     coordHost.M3msgPort,
 				},
 			},
 		},
@@ -284,20 +292,27 @@ func setupPlacement(
 	return nil
 }
 
-func setupM3msgTopics(coord Coordinator) error {
+func setupM3msgTopics(
+	coord Coordinator,
+	aggInstanceInfo InstanceInfo,
+	opts ClusterOptions,
+) error {
 	aggInputTopicOpts := M3msgTopicOptions{
-		Zone:      headers.DefaultServiceZone,
-		Env:       headers.DefaultServiceEnvironment,
+		Zone:      aggInstanceInfo.Zone,
+		Env:       aggInstanceInfo.Env,
 		TopicName: AggregatorInputTopic,
 	}
 
 	aggOutputTopicOpts := M3msgTopicOptions{
-		Zone:      headers.DefaultServiceZone,
-		Env:       headers.DefaultServiceEnvironment,
+		Zone:      aggInstanceInfo.Zone,
+		Env:       aggInstanceInfo.Env,
 		TopicName: AggregatorOutputTopic,
 	}
 
-	_, err := coord.InitM3msgTopic(aggInputTopicOpts, admin.TopicInitRequest{NumberOfShards: 4})
+	_, err := coord.InitM3msgTopic(
+		aggInputTopicOpts,
+		admin.TopicInitRequest{NumberOfShards: uint32(opts.Aggregator.NumShards)},
+	)
 	if err != nil {
 		return fmt.Errorf("failed to init aggregator input m3msg topic: %w", err)
 	}
@@ -305,7 +320,7 @@ func setupM3msgTopics(coord Coordinator) error {
 	_, err = coord.AddM3msgTopicConsumer(aggInputTopicOpts, admin.TopicAddRequest{
 		ConsumerService: &topicpb.ConsumerService{
 			ServiceId: &topicpb.ServiceID{
-				Name:        "m3aggregator",
+				Name:        handleroptions.M3AggregatorServiceName,
 				Environment: aggInputTopicOpts.Env,
 				Zone:        aggInputTopicOpts.Zone,
 			},
@@ -317,7 +332,10 @@ func setupM3msgTopics(coord Coordinator) error {
 		return fmt.Errorf("failed to add aggregator input m3msg topic consumer: %w", err)
 	}
 
-	_, err = coord.InitM3msgTopic(aggOutputTopicOpts, admin.TopicInitRequest{NumberOfShards: 4})
+	_, err = coord.InitM3msgTopic(
+		aggOutputTopicOpts,
+		admin.TopicInitRequest{NumberOfShards: uint32(opts.DBNode.NumShards)},
+	)
 	if err != nil {
 		return fmt.Errorf("failed to init aggregator output m3msg topic: %w", err)
 	}
@@ -325,7 +343,7 @@ func setupM3msgTopics(coord Coordinator) error {
 	_, err = coord.AddM3msgTopicConsumer(aggOutputTopicOpts, admin.TopicAddRequest{
 		ConsumerService: &topicpb.ConsumerService{
 			ServiceId: &topicpb.ServiceID{
-				Name:        "m3coordinator",
+				Name:        handleroptions.M3CoordinatorServiceName,
 				Environment: aggInputTopicOpts.Env,
 				Zone:        aggInputTopicOpts.Zone,
 			},

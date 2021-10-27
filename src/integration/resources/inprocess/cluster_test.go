@@ -24,6 +24,7 @@ package inprocess
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/integration/resources"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
@@ -32,8 +33,8 @@ func TestNewCluster(t *testing.T) {
 	configs, err := NewClusterConfigsFromYAML(clusterDBNodeConfig, clusterCoordConfig, "")
 	require.NoError(t, err)
 
-	m3, err := NewCluster(configs, ClusterOptions{
-		DBNode: DBNodeClusterOptions{
+	m3, err := NewCluster(configs, resources.ClusterOptions{
+		DBNode: &resources.DBNodeClusterOptions{
 			RF:                 3,
 			NumInstances:       1,
 			NumShards:          64,
@@ -49,8 +50,8 @@ func TestNewSingleNodeCluster(t *testing.T) {
 	configs, err := NewClusterConfigsFromYAML(clusterDBNodeConfig, clusterCoordConfig, "")
 	require.NoError(t, err)
 
-	m3, err := NewCluster(configs, ClusterOptions{
-		DBNode: NewDBNodeClusterOptions(),
+	m3, err := NewCluster(configs, resources.ClusterOptions{
+		DBNode: resources.NewDBNodeClusterOptions(),
 	})
 	require.NoError(t, err)
 	require.NoError(t, m3.Nodes().WaitForHealthy())
@@ -66,11 +67,11 @@ func TestNewClusterWithAgg(t *testing.T) {
 	configs, err := NewClusterConfigsFromYAML(clusterDBNodeConfig, aggregatorCoordConfig, string(aggCfgBytes))
 	require.NoError(t, err)
 
-	aggClusterOpts := NewAggregatorClusterOptions()
+	aggClusterOpts := resources.NewAggregatorClusterOptions()
 	aggClusterOpts.NumInstances = 2
-	m3, err := NewCluster(configs, ClusterOptions{
-		DBNode:     NewDBNodeClusterOptions(),
-		Aggregator: &aggClusterOpts,
+	m3, err := NewCluster(configs, resources.ClusterOptions{
+		DBNode:     resources.NewDBNodeClusterOptions(),
+		Aggregator: aggClusterOpts,
 	})
 	require.NoError(t, err)
 	require.NoError(t, m3.Nodes().WaitForHealthy())

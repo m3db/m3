@@ -181,19 +181,18 @@ type ExternalResources interface {
 type InstanceInfo struct {
 	// ID is the name of the host. It can be hostname or UUID or any other string.
 	ID string
+	// Env specifies the zone the host resides in.
+	Env string
 	// Zone specifies the zone the host resides in.
 	Zone string
 	// Address can be IP address or hostname, this is used to connect to the host.
 	Address string
-	// Port is  listen address.
+	// M3msgAddress is the address of the m3msg server if there is one.
+	M3msgAddress string
+	// Port is the port number.
 	Port uint32
-}
-
-// ClusterOptions represents a set of options for a cluster setup.
-type ClusterOptions struct {
-	ReplicationFactor  int32
-	NumShards          int32
-	NumIsolationGroups int32
+	// Port is the port of the m3msg server if there is one.
+	M3msgPort uint32
 }
 
 // Nodes is a slice of nodes.
@@ -254,45 +253,3 @@ func (a Aggregators) WaitForHealthy() error {
 	wg.Wait()
 	return multiErr.FinalError()
 }
-
-// AggregatorClusterOptions represents a set of options for aggregators in a cluster setup.
-type AggregatorClusterOptions struct {
-	ReplicationFactor  int32
-	NumShards          int32
-	NumIsolationGroups int32
-	M3msgPorts         []int32
-}
-
-// M3msgTopicOptions represents a set of options for an m3msg topic.
-type M3msgTopicOptions struct {
-	// Zone is the zone of the m3msg topic.
-	Zone string
-	// Env is the environment of the m3msg topic.
-	Env string
-	// TopicName is the topic name of the m3msg topic name.
-	TopicName string
-}
-
-// PlacementRequestOptions represents a set of options for placement-related requests.
-type PlacementRequestOptions struct {
-	// Service is the type of service for the placement request.
-	Service ServiceType
-	// Env is the environment of the placement.
-	Env string
-	// Zone is the zone of the placement.
-	Zone string
-}
-
-// ServiceType represents the type of an m3 service.
-type ServiceType int
-
-const (
-	// ServiceTypeUnknown is an unknown service type.
-	ServiceTypeUnknown ServiceType = iota
-	// ServiceTypeM3DB represents M3DB service.
-	ServiceTypeM3DB
-	// ServiceTypeM3Aggregator represents M3aggregator service.
-	ServiceTypeM3Aggregator
-	// ServiceTypeM3Coordinator represents M3coordinator service.
-	ServiceTypeM3Coordinator
-)
