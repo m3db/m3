@@ -23,6 +23,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"math/rand"
 	"net"
 	"net/http"
@@ -389,11 +390,12 @@ func Run(runOpts RunOptions) RunResult {
 	}
 
 	var (
+		encodingOpts    = cfg.Encoding.NewEncodingOptions()
 		m3dbClusters    m3.Clusters
 		m3dbPoolWrapper *pools.PoolWrapper
 	)
 
-	tsdbOpts := m3.NewOptions().
+	tsdbOpts := m3.NewOptions(encodingOpts).
 		SetTagOptions(tagOptions).
 		SetLookbackDuration(lookbackDuration).
 		SetConsolidationFunc(consolidators.TakeLast).
@@ -424,7 +426,7 @@ func Run(runOpts RunOptions) RunResult {
 		// For grpc backend, we need to setup only the grpc client and a storage
 		// accompanying that client.
 		poolWrapper := pools.NewPoolsWrapper(
-			pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
+			pools.BuildIteratorPools(encodingOpts, pools.BuildIteratorPoolsOptions{}))
 		remoteOpts := config.RemoteOptionsFromConfig(cfg.RPC)
 		remotes, enabled, err := remoteClient(poolWrapper, remoteOpts,
 			tsdbOpts, instrumentOptions)
@@ -464,9 +466,9 @@ func Run(runOpts RunOptions) RunResult {
 	case "", config.M3DBStorageType:
 		// For m3db backend, we need to make connections to the m3db cluster
 		// which generates a session and use the storage with the session.
-		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBConfig, clusterNamespacesWatcher,
-			runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions(),
-		)
+		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBConfig,
+			clusterNamespacesWatcher, runOpts.DBClient, encodingOpts,
+			instrumentOptions, tsdbOpts.CustomAdminOptions())
 		if err != nil {
 			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
@@ -946,6 +948,7 @@ func initClusters(
 	dbCfg *dbconfig.DBConfiguration,
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	dbClientCh <-chan client.Client,
+	encodingOpts encoding.Options,
 	instrumentOpts instrument.Options,
 	customAdminOptions []client.CustomAdminOption,
 ) (m3.Clusters, *pools.PoolWrapper, error) {
@@ -969,6 +972,7 @@ func initClusters(
 		opts := m3.ClustersStaticConfigurationOptions{
 			AsyncSessions:      true,
 			CustomAdminOptions: customAdminOptions,
+			EncodingOptions:    encodingOpts,
 		}
 		if staticNamespaceConfig {
 			clusters, err = cfg.Clusters.NewStaticClusters(instrumentOpts, opts, clusterNamespacesWatcher)
@@ -981,7 +985,7 @@ func initClusters(
 		}
 
 		poolWrapper = pools.NewPoolsWrapper(
-			pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
+			pools.BuildIteratorPools(encodingOpts, pools.BuildIteratorPoolsOptions{}))
 	} else {
 		localCfg := cfg.Local
 		if localCfg == nil {
@@ -1028,6 +1032,7 @@ func initClusters(
 		cfgOptions := m3.ClustersStaticConfigurationOptions{
 			ProvidedSession:    session,
 			CustomAdminOptions: customAdminOptions,
+			EncodingOptions:    encodingOpts,
 		}
 
 		if staticNamespaceConfig {
