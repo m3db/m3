@@ -330,18 +330,13 @@ func seriesIteratorFromCompressedSeries(
 		allReplicaIterators = append(allReplicaIterators, perReplicaIterator)
 	}
 
-	var (
-		id, ns ident.ID
-	)
-	idBytes := checkedBytesWrapperPool.Get(meta.GetId())
-	id = idPool.BinaryID(idBytes)
+	id := idPool.BinaryID(checkedBytesWrapperPool.Get(meta.GetId()))
 	start := xtime.UnixNano(meta.GetStartTime())
 	end := xtime.UnixNano(meta.GetEndTime())
 
 	seriesIter := seriesIterPool.Get()
 	seriesIter.Reset(encoding.SeriesIteratorOptions{
 		ID:             id,
-		Namespace:      ns,
 		Tags:           tagIter,
 		StartInclusive: start,
 		EndExclusive:   end,
