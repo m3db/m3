@@ -21,6 +21,7 @@
 package inprocess
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -204,7 +205,7 @@ func GenerateDBNodeConfigsForCluster(
 	opts *resources.DBNodeClusterOptions,
 ) ([]dbcfg.Configuration, []DBNodeOptions, environment.Configuration, error) {
 	if opts == nil {
-		return nil, nil, environment.Configuration{}, nil
+		return nil, nil, environment.Configuration{}, errors.New("dbnode cluster options is nil")
 	}
 
 	// TODO(nate): eventually support clients specifying their own discovery stanza.

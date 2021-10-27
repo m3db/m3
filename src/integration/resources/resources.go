@@ -181,8 +181,6 @@ func SetupCluster(
 		return err
 	}
 
-	logger.Info("all healthy")
-
 	if opts.Aggregator != nil {
 		aggregators := cluster.Aggregators()
 		if len(aggregators) == 0 {
@@ -205,7 +203,13 @@ func SetupCluster(
 		for _, agg := range aggregators {
 			agg.Start()
 		}
+
+		if err := aggregators.WaitForHealthy(); err != nil {
+			return err
+		}
 	}
+
+	logger.Info("all healthy")
 
 	return nil
 }

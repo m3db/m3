@@ -43,7 +43,6 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 func TestNewAggregator(t *testing.T) {
@@ -351,15 +350,6 @@ func updateTestAggConfig(cfg *config.Configuration, args testAggregatorArgs) {
 	m3msgCfg := cfg.M3MsgOrDefault()
 	m3msgCfg.Server.ListenAddress = args.m3msgAddr
 	cfg.M3Msg = &m3msgCfg
-}
-
-func loadDefaultAggregatorConfig() (config.Configuration, error) {
-	var cfg config.Configuration
-	if err := yaml.Unmarshal([]byte(defaultAggregatorConfig), &cfg); err != nil {
-		return config.Configuration{}, err
-	}
-
-	return cfg, nil
 }
 
 type testAggregatorArgs struct {

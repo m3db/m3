@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3/src/integration/resources"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 func TestNewCluster(t *testing.T) {
@@ -59,12 +58,7 @@ func TestNewSingleNodeCluster(t *testing.T) {
 }
 
 func TestNewClusterWithAgg(t *testing.T) {
-	aggCfg, err := loadDefaultAggregatorConfig()
-	require.NoError(t, err)
-	aggCfgBytes, err := yaml.Marshal(aggCfg)
-	require.NoError(t, err)
-
-	configs, err := NewClusterConfigsFromYAML(clusterDBNodeConfig, aggregatorCoordConfig, string(aggCfgBytes))
+	configs, err := NewClusterConfigsFromYAML(clusterDBNodeConfig, aggregatorCoordConfig, defaultAggregatorConfig)
 	require.NoError(t, err)
 
 	aggClusterOpts := resources.NewAggregatorClusterOptions()
