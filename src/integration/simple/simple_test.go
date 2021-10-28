@@ -41,13 +41,13 @@ func TestSimple(t *testing.T) {
 
 func testSetup(t *testing.T) (resources.M3Resources, func()) {
 	cfgs, err := inprocess.NewClusterConfigsFromYAML(
-		TestSimpleDBNodeConfig, TestSimpleCoordinatorConfig,
+		TestSimpleDBNodeConfig, TestSimpleCoordinatorConfig, "",
 	)
 	require.NoError(t, err)
 
 	m3, err := inprocess.NewCluster(cfgs,
-		inprocess.ClusterOptions{
-			DBNode: inprocess.NewDBNodeClusterOptions(),
+		resources.ClusterOptions{
+			DBNode: resources.NewDBNodeClusterOptions(),
 		},
 	)
 	require.NoError(t, err)
