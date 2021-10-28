@@ -1608,9 +1608,8 @@ func TestNamespaceAggregateTilesFailUntilBootstrapped(t *testing.T) {
 	defer ctx.Close()
 
 	var (
-		start   = xtime.Now().Truncate(time.Hour)
-		insOpts = instrument.NewOptions()
-		opts    = AggregateTilesOptions{Start: start, End: start.Add(time.Hour), InsOptions: insOpts}
+		start = xtime.Now().Truncate(time.Hour)
+		opts  = AggregateTilesOptions{Start: start, End: start.Add(time.Hour), InsOptions: insOpts}
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
