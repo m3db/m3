@@ -96,6 +96,7 @@ type flushForwardedMetricFn func(
 	value float64,
 	prevValue float64,
 	annotation []byte,
+	resendEnabled bool,
 )
 
 // An onForwardingElemFlushedFn is a callback function that should be called

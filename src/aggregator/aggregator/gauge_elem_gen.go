@@ -53,8 +53,9 @@ type lockedGaugeAggregation struct {
 }
 
 type timedGauge struct {
-	startAtNanos xtime.UnixNano // start time of an aggregation window
-	lockedAgg    *lockedGaugeAggregation
+	startAtNanos  xtime.UnixNano // start time of an aggregation window
+	lockedAgg     *lockedGaugeAggregation
+	resendEnabled bool
 
 	// this is mutable data for specifying on each Consume which previous value the
 	// current agg can reference (i.e. for binary ops). it must be mutable since the
@@ -121,15 +122,12 @@ func (e *GaugeElem) ResetSetData(data ElemData) error {
 	return e.gaugeElemBase.ResetSetData(e.aggTypesOpts, data.AggTypes, useDefaultAggregation)
 }
 
-// ResendEnabled returns true if resends are enabled for the element.
-func (e *GaugeElem) ResendEnabled() bool {
-	return e.resendEnabled
-}
-
 // AddUnion adds a metric value union at a given timestamp.
-func (e *GaugeElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) error {
+func (e *GaugeElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion, resendEnabled bool) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
-	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{})
+	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{
+		resendEnabled: resendEnabled,
+	})
 	if err != nil {
 		return err
 	}
@@ -170,7 +168,10 @@ func (e *GaugeElem) AddUnique(
 	metadata metadata.ForwardMetadata,
 ) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
-	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{initSourceSet: true})
+	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{
+		initSourceSet: true,
+		resendEnabled: metadata.ResendEnabled,
+	})
 	if err != nil {
 		return err
 	}
@@ -210,26 +211,40 @@ func (e *GaugeElem) AddUnique(
 
 // remove expired aggregations from the values map.
 func (e *GaugeElem) expireValuesWithLock(
-	expireStartTimeBefore xtime.UnixNano,
+	targetNanos int64,
 	timestampNanosFn timestampNanosFn,
 	isEarlierThanFn isEarlierThanFn) {
+	e.toExpire = e.toExpire[:0]
 	if len(e.values) == 0 {
 		return
 	}
 	resolution := e.sp.Resolution().Window
 
-	// always keep at least one value in the map for when calculating binary transforms. need to reference the previous
-	// value.
-	for isEarlierThanFn(int64(e.minStartTime), resolution, int64(expireStartTimeBefore)) {
-		if v, ok := e.values[e.minStartTime]; ok {
-			// Previous times are used to key into consumedValues, which are non-start-aligned. And so
-			// we convert from startAligned here when setting previous.
-			v.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(e.minStartTime), resolution))
-			e.toExpire = append(e.toExpire, v)
+	// start after the minimum to ensure we always keep at least one value in the map for binary transformations.
+	currStart := e.minStartTime.Add(resolution)
+	resendExpire := targetNanos - int64(e.bufferForPastTimedMetricFn(resolution))
 
-			delete(e.values, e.minStartTime)
+	for isEarlierThanFn(int64(currStart), resolution, targetNanos) {
+		if currV, ok := e.values[currStart]; ok {
+			if currV.resendEnabled {
+				// if resend enabled we want to keep this value until it is outside the buffer past period.
+				if !isEarlierThanFn(int64(currStart), resolution, resendExpire) {
+					break
+				}
+			}
+			// if this current value is eligible to be expired it will no longer be written to. this means it's safe
+			// to remove the _previous_ value since it will no longer be needed for binary transformations. when the
+			// next value is eligible to be expired, this current value will actually be removed.
+			if prevV, ok := e.values[e.minStartTime]; ok {
+				// Previous times are used to key into consumedValues, which are non-start-aligned. And so
+				// we convert from startAligned here when setting previous.
+				prevV.previousTimeNanos = xtime.UnixNano(timestampNanosFn(int64(e.minStartTime), resolution))
+				e.toExpire = append(e.toExpire, prevV)
+				delete(e.values, e.minStartTime)
+				e.minStartTime = currStart
+			}
 		}
-		e.minStartTime = e.minStartTime.Add(resolution)
+		currStart = currStart.Add(resolution)
 	}
 }
 
@@ -326,27 +341,7 @@ func (e *GaugeElem) Consume(
 			e.toConsume = append(e.toConsume, nextAgg)
 		}
 	}
-
-	// To expire values, we want to expire anything earlier than a time
-	// after we would not accept new writes
-	minUpdateableTimeNanos := xtime.UnixNano(targetNanos)
-	if e.resendEnabled {
-		// If resend is enabled we are NOT waiting until the buffer expires to flush,
-		// and therefore we need to expire only up to (consumeTime - bufferPast).
-		// If resend is disabled, we can just expire up to the consumeTime
-		// because the flushing already accounts for the entire buffer past range.
-		minUpdateableTimeNanos = minUpdateableTimeNanos.Add(-e.bufferForPastTimedMetricFn(resolution))
-	}
-
-	// When expiring, we search for the previous existing value first, and then expire anything preceding that.
-	// This ensures that we never entirely clear all values since we need to ensure one latest value at any given
-	// point in time so that any future value will still have a previous reference.
-	e.toExpire = e.toExpire[:0]
-	expiredNanos, ok := e.previousStartAlignedWithLock(minUpdateableTimeNanos)
-	if ok {
-		e.expireValuesWithLock(expiredNanos, timestampNanosFn, isEarlierThanFn)
-	}
-
+	e.expireValuesWithLock(targetNanos, timestampNanosFn, isEarlierThanFn)
 	canCollect := len(e.dirty) == 0 && e.tombstoned
 	e.Unlock()
 
@@ -357,6 +352,7 @@ func (e *GaugeElem) Consume(
 		_ = e.processValueWithAggregationLock(
 			timeNanos,
 			e.toConsume[i].previousTimeNanos,
+			e.toConsume[i].resendEnabled,
 			e.toConsume[i].lockedAgg,
 			flushLocalFn,
 			flushForwardedFn,
@@ -483,20 +479,20 @@ func (e *GaugeElem) insertDirty(alignedStart xtime.UnixNano) {
 
 // find finds the aggregation for a given time, or returns nil.
 //nolint: dupl
-func (e *GaugeElem) find(alignedStartNanos xtime.UnixNano) (*lockedGaugeAggregation, bool, error) {
+func (e *GaugeElem) find(alignedStartNanos xtime.UnixNano) (timedGauge, bool, error) {
 	e.RLock()
 	if e.closed {
 		e.RUnlock()
-		return nil, false, errElemClosed
+		return timedGauge{}, false, errElemClosed
 	}
 	timedAgg, ok := e.values[alignedStartNanos]
 	if ok {
 		dirty := timedAgg.lockedAgg.dirty
 		e.RUnlock()
-		return timedAgg.lockedAgg, dirty, nil
+		return timedAgg, dirty, nil
 	}
 	e.RUnlock()
-	return nil, false, nil
+	return timedGauge{}, false, nil
 }
 
 // findOrCreate finds the aggregation for a given time, or creates one
@@ -511,8 +507,9 @@ func (e *GaugeElem) findOrCreate(
 	if err != nil {
 		return nil, err
 	}
-	if found != nil && isDirty {
-		return found, err
+	// if the aggregation is found and does not need to be updated, return as is.
+	if found.lockedAgg != nil && isDirty && found.resendEnabled == createOpts.resendEnabled {
+		return found.lockedAgg, err
 	}
 
 	e.Lock()
@@ -523,10 +520,14 @@ func (e *GaugeElem) findOrCreate(
 
 	timedAgg, ok := e.values[alignedStart]
 	if ok {
+		// if the agg is not dirty, mark it dirty so it will be flushed.
 		if !timedAgg.lockedAgg.dirty {
 			timedAgg.lockedAgg.dirty = true
 			e.insertDirty(alignedStart)
 		}
+		// ensure the resendEnabled state is the latest.
+		timedAgg.resendEnabled = createOpts.resendEnabled
+		e.values[alignedStart] = timedAgg
 		e.Unlock()
 		return timedAgg.lockedAgg, nil
 	}
@@ -554,6 +555,7 @@ func (e *GaugeElem) findOrCreate(
 			prevValues:  make([]float64, len(e.aggTypes)),
 			dirty:       true,
 		},
+		resendEnabled: createOpts.resendEnabled,
 	}
 	e.values[alignedStart] = timedAgg
 	e.insertDirty(alignedStart)
@@ -568,6 +570,7 @@ func (e *GaugeElem) findOrCreate(
 func (e *GaugeElem) processValueWithAggregationLock(
 	timeNanos xtime.UnixNano,
 	prevTimeNanos xtime.UnixNano,
+	resendEnabled bool,
 	lockedAgg *lockedGaugeAggregation,
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
@@ -679,7 +682,7 @@ func (e *GaugeElem) processValueWithAggregationLock(
 				e.forwardLagMetric(resolution).RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed)))
 			}
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
-				int64(timeNanos), value, prevValue, lockedAgg.aggregation.Annotation())
+				int64(timeNanos), value, prevValue, lockedAgg.aggregation.Annotation(), resendEnabled)
 		}
 	}
 	return emitted

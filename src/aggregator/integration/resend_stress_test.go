@@ -36,7 +36,6 @@ import (
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
-	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/pipeline"
@@ -195,11 +194,11 @@ func TestResendAggregatedValueStress(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(3)
 	go func() {
-		writeMetrics(t, c1, stop1, "foo", true, start, resolution, stagedMetadatas)
+		writeMetrics(t, c1, stop1, "foo", start, resolution, stagedMetadatas)
 		wg.Done()
 	}()
 	go func() {
-		writeMetrics(t, c2, stop2, "bar", false, start, resolution, stagedMetadatas)
+		writeMetrics(t, c2, stop2, "bar", start, resolution, stagedMetadatas)
 		wg.Done()
 	}()
 	go func() {
@@ -261,7 +260,6 @@ func writeMetrics(
 	c *client,
 	stop chan struct{},
 	metricID string,
-	timed bool,
 	start time.Time,
 	resolution time.Duration,
 	stagedMetadatas metadata.StagedMetadatas) {
@@ -287,23 +285,13 @@ func writeMetrics(
 			if rnd.Intn(3) == 0 {
 				time.Sleep(delay)
 			}
-			if timed {
-				m := aggregated.Metric{
-					Type:      metric.GaugeType,
-					ID:        metricid.RawID(metricID),
-					TimeNanos: ts.UnixNano(),
-					Value:     value,
-				}
-				require.NoError(t, c.writeTimedMetricWithMetadatas(m, stagedMetadatas))
-			} else {
-				m := unaggregated.MetricUnion{
-					Type:            metric.GaugeType,
-					ID:              metricid.RawID(metricID),
-					ClientTimeNanos: xtime.ToUnixNano(ts),
-					GaugeVal:        value,
-				}
-				require.NoError(t, c.writeUntimedMetricWithMetadatas(m, stagedMetadatas))
+			m := unaggregated.MetricUnion{
+				Type:            metric.GaugeType,
+				ID:              metricid.RawID(metricID),
+				ClientTimeNanos: xtime.ToUnixNano(ts),
+				GaugeVal:        value,
 			}
+			require.NoError(t, c.writeUntimedMetricWithMetadatas(m, stagedMetadatas))
 			require.NoError(t, c.flush())
 		}(ts, value)
 	}

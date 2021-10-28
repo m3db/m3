@@ -476,8 +476,9 @@ func (l *baseMetricList) consumeForwardedMetric(
 	value float64,
 	prevValue float64,
 	annotation []byte,
+	resendEnabled bool,
 ) {
-	writeFn(aggregationKey, timeNanos, value, prevValue, annotation)
+	writeFn(aggregationKey, timeNanos, value, prevValue, annotation, resendEnabled)
 	l.metrics.flushForwarded.metricConsumed.Inc(1)
 }
 
@@ -489,6 +490,7 @@ func (l *baseMetricList) discardForwardedMetric(
 	value float64,
 	prevValue float64,
 	annotation []byte,
+	resendEnabled bool,
 ) {
 	l.metrics.flushForwarded.metricDiscarded.Inc(1)
 }
