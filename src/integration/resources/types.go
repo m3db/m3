@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
@@ -56,6 +58,10 @@ type Coordinator interface {
 	WriteProm(name string, tags map[string]string, samples []prompb.Sample) error
 	// RunQuery runs the given query with a given verification function.
 	RunQuery(verifier ResponseVerifier, query string, headers map[string][]string) error
+	// InstantQuery runs an instant query with provided headers
+	InstantQuery(req QueryRequest, headers map[string][]string) (model.Vector, error)
+	// RangeQuery runs a range query with provided headers
+	RangeQuery(req RangeQueryRequest, headers map[string][]string) (model.Matrix, error)
 }
 
 // Admin is a wrapper for admin functions.
@@ -252,4 +258,24 @@ func (a Aggregators) WaitForHealthy() error {
 
 	wg.Wait()
 	return multiErr.FinalError()
+}
+
+// QueryRequest represents an instant query request
+type QueryRequest struct {
+	// QueryExpr is the Prometheus expression query string.
+	QueryExpr string
+	// Time is the evaluation timestamp. It is optional.
+	Time *time.Time
+}
+
+// RangeQueryRequest represents a range query request
+type RangeQueryRequest struct {
+	// QueryExpr is the Prometheus expression query string.
+	QueryExpr string
+	// StartTime is the start timestamp of the query range. The default value is time.Now().
+	StartTime time.Time
+	// EndTime is the end timestamp of the query range. The default value is time.Now().
+	EndTime time.Time
+	// Step is the query resolution step width. It is default to 15 seconds.
+	Step time.Duration
 }

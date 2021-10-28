@@ -32,6 +32,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/prometheus/common/model"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
@@ -420,6 +421,22 @@ func (c *Coordinator) RunQuery(
 	headers map[string][]string,
 ) error {
 	return c.client.RunQuery(verifier, query, headers)
+}
+
+// InstantQuery runs an instant query with provided headers
+func (c *Coordinator) InstantQuery(
+	req resources.QueryRequest,
+	headers map[string][]string,
+) (model.Vector, error) {
+	return c.client.InstantQuery(req, headers)
+}
+
+// RangeQuery runs a range query with provided headers
+func (c *Coordinator) RangeQuery(
+	req resources.RangeQueryRequest,
+	headers map[string][]string,
+) (model.Matrix, error) {
+	return c.client.RangeQuery(req, headers)
 }
 
 func updateCoordinatorConfig(
