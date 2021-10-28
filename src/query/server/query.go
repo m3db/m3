@@ -30,6 +30,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	kitlogzap "github.com/go-kit/kit/log/zap"
+	"github.com/opentracing/opentracing-go"
+	"github.com/pkg/errors"
+	extprom "github.com/prometheus/client_golang/prometheus"
+	prometheuspromql "github.com/prometheus/prometheus/promql"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+
 	"github.com/m3db/m3/src/aggregator/server"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
@@ -61,6 +74,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/promremote"
 	"github.com/m3db/m3/src/query/storage/remote"
 	"github.com/m3db/m3/src/query/stores/m3db"
+	"github.com/m3db/m3/src/query/util/promqlengine"
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
@@ -71,19 +85,6 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xserver "github.com/m3db/m3/src/x/server"
 	xsync "github.com/m3db/m3/src/x/sync"
-
-	"github.com/go-kit/kit/log"
-	kitlogzap "github.com/go-kit/kit/log/zap"
-	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
-	extprom "github.com/prometheus/client_golang/prometheus"
-	prometheuspromql "github.com/prometheus/prometheus/promql"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 )
 
 const (
@@ -638,15 +639,19 @@ func Run(runOpts RunOptions) RunResult {
 		}
 	}
 
-	prometheusEngineFn := func(lookbackDuration time.Duration) (*prometheuspromql.Engine, error) {
-		return newPromQLEngine(lookbackDuration, cfg, nil, instrumentOptions)
-	}
+	defaultPrometheusEngine, err := newPromQLEngine(lookbackDuration, cfg, prometheusEngineRegistry, instrumentOptions)
 	if err != nil {
 		logger.Fatal("unable to create PromQL engine", zap.Error(err))
 	}
 
+	prometheusEngineFn := func(lookbackDuration time.Duration) (*prometheuspromql.Engine, error) {
+		return newPromQLEngine(lookbackDuration, cfg, nil, instrumentOptions)
+	}
+	engineCache := promqlengine.NewCache(prometheusEngineFn)
+	engineCache.Set(lookbackDuration, defaultPrometheusEngine)
+
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
-		tagOptions, engine, prometheusEngineFn, m3dbClusters, clusterClient, cfg,
+		tagOptions, engine, engineCache.Get, m3dbClusters, clusterClient, cfg,
 		runOpts.DBConfig, fetchOptsBuilder, graphiteFindFetchOptsBuilder, graphiteRenderFetchOptsBuilder,
 		queryCtxOpts, instrumentOptions, cpuProfileDuration, []string{handleroptions3.M3DBServiceName},
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
@@ -1336,18 +1341,20 @@ func newDownsamplerAndWriter(
 func newPromQLEngine(
 	lookbackDelta time.Duration,
 	cfg config.Configuration,
-	registry *extprom.Registry,
+	registry extprom.Registerer,
 	instrumentOpts instrument.Options,
 ) (*prometheuspromql.Engine, error) {
 	if lookbackDelta < 0 {
 		return nil, errors.New("lookbackDelta cannot be negative")
 	}
 
+	// FIXME(vilius): remove this logging before merge
 	instrumentOpts.Logger().Info("creating new PromQL engine", zap.Duration("lookbackDelta", lookbackDelta))
 	var (
 		kitLogger = kitlogzap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
 		opts      = prometheuspromql.EngineOpts{
 			Logger:        log.With(kitLogger, "component", "prometheus_engine"),
+			Reg:           registry,
 			MaxSamples:    cfg.Query.Prometheus.MaxSamplesPerQueryOrDefault(),
 			Timeout:       cfg.Query.TimeoutOrDefault(),
 			LookbackDelta: lookbackDelta,
