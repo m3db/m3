@@ -50,7 +50,10 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 		start    string
 		end      string
 		instant  bool
-		expected string
+		lookback *time.Duration
+
+		expectedQuery    string
+		expectedLookback *time.Duration
 	}{
 		{
 			name: "query with range to unagg",
@@ -60,12 +63,13 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 					Retention:   7 * 24 * time.Hour,
 				},
 			},
-			enabled:  true,
-			mult:     2,
-			start:    "1614882294",
-			end:      "1625250298",
-			query:    "rate(foo[1m])",
-			expected: "rate(foo[1m])",
+			enabled: true,
+			mult:    2,
+			start:   "1614882294",
+			end:     "1625250298",
+			query:   "rate(foo[1m])",
+
+			expectedQuery: "rate(foo[1m])",
 		},
 		{
 			name: "query with no range",
@@ -75,12 +79,13 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 					Retention:   7 * 24 * time.Hour,
 				},
 			},
-			enabled:  true,
-			mult:     2,
-			start:    "1614882294",
-			end:      "1625250298",
-			query:    "foo",
-			expected: "foo",
+			enabled: true,
+			mult:    2,
+			start:   "1614882294",
+			end:     "1625250298",
+			query:   "foo",
+
+			expectedQuery: "foo",
 		},
 		{
 			name: "query with rewriteable range",
@@ -91,12 +96,14 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 					Retention:   90 * 24 * time.Hour,
 				},
 			},
-			enabled:  true,
-			mult:     2,
-			start:    "1614882294",
-			end:      "1625250298",
-			query:    "rate(foo[30s])",
-			expected: "rate(foo[10m])",
+			enabled: true,
+			mult:    2,
+			start:   "1614882294",
+			end:     "1625250298",
+			query:   "rate(foo[30s])",
+
+			expectedQuery:    "rate(foo[10m])",
+			expectedLookback: durationPtr(10 * time.Minute),
 		},
 		{
 			name: "query with range to agg; no rewrite",
@@ -107,12 +114,14 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 					Resolution:  1 * time.Minute,
 				},
 			},
-			enabled:  true,
-			mult:     2,
-			start:    "1614882294",
-			end:      "1625250298",
-			query:    "rate(foo[5m])",
-			expected: "rate(foo[5m])",
+			enabled: true,
+			mult:    2,
+			start:   "1614882294",
+			end:     "1625250298",
+			query:   "rate(foo[5m])",
+
+			expectedQuery:    "rate(foo[5m])",
+			expectedLookback: durationPtr(2 * time.Minute),
 		},
 		{
 			name: "query with rewriteable range; disabled",
@@ -123,12 +132,13 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 					Retention:   90 * 24 * time.Hour,
 				},
 			},
-			enabled:  false,
-			mult:     2,
-			start:    "1614882294",
-			end:      "1625250298",
-			query:    "rate(foo[30s])",
-			expected: "rate(foo[30s])",
+			enabled: false,
+			mult:    2,
+			start:   "1614882294",
+			end:     "1625250298",
+			query:   "rate(foo[30s])",
+
+			expectedQuery: "rate(foo[30s])",
 		},
 		{
 			name: "query with rewriteable range; zero multiplier",
@@ -139,12 +149,13 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 					Retention:   90 * 24 * time.Hour,
 				},
 			},
-			enabled:  false,
-			mult:     0,
-			start:    "1614882294",
-			end:      "1625250298",
-			query:    "rate(foo[30s])",
-			expected: "rate(foo[30s])",
+			enabled: false,
+			mult:    0,
+			start:   "1614882294",
+			end:     "1625250298",
+			query:   "rate(foo[30s])",
+
+			expectedQuery: "rate(foo[30s])",
 		},
 		{
 			name: "instant query; no rewrite",
@@ -154,15 +165,53 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 					Retention:   7 * 24 * time.Hour,
 				},
 			},
-			enabled:  true,
-			mult:     3,
-			now:      "1614882294",
-			instant:  true,
-			query:    "rate(foo[1m])",
-			expected: "rate(foo[1m])",
+			enabled: true,
+			mult:    3,
+			now:     "1614882294",
+			instant: true,
+			query:   "rate(foo[1m])",
+
+			expectedQuery: "rate(foo[1m])",
 		},
 		{
 			name: "instant query; rewrite",
+			attrs: []storagemetadata.Attributes{
+				{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Resolution:  5 * time.Minute,
+					Retention:   90 * 24 * time.Hour,
+				},
+			},
+			enabled: true,
+			mult:    3,
+			now:     "1614882294",
+			instant: true,
+			query:   "rate(foo[30s])",
+
+			expectedQuery:    "rate(foo[15m])",
+			expectedLookback: durationPtr(15 * time.Minute),
+		},
+		{
+			name: "range with lookback already set; no rewrite",
+			attrs: []storagemetadata.Attributes{
+				{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Resolution:  5 * time.Minute,
+					Retention:   90 * 24 * time.Hour,
+				},
+			},
+			enabled:  true,
+			mult:     3,
+			start:    "1614882294",
+			end:      "1614882295",
+			query:    "foo",
+			lookback: durationPtr(11 * time.Minute),
+
+			expectedQuery:    "foo",
+			expectedLookback: durationPtr(11 * time.Minute),
+		},
+		{
+			name: "instant with lookback already set; no rewrite",
 			attrs: []storagemetadata.Attributes{
 				{
 					MetricsType: storagemetadata.AggregatedMetricsType,
@@ -174,8 +223,11 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			mult:     3,
 			now:      "1614882294",
 			instant:  true,
-			query:    "rate(foo[30s])",
-			expected: "rate(foo[15m])",
+			query:    "foo",
+			lookback: durationPtr(13 * time.Minute),
+
+			expectedQuery:    "foo",
+			expectedLookback: durationPtr(13 * time.Minute),
 		},
 	}
 	for _, tt := range queryTests {
@@ -200,14 +252,23 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 				params.Add(endParam, tt.end)
 			}
 			params.Add(queryParam, tt.query)
+			if tt.lookback != nil {
+				params.Add(lookbackParam, tt.lookback.String())
+			}
 			encodedParams := params.Encode()
 
 			h := PrometheusRangeRewrite(opts).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				require.Equal(t, r.FormValue(queryParam), tt.expected)
+				require.Equal(t, r.FormValue(queryParam), tt.expectedQuery)
+				if tt.expectedLookback != nil {
+					require.Equal(t, r.FormValue(lookbackParam), tt.expectedLookback.String())
+				}
 
 				enabled := tt.enabled && tt.mult > 0
 				if enabled && r.Method == "POST" {
-					params.Set("query", tt.expected)
+					params.Set("query", tt.expectedQuery)
+					if tt.expectedLookback != nil {
+						params.Set(lookbackParam, tt.expectedLookback.String())
+					}
 
 					body, err := ioutil.ReadAll(r.Body)
 					require.NoError(t, err)
@@ -278,4 +339,8 @@ func makeBaseOpts(t *testing.T, r *mux.Router) Options {
 			Storage:              mockStorage,
 		},
 	}
+}
+
+func durationPtr(duration time.Duration) *time.Duration {
+	return &duration
 }
