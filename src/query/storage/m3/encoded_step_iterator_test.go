@@ -410,17 +410,18 @@ func newTestOpts() Options {
 		})
 	bytesPool.Init()
 
-	iteratorPools := pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{
-		Replicas:               1,
-		SeriesIteratorPoolSize: 1,
-		SeriesIteratorsPoolBuckets: []pool.Bucket{
-			{Capacity: 1, Count: 1},
-		},
-		SeriesIDBytesPoolBuckets: []pool.Bucket{
-			{Capacity: 1, Count: 1},
-		},
-		CheckedBytesWrapperPoolSize: 1,
-	})
+	iteratorPools := pools.BuildIteratorPools(encoding.NewOptions(),
+		pools.BuildIteratorPoolsOptions{
+			Replicas:               1,
+			SeriesIteratorPoolSize: 1,
+			SeriesIteratorsPoolBuckets: []pool.Bucket{
+				{Capacity: 1, Count: 1},
+			},
+			SeriesIDBytesPoolBuckets: []pool.Bucket{
+				{Capacity: 1, Count: 1},
+			},
+			CheckedBytesWrapperPoolSize: 1,
+		})
 	return newOptions(bytesPool, iteratorPools)
 }
 

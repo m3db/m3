@@ -26,6 +26,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/encoding"
 )
 
 func TestBuildIteratorPoolsHasSaneDefaults(t *testing.T) {
@@ -37,7 +39,7 @@ func TestBuildIteratorPoolsHasSaneDefaults(t *testing.T) {
 	// objects are freed.
 	totalAllocBefore := stats.TotalAlloc
 
-	BuildIteratorPools(BuildIteratorPoolsOptions{})
+	BuildIteratorPools(encoding.NewOptions(), BuildIteratorPoolsOptions{})
 
 	runtime.ReadMemStats(&stats)
 

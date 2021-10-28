@@ -38,7 +38,7 @@ import (
 )
 
 var (
-	iterPools = pools.BuildIteratorPools(
+	iterPools = pools.BuildIteratorPools(encoding.NewOptions(),
 		pools.BuildIteratorPoolsOptions{})
 	poolWrapper = pools.NewPoolsWrapper(iterPools)
 

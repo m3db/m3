@@ -21,11 +21,13 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/ory/dockertest/v3"
+	"github.com/prometheus/common/model"
 
 	"github.com/m3db/m3/src/integration/resources"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
@@ -73,6 +75,11 @@ func newDockerHTTPCoordinator(
 			RetryFunc: resource.pool.Retry,
 		}),
 	}, nil
+}
+
+func (c *coordinator) HostDetails() (*resources.InstanceInfo, error) {
+	// TODO: add implementation
+	return nil, errors.New("not implemented")
 }
 
 func (c *coordinator) GetNamespace() (admin.NamespaceGetResponse, error) {
@@ -222,6 +229,27 @@ func (c *coordinator) RunQuery(
 	}
 
 	return c.client.RunQuery(verifier, query, headers)
+}
+
+func (c *coordinator) InstantQuery(
+	req resources.QueryRequest,
+	headers map[string][]string,
+) (model.Vector, error) {
+	if c.resource.closed {
+		return nil, errClosed
+	}
+	return c.client.InstantQuery(req, headers)
+}
+
+// RangeQuery runs a range query with provided headers
+func (c *coordinator) RangeQuery(
+	req resources.RangeQueryRequest,
+	headers map[string][]string,
+) (model.Matrix, error) {
+	if c.resource.closed {
+		return nil, errClosed
+	}
+	return c.client.RangeQuery(req, headers)
 }
 
 func (c *coordinator) Close() error {

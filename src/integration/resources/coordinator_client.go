@@ -23,6 +23,7 @@ package resources
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -41,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/placementhandler"
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/x/headers"
@@ -717,6 +719,116 @@ func (c *CoordinatorClient) query(
 	b, err := ioutil.ReadAll(resp.Body)
 
 	return verifier(resp.StatusCode, resp.Header, string(b), err)
+}
+
+// InstantQuery runs an instant query with provided headers
+func (c *CoordinatorClient) InstantQuery(req QueryRequest, headers map[string][]string) (model.Vector, error) {
+	queryStr := fmt.Sprintf("%s?%s", route.QueryURL, req.QueryExpr)
+	if req.Time != nil {
+		queryStr = fmt.Sprintf("%s&time=%d", queryStr, req.Time.Unix())
+	}
+
+	resp, err := c.runQuery(queryStr, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsedResp jsonInstantQueryResponse
+	if err := json.Unmarshal([]byte(resp), &parsedResp); err != nil {
+		return nil, err
+	}
+
+	return parsedResp.Data.Result, nil
+}
+
+type jsonInstantQueryResponse struct {
+	Status string
+	Data   vectorResult
+}
+
+type vectorResult struct {
+	ResultType model.ValueType
+	Result     model.Vector
+}
+
+// RangeQuery runs a range query with provided headers
+func (c *CoordinatorClient) RangeQuery(req RangeQueryRequest, headers map[string][]string) (model.Matrix, error) {
+	if req.StartTime.IsZero() {
+		req.StartTime = time.Now()
+	}
+	if req.EndTime.IsZero() {
+		req.EndTime = time.Now()
+	}
+	if req.Step == 0 {
+		req.Step = 15 * time.Second // default step is 15 seconds.
+	}
+	queryStr := fmt.Sprintf(
+		"%s?%s&start=%d&end=%d&step=%f",
+		route.QueryRangeURL, req.QueryExpr,
+		req.StartTime.Unix(),
+		req.EndTime.Unix(),
+		req.Step.Seconds(),
+	)
+
+	resp, err := c.runQuery(queryStr, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsedResp jsonRangeQueryResponse
+	if err := json.Unmarshal([]byte(resp), &parsedResp); err != nil {
+		return nil, err
+	}
+
+	return parsedResp.Data.Result, nil
+}
+
+type jsonRangeQueryResponse struct {
+	Status string
+	Data   matrixResult
+}
+
+type matrixResult struct {
+	ResultType model.ValueType
+	Result     model.Matrix
+}
+
+func (c *CoordinatorClient) runQuery(
+	query string, headers map[string][]string,
+) (string, error) {
+	url := c.makeURL(query)
+	logger := c.logger.With(
+		ZapMethod("query"), zap.String("url", url), zap.Any("headers", headers))
+	logger.Info("running")
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	if headers != nil {
+		req.Header = headers
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		logger.Error("failed get", zap.Error(err))
+		return "", err
+	}
+
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+
+	if status := resp.StatusCode; status != http.StatusOK {
+		return "", fmt.Errorf("query response status not OK, received %v", status)
+	}
+
+	if contentType, ok := resp.Header["Content-Type"]; !ok {
+		return "", fmt.Errorf("missing Content-Type header")
+	} else if len(contentType) != 1 || contentType[0] != "application/json" { //nolint:goconst
+		return "", fmt.Errorf("expected json content type, got %v", contentType)
+	}
+
+	return string(b), err
 }
 
 // RunQuery runs the given query with a given verification function.

@@ -1849,6 +1849,12 @@ func (n *dbNamespace) aggregateTiles(
 		return 0, errNamespaceNotBootstrapped
 	}
 
+	if len(n.OwnedShards()) == 0 {
+		// This is possible during a new node join.
+		n.log.Info("no shards owned, skip AggregateTiles")
+		return 0, nil
+	}
+
 	// Create an empty warm index fileset because the block
 	// will not be queryable if it has no warm index.
 	if err := n.createEmptyWarmIndexIfNotExistsFn(targetBlockStart); err != nil {

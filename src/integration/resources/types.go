@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
@@ -46,6 +48,8 @@ type GoalStateVerifier func(string, error) error
 type Coordinator interface {
 	Admin
 
+	// HostDetails returns this coordinator instance's host details.
+	HostDetails() (*InstanceInfo, error)
 	// ApplyKVUpdate applies a KV update.
 	ApplyKVUpdate(update string) error
 	// WriteCarbon writes a carbon metric datapoint at a given time.
@@ -54,6 +58,10 @@ type Coordinator interface {
 	WriteProm(name string, tags map[string]string, samples []prompb.Sample) error
 	// RunQuery runs the given query with a given verification function.
 	RunQuery(verifier ResponseVerifier, query string, headers map[string][]string) error
+	// InstantQuery runs an instant query with provided headers
+	InstantQuery(req QueryRequest, headers map[string][]string) (model.Vector, error)
+	// RangeQuery runs a range query with provided headers
+	RangeQuery(req RangeQueryRequest, headers map[string][]string) (model.Matrix, error)
 }
 
 // Admin is a wrapper for admin functions.
@@ -135,6 +143,10 @@ type Node interface {
 
 // Aggregator is an aggregator instance.
 type Aggregator interface {
+	// Start starts the aggregator instance.
+	Start()
+	// HostDetails returns this aggregator instance's host details.
+	HostDetails() (*InstanceInfo, error)
 	// IsHealthy determines whether an instance is healthy.
 	IsHealthy() error
 	// Status returns the instance status.
@@ -154,6 +166,8 @@ type M3Resources interface {
 	Nodes() Nodes
 	// Coordinator returns the coordinator resource.
 	Coordinator() Coordinator
+	// Aggregators returns all aggregator resources.
+	Aggregators() Aggregators
 }
 
 // ExternalResources represents an external (i.e. non-M3)
@@ -169,11 +183,22 @@ type ExternalResources interface {
 	Close() error
 }
 
-// ClusterOptions represents a set of options for a cluster setup.
-type ClusterOptions struct {
-	ReplicationFactor  int32
-	NumShards          int32
-	NumIsolationGroups int32
+// InstanceInfo represents the host information for an instance.
+type InstanceInfo struct {
+	// ID is the name of the host. It can be hostname or UUID or any other string.
+	ID string
+	// Env specifies the zone the host resides in.
+	Env string
+	// Zone specifies the zone the host resides in.
+	Zone string
+	// Address can be IP address or hostname, this is used to connect to the host.
+	Address string
+	// M3msgAddress is the address of the m3msg server if there is one.
+	M3msgAddress string
+	// Port is the port number.
+	Port uint32
+	// Port is the port of the m3msg server if there is one.
+	M3msgPort uint32
 }
 
 // Nodes is a slice of nodes.
@@ -206,36 +231,51 @@ func (n Nodes) WaitForHealthy() error {
 	return multiErr.FinalError()
 }
 
-// M3msgTopicOptions represents a set of options for an m3msg topic.
-type M3msgTopicOptions struct {
-	// Zone is the zone of the m3msg topic.
-	Zone string
-	// Env is the environment of the m3msg topic.
-	Env string
-	// TopicName is the topic name of the m3msg topic name.
-	TopicName string
+// Aggregators is a slice of aggregators.
+type Aggregators []Aggregator
+
+// WaitForHealthy waits for each Aggregator in Aggregators to be healthy
+func (a Aggregators) WaitForHealthy() error {
+	var (
+		multiErr errors.MultiError
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+	)
+
+	for _, agg := range a {
+		wg.Add(1)
+		agg := agg
+		go func() {
+			defer wg.Done()
+			err := Retry(agg.IsHealthy)
+			if err != nil {
+				mu.Lock()
+				multiErr = multiErr.Add(err)
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+	return multiErr.FinalError()
 }
 
-// PlacementRequestOptions represents a set of options for placement-related requests.
-type PlacementRequestOptions struct {
-	// Service is the type of service for the placement request.
-	Service ServiceType
-	// Env is the environment of the placement.
-	Env string
-	// Zone is the zone of the placement.
-	Zone string
+// QueryRequest represents an instant query request
+type QueryRequest struct {
+	// QueryExpr is the Prometheus expression query string.
+	QueryExpr string
+	// Time is the evaluation timestamp. It is optional.
+	Time *time.Time
 }
 
-// ServiceType represents the type of an m3 service.
-type ServiceType int
-
-const (
-	// ServiceTypeUnknown is an unknown service type.
-	ServiceTypeUnknown ServiceType = iota
-	// ServiceTypeM3DB represents M3DB service.
-	ServiceTypeM3DB
-	// ServiceTypeM3Aggregator represents M3aggregator service.
-	ServiceTypeM3Aggregator
-	// ServiceTypeM3Coordinator represents M3coordinator service.
-	ServiceTypeM3Coordinator
-)
+// RangeQueryRequest represents a range query request
+type RangeQueryRequest struct {
+	// QueryExpr is the Prometheus expression query string.
+	QueryExpr string
+	// StartTime is the start timestamp of the query range. The default value is time.Now().
+	StartTime time.Time
+	// EndTime is the end timestamp of the query range. The default value is time.Now().
+	EndTime time.Time
+	// Step is the query resolution step width. It is default to 15 seconds.
+	Step time.Duration
+}

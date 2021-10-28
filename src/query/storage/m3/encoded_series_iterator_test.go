@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/test/compare"
 	"github.com/m3db/m3/src/query/ts"
@@ -50,7 +51,7 @@ func TestSeriesIterator(t *testing.T) {
 	}
 
 	j := 0
-	opts := NewOptions().
+	opts := NewOptions(encoding.NewOptions()).
 		SetLookbackDuration(1 * time.Minute).
 		SetSplitSeriesByBlock(false)
 	require.NoError(t, opts.Validate())
@@ -107,7 +108,7 @@ func TestSeriesIteratorBatch(t *testing.T) {
 	}
 
 	count := 0
-	opts := NewOptions().
+	opts := NewOptions(encoding.NewOptions()).
 		SetLookbackDuration(1 * time.Minute).
 		SetSplitSeriesByBlock(false)
 	require.NoError(t, opts.Validate())
