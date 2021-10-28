@@ -1,6 +1,4 @@
-//go:build integration_v2
 // +build integration_v2
-
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -41,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/config/hostid"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/prometheus/common/model"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -361,22 +360,25 @@ type testAggregatorArgs struct {
 
 func testAggMetrics(t *testing.T, coord resources.Coordinator) {
 	var (
-		ts  = time.Now()
-		ts1 = xtime.ToUnixNano(ts)
-		ts2 = xtime.ToUnixNano(ts.Add(1 * time.Millisecond))
-		ts3 = xtime.ToUnixNano(ts.Add(2 * time.Millisecond))
+		ts      = time.Now()
+		ts1     = xtime.ToUnixNano(ts)
+		ts2     = xtime.ToUnixNano(ts.Add(1 * time.Millisecond))
+		ts3     = xtime.ToUnixNano(ts.Add(2 * time.Millisecond))
+		samples = []prompb.Sample{
+			{Value: 1, Timestamp: storage.TimeToPromTimestamp(ts1)},
+			{Value: 2, Timestamp: storage.TimeToPromTimestamp(ts2)},
+			{Value: 3, Timestamp: storage.TimeToPromTimestamp(ts3)},
+		}
+		// 6=1+2+3 is the sum of all three samples.
+		expectedValue = model.SampleValue(6)
 	)
-	samples := []prompb.Sample{
-		{Value: 1, Timestamp: storage.TimeToPromTimestamp(ts1)},
-		{Value: 2, Timestamp: storage.TimeToPromTimestamp(ts2)},
-		{Value: 3, Timestamp: storage.TimeToPromTimestamp(ts3)},
-	}
 	assert.NoError(t, resources.Retry(func() error {
 		return coord.WriteProm("cpu", map[string]string{"host": "host1"}, samples)
 	}))
 
 	queryHeaders := map[string][]string{"M3-Metrics-Type": {"aggregated"}, "M3-Storage-Policy": {"10s:6h"}}
 
+	// Instant Query
 	require.NoError(t, resources.Retry(func() error {
 		result, err := coord.InstantQuery(resources.QueryRequest{QueryExpr: "query=cpu"}, queryHeaders)
 		if err != nil {
@@ -385,19 +387,20 @@ func testAggMetrics(t *testing.T, coord resources.Coordinator) {
 		if len(result) != 1 {
 			return errors.New("wrong amount of datapoints")
 		}
-		if result[0].Value != 6 {
+		if result[0].Value != expectedValue {
 			return errors.New("wrong data point value")
 		}
 		return nil
 	}))
 
+	// Range Query
 	require.NoError(t, resources.Retry(func() error {
 		result, err := coord.RangeQuery(
 			resources.RangeQueryRequest{
-				QueryRequest: resources.QueryRequest{QueryExpr: "query=cpu"},
-				StartTime:    time.Now().Add(-30 * time.Second),
-				EndTime:      time.Now(),
-				Step:         1,
+				QueryExpr: "query=cpu",
+				StartTime: time.Now().Add(-30 * time.Second),
+				EndTime:   time.Now(),
+				Step:      1 * time.Second,
 			},
 			queryHeaders,
 		)
@@ -410,7 +413,7 @@ func testAggMetrics(t *testing.T, coord resources.Coordinator) {
 		if len(result[0].Values) == 0 {
 			return errors.New("empty range query result")
 		}
-		if result[0].Values[0].Value != 6 {
+		if result[0].Values[0].Value != expectedValue {
 			return errors.New("wrong range query value")
 		}
 		return nil

@@ -724,6 +724,9 @@ func (c *CoordinatorClient) query(
 // InstantQuery runs an instant query with provided headers
 func (c *CoordinatorClient) InstantQuery(req QueryRequest, headers map[string][]string) (model.Vector, error) {
 	queryStr := fmt.Sprintf("%s?%s", route.QueryURL, req.QueryExpr)
+	if req.Time != nil {
+		queryStr = fmt.Sprintf("%s&time=%d", queryStr, req.Time.Unix())
+	}
 
 	resp, err := c.runQuery(queryStr, headers)
 	if err != nil {
@@ -750,15 +753,21 @@ type vectorResult struct {
 
 // RangeQuery runs a range query with provided headers
 func (c *CoordinatorClient) RangeQuery(req RangeQueryRequest, headers map[string][]string) (model.Matrix, error) {
+	if req.StartTime.IsZero() {
+		req.StartTime = time.Now()
+	}
+	if req.EndTime.IsZero() {
+		req.EndTime = time.Now()
+	}
 	if req.Step == 0 {
-		req.Step = 15 // default step
+		req.Step = 15 * time.Second // default step is 15 seconds.
 	}
 	queryStr := fmt.Sprintf(
-		"%s?%s&start=%d&end=%d&step=%d",
+		"%s?%s&start=%d&end=%d&step=%f",
 		route.QueryRangeURL, req.QueryExpr,
 		req.StartTime.Unix(),
 		req.EndTime.Unix(),
-		req.Step,
+		req.Step.Seconds(),
 	)
 
 	resp, err := c.runQuery(queryStr, headers)
