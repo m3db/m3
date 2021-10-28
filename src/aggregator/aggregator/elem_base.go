@@ -81,6 +81,7 @@ type timestampNanosFn func(windowStartNanos int64, resolution time.Duration) int
 type createAggregationOptions struct {
 	// initSourceSet determines whether to initialize the source set.
 	initSourceSet bool
+	resendEnabled bool
 }
 
 // IDPrefixSuffixType configs if the id should be added with prefix or suffix
@@ -111,7 +112,7 @@ type metricElem interface {
 	)
 
 	// AddUnion adds a metric value union at a given timestamp.
-	AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) error
+	AddUnion(timestamp time.Time, mu unaggregated.MetricUnion, resendEnabled bool) error
 
 	// AddMetric adds a metric value at a given timestamp.
 	AddValue(timestamp time.Time, value float64, annotation []byte) error
@@ -150,7 +151,6 @@ type ElemData struct {
 	Pipeline           applied.Pipeline
 	NumForwardedTimes  int
 	IDPrefixSuffixType IDPrefixSuffixType
-	ResendEnabled      bool
 	ListType           metricListType
 }
 
@@ -172,7 +172,6 @@ type elemBase struct {
 	writeForwardedMetricFn          writeForwardedMetricFn
 	onForwardedAggregationWrittenFn onForwardedAggregationDoneFn
 	metrics                         *elemMetrics
-	resendEnabled                   bool
 	bufferForPastTimedMetricFn      BufferForPastTimedMetricFn
 	listType                        metricListType
 
@@ -305,7 +304,6 @@ func (e *elemBase) resetSetData(data ElemData, useDefaultAggregation bool) error
 	e.tombstoned = false
 	e.closed = false
 	e.idPrefixSuffixType = data.IDPrefixSuffixType
-	e.resendEnabled = data.ResendEnabled
 	e.listType = data.ListType
 	return nil
 }

@@ -350,8 +350,8 @@ func TestStandardMetricListFlushConsumingAndCollectingLocalMetrics(t *testing.T)
 	}
 
 	for _, ep := range elemPairs {
-		require.NoError(t, ep.elem.AddUnion(nowTs, ep.metric))
-		require.NoError(t, ep.elem.AddUnion(nowTs.Add(l.resolution), ep.metric))
+		require.NoError(t, ep.elem.AddUnion(nowTs, ep.metric, false))
+		require.NoError(t, ep.elem.AddUnion(nowTs.Add(l.resolution), ep.metric, false))
 		_, err := l.PushBack(ep.elem)
 		require.NoError(t, err)
 	}

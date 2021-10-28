@@ -53,6 +53,7 @@ type writeForwardedMetricFn func(
 	value float64,
 	prevValue float64,
 	annotation []byte,
+	resendEnabled bool,
 )
 
 type onForwardedAggregationDoneFn func(key aggregationKey) error
@@ -92,9 +93,6 @@ type Registerable interface {
 
 	// ForwardedAggregationKey returns the forwarded aggregation key if applicable.
 	ForwardedAggregationKey() (aggregationKey, bool)
-
-	// ResendEnabled returns true if the element can resend aggregated values after the initial flush.
-	ResendEnabled() bool
 }
 
 type forwardedWriterMetrics struct {
@@ -279,11 +277,12 @@ func newIDKey(
 }
 
 type forwardedAggregationBucket struct {
-	timeNanos  int64
-	values     []float64
-	prevValues []float64
-	version    uint32
-	annotation []byte
+	timeNanos     int64
+	values        []float64
+	prevValues    []float64
+	version       uint32
+	annotation    []byte
+	resendEnabled bool
 }
 
 type forwardedAggregationWithKey struct {
@@ -304,7 +303,6 @@ type forwardedAggregationWithKey struct {
 	buckets                  map[int64]forwardedAggregationBucket
 	bufferForPastTimedMetric int64
 	nowFn                    clock.NowFn
-	resendEnabled            bool
 }
 
 func (agg *forwardedAggregationWithKey) reset() {
@@ -324,7 +322,7 @@ func (agg *forwardedAggregationWithKey) reset() {
 		v.prevValues = nil
 		agg.buckets[k] = v
 		// keep buckets around for the buffer period.
-		if agg.resendEnabled {
+		if v.resendEnabled {
 			if agg.nowFn().UnixNano()-k <= agg.bufferForPastTimedMetric {
 				continue
 			}
@@ -333,13 +331,15 @@ func (agg *forwardedAggregationWithKey) reset() {
 	}
 }
 
-func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64, prevValue float64, annotation []byte) {
+func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64, prevValue float64, annotation []byte,
+	resendEnabled bool) {
 	if b, ok := agg.buckets[timeNanos]; ok {
 		b.values = append(b.values, value)
 		b.prevValues = append(b.prevValues, prevValue)
 		if annotation != nil {
 			b.annotation = annotation
 		}
+		b.resendEnabled = resendEnabled
 		agg.buckets[timeNanos] = b
 		return
 	}
@@ -360,10 +360,11 @@ func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64, prev
 	values = append(values, value)
 	prevValues = append(prevValues, prevValue)
 	bucket := forwardedAggregationBucket{
-		timeNanos:  timeNanos,
-		values:     values,
-		prevValues: prevValues,
-		annotation: annotation,
+		timeNanos:     timeNanos,
+		values:        values,
+		prevValues:    prevValues,
+		annotation:    annotation,
+		resendEnabled: resendEnabled,
 	}
 	agg.buckets[timeNanos] = bucket
 }
@@ -455,7 +456,6 @@ func (agg *forwardedAggregation) add(metric Registerable) error {
 		buckets:                  make(map[int64]forwardedAggregationBucket),
 		bufferForPastTimedMetric: int64(agg.bufferForPastTimedMetricFn(key.storagePolicy.Resolution().Window)),
 		nowFn:                    agg.nowFn,
-		resendEnabled:            metric.ResendEnabled(),
 	}
 	agg.byKey = append(agg.byKey, aggregation)
 	agg.metrics.added.Inc(1)
@@ -486,9 +486,10 @@ func (agg *forwardedAggregation) write(
 	value float64,
 	prevValue float64,
 	annotation []byte,
+	resendEnabled bool,
 ) {
 	idx := agg.index(key)
-	agg.byKey[idx].add(timeNanos, value, prevValue, annotation)
+	agg.byKey[idx].add(timeNanos, value, prevValue, annotation, resendEnabled)
 	agg.metrics.write.Inc(1)
 }
 
@@ -502,18 +503,18 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 	if agg.byKey[idx].currRefCnt == agg.byKey[idx].totalRefCnt {
 		var (
 			multiErr = xerrors.NewMultiError()
-			meta     = metadata.ForwardMetadata{
+		)
+		for t, b := range agg.byKey[idx].buckets {
+			if len(b.values) == 0 {
+				continue
+			}
+			meta := metadata.ForwardMetadata{
 				AggregationID:     key.aggregationID,
 				StoragePolicy:     key.storagePolicy,
 				Pipeline:          key.pipeline,
 				SourceID:          agg.shard,
 				NumForwardedTimes: key.numForwardedTimes,
-				ResendEnabled:     agg.byKey[idx].resendEnabled,
-			}
-		)
-		for t, b := range agg.byKey[idx].buckets {
-			if len(b.values) == 0 {
-				continue
+				ResendEnabled:     b.resendEnabled,
 			}
 			metric := aggregated.ForwardedMetric{
 				Type:       agg.metricType,
