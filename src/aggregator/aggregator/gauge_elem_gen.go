@@ -507,6 +507,7 @@ func (e *GaugeElem) findOrCreate(
 	if err != nil {
 		return nil, err
 	}
+	// if the aggregation is found and does not need to be updated, return as is.
 	if found.lockedAgg != nil && isDirty && found.resendEnabled == createOpts.resendEnabled {
 		return found.lockedAgg, err
 	}
@@ -519,10 +520,12 @@ func (e *GaugeElem) findOrCreate(
 
 	timedAgg, ok := e.values[alignedStart]
 	if ok {
+		// if the agg is not dirty, mark it dirty so it will be flushed.
 		if !timedAgg.lockedAgg.dirty {
 			timedAgg.lockedAgg.dirty = true
 			e.insertDirty(alignedStart)
 		}
+		// ensure the resendEnabled state is the latest.
 		timedAgg.resendEnabled = createOpts.resendEnabled
 		e.values[alignedStart] = timedAgg
 		e.Unlock()

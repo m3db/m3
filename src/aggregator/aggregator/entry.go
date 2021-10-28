@@ -580,7 +580,7 @@ func (e *Entry) addNewAggregationKeyWithLock(
 		return newAggregations, nil
 	}
 	if idx := e.aggregations.index(key); idx >= 0 {
-		// updating staged metadata was triggered, but the aggregation keys did not change. most likely becaue the
+		// updating staged metadata was triggered, but the aggregation keys did not change. most likely because the
 		// resendEnabled state changed, which we update below.
 		a := e.aggregations[idx]
 		a.resendEnabled = resendEnabled
@@ -698,6 +698,9 @@ func (e *Entry) addUntimedWithLock(timestamp time.Time, mu unaggregated.MetricUn
 	var err error
 	for i := range e.aggregations {
 		resendEnabled := e.aggregations[i].resendEnabled
+		// Migrate an originally untimed metric (server timestamp) to a "timed" metric (client timestamp) if
+		// resendEnabled is set on the rollup rule. Continuing to use untimed allows for a seamless transition since
+		// the Entry does not change.
 		if resendEnabled && mu.ClientTimeNanos > 0 {
 			e.metrics.resendEnabled.Inc(1)
 			timestamp = mu.ClientTimeNanos.ToTime()
