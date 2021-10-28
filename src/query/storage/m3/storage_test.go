@@ -129,7 +129,7 @@ func newTestStorage(t *testing.T, clusters Clusters) storage.Storage {
 	require.NoError(t, err)
 	writePool.Init()
 	tagOpts := models.NewTagOptions().SetMetricName([]byte("name"))
-	opts := NewOptions().
+	opts := NewOptions(encoding.NewOptions()).
 		SetWriteWorkerPool(writePool).
 		SetLookbackDuration(time.Minute).
 		SetTagOptions(tagOpts)
@@ -882,7 +882,7 @@ func TestLocalCompleteTagsSuccessFinalize(t *testing.T) {
 }
 
 func TestInvalidBlockTypes(t *testing.T) {
-	opts := NewOptions()
+	opts := NewOptions(encoding.NewOptions())
 	s, err := NewStorage(nil, opts, instrument.NewOptions())
 	require.NoError(t, err)
 
