@@ -42,26 +42,26 @@ const (
 var (
 	defaultCoordinatorList = []int{7201, 7203, 7204}
 
-	defaultCoordinatorOptions = dockerResourceOptions{
-		source:        defaultCoordinatorSource,
-		containerName: defaultCoordinatorName,
-		portList:      defaultCoordinatorList,
+	defaultCoordinatorOptions = ResourceOptions{
+		Source:        defaultCoordinatorSource,
+		ContainerName: defaultCoordinatorName,
+		PortList:      defaultCoordinatorList,
 	}
 )
 
 type coordinator struct {
-	resource *dockerResource
+	resource *Resource
 	client   resources.CoordinatorClient
 }
 
 func newDockerHTTPCoordinator(
 	pool *dockertest.Pool,
-	opts dockerResourceOptions,
+	opts ResourceOptions,
 ) (resources.Coordinator, error) {
 	opts = opts.withDefaults(defaultCoordinatorOptions)
-	opts.tmpfsMounts = []string{"/etc/m3coordinator/"}
+	opts.TmpfsMounts = []string{"/etc/m3coordinator/"}
 
-	resource, err := newDockerResource(pool, opts)
+	resource, err := NewDockerResource(pool, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +257,7 @@ func (c *coordinator) Close() error {
 		return errClosed
 	}
 
-	return c.resource.close()
+	return c.resource.Close()
 }
 
 func (c *coordinator) InitM3msgTopic(
