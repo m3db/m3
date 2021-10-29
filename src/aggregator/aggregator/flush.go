@@ -72,6 +72,18 @@ const (
 	discardType
 )
 
+// String provides the string representation for the flush type.
+func (f flushType) String() string {
+	switch f {
+	case consumeType:
+		return "consume"
+	case discardType:
+		return "discard"
+	default:
+		return "unknown"
+	}
+}
+
 // A flushLocalMetricFn flushes an aggregated metric datapoint locally by either
 // consuming or discarding it. Processing of the datapoint is completed once it is
 // flushed.

@@ -249,9 +249,7 @@ func (l *baseMetricList) Len() int {
 // elements and manage their lifetimes. If this becomes an issue,
 // need to switch to a custom type-specific list implementation.
 func (l *baseMetricList) PushBack(value metricElem) (*list.Element, error) {
-	var (
-		_, hasForwardedID = value.ForwardedID()
-	)
+	_, hasForwardedID := value.ForwardedID()
 	l.Lock()
 	if l.closed {
 		l.Unlock()
@@ -379,6 +377,7 @@ func (l *baseMetricList) flushBefore(beforeNanos int64, flushType flushType) {
 			flushLocalFn,
 			flushForwardedFn,
 			onForwardedFlushedFn,
+			flushType,
 		) {
 			l.toCollect = append(l.toCollect, e)
 		}

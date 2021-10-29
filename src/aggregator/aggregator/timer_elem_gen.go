@@ -298,6 +298,7 @@ func (e *TimerElem) Consume(
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
 	onForwardedFlushedFn onForwardingElemFlushedFn,
+	flushType flushType,
 ) bool {
 	resolution := e.sp.Resolution().Window
 	// reverse engineer the allowed lateness.
@@ -358,6 +359,7 @@ func (e *TimerElem) Consume(
 			flushForwardedFn,
 			resolution,
 			latenessAllowed,
+			flushType,
 		)
 		e.toConsume[i].lockedAgg.flushed = true
 		e.toConsume[i].lockedAgg.Unlock()
@@ -575,7 +577,9 @@ func (e *TimerElem) processValueWithAggregationLock(
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
 	resolution time.Duration,
-	latenessAllowed time.Duration) bool {
+	latenessAllowed time.Duration,
+	flushType flushType,
+) bool {
 	var (
 		transformations  = e.parsedPipeline.Transformations
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
@@ -673,13 +677,19 @@ func (e *TimerElem) processValueWithAggregationLock(
 					flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType),
 						point.TimeNanos, point.Value, lockedAgg.aggregation.Annotation(), e.sp)
 				}
+
+				if !lockedAgg.flushed {
+					e.forwardLagMetric(resolution, "local", flushType).
+						RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed)))
+				}
 			}
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
 			// only record lag for the initial flush (not resends)
 			if !lockedAgg.flushed {
 				// latenessAllowed is not due to processing delay, so it remove it from lag calc.
-				e.forwardLagMetric(resolution).RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed)))
+				e.forwardLagMetric(resolution, "remote", flushType).
+					RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed)))
 			}
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
 				int64(timeNanos), value, prevValue, lockedAgg.aggregation.Annotation(), resendEnabled)
