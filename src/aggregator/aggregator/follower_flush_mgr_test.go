@@ -426,8 +426,17 @@ func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
 	require.Equal(t, time.Duration(0), dur)
 	task := flushTask.(*followerFlushTask)
 	actual := task.flushersByInterval
-	require.Equal(t, expected, actual)
+	requireFlusherGroupEqual(t, expected, actual)
 	require.Equal(t, now, mgr.lastFlushed)
+}
+
+func requireFlusherGroupEqual(t *testing.T, expected, actual []flushersGroup) {
+	// NB: strip off the follower flush lag histogram when comparing to expected.
+	for idx := range actual {
+		actual[idx].followerFlushLag = nil
+	}
+
+	require.Equal(t, expected, actual)
 }
 
 func TestFollowerFlushManagerPrepareMaxBufferSizeExceeded(t *testing.T) {
@@ -535,7 +544,7 @@ func TestFollowerFlushManagerPrepareMaxBufferSizeExceeded(t *testing.T) {
 	require.Equal(t, time.Duration(0), dur)
 	task := flushTask.(*followerFlushTask)
 	actual := task.flushersByInterval
-	require.Equal(t, expected, actual)
+	requireFlusherGroupEqual(t, expected, actual)
 	require.Equal(t, now, mgr.lastFlushed)
 
 	// Advance time by less than the forced flush window size and expect no flush.
