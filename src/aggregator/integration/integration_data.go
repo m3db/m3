@@ -161,16 +161,20 @@ func generateTestDataset(opts datasetGenOpts) (testDataset, error) {
 			switch opts.category {
 			case untimedMetric:
 				var err error
-				mu, err = generateTestUntimedMetric(metricType, opts.ids[i], intervalIdx, i, opts.valueGenOpts.untimed)
+				mu, err = generateTestUntimedMetric(metricType, opts.ids[i], xtime.ToUnixNano(timestamp), intervalIdx,
+					i, opts.valueGenOpts.untimed)
 				if err != nil {
 					return nil, err
 				}
 			case forwardedMetric:
-				mu = generateTestForwardedMetric(metricType, opts.ids[i], timestamp.UnixNano(), intervalIdx, i, opts.valueGenOpts.forwarded)
+				mu = generateTestForwardedMetric(metricType, opts.ids[i], timestamp.UnixNano(), intervalIdx,
+					i, opts.valueGenOpts.forwarded)
 			case timedMetric:
-				mu = generateTestTimedMetric(metricType, opts.ids[i], timestamp.UnixNano(), intervalIdx, i, opts.valueGenOpts.timed)
+				mu = generateTestTimedMetric(metricType, opts.ids[i], timestamp.UnixNano(), intervalIdx,
+					i, opts.valueGenOpts.timed)
 			case passthroughMetric:
-				mu = generateTestPassthroughMetric(metricType, opts.ids[i], timestamp.UnixNano(), intervalIdx, i, opts.valueGenOpts.passthrough)
+				mu = generateTestPassthroughMetric(metricType, opts.ids[i], timestamp.UnixNano(), intervalIdx,
+					i, opts.valueGenOpts.passthrough)
 			default:
 				return nil, fmt.Errorf("unrecognized metric category: %v", opts.category)
 			}
@@ -191,6 +195,7 @@ func generateTestDataset(opts datasetGenOpts) (testDataset, error) {
 func generateTestUntimedMetric(
 	metricType metric.Type,
 	id string,
+	timestamp xtime.UnixNano,
 	intervalIdx, idIdx int,
 	valueGenOpts untimedValueGenOpts,
 ) (metricUnion, error) {
@@ -199,24 +204,27 @@ func generateTestUntimedMetric(
 	switch metricType {
 	case metric.CounterType:
 		mu.untimed = unaggregated.MetricUnion{
-			Type:       metricType,
-			ID:         metricid.RawID(id),
-			CounterVal: valueGenOpts.counterValueGenFn(intervalIdx, idIdx),
-			Annotation: annotation,
+			Type:            metricType,
+			ID:              metricid.RawID(id),
+			CounterVal:      valueGenOpts.counterValueGenFn(intervalIdx, idIdx),
+			Annotation:      annotation,
+			ClientTimeNanos: timestamp,
 		}
 	case metric.TimerType:
 		mu.untimed = unaggregated.MetricUnion{
-			Type:          metricType,
-			ID:            metricid.RawID(id),
-			BatchTimerVal: valueGenOpts.timerValueGenFn(intervalIdx, idIdx),
-			Annotation:    annotation,
+			Type:            metricType,
+			ID:              metricid.RawID(id),
+			BatchTimerVal:   valueGenOpts.timerValueGenFn(intervalIdx, idIdx),
+			Annotation:      annotation,
+			ClientTimeNanos: timestamp,
 		}
 	case metric.GaugeType:
 		mu.untimed = unaggregated.MetricUnion{
-			Type:       metricType,
-			ID:         metricid.RawID(id),
-			GaugeVal:   valueGenOpts.gaugeValueGenFn(intervalIdx, idIdx),
-			Annotation: annotation,
+			Type:            metricType,
+			ID:              metricid.RawID(id),
+			GaugeVal:        valueGenOpts.gaugeValueGenFn(intervalIdx, idIdx),
+			Annotation:      annotation,
+			ClientTimeNanos: timestamp,
 		}
 	default:
 		return metricUnion{}, fmt.Errorf("unrecognized untimed metric type: %v", metricType)

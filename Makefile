@@ -28,7 +28,7 @@ thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 cache_policy         ?= recently_read
-aggregator_client    ?= tcp
+aggregator_client    ?= m3msg
 genny_target         ?= genny-all
 
 BUILD                     := $(abspath ./bin)
@@ -70,6 +70,7 @@ SUBDIRS :=    \
 	ctl         \
 
 TOOLS :=               \
+	annotation_checker   \
 	read_ids             \
 	read_index_ids       \
 	read_data_files      \

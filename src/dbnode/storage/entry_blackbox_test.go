@@ -27,6 +27,7 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -164,4 +165,34 @@ func TestEntryTryMarkIndexGarbageCollectedAfterSeriesClose(t *testing.T) {
 		// Make sure doesn't panic.
 		require.False(t, entry.TryMarkIndexGarbageCollected())
 	})
+}
+
+func TestEntryIndexedRange(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	entry := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
+
+	assertRange := func(expectedMin, expectedMax xtime.UnixNano) {
+		min, max := entry.IndexedRange()
+		assert.Equal(t, expectedMin, min)
+		assert.Equal(t, expectedMax, max)
+	}
+
+	assertRange(0, 0)
+
+	entry.OnIndexPrepare(2)
+	assertRange(0, 0)
+
+	entry.OnIndexSuccess(2)
+	assertRange(2, 2)
+
+	entry.OnIndexSuccess(5)
+	assertRange(2, 5)
+
+	entry.OnIndexSuccess(1)
+	assertRange(1, 5)
+
+	entry.OnIndexSuccess(3)
+	assertRange(1, 5)
 }

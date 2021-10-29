@@ -84,10 +84,18 @@ func main() {
 		},
 	}
 
-	_, err = reader.Open(openOpts)
+	result, err := reader.Open(openOpts)
 	if err != nil {
 		log.Fatalf("unable to open reader: %v", err)
 	}
+
+	shards := make([]int, 0, len(result.Shards))
+	for shard := range result.Shards {
+		shards = append(shards, int(shard))
+	}
+	sort.Ints(shards)
+
+	log.Infof("shards: %v, volumeType: %s", shards, reader.IndexVolumeType())
 
 	i := 0
 	for {

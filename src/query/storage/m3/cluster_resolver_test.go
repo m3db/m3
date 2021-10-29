@@ -26,6 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/storage"
@@ -34,10 +38,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFanoutAggregatedOptimizationDisabledGivesAllClustersAsPartial(t *testing.T) {
@@ -69,8 +69,8 @@ func TestFanoutUnaggregatedDisableReturnsAggregatedNamespaces(t *testing.T) {
 
 	start := xtime.Now()
 	end := start.Add(time.Hour * 24 * -90)
-	_, clusters, err := resolveClusterNamespacesForQuery(start,
-		start, end, store.clusters, opts, nil)
+	_, clusters, err := resolveClusterNamespacesForQuery(start, start, end, store.clusters, opts,
+		nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(clusters))
 	assert.Equal(t, "metrics_aggregated_1m:30d", clusters[0].NamespaceID().String())
@@ -89,7 +89,7 @@ func TestFanoutUnaggregatedEnabledReturnsUnaggregatedNamespaces(t *testing.T) {
 	start := xtime.Now()
 	end := start.Add(time.Hour * 24 * -90)
 	_, clusters, err := resolveClusterNamespacesForQuery(start,
-		start, end, store.clusters, opts, nil)
+		start, end, store.clusters, opts, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(clusters))
 	assert.Equal(t, "metrics_unaggregated", clusters[0].NamespaceID().String())
@@ -109,12 +109,14 @@ func TestGraphitePath(t *testing.T) {
 
 	start := xtime.Now()
 	end := start.Add(time.Second * -30)
-	_, clusters, err := resolveClusterNamespacesForQuery(start,
-		start, end, store.clusters, opts, nil)
+	_, clusters, err := resolveClusterNamespacesForQuery(start, start, end, store.clusters, opts,
+		nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, 4, len(clusters))
-	expected := []string{"metrics_aggregated_1m:30d", "metrics_aggregated_5m:90d",
-		"metrics_aggregated_partial_1m:180d", "metrics_aggregated_10m:365d"}
+	expected := []string{
+		"metrics_aggregated_1m:30d", "metrics_aggregated_5m:90d",
+		"metrics_aggregated_partial_1m:180d", "metrics_aggregated_10m:365d",
+	}
 
 	for i, cluster := range clusters {
 		assert.Equal(t, expected[i], cluster.NamespaceID().String())
@@ -163,12 +165,19 @@ func generateClusters(t *testing.T, ctrl *gomock.Controller) Clusters {
 	return clusters
 }
 
+// used to generate storage.RelatedQueries during a test
+type testTimeOffsets struct {
+	startOffset time.Duration
+	endOffset   time.Duration
+}
+
 var testCases = []struct {
 	name                     string
 	queryLength              time.Duration
 	opts                     *storage.FanoutOptions
 	restrict                 *storage.RestrictQueryOptions
 	expectedType             consolidators.QueryFanoutType
+	relatedQueryOffsets      []testTimeOffsets
 	expectedClusterNames     []string
 	expectedErr              error
 	expectedErrContains      string
@@ -244,8 +253,10 @@ var testCases = []struct {
 			FanoutAggregatedOptimized: storage.FanoutForceDisable,
 		},
 		expectedType: consolidators.NamespaceCoversPartialQueryRange,
-		expectedClusterNames: []string{"AGG_FILTERED", "AGG_NO_FILTER",
-			"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE"},
+		expectedClusterNames: []string{
+			"AGG_FILTERED", "AGG_NO_FILTER",
+			"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE",
+		},
 	},
 	{
 		name:        "agg enabled short range",
@@ -256,8 +267,10 @@ var testCases = []struct {
 			FanoutAggregatedOptimized: storage.FanoutForceDisable,
 		},
 		expectedType: consolidators.NamespaceCoversAllQueryRange,
-		expectedClusterNames: []string{"AGG_FILTERED", "AGG_NO_FILTER",
-			"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE"},
+		expectedClusterNames: []string{
+			"AGG_FILTERED", "AGG_NO_FILTER",
+			"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE",
+		},
 	},
 	{
 		name: "unagg and agg enabled",
@@ -267,8 +280,10 @@ var testCases = []struct {
 			FanoutAggregatedOptimized: storage.FanoutForceDisable,
 		},
 		expectedType: consolidators.NamespaceCoversPartialQueryRange,
-		expectedClusterNames: []string{"UNAGG", "AGG_FILTERED", "AGG_NO_FILTER",
-			"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE"},
+		expectedClusterNames: []string{
+			"UNAGG", "AGG_FILTERED", "AGG_NO_FILTER",
+			"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE",
+		},
 	},
 	{
 		name:        "unagg and agg enabled short range",
@@ -418,6 +433,18 @@ var testCases = []struct {
 		expectedType:         consolidators.NamespaceCoversAllQueryRange,
 		expectedClusterNames: []string{"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE"},
 	},
+	{
+		name:        "all enabled short range w/ related queries",
+		queryLength: time.Minute,
+		opts: &storage.FanoutOptions{
+			FanoutUnaggregated:        storage.FanoutForceEnable,
+			FanoutAggregated:          storage.FanoutForceEnable,
+			FanoutAggregatedOptimized: storage.FanoutForceEnable,
+		},
+		relatedQueryOffsets:  []testTimeOffsets{{startOffset: time.Hour * 1000, endOffset: 0}},
+		expectedType:         consolidators.NamespaceCoversPartialQueryRange,
+		expectedClusterNames: []string{"AGG_NO_FILTER", "AGG_NO_FILTER_COMPLETE"},
+	},
 }
 
 func TestResolveClusterNamespacesForQueryWithOptions(t *testing.T) {
@@ -435,8 +462,18 @@ func TestResolveClusterNamespacesForQueryWithOptions(t *testing.T) {
 				start = start.Add(time.Hour * -2)
 			}
 
+			relatedQueries := make([]storage.QueryTimespan, 0, len(tt.relatedQueryOffsets))
+			for _, offset := range tt.relatedQueryOffsets {
+				timespan := storage.QueryTimespan{
+					Start: now.Add(-offset.startOffset),
+					End:   now.Add(-offset.endOffset),
+				}
+				relatedQueries = append(relatedQueries, timespan)
+			}
+
 			fanoutType, clusters, err := resolveClusterNamespacesForQuery(now,
-				start, end, clusters, tt.opts, tt.restrict)
+				start, end, clusters, tt.opts, tt.restrict,
+				&storage.RelatedQueryOptions{Timespans: relatedQueries})
 			if tt.expectedErr != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.expectedErr, err)
@@ -515,8 +552,8 @@ func TestLongUnaggregatedRetention(t *testing.T) {
 		FanoutAggregatedOptimized: storage.FanoutForceEnable,
 	}
 
-	fanoutType, ns, err := resolveClusterNamespacesForQuery(now,
-		start, end, clusters, opts, nil)
+	fanoutType, ns, err := resolveClusterNamespacesForQuery(now, start, end, clusters,
+		opts, nil, nil)
 
 	require.NoError(t, err)
 	actualNames := make([]string, len(ns))
@@ -563,8 +600,8 @@ func TestExampleCase(t *testing.T) {
 
 	for i := 27; i < 17520; i++ {
 		start := now.Add(time.Hour * -1 * time.Duration(i))
-		fanoutType, clusters, err := resolveClusterNamespacesForQuery(now,
-			start, end, ns, &storage.FanoutOptions{}, nil)
+		fanoutType, clusters, err := resolveClusterNamespacesForQuery(now, start, end, ns,
+			&storage.FanoutOptions{}, nil, nil)
 
 		require.NoError(t, err)
 		actualNames := make([]string, len(clusters))
@@ -574,8 +611,10 @@ func TestExampleCase(t *testing.T) {
 
 		// NB: order does not matter.
 		sort.Strings(actualNames)
-		assert.Equal(t, []string{"metrics_10s_24h",
-			"metrics_180s_360h", "metrics_600s_17520h"}, actualNames)
+		assert.Equal(t, []string{
+			"metrics_10s_24h",
+			"metrics_180s_360h", "metrics_600s_17520h",
+		}, actualNames)
 		assert.Equal(t, consolidators.NamespaceCoversPartialQueryRange, fanoutType)
 	}
 }
@@ -608,8 +647,8 @@ func TestDeduplicatePartialAggregateNamespaces(t *testing.T) {
 	end := now
 
 	start := now.Add(-48 * time.Hour)
-	fanoutType, clusters, err := resolveClusterNamespacesForQuery(now,
-		start, end, ns, &storage.FanoutOptions{}, nil)
+	fanoutType, clusters, err := resolveClusterNamespacesForQuery(now, start, end, ns,
+		&storage.FanoutOptions{}, nil, nil)
 	require.NoError(t, err)
 
 	actualNames := make([]string, len(clusters))

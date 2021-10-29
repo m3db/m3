@@ -401,6 +401,8 @@ func TestConfiguration(t *testing.T) {
     backgroundHealthCheckFailThrottleFactor: 0.5
     hashing:
       seed: 42
+    encoding:
+      m3tsz: null
     proto: null
     asyncWriteWorkerPoolSize: null
     asyncWriteMaxConcurrency: null

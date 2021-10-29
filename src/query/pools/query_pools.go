@@ -188,6 +188,7 @@ func (o BuildIteratorPoolsOptions) SeriesIDBytesPoolBucketsOrDefault() []pool.Bu
 // BuildIteratorPools build iterator pools if they are unavailable from
 // m3db (e.g. if running standalone query)
 func BuildIteratorPools(
+	encodingOpts encoding.Options,
 	opts BuildIteratorPoolsOptions,
 ) encoding.IteratorPools {
 	// TODO: add instrumentation options to these pools
@@ -206,7 +207,7 @@ func BuildIteratorPools(
 
 	readerIteratorPool := encoding.NewReaderIteratorPool(readerIteratorPoolPoolOpts)
 
-	encodingOpts := encoding.NewOptions().
+	encodingOpts = encodingOpts.
 		SetReaderIteratorPool(readerIteratorPool)
 
 	readerIteratorPool.Init(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))

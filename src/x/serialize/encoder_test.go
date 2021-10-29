@@ -21,7 +21,7 @@
 package serialize
 
 import (
-	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/m3db/m3/src/x/checked"
@@ -122,10 +122,10 @@ func TestSimpleEncode(t *testing.T) {
 func TestTagEncoderErrorEncoding(t *testing.T) {
 	opts := NewTagEncoderOptions()
 	e := newTagEncoder(defaultNewCheckedBytesFn, opts, nil)
-	maxLiteralLen := opts.TagSerializationLimits().MaxTagLiteralLength()
+	maxLiteralLen := int(opts.TagSerializationLimits().MaxTagLiteralLength())
 	tags := ident.NewTagsIterator(ident.NewTags(
 		ident.StringTag("abc", "defg"),
-		ident.StringTag("x", nstring(1+int(maxLiteralLen))),
+		ident.StringTag("x", strings.Repeat("x", 1+maxLiteralLen)),
 	))
 
 	require.Error(t, e.Encode(tags))
@@ -134,7 +134,10 @@ func TestTagEncoderErrorEncoding(t *testing.T) {
 	require.False(t, ok)
 
 	e.Reset()
-	tags = ident.NewTagsIterator(ident.NewTags(ident.StringTag("abc", "defg")))
+	tags = ident.NewTagsIterator(ident.NewTags(
+		ident.StringTag("abc", "defg"),
+		ident.StringTag("x", strings.Repeat("x", maxLiteralLen)),
+	))
 	require.NoError(t, e.Encode(tags))
 }
 
@@ -218,12 +221,4 @@ func TestSingleValueTagIterEncode(t *testing.T) {
 	mockBytes.EXPECT().Reset(nil)
 	mockBytes.EXPECT().DecRef()
 	enc.Reset()
-}
-
-func nstring(n int) string {
-	var buf bytes.Buffer
-	for i := 0; i < n; i++ {
-		buf.WriteByte(byte('a'))
-	}
-	return buf.String()
 }

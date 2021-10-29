@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/integration"
 	"github.com/m3db/m3/src/integration/resources"
-	"github.com/m3db/m3/src/integration/resources/common"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 
 	"github.com/ory/dockertest/v3"
@@ -108,7 +107,7 @@ func (c *dbNode) Health() (*rpc.NodeHealthResult_, error) {
 		return nil, errClosed
 	}
 
-	logger := c.resource.logger.With(common.ZapMethod("health"))
+	logger := c.resource.logger.With(resources.ZapMethod("health"))
 	res, err := c.tchanClient.TChannelClientHealth(timeout)
 	if err != nil {
 		logger.Error("failed get", zap.Error(err), zap.Any("res", res))
@@ -122,7 +121,7 @@ func (c *dbNode) WaitForBootstrap() error {
 		return errClosed
 	}
 
-	logger := c.resource.logger.With(common.ZapMethod("waitForBootstrap"))
+	logger := c.resource.logger.With(resources.ZapMethod("waitForBootstrap"))
 	return c.resource.pool.Retry(func() error {
 		health, err := c.Health()
 		if err != nil {
@@ -144,7 +143,7 @@ func (c *dbNode) WritePoint(req *rpc.WriteRequest) error {
 		return errClosed
 	}
 
-	logger := c.resource.logger.With(common.ZapMethod("write"))
+	logger := c.resource.logger.With(resources.ZapMethod("write"))
 	err := c.tchanClient.TChannelClientWrite(timeout, req)
 	if err != nil {
 		logger.Error("could not write", zap.Error(err))
@@ -160,10 +159,27 @@ func (c *dbNode) WriteTaggedPoint(req *rpc.WriteTaggedRequest) error {
 		return errClosed
 	}
 
-	logger := c.resource.logger.With(common.ZapMethod("write-tagged"))
+	logger := c.resource.logger.With(resources.ZapMethod("write-tagged"))
 	err := c.tchanClient.TChannelClientWriteTagged(timeout, req)
 	if err != nil {
 		logger.Error("could not write-tagged", zap.Error(err))
+		return err
+	}
+
+	logger.Info("wrote")
+	return nil
+}
+
+// WriteTaggedBatchRaw writes a batch of writes to the node directly.
+func (c *dbNode) WriteTaggedBatchRaw(req *rpc.WriteTaggedBatchRawRequest) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	logger := c.resource.logger.With(resources.ZapMethod("write-tagged-batch-raw"))
+	err := c.tchanClient.TChannelClientWriteTaggedBatchRaw(timeout, req)
+	if err != nil {
+		logger.Error("writeTaggedBatchRaw call failed", zap.Error(err))
 		return err
 	}
 
@@ -176,7 +192,7 @@ func (c *dbNode) AggregateTiles(req *rpc.AggregateTilesRequest) (int64, error) {
 		return 0, errClosed
 	}
 
-	logger := c.resource.logger.With(common.ZapMethod("aggregate-tiles"))
+	logger := c.resource.logger.With(resources.ZapMethod("aggregate-tiles"))
 	rsp, err := c.tchanClient.TChannelClientAggregateTiles(timeout, req)
 	if err != nil {
 		logger.Error("could not aggregate tiles", zap.Error(err))
@@ -192,7 +208,7 @@ func (c *dbNode) Fetch(req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
 		return nil, errClosed
 	}
 
-	logger := c.resource.logger.With(common.ZapMethod("fetch"))
+	logger := c.resource.logger.With(resources.ZapMethod("fetch"))
 	dps, err := c.tchanClient.TChannelClientFetch(timeout, req)
 	if err != nil {
 		logger.Error("could not fetch", zap.Error(err))
@@ -208,7 +224,7 @@ func (c *dbNode) FetchTagged(req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResul
 		return nil, errClosed
 	}
 
-	logger := c.resource.logger.With(common.ZapMethod("fetchtagged"))
+	logger := c.resource.logger.With(resources.ZapMethod("fetchtagged"))
 	result, err := c.tchanClient.TChannelClientFetchTagged(timeout, req)
 	if err != nil {
 		logger.Error("could not fetch", zap.Error(err))
@@ -225,7 +241,7 @@ func (c *dbNode) Restart() error {
 	}
 
 	cName := c.resource.resource.Container.Name
-	logger := c.resource.logger.With(common.ZapMethod("restart"))
+	logger := c.resource.logger.With(resources.ZapMethod("restart"))
 	logger.Info("restarting container", zap.String("container", cName))
 	err := c.resource.pool.Client.RestartContainer(cName, 60)
 	if err != nil {

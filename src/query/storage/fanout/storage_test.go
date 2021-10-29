@@ -25,6 +25,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -126,7 +127,8 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 	}
 
 	store := NewStorage(stores, filterFunc(output), filterFunc(output),
-		filterCompleteTagsFunc(output), models.NewTagOptions(), storagem3.NewOptions(), instrument.NewOptions())
+		filterCompleteTagsFunc(output), models.NewTagOptions(),
+		storagem3.NewOptions(encoding.NewOptions()), instrument.NewOptions())
 	return store
 }
 
@@ -154,7 +156,8 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 		store1, store2,
 	}
 	store := NewStorage(stores, filterFunc(output), filterFunc(output),
-		filterCompleteTagsFunc(output), models.NewTagOptions(), storagem3.NewOptions(), instrument.NewOptions())
+		filterCompleteTagsFunc(output), models.NewTagOptions(),
+		storagem3.NewOptions(encoding.NewOptions()), instrument.NewOptions())
 	return store
 }
 
@@ -165,7 +168,8 @@ func TestQueryStorageMetadataAttributes(t *testing.T) {
 	stores := []storage.Storage{store1}
 
 	store := NewStorage(stores, filterFunc(false), filterFunc(false),
-		filterCompleteTagsFunc(false), models.NewTagOptions(), storagem3.NewOptions(), instrument.NewOptions())
+		filterCompleteTagsFunc(false), models.NewTagOptions(),
+		storagem3.NewOptions(encoding.NewOptions()), instrument.NewOptions())
 
 	attrs, err := store.QueryStorageMetadataAttributes(
 		context.Background(),
@@ -209,7 +213,8 @@ func TestQueryStorageMetadataAttributesMultipleStores(t *testing.T) {
 	stores := []storage.Storage{store1, store2}
 
 	store := NewStorage(stores, filterFunc(false), filterFunc(false),
-		filterCompleteTagsFunc(false), models.NewTagOptions(), storagem3.NewOptions(), instrument.NewOptions())
+		filterCompleteTagsFunc(false), models.NewTagOptions(),
+		storagem3.NewOptions(encoding.NewOptions()), instrument.NewOptions())
 
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.FanoutOptions.FanoutAggregated = storage.FanoutForceEnable
@@ -220,6 +225,10 @@ func TestQueryStorageMetadataAttributesMultipleStores(t *testing.T) {
 		fetchOpts,
 	)
 	require.NoError(t, err)
+
+	sort.Slice(attrs, func(i, j int) bool {
+		return attrs[i].Retention < attrs[j].Retention
+	})
 	require.Equal(t, []storagemetadata.Attributes{
 		{
 			MetricsType: storagemetadata.AggregatedMetricsType,
@@ -391,7 +400,8 @@ func TestFanoutSearchErrorContinues(t *testing.T) {
 
 	stores := []storage.Storage{warnStore, okStore, dupeStore}
 	store := NewStorage(stores, filter, filter, tFilter,
-		models.NewTagOptions(), storagem3.NewOptions(), instrument.NewOptions())
+		models.NewTagOptions(), storagem3.NewOptions(encoding.NewOptions()),
+		instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	result, err := store.SearchSeries(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.NoError(t, err)
@@ -442,7 +452,8 @@ func TestFanoutCompleteTagsErrorContinues(t *testing.T) {
 
 	stores := []storage.Storage{warnStore, okStore}
 	store := NewStorage(stores, filter, filter, tFilter,
-		models.NewTagOptions(), storagem3.NewOptions(), instrument.NewOptions())
+		models.NewTagOptions(), storagem3.NewOptions(encoding.NewOptions()),
+		instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	q := &storage.CompleteTagsQuery{CompleteNameOnly: true}
 	result, err := store.CompleteTags(context.TODO(), q, opts)
@@ -483,7 +494,8 @@ func TestFanoutFetchBlocksErrorContinues(t *testing.T) {
 
 	stores := []storage.Storage{okStore, warnStore}
 	store := NewStorage(stores, filter, filter, tFilter,
-		models.NewTagOptions(), storagem3.NewOptions(), instrument.NewOptions())
+		models.NewTagOptions(), storagem3.NewOptions(encoding.NewOptions()),
+		instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	result, err := store.FetchBlocks(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.NoError(t, err)
@@ -528,7 +540,8 @@ func TestFanoutFetchErrorContinues(t *testing.T) {
 
 	stores := []storage.Storage{okStore, warnStore}
 	store := NewStorage(stores, filter, filter, tFilter,
-		models.NewTagOptions(), storagem3.NewOptions(), instrument.NewOptions())
+		models.NewTagOptions(), storagem3.NewOptions(encoding.NewOptions()),
+		instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	opts.SeriesLimit = 300
 	result, err := store.FetchProm(context.TODO(), &storage.FetchQuery{}, opts)

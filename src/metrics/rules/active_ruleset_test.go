@@ -1369,7 +1369,49 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 			},
 			forNewRollupIDsResult: []IDWithMetadatas{
 				{
-					ID: b("rName9|rtagName2=rtagValue2,rtagName3=rtagValue3"), // rtageName1 is excluded away.
+					ID: b("rName9A|rtagName2=rtagValue2,rtagName3=rtagValue3"), // rtagName1 is excluded away.
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 100000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+										},
+										Pipeline: applied.Pipeline{Operations: []applied.OpUnion{}},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID: b("rName9B|rtagName2=rtagValue2,rtagName3=rtagValue3"), // rtagName1 is excluded away.
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 100000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+										},
+										Pipeline: applied.Pipeline{Operations: []applied.OpUnion{}},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID: b("rName9C|rtagName2=rtagValue2"), // rtagName1 and rtagName3 are excluded away.
 					Metadatas: metadata.StagedMetadatas{
 						{
 							CutoverNanos: 100000,
@@ -2567,7 +2609,49 @@ func TestActiveRuleSetForwardMatchWithMappingRulesAndRollupRules(t *testing.T) {
 			},
 			forNewRollupIDsResult: []IDWithMetadatas{
 				{
-					ID: b("rName9|rtagName2=rtagValue2,rtagName3=rtagValue3"), // rtageName1 is excluded away.
+					ID: b("rName9A|rtagName2=rtagValue2,rtagName3=rtagValue3"), // rtagName1 is excluded away.
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 100000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+										},
+										Pipeline: applied.Pipeline{Operations: []applied.OpUnion{}},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID: b("rName9B|rtagName2=rtagValue2,rtagName3=rtagValue3"), // rtagName1 is excluded away.
+					Metadatas: metadata.StagedMetadatas{
+						{
+							CutoverNanos: 100000,
+							Tombstoned:   false,
+							Metadata: metadata.Metadata{
+								Pipelines: []metadata.PipelineMetadata{
+									{
+										AggregationID: aggregation.MustCompressTypes(aggregation.Last),
+										StoragePolicies: policy.StoragePolicies{
+											policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+											policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+										},
+										Pipeline: applied.Pipeline{Operations: []applied.OpUnion{}},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID: b("rName9C|rtagName2=rtagValue2"), // rtagName1 and rtagName3 are excluded away.
 					Metadatas: metadata.StagedMetadatas{
 						{
 							CutoverNanos: 100000,
@@ -3948,8 +4032,28 @@ func testRollupRules(t *testing.T) []*rollupRule {
 
 	rr9, err := pipeline.NewRollupOp(
 		pipeline.ExcludeByRollupType,
-		"rName9",
+		"rName9A",
 		[]string{"rtagName1"},
+		aggregation.MustCompressTypes(aggregation.Last),
+	)
+	require.NoError(t, err)
+
+	rr10, err := pipeline.NewRollupOp(
+		pipeline.ExcludeByRollupType,
+		"rName9B",
+		// Include a case where an exclude rule references a tag that doesn't
+		// exist in the input metric and is lexicographyically less than the
+		// other rules. This covers regressions around sorted list merge behavior
+		// in the excludeBy (vs groupBy) case.
+		[]string{"atagName1", "rtagName1"},
+		aggregation.MustCompressTypes(aggregation.Last),
+	)
+	require.NoError(t, err)
+
+	rr11, err := pipeline.NewRollupOp(
+		pipeline.ExcludeByRollupType,
+		"rName9C",
+		[]string{"rtagName1", "rtagName3"},
 		aggregation.MustCompressTypes(aggregation.Last),
 	)
 	require.NoError(t, err)
@@ -4355,6 +4459,62 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		},
 	}
 
+	rollupRule10 := &rollupRule{
+		uuid: "rollupRule10",
+		snapshots: []*rollupRuleSnapshot{
+			{
+				name:               "rollupRule10.snapshot1",
+				tombstoned:         false,
+				cutoverNanos:       100000,
+				filter:             filter3,
+				lastUpdatedAtNanos: 105000,
+				lastUpdatedBy:      "test",
+				targets: []rollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:   pipeline.RollupOpType,
+								Rollup: rr10,
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+							policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	rollupRule11 := &rollupRule{
+		uuid: "rollupRule11",
+		snapshots: []*rollupRuleSnapshot{
+			{
+				name:               "rollupRule11.snapshot1",
+				tombstoned:         false,
+				cutoverNanos:       100000,
+				filter:             filter3,
+				lastUpdatedAtNanos: 105000,
+				lastUpdatedBy:      "test",
+				targets: []rollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:   pipeline.RollupOpType,
+								Rollup: rr11,
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+							policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
+
 	return []*rollupRule{
 		rollupRule1,
 		rollupRule2,
@@ -4365,5 +4525,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		rollupRule7,
 		rollupRule8,
 		rollupRule9,
+		rollupRule10,
+		rollupRule11,
 	}
 }

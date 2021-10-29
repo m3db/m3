@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/stores/m3db"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -151,6 +152,7 @@ type ClustersStaticConfigurationOptions struct {
 	AsyncSessions      bool
 	ProvidedSession    client.Session
 	CustomAdminOptions []client.CustomAdminOption
+	EncodingOptions    encoding.Options
 }
 
 // NewStaticClusters instantiates a new Clusters instance based on
@@ -178,6 +180,7 @@ func (c ClustersStaticConfiguration) NewStaticClusters(
 			// NB(r): Only create client session if not already provided.
 			result, err = clusterCfg.newClient(client.ConfigurationParameters{
 				InstrumentOptions: instrumentOpts,
+				EncodingOptions:   opts.EncodingOptions,
 			}, opts.CustomAdminOptions...)
 			if err != nil {
 				return nil, err
@@ -334,6 +337,7 @@ func (c ClustersStaticConfiguration) newDynamicClusters(
 	for _, clusterCfg := range c {
 		clusterClient, err := clusterCfg.newClient(client.ConfigurationParameters{
 			InstrumentOptions: instrumentOpts,
+			EncodingOptions:   opts.EncodingOptions,
 		}, opts.CustomAdminOptions...)
 		if err != nil {
 			return nil, err

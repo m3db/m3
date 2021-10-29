@@ -544,15 +544,30 @@ func (b *block) queryWithSpan(
 		doc := iter.Current()
 		if md, ok := doc.Metadata(); ok && md.OnIndexSeries != nil {
 			var (
-				inBlock      bool
-				currentBlock = opts.StartInclusive.Truncate(b.blockSize)
+				inBlock                bool
+				currentBlock           = opts.StartInclusive.Truncate(b.blockSize)
+				endExclusive           = opts.EndExclusive
+				minIndexed, maxIndexed = md.OnIndexSeries.IndexedRange()
 			)
-			for !inBlock {
+
+			if maxIndexed == 0 {
+				// Empty range.
+				continue
+			}
+
+			// Narrow down the range of blocks to scan because the client could have
+			// queried for an arbitrary wide range.
+			if currentBlock.Before(minIndexed) {
+				currentBlock = minIndexed
+			}
+			maxIndexedExclusive := maxIndexed.Add(time.Nanosecond)
+			if endExclusive.After(maxIndexedExclusive) {
+				endExclusive = maxIndexedExclusive
+			}
+
+			for !inBlock && currentBlock.Before(endExclusive) {
 				inBlock = md.OnIndexSeries.IndexedForBlockStart(currentBlock)
 				currentBlock = currentBlock.Add(b.blockSize)
-				if !currentBlock.Before(opts.EndExclusive) {
-					break
-				}
 			}
 
 			if !inBlock {
@@ -628,7 +643,7 @@ func (b *block) addQueryResults(
 	return batch, size, docsCount, err
 }
 
-// AggIter acquires a read lock on the block to get the set of segments for the returned iterator. However, the
+// AggregateIter acquires a read lock on the block to get the set of segments for the returned iterator. However, the
 // segments are searched and results are processed lazily in the returned iterator. The segments are finalized when
 // the ctx is finalized to ensure the mmaps are not freed until the ctx closes. This allows the returned results to
 // reference data in the mmap without copying.

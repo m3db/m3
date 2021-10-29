@@ -50,6 +50,8 @@ const (
 	// Using 65k which provides much better performance comparing
 	// to lower values like 1k ~ 8k.
 	defaultConnectionBufferSize = 2 << 15 // ~65kb
+
+	defaultWriterRetryInitialBackoff = time.Second * 5
 )
 
 // ConnectionOptions configs the connections.
@@ -363,6 +365,13 @@ type Options interface {
 
 	// SetIgnoreCutoffCutover sets a flag controlling whether cutoff/cutover timestamps are ignored.
 	SetIgnoreCutoffCutover(value bool) Options
+
+	// WithoutConsumerScope disables the consumer scope for metrics. For large m3msg deployments the consumer
+	// scope can add a lot of cardinality to the metrics.
+	WithoutConsumerScope() bool
+
+	// SetWithoutConsumerScope sets the value for WithoutConsumerScope.
+	SetWithoutConsumerScope(value bool) Options
 }
 
 type writerOptions struct {
@@ -385,15 +394,18 @@ type writerOptions struct {
 	cOpts                             ConnectionOptions
 	iOpts                             instrument.Options
 	ignoreCutoffCutover               bool
+	withoutConsumerScope              bool
 }
 
 // NewOptions creates Options.
 func NewOptions() Options {
+	messageRetryOpts := retry.NewOptions().
+		SetInitialBackoff(defaultWriterRetryInitialBackoff)
 	return &writerOptions{
 		topicWatchInitTimeout:             defaultTopicWatchInitTimeout,
 		placementOpts:                     placement.NewOptions(),
 		placementWatchInitTimeout:         defaultPlacementWatchInitTimeout,
-		messageRetryOpts:                  retry.NewOptions(),
+		messageRetryOpts:                  messageRetryOpts,
 		messageQueueNewWritesScanInterval: defaultMessageQueueNewWritesScanInterval,
 		messageQueueFullScanInterval:      defaultMessageQueueFullScanInterval,
 		messageQueueScanBatchSize:         defaultMessageQueueScanBatchSize,
@@ -594,5 +606,15 @@ func (opts *writerOptions) IgnoreCutoffCutover() bool {
 func (opts *writerOptions) SetIgnoreCutoffCutover(value bool) Options {
 	o := *opts
 	o.ignoreCutoffCutover = value
+	return &o
+}
+
+func (opts *writerOptions) WithoutConsumerScope() bool {
+	return opts.withoutConsumerScope
+}
+
+func (opts *writerOptions) SetWithoutConsumerScope(value bool) Options {
+	o := *opts
+	o.withoutConsumerScope = value
 	return &o
 }

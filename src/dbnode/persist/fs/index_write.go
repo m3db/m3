@@ -24,6 +24,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"time"
@@ -147,7 +148,8 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 		return err
 	}
 	if exists {
-		return fmt.Errorf("checkpoint already exists for volume: %s",
+		return xerrors.Wrapf(fs.ErrExist,
+			"checkpoint already exists for volume: %s",
 			w.checkpointFilePath)
 	}
 

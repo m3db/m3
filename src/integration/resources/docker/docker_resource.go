@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -33,7 +34,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/integration/resources"
-	"github.com/m3db/m3/src/integration/resources/common"
 )
 
 type dockerResource struct {
@@ -65,9 +65,17 @@ func newDockerResource(
 	opts := exposePorts(newOptions(containerName), portList)
 
 	hostConfigOpts := func(c *dc.HostConfig) {
+		c.AutoRemove = true
 		c.NetworkMode = networkName
-		mounts := make([]dc.HostMount, 0, len(resourceOpts.mounts))
-		for _, m := range resourceOpts.mounts {
+		// Allow the docker container to call services on the host machine.
+		// Docker for OS X and Windows support the host.docker.internal hostname
+		// natively, but Docker for Linux requires us to register host.docker.internal
+		// as an extra host before the hostname works.
+		if runtime.GOOS == "linux" {
+			c.ExtraHosts = []string{"host.docker.internal:172.17.0.1"}
+		}
+		mounts := make([]dc.HostMount, 0, len(resourceOpts.tmpfsMounts))
+		for _, m := range resourceOpts.tmpfsMounts {
 			mounts = append(mounts, dc.HostMount{
 				Target: m,
 				Type:   string(mount.TypeTmpfs),
@@ -89,6 +97,7 @@ func newDockerResource(
 		}
 	} else {
 		opts = useImage(opts, image)
+		opts.Mounts = resourceOpts.mounts
 		imageWithTag := fmt.Sprintf("%v:%v", image.name, image.tag)
 		logger.Info("running container with options",
 			zap.String("image", imageWithTag), zap.Any("options", opts))
@@ -125,7 +134,7 @@ func (c *dockerResource) exec(commands ...string) (string, error) {
 
 	// NB: this is prefixed with a `/` that should be trimmed off.
 	name := strings.TrimLeft(c.resource.Container.Name, "/")
-	logger := c.logger.With(common.ZapMethod("exec"))
+	logger := c.logger.With(resources.ZapMethod("exec"))
 	client := c.pool.Client
 	exec, err := client.CreateExec(dc.CreateExecOptions{
 		AttachStdout: true,
@@ -175,7 +184,7 @@ func (c *dockerResource) goalStateExec(
 		return errClosed
 	}
 
-	logger := c.logger.With(common.ZapMethod("goalStateExec"))
+	logger := c.logger.With(resources.ZapMethod("goalStateExec"))
 	return c.pool.Retry(func() error {
 		err := verifier(c.exec(commands...))
 		if err != nil {
