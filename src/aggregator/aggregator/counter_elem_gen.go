@@ -406,6 +406,7 @@ func (e *CounterElem) updateFlushStateWithLock(dirtyTime xtime.UnixNano, targetN
 		instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
 			l.Error("dirty timestamp not in values map", zap.Time("ts", ts))
 		})
+		return aggFlushState{}, false
 	}
 	if !isEarlierThanFn(int64(dirtyTime), resolution, targetNanos) {
 		return aggFlushState{}, false
