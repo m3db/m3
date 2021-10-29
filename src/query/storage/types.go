@@ -161,17 +161,6 @@ type RelatedQueryOptions struct {
 	Timespans []QueryTimespan
 }
 
-func (o *FetchOptions) PromOptions() PromOptions {
-	var resolution time.Duration
-	if rqo := o.RestrictQueryOptions; rqo != nil && rqo.RestrictByType != nil {
-		resolution = rqo.RestrictByType.StoragePolicy.Resolution().Window
-	}
-
-	return PromOptions{
-		Resolution: resolution,
-	}
-}
-
 // FanoutOptions describes which namespaces should be fanned out to for
 // the query.
 type FanoutOptions struct {
@@ -366,9 +355,4 @@ type PromResult struct {
 	PromResult *prompb.QueryResult
 	// ResultMetadata is the metadata for the result.
 	Metadata block.ResultMetadata
-}
-
-// PromOptions are options for decoding prometheus series.
-type PromOptions struct {
-	Resolution time.Duration
 }

@@ -208,7 +208,7 @@ func (s *fanoutStorage) FetchProm(
 
 	result.Metadata.Resolutions = resolutions
 	return storage.SeriesIteratorsToPromResult(ctx, result,
-		s.opts.ReadWorkerPool(), s.opts.TagOptions(), options.PromOptions())
+		s.opts.ReadWorkerPool(), s.opts.TagOptions())
 }
 
 func (s *fanoutStorage) FetchCompressed(
