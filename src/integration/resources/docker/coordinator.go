@@ -21,14 +21,15 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/ory/dockertest/v3"
+	"github.com/prometheus/common/model"
 
 	"github.com/m3db/m3/src/integration/resources"
-	"github.com/m3db/m3/src/integration/resources/common"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 )
@@ -50,7 +51,7 @@ var (
 
 type coordinator struct {
 	resource *dockerResource
-	client   common.CoordinatorClient
+	client   resources.CoordinatorClient
 }
 
 func newDockerHTTPCoordinator(
@@ -67,13 +68,18 @@ func newDockerHTTPCoordinator(
 
 	return &coordinator{
 		resource: resource,
-		client: common.NewCoordinatorClient(common.CoordinatorClientOptions{
+		client: resources.NewCoordinatorClient(resources.CoordinatorClientOptions{
 			Client:    http.DefaultClient,
 			HTTPPort:  7201,
 			Logger:    resource.logger,
 			RetryFunc: resource.pool.Retry,
 		}),
 	}, nil
+}
+
+func (c *coordinator) HostDetails() (*resources.InstanceInfo, error) {
+	// TODO: add implementation
+	return nil, errors.New("not implemented")
 }
 
 func (c *coordinator) GetNamespace() (admin.NamespaceGetResponse, error) {
@@ -105,6 +111,16 @@ func (c *coordinator) InitPlacement(
 	return c.client.InitPlacement(opts, req)
 }
 
+func (c *coordinator) DeleteAllPlacements(
+	opts resources.PlacementRequestOptions,
+) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	return c.client.DeleteAllPlacements(opts)
+}
+
 func (c *coordinator) WaitForNamespace(name string) error {
 	if c.resource.closed {
 		return errClosed
@@ -129,6 +145,14 @@ func (c *coordinator) WaitForShardsReady() error {
 	}
 
 	return c.client.WaitForShardsReady()
+}
+
+func (c *coordinator) WaitForClusterReady() error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	return c.client.WaitForClusterReady()
 }
 
 func (c *coordinator) CreateDatabase(
@@ -205,6 +229,27 @@ func (c *coordinator) RunQuery(
 	}
 
 	return c.client.RunQuery(verifier, query, headers)
+}
+
+func (c *coordinator) InstantQuery(
+	req resources.QueryRequest,
+	headers map[string][]string,
+) (model.Vector, error) {
+	if c.resource.closed {
+		return nil, errClosed
+	}
+	return c.client.InstantQuery(req, headers)
+}
+
+// RangeQuery runs a range query with provided headers
+func (c *coordinator) RangeQuery(
+	req resources.RangeQueryRequest,
+	headers map[string][]string,
+) (model.Matrix, error) {
+	if c.resource.closed {
+		return nil, errClosed
+	}
+	return c.client.RangeQuery(req, headers)
 }
 
 func (c *coordinator) Close() error {

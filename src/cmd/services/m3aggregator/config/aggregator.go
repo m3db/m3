@@ -133,7 +133,7 @@ type AggregatorConfiguration struct {
 	FlushManager flushManagerConfiguration `yaml:"flushManager"`
 
 	// Flushing handler configuration.
-	Flush handler.FlushHandlerConfiguration `yaml:"flush"`
+	Flush handler.FlushConfiguration `yaml:"flush"`
 
 	// Passthrough controls the passthrough knobs.
 	Passthrough *passthroughConfiguration `yaml:"passthrough"`
@@ -186,11 +186,6 @@ type AggregatorConfiguration struct {
 	// WritesIgnoreCutoffCutover allows accepting writes ignoring cutoff/cutover timestamp.
 	// Must be in sync with m3msg WriterConfiguration.IgnoreCutoffCutover.
 	WritesIgnoreCutoffCutover bool `yaml:"writesIgnoreCutoffCutover"`
-
-	// TimedForResendEnabledRollupRegexps is a feature flag that gracefully transitions AddUntimed to AddTimed
-	// for pipelines that support resending aggregate values. The regexps are matched against the rollup IDs
-	// to allow for incremental transition of existing rules to this new behavior.
-	TimedForResendEnabledRollupRegexps []string `yaml:"timedForResendEnabledRollupRegexps"`
 }
 
 // InstanceIDType is the instance ID type that defines how the
@@ -465,8 +460,10 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	counterElemPoolOpts := c.CounterElemPool.NewObjectPoolOptions(iOpts)
 	counterElemPool := aggregator.NewCounterElemPool(counterElemPoolOpts)
 	opts = opts.SetCounterElemPool(counterElemPool)
+	// use a singleton ElemOptions to avoid allocs per elem.
+	elemOpts := aggregator.NewElemOptions(opts)
 	counterElemPool.Init(func() *aggregator.CounterElem {
-		return aggregator.MustNewCounterElem(aggregator.ElemData{}, opts)
+		return aggregator.MustNewCounterElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	// Set timer elem pool.
@@ -475,7 +472,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	timerElemPool := aggregator.NewTimerElemPool(timerElemPoolOpts)
 	opts = opts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem {
-		return aggregator.MustNewTimerElem(aggregator.ElemData{}, opts)
+		return aggregator.MustNewTimerElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	// Set gauge elem pool.
@@ -484,7 +481,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	gaugeElemPool := aggregator.NewGaugeElemPool(gaugeElemPoolOpts)
 	opts = opts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem {
-		return aggregator.MustNewGaugeElem(aggregator.ElemData{}, opts)
+		return aggregator.MustNewGaugeElem(aggregator.ElemData{}, elemOpts)
 	})
 
 	// Set entry pool.
@@ -499,9 +496,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		return aggregator.NewEntryWithMetrics(nil, metrics, runtimeOpts, opts)
 	})
 
-	opts = opts.
-		SetWritesIgnoreCutoffCutover(c.WritesIgnoreCutoffCutover).
-		SetTimedForResendEnabledRollupRegexps(c.TimedForResendEnabledRollupRegexps)
+	opts = opts.SetWritesIgnoreCutoffCutover(c.WritesIgnoreCutoffCutover)
 
 	return opts, nil
 }

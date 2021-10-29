@@ -95,7 +95,8 @@ func (s *m3storage) QueryStorageMetadataAttributes(
 		xtime.ToUnixNano(queryEnd),
 		s.clusters,
 		opts.FanoutOptions,
-		opts.RestrictQueryOptions)
+		opts.RestrictQueryOptions,
+		nil)
 	if err != nil {
 		return nil, err
 	}
@@ -316,6 +317,7 @@ func (s *m3storage) fetchCompressed(
 		s.clusters,
 		options.FanoutOptions,
 		options.RestrictQueryOptions,
+		options.RelatedQueryOptions,
 	)
 	if err != nil {
 		return nil, index.Query{}, err
@@ -509,14 +511,13 @@ func (s *m3storage) CompleteTags(
 	// cluster that can completely fulfill this range and then prefer the
 	// highest resolution (most fine grained) results.
 	// This needs to be optimized, however this is a start.
-	_, namespaces, err := resolveClusterNamespacesForQuery(
-		xtime.ToUnixNano(s.nowFn()),
+	_, namespaces, err := resolveClusterNamespacesForQuery(xtime.ToUnixNano(s.nowFn()),
 		queryStart,
 		queryEnd,
 		s.clusters,
 		options.FanoutOptions,
 		options.RestrictQueryOptions,
-	)
+		nil)
 	if err != nil {
 		return nil, err
 	}
@@ -651,14 +652,13 @@ func (s *m3storage) SearchCompressed(
 	// cluster that can completely fulfill this range and then prefer the
 	// highest resolution (most fine grained) results.
 	// This needs to be optimized, however this is a start.
-	_, namespaces, err := resolveClusterNamespacesForQuery(
-		xtime.ToUnixNano(s.nowFn()),
+	_, namespaces, err := resolveClusterNamespacesForQuery(xtime.ToUnixNano(s.nowFn()),
 		queryStart,
 		queryEnd,
 		s.clusters,
 		options.FanoutOptions,
 		options.RestrictQueryOptions,
-	)
+		nil)
 	if err != nil {
 		return tagResult, noop, err
 	}

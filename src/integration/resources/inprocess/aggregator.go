@@ -24,8 +24,10 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,13 +44,17 @@ import (
 	xos "github.com/m3db/m3/src/x/os"
 )
 
-var errNoHTTPConfig = errors.New("no http configuration")
+var errAggregatorNotStarted = errors.New("aggregator instance has not started")
 
-type aggregator struct {
+// Aggregator is an in-process implementation of resources.Aggregator for use
+// in integration tests.
+type Aggregator struct {
 	cfg     config.Configuration
 	logger  *zap.Logger
 	tmpDirs []string
+	startFn StartFn
 
+	started    bool
 	httpClient deploy.AggregatorClient
 
 	interruptCh chan<- error
@@ -59,11 +65,13 @@ type aggregator struct {
 type AggregatorOptions struct {
 	// Logger is the logger to use for the in-process aggregator.
 	Logger *zap.Logger
-
+	// StartFn is a custom function that can be used to start the Aggregator.
+	StartFn StartFn
+	// Start indicates whether to start the aggregator instance
+	Start bool
 	// GeneratePorts will automatically update the config to use open ports
 	// if set to true. If false, configuration is used as-is re: ports.
 	GeneratePorts bool
-
 	// GenerateHostID will automatically update the host ID specified in
 	// the config if set to true. If false, configuration is used as-is re: host ID.
 	GenerateHostID bool
@@ -89,66 +97,148 @@ func NewAggregator(cfg config.Configuration, opts AggregatorOptions) (resources.
 	}
 
 	// configure logger
-	hostID, err := cfg.Aggregator.HostIDOrDefault().Resolve()
+	hostID, err := cfg.AggregatorOrDefault().HostID.Resolve()
 	if err != nil {
 		return nil, err
 	}
 
-	if len(cfg.Logging.Fields) == 0 {
-		cfg.Logging.Fields = make(map[string]interface{})
+	loggingCfg := cfg.LoggingOrDefault()
+	if len(loggingCfg.Fields) == 0 {
+		loggingCfg.Fields = make(map[string]interface{})
 	}
-	cfg.Logging.Fields["component"] = fmt.Sprintf("m3aggregator:%s", hostID)
+	loggingCfg.Fields["component"] = fmt.Sprintf("m3aggregator:%s", hostID)
 
 	if opts.Logger == nil {
 		var err error
-		opts.Logger, err = NewLogger()
+		opts.Logger, err = resources.NewLogger()
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	agg := &aggregator{
+	agg := &Aggregator{
 		cfg:        cfg,
 		logger:     opts.Logger,
 		tmpDirs:    tmpDirs,
+		startFn:    opts.StartFn,
+		started:    false,
 		httpClient: deploy.NewAggregatorClient(&http.Client{}),
 	}
-	agg.start()
+
+	if opts.Start {
+		agg.Start()
+	}
 
 	return agg, nil
 }
 
-func (a *aggregator) IsHealthy() error {
-	if a.cfg.HTTP == nil {
-		return errNoHTTPConfig
+// HostDetails returns the aggregator's host details.
+func (a *Aggregator) HostDetails() (*resources.InstanceInfo, error) {
+	id, err := a.cfg.AggregatorOrDefault().HostID.Resolve()
+	if err != nil {
+		return nil, err
 	}
 
-	return a.httpClient.IsHealthy(a.cfg.HTTP.ListenAddress)
-}
-
-func (a *aggregator) Status() (m3agg.RuntimeStatus, error) {
-	if a.cfg.HTTP == nil {
-		return m3agg.RuntimeStatus{}, errNoHTTPConfig
+	addr, p, err := net.SplitHostPort(a.cfg.HTTPOrDefault().ListenAddress)
+	if err != nil {
+		return nil, err
 	}
 
-	return a.httpClient.Status(a.cfg.HTTP.ListenAddress)
-}
-
-func (a *aggregator) Resign() error {
-	if a.cfg.HTTP == nil {
-		return errNoHTTPConfig
+	port, err := strconv.Atoi(p)
+	if err != nil {
+		return nil, err
 	}
 
-	return a.httpClient.Resign(a.cfg.HTTP.ListenAddress)
+	m3msgAddr, m3msgP, err := net.SplitHostPort(a.cfg.M3MsgOrDefault().Server.ListenAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	m3msgPort, err := strconv.Atoi(m3msgP)
+	if err != nil {
+		return nil, err
+	}
+
+	return &resources.InstanceInfo{
+		ID:           id,
+		Env:          a.cfg.KVClientOrDefault().Etcd.Env,
+		Zone:         a.cfg.KVClientOrDefault().Etcd.Zone,
+		Address:      addr,
+		Port:         uint32(port),
+		M3msgAddress: m3msgAddr,
+		M3msgPort:    uint32(m3msgPort),
+	}, nil
 }
 
-func (a *aggregator) Close() error {
+// Start starts the aggregator instance.
+func (a *Aggregator) Start() {
+	if a.started {
+		a.logger.Warn("aggregator instance has started already")
+		return
+	}
+	a.started = true
+
+	if a.startFn != nil {
+		a.interruptCh, a.shutdownCh = a.startFn()
+		return
+	}
+
+	interruptCh := make(chan error, 1)
+	shutdownCh := make(chan struct{}, 1)
+
+	go func() {
+		server.Run(server.RunOptions{
+			Config:      a.cfg,
+			InterruptCh: interruptCh,
+			ShutdownCh:  shutdownCh,
+		})
+	}()
+
+	a.interruptCh = interruptCh
+	a.shutdownCh = shutdownCh
+}
+
+// IsHealthy determines whether an instance is healthy.
+func (a *Aggregator) IsHealthy() error {
+	if !a.started {
+		return errAggregatorNotStarted
+	}
+
+	return a.httpClient.IsHealthy(a.cfg.HTTPOrDefault().ListenAddress)
+}
+
+// Status returns the instance status.
+func (a *Aggregator) Status() (m3agg.RuntimeStatus, error) {
+	if !a.started {
+		return m3agg.RuntimeStatus{}, errAggregatorNotStarted
+	}
+
+	return a.httpClient.Status(a.cfg.HTTPOrDefault().ListenAddress)
+}
+
+// Resign asks an aggregator instance to give up its current leader role if applicable.
+func (a *Aggregator) Resign() error {
+	if !a.started {
+		return errAggregatorNotStarted
+	}
+
+	return a.httpClient.Resign(a.cfg.HTTPOrDefault().ListenAddress)
+}
+
+// Close closes the wrapper and releases any held resources, including
+// deleting docker containers.
+func (a *Aggregator) Close() error {
+	if !a.started {
+		return errAggregatorNotStarted
+	}
+
 	defer func() {
 		for _, dir := range a.tmpDirs {
 			if err := os.RemoveAll(dir); err != nil {
 				a.logger.Error("error removing temp directory", zap.String("dir", dir), zap.Error(err))
 			}
 		}
+		a.started = false
 	}()
 
 	select {
@@ -165,22 +255,6 @@ func (a *aggregator) Close() error {
 	}
 
 	return nil
-}
-
-func (a *aggregator) start() {
-	interruptCh := make(chan error, 1)
-	shutdownCh := make(chan struct{}, 1)
-
-	go func() {
-		server.Run(server.RunOptions{
-			Config:      a.cfg,
-			InterruptCh: interruptCh,
-			ShutdownCh:  shutdownCh,
-		})
-	}()
-
-	a.interruptCh = interruptCh
-	a.shutdownCh = shutdownCh
 }
 
 func updateAggregatorConfig(
@@ -216,46 +290,63 @@ func updateAggregatorConfig(
 
 func updateAggregatorHostID(cfg config.Configuration) config.Configuration {
 	hostID := uuid.New().String()
-	cfg.Aggregator.HostID = &hostid.Configuration{
+	aggCfg := cfg.AggregatorOrDefault()
+	aggCfg.HostID = &hostid.Configuration{
 		Resolver: hostid.ConfigResolver,
 		Value:    &hostID,
 	}
+	cfg.Aggregator = &aggCfg
 
 	return cfg
 }
 
 func updateAggregatorPorts(cfg config.Configuration) (config.Configuration, error) {
-	if cfg.HTTP != nil {
-		addr, _, err := nettest.GeneratePort(cfg.HTTP.ListenAddress)
+	httpCfg := cfg.HTTPOrDefault()
+	addr, _, err := nettest.GeneratePort(httpCfg.ListenAddress)
+	if err != nil {
+		return cfg, err
+	}
+	httpCfg.ListenAddress = addr
+	cfg.HTTP = &httpCfg
+
+	metricsCfg := cfg.MetricsOrDefault()
+	if metricsCfg.PrometheusReporter != nil && metricsCfg.PrometheusReporter.ListenAddress != "" {
+		addr, _, err := nettest.GeneratePort(metricsCfg.PrometheusReporter.ListenAddress)
 		if err != nil {
 			return cfg, err
 		}
-
-		cfg.HTTP.ListenAddress = addr
+		promReporter := *metricsCfg.PrometheusReporter
+		promReporter.ListenAddress = addr
+		metricsCfg.PrometheusReporter = &promReporter
 	}
+	cfg.Metrics = &metricsCfg
 
-	if cfg.Metrics.PrometheusReporter != nil {
-		addr, _, err := nettest.GeneratePort(cfg.Metrics.PrometheusReporter.ListenAddress)
+	m3msgCfg := cfg.M3MsgOrDefault()
+	if m3msgAddr := m3msgCfg.Server.ListenAddress; m3msgAddr != "" {
+		addr, _, err := nettest.GeneratePort(m3msgAddr)
 		if err != nil {
 			return cfg, err
 		}
-
-		cfg.Metrics.PrometheusReporter.ListenAddress = addr
+		m3msgCfg.Server.ListenAddress = addr
 	}
+	cfg.M3Msg = &m3msgCfg
 
 	return cfg, nil
 }
 
 func updateAggregatorFilepaths(cfg config.Configuration) (config.Configuration, []string, error) {
 	tmpDirs := make([]string, 0, 1)
-	if cfg.KVClient.Etcd != nil && cfg.KVClient.Etcd.CacheDir == "*" {
+
+	kvCfg := cfg.KVClientOrDefault()
+	if kvCfg.Etcd != nil {
 		dir, err := ioutil.TempDir("", "m3agg-*")
 		if err != nil {
 			return cfg, tmpDirs, err
 		}
 		tmpDirs = append(tmpDirs, dir)
-		cfg.KVClient.Etcd.CacheDir = dir
+		kvCfg.Etcd.CacheDir = dir
 	}
+	cfg.KVClient = &kvCfg
 
 	return cfg, tmpDirs, nil
 }

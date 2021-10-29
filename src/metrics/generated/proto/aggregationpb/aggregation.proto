@@ -48,6 +48,8 @@ enum AggregationType {
   P99 = 20;
   P999 = 21;
   P9999 = 22;
+  P25 = 23;
+  P75 = 24;
 }
 
 // AggregationID is a unique identifier uniquely identifying

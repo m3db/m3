@@ -163,10 +163,6 @@ type Options interface {
 	TagsTransform() TagsTransform
 	// SetTagsTransform sets the TagsTransform.
 	SetTagsTransform(value TagsTransform) Options
-	// SetIterAlloc sets the iterator allocator.
-	SetIterAlloc(encoding.ReaderIteratorAllocate) Options
-	// IterAlloc returns the reader iterator allocator.
-	IterAlloc() encoding.ReaderIteratorAllocate
 	// SetIteratorPools sets the iterator pools for the converter.
 	SetIteratorPools(encoding.IteratorPools) Options
 	// IteratorPools returns the iterator pools for the converter.

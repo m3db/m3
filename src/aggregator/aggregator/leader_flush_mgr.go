@@ -157,6 +157,7 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 			shouldFlush = true
 			waitFor = 0
 			bucketIdx := earliestFlush.bucketIdx
+			buckets[bucketIdx].flushLag.RecordDuration(time.Duration(nowNanos - earliestFlush.timeNanos))
 			// NB(xichen): make a shallow copy of the flushers inside the lock
 			// and use the snapshot for flushing below because the flushers slice
 			// inside the bucket may be modified during task execution when new

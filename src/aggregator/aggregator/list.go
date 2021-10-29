@@ -28,15 +28,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 var (
@@ -370,10 +370,12 @@ func (l *baseMetricList) flushBefore(beforeNanos int64, flushType flushType) {
 		// If the element is eligible for collection after the values are
 		// processed, add it to the list of elements to collect.
 		elem := e.Value.(metricElem)
+
 		if elem.Consume(
 			beforeNanos,
 			l.isEarlierThanFn,
 			l.timestampNanosFn,
+			l.targetNanosFn,
 			flushLocalFn,
 			flushForwardedFn,
 			onForwardedFlushedFn,
@@ -474,8 +476,9 @@ func (l *baseMetricList) consumeForwardedMetric(
 	value float64,
 	prevValue float64,
 	annotation []byte,
+	resendEnabled bool,
 ) {
-	writeFn(aggregationKey, timeNanos, value, prevValue, annotation)
+	writeFn(aggregationKey, timeNanos, value, prevValue, annotation, resendEnabled)
 	l.metrics.flushForwarded.metricConsumed.Inc(1)
 }
 
@@ -487,6 +490,7 @@ func (l *baseMetricList) discardForwardedMetric(
 	value float64,
 	prevValue float64,
 	annotation []byte,
+	resendEnabled bool,
 ) {
 	l.metrics.flushForwarded.metricDiscarded.Inc(1)
 }

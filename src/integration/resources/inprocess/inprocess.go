@@ -28,6 +28,7 @@ import (
 type inprocessM3Resources struct {
 	coordinator resources.Coordinator
 	dbNodes     resources.Nodes
+	aggregators resources.Aggregators
 }
 
 // ResourceOptions are the options for creating new
@@ -35,6 +36,7 @@ type inprocessM3Resources struct {
 type ResourceOptions struct {
 	Coordinator resources.Coordinator
 	DBNodes     resources.Nodes
+	Aggregators resources.Aggregators
 }
 
 // NewM3Resources returns an implementation of resources.M3Resources
@@ -43,6 +45,7 @@ func NewM3Resources(options ResourceOptions) resources.M3Resources {
 	return &inprocessM3Resources{
 		coordinator: options.Coordinator,
 		dbNodes:     options.DBNodes,
+		aggregators: options.Aggregators,
 	}
 }
 
@@ -65,4 +68,8 @@ func (i *inprocessM3Resources) Nodes() resources.Nodes {
 
 func (i *inprocessM3Resources) Coordinator() resources.Coordinator {
 	return i.coordinator
+}
+
+func (i *inprocessM3Resources) Aggregators() resources.Aggregators {
+	return i.aggregators
 }

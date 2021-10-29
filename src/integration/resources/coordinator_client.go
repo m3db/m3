@@ -18,13 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package common contains shared logic between docker and in-process M3
-// implementations.
-package common
+package resources
 
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -42,8 +41,8 @@ import (
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/placementhandler"
-	"github.com/m3db/m3/src/integration/resources"
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/x/headers"
@@ -112,14 +111,14 @@ func (c *CoordinatorClient) GetNamespace() (admin.NamespaceGetResponse, error) {
 }
 
 // GetPlacement gets placements.
-func (c *CoordinatorClient) GetPlacement(opts resources.PlacementRequestOptions) (admin.PlacementGetResponse, error) {
+func (c *CoordinatorClient) GetPlacement(opts PlacementRequestOptions) (admin.PlacementGetResponse, error) {
 	var handlerurl string
 	switch opts.Service {
-	case resources.ServiceTypeM3DB:
+	case ServiceTypeM3DB:
 		handlerurl = placementhandler.M3DBGetURL
-	case resources.ServiceTypeM3Aggregator:
+	case ServiceTypeM3Aggregator:
 		handlerurl = placementhandler.M3AggGetURL
-	case resources.ServiceTypeM3Coordinator:
+	case ServiceTypeM3Coordinator:
 		handlerurl = placementhandler.M3CoordinatorGetURL
 	default:
 		return admin.PlacementGetResponse{}, errUnknownServiceType
@@ -144,16 +143,16 @@ func (c *CoordinatorClient) GetPlacement(opts resources.PlacementRequestOptions)
 
 // InitPlacement initializes placements.
 func (c *CoordinatorClient) InitPlacement(
-	opts resources.PlacementRequestOptions,
+	opts PlacementRequestOptions,
 	initRequest admin.PlacementInitRequest,
 ) (admin.PlacementGetResponse, error) {
 	var handlerurl string
 	switch opts.Service {
-	case resources.ServiceTypeM3DB:
+	case ServiceTypeM3DB:
 		handlerurl = placementhandler.M3DBInitURL
-	case resources.ServiceTypeM3Aggregator:
+	case ServiceTypeM3Aggregator:
 		handlerurl = placementhandler.M3AggInitURL
-	case resources.ServiceTypeM3Coordinator:
+	case ServiceTypeM3Coordinator:
 		handlerurl = placementhandler.M3CoordinatorInitURL
 	default:
 		return admin.PlacementGetResponse{}, errUnknownServiceType
@@ -174,6 +173,44 @@ func (c *CoordinatorClient) InitPlacement(
 	}
 
 	return response, nil
+}
+
+// DeleteAllPlacements deletes all placements for the specified service.
+func (c *CoordinatorClient) DeleteAllPlacements(opts PlacementRequestOptions) error {
+	var handlerurl string
+	switch opts.Service {
+	case ServiceTypeM3DB:
+		handlerurl = placementhandler.M3DBDeleteAllURL
+	case ServiceTypeM3Aggregator:
+		handlerurl = placementhandler.M3AggDeleteAllURL
+	case ServiceTypeM3Coordinator:
+		handlerurl = placementhandler.M3CoordinatorDeleteAllURL
+	default:
+		return errUnknownServiceType
+	}
+	url := c.makeURL(handlerurl)
+	logger := c.logger.With(
+		ZapMethod("deleteAllPlacements"), zap.String("url", url))
+
+	resp, err := c.makeRequest(
+		logger, url, placementhandler.DeleteAllHTTPMethod, nil, placementOptsToMap(opts),
+	)
+	if err != nil {
+		logger.Error("failed to delete all placements", zap.Error(err))
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		logger.Error("status code not 2xx",
+			zap.Int("status code", resp.StatusCode),
+			zap.String("status", resp.Status))
+		return fmt.Errorf("status code %d", resp.StatusCode)
+	}
+
+	logger.Info("placements deleted")
+
+	return nil
 }
 
 // WaitForNamespace blocks until the given namespace is enabled.
@@ -218,7 +255,7 @@ func (c *CoordinatorClient) WaitForInstances(
 ) error {
 	logger := c.logger.With(ZapMethod("waitForPlacement"))
 	return c.retryFunc(func() error {
-		placement, err := c.GetPlacement(resources.PlacementRequestOptions{Service: resources.ServiceTypeM3DB})
+		placement, err := c.GetPlacement(PlacementRequestOptions{Service: ServiceTypeM3DB})
 		if err != nil {
 			logger.Error("retrying get placement", zap.Error(err))
 			return err
@@ -250,7 +287,7 @@ func (c *CoordinatorClient) WaitForInstances(
 func (c *CoordinatorClient) WaitForShardsReady() error {
 	logger := c.logger.With(ZapMethod("waitForShards"))
 	return c.retryFunc(func() error {
-		placement, err := c.GetPlacement(resources.PlacementRequestOptions{Service: resources.ServiceTypeM3DB})
+		placement, err := c.GetPlacement(PlacementRequestOptions{Service: ServiceTypeM3DB})
 		if err != nil {
 			logger.Error("retrying get placement", zap.Error(err))
 			return err
@@ -265,6 +302,32 @@ func (c *CoordinatorClient) WaitForShardsReady() error {
 				}
 			}
 		}
+		return nil
+	})
+}
+
+// WaitForClusterReady waits until the cluster is ready to receive reads and writes.
+func (c *CoordinatorClient) WaitForClusterReady() error {
+	var (
+		url    = c.makeURL("ready")
+		logger = c.logger.With(ZapMethod("waitForClusterReady"), zap.String("url", url))
+	)
+	return c.retryFunc(func() error {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+		if err != nil {
+			logger.Error("failed to create request", zap.Error(err))
+			return err
+		}
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			logger.Error("failed checking cluster readiness", zap.Error(err))
+			return err
+		}
+		resp.Body.Close()
+
+		logger.Info("cluster ready to receive reads and writes")
+
 		return nil
 	})
 }
@@ -382,7 +445,7 @@ func (c *CoordinatorClient) DeleteNamespace(namespaceID string) error {
 //nolint:dupl
 // InitM3msgTopic initializes an m3msg topic
 func (c *CoordinatorClient) InitM3msgTopic(
-	topicOpts resources.M3msgTopicOptions,
+	topicOpts M3msgTopicOptions,
 	initRequest admin.TopicInitRequest,
 ) (admin.TopicGetResponse, error) {
 	url := c.makeURL(topic.InitURL)
@@ -410,7 +473,7 @@ func (c *CoordinatorClient) InitM3msgTopic(
 
 // GetM3msgTopic fetches an m3msg topic
 func (c *CoordinatorClient) GetM3msgTopic(
-	topicOpts resources.M3msgTopicOptions,
+	topicOpts M3msgTopicOptions,
 ) (admin.TopicGetResponse, error) {
 	url := c.makeURL(topic.GetURL)
 	logger := c.logger.With(
@@ -436,7 +499,7 @@ func (c *CoordinatorClient) GetM3msgTopic(
 //nolint:dupl
 // AddM3msgTopicConsumer adds a consumer service to an m3msg topic
 func (c *CoordinatorClient) AddM3msgTopicConsumer(
-	topicOpts resources.M3msgTopicOptions,
+	topicOpts M3msgTopicOptions,
 	addRequest admin.TopicAddRequest,
 ) (admin.TopicGetResponse, error) {
 	url := c.makeURL(topic.AddURL)
@@ -462,14 +525,14 @@ func (c *CoordinatorClient) AddM3msgTopicConsumer(
 	return response, nil
 }
 
-func placementOptsToMap(opts resources.PlacementRequestOptions) map[string]string {
+func placementOptsToMap(opts PlacementRequestOptions) map[string]string {
 	return map[string]string{
 		headers.HeaderClusterEnvironmentName: opts.Env,
 		headers.HeaderClusterZoneName:        opts.Zone,
 	}
 }
 
-func m3msgTopicOptionsToMap(opts resources.M3msgTopicOptions) map[string]string {
+func m3msgTopicOptionsToMap(opts M3msgTopicOptions) map[string]string {
 	return map[string]string{
 		headers.HeaderClusterEnvironmentName: opts.Env,
 		headers.HeaderClusterZoneName:        opts.Zone,
@@ -532,7 +595,7 @@ func (c *CoordinatorClient) WriteProm(name string, tags map[string]string, sampl
 	}
 
 	logger := c.logger.With(
-		ZapMethod("createDatabase"), zap.String("url", url),
+		ZapMethod("writeProm"), zap.String("url", url),
 		zap.String("request", writeRequest.String()))
 
 	body, err := proto.Marshal(&writeRequest)
@@ -631,7 +694,7 @@ func (c *CoordinatorClient) ApplyKVUpdate(update string) error {
 }
 
 func (c *CoordinatorClient) query(
-	verifier resources.ResponseVerifier, query string, headers map[string][]string,
+	verifier ResponseVerifier, query string, headers map[string][]string,
 ) error {
 	url := c.makeURL(query)
 	logger := c.logger.With(
@@ -658,9 +721,119 @@ func (c *CoordinatorClient) query(
 	return verifier(resp.StatusCode, resp.Header, string(b), err)
 }
 
+// InstantQuery runs an instant query with provided headers
+func (c *CoordinatorClient) InstantQuery(req QueryRequest, headers map[string][]string) (model.Vector, error) {
+	queryStr := fmt.Sprintf("%s?%s", route.QueryURL, req.QueryExpr)
+	if req.Time != nil {
+		queryStr = fmt.Sprintf("%s&time=%d", queryStr, req.Time.Unix())
+	}
+
+	resp, err := c.runQuery(queryStr, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsedResp jsonInstantQueryResponse
+	if err := json.Unmarshal([]byte(resp), &parsedResp); err != nil {
+		return nil, err
+	}
+
+	return parsedResp.Data.Result, nil
+}
+
+type jsonInstantQueryResponse struct {
+	Status string
+	Data   vectorResult
+}
+
+type vectorResult struct {
+	ResultType model.ValueType
+	Result     model.Vector
+}
+
+// RangeQuery runs a range query with provided headers
+func (c *CoordinatorClient) RangeQuery(req RangeQueryRequest, headers map[string][]string) (model.Matrix, error) {
+	if req.StartTime.IsZero() {
+		req.StartTime = time.Now()
+	}
+	if req.EndTime.IsZero() {
+		req.EndTime = time.Now()
+	}
+	if req.Step == 0 {
+		req.Step = 15 * time.Second // default step is 15 seconds.
+	}
+	queryStr := fmt.Sprintf(
+		"%s?%s&start=%d&end=%d&step=%f",
+		route.QueryRangeURL, req.QueryExpr,
+		req.StartTime.Unix(),
+		req.EndTime.Unix(),
+		req.Step.Seconds(),
+	)
+
+	resp, err := c.runQuery(queryStr, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsedResp jsonRangeQueryResponse
+	if err := json.Unmarshal([]byte(resp), &parsedResp); err != nil {
+		return nil, err
+	}
+
+	return parsedResp.Data.Result, nil
+}
+
+type jsonRangeQueryResponse struct {
+	Status string
+	Data   matrixResult
+}
+
+type matrixResult struct {
+	ResultType model.ValueType
+	Result     model.Matrix
+}
+
+func (c *CoordinatorClient) runQuery(
+	query string, headers map[string][]string,
+) (string, error) {
+	url := c.makeURL(query)
+	logger := c.logger.With(
+		ZapMethod("query"), zap.String("url", url), zap.Any("headers", headers))
+	logger.Info("running")
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	if headers != nil {
+		req.Header = headers
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		logger.Error("failed get", zap.Error(err))
+		return "", err
+	}
+
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+
+	if status := resp.StatusCode; status != http.StatusOK {
+		return "", fmt.Errorf("query response status not OK, received %v", status)
+	}
+
+	if contentType, ok := resp.Header["Content-Type"]; !ok {
+		return "", fmt.Errorf("missing Content-Type header")
+	} else if len(contentType) != 1 || contentType[0] != "application/json" { //nolint:goconst
+		return "", fmt.Errorf("expected json content type, got %v", contentType)
+	}
+
+	return string(b), err
+}
+
 // RunQuery runs the given query with a given verification function.
 func (c *CoordinatorClient) RunQuery(
-	verifier resources.ResponseVerifier, query string, headers map[string][]string,
+	verifier ResponseVerifier, query string, headers map[string][]string,
 ) error {
 	logger := c.logger.With(ZapMethod("runQuery"),
 		zap.String("query", query))

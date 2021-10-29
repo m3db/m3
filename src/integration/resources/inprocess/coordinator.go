@@ -32,17 +32,18 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/prometheus/common/model"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/integration/resources"
-	"github.com/m3db/m3/src/integration/resources/common"
 	nettest "github.com/m3db/m3/src/integration/resources/net"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/server"
 	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/headers"
 	xos "github.com/m3db/m3/src/x/os"
 )
 
@@ -55,7 +56,7 @@ const (
 // in integration tests.
 type Coordinator struct {
 	cfg      config.Configuration
-	client   common.CoordinatorClient
+	client   resources.CoordinatorClient
 	logger   *zap.Logger
 	tmpDirs  []string
 	embedded bool
@@ -137,7 +138,7 @@ func NewCoordinator(cfg config.Configuration, opts CoordinatorOptions) (resource
 
 	// Configure logger
 	if opts.Logger == nil {
-		opts.Logger, err = NewLogger()
+		opts.Logger, err = resources.NewLogger()
 		if err != nil {
 			return nil, err
 		}
@@ -157,11 +158,11 @@ func NewCoordinator(cfg config.Configuration, opts CoordinatorOptions) (resource
 	// Start the coordinator
 	coord := &Coordinator{
 		cfg: cfg,
-		client: common.NewCoordinatorClient(common.CoordinatorClientOptions{
+		client: resources.NewCoordinatorClient(resources.CoordinatorClientOptions{
 			Client:    &http.Client{},
 			HTTPPort:  port,
 			Logger:    opts.Logger,
-			RetryFunc: retry,
+			RetryFunc: resources.Retry,
 		}),
 		logger:  opts.Logger,
 		tmpDirs: tmpDirs,
@@ -192,11 +193,11 @@ func NewEmbeddedCoordinator(d *DBNode) (resources.Coordinator, error) {
 
 	return &Coordinator{
 		cfg: *d.cfg.Coordinator,
-		client: common.NewCoordinatorClient(common.CoordinatorClientOptions{
+		client: resources.NewCoordinatorClient(resources.CoordinatorClientOptions{
 			Client:    &http.Client{},
 			HTTPPort:  port,
 			Logger:    d.logger,
-			RetryFunc: retry,
+			RetryFunc: resources.Retry,
 		}),
 		embedded:    true,
 		logger:      d.logger,
@@ -224,6 +225,54 @@ func (c *Coordinator) start() {
 
 	c.interruptCh = interruptCh
 	c.shutdownCh = shutdownCh
+}
+
+// HostDetails returns the coordinator's host details.
+func (c *Coordinator) HostDetails() (*resources.InstanceInfo, error) {
+	addr, p, err := net.SplitHostPort(c.cfg.ListenAddressOrDefault())
+	if err != nil {
+		return nil, err
+	}
+
+	port, err := strconv.Atoi(p)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		m3msgAddr string
+		m3msgPort int
+	)
+	if c.cfg.Ingest != nil {
+		a, p, err := net.SplitHostPort(c.cfg.Ingest.M3Msg.Server.ListenAddress)
+		if err != nil {
+			return nil, err
+		}
+
+		mp, err := strconv.Atoi(p)
+		if err != nil {
+			return nil, err
+		}
+
+		m3msgAddr, m3msgPort = a, mp
+	}
+
+	zone := headers.DefaultServiceZone
+	if len(c.cfg.Clusters) > 0 && c.cfg.Clusters[0].Client.EnvironmentConfig != nil {
+		envCfg := c.cfg.Clusters[0].Client.EnvironmentConfig
+		if len(envCfg.Services) > 0 && envCfg.Services[0].Service != nil {
+			zone = envCfg.Services[0].Service.Zone
+		}
+	}
+
+	return &resources.InstanceInfo{
+		ID:           "m3coordinator",
+		Zone:         zone,
+		Address:      addr,
+		Port:         uint32(port),
+		M3msgAddress: m3msgAddr,
+		M3msgPort:    uint32(m3msgPort),
+	}, nil
 }
 
 // GetNamespace gets namespaces.
@@ -271,6 +320,14 @@ func (c *Coordinator) InitPlacement(
 	return c.client.InitPlacement(opts, req)
 }
 
+// DeleteAllPlacements deletes all placements for the service specified
+// in the PlacementRequestOptions.
+func (c *Coordinator) DeleteAllPlacements(
+	opts resources.PlacementRequestOptions,
+) error {
+	return c.client.DeleteAllPlacements(opts)
+}
+
 // WaitForInstances blocks until the given instance is available.
 func (c *Coordinator) WaitForInstances(ids []string) error {
 	return c.client.WaitForInstances(ids)
@@ -279,6 +336,11 @@ func (c *Coordinator) WaitForInstances(ids []string) error {
 // WaitForShardsReady waits until all shards gets ready.
 func (c *Coordinator) WaitForShardsReady() error {
 	return c.client.WaitForShardsReady()
+}
+
+// WaitForClusterReady waits until the cluster is ready to receive reads and writes.
+func (c *Coordinator) WaitForClusterReady() error {
+	return c.client.WaitForClusterReady()
 }
 
 // Close closes the wrapper and releases any held resources, including
@@ -359,6 +421,22 @@ func (c *Coordinator) RunQuery(
 	headers map[string][]string,
 ) error {
 	return c.client.RunQuery(verifier, query, headers)
+}
+
+// InstantQuery runs an instant query with provided headers
+func (c *Coordinator) InstantQuery(
+	req resources.QueryRequest,
+	headers map[string][]string,
+) (model.Vector, error) {
+	return c.client.InstantQuery(req, headers)
+}
+
+// RangeQuery runs a range query with provided headers
+func (c *Coordinator) RangeQuery(
+	req resources.RangeQueryRequest,
+	headers map[string][]string,
+) (model.Matrix, error) {
+	return c.client.RangeQuery(req, headers)
 }
 
 func updateCoordinatorConfig(

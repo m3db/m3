@@ -54,12 +54,11 @@ func TestCachedValuesGrowth(t *testing.T) {
 		buckets:                  make(map[int64]forwardedAggregationBucket),
 		bufferForPastTimedMetric: int64(time.Minute * 5),
 		nowFn:                    time.Now,
-		resendEnabled:            true,
 	}
 	for i := 0; i < 100; i++ {
 		for n := 0; n < 3; n++ {
 			timeNanos++
-			key.add(timeNanos, 1.0, 0.5, nil)
+			key.add(timeNanos, 1.0, 0.5, nil, true)
 		}
 		key.reset()
 	}
@@ -165,7 +164,7 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 	require.Equal(t, 0, len(agg.byKey[0].buckets))
 
 	// Validate that writeFn can be used to write data to the aggregation.
-	writeFn(aggKey, 1234, 5.67, 5.0, nil)
+	writeFn(aggKey, 1234, 5.67, 5.0, nil, false)
 	require.Equal(t, 1, len(agg.byKey[0].buckets))
 	require.Equal(t, int64(1234), agg.byKey[0].buckets[1234].timeNanos)
 	require.Equal(t, []float64{5.67}, agg.byKey[0].buckets[1234].values)
@@ -173,7 +172,7 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 	require.Equal(t, uint32(0), agg.byKey[0].buckets[1234].version)
 	require.Nil(t, agg.byKey[0].buckets[0].annotation)
 
-	writeFn(aggKey, 1234, 1.78, 1.0, testAnnot)
+	writeFn(aggKey, 1234, 1.78, 1.0, testAnnot, false)
 	require.Equal(t, 1, len(agg.byKey[0].buckets))
 	require.Equal(t, int64(1234), agg.byKey[0].buckets[1234].timeNanos)
 	require.Equal(t, []float64{5.67, 1.78}, agg.byKey[0].buckets[1234].values)
@@ -181,7 +180,7 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 	require.Equal(t, uint32(0), agg.byKey[0].buckets[1234].version)
 	require.Equal(t, testAnnot, agg.byKey[0].buckets[1234].annotation)
 
-	writeFn(aggKey, 1240, -2.95, 0.0, nil)
+	writeFn(aggKey, 1240, -2.95, 0.0, nil, false)
 	require.Equal(t, 2, len(agg.byKey[0].buckets))
 	require.Equal(t, int64(1240), agg.byKey[0].buckets[1240].timeNanos)
 	require.Equal(t, []float64{-2.95}, agg.byKey[0].buckets[1240].values)
@@ -386,9 +385,9 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write some datapoints.
-	writeFn(aggKey, 1234, 3.4, 3.0, nil)
-	writeFn(aggKey, 1234, 3.5, 2.0, nil)
-	writeFn(aggKey, 1240, 98.2, 98.0, nil)
+	writeFn(aggKey, 1234, 3.4, 3.0, nil, false)
+	writeFn(aggKey, 1234, 3.5, 2.0, nil, false)
+	writeFn(aggKey, 1240, 98.2, 98.0, nil, false)
 
 	// Register another aggregation.
 	writeFn2, onDoneFn2, err := w.Register(testRegisterable{
@@ -399,8 +398,8 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write some more datapoints.
-	writeFn2(aggKey, 1238, 3.4, 0.0, nil)
-	writeFn2(aggKey, 1239, 3.5, 0.0, nil)
+	writeFn2(aggKey, 1238, 3.4, 0.0, nil, false)
+	writeFn2(aggKey, 1239, 3.5, 0.0, nil, false)
 
 	expectedMetric1 := aggregated.ForwardedMetric{
 		Type:       mt,
@@ -478,11 +477,11 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	require.Equal(t, 4, len(agg.byKey[0].cachedValueArrays))
 
 	// Write datapoints again.
-	writeFn(aggKey, 1234, 3.4, 3.0, nil)
-	writeFn(aggKey, 1234, 3.5, 2.0, nil)
-	writeFn(aggKey, 1240, 98.2, 98.0, nil)
-	writeFn2(aggKey, 1238, 3.4, 0.0, nil)
-	writeFn2(aggKey, 1239, 3.5, 0.0, nil)
+	writeFn(aggKey, 1234, 3.4, 3.0, nil, false)
+	writeFn(aggKey, 1234, 3.5, 2.0, nil, false)
+	writeFn(aggKey, 1240, 98.2, 98.0, nil, false)
+	writeFn2(aggKey, 1238, 3.4, 0.0, nil, false)
+	writeFn2(aggKey, 1239, 3.5, 0.0, nil, false)
 	require.NoError(t, onDoneFn(aggKey))
 	require.NoError(t, onDoneFn2(aggKey))
 
@@ -531,9 +530,9 @@ func TestForwardedWriterResend(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write some datapoints.
-	writeFn(aggKey, 1234, 3.4, 3.0, nil)
-	writeFn(aggKey, 1234, 3.5, 2.0, nil)
-	writeFn(aggKey, 1240, 98.2, 98.0, nil)
+	writeFn(aggKey, 1234, 3.4, 3.0, nil, true)
+	writeFn(aggKey, 1234, 3.5, 2.0, nil, true)
+	writeFn(aggKey, 1240, 98.2, 98.0, nil, true)
 
 	// Register another aggregation.
 	writeFn2, onDoneFn2, err := w.Register(testRegisterable{
@@ -545,8 +544,8 @@ func TestForwardedWriterResend(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write some more datapoints.
-	writeFn2(aggKey, 1238, 3.4, 0.0, nil)
-	writeFn2(aggKey, 1239, 3.5, 0.0, nil)
+	writeFn2(aggKey, 1238, 3.4, 0.0, nil, true)
+	writeFn2(aggKey, 1239, 3.5, 0.0, nil, true)
 
 	expectedMetric1 := aggregated.ForwardedMetric{
 		Type:       mt,
@@ -626,11 +625,11 @@ func TestForwardedWriterResend(t *testing.T) {
 	require.Equal(t, 4, len(agg.byKey[0].cachedValueArrays))
 
 	// Write datapoints again.
-	writeFn(aggKey, 1234, 3.4, 3.0, nil)
-	writeFn(aggKey, 1234, 3.5, 2.0, nil)
-	writeFn(aggKey, 1240, 98.2, 98.0, nil)
-	writeFn2(aggKey, 1238, 3.4, 0.0, nil)
-	writeFn2(aggKey, 1239, 3.5, 0.0, nil)
+	writeFn(aggKey, 1234, 3.4, 3.0, nil, true)
+	writeFn(aggKey, 1234, 3.5, 2.0, nil, true)
+	writeFn(aggKey, 1240, 98.2, 98.0, nil, true)
+	writeFn2(aggKey, 1238, 3.4, 0.0, nil, true)
+	writeFn2(aggKey, 1239, 3.5, 0.0, nil, true)
 
 	expectedMetric1.Version = 1
 	expectedMetric2.Version = 1

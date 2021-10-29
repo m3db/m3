@@ -40,8 +40,7 @@ type (
 )
 
 const (
-	fileOpCheckInterval        = time.Second
-	defaultExternalChannelSize = 8
+	fileOpCheckInterval = time.Second
 
 	mediatorNotOpen mediatorState = iota
 	mediatorOpen
@@ -141,18 +140,6 @@ func (m *mediator) RegisterBackgroundProcess(process BackgroundProcess) error {
 	}
 
 	m.backgroundProcesses = append(m.backgroundProcesses, process)
-	return nil
-}
-
-func (m *mediator) EnqueueMutuallyExclusiveFn(fn func()) error {
-	m.RLock()
-	if m.state != mediatorOpen {
-		m.RUnlock()
-		return errMediatorNotOpen
-	}
-	m.RUnlock()
-
-	m.mediatorTimeBarrier.externalFnCh <- fn
 	return nil
 }
 
@@ -422,10 +409,9 @@ type mediatorTimeBarrier struct {
 	numFsProcessesWaiting int
 	numMaxWaiters         int
 
-	nowFn        func() time.Time
-	iOpts        instrument.Options
-	releaseCh    chan xtime.UnixNano
-	externalFnCh chan func()
+	nowFn     func() time.Time
+	iOpts     instrument.Options
+	releaseCh chan xtime.UnixNano
 }
 
 // initialMediatorTime should only be used to obtain the initial time for
@@ -478,24 +464,10 @@ func (b *mediatorTimeBarrier) maybeRelease() (xtime.UnixNano, error) {
 	}
 
 	b.mediatorTime = newMediatorTime
-
-	// If all waiters are waiting, we can safely call mutually exclusive external functions.
-	if numWaiters == b.numMaxWaiters {
-		// Drain the channel.
-	Loop:
-		for {
-			select {
-			case fn := <-b.externalFnCh:
-				fn()
-			default:
-				break Loop
-			}
-		}
-	}
-
 	for i := 0; i < numWaiters; i++ {
 		b.releaseCh <- b.mediatorTime
 	}
+
 	return b.mediatorTime, nil
 }
 
@@ -506,6 +478,5 @@ func newMediatorTimeBarrier(nowFn func() time.Time, iOpts instrument.Options, ma
 		iOpts:         iOpts,
 		numMaxWaiters: maxWaiters,
 		releaseCh:     make(chan xtime.UnixNano),
-		externalFnCh:  make(chan func(), defaultExternalChannelSize),
 	}
 }

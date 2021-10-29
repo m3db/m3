@@ -29,6 +29,10 @@ services:
     volumes:
       - "./m3coordinator.yml.tmp:/etc/m3coordinator/m3coordinator.yml"
   prometheusscraper:
+    expose:
+      - "9090"
+    ports:
+      - "127.0.0.1:9090:9090"
     networks:
       - backend
     image: prom/prometheus:latest
