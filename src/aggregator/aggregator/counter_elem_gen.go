@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/scaleway/scaleway-sdk-go/logger"
 	"github.com/willf/bitset"
 	"go.uber.org/zap"
 )
@@ -121,8 +122,11 @@ func (e *CounterElem) ResetSetData(data ElemData) error {
 
 // AddUnion adds a metric value union at a given timestamp.
 func (e *CounterElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion, resendEnabled bool) error {
-	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
-	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{
+	return e.doAddUnion(timestamp, mu, resendEnabled, false, timestamp)
+}
+func (e *CounterElem) doAddUnion(timestamp time.Time, mu unaggregated.MetricUnion, resendEnabled bool, retry bool, initialTimestamp time.Time) error {
+	alignedStart := timestamp.Truncate(e.sp.Resolution().Window)
+	lockedAgg, err := e.findOrCreate(alignedStart.UnixNano(), createAggregationOptions{
 		resendEnabled: resendEnabled,
 	})
 	if err != nil {
@@ -131,6 +135,13 @@ func (e *CounterElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion,
 	lockedAgg.Lock()
 	if lockedAgg.closed {
 		lockedAgg.Unlock()
+		if !resendEnabled && !retry {
+			return e.doAddUnion(alignedStart.Add(e.sp.Resolution().Window), mu, false, true, alignedStart)
+		}
+		logger.Errorf("aggregation already closed",
+			zap.Time("timestamp", timestamp),
+			zap.Time("initialTimestamp", initialTimestamp),
+			zap.Bool("retry", retry))
 		return errAggregationClosed
 	}
 	lockedAgg.aggregation.AddUnion(timestamp, mu)
@@ -375,7 +386,7 @@ func (e *CounterElem) Consume(
 	// Process the aggregations that are ready for consumption.
 	for _, flushState := range e.toConsume {
 		flushState.timestamp = xtime.UnixNano(timestampNanosFn(int64(flushState.startAt), resolution))
-		flushState = e.processValueWithAggregation(
+		flushState = e.processValue(
 			flushState,
 			flushLocalFn,
 			flushForwardedFn,
@@ -616,7 +627,7 @@ func (e *CounterElem) findOrCreate(
 }
 
 // returns true if a datapoint is emitted.
-func (e *CounterElem) processValueWithAggregation(
+func (e *CounterElem) processValue(
 	flushState aggFlushState,
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
@@ -656,7 +667,8 @@ func (e *CounterElem) processValueWithAggregation(
 							l.Error("previous start time not in state map",
 								zap.Time("ts", ts))
 						})
-					} else {
+					} else if prevFlushState.consumedValues != nil {
+						// prev consumedValues may be null if the result was NaN.
 						prev.Value = prevFlushState.consumedValues[aggTypeIdx]
 						prev.TimeNanos = int64(prevFlushState.timestamp)
 					}
