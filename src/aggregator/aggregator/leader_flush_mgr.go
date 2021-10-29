@@ -138,13 +138,6 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 		waitFor     = mgr.checkEvery
 	)
 
-	shards, err := mgr.placementManager.Shards()
-	if err != nil {
-		mgr.logger.Error("unable to determine shards owned by this instance", zap.Error(err))
-		return nil, waitFor
-	}
-	allShards := shards.All()
-
 	mgr.Lock()
 	defer mgr.Unlock()
 
@@ -180,18 +173,31 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 		}
 	}
 
-	durationSinceLastPersist := time.Duration(nowNanos - mgr.lastPersistAtNanos)
-	if mgr.flushedSincePersist && durationSinceLastPersist >= mgr.flushTimesPersistEvery {
-		mgr.lastPersistAtNanos = nowNanos
-		mgr.flushedSincePersist = false
-		flushTimes := mgr.prepareFlushTimesWithLock(buckets, allShards)
-		mgr.flushTimesManager.StoreAsync(flushTimes)
-	}
-
 	if !shouldFlush {
 		return nil, waitFor
 	}
 	return mgr.flushTask, waitFor
+}
+
+func (mgr *leaderFlushManager) UpdateFlushTimes(buckets []*flushBucket) {
+	shards, err := mgr.placementManager.Shards()
+	if err != nil {
+		mgr.logger.Error("unable to determine shards owned by this instance", zap.Error(err))
+		return
+	}
+
+	mgr.Lock()
+	defer mgr.Unlock()
+
+	allShards := shards.All()
+	if !mgr.flushedSincePersist {
+		return
+	}
+
+	mgr.flushedSincePersist = false
+	flushTimes := mgr.prepareFlushTimesWithLock(buckets, allShards)
+	mgr.flushTimesManager.StoreAsync(flushTimes)
+	mgr.lastPersistAtNanos = mgr.nowNanos()
 }
 
 // NB(xichen): if the current instance is a leader, we need to update the flush

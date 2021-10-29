@@ -93,6 +93,9 @@ type roleBasedFlushManager interface {
 
 	// Close closes the manager.
 	Close()
+
+	// UpdateFlushTimes updates flush times for the given buckets if possible.
+	UpdateFlushTimes(buckets []*flushBucket)
 }
 
 var (
@@ -338,7 +341,9 @@ func (mgr *flushManager) flush() {
 		mgr.RUnlock()
 		if flushTask != nil {
 			flushTask.Run()
+			mgr.flushManagerWithLock().UpdateFlushTimes(mgr.buckets)
 		}
+
 		if waitFor > 0 {
 			mgr.sleepFn(waitFor)
 		}
