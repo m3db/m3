@@ -259,6 +259,10 @@ SUBDIR_TARGETS := \
 	all-gen         \
 	all-gen
 
+.PHONY: test-harness
+test-harness:
+	go test -v -tags=integration_test_harness ./src/integration/...
+
 .PHONY: test-ci-unit
 test-ci-unit: test-base
 	$(process_coverfile) $(coverfile)

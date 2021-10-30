@@ -1,4 +1,4 @@
-// +build integration_v2
+// +build integration_test_harness
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -36,7 +36,7 @@ func TestNewCluster(t *testing.T) {
 		DBNode: &resources.DBNodeClusterOptions{
 			RF:                 3,
 			NumInstances:       1,
-			NumShards:          64,
+			NumShards:          4,
 			NumIsolationGroups: 3,
 		},
 	})
