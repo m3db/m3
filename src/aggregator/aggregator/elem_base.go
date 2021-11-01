@@ -133,6 +133,7 @@ type metricElem interface {
 		flushLocalFn flushLocalMetricFn,
 		flushForwardedFn flushForwardedMetricFn,
 		onForwardedFlushedFn onForwardingElemFlushedFn,
+		jitter time.Duration,
 		flushType flushType,
 	) bool
 
@@ -199,6 +200,7 @@ type forwardLagKey struct {
 	listType   metricListType
 	flushType  flushType
 	fwdType    string
+	jittered   bool
 }
 
 func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
@@ -215,12 +217,17 @@ func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
 		e.Unlock()
 		return m
 	}
+	jittered := "false"
+	if key.jittered {
+		jittered = "true"
+	}
 	m = e.scope.
 		Tagged(map[string]string{
 			"resolution": key.resolution.String(),
 			"list-type":  key.listType.String(),
 			"flush-type": key.flushType.String(),
 			"type":       key.fwdType,
+			"jitter":     jittered,
 		}).
 		Histogram("forward-lag", tally.DurationBuckets{
 			10 * time.Millisecond,
@@ -278,6 +285,25 @@ func newElemBase(opts ElemOptions) elemBase {
 }
 
 func (e *elemBase) forwardLagMetric(
+	resolution time.Duration, fwdType string, jittered bool, flushType flushType,
+) tally.Histogram {
+	key := forwardLagKey{
+		resolution: resolution,
+		listType:   e.listType,
+		fwdType:    fwdType,
+		flushType:  flushType,
+		jittered:   jittered,
+	}
+	m, ok := e.forwardLagMetrics[key]
+	if !ok {
+		// if not cached locally, get from the singleton map that requires locking.
+		m = e.metrics.forwardLagMetric(key)
+		e.forwardLagMetrics[key] = m
+	}
+	return m
+}
+
+func (e *elemBase) jitteredForwardLagMetric(
 	resolution time.Duration, fwdType string, flushType flushType,
 ) tally.Histogram {
 	key := forwardLagKey{
