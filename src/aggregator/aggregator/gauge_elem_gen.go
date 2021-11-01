@@ -682,9 +682,9 @@ func (e *GaugeElem) processValueWithAggregationLock(
 				}
 
 				if !lockedAgg.flushed {
-					e.forwardLagMetric(resolution, "local", true, flushType).
-						RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed - jitter)))
 					e.forwardLagMetric(resolution, "local", false, flushType).
+						RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed - jitter)))
+					e.forwardLagMetric(resolution, "local", true, flushType).
 						RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed)))
 				}
 			}
@@ -693,9 +693,9 @@ func (e *GaugeElem) processValueWithAggregationLock(
 			// only record lag for the initial flush (not resends)
 			if !lockedAgg.flushed {
 				// latenessAllowed is not due to processing delay, so it remove it from lag calc.
-				e.forwardLagMetric(resolution, "remote", true, flushType).
-					RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed - jitter)))
 				e.forwardLagMetric(resolution, "remote", false, flushType).
+					RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed - jitter)))
+				e.forwardLagMetric(resolution, "remote", true, flushType).
 					RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed)))
 			}
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
