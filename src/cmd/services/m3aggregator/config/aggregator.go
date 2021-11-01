@@ -123,6 +123,10 @@ type AggregatorConfiguration struct {
 	// shutdowns between two replicas safer.
 	ShutdownWaitTimeout time.Duration `yaml:"shutdownWaitTimeout"`
 
+	// DirtyClose if true will not make any attempts at gracefully closing the
+	// aggregator, and instead hard exist upon receiving a shutdown signal.
+	DirtyClose bool `yaml:"dirtyClose"`
+
 	// Flush times manager.
 	FlushTimesManager flushTimesManagerConfiguration `yaml:"flushTimesManager"`
 

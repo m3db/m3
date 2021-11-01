@@ -219,6 +219,11 @@ func Run(opts RunOptions) {
 		InterruptCh: opts.InterruptCh,
 	})
 
+	if aggCfg.DirtyClose {
+		logger.Info("server closed dirty")
+		return
+	}
+
 	if s := aggCfg.ShutdownWaitTimeout; s != 0 {
 		sigC := make(chan os.Signal, 1)
 		signal.Notify(sigC, syscall.SIGINT, syscall.SIGTERM)
