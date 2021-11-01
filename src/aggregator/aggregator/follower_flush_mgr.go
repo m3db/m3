@@ -178,6 +178,7 @@ func (mgr *followerFlushManager) Prepare(buckets []*flushBucket) (flushTask, tim
 
 	var (
 		now                = mgr.nowFn()
+		nowNanos           = now.UnixNano()
 		needsFlush         bool
 		flushersByInterval []flushersGroup
 	)
@@ -187,6 +188,13 @@ func (mgr *followerFlushManager) Prepare(buckets []*flushBucket) (flushTask, tim
 		mgr.flushMode = kvUpdateFollowerFlush
 		flushersByInterval = mgr.flushersFromKVUpdateWithLock(buckets)
 		needsFlush = true
+		for _, flushers := range flushersByInterval {
+			for _, flusher := range flushers.flushers {
+				lag := nowNanos - flusher.flushBeforeNanos
+				flushers.followerFlushLag.RecordDuration(time.Duration(lag))
+			}
+		}
+
 		mgr.metrics.kvUpdateFlush.Inc(1)
 	} else {
 		durationSinceLastFlush := now.Sub(mgr.lastFlushed)
@@ -394,6 +402,7 @@ func (mgr *followerFlushManager) flushersFromKVUpdateWithLock(buckets []*flushBu
 		bucketID := bucket.bucketID
 		flushersByInterval[i].interval = bucket.interval
 		flushersByInterval[i].duration = bucket.duration
+		flushersByInterval[i].followerFlushLag = bucket.followerFlushLag
 		switch bucketID.listType {
 		case standardMetricListType:
 			flushersByInterval[i].flushers = mgr.standardFlushersFromKVUpdateWithLock(
@@ -427,9 +436,7 @@ func (mgr *followerFlushManager) standardFlushersFromKVUpdateWithLock(
 	metrics standardFollowerFlusherMetrics,
 	logger *zap.Logger,
 ) []flusherWithTime {
-	var (
-		flushersWithTime = make([]flusherWithTime, 0, defaultInitialFlushCapacity)
-	)
+	flushersWithTime := make([]flusherWithTime, 0, defaultInitialFlushCapacity)
 	for _, flusher := range flushers {
 		shard := flusher.Shard()
 		shardFlushTimes, exists := mgr.received.ByShard[shard]
@@ -528,6 +535,7 @@ func (mgr *followerFlushManager) flushersFromForcedFlush(
 	for i, bucket := range buckets {
 		flushersByInterval[i].interval = bucket.interval
 		flushersByInterval[i].duration = bucket.duration
+		flushersByInterval[i].followerFlushLag = bucket.followerFlushLag
 		flushersByInterval[i].flushers = make([]flusherWithTime, 0, defaultInitialFlushCapacity)
 		for _, flusher := range bucket.flushers {
 			newFlushTarget := flusherWithTime{
@@ -618,7 +626,8 @@ type flusherWithTime struct {
 }
 
 type flushersGroup struct {
-	interval time.Duration
-	duration tally.Timer
-	flushers []flusherWithTime
+	interval         time.Duration
+	duration         tally.Timer
+	followerFlushLag tally.Histogram
+	flushers         []flusherWithTime
 }

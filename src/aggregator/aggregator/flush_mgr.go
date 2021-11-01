@@ -369,12 +369,13 @@ func (mgr *flushManager) flushManagerWithLock() roleBasedFlushManager {
 // flushBucket contains all the registered flushing metric lists for a given flush interval.
 // NB(xichen): flushBucket is not thread-safe. It is protected by the lock in the flush manager.
 type flushBucket struct {
-	bucketID metricListID
-	interval time.Duration
-	offset   time.Duration
-	flushers []flushingMetricList
-	duration tally.Timer
-	flushLag tally.Histogram
+	bucketID         metricListID
+	interval         time.Duration
+	offset           time.Duration
+	flushers         []flushingMetricList
+	duration         tally.Timer
+	flushLag         tally.Histogram
+	followerFlushLag tally.Histogram
 }
 
 func newBucket(
@@ -382,12 +383,8 @@ func newBucket(
 	interval, offset time.Duration,
 	scope tally.Scope,
 ) *flushBucket {
-	return &flushBucket{
-		bucketID: bucketID,
-		interval: interval,
-		offset:   offset,
-		duration: scope.Timer("duration"),
-		flushLag: scope.Histogram("flush-lag", tally.DurationBuckets{
+	histFn := func(name string) tally.Histogram {
+		return scope.Histogram(name, tally.DurationBuckets{
 			10 * time.Millisecond,
 			500 * time.Millisecond,
 			time.Second,
@@ -404,7 +401,21 @@ func newBucket(
 			60 * time.Second,
 			90 * time.Second,
 			120 * time.Second,
-		}),
+			150 * time.Second,
+			180 * time.Second,
+			210 * time.Second,
+			240 * time.Second,
+			300 * time.Second,
+		})
+	}
+
+	return &flushBucket{
+		bucketID:         bucketID,
+		interval:         interval,
+		offset:           offset,
+		duration:         scope.Timer("duration"),
+		flushLag:         histFn("flush-lag"),
+		followerFlushLag: histFn("follower-flush-lag"),
 	}
 }
 

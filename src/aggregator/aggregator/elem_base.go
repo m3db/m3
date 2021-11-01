@@ -133,6 +133,8 @@ type metricElem interface {
 		flushLocalFn flushLocalMetricFn,
 		flushForwardedFn flushForwardedMetricFn,
 		onForwardedFlushedFn onForwardingElemFlushedFn,
+		jitter time.Duration,
+		flushType flushType,
 	) bool
 
 	// MarkAsTombstoned marks an element as tombstoned, which means this element
@@ -194,8 +196,11 @@ type elemMetrics struct {
 }
 
 type forwardLagKey struct {
-	resolution time.Duration
-	listType   metricListType
+	resolution    time.Duration
+	listType      metricListType
+	flushType     flushType
+	fwdType       string
+	jitterApplied bool
 }
 
 func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
@@ -212,10 +217,17 @@ func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
 		e.Unlock()
 		return m
 	}
+	jitterApplied := "false"
+	if key.jitterApplied {
+		jitterApplied = "true"
+	}
 	m = e.scope.
 		Tagged(map[string]string{
 			"resolution": key.resolution.String(),
 			"list-type":  key.listType.String(),
+			"flush-type": key.flushType.String(),
+			"type":       key.fwdType,
+			"jitter":     jitterApplied,
 		}).
 		Histogram("forward-lag", tally.DurationBuckets{
 			10 * time.Millisecond,
@@ -272,10 +284,15 @@ func newElemBase(opts ElemOptions) elemBase {
 	}
 }
 
-func (e *elemBase) forwardLagMetric(resolution time.Duration) tally.Histogram {
+func (e *elemBase) forwardLagMetric(
+	resolution time.Duration, fwdType string, jitterApplied bool, flushType flushType,
+) tally.Histogram {
 	key := forwardLagKey{
-		resolution: resolution,
-		listType:   e.listType,
+		resolution:    resolution,
+		listType:      e.listType,
+		fwdType:       fwdType,
+		flushType:     flushType,
+		jitterApplied: jitterApplied,
 	}
 	m, ok := e.forwardLagMetrics[key]
 	if !ok {

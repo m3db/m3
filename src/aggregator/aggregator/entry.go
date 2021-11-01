@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
-	"github.com/m3db/m3/src/metrics/metric/id"
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/policy"
@@ -178,9 +177,9 @@ func NewEntryMetrics(scope tally.Scope) *entryMetrics {
 	forwardedEntryScope := scope.Tagged(map[string]string{"entry-type": "forwarded"})
 	return &entryMetrics{
 		resendEnabled: scope.Counter("resend-enabled"),
-		untimed:   newUntimedEntryMetrics(untimedEntryScope),
-		timed:     newTimedEntryMetrics(timedEntryScope),
-		forwarded: newForwardedEntryMetrics(forwardedEntryScope),
+		untimed:       newUntimedEntryMetrics(untimedEntryScope),
+		timed:         newTimedEntryMetrics(timedEntryScope),
+		forwarded:     newForwardedEntryMetrics(forwardedEntryScope),
 	}
 }
 
@@ -640,7 +639,7 @@ func (e *Entry) removeOldAggregations(newAggregations aggregationValues) {
 }
 
 func (e *Entry) updateStagedMetadatasWithLock(
-	metricID id.RawID,
+	metricID metricid.RawID,
 	metricType metric.Type,
 	hasDefaultMetadatas bool,
 	sm metadata.StagedMetadata,

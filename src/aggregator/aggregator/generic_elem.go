@@ -362,6 +362,8 @@ func (e *GenericElem) Consume(
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
 	onForwardedFlushedFn onForwardingElemFlushedFn,
+	jitter time.Duration,
+	flushType flushType,
 ) bool {
 	resolution := e.sp.Resolution().Window
 	// reverse engineer the allowed lateness.
@@ -422,6 +424,8 @@ func (e *GenericElem) Consume(
 			flushForwardedFn,
 			resolution,
 			latenessAllowed,
+			jitter,
+			flushType,
 		)
 		e.toConsume[i].lockedAgg.flushed = true
 		e.toConsume[i].lockedAgg.Unlock()
@@ -639,7 +643,10 @@ func (e *GenericElem) processValueWithAggregationLock(
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
 	resolution time.Duration,
-	latenessAllowed time.Duration) bool {
+	latenessAllowed time.Duration,
+	jitter time.Duration,
+	flushType flushType,
+) bool {
 	var (
 		transformations  = e.parsedPipeline.Transformations
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
@@ -737,13 +744,23 @@ func (e *GenericElem) processValueWithAggregationLock(
 					flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType),
 						point.TimeNanos, point.Value, lockedAgg.aggregation.Annotation(), e.sp)
 				}
+
+				if !lockedAgg.flushed {
+					e.forwardLagMetric(resolution, "local", false, flushType).
+						RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed - jitter)))
+					e.forwardLagMetric(resolution, "local", true, flushType).
+						RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed)))
+				}
 			}
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
 			// only record lag for the initial flush (not resends)
 			if !lockedAgg.flushed {
 				// latenessAllowed is not due to processing delay, so it remove it from lag calc.
-				e.forwardLagMetric(resolution).RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed)))
+				e.forwardLagMetric(resolution, "remote", false, flushType).
+					RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed - jitter)))
+				e.forwardLagMetric(resolution, "remote", true, flushType).
+					RecordDuration(time.Since(timeNanos.ToTime().Add(-latenessAllowed)))
 			}
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
 				int64(timeNanos), value, prevValue, lockedAgg.aggregation.Annotation(), resendEnabled)
