@@ -119,7 +119,7 @@ func TestResendAggregatedValueStress(t *testing.T) {
 	serverOpts = serverOpts.
 		SetBufferForPastTimedMetric(time.Second * 5).
 		SetMaxAllowedForwardingDelayFn(func(resolution time.Duration, numForwardedTimes int) time.Duration {
-			return resolution
+			return time.Second
 		}).
 		// allow testing entry Closing
 		SetEntryTTL(time.Second).
@@ -151,6 +151,23 @@ func TestResendAggregatedValueStress(t *testing.T) {
 		}
 	)
 
+	pipe := applied.NewPipeline([]applied.OpUnion{
+		{
+			Type:           pipeline.TransformationOpType,
+			Transformation: pipeline.TransformationOp{Type: transformation.Increase},
+		},
+		{
+			Type: pipeline.RollupOpType,
+			Rollup: applied.RollupOp{
+				ID:            []byte(pipelineRollupID),
+				AggregationID: maggregation.MustCompressTypes(maggregation.Sum),
+			},
+		},
+		{
+			Type:           pipeline.TransformationOpType,
+			Transformation: pipeline.TransformationOp{Type: transformation.Reset},
+		},
+	})
 	stagedMetadatas := metadata.StagedMetadatas{
 		{
 			CutoverNanos: 0,
@@ -161,23 +178,7 @@ func TestResendAggregatedValueStress(t *testing.T) {
 						AggregationID:   maggregation.DefaultID,
 						ResendEnabled:   true,
 						StoragePolicies: storagePolicies,
-						Pipeline: applied.NewPipeline([]applied.OpUnion{
-							{
-								Type:           pipeline.TransformationOpType,
-								Transformation: pipeline.TransformationOp{Type: transformation.Increase},
-							},
-							{
-								Type: pipeline.RollupOpType,
-								Rollup: applied.RollupOp{
-									ID:            []byte(pipelineRollupID),
-									AggregationID: maggregation.MustCompressTypes(maggregation.Sum),
-								},
-							},
-							{
-								Type:           pipeline.TransformationOpType,
-								Transformation: pipeline.TransformationOp{Type: transformation.Reset},
-							},
-						}),
+						Pipeline: pipe,
 					},
 				},
 			},
@@ -200,6 +201,42 @@ func TestResendAggregatedValueStress(t *testing.T) {
 	go func() {
 		writeMetrics(t, c2, stop2, "bar", start, resolution, stagedMetadatas)
 		wg.Done()
+	}()
+	zedPipe := applied.NewPipeline([]applied.OpUnion{
+		{
+			Type:           pipeline.TransformationOpType,
+			Transformation: pipeline.TransformationOp{Type: transformation.Increase},
+		},
+		{
+			Type: pipeline.RollupOpType,
+			Rollup: applied.RollupOp{
+				ID:            []byte("zed_rollup"),
+				AggregationID: maggregation.MustCompressTypes(maggregation.Sum),
+			},
+		},
+		{
+			Type:           pipeline.TransformationOpType,
+			Transformation: pipeline.TransformationOp{Type: transformation.Reset},
+		},
+	})
+	zedMetadata := metadata.StagedMetadatas{
+		{
+			CutoverNanos: 0,
+			Tombstoned:   false,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID:   maggregation.DefaultID,
+						ResendEnabled:   false,
+						StoragePolicies: storagePolicies,
+						Pipeline:zedPipe,
+					},
+				},
+			},
+		},
+	}
+	go func() {
+		writeMetrics(t, server.newClient(t), make(chan struct{}, 1), "zed", start, resolution, zedMetadata)
 	}()
 	go func() {
 		defer wg.Done()
@@ -230,7 +267,7 @@ func TestResendAggregatedValueStress(t *testing.T) {
 					expectedTs, actualVal, zero, round)
 			}
 
-			if round > 2000 {
+			if round > 100000 {
 				stop1 <- struct{}{}
 				stop2 <- struct{}{}
 				ticker.Stop()
