@@ -196,11 +196,11 @@ type elemMetrics struct {
 }
 
 type forwardLagKey struct {
-	resolution time.Duration
-	listType   metricListType
-	flushType  flushType
-	fwdType    string
-	jittered   bool
+	resolution    time.Duration
+	listType      metricListType
+	flushType     flushType
+	fwdType       string
+	jitterApplied bool
 }
 
 func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
@@ -217,9 +217,9 @@ func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
 		e.Unlock()
 		return m
 	}
-	jittered := "false"
-	if key.jittered {
-		jittered = "true"
+	jitterApplied := "false"
+	if key.jitterApplied {
+		jitterApplied = "true"
 	}
 	m = e.scope.
 		Tagged(map[string]string{
@@ -227,7 +227,7 @@ func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
 			"list-type":  key.listType.String(),
 			"flush-type": key.flushType.String(),
 			"type":       key.fwdType,
-			"jitter":     jittered,
+			"jitter":     jitterApplied,
 		}).
 		Histogram("forward-lag", tally.DurationBuckets{
 			10 * time.Millisecond,
@@ -285,32 +285,14 @@ func newElemBase(opts ElemOptions) elemBase {
 }
 
 func (e *elemBase) forwardLagMetric(
-	resolution time.Duration, fwdType string, jittered bool, flushType flushType,
+	resolution time.Duration, fwdType string, jitterApplied bool, flushType flushType,
 ) tally.Histogram {
 	key := forwardLagKey{
-		resolution: resolution,
-		listType:   e.listType,
-		fwdType:    fwdType,
-		flushType:  flushType,
-		jittered:   jittered,
-	}
-	m, ok := e.forwardLagMetrics[key]
-	if !ok {
-		// if not cached locally, get from the singleton map that requires locking.
-		m = e.metrics.forwardLagMetric(key)
-		e.forwardLagMetrics[key] = m
-	}
-	return m
-}
-
-func (e *elemBase) jitteredForwardLagMetric(
-	resolution time.Duration, fwdType string, flushType flushType,
-) tally.Histogram {
-	key := forwardLagKey{
-		resolution: resolution,
-		listType:   e.listType,
-		fwdType:    fwdType,
-		flushType:  flushType,
+		resolution:    resolution,
+		listType:      e.listType,
+		fwdType:       fwdType,
+		flushType:     flushType,
+		jitterApplied: jitterApplied,
 	}
 	m, ok := e.forwardLagMetrics[key]
 	if !ok {
