@@ -63,6 +63,9 @@ type flushRequest struct {
 
 	// If nonzero, data between [now - bufferAfterCutoff, now) are buffered.
 	BufferAfterCutoff time.Duration
+
+	// Jitter is the jitter for the flush request.
+	Jitter time.Duration
 }
 
 type flushType int
