@@ -1021,6 +1021,56 @@ func TestEntryAddUntimedWithNoRollup(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestAddUntimed_ResendEnabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, _ := testEntry(ctrl, testEntryOptions{})
+	// include 2 pipelines, one with ResendEnabled, one without.
+	metadatas := metadata.StagedMetadatas{
+		{
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+						ResendEnabled: true,
+						StoragePolicies: policy.StoragePolicies{
+							testStoragePolicy,
+						},
+					},
+					{
+						AggregationID: aggregation.MustCompressTypes(aggregation.Count),
+						ResendEnabled: false,
+						StoragePolicies: policy.StoragePolicies{
+							testStoragePolicy,
+						},
+					},
+				},
+			},
+		},
+	}
+	mu := testGauge
+	mu.ClientTimeNanos = xtime.ToUnixNano(e.nowFn().Add(-time.Minute))
+	require.NoError(t, e.addUntimed(mu, metadatas))
+	require.Len(t, e.aggregations, 2)
+
+	// the first aggregation has resendEnabled and uses the client timestamp.
+	require.True(t, e.aggregations[0].resendEnabled)
+	vals := e.aggregations[0].elem.Value.(*GaugeElem).values
+	require.Len(t, vals, 1)
+	ts := mu.ClientTimeNanos.Truncate(testStoragePolicy.Resolution().Window)
+	_, ok := vals[ts]
+	require.True(t, ok)
+
+	// the second aggregation does not have resendEnabled and uses the server timestamp.
+	require.False(t, e.aggregations[1].resendEnabled)
+	vals = e.aggregations[1].elem.Value.(*GaugeElem).values
+	require.Len(t, vals, 1)
+	ts = xtime.ToUnixNano(time.Now().Truncate(testStoragePolicy.Resolution().Window))
+	_, ok = vals[ts]
+	require.True(t, ok)
+}
+
 func TestShouldUpdateStagedMetadataWithLock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
