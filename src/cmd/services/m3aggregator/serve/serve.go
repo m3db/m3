@@ -43,13 +43,13 @@ func Serve(
 	log := iOpts.Logger()
 	defer func() {
 		start := time.Now()
-		log.Info("closing aggregator")
+		log.Info("!! closing aggregator")
 		err := aggregator.Close()
 		fields := []zap.Field{zap.String("took", time.Since(start).String())}
 		if err != nil {
 			log.Warn("closed aggregator with error", append(fields, zap.Error(err))...)
 		} else {
-			log.Info("closed aggregator", fields...)
+			log.Info("!! closed aggregator", fields...)
 		}
 	}()
 
@@ -65,7 +65,7 @@ func Serve(
 
 		defer func() {
 			start := time.Now()
-			log.Info("closing m3msg server")
+			log.Info("!! closing m3msg server")
 			m3msgServer.Close()
 			log.Info("m3msg server closed", zap.String("took", time.Since(start).String()))
 		}()
@@ -82,9 +82,9 @@ func Serve(
 
 		defer func() {
 			start := time.Now()
-			log.Info("closing raw TCPServer")
+			log.Info("!! closing raw TCPServer")
 			rawTCPServer.Close()
-			log.Info("closed raw TCPServer", zap.String("took", time.Since(start).String()))
+			log.Info("!! closed raw TCPServer", zap.String("took", time.Since(start).String()))
 		}()
 
 		log.Info("raw TCP server listening", zap.String("addr", rawTCPAddr))
@@ -100,9 +100,9 @@ func Serve(
 
 		defer func() {
 			start := time.Now()
-			log.Info("closing http server")
+			log.Info("!! closing http server")
 			httpServer.Close()
-			log.Info("closed http server", zap.String("took", time.Since(start).String()))
+			log.Info("!! closed http server", zap.String("took", time.Since(start).String()))
 		}()
 
 		log.Info("http server listening", zap.String("addr", httpAddr))
@@ -110,7 +110,7 @@ func Serve(
 
 	// Wait for exit signal.
 	<-doneCh
-	log.Info("server signalled on doneCh")
+	log.Info("!! server signalled on doneCh")
 
 	return nil
 }

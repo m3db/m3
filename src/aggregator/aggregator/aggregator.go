@@ -399,7 +399,7 @@ func (agg *aggregator) Close() error {
 		currTime          time.Time
 		logCloseOperation = func(op string) {
 			currTime = time.Now()
-			agg.logger.Info(fmt.Sprintf("closed %s", op),
+			agg.logger.Info(fmt.Sprintf("!!! closed %s", op),
 				zap.String("took", currTime.Sub(lastOpCompleted).String()))
 			lastOpCompleted = currTime
 		}
