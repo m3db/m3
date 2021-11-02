@@ -841,6 +841,46 @@ func TestAggregatorTick(t *testing.T) {
 	require.NoError(t, agg.Close())
 }
 
+func TestAggregatorTickCancelled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	flushTimesManager := NewMockFlushTimesManager(ctrl)
+	flushTimesManager.EXPECT().Reset().Return(nil).AnyTimes()
+	flushTimesManager.EXPECT().Open(gomock.Any()).Return(nil).AnyTimes()
+	flushTimesManager.EXPECT().Get().Return(nil, nil).AnyTimes()
+	flushTimesManager.EXPECT().Close().Return(nil).AnyTimes()
+
+	agg, _ := testAggregator(t, ctrl)
+	agg.flushTimesManager = flushTimesManager
+	require.NoError(t, agg.Open())
+
+	var (
+		tickedCh       = make(chan struct{})
+		numTicked      = 0
+		doneAfterTicks = 2
+	)
+
+	agg.tickShardFn = func(
+		*aggregatorShard, time.Duration, chan struct{},
+	) tickResult {
+		numTicked++
+		if doneAfterTicks == 2 {
+			close(tickedCh)
+		}
+
+		time.Sleep(time.Millisecond * 50)
+		return tickResult{}
+	}
+
+	go func() {
+		<-tickedCh
+		require.NoError(t, agg.Close())
+	}()
+
+	require.Equal(t, 2, doneAfterTicks)
+}
+
 func TestAggregatorShardSetNotOpenNilInstance(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

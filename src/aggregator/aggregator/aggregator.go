@@ -93,6 +93,12 @@ type Aggregator interface {
 	Close() error
 }
 
+type tickShardFn func(
+	shard *aggregatorShard,
+	perShardTickDuration time.Duration,
+	doneCh chan struct{},
+) tickResult
+
 // aggregator stores aggregations of different types of metrics (e.g., counter,
 // timer, gauges) and periodically flushes them out.
 type aggregator struct {
@@ -101,6 +107,7 @@ type aggregator struct {
 	opts              Options
 	nowFn             clock.NowFn
 	shardFn           sharding.ShardFn
+	tickShardFn       tickShardFn
 	checkInterval     time.Duration
 	placementManager  PlacementManager
 	flushTimesManager FlushTimesManager
@@ -133,7 +140,7 @@ func NewAggregator(opts Options) Aggregator {
 	timerOpts := iOpts.TimerOptions()
 	logger := iOpts.Logger()
 
-	return &aggregator{
+	agg := &aggregator{
 		opts:              opts,
 		nowFn:             opts.ClockOptions().NowFn(),
 		shardFn:           opts.ShardFn(),
@@ -151,6 +158,9 @@ func NewAggregator(opts Options) Aggregator {
 		metrics:           newAggregatorMetrics(scope, timerOpts, opts.MaxAllowedForwardingDelayFn()),
 		logger:            logger,
 	}
+
+	agg.tickShardFn = agg.tickShard
+	return agg
 }
 
 func (agg *aggregator) Open() error {
@@ -383,6 +393,7 @@ func (agg *aggregator) Close() error {
 	}
 	agg.state = aggregatorClosed
 
+	agg.logger.Info("signalling aggregator done")
 	close(agg.doneCh)
 
 	// Waiting for the ticking goroutines to return.
@@ -391,17 +402,27 @@ func (agg *aggregator) Close() error {
 	agg.wg.Wait()
 	agg.Lock()
 
+	agg.logger.Info("closing aggregator shards")
 	for _, shardID := range agg.shardIDs {
 		agg.shards[shardID].Close()
 	}
+
+	agg.logger.Info("closing aggregator shard sets")
 	if agg.shardSetOpen {
 		agg.closeShardSetWithLock()
 	}
+
+	agg.logger.Info("closing aggregator flush handler")
 	agg.flushHandler.Close()
+
+	agg.logger.Info("closing aggregator passthrough handler")
 	agg.passthroughWriter.Close()
+
 	if agg.adminClient != nil {
+		agg.logger.Info("closing aggregator admin client")
 		agg.adminClient.Close()
 	}
+
 	return nil
 }
 
@@ -723,6 +744,14 @@ func (agg *aggregator) tick() {
 	}
 }
 
+func (agg *aggregator) tickShard(
+	shard *aggregatorShard,
+	perShardTickDuration time.Duration,
+	doneCh chan struct{},
+) tickResult {
+	return shard.Tick(perShardTickDuration, doneCh)
+}
+
 func (agg *aggregator) tickInternal() {
 	ownedShards, closingShards := agg.ownedShards()
 	agg.closeShardsAsync(closingShards)
@@ -740,8 +769,14 @@ func (agg *aggregator) tickInternal() {
 		tickResult           tickResult
 	)
 	for _, shard := range ownedShards {
-		shardTickResult := shard.Tick(perShardTickDuration)
-		tickResult = tickResult.merge(shardTickResult)
+		select {
+		case <-agg.doneCh:
+			agg.logger.Info("recevied interrupt on tick; aborting")
+			return
+		default:
+			shardTickResult := agg.tickShardFn(shard, perShardTickDuration, agg.doneCh)
+			tickResult = tickResult.merge(shardTickResult)
+		}
 	}
 	tickDuration := agg.nowFn().Sub(start)
 	agg.metrics.tick.Report(tickResult, tickDuration)

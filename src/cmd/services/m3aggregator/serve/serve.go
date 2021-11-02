@@ -22,6 +22,7 @@ package serve
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	httpserver "github.com/m3db/m3/src/aggregator/server/http"
@@ -40,7 +41,12 @@ func Serve(
 ) error {
 	iOpts := opts.InstrumentOpts()
 	log := iOpts.Logger()
-	defer aggregator.Close()
+	defer func() {
+		start := time.Now()
+		log.Info("closing aggregator")
+		aggregator.Close()
+		log.Info("closed aggregator", zap.String("took", time.Since(start).String()))
+	}()
 
 	if m3msgAddr := opts.M3MsgAddr(); m3msgAddr != "" {
 		serverOpts := opts.M3MsgServerOpts()
@@ -51,7 +57,14 @@ func Serve(
 		if err := m3msgServer.ListenAndServe(); err != nil {
 			return fmt.Errorf("could not start m3msg server at: addr=%s, err=%v", m3msgAddr, err)
 		}
-		defer m3msgServer.Close()
+
+		defer func() {
+			start := time.Now()
+			log.Info("closing m3msg server")
+			m3msgServer.Close()
+			log.Info("m3msg server closed", zap.String("took", time.Since(start).String()))
+		}()
+
 		log.Info("m3msg server listening", zap.String("addr", m3msgAddr))
 	}
 
@@ -61,7 +74,14 @@ func Serve(
 		if err := rawTCPServer.ListenAndServe(); err != nil {
 			return fmt.Errorf("could not start raw TCP server at: addr=%s, err=%v", rawTCPAddr, err)
 		}
-		defer rawTCPServer.Close()
+
+		defer func() {
+			start := time.Now()
+			log.Info("closing raw TCPServer")
+			rawTCPServer.Close()
+			log.Info("closed raw TCPServer", zap.String("took", time.Since(start).String()))
+		}()
+
 		log.Info("raw TCP server listening", zap.String("addr", rawTCPAddr))
 	}
 
@@ -72,12 +92,20 @@ func Serve(
 		if err := httpServer.ListenAndServe(); err != nil {
 			return fmt.Errorf("could not start http server at: addr=%s, err=%v", httpAddr, err)
 		}
-		defer httpServer.Close()
+
+		defer func() {
+			start := time.Now()
+			log.Info("closing http server")
+			httpServer.Close()
+			log.Info("closed http server", zap.String("took", time.Since(start).String()))
+		}()
+
 		log.Info("http server listening", zap.String("addr", httpAddr))
 	}
 
 	// Wait for exit signal.
 	<-doneCh
+	log.Info("server signalled on doneCh")
 
 	return nil
 }

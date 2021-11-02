@@ -513,7 +513,7 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 	}
 
 	// Delete expired entries.
-	m.tick(opts.EntryCheckInterval())
+	m.tick(opts.EntryCheckInterval(), nil)
 
 	// Assert there should be only half of the entries left.
 	require.Equal(t, numEntries/2, len(m.entries))
@@ -524,4 +524,48 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 		require.Equal(t, k, e.key)
 		require.NotNil(t, e.entry)
 	}
+}
+
+func TestMetricMapTickCancellation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testOptions(ctrl)
+	m := newMetricMap(testShard, opts)
+
+	numBatchesProcessed := 0
+	tickedCh := make(chan struct{})
+
+	m.sleepFn = func(d time.Duration) {
+		numBatchesProcessed++
+		if numBatchesProcessed == 10 {
+			close(tickedCh)
+		}
+
+		time.Sleep(d)
+	}
+
+	doneCh := make(chan struct{})
+	go func() {
+		<-tickedCh
+		fmt.Println("closing ch")
+		close(doneCh)
+	}()
+
+	// NB: wait/early exit on every defaultSoftDeadlineCheckEvery
+	numEntries := defaultSoftDeadlineCheckEvery * 60
+	for i := 0; i < numEntries; i++ {
+		key := entryKey{
+			metricType: metricType(metric.CounterType),
+			idHash:     hash.Murmur3Hash128([]byte(fmt.Sprintf("%d", i))),
+		}
+
+		m.entries[key] = m.entryList.PushBack(hashedEntry{
+			key:   key,
+			entry: NewEntry(m.metricLists, runtime.NewOptions(), opts),
+		})
+	}
+
+	m.Tick(time.Minute, doneCh)
+	require.Equal(t, 10, numBatchesProcessed)
 }
