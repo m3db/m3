@@ -23,6 +23,7 @@ package aggregator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"strconv"
 	"sync"
@@ -393,6 +394,17 @@ func (agg *aggregator) Close() error {
 	}
 	agg.state = aggregatorClosed
 
+	var (
+		lastOpCompleted   = time.Now()
+		currTime          time.Time
+		logCloseOperation = func(op string) {
+			currTime = time.Now()
+			agg.logger.Info(fmt.Sprintf("closed %s", op),
+				zap.String("took", currTime.Sub(lastOpCompleted).String()))
+			lastOpCompleted = currTime
+		}
+	)
+
 	agg.logger.Info("signalling aggregator done")
 	close(agg.doneCh)
 
@@ -402,25 +414,28 @@ func (agg *aggregator) Close() error {
 	agg.wg.Wait()
 	agg.Lock()
 
-	agg.logger.Info("closing aggregator shards")
+	logCloseOperation("ticking wait groups")
 	for _, shardID := range agg.shardIDs {
 		agg.shards[shardID].Close()
 	}
 
-	agg.logger.Info("closing aggregator shard sets")
+	logCloseOperation("aggregator shards")
 	if agg.shardSetOpen {
 		agg.closeShardSetWithLock()
 	}
 
-	agg.logger.Info("closing aggregator flush handler")
-	agg.flushHandler.Close()
+	logCloseOperation("flush shard sets")
 
-	agg.logger.Info("closing aggregator passthrough handler")
+	agg.flushHandler.Close()
+	logCloseOperation("flush handler")
+
 	agg.passthroughWriter.Close()
+	logCloseOperation("passthrough writer")
 
 	if agg.adminClient != nil {
-		agg.logger.Info("closing aggregator admin client")
+		agg.logger.Info("closing admin client")
 		agg.adminClient.Close()
+		logCloseOperation("admin client")
 	}
 
 	return nil
