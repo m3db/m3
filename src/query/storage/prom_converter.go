@@ -57,16 +57,20 @@ func iteratorToPromResult(
 
 		samples = make([]prompb.Sample, 0, initRawFetchAllocSize)
 	)
+
 	fmt.Println("iteratorToPromResult")
 	for iter.Next() {
-		dp, _, annotationData := iter.Current()
+		dp, _, _ := iter.Current()
 
-		if firstDP && len(annotationData) > 0 && maxResolution > 0 {
-			if err := annotationPayload.Unmarshal(annotationData); err != nil {
-				return nil, err
+		if firstDP && maxResolution > 0 {
+			firstAnnotation := iter.FirstAnnotation()
+			if len(firstAnnotation) > 0 {
+				if err := annotationPayload.Unmarshal(firstAnnotation); err != nil {
+					return nil, err
+				}
+				handleResets = annotationPayload.HandleValueResets
+				fmt.Printf("handleResets set to %t on %s, resolution %s\n", handleResets, dp.TimestampNanos.ToTime(), maxResolution)
 			}
-			handleResets = annotationPayload.HandleValueResets
-			fmt.Printf("handleResets set to %t on %s, resolution %s\n", handleResets, dp.TimestampNanos.ToTime(), maxResolution)
 		}
 
 		firstDP = false

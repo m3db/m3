@@ -1012,6 +1012,20 @@ func (mr *MockSeriesIteratorAccumulatorMockRecorder) Err() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).Err))
 }
 
+// FirstAnnotation mocks base method.
+func (m *MockSeriesIteratorAccumulator) FirstAnnotation() ts.Annotation {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FirstAnnotation")
+	ret0, _ := ret[0].(ts.Annotation)
+	return ret0
+}
+
+// FirstAnnotation indicates an expected call of FirstAnnotation.
+func (mr *MockSeriesIteratorAccumulatorMockRecorder) FirstAnnotation() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FirstAnnotation", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).FirstAnnotation))
+}
+
 // ID mocks base method.
 func (m *MockSeriesIteratorAccumulator) ID() ident.ID {
 	m.ctrl.T.Helper()
@@ -1213,6 +1227,20 @@ func (m *MockSeriesIterator) Err() error {
 func (mr *MockSeriesIteratorMockRecorder) Err() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockSeriesIterator)(nil).Err))
+}
+
+// FirstAnnotation mocks base method.
+func (m *MockSeriesIterator) FirstAnnotation() ts.Annotation {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FirstAnnotation")
+	ret0, _ := ret[0].(ts.Annotation)
+	return ret0
+}
+
+// FirstAnnotation indicates an expected call of FirstAnnotation.
+func (mr *MockSeriesIteratorMockRecorder) FirstAnnotation() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FirstAnnotation", reflect.TypeOf((*MockSeriesIterator)(nil).FirstAnnotation))
 }
 
 // ID mocks base method.

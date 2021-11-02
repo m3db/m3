@@ -90,6 +90,10 @@ func (it *seriesIterator) Err() error {
 	return it.err
 }
 
+func (it *seriesIterator) FirstAnnotation() ts.Annotation {
+	return it.iters.firstAnnotation()
+}
+
 func (it *seriesIterator) Close() {
 	if it.isClosed() {
 		return

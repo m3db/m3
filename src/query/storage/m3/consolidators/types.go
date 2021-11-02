@@ -97,7 +97,7 @@ type MultiFetchResult interface {
 	// iterators and their metadata, and any errors encountered.
 	FinalResult() (SeriesFetchResult, error)
 
-	// FinalResult returns a series fetch result containing deduplicated series
+	// FinalResultWithAttrs returns a series fetch result containing deduplicated series
 	// iterators and their metadata, as well as any attributes corresponding to
 	// these results, and any errors encountered.
 	FinalResultWithAttrs() (SeriesFetchResult, []storagemetadata.Attributes, error)
