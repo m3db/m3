@@ -341,6 +341,8 @@ func (e *CounterElem) Consume(
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
 	onForwardedFlushedFn onForwardingElemFlushedFn,
+	jitter time.Duration,
+	flushType flushType,
 ) bool {
 	resolution := e.sp.Resolution().Window
 	// reverse engineer the allowed lateness.
@@ -392,6 +394,8 @@ func (e *CounterElem) Consume(
 			flushForwardedFn,
 			resolution,
 			latenessAllowed,
+			jitter,
+			flushType,
 		)
 		flushState.flushed = true
 		e.flushState[flushState.startAt] = flushState
@@ -632,7 +636,10 @@ func (e *CounterElem) processValue(
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
 	resolution time.Duration,
-	latenessAllowed time.Duration) aggFlushState {
+	latenessAllowed time.Duration,
+	jitter time.Duration,
+	flushType flushType,
+) aggFlushState {
 	var (
 		transformations  = e.parsedPipeline.Transformations
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
@@ -740,14 +747,22 @@ func (e *CounterElem) processValue(
 					flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType),
 						point.TimeNanos, point.Value, flushState.annotation, e.sp)
 				}
+
+				if !flushState.flushed {
+					e.forwardLagMetric(resolution, "local", false, flushType).
+						RecordDuration(time.Since(flushState.timestamp.ToTime().Add(-latenessAllowed - jitter)))
+					e.forwardLagMetric(resolution, "local", true, flushType).
+						RecordDuration(time.Since(flushState.timestamp.ToTime().Add(-latenessAllowed)))
+				}
 			}
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
 			// only record lag for the initial flush (not resends)
 			if !flushState.flushed {
-				// latenessAllowed is not due to processing delay, so it remove it from lag calc.
-				e.forwardLagMetric(resolution).RecordDuration(
-					time.Since(flushState.timestamp.ToTime().Add(-latenessAllowed)))
+				e.forwardLagMetric(resolution, "remote", false, flushType).
+					RecordDuration(time.Since(flushState.timestamp.ToTime().Add(-latenessAllowed - jitter)))
+				e.forwardLagMetric(resolution, "remote", true, flushType).
+					RecordDuration(time.Since(flushState.timestamp.ToTime().Add(-latenessAllowed)))
 			}
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
 				int64(flushState.timestamp), value, prevValue, flushState.annotation, flushState.resendEnabled)

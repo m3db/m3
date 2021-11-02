@@ -779,59 +779,71 @@ func testFlushBuckets(ctrl *gomock.Controller) []*flushBucket {
 	forwardedFlusher4.EXPECT().FlushInterval().Return(time.Minute).AnyTimes()
 	forwardedFlusher4.EXPECT().LastFlushedNanos().Return(int64(3600000000000)).AnyTimes()
 
-	flushLag := tally.NewTestScope("", nil).Histogram("flush-lag", nil)
+	var (
+		scope            = tally.NewTestScope("", nil)
+		flushLag         = scope.Histogram("flush-lag", nil)
+		followerFlushLag = scope.Histogram("follower-flush-lag", tally.DefaultBuckets)
+	)
+
 	return []*flushBucket{
 		// Standard flushing metric lists.
 		{
-			bucketID: standardMetricListID{resolution: time.Second}.toMetricListID(),
-			interval: time.Second,
-			offset:   250 * time.Millisecond,
-			flushers: []flushingMetricList{standardFlusher1, standardFlusher2},
-			flushLag: flushLag,
+			bucketID:         standardMetricListID{resolution: time.Second}.toMetricListID(),
+			interval:         time.Second,
+			offset:           250 * time.Millisecond,
+			flushers:         []flushingMetricList{standardFlusher1, standardFlusher2},
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 		{
-			bucketID: standardMetricListID{resolution: time.Minute}.toMetricListID(),
-			interval: time.Minute,
-			offset:   12 * time.Second,
-			flushers: []flushingMetricList{standardFlusher3},
-			flushLag: flushLag,
+			bucketID:         standardMetricListID{resolution: time.Minute}.toMetricListID(),
+			interval:         time.Minute,
+			offset:           12 * time.Second,
+			flushers:         []flushingMetricList{standardFlusher3},
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 		{
-			bucketID: standardMetricListID{resolution: time.Hour}.toMetricListID(),
-			interval: time.Hour,
-			offset:   time.Minute,
-			flushers: []flushingMetricList{standardFlusher4},
-			flushLag: flushLag,
+			bucketID:         standardMetricListID{resolution: time.Hour}.toMetricListID(),
+			interval:         time.Hour,
+			offset:           time.Minute,
+			flushers:         []flushingMetricList{standardFlusher4},
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 		// Timed flushing metric lists.
 		{
-			bucketID: timedMetricListID{resolution: time.Minute}.toMetricListID(),
-			interval: time.Minute,
-			offset:   250 * time.Millisecond,
-			flushers: []flushingMetricList{timedFlusher1},
-			flushLag: flushLag,
+			bucketID:         timedMetricListID{resolution: time.Minute}.toMetricListID(),
+			interval:         time.Minute,
+			offset:           250 * time.Millisecond,
+			flushers:         []flushingMetricList{timedFlusher1},
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 		// Forwarded flushing metric lists.
 		{
-			bucketID: forwardedMetricListID{resolution: time.Second, numForwardedTimes: 1}.toMetricListID(),
-			interval: time.Second,
-			offset:   100 * time.Millisecond,
-			flushers: []flushingMetricList{forwardedFlusher1, forwardedFlusher2},
-			flushLag: flushLag,
+			bucketID:         forwardedMetricListID{resolution: time.Second, numForwardedTimes: 1}.toMetricListID(),
+			interval:         time.Second,
+			offset:           100 * time.Millisecond,
+			flushers:         []flushingMetricList{forwardedFlusher1, forwardedFlusher2},
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 		{
-			bucketID: forwardedMetricListID{resolution: time.Minute, numForwardedTimes: 2}.toMetricListID(),
-			interval: time.Minute,
-			offset:   time.Second,
-			flushers: []flushingMetricList{forwardedFlusher3},
-			flushLag: flushLag,
+			bucketID:         forwardedMetricListID{resolution: time.Minute, numForwardedTimes: 2}.toMetricListID(),
+			interval:         time.Minute,
+			offset:           time.Second,
+			flushers:         []flushingMetricList{forwardedFlusher3},
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 		{
-			bucketID: forwardedMetricListID{resolution: time.Minute, numForwardedTimes: 3}.toMetricListID(),
-			interval: time.Minute,
-			offset:   0,
-			flushers: []flushingMetricList{forwardedFlusher4},
-			flushLag: flushLag,
+			bucketID:         forwardedMetricListID{resolution: time.Minute, numForwardedTimes: 3}.toMetricListID(),
+			interval:         time.Minute,
+			offset:           0,
+			flushers:         []flushingMetricList{forwardedFlusher4},
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 	}
 }
@@ -862,42 +874,52 @@ func testFlushBuckets2(ctrl *gomock.Controller) []*flushBucket {
 	forwardedFlusher2.EXPECT().FlushInterval().Return(time.Minute).AnyTimes()
 	forwardedFlusher2.EXPECT().LastFlushedNanos().Return(int64(3658000000000)).AnyTimes()
 
-	flushLag := tally.NewTestScope("", nil).Histogram("flush-lag", nil)
+	var (
+		scope            = tally.NewTestScope("", nil)
+		flushLag         = scope.Histogram("flush-lag", nil)
+		followerFlushLag = scope.Histogram("follower-flush-lag", tally.DefaultBuckets)
+	)
+
 	return []*flushBucket{
 		{
-			bucketID: standardMetricListID{resolution: time.Second}.toMetricListID(),
-			interval: time.Second,
-			offset:   250 * time.Millisecond,
-			flushers: []flushingMetricList{standardFlusher1},
-			flushLag: flushLag,
+			bucketID:         standardMetricListID{resolution: time.Second}.toMetricListID(),
+			interval:         time.Second,
+			offset:           250 * time.Millisecond,
+			flushers:         []flushingMetricList{standardFlusher1},
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 		{
-			bucketID: standardMetricListID{resolution: time.Hour}.toMetricListID(),
-			interval: time.Hour,
-			offset:   time.Minute,
-			flushers: []flushingMetricList{standardFlusher2},
-			flushLag: flushLag,
+			bucketID:         standardMetricListID{resolution: time.Hour}.toMetricListID(),
+			interval:         time.Hour,
+			offset:           time.Minute,
+			flushers:         []flushingMetricList{standardFlusher2},
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 		{
-			bucketID: timedMetricListID{resolution: time.Second}.toMetricListID(),
-			interval: time.Second,
-			offset:   250 * time.Millisecond,
-			flushers: []flushingMetricList{timedFlusher1},
-			flushLag: flushLag,
+			bucketID:         timedMetricListID{resolution: time.Second}.toMetricListID(),
+			interval:         time.Second,
+			offset:           250 * time.Millisecond,
+			flushers:         []flushingMetricList{timedFlusher1},
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 		{
-			bucketID: forwardedMetricListID{resolution: time.Second, numForwardedTimes: 1}.toMetricListID(),
-			interval: time.Second,
-			offset:   100 * time.Millisecond,
-			flushers: []flushingMetricList{forwardedFlusher1},
-			flushLag: flushLag,
+			bucketID:         forwardedMetricListID{resolution: time.Second, numForwardedTimes: 1}.toMetricListID(),
+			interval:         time.Second,
+			offset:           100 * time.Millisecond,
+			flushers:         []flushingMetricList{forwardedFlusher1},
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 		{
-			bucketID: forwardedMetricListID{resolution: time.Minute, numForwardedTimes: 2}.toMetricListID(),
-			interval: time.Minute,
-			offset:   time.Second,
-			flushers: []flushingMetricList{forwardedFlusher2},
-			flushLag: flushLag,
+			bucketID:         forwardedMetricListID{resolution: time.Minute, numForwardedTimes: 2}.toMetricListID(),
+			interval:         time.Minute,
+			offset:           time.Second,
+			flushers:         []flushingMetricList{forwardedFlusher2},
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 	}
 }
