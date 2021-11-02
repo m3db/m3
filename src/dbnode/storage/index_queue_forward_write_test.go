@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -83,9 +84,10 @@ func setupForwardIndex(
 		fn nsIndexInsertBatchFn,
 		md namespace.Metadata,
 		nowFn clock.NowFn,
+		coreFn xsync.CoreFn,
 		s tally.Scope,
 	) namespaceIndexInsertQueue {
-		q := newNamespaceIndexInsertQueue(fn, md, nowFn, s)
+		q := newNamespaceIndexInsertQueue(fn, md, nowFn, coreFn, s)
 		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
 		return q
 	}
@@ -460,9 +462,10 @@ func testShardForwardWriteTaggedRefCountIndex(
 		fn nsIndexInsertBatchFn,
 		md namespace.Metadata,
 		nowFn clock.NowFn,
+		coreFn xsync.CoreFn,
 		s tally.Scope,
 	) namespaceIndexInsertQueue {
-		q := newNamespaceIndexInsertQueue(fn, md, nowFn, s)
+		q := newNamespaceIndexInsertQueue(fn, md, nowFn, coreFn, s)
 		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
 		return q
 	}
