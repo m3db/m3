@@ -34,8 +34,6 @@ func checkNumCores() int {
 		return 1
 	}
 
-	defer f.Close()
-
 	n := 0
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -43,6 +41,8 @@ func checkNumCores() int {
 			n++
 		}
 	}
+
+	_ = f.Close()
 
 	if err := scanner.Err(); err != nil {
 		return 1
