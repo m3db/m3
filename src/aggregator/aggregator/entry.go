@@ -696,13 +696,17 @@ func (e *Entry) updateStagedMetadatasWithLock(
 func (e *Entry) addUntimedWithLock(timestamp time.Time, mu unaggregated.MetricUnion) error {
 	var err error
 	for i := range e.aggregations {
+		ts := timestamp
 		resendEnabled := e.aggregations[i].resendEnabled
 		// Migrate an originally untimed metric (server timestamp) to a "timed" metric (client timestamp) if
 		// resendEnabled is set on the rollup rule. Continuing to use untimed allows for a seamless transition since
 		// the Entry does not change.
-		if resendEnabled && mu.ClientTimeNanos > 0 {
+		if mu.ClientTimeNanos == 0 {
+			resendEnabled = false
+		}
+		if resendEnabled {
 			e.metrics.resendEnabled.Inc(1)
-			timestamp = mu.ClientTimeNanos.ToTime()
+			ts = mu.ClientTimeNanos.ToTime()
 			if multierr.AppendInto(
 				&err,
 				e.checkTimestampForMetric(
@@ -713,7 +717,7 @@ func (e *Entry) addUntimedWithLock(timestamp time.Time, mu unaggregated.MetricUn
 				continue
 			}
 		}
-		multierr.AppendInto(&err, e.aggregations[i].elem.Value.(metricElem).AddUnion(timestamp, mu, resendEnabled))
+		multierr.AppendInto(&err, e.aggregations[i].elem.Value.(metricElem).AddUnion(ts, mu, resendEnabled))
 	}
 	return err
 }
