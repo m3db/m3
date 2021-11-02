@@ -44,8 +44,13 @@ func Serve(
 	defer func() {
 		start := time.Now()
 		log.Info("closing aggregator")
-		aggregator.Close()
-		log.Info("closed aggregator", zap.String("took", time.Since(start).String()))
+		err := aggregator.Close()
+		fields := []zap.Field{zap.String("took", time.Since(start).String())}
+		if err != nil {
+			log.Warn("closed aggregator with error", append(fields, zap.Error(err))...)
+		} else {
+			log.Info("closed aggregator", fields...)
+		}
 	}()
 
 	if m3msgAddr := opts.M3MsgAddr(); m3msgAddr != "" {
