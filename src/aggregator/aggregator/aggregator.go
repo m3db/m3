@@ -97,7 +97,6 @@ type Aggregator interface {
 type tickShardFn func(
 	shard *aggregatorShard,
 	perShardTickDuration time.Duration,
-	doneCh chan struct{},
 ) tickResult
 
 // aggregator stores aggregations of different types of metrics (e.g., counter,
@@ -762,9 +761,8 @@ func (agg *aggregator) tick() {
 func (agg *aggregator) tickShard(
 	shard *aggregatorShard,
 	perShardTickDuration time.Duration,
-	doneCh chan struct{},
 ) tickResult {
-	return shard.Tick(perShardTickDuration, doneCh)
+	return shard.Tick(perShardTickDuration, agg.doneCh)
 }
 
 func (agg *aggregator) tickInternal() {
@@ -789,7 +787,7 @@ func (agg *aggregator) tickInternal() {
 			agg.logger.Info("recevied interrupt on tick; aborting")
 			return
 		default:
-			shardTickResult := agg.tickShardFn(shard, perShardTickDuration, agg.doneCh)
+			shardTickResult := agg.tickShardFn(shard, perShardTickDuration)
 			tickResult = tickResult.merge(shardTickResult)
 		}
 	}
