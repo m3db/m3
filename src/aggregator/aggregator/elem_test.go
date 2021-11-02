@@ -2270,7 +2270,6 @@ func TestGaugeElemReset(t *testing.T) {
 		require.Equal(t, 0, len(f.consumedValues))
 	}
 
-
 	// Consume all values.
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
