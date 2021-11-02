@@ -39,17 +39,21 @@ func Serve(
 	doneCh chan struct{},
 	opts Options,
 ) error {
-	iOpts := opts.InstrumentOpts()
-	log := iOpts.Logger()
+	var (
+		iOpts       = opts.InstrumentOpts()
+		log         = iOpts.Logger()
+		closeLogger = log.With(zap.String("closing", "aggregator_server"))
+	)
+
 	defer func() {
 		start := time.Now()
-		log.Info("!! closing aggregator")
+		closeLogger.Info("closing aggregator")
 		err := aggregator.Close()
 		fields := []zap.Field{zap.String("took", time.Since(start).String())}
 		if err != nil {
-			log.Warn("closed aggregator with error", append(fields, zap.Error(err))...)
+			closeLogger.Warn("closed aggregator with error", append(fields, zap.Error(err))...)
 		} else {
-			log.Info("!! closed aggregator", fields...)
+			closeLogger.Info("closed aggregator", fields...)
 		}
 	}()
 
@@ -65,9 +69,9 @@ func Serve(
 
 		defer func() {
 			start := time.Now()
-			log.Info("!! closing m3msg server")
+			closeLogger.Info("closing m3msg server")
 			m3msgServer.Close()
-			log.Info("m3msg server closed", zap.String("took", time.Since(start).String()))
+			closeLogger.Info("m3msg server closed", zap.String("took", time.Since(start).String()))
 		}()
 
 		log.Info("m3msg server listening", zap.String("addr", m3msgAddr))
@@ -82,9 +86,9 @@ func Serve(
 
 		defer func() {
 			start := time.Now()
-			log.Info("!! closing raw TCPServer")
+			closeLogger.Info("closing raw TCPServer")
 			rawTCPServer.Close()
-			log.Info("!! closed raw TCPServer", zap.String("took", time.Since(start).String()))
+			closeLogger.Info("closed raw TCPServer", zap.String("took", time.Since(start).String()))
 		}()
 
 		log.Info("raw TCP server listening", zap.String("addr", rawTCPAddr))
@@ -100,9 +104,9 @@ func Serve(
 
 		defer func() {
 			start := time.Now()
-			log.Info("!! closing http server")
+			closeLogger.Info("closing http server")
 			httpServer.Close()
-			log.Info("!! closed http server", zap.String("took", time.Since(start).String()))
+			closeLogger.Info("closed http server", zap.String("took", time.Since(start).String()))
 		}()
 
 		log.Info("http server listening", zap.String("addr", httpAddr))
@@ -110,7 +114,7 @@ func Serve(
 
 	// Wait for exit signal.
 	<-doneCh
-	log.Info("!! server signalled on doneCh")
+	closeLogger.Info("server signaled on doneCh")
 
 	return nil
 }

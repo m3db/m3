@@ -394,17 +394,19 @@ func (agg *aggregator) Close() error {
 	agg.state = aggregatorClosed
 
 	var (
-		lastOpCompleted   = time.Now()
-		currTime          time.Time
+		lastOpCompleted = time.Now()
+		currTime        time.Time
+		closeLogger     = agg.logger.With(zap.String("closing", "aggregator"))
+
 		logCloseOperation = func(op string) {
 			currTime = time.Now()
-			agg.logger.Info(fmt.Sprintf("!!! closed %s", op),
+			closeLogger.Info(fmt.Sprintf("closed %s", op),
 				zap.String("took", currTime.Sub(lastOpCompleted).String()))
 			lastOpCompleted = currTime
 		}
 	)
 
-	agg.logger.Info("signalling aggregator done")
+	closeLogger.Info("signaling aggregator done")
 	close(agg.doneCh)
 
 	// Waiting for the ticking goroutines to return.
@@ -432,11 +434,12 @@ func (agg *aggregator) Close() error {
 	logCloseOperation("passthrough writer")
 
 	if agg.adminClient != nil {
-		agg.logger.Info("closing admin client")
+		closeLogger.Info("closing admin client")
 		agg.adminClient.Close()
 		logCloseOperation("admin client")
 	}
 
+	closeLogger.Info("done")
 	return nil
 }
 

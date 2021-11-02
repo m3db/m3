@@ -548,7 +548,6 @@ func TestMetricMapTickCancellation(t *testing.T) {
 	doneCh := make(chan struct{})
 	go func() {
 		<-tickedCh
-		fmt.Println("closing ch")
 		close(doneCh)
 	}()
 
