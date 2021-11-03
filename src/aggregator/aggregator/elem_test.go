@@ -1765,7 +1765,10 @@ func TestGaugeElemConsumeResendBuffer(t *testing.T) {
 
 	// Update the first value after flushing
 	updatedVal := testGaugeVals[0] - 1.0
-	require.NoError(t, e.AddValue(time.Unix(0, testAlignedStarts[0]), updatedVal, nil))
+	mu := unaggregated.MetricUnion{
+		GaugeVal: updatedVal,
+	}
+	require.NoError(t, e.AddUnion(time.Unix(0, testAlignedStarts[0]), mu, true))
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
@@ -2057,7 +2060,8 @@ func TestGaugeElemResendSumReset(t *testing.T) {
 		PrevValues: []float64{123},
 		Version:    1,
 	}, metadata.ForwardMetadata{
-		SourceID: 1,
+		ResendEnabled: true,
+		SourceID:      1,
 	}))
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
@@ -2191,7 +2195,10 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	require.Equal(t, 589.0, e.flushState[xtime.ToUnixNano(time.Unix(230, 0))].consumedValues[0])
 
 	// Update a previous value
-	require.NoError(t, e.AddValue(time.Unix(210, 0), 124.0, nil))
+	mu := unaggregated.MetricUnion{
+		GaugeVal: 124.0,
+	}
+	require.NoError(t, e.AddUnion(time.Unix(210, 0), mu, true))
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
 		{
 			aggregationKey: aggKey,

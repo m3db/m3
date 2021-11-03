@@ -148,6 +148,9 @@ func (e *CounterElem) doAddUnion(timestamp time.Time, mu unaggregated.MetricUnio
 	lockedAgg.aggregation.AddUnion(timestamp, mu)
 	lockedAgg.dirty = true
 	lockedAgg.Unlock()
+	if retry {
+		e.metrics.retriedValues.Inc(1)
+	}
 	return nil
 }
 
@@ -256,8 +259,8 @@ func (e *CounterElem) expireValuesWithLock(
 			// if this current value is closed and clean it will no longer be flushed. this means it's safe
 			// to remove the previous value since it will no longer be needed for binary transformations. when the
 			// next value is eligible to be expired, this current value will actually be removed.
-			// if we're currently pointing at the start skip this there is no previous for the start. this ensures
-			// we always keep at least one value in the map for binary transformations.
+			// if we're currently pointing at the start skip this because there is no previous for the start. this
+			// ensures we always keep at least one value in the map for binary transformations.
 			if prevV, ok := e.values[e.minStartTime]; ok && currStart != e.minStartTime {
 				// can't expire flush state until after the flushing, so we save the time to expire later.
 				e.flushStateToExpire = append(e.flushStateToExpire, e.minStartTime)
@@ -371,12 +374,6 @@ func (e *CounterElem) Consume(
 		}
 
 		flushState := e.newFlushStateWithLock(agg)
-		if flushState.dirty && flushState.flushed && !flushState.resendEnabled {
-			instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
-				l.Error("reflushing aggregation without resendEnabled", zap.Any("flushState", flushState))
-			})
-		}
-
 		if !flushState.dirty {
 			// there is a race where the value was added to the dirty set, but the writer didn't actually update the
 			// value yet (by marking dirty). add back to the dirty set so it can be processed in the next round once
@@ -389,16 +386,21 @@ func (e *CounterElem) Consume(
 		e.values[dirtyTime] = val
 		e.toConsume = append(e.toConsume, flushState)
 
-		// potentially consume the nextAgg as well in case we need to cascade an update from a previously flushed
-		// value.
-		if flushState.flushed {
+		// potentially consume the nextAgg as well in case we need to cascade an update to the nextAgg.
+		// this is necessary for binary transformations that rely on the previous aggregation value for calculating the
+		// current aggregation value. if the nextAgg was already flushed, it used an outdated value for the previous
+		// value (this agg). this can only happen when we allow updating previously flushed data (i.e resendEnabled).
+		if flushState.resendEnabled {
 			nextAgg, ok := e.nextAggWithLock(dirtyTime, targetNanos, isEarlierThanFn)
-			// add if not already in the dirty set.
+			// only need to add if not already in the dirty set (since it will be added in a subsequent iteration).
 			if ok &&
-				isEarlierThanFn(int64(nextAgg.startAtNanos), resolution, targetNanos) &&
 				// at the end of the dirty times OR the next dirty time does not match.
 				(i == len(dirtyTimes)-1 || dirtyTimes[i+1] != nextAgg.startAtNanos) {
-				e.toConsume = append(e.toConsume, e.newFlushStateWithLock(nextAgg))
+				nextAggFlush := e.newFlushStateWithLock(nextAgg)
+				// only need to add if it was previously flushed.
+				if nextAggFlush.flushed {
+					e.toConsume = append(e.toConsume, nextAggFlush)
+				}
 			}
 		}
 	}
@@ -409,6 +411,12 @@ func (e *CounterElem) Consume(
 
 	// Process the aggregations that are ready for consumption.
 	for _, flushState := range e.toConsume {
+		if flushState.dirty && flushState.flushed && !flushState.resendEnabled {
+			flushState := flushState
+			instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.Error("reflushing aggregation without resendEnabled", zap.Any("flushState", flushState))
+			})
+		}
 		flushState.timestamp = xtime.UnixNano(timestampNanosFn(int64(flushState.startAt), resolution))
 		flushState = e.processValue(
 			flushState,

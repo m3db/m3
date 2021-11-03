@@ -223,6 +223,7 @@ type elemMetrics struct {
 	sync.RWMutex
 	scope         tally.Scope
 	updatedValues tally.Counter
+	retriedValues tally.Counter
 	forwardLags   map[forwardLagKey]tally.Histogram
 }
 
@@ -298,6 +299,7 @@ func NewElemOptions(aggregatorOpts Options) ElemOptions {
 		aggregationOpts: raggregation.NewOptions(aggregatorOpts.InstrumentOptions()),
 		elemMetrics: &elemMetrics{
 			updatedValues: scope.Counter("updated-values"),
+			retriedValues: scope.Counter("retried-values"),
 			scope:         scope,
 			forwardLags:   make(map[forwardLagKey]tally.Histogram),
 		},
