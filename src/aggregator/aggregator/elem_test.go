@@ -2390,6 +2390,355 @@ func TestGaugeFindOrCreateWithSourceSet(t *testing.T) {
 	require.Equal(t, 0, len(e.cachedSourceSets))
 }
 
+func TestExpireValues(t *testing.T) {
+	opts := newTestOptions()
+	resolutionDuration := opts.DefaultStoragePolicies()[0].Resolution().Window
+	resolution := xtime.UnixNano(resolutionDuration)
+	bufferPastDuration := opts.BufferForPastTimedMetricFn()(resolutionDuration)
+
+	valsNoGaps := []xtime.UnixNano{
+		resolution * 1,
+		resolution * 2,
+		resolution * 3,
+	}
+	valsGaps := []xtime.UnixNano{
+		resolution * 1,
+		resolution * 5,
+		resolution * 6,
+		resolution * 10,
+	}
+
+	for _, test := range []struct {
+		name             string
+		targetNanos      xtime.UnixNano
+		resendEnabled    bool
+		values           []xtime.UnixNano
+		expectedToExpire []xtime.UnixNano
+		expectedValues   []xtime.UnixNano
+	}{
+		// no gaps - resend disabled
+		{
+			name:             "no gaps - resend disabled - zero target",
+			targetNanos:      resolution * 0,
+			resendEnabled:    false,
+			values:           valsNoGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsNoGaps,
+		},
+		{
+			name:             "no gaps - resend disabled - target val 0",
+			targetNanos:      valsNoGaps[0],
+			resendEnabled:    false,
+			values:           valsNoGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsNoGaps,
+		},
+		{
+			name:             "no gaps - resend disabled - target val 1",
+			targetNanos:      valsNoGaps[1],
+			resendEnabled:    false,
+			values:           valsNoGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsNoGaps,
+		},
+		{
+			name:             "no gaps - resend disabled - target val 2",
+			targetNanos:      valsNoGaps[2],
+			resendEnabled:    false,
+			values:           valsNoGaps,
+			expectedToExpire: valsNoGaps[0:1], expectedValues: valsNoGaps[1:],
+		},
+		{
+			name:             "no gaps - resend disabled - target val 2 + 1 resolution",
+			targetNanos:      valsNoGaps[2].Add(resolutionDuration),
+			resendEnabled:    false,
+			values:           valsNoGaps,
+			expectedToExpire: valsNoGaps[0:2], expectedValues: valsNoGaps[2:],
+		},
+		{
+			name:             "no gaps - resend disabled - target val 2 + 2 resolution",
+			targetNanos:      valsNoGaps[2].Add(2 * resolutionDuration),
+			resendEnabled:    false,
+			values:           valsNoGaps,
+			expectedToExpire: valsNoGaps[0:2], expectedValues: valsNoGaps[2:],
+		},
+		// no gaps - resend enabled
+		{
+			name:             "no gaps - resend enabled - target zero",
+			targetNanos:      resolution * 0,
+			resendEnabled:    true,
+			values:           valsNoGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsNoGaps,
+		},
+		{
+			name:             "no gaps - resend enabled - target val 0",
+			targetNanos:      valsNoGaps[0],
+			resendEnabled:    true,
+			values:           valsNoGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsNoGaps,
+		},
+		{
+			name:          "no gaps - resend enabled - target val 1",
+			targetNanos:   valsNoGaps[1],
+			resendEnabled: true, values: valsNoGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsNoGaps,
+		},
+		{
+			name:             "no gaps - resend enabled - target val 2",
+			targetNanos:      valsNoGaps[2],
+			resendEnabled:    true,
+			values:           valsNoGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsNoGaps,
+		},
+		{
+			name:             "no gaps - resend enabled - target val 2 + 1 resolution",
+			targetNanos:      valsNoGaps[2].Add(resolutionDuration),
+			resendEnabled:    true,
+			values:           valsNoGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsNoGaps,
+		},
+		{
+			name:             "no gaps - resend enabled - target val 2 + 2 resolution",
+			targetNanos:      valsNoGaps[2].Add(2 * resolutionDuration),
+			resendEnabled:    true,
+			values:           valsNoGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsNoGaps,
+		},
+		{
+			name:             "no gaps - resend enabled - target val 0 + buffer past",
+			targetNanos:      valsNoGaps[0].Add(bufferPastDuration),
+			resendEnabled:    true,
+			values:           valsNoGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsNoGaps,
+		},
+		{
+			name:             "no gaps - resend enabled - target val 1 + buffer past",
+			targetNanos:      valsNoGaps[1].Add(bufferPastDuration),
+			resendEnabled:    true,
+			values:           valsNoGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsNoGaps,
+		},
+		{
+			name:             "no gaps - resend enabled - target val 2 + buffer past",
+			targetNanos:      valsNoGaps[2].Add(bufferPastDuration),
+			resendEnabled:    true,
+			values:           valsNoGaps,
+			expectedToExpire: valsNoGaps[0:1], expectedValues: valsNoGaps[1:],
+		},
+		{
+			name:             "no gaps - resend enabled - target val 2 + 1 resolution + buffer past",
+			targetNanos:      valsNoGaps[2].Add(resolutionDuration).Add(bufferPastDuration),
+			resendEnabled:    true,
+			values:           valsNoGaps,
+			expectedToExpire: valsNoGaps[0:2], expectedValues: valsNoGaps[2:],
+		},
+		{
+			name:             "no gaps - resend enabled - target val 2 + 2 resolution + buffer past",
+			targetNanos:      valsNoGaps[2].Add(2 * resolutionDuration).Add(bufferPastDuration),
+			resendEnabled:    true,
+			values:           valsNoGaps,
+			expectedToExpire: valsNoGaps[0:2], expectedValues: valsNoGaps[2:],
+		},
+		// gaps - resend disabled
+		{
+			name:             "gaps - resend disabled - zero target",
+			targetNanos:      resolution * 0,
+			resendEnabled:    false,
+			values:           valsGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsGaps,
+		},
+		{
+			name:             "gaps - resend disabled - target val 0",
+			targetNanos:      valsGaps[0],
+			resendEnabled:    false,
+			values:           valsGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsGaps,
+		},
+		{
+			name:             "gaps - resend disabled - target val 1",
+			targetNanos:      valsGaps[1],
+			resendEnabled:    false,
+			values:           valsGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsGaps,
+		},
+		{
+			name:             "gaps - resend disabled - target val 2",
+			targetNanos:      valsGaps[2],
+			resendEnabled:    false,
+			values:           valsGaps,
+			expectedToExpire: valsGaps[0:1], expectedValues: valsGaps[1:],
+		},
+		{
+			name:             "gaps - resend disabled - target between val 2 and val 3 (1 resolution)",
+			targetNanos:      valsGaps[2].Add(resolutionDuration),
+			resendEnabled:    false,
+			values:           valsGaps,
+			expectedToExpire: valsGaps[0:2], expectedValues: valsGaps[2:],
+		},
+		{
+			name:             "gaps - resend disabled - target between val 2 and val 3 (2 resolution)",
+			targetNanos:      valsGaps[2].Add(2 * resolutionDuration),
+			resendEnabled:    false,
+			values:           valsGaps,
+			expectedToExpire: valsGaps[0:2], expectedValues: valsGaps[2:],
+		},
+		{
+			name:             "gaps - resend disabled - target val 3",
+			targetNanos:      valsGaps[3],
+			resendEnabled:    false,
+			values:           valsGaps,
+			expectedToExpire: valsGaps[0:2], expectedValues: valsGaps[2:],
+		},
+		{
+			name:             "gaps - resend disabled - target val 3 + 1 resolution",
+			targetNanos:      valsGaps[3].Add(resolutionDuration),
+			resendEnabled:    false,
+			values:           valsGaps,
+			expectedToExpire: valsGaps[0:3], expectedValues: valsGaps[3:],
+		},
+		{
+			name:             "gaps - resend disabled - target val 3 + 2 resolution",
+			targetNanos:      valsGaps[3].Add(2 * resolutionDuration),
+			resendEnabled:    false,
+			values:           valsGaps,
+			expectedToExpire: valsGaps[0:3], expectedValues: valsGaps[3:],
+		},
+		// gaps - resend enabled
+		{
+			name:          "gaps - resend enabled - target zero",
+			targetNanos:   resolution * 0,
+			resendEnabled: true,
+			values:        valsGaps, expectedToExpire: []xtime.UnixNano{}, expectedValues: valsGaps,
+		},
+		{
+			name:             "gaps - resend enabled - target val 0",
+			targetNanos:      valsGaps[0],
+			resendEnabled:    true,
+			values:           valsGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsGaps,
+		},
+		{
+			name:             "gaps - resend enabled - target val 1",
+			targetNanos:      valsGaps[1],
+			resendEnabled:    true,
+			values:           valsGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsGaps,
+		},
+		{
+			name:             "gaps - resend enabled - target val 2",
+			targetNanos:      valsGaps[2],
+			resendEnabled:    true,
+			values:           valsGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsGaps,
+		},
+		{
+			name:             "gaps - resend enabled - target val 3",
+			targetNanos:      valsGaps[3],
+			resendEnabled:    true,
+			values:           valsGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsGaps,
+		},
+		{
+			name:             "gaps - resend enabled - target val 3 + 1 resolution",
+			targetNanos:      valsGaps[3].Add(resolutionDuration),
+			resendEnabled:    true,
+			values:           valsGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsGaps,
+		},
+		{
+			name:             "gaps - resend enabled - target val 3 + 2 resolution",
+			targetNanos:      valsGaps[3].Add(2 * resolutionDuration),
+			resendEnabled:    true,
+			values:           valsGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsGaps,
+		},
+		{
+			name:             "gaps - resend enabled - target val 0 + buffer past",
+			targetNanos:      valsGaps[0].Add(bufferPastDuration),
+			resendEnabled:    true,
+			values:           valsGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsGaps,
+		},
+		{
+			name:             "gaps - resend enabled - target val 1 + buffer past",
+			targetNanos:      valsGaps[1].Add(bufferPastDuration),
+			resendEnabled:    true,
+			values:           valsGaps,
+			expectedToExpire: []xtime.UnixNano{}, expectedValues: valsGaps,
+		},
+		{
+			name:             "gaps - resend enabled - target val 2 + buffer past",
+			targetNanos:      valsGaps[2].Add(bufferPastDuration),
+			resendEnabled:    true,
+			values:           valsGaps,
+			expectedToExpire: valsGaps[0:1], expectedValues: valsGaps[1:],
+		},
+		{
+			name:             "gaps - resend enabled - target between val 2 and 3 (1 resolution) + buffer past",
+			targetNanos:      valsGaps[2].Add(resolutionDuration).Add(bufferPastDuration),
+			resendEnabled:    true,
+			values:           valsGaps,
+			expectedToExpire: valsGaps[0:2], expectedValues: valsGaps[2:],
+		},
+		{
+			name:             "gaps - resend enabled - target between val 2 and 3 (2 resolution) + buffer past",
+			targetNanos:      valsGaps[2].Add(2 * resolutionDuration).Add(bufferPastDuration),
+			resendEnabled:    true,
+			values:           valsGaps,
+			expectedToExpire: valsGaps[0:2], expectedValues: valsGaps[2:],
+		},
+		{
+			name:             "gaps - resend enabled - target val 3 + buffer past",
+			targetNanos:      valsGaps[3].Add(bufferPastDuration),
+			resendEnabled:    true,
+			values:           valsGaps,
+			expectedToExpire: valsGaps[0:2], expectedValues: valsGaps[2:],
+		},
+		{
+			name:             "gaps - resend enabled - target val 3 + 1 resolution + buffer past",
+			targetNanos:      valsGaps[3].Add(resolutionDuration).Add(bufferPastDuration),
+			resendEnabled:    true,
+			values:           valsGaps,
+			expectedToExpire: valsGaps[0:3], expectedValues: valsGaps[3:],
+		},
+		{
+			name:             "gaps - resend enabled - target val 3 + 2 resolution + buffer past",
+			targetNanos:      valsGaps[3].Add(2 * resolutionDuration).Add(bufferPastDuration),
+			resendEnabled:    true,
+			values:           valsGaps,
+			expectedToExpire: valsGaps[0:3], expectedValues: valsGaps[3:],
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			e, err := NewCounterElem(testCounterElemData, NewElemOptions(opts))
+			require.NoError(t, err)
+			require.Equal(t, 0, len(e.toExpire))
+
+			// Add initial toExpire since expireValues should reset this.
+			e.toExpire = make([]timedCounter, 10)
+
+			// Add test values.
+			for _, v := range test.values {
+				_, err := e.findOrCreate(int64(v), createAggregationOptions{
+					resendEnabled: test.resendEnabled,
+				})
+				require.NoError(t, err)
+			}
+
+			// Expire up to target.
+			e.expireValuesWithLock(int64(test.targetNanos), standardMetricTimestampNanos, isStandardMetricEarlierThan)
+
+			// Validate toExpire and remaining values.
+			require.Equal(t, len(test.expectedToExpire), len(e.toExpire))
+			for i, toExpire := range test.expectedToExpire {
+				require.Equal(t, toExpire, e.toExpire[i].startAtNanos, "missing expire")
+			}
+			require.Equal(t, len(test.expectedValues), len(e.values))
+			for _, value := range test.expectedValues {
+				_, ok := e.values[value]
+				require.True(t, ok, "missing value")
+			}
+		})
+	}
+}
+
 type testIndexData struct {
 	index int
 	data  []int64
