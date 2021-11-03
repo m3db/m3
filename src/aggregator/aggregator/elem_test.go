@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -2365,6 +2366,118 @@ func TestGaugeFindOrCreateNoSourceSet(t *testing.T) {
 			_, ok := expected[k]
 			require.True(t, ok)
 		}
+	}
+}
+
+// confirms that when panics are enabled, we do panic, and when disabled,
+// the code safely proceeds (and does not encounter some unexpected runtime panic)
+func TestPanics(t *testing.T) {
+	opts := newTestOptions().SetInstrumentOptions(instrument.NewOptions())
+	elemData := testCounterElemData
+
+	tests := []struct {
+		name   string
+		testFn func()
+	}{
+		{
+			name: "panic if non-existent flush states are expired",
+			testFn: func() {
+				elem, err := NewCounterElem(elemData, NewElemOptions(opts))
+				require.NoError(t, err)
+				elem.flushStateToExpire = []xtime.UnixNano{0, 1, 2}
+				elem.expireFlushState()
+			},
+		},
+		{
+			name: "panic if minStartTime moved beyond remaining values on Close",
+			testFn: func() {
+				elem, err := NewCounterElem(elemData, NewElemOptions(opts))
+				require.NoError(t, err)
+				elem.flushStateToExpire = []xtime.UnixNano{0, 1, 2}
+
+				elem.values[10] = timedCounter{
+					lockedAgg: &lockedCounterAggregation{
+						aggregation: newCounterAggregation(raggregation.NewCounter(elem.aggOpts)),
+					},
+				}
+				elem.minStartTime = 11
+
+				elem.Close()
+			},
+		},
+		{
+			name: "panic from dangling flushState on Close",
+			testFn: func() {
+				elem, err := NewCounterElem(elemData, NewElemOptions(opts))
+				require.NoError(t, err)
+				elem.flushStateToExpire = []xtime.UnixNano{0, 1, 2}
+
+				elem.flushState[10] = aggFlushState{}
+
+				elem.Close()
+			},
+		},
+		{
+			name: "panic if invalid flush state",
+			testFn: func() {
+				elem, err := NewCounterElem(elemData, NewElemOptions(opts))
+				require.NoError(t, err)
+
+				counter := timedCounter{
+					lockedAgg: &lockedCounterAggregation{
+						aggregation: newCounterAggregation(raggregation.NewCounter(elem.aggOpts)),
+					},
+				}
+				flushState := elem.newFlushStateWithLock(counter)
+				flushState.dirty = true
+				flushState.flushed = true
+				flushState.resendEnabled = false
+
+				localFn, _ := testFlushLocalMetricFn()
+				forwardFn, _ := testFlushForwardedMetricFn()
+				_ = elem.processValue(flushState, localFn,
+					forwardFn,
+					time.Second,
+					time.Second,
+					0, consumeType)
+			},
+		},
+		{
+			name: "panic if no consumedValues",
+			testFn: func() {
+				elemData := testCounterElemData
+				elemData.Pipeline = testPipeline
+				elem, err := NewCounterElem(elemData, NewElemOptions(opts))
+				require.NoError(t, err)
+
+				counter := timedCounter{
+					lockedAgg: &lockedCounterAggregation{
+						aggregation: newCounterAggregation(raggregation.NewCounter(elem.aggOpts)),
+					},
+				}
+				flushState := elem.newFlushStateWithLock(counter)
+				flushState.prevStartTime = 10
+
+				localFn, _ := testFlushLocalMetricFn()
+				forwardFn, _ := testFlushForwardedMetricFn()
+				_ = elem.processValue(flushState, localFn,
+					forwardFn,
+					time.Second,
+					time.Second,
+					0, consumeType)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			// Test panics enabled/disabled.
+			instrument.SetShouldPanicEnvironmentVariable(true)
+			assert.Panics(t, tt.testFn, "should panic but did not")
+			instrument.SetShouldPanicEnvironmentVariable(false)
+			tt.testFn()
+		})
 	}
 }
 

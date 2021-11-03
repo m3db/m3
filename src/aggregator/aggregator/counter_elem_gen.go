@@ -411,12 +411,6 @@ func (e *CounterElem) Consume(
 
 	// Process the aggregations that are ready for consumption.
 	for _, flushState := range e.toConsume {
-		if flushState.dirty && flushState.flushed && !flushState.resendEnabled {
-			flushState := flushState
-			instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
-				l.Error("reflushing aggregation without resendEnabled", zap.Any("flushState", flushState))
-			})
-		}
 		flushState.timestamp = xtime.UnixNano(timestampNanosFn(int64(flushState.startAt), resolution))
 		flushState = e.processValue(
 			flushState,
@@ -656,10 +650,18 @@ func (e *CounterElem) processValue(
 	jitter time.Duration,
 	flushType flushType,
 ) aggFlushState {
+	if flushState.dirty && flushState.flushed && !flushState.resendEnabled {
+		flushState := flushState
+		instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
+			l.Error("reflushing aggregation without resendEnabled", zap.Any("flushState", flushState))
+		})
+	}
+
 	var (
 		transformations  = e.parsedPipeline.Transformations
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
 	)
+
 	for aggTypeIdx, aggType := range e.aggTypes {
 		var extraDp transformation.Datapoint
 		value := flushState.values[aggTypeIdx]
@@ -667,6 +669,7 @@ func (e *CounterElem) processValue(
 			unaryOp, isUnaryOp := transformOp.UnaryTransform()
 			binaryOp, isBinaryOp := transformOp.BinaryTransform()
 			unaryMultiOp, isUnaryMultiOp := transformOp.UnaryMultiOutputTransform()
+			fmt.Println("T", flushState.prevStartTime, isUnaryOp, isBinaryOp)
 			switch {
 			case isUnaryOp:
 				curr := transformation.Datapoint{
