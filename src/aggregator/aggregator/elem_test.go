@@ -2549,6 +2549,9 @@ func TestExpireValues(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, 0, len(e.toExpire))
 
+			// Add initial toExpire since expireValues should reset this.
+			e.toExpire = make([]timedCounter, 10)
+
 			// Add test values.
 			for _, v := range test.values {
 				_, err := e.findOrCreate(int64(v), createAggregationOptions{
