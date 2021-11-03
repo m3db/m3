@@ -661,7 +661,6 @@ func (e *CounterElem) processValue(
 		transformations  = e.parsedPipeline.Transformations
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
 	)
-
 	for aggTypeIdx, aggType := range e.aggTypes {
 		var extraDp transformation.Datapoint
 		value := flushState.values[aggTypeIdx]
@@ -669,7 +668,6 @@ func (e *CounterElem) processValue(
 			unaryOp, isUnaryOp := transformOp.UnaryTransform()
 			binaryOp, isBinaryOp := transformOp.BinaryTransform()
 			unaryMultiOp, isUnaryMultiOp := transformOp.UnaryMultiOutputTransform()
-			fmt.Println("T", flushState.prevStartTime, isUnaryOp, isBinaryOp)
 			switch {
 			case isUnaryOp:
 				curr := transformation.Datapoint{
