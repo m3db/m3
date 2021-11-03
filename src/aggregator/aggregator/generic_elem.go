@@ -742,7 +742,6 @@ func (e *GenericElem) processValue(
 				value = res.Value
 
 			case isBinaryOp:
-				fmt.Println("BINARY")
 				prev := transformation.Datapoint{
 					Value: nan,
 				}
