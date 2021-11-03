@@ -2472,31 +2472,77 @@ func TestExpireValues(t *testing.T) {
 		},
 		// gaps - resend disabled
 		{
-			"no gaps - resend disabled - zero target", resolution * 0, false, valsGaps, []xtime.UnixNano{}, valsGaps,
+			"gaps - resend disabled - zero target", resolution * 0, false, valsGaps, []xtime.UnixNano{}, valsGaps,
 		},
 		{
-			"no gaps - resend disabled", valsGaps[0], false, valsGaps, []xtime.UnixNano{}, valsGaps,
+			"gaps - resend disabled", valsGaps[0], false, valsGaps, []xtime.UnixNano{}, valsGaps,
 		},
 		{
-			"no gaps - resend disabled", valsGaps[1], false, valsGaps, []xtime.UnixNano{}, valsGaps,
+			"gaps - resend disabled", valsGaps[1], false, valsGaps, []xtime.UnixNano{}, valsGaps,
 		},
 		{
-			"no gaps - resend disabled", valsGaps[2], false, valsGaps, valsGaps[0:1], valsGaps[1:],
+			"gaps - resend disabled", valsGaps[2], false, valsGaps, valsGaps[0:1], valsGaps[1:],
 		},
 		{
-			"no gaps - resend disabled - target gap", valsGaps[2].Add(resolutionDuration), false, valsGaps, valsGaps[0:2], valsGaps[2:],
+			"gaps - resend disabled - target gap", valsGaps[2].Add(resolutionDuration), false, valsGaps, valsGaps[0:2], valsGaps[2:],
 		},
 		{
-			"no gaps - resend disabled - target gap", valsGaps[2].Add(2 * resolutionDuration), false, valsGaps, valsGaps[0:2], valsGaps[2:],
+			"gaps - resend disabled - target gap", valsGaps[2].Add(2 * resolutionDuration), false, valsGaps, valsGaps[0:2], valsGaps[2:],
 		},
 		{
-			"no gaps - resend disabled", valsGaps[3], false, valsGaps, valsGaps[0:2], valsGaps[2:],
+			"gaps - resend disabled", valsGaps[3], false, valsGaps, valsGaps[0:2], valsGaps[2:],
 		},
 		{
-			"no gaps - resend disabled", valsGaps[3].Add(resolutionDuration), false, valsGaps, valsGaps[0:3], valsGaps[3:],
+			"gaps - resend disabled", valsGaps[3].Add(resolutionDuration), false, valsGaps, valsGaps[0:3], valsGaps[3:],
 		},
 		{
-			"no gaps - resend disabled", valsGaps[3].Add(2 * resolutionDuration), false, valsGaps, valsGaps[0:3], valsGaps[3:],
+			"gaps - resend disabled", valsGaps[3].Add(2 * resolutionDuration), false, valsGaps, valsGaps[0:3], valsGaps[3:],
+		},
+		// gaps - resend enabled
+		{
+			"gaps - resend enabled - target zero", resolution * 0, true, valsGaps, []xtime.UnixNano{}, valsGaps,
+		},
+		{
+			"gaps - resend enabled", valsGaps[0], true, valsGaps, []xtime.UnixNano{}, valsGaps,
+		},
+		{
+			"gaps - resend enabled", valsGaps[1], true, valsGaps, []xtime.UnixNano{}, valsGaps,
+		},
+		{
+			"gaps - resend enabled", valsGaps[2], true, valsGaps, []xtime.UnixNano{}, valsGaps,
+		},
+		{
+			"gaps - resend enabled", valsGaps[3], true, valsGaps, []xtime.UnixNano{}, valsGaps,
+		},
+		{
+			"gaps - resend enabled", valsGaps[3].Add(resolutionDuration), true, valsGaps, []xtime.UnixNano{}, valsGaps,
+		},
+		{
+			"gaps - resend enabled", valsGaps[3].Add(2 * resolutionDuration), true, valsGaps, []xtime.UnixNano{}, valsGaps,
+		},
+		{
+			"gaps - resend enabled - buffer past", valsGaps[0].Add(bufferPastDuration), true, valsGaps, []xtime.UnixNano{}, valsGaps,
+		},
+		{
+			"gaps - resend enabled - buffer past", valsGaps[1].Add(bufferPastDuration), true, valsGaps, []xtime.UnixNano{}, valsGaps,
+		},
+		{
+			"gaps - resend enabled - buffer past", valsGaps[2].Add(bufferPastDuration), true, valsGaps, valsGaps[0:1], valsGaps[1:],
+		},
+		{
+			"gaps - resend enabled - buffer past - target gap", valsGaps[2].Add(resolutionDuration).Add(bufferPastDuration), true, valsGaps, valsGaps[0:2], valsGaps[2:],
+		},
+		{
+			"gaps - resend enabled - buffer past - target gap", valsGaps[2].Add(2 * resolutionDuration).Add(bufferPastDuration), true, valsGaps, valsGaps[0:2], valsGaps[2:],
+		},
+		{
+			"gaps - resend enabled - buffer past", valsGaps[3].Add(bufferPastDuration), true, valsGaps, valsGaps[0:2], valsGaps[2:],
+		},
+		{
+			"gaps - resend enabled - buffer past", valsGaps[3].Add(resolutionDuration).Add(bufferPastDuration), true, valsGaps, valsGaps[0:3], valsGaps[3:],
+		},
+		{
+			"gaps - resend enabled - buffer past", valsGaps[3].Add(2 * resolutionDuration).Add(bufferPastDuration), true, valsGaps, valsGaps[0:3], valsGaps[3:],
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
