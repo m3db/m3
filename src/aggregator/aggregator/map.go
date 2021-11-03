@@ -220,7 +220,7 @@ func (m *metricMap) AddForwarded(
 
 func (m *metricMap) Tick(
 	target time.Duration,
-	doneCh chan struct{},
+	doneCh <-chan struct{},
 ) tickResult {
 	mapTickRes := m.tick(target, doneCh)
 	listsTickRes := m.metricLists.Tick()
@@ -325,7 +325,7 @@ func (m *metricMap) lookupEntryWithLock(key entryKey) (*Entry, bool) {
 // 2. Report number of standard entries and forwarded entries that are active.
 func (m *metricMap) tick(
 	target time.Duration,
-	doneCh chan struct{},
+	doneCh <-chan struct{},
 ) tickResult {
 	// Determine batch size.
 	m.RLock()
@@ -349,11 +349,6 @@ func (m *metricMap) tick(
 
 		done bool
 	)
-
-	// NB: if no doneChan provided, do not interrupt the tick.
-	if doneCh == nil {
-		doneCh = make(chan struct{})
-	}
 
 	m.forEachEntry(func(entry hashedEntry) {
 		if done {

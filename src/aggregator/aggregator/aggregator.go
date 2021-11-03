@@ -97,7 +97,16 @@ type Aggregator interface {
 type tickShardFn func(
 	shard *aggregatorShard,
 	perShardTickDuration time.Duration,
+	doneCh <-chan struct{},
 ) tickResult
+
+func tickShard(
+	shard *aggregatorShard,
+	perShardTickDuration time.Duration,
+	doneCh <-chan struct{},
+) tickResult {
+	return shard.Tick(perShardTickDuration, doneCh)
+}
 
 // aggregator stores aggregations of different types of metrics (e.g., counter,
 // timer, gauges) and periodically flushes them out.
@@ -157,9 +166,9 @@ func NewAggregator(opts Options) Aggregator {
 		doneCh:            make(chan struct{}),
 		metrics:           newAggregatorMetrics(scope, timerOpts, opts.MaxAllowedForwardingDelayFn()),
 		logger:            logger,
+		tickShardFn:       tickShard,
 	}
 
-	agg.tickShardFn = agg.tickShard
 	return agg
 }
 
@@ -395,12 +404,11 @@ func (agg *aggregator) Close() error {
 
 	var (
 		lastOpCompleted = time.Now()
-		currTime        time.Time
 		closeLogger     = agg.logger.With(zap.String("closing", "aggregator"))
 
 		logCloseOperation = func(op string) {
-			currTime = time.Now()
-			closeLogger.Info(fmt.Sprintf("closed %s", op),
+			currTime := time.Now()
+			closeLogger.Debug(fmt.Sprintf("closed %s", op),
 				zap.String("took", currTime.Sub(lastOpCompleted).String()))
 			lastOpCompleted = currTime
 		}
@@ -761,13 +769,6 @@ func (agg *aggregator) tick() {
 	}
 }
 
-func (agg *aggregator) tickShard(
-	shard *aggregatorShard,
-	perShardTickDuration time.Duration,
-) tickResult {
-	return shard.Tick(perShardTickDuration, agg.doneCh)
-}
-
 func (agg *aggregator) tickInternal() {
 	ownedShards, closingShards := agg.ownedShards()
 	agg.closeShardsAsync(closingShards)
@@ -786,13 +787,16 @@ func (agg *aggregator) tickInternal() {
 	)
 	for _, shard := range ownedShards {
 		select {
+		// NB: if doneCh has been signaled, no need to continue ticking shards and
+		// it's valid to early abort ticking.
 		case <-agg.doneCh:
 			agg.logger.Info("recevied interrupt on tick; aborting")
 			return
 		default:
-			shardTickResult := agg.tickShardFn(shard, perShardTickDuration)
-			tickResult = tickResult.merge(shardTickResult)
 		}
+
+		shardTickResult := agg.tickShardFn(shard, perShardTickDuration, agg.doneCh)
+		tickResult = tickResult.merge(shardTickResult)
 	}
 	tickDuration := agg.nowFn().Sub(start)
 	agg.metrics.tick.Report(tickResult, tickDuration)

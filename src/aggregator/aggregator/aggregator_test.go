@@ -861,7 +861,7 @@ func TestAggregatorTickCancelled(t *testing.T) {
 		doneAfterTicks = 2
 	)
 
-	agg.tickShardFn = func(*aggregatorShard, time.Duration) tickResult {
+	agg.tickShardFn = func(*aggregatorShard, time.Duration, <-chan struct{}) tickResult {
 		numTicked++
 		if doneAfterTicks == 2 {
 			close(tickedCh)

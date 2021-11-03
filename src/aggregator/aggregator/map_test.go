@@ -530,15 +530,17 @@ func TestMetricMapTickCancellation(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testOptions(ctrl)
-	m := newMetricMap(testShard, opts)
-
-	numBatchesProcessed := 0
-	tickedCh := make(chan struct{})
+	var (
+		opts                   = testOptions(ctrl)
+		m                      = newMetricMap(testShard, opts)
+		numBatchesProcessed    = 0
+		numToProcessBeforeDone = 10
+		tickedCh               = make(chan struct{})
+	)
 
 	m.sleepFn = func(d time.Duration) {
 		numBatchesProcessed++
-		if numBatchesProcessed == 10 {
+		if numBatchesProcessed == numToProcessBeforeDone {
 			close(tickedCh)
 		}
 
@@ -552,7 +554,7 @@ func TestMetricMapTickCancellation(t *testing.T) {
 	}()
 
 	// NB: wait/early exit on every defaultSoftDeadlineCheckEvery
-	numEntries := defaultSoftDeadlineCheckEvery * 60
+	numEntries := defaultSoftDeadlineCheckEvery * 600
 	for i := 0; i < numEntries; i++ {
 		key := entryKey{
 			metricType: metricType(metric.CounterType),
@@ -565,6 +567,6 @@ func TestMetricMapTickCancellation(t *testing.T) {
 		})
 	}
 
-	m.Tick(time.Minute, doneCh)
-	require.Equal(t, 10, numBatchesProcessed)
+	m.Tick(time.Second*10, doneCh)
+	require.Equal(t, numToProcessBeforeDone, numBatchesProcessed)
 }
