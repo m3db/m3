@@ -21,7 +21,6 @@
 package aggregator
 
 import (
-	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -2550,6 +2549,7 @@ func TestExpireValues(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, 0, len(e.toExpire))
 
+			// Add test values.
 			for _, v := range test.values {
 				_, err := e.findOrCreate(int64(v), createAggregationOptions{
 					resendEnabled: test.resendEnabled,
@@ -2557,9 +2557,10 @@ func TestExpireValues(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			// Expire up to target.
 			e.expireValuesWithLock(int64(test.targetNanos), standardMetricTimestampNanos, isStandardMetricEarlierThan)
-			fmt.Println("E", e.toExpire)
-			fmt.Println("V", e.values)
+
+			// Validate toExpire and remaining values.
 			require.Equal(t, len(test.expectedToExpire), len(e.toExpire))
 			for i, toExpire := range test.expectedToExpire {
 				require.Equal(t, toExpire, e.toExpire[i].startAtNanos, "missing expire")
