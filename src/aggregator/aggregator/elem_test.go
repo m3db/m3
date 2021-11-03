@@ -21,6 +21,7 @@
 package aggregator
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -2388,6 +2389,74 @@ func TestGaugeFindOrCreateWithSourceSet(t *testing.T) {
 		}
 	}
 	require.Equal(t, 0, len(e.cachedSourceSets))
+}
+
+func TestExpireValues(t *testing.T) {
+	opts := newTestOptions()
+	resolution := xtime.UnixNano(opts.DefaultStoragePolicies()[0].Resolution().Window)
+
+	valsNoGaps := []xtime.UnixNano{
+		resolution * 1,
+		resolution * 2,
+		resolution * 3,
+	}
+	valsGaps := []xtime.UnixNano{
+		resolution * 1,
+		resolution * 5,
+		resolution * 6,
+		resolution * 10,
+	}
+
+	for _, test := range []struct {
+		name             string
+		targetNanos      xtime.UnixNano
+		resendEnabled    bool
+		values           []xtime.UnixNano
+		expectedToExpire []xtime.UnixNano
+		expectedValues   []xtime.UnixNano
+	}{
+		{
+			"no gaps - resend disabled", resolution * 0, false, valsNoGaps, []xtime.UnixNano{}, valsNoGaps,
+		},
+		{
+			"no gaps - resend disabled", valsNoGaps[0], false, valsNoGaps, []xtime.UnixNano{}, valsNoGaps,
+		},
+		{
+			"no gaps - resend disabled", valsNoGaps[1], false, valsNoGaps, []xtime.UnixNano{}, valsNoGaps,
+		},
+		{
+			"no gaps - resend disabled", valsNoGaps[2], false, valsNoGaps, valsNoGaps[0:1], valsNoGaps[1:],
+		},
+		{
+			"gaps - resend disabled", resolution * 0, false, valsGaps, []xtime.UnixNano{}, valsGaps,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			e, err := NewCounterElem(testCounterElemData, NewElemOptions(opts))
+			require.NoError(t, err)
+			require.Equal(t, 0, len(e.toExpire))
+
+			for _, v := range test.values {
+				_, err := e.findOrCreate(int64(v), createAggregationOptions{
+					resendEnabled: test.resendEnabled,
+				})
+				require.NoError(t, err)
+			}
+
+			e.expireValuesWithLock(int64(test.targetNanos), standardMetricTimestampNanos, isStandardMetricEarlierThan)
+			fmt.Println("E", e.toExpire)
+			fmt.Println("V", e.values)
+			require.Equal(t, len(test.expectedToExpire), len(e.toExpire))
+			for i, toExpire := range test.expectedToExpire {
+				require.Equal(t, toExpire, e.toExpire[i].startAtNanos, "missing expire")
+			}
+			require.Equal(t, len(test.expectedValues), len(e.values))
+			for _, value := range test.expectedValues {
+				_, ok := e.values[value]
+				require.True(t, ok, "missing value")
+			}
+		})
+	}
 }
 
 type testIndexData struct {
