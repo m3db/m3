@@ -260,8 +260,11 @@ func (s *aggregatorShard) AddForwarded(
 	return nil
 }
 
-func (s *aggregatorShard) Tick(target time.Duration) tickResult {
-	return s.metricMap.Tick(target)
+func (s *aggregatorShard) Tick(
+	target time.Duration,
+	doneCh <-chan struct{},
+) tickResult {
+	return s.metricMap.Tick(target, doneCh)
 }
 
 func (s *aggregatorShard) Close() {
