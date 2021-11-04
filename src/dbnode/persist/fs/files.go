@@ -1231,6 +1231,12 @@ func SortedCommitLogFiles(commitLogsDir string) ([]string, error) {
 	return sortedCommitLogFiles(commitLogsDir, commitLogFilePattern)
 }
 
+type filesetFile struct {
+	volumeIndex int
+	blockStart  xtime.UnixNano
+	fileName    string
+}
+
 type toSortableFn func(files []string) sort.Interface
 type toBlockStartAndVolumeIndexFn func(file string) (xtime.UnixNano, int, error)
 type sortedFilesetFiles []filesetFile
@@ -1256,13 +1262,7 @@ func (s sortedFilesetFiles) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-type filesetFile struct {
-	fileName    string
-	blockStart  xtime.UnixNano
-	volumeIndex int
-}
-
-func findFilesEx(fileDir string, pattern string, fn toBlockStartAndVolumeIndexFn) (sortedFilesetFiles, error) {
+func findFilesetFiles(fileDir string, pattern string, fn toBlockStartAndVolumeIndexFn) (sortedFilesetFiles, error) {
 	matched, err := filepath.Glob(path.Join(fileDir, pattern))
 	if err != nil {
 		return nil, err
@@ -1341,10 +1341,10 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 		switch args.contentType {
 		case persist.FileSetDataContentType:
 			dir := ShardDataDirPath(args.filePathPrefix, args.namespace, args.shard)
-			byTimeAsc, err = findFilesEx(dir, args.pattern, TimeAndVolumeIndexFromDataFileSetFilename)
+			byTimeAsc, err = findFilesetFiles(dir, args.pattern, TimeAndVolumeIndexFromDataFileSetFilename)
 		case persist.FileSetIndexContentType:
 			dir := NamespaceIndexDataDirPath(args.filePathPrefix, args.namespace)
-			byTimeAsc, err = findFilesEx(dir, args.pattern, TimeAndVolumeIndexFromFileSetFilename)
+			byTimeAsc, err = findFilesetFiles(dir, args.pattern, TimeAndVolumeIndexFromFileSetFilename)
 		default:
 			return nil, fmt.Errorf("unknown content type: %d", args.contentType)
 		}
@@ -1358,7 +1358,7 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 		default:
 			return nil, fmt.Errorf("unknown content type: %d", args.contentType)
 		}
-		byTimeAsc, err = findFilesEx(dir, args.pattern, TimeAndVolumeIndexFromFileSetFilename)
+		byTimeAsc, err = findFilesetFiles(dir, args.pattern, TimeAndVolumeIndexFromFileSetFilename)
 	default:
 		return nil, fmt.Errorf("unknown type: %d", args.fileSetType)
 	}
