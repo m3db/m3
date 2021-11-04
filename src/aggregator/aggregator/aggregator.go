@@ -23,7 +23,6 @@ package aggregator
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"strconv"
 	"sync"
@@ -379,27 +378,12 @@ func (agg *aggregator) Close() error {
 	}
 	agg.state = aggregatorClosed
 
-	var (
-		lastOpCompleted = time.Now()
-		closeLogger     = agg.logger.With(zap.String("closing", "aggregator"))
-
-		logCloseOperation = func(op string) {
-			currTime := time.Now()
-			closeLogger.Debug(fmt.Sprintf("closed %s", op),
-				zap.String("took", currTime.Sub(lastOpCompleted).String()))
-			lastOpCompleted = currTime
-		}
-	)
-
 	// NB: closing the flush manager is the only really necessary step for
 	// gracefully closing an aggregator leader, as this will ensure that any
 	// currently running flush completes, and updates the shared shard flush
 	// times map in etcd, allowing the follower that will be promoted to leader
 	// to avoid re-computing and re-flushing this data.
-	closeLogger.Info("eager shutdown")
-	err := agg.flushManager.Close()
-	logCloseOperation("flush manager")
-	return err
+	return agg.flushManager.Close()
 }
 
 func (agg *aggregator) shardFor(id id.RawID) (*aggregatorShard, error) {
