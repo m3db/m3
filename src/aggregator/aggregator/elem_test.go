@@ -2388,6 +2388,7 @@ func TestPanics(t *testing.T) {
 				require.NoError(t, err)
 				elem.flushStateToExpire = []xtime.UnixNano{0, 1, 2}
 
+				// Panic case where minStartTime > min(elem.values)
 				elem.values[10] = timedCounter{
 					lockedAgg: &lockedCounterAggregation{
 						aggregation: newCounterAggregation(raggregation.NewCounter(elem.aggOpts)),
@@ -2405,6 +2406,7 @@ func TestPanics(t *testing.T) {
 				require.NoError(t, err)
 				elem.flushStateToExpire = []xtime.UnixNano{0, 1, 2}
 
+				// i.e. flushState to cleanup but no associated elem.values
 				elem.flushState[10] = flushState{}
 
 				elem.Close()
@@ -2425,6 +2427,9 @@ func TestPanics(t *testing.T) {
 				elem.toConsume, _ = elem.appendConsumeStateWithLock(counter, elem.toConsume, nil)
 				toConsume := elem.toConsume[0]
 				toConsume.startAt = xtime.UnixNano(10)
+
+				// Panic case is where dirty + flushed + !resendEnabled since only resendEnabled
+				// allows for updating dirty/flushed aggs.
 				toConsume.dirty = true
 				toConsume.resendEnabled = false
 				elem.flushState[toConsume.startAt] = flushState{
@@ -2437,9 +2442,7 @@ func TestPanics(t *testing.T) {
 					standardMetricTimestampNanos,
 					localFn,
 					forwardFn,
-					0,
-					0,
-					0,
+					0, 0, 0,
 					consumeType)
 			},
 		},
@@ -2456,11 +2459,12 @@ func TestPanics(t *testing.T) {
 						aggregation: newCounterAggregation(raggregation.NewCounter(elem.aggOpts)),
 					},
 				}
-
 				elem.toConsume, _ = elem.appendConsumeStateWithLock(counter, elem.toConsume, nil)
 				toConsume := elem.toConsume[0]
+
+				// Panic case is where startAt has a flushState entry but prevStartTime does not.
 				toConsume.startAt = xtime.UnixNano(10)
-				toConsume.prevStartTime = xtime.UnixNano(9) // not present in flush state (panic case)
+				toConsume.prevStartTime = xtime.UnixNano(9)
 				elem.flushState[toConsume.startAt] = flushState{
 					flushed: true,
 				}
@@ -2472,9 +2476,7 @@ func TestPanics(t *testing.T) {
 					standardMetricTimestampNanos,
 					localFn,
 					forwardFn,
-					0,
-					0,
-					0,
+					0, 0, 0,
 					consumeType)
 			},
 		},
