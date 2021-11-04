@@ -48,10 +48,12 @@ func newLeaderFlusherMetrics(scope tally.Scope) leaderFlusherMetrics {
 }
 
 type leaderFlushManagerMetrics struct {
-	queueSize tally.Gauge
-	standard  leaderFlusherMetrics
-	forwarded leaderFlusherMetrics
-	timed     leaderFlusherMetrics
+	queueSize             tally.Gauge
+	getShardsError        tally.Counter
+	flushTimesUpdateError tally.Counter
+	standard              leaderFlusherMetrics
+	forwarded             leaderFlusherMetrics
+	timed                 leaderFlusherMetrics
 }
 
 func newLeaderFlushManagerMetrics(scope tally.Scope) leaderFlushManagerMetrics {
@@ -59,10 +61,12 @@ func newLeaderFlushManagerMetrics(scope tally.Scope) leaderFlushManagerMetrics {
 	forwardedScope := scope.Tagged(map[string]string{"flusher-type": "forwarded"})
 	timedScope := scope.Tagged(map[string]string{"flusher-type": "timed"})
 	return leaderFlushManagerMetrics{
-		queueSize: scope.Gauge("queue-size"),
-		standard:  newLeaderFlusherMetrics(standardScope),
-		forwarded: newLeaderFlusherMetrics(forwardedScope),
-		timed:     newLeaderFlusherMetrics(timedScope),
+		queueSize:             scope.Gauge("queue-size"),
+		getShardsError:        scope.Counter("get-shards-error"),
+		flushTimesUpdateError: scope.Counter("flush-times-update-error"),
+		standard:              newLeaderFlusherMetrics(standardScope),
+		forwarded:             newLeaderFlusherMetrics(forwardedScope),
+		timed:                 newLeaderFlusherMetrics(timedScope),
 	}
 }
 
@@ -180,8 +184,13 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 }
 
 func (mgr *leaderFlushManager) UpdateFlushTimes(buckets []*flushBucket) {
+	if !mgr.flushedSincePersist {
+		return
+	}
+
 	shards, err := mgr.placementManager.Shards()
 	if err != nil {
+		mgr.metrics.getShardsError.Inc(1)
 		mgr.logger.Error("unable to determine shards owned by this instance", zap.Error(err))
 		return
 	}
@@ -190,13 +199,13 @@ func (mgr *leaderFlushManager) UpdateFlushTimes(buckets []*flushBucket) {
 	defer mgr.Unlock()
 
 	allShards := shards.All()
-	if !mgr.flushedSincePersist {
-		return
-	}
-
 	mgr.flushedSincePersist = false
 	flushTimes := mgr.prepareFlushTimesWithLock(buckets, allShards)
-	mgr.flushTimesManager.StoreAsync(flushTimes)
+	if err := mgr.flushTimesManager.StoreAsync(flushTimes); err != nil {
+		mgr.metrics.flushTimesUpdateError.Inc(1)
+		mgr.logger.Error("unable to store flush times", zap.Error(err))
+	}
+
 	mgr.lastPersistAtNanos = mgr.nowNanos()
 }
 

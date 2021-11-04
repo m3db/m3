@@ -296,55 +296,18 @@ func TestLeaderFlushManagerPrepareNoFlushNoPersist(t *testing.T) {
 		doneCh          = make(chan struct{})
 	)
 
-	placementManager := NewMockPlacementManager(ctrl)
-	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil)
-
 	opts := NewFlushManagerOptions().SetJitterEnabled(false)
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn
-	mgr.placementManager = placementManager
-
 	buckets := testFlushBuckets(ctrl)
 	mgr.Init(buckets)
 
 	now = time.Unix(59, 100000000)
 	mgr.lastPersistAtNanos = now.UnixNano()
 	flushTask, dur := mgr.Prepare(buckets)
-	require.Nil(t, flushTask)
-	require.Equal(t, 900*time.Millisecond, dur)
-	require.Equal(t, 0, storeAsyncCount)
-}
-
-func TestLeaderFlushManagerPrepareNoFlushWithPersistOnce(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		storeAsyncCount int
-		now             = time.Unix(1234, 0)
-		nowFn           = func() time.Time { return now }
-		doneCh          = make(chan struct{})
-	)
-
-	placementManager := NewMockPlacementManager(ctrl)
-	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil)
-
-	opts := NewFlushManagerOptions().
-		SetJitterEnabled(false)
-	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
-	mgr.nowFn = nowFn
-	mgr.placementManager = placementManager
-
-	buckets := testFlushBuckets(ctrl)
-	mgr.Init(buckets)
-
-	now = time.Unix(10, 0)
-	mgr.lastPersistAtNanos = now.Add(-2 * time.Second).UnixNano()
-	flushTask, dur := mgr.Prepare(buckets)
 	mgr.UpdateFlushTimes(buckets)
 	require.Nil(t, flushTask)
-	require.Equal(t, time.Second, dur)
-	require.False(t, mgr.flushedSincePersist)
+	require.Equal(t, 900*time.Millisecond, dur)
 	require.Equal(t, 0, storeAsyncCount)
 }
 

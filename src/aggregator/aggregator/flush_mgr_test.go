@@ -752,5 +752,5 @@ func TestFlushManagerFlushTaskBlocksCloseAsLeader(t *testing.T) {
 	<-electionCh
 
 	// NB: Close should be blocked until leaderFlushChan is signaled.
-	mgr.Close()
+	require.NoError(t, mgr.Close())
 }
