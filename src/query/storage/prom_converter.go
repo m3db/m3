@@ -37,7 +37,11 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-const initRawFetchAllocSize = 32
+const (
+	initRawFetchAllocSize = 32
+
+	resolutionThresholdForCounterNormalization = time.Hour
+)
 
 func iteratorToPromResult(
 	iter encoding.SeriesIterator,
@@ -62,14 +66,14 @@ func iteratorToPromResult(
 	for iter.Next() {
 		dp, _, _ := iter.Current()
 
-		if firstDP && maxResolution > 0 {
+		if firstDP && maxResolution >= resolutionThresholdForCounterNormalization {
 			firstAnnotation := iter.FirstAnnotation()
 			if len(firstAnnotation) > 0 {
 				if err := annotationPayload.Unmarshal(firstAnnotation); err != nil {
 					return nil, err
 				}
 				handleResets = annotationPayload.HandleValueResets
-				fmt.Printf("handleResets set to %t on %s, resolution %s\n", handleResets, dp.TimestampNanos.ToTime(), maxResolution)
+				fmt.Printf("handleResets set to %t on %s, maxResolution %s\n", handleResets, dp.TimestampNanos.ToTime(), maxResolution)
 			}
 		}
 
@@ -78,7 +82,7 @@ func iteratorToPromResult(
 		if handleResets {
 			lastDPEmitted = false
 			if dp.TimestampNanos/resolution != prevDP.TimestampNanos/resolution && !firstDP {
-				// reached next window, emit previous DP
+				// reached next resolution window, emit previous DP
 				samples = append(samples, prompb.Sample{
 					Timestamp: TimeToPromTimestamp(prevDP.TimestampNanos),
 					Value:     cumulativeSum,
