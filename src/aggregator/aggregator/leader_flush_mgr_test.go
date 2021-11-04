@@ -321,31 +321,18 @@ func TestLeaderFlushManagerPrepareNoFlushWithPersistOnce(t *testing.T) {
 
 	var (
 		storeAsyncCount int
-		stored          *schema.ShardSetFlushTimes
 		now             = time.Unix(1234, 0)
 		nowFn           = func() time.Time { return now }
 		doneCh          = make(chan struct{})
 	)
-
-	flushTimesManager := NewMockFlushTimesManager(ctrl)
-	flushTimesManager.EXPECT().
-		StoreAsync(gomock.Any()).
-		DoAndReturn(func(value *schema.ShardSetFlushTimes) error {
-			storeAsyncCount++
-			stored = value
-			return nil
-		})
 
 	placementManager := NewMockPlacementManager(ctrl)
 	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil)
 
 	opts := NewFlushManagerOptions().
-		SetJitterEnabled(false).
-		SetFlushTimesPersistEvery(time.Second)
+		SetJitterEnabled(false)
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn
-	mgr.flushedSincePersist = true
-	mgr.flushTimesManager = flushTimesManager
 	mgr.placementManager = placementManager
 
 	buckets := testFlushBuckets(ctrl)
@@ -354,77 +341,11 @@ func TestLeaderFlushManagerPrepareNoFlushWithPersistOnce(t *testing.T) {
 	now = time.Unix(10, 0)
 	mgr.lastPersistAtNanos = now.Add(-2 * time.Second).UnixNano()
 	flushTask, dur := mgr.Prepare(buckets)
+	mgr.UpdateFlushTimes(buckets)
 	require.Nil(t, flushTask)
 	require.Equal(t, time.Second, dur)
 	require.False(t, mgr.flushedSincePersist)
-	require.Equal(t, 1, storeAsyncCount)
-	validateShardSetFlushTimes(t, testFlushTimes, stored)
-}
-
-func TestLeaderFlushManagerPrepareNoFlushWithPersistTwice(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		storeAsyncCount int
-		stored          *schema.ShardSetFlushTimes
-		now             = time.Unix(1234, 0)
-		nowFn           = func() time.Time { return now }
-		doneCh          = make(chan struct{})
-	)
-
-	flushTimesManager := NewMockFlushTimesManager(ctrl)
-	flushTimesManager.EXPECT().
-		StoreAsync(gomock.Any()).
-		DoAndReturn(func(value *schema.ShardSetFlushTimes) error {
-			storeAsyncCount++
-			stored = value
-			return nil
-		}).
-		Times(2)
-
-	placementManager := NewMockPlacementManager(ctrl)
-	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil).Times(2)
-
-	opts := NewFlushManagerOptions().
-		SetJitterEnabled(false).
-		SetFlushTimesPersistEvery(time.Second)
-	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
-	mgr.nowFn = nowFn
-	mgr.lastPersistAtNanos = now.Add(-2 * time.Second).UnixNano()
-	mgr.flushedSincePersist = true
-	mgr.flushTimesManager = flushTimesManager
-	mgr.placementManager = placementManager
-
-	// Persist for the first time.
-	buckets := testFlushBuckets(ctrl)
-	mgr.Init(buckets)
-
-	now = time.Unix(10, 0)
-	mgr.lastPersistAtNanos = now.Add(-2 * time.Second).UnixNano()
-	flushTask, dur := mgr.Prepare(buckets)
-	require.Nil(t, flushTask)
-	require.Equal(t, time.Second, dur)
-	require.False(t, mgr.flushedSincePersist)
-	require.Equal(t, 1, storeAsyncCount)
-	validateShardSetFlushTimes(t, testFlushTimes, stored)
-
-	// Reset state in preparation for the second persistence.
-	now = time.Unix(1234, 0)
-
-	// Persist for the second time.
-	buckets2 := testFlushBuckets2(ctrl)
-	mgr.Init(buckets2)
-
-	now = time.Unix(10, 0)
-	mgr.flushedSincePersist = true
-	mgr.lastPersistAtNanos = now.Add(-2 * time.Second).UnixNano()
-	flushTask, dur = mgr.Prepare(buckets2)
-	require.Nil(t, flushTask)
-	require.Equal(t, time.Second, dur)
-	require.False(t, mgr.flushedSincePersist)
-	require.Equal(t, 2, storeAsyncCount)
-	validateShardSetFlushTimes(t, testFlushTimes2, stored)
+	require.Equal(t, 0, storeAsyncCount)
 }
 
 func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
@@ -451,12 +372,10 @@ func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
 	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil)
 
 	opts := NewFlushManagerOptions().
-		SetJitterEnabled(false).
-		SetFlushTimesPersistEvery(time.Second)
+		SetJitterEnabled(false) //.		SetFlushTimesPersistEvery(time.Second)
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn
 	mgr.lastPersistAtNanos = now.UnixNano()
-	mgr.flushedSincePersist = true
 	mgr.flushTimesManager = flushTimesManager
 	mgr.placementManager = placementManager
 
@@ -464,6 +383,7 @@ func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
 	mgr.Init(buckets)
 	now = now.Add(2 * time.Second)
 	flushTask, dur := mgr.Prepare(buckets)
+	mgr.UpdateFlushTimes(buckets)
 
 	// Validate flush times persisted match expectation.
 	require.NotNil(t, flushTask)
@@ -506,8 +426,7 @@ func TestLeaderFlushManagerPrepareWithRedirectedShard(t *testing.T) {
 	placementManager.EXPECT().Shards().Return(shard.NewShards([]shard.Shard{redirectedShard}), nil)
 
 	opts := NewFlushManagerOptions().
-		SetJitterEnabled(false).
-		SetFlushTimesPersistEvery(time.Second)
+		SetJitterEnabled(false) //.		SetFlushTimesPersistEvery(time.Second)
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn
 	mgr.lastPersistAtNanos = now.UnixNano()

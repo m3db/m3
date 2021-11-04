@@ -450,15 +450,17 @@ func TestFlushManagerFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		slept             int32
-		followerFlushes   int
-		followerInits     int
-		leaderFlushes     int
-		leaderInits       int
-		electionStateLock sync.Mutex
-		electionState     = FollowerState
-		signalCh          = make(chan struct{})
-		captured          []*flushBucket
+		slept           int32
+		followerFlushes int
+		followerInits   int
+		leaderFlushes   int
+		// leaderFlushTimeUpdates int
+		leaderInits              int
+		electionStateLock        sync.Mutex
+		electionState            = FollowerState
+		signalCh                 = make(chan struct{})
+		captured                 []*flushBucket
+		capturedFlushTimeUpdates []*flushBucket
 	)
 	followerFlushTask := NewMockflushTask(ctrl)
 	followerFlushTask.EXPECT().
@@ -470,6 +472,10 @@ func TestFlushManagerFlush(t *testing.T) {
 		Run().
 		Do(func() { leaderFlushes++ }).
 		AnyTimes()
+	// leaderFlushTask.EXPECT().
+	// 	UpdateFlushTimes(gomock.Any()).
+	// 	Do(func() { leaderFlushTimeUpdates++ }).
+	// 	AnyTimes()
 
 	sleepFn := func(time.Duration) {
 		atomic.AddInt32(&slept, 1)
@@ -514,6 +520,13 @@ func TestFlushManagerFlush(t *testing.T) {
 			return leaderFlushTask, time.Second
 		}).
 		AnyTimes()
+	leaderMgr.EXPECT().
+		UpdateFlushTimes(gomock.Any()).
+		DoAndReturn(func(buckets []*flushBucket) {
+			capturedFlushTimeUpdates = buckets
+		}).
+		AnyTimes()
+
 	followerMgr := NewMockroleBasedFlushManager(ctrl)
 	followerMgr.EXPECT().Open().AnyTimes()
 	followerMgr.EXPECT().
@@ -527,6 +540,13 @@ func TestFlushManagerFlush(t *testing.T) {
 			return followerFlushTask, time.Second
 		}).
 		AnyTimes()
+	followerMgr.EXPECT().
+		UpdateFlushTimes(gomock.Any()).
+		DoAndReturn(func(buckets []*flushBucket) {
+			capturedFlushTimeUpdates = buckets
+		}).
+		AnyTimes()
+
 	followerMgr.EXPECT().OnBucketAdded(gomock.Any(), gomock.Any()).AnyTimes()
 	followerMgr.EXPECT().OnFlusherAdded(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	mgr.leaderMgr = leaderMgr
@@ -593,10 +613,17 @@ func TestFlushManagerFlush(t *testing.T) {
 			flushers: []flushingMetricList{flushers[3]},
 		},
 	}
+
 	require.Equal(t, len(expectedBuckets), len(captured))
 	for i := range expectedBuckets {
 		require.Equal(t, expectedBuckets[i].interval, captured[i].interval)
 		require.Equal(t, expectedBuckets[i].flushers, captured[i].flushers)
+	}
+
+	require.Equal(t, len(expectedBuckets), len(capturedFlushTimeUpdates))
+	for i := range expectedBuckets {
+		require.Equal(t, expectedBuckets[i].interval, capturedFlushTimeUpdates[i].interval)
+		require.Equal(t, expectedBuckets[i].flushers, capturedFlushTimeUpdates[i].flushers)
 	}
 
 	mgr.state = flushManagerClosed

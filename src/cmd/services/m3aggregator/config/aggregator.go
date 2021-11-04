@@ -803,7 +803,7 @@ type flushManagerConfiguration struct {
 	NumWorkersPerCPU float64 `yaml:"numWorkersPerCPU" validate:"min=0.0,max=1.0"`
 
 	// How frequently the flush times are persisted.
-	FlushTimesPersistEvery time.Duration `yaml:"flushTimesPersistEvery"`
+	DeprecatedFlushTimesPersistEvery time.Duration `yaml:"flushTimesPersistEvery"` // FlushTimesPersistEvery is deprecated.
 
 	// Maximum buffer size.
 	MaxBufferSize time.Duration `yaml:"maxBufferSize"`

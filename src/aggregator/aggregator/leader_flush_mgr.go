@@ -71,15 +71,14 @@ type randFn func(int64) int64
 type leaderFlushManager struct {
 	sync.RWMutex
 
-	nowFn                  clock.NowFn
-	checkEvery             time.Duration
-	workers                xsync.WorkerPool
-	placementManager       PlacementManager
-	flushTimesManager      FlushTimesManager
-	flushTimesPersistEvery time.Duration
-	maxBufferSize          time.Duration
-	logger                 *zap.Logger
-	scope                  tally.Scope
+	nowFn             clock.NowFn
+	checkEvery        time.Duration
+	workers           xsync.WorkerPool
+	placementManager  PlacementManager
+	flushTimesManager FlushTimesManager
+	maxBufferSize     time.Duration
+	logger            *zap.Logger
+	scope             tally.Scope
 
 	doneCh              <-chan struct{}
 	flushTimes          flushMetadataHeap
@@ -98,19 +97,18 @@ func newLeaderFlushManager(
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope()
 	mgr := &leaderFlushManager{
-		nowFn:                  nowFn,
-		checkEvery:             opts.CheckEvery(),
-		workers:                opts.WorkerPool(),
-		placementManager:       opts.PlacementManager(),
-		flushTimesManager:      opts.FlushTimesManager(),
-		flushTimesPersistEvery: opts.FlushTimesPersistEvery(),
-		maxBufferSize:          opts.MaxBufferSize(),
-		logger:                 instrumentOpts.Logger(),
-		scope:                  scope,
-		doneCh:                 doneCh,
-		flushedByShard:         make(map[uint32]*schema.ShardFlushTimes, defaultInitialFlushCapacity),
-		lastPersistAtNanos:     nowFn().UnixNano(),
-		metrics:                newLeaderFlushManagerMetrics(scope),
+		nowFn:              nowFn,
+		checkEvery:         opts.CheckEvery(),
+		workers:            opts.WorkerPool(),
+		placementManager:   opts.PlacementManager(),
+		flushTimesManager:  opts.FlushTimesManager(),
+		maxBufferSize:      opts.MaxBufferSize(),
+		logger:             instrumentOpts.Logger(),
+		scope:              scope,
+		doneCh:             doneCh,
+		flushedByShard:     make(map[uint32]*schema.ShardFlushTimes, defaultInitialFlushCapacity),
+		lastPersistAtNanos: nowFn().UnixNano(),
+		metrics:            newLeaderFlushManagerMetrics(scope),
 	}
 	mgr.flushTask = &leaderFlushTask{
 		mgr:      mgr,
@@ -177,6 +175,7 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 	if !shouldFlush {
 		return nil, waitFor
 	}
+
 	return mgr.flushTask, waitFor
 }
 

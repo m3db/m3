@@ -284,3 +284,15 @@ func (mr *MockroleBasedFlushManagerMockRecorder) Prepare(buckets interface{}) *g
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prepare", reflect.TypeOf((*MockroleBasedFlushManager)(nil).Prepare), buckets)
 }
+
+// UpdateFlushTimes mocks base method.
+func (m *MockroleBasedFlushManager) UpdateFlushTimes(buckets []*flushBucket) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "UpdateFlushTimes", buckets)
+}
+
+// UpdateFlushTimes indicates an expected call of UpdateFlushTimes.
+func (mr *MockroleBasedFlushManagerMockRecorder) UpdateFlushTimes(buckets interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFlushTimes", reflect.TypeOf((*MockroleBasedFlushManager)(nil).UpdateFlushTimes), buckets)
+}
