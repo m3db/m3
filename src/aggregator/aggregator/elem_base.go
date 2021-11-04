@@ -133,6 +133,7 @@ type metricElem interface {
 		flushLocalFn flushLocalMetricFn,
 		flushForwardedFn flushForwardedMetricFn,
 		onForwardedFlushedFn onForwardingElemFlushedFn,
+		jitter time.Duration,
 		flushType flushType,
 	) bool
 
@@ -177,28 +178,61 @@ type elemBase struct {
 	listType                        metricListType
 
 	// Mutable states.
-	tombstoned           bool
-	closed               bool
-	cachedSourceSetsLock sync.Mutex                  // nolint: structcheck
-	cachedSourceSets     []map[uint32]*bitset.BitSet // nolint: structcheck
+	tombstoned       bool
+	closed           bool
+	cachedSourceSets []map[uint32]*bitset.BitSet // nolint: structcheck
 	// a cache of the lag metrics that don't require grabbing a lock to access.
 	forwardLagMetrics map[forwardLagKey]tally.Histogram
 }
 
-type valuesByTime map[xtime.UnixNano][]transformation.Datapoint
+// mutable state for a timedAggregation that is local to the flusher. does not need to be synchronized.
+type aggFlushState struct {
+	// the annotation copied from the lockedAgg.
+	annotation []byte
+	// the values copied from the lockedAgg.
+	values []float64
+	// the consumed values from the previous flush. used for binary transformations. note these are the values before
+	// transformation. emittedValues are after transformation.
+	consumedValues []float64
+	// the emitted values from the previous flush. used to determine if the emitted values have not changed and
+	// can be skipped.
+	emittedValues []float64
+	// the start time of the aggregation. immutable.
+	startAt xtime.UnixNano
+	// the timestamp of the aggregation. effectively immutable, but lazily set at flush time.
+	timestamp xtime.UnixNano
+	// the start aligned timestamp of the previous aggregation. used to lookup the consumedValues of the previous
+	// aggregation for binary transformations.
+	prevStartTime xtime.UnixNano
+	// true if this aggregation has ever been flushed.
+	flushed bool
+	// the dirty bit copied from the lockedAgg.
+	dirty bool
+	// copied from the timedAggregation
+	resendEnabled bool
+}
+
+// close is called when the aggregation has expired and is no longer needed.
+func (a *aggFlushState) close() {
+	a.values = a.values[:0]
+	a.consumedValues = a.consumedValues[:0]
+	a.emittedValues = a.emittedValues[:0]
+}
 
 type elemMetrics struct {
 	sync.RWMutex
 	scope         tally.Scope
 	updatedValues tally.Counter
+	retriedValues tally.Counter
 	forwardLags   map[forwardLagKey]tally.Histogram
 }
 
 type forwardLagKey struct {
-	resolution time.Duration
-	listType   metricListType
-	flushType  flushType
-	fwdType    string
+	resolution    time.Duration
+	listType      metricListType
+	flushType     flushType
+	fwdType       string
+	jitterApplied bool
 }
 
 func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
@@ -215,12 +249,17 @@ func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
 		e.Unlock()
 		return m
 	}
+	jitterApplied := "false"
+	if key.jitterApplied {
+		jitterApplied = "true"
+	}
 	m = e.scope.
 		Tagged(map[string]string{
 			"resolution": key.resolution.String(),
 			"list-type":  key.listType.String(),
 			"flush-type": key.flushType.String(),
 			"type":       key.fwdType,
+			"jitter":     jitterApplied,
 		}).
 		Histogram("forward-lag", tally.DurationBuckets{
 			10 * time.Millisecond,
@@ -260,6 +299,7 @@ func NewElemOptions(aggregatorOpts Options) ElemOptions {
 		aggregationOpts: raggregation.NewOptions(aggregatorOpts.InstrumentOptions()),
 		elemMetrics: &elemMetrics{
 			updatedValues: scope.Counter("updated-values"),
+			retriedValues: scope.Counter("retried-values"),
 			scope:         scope,
 			forwardLags:   make(map[forwardLagKey]tally.Histogram),
 		},
@@ -278,13 +318,14 @@ func newElemBase(opts ElemOptions) elemBase {
 }
 
 func (e *elemBase) forwardLagMetric(
-	resolution time.Duration, fwdType string, flushType flushType,
+	resolution time.Duration, fwdType string, jitterApplied bool, flushType flushType,
 ) tally.Histogram {
 	key := forwardLagKey{
-		resolution: resolution,
-		listType:   e.listType,
-		fwdType:    fwdType,
-		flushType:  flushType,
+		resolution:    resolution,
+		listType:      e.listType,
+		fwdType:       fwdType,
+		flushType:     flushType,
+		jitterApplied: jitterApplied,
 	}
 	m, ok := e.forwardLagMetrics[key]
 	if !ok {

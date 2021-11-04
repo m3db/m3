@@ -57,7 +57,7 @@ func SetupSingleM3DBNode(opts ...SetupOptions) (resources.M3Resources, error) { 
 	pool.MaxWait = timeout
 
 	if !options.existingCluster {
-		if err := setupNetwork(pool); err != nil {
+		if err := SetupNetwork(pool); err != nil {
 			return nil, err
 		}
 
@@ -67,10 +67,10 @@ func SetupSingleM3DBNode(opts ...SetupOptions) (resources.M3Resources, error) { 
 	}
 
 	iOpts := instrument.NewOptions()
-	dbNode, err := newDockerHTTPNode(pool, dockerResourceOptions{
-		image:         options.dbNodeImage,
-		containerName: options.dbNodeContainerName,
-		iOpts:         iOpts,
+	dbNode, err := newDockerHTTPNode(pool, ResourceOptions{
+		Image:          options.dbNodeImage,
+		ContainerName:  options.dbNodeContainerName,
+		InstrumentOpts: iOpts,
 	})
 
 	success := false
@@ -91,10 +91,10 @@ func SetupSingleM3DBNode(opts ...SetupOptions) (resources.M3Resources, error) { 
 		return nil, err
 	}
 
-	coordinator, err := newDockerHTTPCoordinator(pool, dockerResourceOptions{
-		image:         options.coordinatorImage,
-		containerName: options.coordinatorContainerName,
-		iOpts:         iOpts,
+	coordinator, err := newDockerHTTPCoordinator(pool, ResourceOptions{
+		Image:          options.coordinatorImage,
+		ContainerName:  options.coordinatorContainerName,
+		InstrumentOpts: iOpts,
 	})
 
 	defer func() {
@@ -137,9 +137,9 @@ func AttachToExistingContainers(
 	iOpts := instrument.NewOptions()
 	dbNodes := resources.Nodes{}
 	for _, containerName := range dbNodesContainersNames {
-		dbNode, err := newDockerHTTPNode(pool, dockerResourceOptions{
-			iOpts:         iOpts,
-			containerName: containerName,
+		dbNode, err := newDockerHTTPNode(pool, ResourceOptions{
+			InstrumentOpts: iOpts,
+			ContainerName:  containerName,
 		})
 		if err != nil {
 			return nil, err
@@ -149,9 +149,9 @@ func AttachToExistingContainers(
 
 	coordinator, err := newDockerHTTPCoordinator(
 		pool,
-		dockerResourceOptions{
-			iOpts:         iOpts,
-			containerName: coordinatorContainerName,
+		ResourceOptions{
+			InstrumentOpts: iOpts,
+			ContainerName:  coordinatorContainerName,
 		},
 	)
 	if err != nil {

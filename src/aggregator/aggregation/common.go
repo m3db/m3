@@ -44,7 +44,9 @@ func isExpensive(aggTypes aggregation.Types) bool {
 	return false
 }
 
-func maybeReplaceAnnotation(currentAnnotation, newAnnotation []byte) []byte {
+// MaybeReplaceAnnotation replaces the current annotation with the new annotation, returning the updated ref for
+// current annotation.
+func MaybeReplaceAnnotation(currentAnnotation, newAnnotation []byte) []byte {
 	if len(newAnnotation) == 0 {
 		return currentAnnotation
 	}

@@ -156,6 +156,7 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 			// inside the bucket may be modified during task execution when new
 			// flushers are registered or old flushers are unregistered.
 			mgr.flushTask.duration = buckets[bucketIdx].duration
+			mgr.flushTask.jitter = buckets[bucketIdx].offset
 			mgr.flushTask.flushers = append(mgr.flushTask.flushers[:0], buckets[bucketIdx].flushers...)
 			nextFlushMetadata := flushMetadata{
 				timeNanos: earliestFlush.timeNanos + int64(buckets[bucketIdx].interval),
@@ -476,6 +477,7 @@ func cloneForwardedFlushTimesForResolution(
 type leaderFlushTask struct {
 	mgr      *leaderFlushManager
 	duration tally.Timer
+	jitter   time.Duration
 	flushers []flushingMetricList
 }
 
@@ -490,6 +492,7 @@ func (t *leaderFlushTask) Run() {
 	var (
 		wgWorkers sync.WaitGroup
 		start     = mgr.nowFn()
+		jitter    = t.jitter
 	)
 	for _, flusher := range t.flushers {
 		// By default traffic is cut off from a shard, unless the shard is in the list of
@@ -510,6 +513,7 @@ func (t *leaderFlushTask) Run() {
 			CutoverNanos:      cutoverNanos,
 			CutoffNanos:       cutoffNanos,
 			BufferAfterCutoff: mgr.maxBufferSize,
+			Jitter:            jitter,
 		}
 		flusher := flusher
 		wgWorkers.Add(1)
