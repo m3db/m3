@@ -658,7 +658,6 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	consumedVal := flushState.consumedValues
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0])
-	require.Equal(t, xtime.FromSeconds(220), flushState.timestamp)
 
 	// Consume all values.
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
@@ -691,7 +690,6 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	consumedVal = flushState.consumedValues
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 589.0, consumedVal[0])
-	require.Equal(t, xtime.FromSeconds(240), flushState.timestamp)
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true
@@ -1200,7 +1198,6 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	consumedVal := flushState.consumedValues
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0])
-	require.Equal(t, xtime.FromSeconds(220), flushState.timestamp)
 
 	// Consume all values.
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
@@ -1229,7 +1226,6 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	consumedVal = flushState.consumedValues
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 589.0, consumedVal[0])
-	require.Equal(t, xtime.FromSeconds(240), flushState.timestamp)
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true
@@ -1947,7 +1943,6 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	consumedVal := flushedState.consumedValues
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0])
-	require.Equal(t, xtime.FromSeconds(220), flushedState.timestamp)
 
 	// Consume all values.
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
@@ -1976,7 +1971,6 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	consumedVal = flushedState.consumedValues
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 589.0, consumedVal[0])
-	require.Equal(t, xtime.FromSeconds(240), flushedState.timestamp)
 
 	// Tombstone the element and discard all values.
 	e.tombstoned = true
@@ -2165,7 +2159,6 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	consumedVal := flushState.consumedValues
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0])
-	require.Equal(t, xtime.FromSeconds(220), flushState.timestamp)
 
 	// Consume all values.
 	expectedForwardedRes = []testForwardedMetricWithMetadata{
