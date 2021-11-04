@@ -73,14 +73,14 @@ type GaugeElem struct {
 	values map[xtime.UnixNano]timedGauge
 	// startTime -> state. this is local state to the flusher and does not need to guarded with a lock.
 	// values and flushState should always have the exact same key set.
-	flushState map[xtime.UnixNano]aggFlushState
+	flushState map[xtime.UnixNano]flushState
 	// sorted start aligned times that have been written to since the last flush
 	dirty []xtime.UnixNano
 	// min time in the values map. allow for iterating through map.
 	minStartTime xtime.UnixNano
 
 	// internal consume state that does not need to be synchronized.
-	toConsume          []aggFlushState  // small buffer to avoid memory allocations during consumption
+	toConsume          []consumeState   // small buffer to avoid memory allocations during consumption
 	flushStateToExpire []xtime.UnixNano // small buffer to avoid memory allocations during consumption
 }
 
@@ -90,7 +90,7 @@ func NewGaugeElem(data ElemData, opts ElemOptions) (*GaugeElem, error) {
 		elemBase:   newElemBase(opts),
 		dirty:      make([]xtime.UnixNano, 0, defaultNumAggregations), // in most cases values will have two entries
 		values:     make(map[xtime.UnixNano]timedGauge),
-		flushState: make(map[xtime.UnixNano]aggFlushState),
+		flushState: make(map[xtime.UnixNano]flushState),
 	}
 	if err := e.ResetSetData(data); err != nil {
 		return nil, err
@@ -282,14 +282,15 @@ func (e *GaugeElem) expireValuesWithLock(
 
 func (e *GaugeElem) expireFlushState() {
 	for _, t := range e.flushStateToExpire {
-		prevFlushState, ok := e.flushState[t]
+		fState, ok := e.flushState[t]
 		if !ok {
 			ts := t.ToTime()
 			instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
 				l.Error("expire time not in state map", zap.Time("ts", ts))
 			})
+			return
 		}
-		prevFlushState.close()
+		fState.close()
 		delete(e.flushState, t)
 	}
 }
@@ -373,8 +374,9 @@ func (e *GaugeElem) Consume(
 			continue
 		}
 
-		flushState := e.newFlushStateWithLock(agg)
-		if !flushState.dirty {
+		var dirty bool
+		e.toConsume, dirty = e.appendConsumeStateWithLock(agg, e.toConsume, isDirty)
+		if !dirty {
 			// there is a race where the value was added to the dirty set, but the writer didn't actually update the
 			// value yet (by marking dirty). add back to the dirty set so it can be processed in the next round once
 			// the value has been updated.
@@ -384,23 +386,19 @@ func (e *GaugeElem) Consume(
 		val := e.values[dirtyTime]
 		val.inDirtySet = false
 		e.values[dirtyTime] = val
-		e.toConsume = append(e.toConsume, flushState)
 
 		// potentially consume the nextAgg as well in case we need to cascade an update to the nextAgg.
 		// this is necessary for binary transformations that rely on the previous aggregation value for calculating the
 		// current aggregation value. if the nextAgg was already flushed, it used an outdated value for the previous
 		// value (this agg). this can only happen when we allow updating previously flushed data (i.e resendEnabled).
-		if flushState.resendEnabled {
+		if agg.resendEnabled {
 			nextAgg, ok := e.nextAggWithLock(dirtyTime, targetNanos, isEarlierThanFn)
 			// only need to add if not already in the dirty set (since it will be added in a subsequent iteration).
 			if ok &&
 				// at the end of the dirty times OR the next dirty time does not match.
 				(i == len(dirtyTimes)-1 || dirtyTimes[i+1] != nextAgg.startAtNanos) {
-				nextAggFlush := e.newFlushStateWithLock(nextAgg)
 				// only need to add if it was previously flushed.
-				if nextAggFlush.flushed {
-					e.toConsume = append(e.toConsume, nextAggFlush)
-				}
+				e.toConsume, _ = e.appendConsumeStateWithLock(nextAgg, e.toConsume, e.isFlushed)
 			}
 		}
 	}
@@ -410,16 +408,9 @@ func (e *GaugeElem) Consume(
 	e.Unlock()
 
 	// Process the aggregations that are ready for consumption.
-	for _, flushState := range e.toConsume {
-		if flushState.dirty && flushState.flushed && !flushState.resendEnabled {
-			flushState := flushState
-			instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
-				l.Error("reflushing aggregation without resendEnabled", zap.Any("flushState", flushState))
-			})
-		}
-		flushState.timestamp = xtime.UnixNano(timestampNanosFn(int64(flushState.startAt), resolution))
-		flushState = e.processValue(
-			flushState,
+	for _, cState := range e.toConsume {
+		e.processValue(cState,
+			timestampNanosFn,
 			flushLocalFn,
 			flushForwardedFn,
 			resolution,
@@ -427,8 +418,6 @@ func (e *GaugeElem) Consume(
 			jitter,
 			flushType,
 		)
-		flushState.flushed = true
-		e.flushState[flushState.startAt] = flushState
 	}
 
 	// expire the flush state after processing since it's needed in the processing.
@@ -442,31 +431,49 @@ func (e *GaugeElem) Consume(
 	return canCollect
 }
 
-func (e *GaugeElem) newFlushStateWithLock(agg timedGauge) aggFlushState {
-	// note: flushState might be empty for the first flush
-	flushState := e.flushState[agg.startAtNanos]
-	// copy the lockedAgg data to the flushState while holding the lock.
-	agg.lockedAgg.Lock()
-	flushState.dirty = agg.lockedAgg.dirty
-	flushState.values = flushState.values[:0]
-	for _, aggType := range e.aggTypes {
-		flushState.values = append(flushState.values, agg.lockedAgg.aggregation.ValueOf(aggType))
+func (e *GaugeElem) isFlushed(c consumeState) bool {
+	return e.flushState[c.startAt].flushed
+}
+
+// append the consumeState for the timedGauge to the provided slice if it matches the provided filter.
+// returns the updated slice and true if added.
+func (e *GaugeElem) appendConsumeStateWithLock(
+	agg timedGauge,
+	toConsume []consumeState,
+	filter func(consumeState) bool) ([]consumeState, bool) {
+	toConsume = append(toConsume, consumeState{})
+	cState := toConsume[len(toConsume)-1]
+	if cState.values == nil {
+		cState.values = make([]float64, len(e.aggTypes))
 	}
-	flushState.annotation = raggregation.MaybeReplaceAnnotation(
-		flushState.annotation, agg.lockedAgg.aggregation.Annotation())
+	cState.values = cState.values[:0]
+	// copy the lockedAgg data while holding the lock.
+	agg.lockedAgg.Lock()
+	cState.dirty = agg.lockedAgg.dirty
+	for _, aggType := range e.aggTypes {
+		cState.values = append(cState.values, agg.lockedAgg.aggregation.ValueOf(aggType))
+	}
+	cState.annotation = raggregation.MaybeReplaceAnnotation(
+		cState.annotation, agg.lockedAgg.aggregation.Annotation())
 	agg.lockedAgg.dirty = false
 	agg.lockedAgg.Unlock()
 
-	// update the flushState with everything else.
+	// update with everything else.
 	previousStartAligned, ok := e.previousStartAlignedWithLock(agg.startAtNanos)
 	if ok {
-		flushState.prevStartTime = previousStartAligned
+		cState.prevStartTime = previousStartAligned
 	} else {
-		flushState.prevStartTime = 0
+		cState.prevStartTime = 0
 	}
-	flushState.resendEnabled = agg.resendEnabled
-	flushState.startAt = agg.startAtNanos
-	return flushState
+	cState.resendEnabled = agg.resendEnabled
+	cState.startAt = agg.startAtNanos
+	toConsume[len(toConsume)-1] = cState
+
+	if filter != nil && !filter(cState) {
+		toConsume = toConsume[0 : len(toConsume)-1]
+		return toConsume, false
+	}
+	return toConsume, true
 }
 
 // Close closes the element.
@@ -501,9 +508,9 @@ func (e *GaugeElem) Close() {
 		}
 		v.close()
 		delete(e.values, k)
-		flushState, ok := e.flushState[k]
+		fState, ok := e.flushState[k]
 		if ok {
-			flushState.close()
+			fState.close()
 		}
 		delete(e.flushState, k)
 	}
@@ -648,21 +655,30 @@ func (e *GaugeElem) findOrCreate(
 
 // returns true if a datapoint is emitted.
 func (e *GaugeElem) processValue(
-	flushState aggFlushState,
+	cState consumeState,
+	timestampNanosFn timestampNanosFn,
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
 	resolution time.Duration,
 	latenessAllowed time.Duration,
 	jitter time.Duration,
-	flushType flushType,
-) aggFlushState {
+	flushType flushType) {
 	var (
 		transformations  = e.parsedPipeline.Transformations
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
+		timestamp        = xtime.UnixNano(timestampNanosFn(int64(cState.startAt), resolution))
+		prevTimestamp    = xtime.UnixNano(timestampNanosFn(int64(cState.prevStartTime), resolution))
 	)
+	fState := e.flushState[cState.startAt]
+	if cState.dirty && fState.flushed && !cState.resendEnabled {
+		cState := cState
+		instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
+			l.Error("reflushing aggregation without resendEnabled", zap.Any("consumeState", cState))
+		})
+	}
 	for aggTypeIdx, aggType := range e.aggTypes {
 		var extraDp transformation.Datapoint
-		value := flushState.values[aggTypeIdx]
+		value := cState.values[aggTypeIdx]
 		for _, transformOp := range transformations {
 			unaryOp, isUnaryOp := transformOp.UnaryTransform()
 			binaryOp, isBinaryOp := transformOp.BinaryTransform()
@@ -670,7 +686,7 @@ func (e *GaugeElem) processValue(
 			switch {
 			case isUnaryOp:
 				curr := transformation.Datapoint{
-					TimeNanos: int64(flushState.timestamp),
+					TimeNanos: int64(timestamp),
 					Value:     value,
 				}
 
@@ -682,20 +698,20 @@ func (e *GaugeElem) processValue(
 				prev := transformation.Datapoint{
 					Value: nan,
 				}
-				if flushState.prevStartTime > 0 {
-					prevFlushState, ok := e.flushState[flushState.prevStartTime]
+				if cState.prevStartTime > 0 {
+					prevFlushState, ok := e.flushState[cState.prevStartTime]
 					if !ok {
-						ts := flushState.prevStartTime.ToTime()
+						ts := cState.prevStartTime.ToTime()
 						instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
 							l.Error("previous start time not in state map",
 								zap.Time("ts", ts))
 						})
 					}
 					prev.Value = prevFlushState.consumedValues[aggTypeIdx]
-					prev.TimeNanos = int64(prevFlushState.timestamp)
+					prev.TimeNanos = int64(prevTimestamp)
 				}
 				curr := transformation.Datapoint{
-					TimeNanos: int64(flushState.timestamp),
+					TimeNanos: int64(timestamp),
 					Value:     value,
 				}
 				res := binaryOp.Evaluate(prev, curr, transformation.FeatureFlags{})
@@ -704,14 +720,14 @@ func (e *GaugeElem) processValue(
 				// We currently only support first-order derivative transformations so we only
 				// need to keep one value. In the future if we need to support higher-order
 				// derivative transformations, we need to store an array of values here.
-				if flushState.consumedValues == nil {
-					flushState.consumedValues = make([]float64, len(e.aggTypes))
+				if fState.consumedValues == nil {
+					fState.consumedValues = make([]float64, len(e.aggTypes))
 				}
-				flushState.consumedValues[aggTypeIdx] = curr.Value
+				fState.consumedValues[aggTypeIdx] = curr.Value
 				value = res.Value
 			case isUnaryMultiOp:
 				curr := transformation.Datapoint{
-					TimeNanos: int64(flushState.timestamp),
+					TimeNanos: int64(timestamp),
 					Value:     value,
 				}
 
@@ -728,13 +744,13 @@ func (e *GaugeElem) processValue(
 		// It's ok to send a 0 prevValue on the first forward because it's not used in AddUnique unless it's a
 		// resend (version > 0)
 		var prevValue float64
-		if flushState.emittedValues == nil {
-			flushState.emittedValues = make([]float64, len(e.aggTypes))
+		if fState.emittedValues == nil {
+			fState.emittedValues = make([]float64, len(e.aggTypes))
 		} else {
-			prevValue = flushState.emittedValues[aggTypeIdx]
+			prevValue = fState.emittedValues[aggTypeIdx]
 		}
-		flushState.emittedValues[aggTypeIdx] = value
-		if flushState.flushed {
+		fState.emittedValues[aggTypeIdx] = value
+		if fState.flushed {
 			// no need to resend a value that hasn't changed.
 			if (math.IsNaN(prevValue) && math.IsNaN(value)) || (prevValue == value) {
 				continue
@@ -744,7 +760,7 @@ func (e *GaugeElem) processValue(
 		if !e.parsedPipeline.HasRollup {
 			toFlush := make([]transformation.Datapoint, 0, 2)
 			toFlush = append(toFlush, transformation.Datapoint{
-				TimeNanos: int64(flushState.timestamp),
+				TimeNanos: int64(timestamp),
 				Value:     value,
 			})
 			if extraDp.TimeNanos != 0 {
@@ -753,32 +769,33 @@ func (e *GaugeElem) processValue(
 			for _, point := range toFlush {
 				switch e.idPrefixSuffixType {
 				case NoPrefixNoSuffix:
-					flushLocalFn(nil, e.id, nil, point.TimeNanos, point.Value, flushState.annotation,
+					flushLocalFn(nil, e.id, nil, point.TimeNanos, point.Value, cState.annotation,
 						e.sp)
 				case WithPrefixWithSuffix:
 					flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType),
-						point.TimeNanos, point.Value, flushState.annotation, e.sp)
+						point.TimeNanos, point.Value, cState.annotation, e.sp)
 				}
 
-				if !flushState.flushed {
+				if !fState.flushed {
 					e.forwardLagMetric(resolution, "local", false, flushType).
-						RecordDuration(time.Since(flushState.timestamp.ToTime().Add(-latenessAllowed - jitter)))
+						RecordDuration(time.Since(timestamp.ToTime().Add(-latenessAllowed - jitter)))
 					e.forwardLagMetric(resolution, "local", true, flushType).
-						RecordDuration(time.Since(flushState.timestamp.ToTime().Add(-latenessAllowed)))
+						RecordDuration(time.Since(timestamp.ToTime().Add(-latenessAllowed)))
 				}
 			}
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
 			// only record lag for the initial flush (not resends)
-			if !flushState.flushed {
+			if !fState.flushed {
 				e.forwardLagMetric(resolution, "remote", false, flushType).
-					RecordDuration(time.Since(flushState.timestamp.ToTime().Add(-latenessAllowed - jitter)))
+					RecordDuration(time.Since(timestamp.ToTime().Add(-latenessAllowed - jitter)))
 				e.forwardLagMetric(resolution, "remote", true, flushType).
-					RecordDuration(time.Since(flushState.timestamp.ToTime().Add(-latenessAllowed)))
+					RecordDuration(time.Since(timestamp.ToTime().Add(-latenessAllowed)))
 			}
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
-				int64(flushState.timestamp), value, prevValue, flushState.annotation, flushState.resendEnabled)
+				int64(timestamp), value, prevValue, cState.annotation, cState.resendEnabled)
 		}
 	}
-	return flushState
+	fState.flushed = true
+	e.flushState[cState.startAt] = fState
 }
