@@ -1556,7 +1556,7 @@ func TestEntryAddTimed(t *testing.T) {
 	expectedNanos := xtime.ToUnixNano(time.Unix(0, testTimedMetric.TimeNanos).Truncate(resolution))
 	v, ok := values[expectedNanos]
 	require.True(t, ok)
-	require.Equal(t, expectedNanos, v.startAtNanos)
+	require.Equal(t, expectedNanos, v.startAt)
 	require.Equal(t, int64(1), v.lockedAgg.aggregation.Count())
 	require.Equal(t, int64(1000), v.lockedAgg.aggregation.Sum())
 	require.Equal(t, float64(1000), v.lockedAgg.aggregation.Mean())
@@ -1588,7 +1588,7 @@ func TestEntryAddTimed(t *testing.T) {
 	expectedNanos = expectedNanos.Add(testTimedMetadata.StoragePolicy.Resolution().Window)
 	v, ok = values[expectedNanos]
 	require.True(t, ok)
-	require.Equal(t, expectedNanos, v.startAtNanos)
+	require.Equal(t, expectedNanos, v.startAt)
 	require.Equal(t, int64(1), v.lockedAgg.aggregation.Count())
 	require.Equal(t, int64(1000), v.lockedAgg.aggregation.Sum())
 
@@ -1629,7 +1629,7 @@ func TestEntryAddTimed(t *testing.T) {
 	require.Equal(t, 1, len(values))
 	resolution = metadata.StoragePolicy.Resolution().Window
 	expectedNanos = xtime.UnixNano(metric.TimeNanos).Truncate(resolution)
-	require.Equal(t, expectedNanos, values[0].startAtNanos)
+	require.Equal(t, expectedNanos, values[0].startAt)
 	require.Equal(t, int64(1), values[0].lockedAgg.aggregation.Count())
 	require.Equal(t, int64(1000), values[0].lockedAgg.aggregation.Sum())
 	require.Equal(t, metric.ID, counterElem.ID())
@@ -1814,7 +1814,7 @@ func TestEntryAddForwarded(t *testing.T) {
 	expectedNanos := xtime.UnixNano(testForwardedMetric.TimeNanos).Truncate(resolution)
 	v, ok := values[expectedNanos]
 	require.True(t, ok)
-	require.Equal(t, expectedNanos, v.startAtNanos)
+	require.Equal(t, expectedNanos, v.startAt)
 	require.Equal(t, int64(2), v.lockedAgg.aggregation.Count())
 	require.Equal(t, int64(100000), v.lockedAgg.aggregation.Sum())
 
@@ -1903,7 +1903,7 @@ func TestEntryAddForwarded(t *testing.T) {
 	expectedNanos = xtime.UnixNano(metric.TimeNanos).Truncate(resolution)
 	v, ok = values[expectedNanos]
 	require.True(t, ok)
-	require.Equal(t, expectedNanos, v.startAtNanos)
+	require.Equal(t, expectedNanos, v.startAt)
 	require.Equal(t, int64(2), v.lockedAgg.aggregation.Count())
 	require.Equal(t, int64(100000), v.lockedAgg.aggregation.Sum())
 	require.Equal(t, metric.ID, counterElem.ID())
@@ -2177,7 +2177,7 @@ func testEntryAddUntimed(
 					require.Equal(t, 1, len(aggregations))
 					v, ok := aggregations[alignedStartNanos]
 					require.True(t, ok)
-					require.True(t, alignedStartNanos.Equal(v.startAtNanos))
+					require.True(t, alignedStartNanos.Equal(v.startAt))
 					require.Equal(t, int64(1234), v.lockedAgg.aggregation.Sum())
 				}
 			},
@@ -2195,7 +2195,7 @@ func testEntryAddUntimed(
 					require.Equal(t, 1, len(aggregations))
 					v, ok := aggregations[xtime.ToUnixNano(alignedStart)]
 					require.True(t, ok)
-					require.True(t, alignedStartNanos.Equal(v.startAtNanos))
+					require.True(t, alignedStartNanos.Equal(v.startAt))
 					require.Equal(t, 18.0, v.lockedAgg.aggregation.Sum())
 				}
 			},
@@ -2213,7 +2213,7 @@ func testEntryAddUntimed(
 					require.Equal(t, 1, len(aggregations))
 					v, ok := aggregations[xtime.ToUnixNano(alignedStart)]
 					require.True(t, ok)
-					require.True(t, alignedStartNanos.Equal(v.startAtNanos))
+					require.True(t, alignedStartNanos.Equal(v.startAt))
 					require.Equal(t, 123.456, v.lockedAgg.aggregation.Last())
 				}
 			},
