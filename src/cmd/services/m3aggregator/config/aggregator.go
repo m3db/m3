@@ -849,9 +849,6 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 		workerPool.Init()
 		opts = opts.SetWorkerPool(workerPool)
 	}
-	if c.FlushTimesPersistEvery != 0 {
-		opts = opts.SetFlushTimesPersistEvery(c.FlushTimesPersistEvery)
-	}
 	if c.MaxBufferSize != 0 {
 		opts = opts.SetMaxBufferSize(c.MaxBufferSize)
 	}

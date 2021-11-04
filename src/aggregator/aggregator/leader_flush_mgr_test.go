@@ -371,8 +371,7 @@ func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
 	placementManager := NewMockPlacementManager(ctrl)
 	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil)
 
-	opts := NewFlushManagerOptions().
-		SetJitterEnabled(false) //.		SetFlushTimesPersistEvery(time.Second)
+	opts := NewFlushManagerOptions().SetJitterEnabled(false)
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn
 	mgr.lastPersistAtNanos = now.UnixNano()
@@ -425,8 +424,7 @@ func TestLeaderFlushManagerPrepareWithRedirectedShard(t *testing.T) {
 	placementManager := NewMockPlacementManager(ctrl)
 	placementManager.EXPECT().Shards().Return(shard.NewShards([]shard.Shard{redirectedShard}), nil)
 
-	opts := NewFlushManagerOptions().
-		SetJitterEnabled(false) //.		SetFlushTimesPersistEvery(time.Second)
+	opts := NewFlushManagerOptions().SetJitterEnabled(false)
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn
 	mgr.lastPersistAtNanos = now.UnixNano()
