@@ -177,6 +177,11 @@ type AggregatorConfiguration struct {
 	// AddToReset is the yaml config for aggregator.Options.AddToReset
 	AddToReset bool `yaml:"addToReset"`
 
+	// EagerShutdown sets the eager flush option. If true, aggregator close will
+	// eagerly wait on flush manager close, and the completion of any currently
+	// running flush tasks, rather than the full suite of shutdown steps.
+	EagerShutdown bool `yaml:"eagerShutdown"`
+
 	// TimedMetricsFlushOffsetEnabled enables using FlushOffset for timed metrics.
 	TimedMetricsFlushOffsetEnabled bool `yaml:"timedMetricsFlushOffsetEnabled"`
 
@@ -273,7 +278,8 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		SetVerboseErrors(c.VerboseErrors).
 		SetAddToReset(c.AddToReset).
 		SetTimedMetricsFlushOffsetEnabled(c.TimedMetricsFlushOffsetEnabled).
-		SetFeatureFlagBundlesParsed(c.FeatureFlags.Parse())
+		SetFeatureFlagBundlesParsed(c.FeatureFlags.Parse()).
+		SetEagerShutdown(c.EagerShutdown)
 
 	rwOpts := serveOpts.RWOptions()
 	if rwOpts == nil {

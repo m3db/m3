@@ -399,6 +399,7 @@ func TestLeaderFlushManagerPrepareWithRedirectedShard(t *testing.T) {
 	mgr.Init(buckets)
 	now = now.Add(2 * time.Second)
 	flushTask, dur := mgr.Prepare(buckets)
+	mgr.UpdateFlushTimes(buckets)
 
 	// Validate flush times persisted match expectation.
 	require.NotNil(t, flushTask)

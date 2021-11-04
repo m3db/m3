@@ -45,9 +45,11 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
+	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
+	"go.uber.org/zap"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/golang/mock/gomock"
@@ -817,6 +819,27 @@ func TestAggregatorCloseSuccess(t *testing.T) {
 
 	agg, _ := testAggregator(t, ctrl)
 	require.NoError(t, agg.Open())
+	require.NoError(t, agg.Close())
+	require.Equal(t, aggregatorClosed, agg.state)
+}
+
+func TestAggregatorCloseWithEagerShutdown(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+
+	flushMgr := NewMockFlushManager(ctrl)
+	flushMgr.EXPECT().Close()
+
+	agg := &aggregator{
+		state:        aggregatorOpen,
+		logger:       logger,
+		flushManager: flushMgr,
+		opts:         NewOptions(clock.NewOptions()).SetEagerShutdown(true),
+	}
+
 	require.NoError(t, agg.Close())
 	require.Equal(t, aggregatorClosed, agg.state)
 }

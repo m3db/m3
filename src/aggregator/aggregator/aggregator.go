@@ -414,6 +414,14 @@ func (agg *aggregator) Close() error {
 		}
 	)
 
+	if agg.opts.EagerShutdown() {
+		// NB: closing the flush manager is the main thing we care about
+		closeLogger.Info("eager shutdown")
+		err := agg.flushManager.Close()
+		logCloseOperation("flush manager")
+		return err
+	}
+
 	closeLogger.Info("signaling aggregator done")
 	close(agg.doneCh)
 
