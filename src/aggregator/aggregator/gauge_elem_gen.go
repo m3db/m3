@@ -411,6 +411,15 @@ func (e *GaugeElem) Consume(
 
 	// Process the aggregations that are ready for consumption.
 	for _, flushState := range e.toConsume {
+<<<<<<< HEAD
+=======
+		if flushState.dirty && flushState.flushed && !flushState.resendEnabled {
+			flushState := flushState
+			instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.Error("reflushing aggregation without resendEnabled", zap.Any("flushState", flushState))
+			})
+		}
+>>>>>>> origin/master
 		flushState.timestamp = xtime.UnixNano(timestampNanosFn(int64(flushState.startAt), resolution))
 		flushState = e.processValue(
 			flushState,
@@ -650,6 +659,7 @@ func (e *GaugeElem) processValue(
 	jitter time.Duration,
 	flushType flushType,
 ) aggFlushState {
+<<<<<<< HEAD
 	if flushState.dirty && flushState.flushed && !flushState.resendEnabled {
 		flushState := flushState
 		instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
@@ -657,6 +667,8 @@ func (e *GaugeElem) processValue(
 		})
 	}
 
+=======
+>>>>>>> origin/master
 	var (
 		transformations  = e.parsedPipeline.Transformations
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()

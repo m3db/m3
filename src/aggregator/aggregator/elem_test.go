@@ -2822,10 +2822,10 @@ func TestExpireValues(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			e, err := NewCounterElem(testCounterElemData, NewElemOptions(opts))
 			require.NoError(t, err)
-			require.Equal(t, 0, len(e.toExpire))
+			require.Equal(t, 0, len(e.flushStateToExpire))
 
 			// Add initial toExpire since expireValues should reset this.
-			e.toExpire = make([]timedCounter, 10)
+			e.flushStateToExpire = make([]xtime.UnixNano, 10)
 
 			// Add test values.
 			for _, v := range test.values {
@@ -2836,12 +2836,12 @@ func TestExpireValues(t *testing.T) {
 			}
 
 			// Expire up to target.
-			e.expireValuesWithLock(int64(test.targetNanos), standardMetricTimestampNanos, isStandardMetricEarlierThan)
+			e.expireValuesWithLock(int64(test.targetNanos), isStandardMetricEarlierThan)
 
 			// Validate toExpire and remaining values.
-			require.Equal(t, len(test.expectedToExpire), len(e.toExpire))
+			require.Equal(t, len(test.expectedToExpire), len(e.flushStateToExpire))
 			for i, toExpire := range test.expectedToExpire {
-				require.Equal(t, toExpire, e.toExpire[i].startAtNanos, "missing expire")
+				require.Equal(t, toExpire, e.flushStateToExpire[i], "missing expire")
 			}
 			require.Equal(t, len(test.expectedValues), len(e.values))
 			for _, value := range test.expectedValues {
