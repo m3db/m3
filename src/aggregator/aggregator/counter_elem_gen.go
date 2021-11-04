@@ -288,7 +288,7 @@ func (e *CounterElem) expireFlushState() {
 			instrument.EmitAndLogInvariantViolation(e.opts.InstrumentOptions(), func(l *zap.Logger) {
 				l.Error("expire time not in state map", zap.Time("ts", ts))
 			})
-			return
+			continue
 		}
 		fState.close()
 		delete(e.flushState, t)
@@ -440,7 +440,8 @@ func (e *CounterElem) isFlushed(c consumeState) bool {
 func (e *CounterElem) appendConsumeStateWithLock(
 	agg timedCounter,
 	toConsume []consumeState,
-	filter func(consumeState) bool) ([]consumeState, bool) {
+	includeFilter func(consumeState) bool) ([]consumeState, bool) {
+	// eagerly append a new element so we can try reusing memory already allocated in the slice.
 	toConsume = append(toConsume, consumeState{})
 	cState := toConsume[len(toConsume)-1]
 	if cState.values == nil {
@@ -469,7 +470,8 @@ func (e *CounterElem) appendConsumeStateWithLock(
 	cState.startAt = agg.startAtNanos
 	toConsume[len(toConsume)-1] = cState
 
-	if filter != nil && !filter(cState) {
+	if includeFilter != nil && !includeFilter(cState) {
+		// since we eagerly appended, we need to remove if it should not be included.
 		toConsume = toConsume[0 : len(toConsume)-1]
 		return toConsume, false
 	}
