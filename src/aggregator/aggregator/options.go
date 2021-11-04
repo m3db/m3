@@ -303,14 +303,6 @@ type Options interface {
 	// GaugeElemPool returns the gauge element pool.
 	GaugeElemPool() GaugeElemPool
 
-	// SetEagerShutdown sets the eager shutdown option.
-	SetEagerShutdown(balue bool) Options
-
-	// EagerShutdown sets the eager shutdown option. If true, aggregator close will
-	// eagerly wait on flush manager close, and the completion of any currently
-	// running flush tasks, rather than the full suite of shutdown steps.
-	EagerShutdown() bool
-
 	/// Read-only derived options.
 
 	// FullCounterPrefix returns the full prefix for counters.
@@ -395,7 +387,6 @@ type options struct {
 	counterElemPool                  CounterElemPool
 	timerElemPool                    TimerElemPool
 	gaugeElemPool                    GaugeElemPool
-	eagerShutdown                    bool
 	verboseErrors                    bool
 	addToReset                       bool
 	timedMetricsFlushOffsetEnabled   bool
@@ -816,16 +807,6 @@ func (o *options) SetGaugeElemPool(value GaugeElemPool) Options {
 
 func (o *options) GaugeElemPool() GaugeElemPool {
 	return o.gaugeElemPool
-}
-
-func (o *options) SetEagerShutdown(value bool) Options {
-	opts := *o
-	opts.eagerShutdown = value
-	return &opts
-}
-
-func (o *options) EagerShutdown() bool {
-	return o.eagerShutdown
 }
 
 func (o *options) SetVerboseErrors(value bool) Options {

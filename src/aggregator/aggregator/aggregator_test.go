@@ -45,7 +45,6 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
-	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -55,7 +54,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 const (
@@ -823,27 +821,6 @@ func TestAggregatorCloseSuccess(t *testing.T) {
 	require.Equal(t, aggregatorClosed, agg.state)
 }
 
-func TestAggregatorCloseWithEagerShutdown(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger, err := zap.NewDevelopment()
-	require.NoError(t, err)
-
-	flushMgr := NewMockFlushManager(ctrl)
-	flushMgr.EXPECT().Close()
-
-	agg := &aggregator{
-		state:        aggregatorOpen,
-		logger:       logger,
-		flushManager: flushMgr,
-		opts:         NewOptions(clock.NewOptions()).SetEagerShutdown(true),
-	}
-
-	require.NoError(t, agg.Close())
-	require.Equal(t, aggregatorClosed, agg.state)
-}
-
 func TestAggregatorTick(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -862,44 +839,6 @@ func TestAggregatorTick(t *testing.T) {
 	agg.tickInternal()
 
 	require.NoError(t, agg.Close())
-}
-
-func TestAggregatorTickCancelled(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	flushTimesManager := NewMockFlushTimesManager(ctrl)
-	flushTimesManager.EXPECT().Reset().Return(nil).AnyTimes()
-	flushTimesManager.EXPECT().Open(gomock.Any()).Return(nil).AnyTimes()
-	flushTimesManager.EXPECT().Get().Return(nil, nil).AnyTimes()
-	flushTimesManager.EXPECT().Close().Return(nil).AnyTimes()
-
-	agg, _ := testAggregator(t, ctrl)
-	agg.flushTimesManager = flushTimesManager
-	require.NoError(t, agg.Open())
-
-	var (
-		tickedCh       = make(chan struct{})
-		numTicked      = 0
-		doneAfterTicks = 2
-	)
-
-	agg.tickShardFn = func(*aggregatorShard, time.Duration, <-chan struct{}) tickResult {
-		numTicked++
-		if doneAfterTicks == 2 {
-			close(tickedCh)
-		}
-
-		time.Sleep(time.Millisecond * 50)
-		return tickResult{}
-	}
-
-	go func() {
-		<-tickedCh
-		require.NoError(t, agg.Close())
-	}()
-
-	require.Equal(t, 2, doneAfterTicks)
 }
 
 func TestAggregatorShardSetNotOpenNilInstance(t *testing.T) {

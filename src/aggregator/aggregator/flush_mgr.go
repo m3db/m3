@@ -263,7 +263,7 @@ func (mgr *flushManager) resetWithLock() {
 	mgr.doneCh = make(chan struct{})
 	mgr.electionState = FollowerState
 	mgr.leaderMgr = newLeaderFlushManager(mgr.doneCh, mgr.leaderOpts)
-	mgr.leaderMgr.Init(mgr.buckets)	
+	mgr.leaderMgr.Init(mgr.buckets)
 	mgr.followerMgr = newFollowerFlushManager(mgr.doneCh, mgr.followerOpts)
 	mgr.followerMgr.Init(mgr.buckets)
 }
