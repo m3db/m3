@@ -72,7 +72,7 @@ func (t *Timer) AddBatch(timestamp time.Time, values []float64, annotation []byt
 
 	t.stream.AddBatch(values)
 
-	t.annotation = maybeReplaceAnnotation(t.annotation, annotation)
+	t.annotation = MaybeReplaceAnnotation(t.annotation, annotation)
 }
 
 func (t *Timer) recordLastAt(timestamp time.Time) {
