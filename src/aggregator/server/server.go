@@ -239,5 +239,6 @@ func Run(opts RunOptions) {
 		logger.Info("server closed clean")
 	case <-time.After(gracefulShutdownTimeout):
 		logger.Info("server closed due to timeout", zap.Duration("timeout", gracefulShutdownTimeout))
+		scope.SubScope("aggregator-server").Counter("timeout").Inc(1)
 	}
 }
