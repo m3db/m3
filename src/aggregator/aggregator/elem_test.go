@@ -654,8 +654,8 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
 	require.Len(t, e.flushState, 1)
-	flushState := e.flushState[xtime.UnixNano(alignedstartAtNanos[0])]
-	consumedVal := flushState.consumedValues
+	fState := e.flushState[xtime.UnixNano(alignedstartAtNanos[0])]
+	consumedVal := fState.consumedValues
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0])
 
@@ -1194,8 +1194,8 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
 	require.Len(t, e.flushState, 1)
-	flushState := e.flushState[xtime.UnixNano(alignedstartAtNanos[0])]
-	consumedVal := flushState.consumedValues
+	fState := e.flushState[xtime.UnixNano(alignedstartAtNanos[0])]
+	consumedVal := fState.consumedValues
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0])
 
@@ -1222,8 +1222,8 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 1, len(e.values))
 	require.Len(t, e.flushState, 1)
-	flushState = e.flushState[xtime.UnixNano(alignedstartAtNanos[2])]
-	consumedVal = flushState.consumedValues
+	fState = e.flushState[xtime.UnixNano(alignedstartAtNanos[2])]
+	consumedVal = fState.consumedValues
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 589.0, consumedVal[0])
 
@@ -2155,8 +2155,8 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
 	require.Len(t, e.flushState, 1)
-	flushState := e.flushState[xtime.UnixNano(alignedstartAtNanos[0])]
-	consumedVal := flushState.consumedValues
+	fState := e.flushState[xtime.UnixNano(alignedstartAtNanos[0])]
+	consumedVal := fState.consumedValues
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0])
 
