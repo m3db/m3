@@ -710,11 +710,8 @@ func (e *CounterElem) processValue(
 						})
 					} else {
 						prev.Value = prevFlushState.consumedValues[aggTypeIdx]
-						prev.TimeNanos = int64(prevFlushState.timestamp)
-					} else {
-						prev.Value = prevFlushState.consumedValues[aggTypeIdx]
-					prev.TimeNanos = int64(prevTimestamp)
-					}					
+						prev.TimeNanos = int64(prevTimestamp)
+					}
 				}
 				curr := transformation.Datapoint{
 					TimeNanos: int64(timestamp),

@@ -2405,7 +2405,7 @@ func TestPanics(t *testing.T) {
 				require.NoError(t, err)
 				elem.flushStateToExpire = []xtime.UnixNano{0, 1, 2}
 
-				elem.flushState[10] = aggFlushState{}
+				elem.flushState[10] = flushState{}
 
 				elem.Close()
 			},
@@ -2421,18 +2421,26 @@ func TestPanics(t *testing.T) {
 						aggregation: newCounterAggregation(raggregation.NewCounter(elem.aggOpts)),
 					},
 				}
-				flushState := elem.newFlushStateWithLock(counter)
-				flushState.dirty = true
-				flushState.flushed = true
-				flushState.resendEnabled = false
+
+				elem.toConsume, _ = elem.appendConsumeStateWithLock(counter, elem.toConsume, nil)
+				toConsume := elem.toConsume[0]
+				toConsume.startAt = xtime.UnixNano(10)
+				toConsume.dirty = true
+				toConsume.resendEnabled = false
+				elem.flushState[toConsume.startAt] = flushState{
+					flushed: true,
+				}
 
 				localFn, _ := testFlushLocalMetricFn()
 				forwardFn, _ := testFlushForwardedMetricFn()
-				_ = elem.processValue(flushState, localFn,
+				elem.processValue(toConsume,
+					standardMetricTimestampNanos,
+					localFn,
 					forwardFn,
-					time.Second,
-					time.Second,
-					0, consumeType)
+					0,
+					0,
+					0,
+					consumeType)
 			},
 		},
 		{
@@ -2448,16 +2456,26 @@ func TestPanics(t *testing.T) {
 						aggregation: newCounterAggregation(raggregation.NewCounter(elem.aggOpts)),
 					},
 				}
-				flushState := elem.newFlushStateWithLock(counter)
-				flushState.prevStartTime = 10
+
+				elem.toConsume, _ = elem.appendConsumeStateWithLock(counter, elem.toConsume, nil)
+				toConsume := elem.toConsume[0]
+				toConsume.startAt = xtime.UnixNano(10)
+				toConsume.prevStartTime = xtime.UnixNano(9) // not present in flush state (panic case)
+				elem.flushState[toConsume.startAt] = flushState{
+					flushed: true,
+				}
+				elem.flushState[toConsume.startAt] = flushState{}
 
 				localFn, _ := testFlushLocalMetricFn()
 				forwardFn, _ := testFlushForwardedMetricFn()
-				_ = elem.processValue(flushState, localFn,
+				elem.processValue(toConsume,
+					standardMetricTimestampNanos,
+					localFn,
 					forwardFn,
-					time.Second,
-					time.Second,
-					0, consumeType)
+					0,
+					0,
+					0,
+					consumeType)
 			},
 		},
 	}
