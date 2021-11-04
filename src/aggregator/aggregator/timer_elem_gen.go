@@ -78,9 +78,9 @@ type TimerElem struct {
 	flushState map[xtime.UnixNano]flushState
 	// sorted start aligned times that have been written to since the last flush
 	dirty []xtime.UnixNano
-	// min time in the values map. allow for iterating through map.
+	// min time in the values map. allows for iterating through map.
 	minStartTime xtime.UnixNano
-	// max time in the values map.
+	// max time in the values map. allows for iterating through map.
 	maxStartTime xtime.UnixNano
 
 	// internal consume state that does not need to be synchronized.
