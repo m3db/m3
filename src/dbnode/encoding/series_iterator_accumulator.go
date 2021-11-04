@@ -39,7 +39,7 @@ type seriesIteratorAccumulator struct {
 	iters           iterators
 	tagIterator     ident.TagIterator
 	seriesIterators []SeriesIterator
-	fistAnnotation  ts.Annotation
+	firstAnnotation ts.Annotation
 	err             error
 	firstNext       bool
 	closed          bool
@@ -146,8 +146,8 @@ func (it *seriesIteratorAccumulator) Next() bool {
 	if it.hasNext() {
 		_, _, currAnnotation := it.iters.current()
 		if len(currAnnotation) > 0 {
-			it.fistAnnotation = make(ts.Annotation, len(currAnnotation))
-			copy(it.fistAnnotation, currAnnotation)
+			it.firstAnnotation = make(ts.Annotation, len(currAnnotation))
+			copy(it.firstAnnotation, currAnnotation)
 		}
 		return true
 	}
@@ -175,7 +175,7 @@ func (it *seriesIteratorAccumulator) Err() error {
 }
 
 func (it *seriesIteratorAccumulator) FirstAnnotation() ts.Annotation {
-	return it.fistAnnotation
+	return it.firstAnnotation
 }
 
 func (it *seriesIteratorAccumulator) Close() {
@@ -195,7 +195,7 @@ func (it *seriesIteratorAccumulator) Close() {
 		it.tagIterator.Close()
 		it.tagIterator = nil
 	}
-	it.fistAnnotation = nil
+	it.firstAnnotation = nil
 	it.iters.reset()
 }
 

@@ -43,7 +43,7 @@ type iterators struct {
 	filterEnd          xtime.UnixNano
 	filtering          bool
 	equalTimesStrategy IterateEqualTimestampStrategy
-	fistAnnotation     ts.Annotation
+	firstAnnotation_   ts.Annotation
 
 	// Used for caching reuse of value frequency lookup
 	valueFrequencies map[float64]int
@@ -109,7 +109,7 @@ func (i *iterators) at() xtime.UnixNano {
 }
 
 func (i *iterators) firstAnnotation() ts.Annotation {
-	return i.fistAnnotation
+	return i.firstAnnotation_
 }
 
 func (i *iterators) push(iter Iterator) bool {
@@ -161,11 +161,11 @@ func (i *iterators) moveToValidNext() (bool, error) {
 	for _, iter := range i.earliest {
 		next := iter.Next()
 		if next {
-			if len(i.fistAnnotation) == 0 {
+			if len(i.firstAnnotation_) == 0 {
 				_, _, currAnnotation := iter.Current()
 				if len(currAnnotation) > 0 {
-					i.fistAnnotation = make(ts.Annotation, len(currAnnotation))
-					copy(i.fistAnnotation, currAnnotation)
+					i.firstAnnotation_ = make(ts.Annotation, len(currAnnotation))
+					copy(i.firstAnnotation_, currAnnotation)
 				}
 			}
 			if i.filtering {
@@ -249,7 +249,7 @@ func (i *iterators) reset() {
 	}
 	i.earliest = i.earliest[:0]
 	i.earliestAt = timeMaxNanos
-	i.fistAnnotation = nil
+	i.firstAnnotation_ = nil
 }
 
 func (i *iterators) setFilter(start, end xtime.UnixNano) {
