@@ -129,18 +129,17 @@ type FlushManagerOptions interface {
 }
 
 type flushManagerOptions struct {
-	clockOpts              clock.Options
-	instrumentOpts         instrument.Options
-	checkEvery             time.Duration
-	jitterEnabled          bool
-	maxJitterFn            FlushJitterFn
-	workerPool             sync.WorkerPool
-	placementManager       PlacementManager
-	electionManager        ElectionManager
-	flushTimesManager      FlushTimesManager
-	flushTimesPersistEvery time.Duration
-	maxBufferSize          time.Duration
-	forcedFlushWindowSize  time.Duration
+	clockOpts             clock.Options
+	instrumentOpts        instrument.Options
+	checkEvery            time.Duration
+	jitterEnabled         bool
+	maxJitterFn           FlushJitterFn
+	workerPool            sync.WorkerPool
+	placementManager      PlacementManager
+	electionManager       ElectionManager
+	flushTimesManager     FlushTimesManager
+	maxBufferSize         time.Duration
+	forcedFlushWindowSize time.Duration
 
 	bufferForPastTimedMetric time.Duration
 }
@@ -150,14 +149,13 @@ func NewFlushManagerOptions() FlushManagerOptions {
 	workerPool := sync.NewWorkerPool(defaultWorkerPoolSize)
 	workerPool.Init()
 	return &flushManagerOptions{
-		clockOpts:              clock.NewOptions(),
-		instrumentOpts:         instrument.NewOptions(),
-		checkEvery:             defaultCheckEvery,
-		jitterEnabled:          defaultJitterEnabled,
-		workerPool:             workerPool,
-		flushTimesPersistEvery: defaultFlushTimesPersistEvery,
-		maxBufferSize:          defaultMaxBufferSize,
-		forcedFlushWindowSize:  defaultForcedFlushWindowSize,
+		clockOpts:             clock.NewOptions(),
+		instrumentOpts:        instrument.NewOptions(),
+		checkEvery:            defaultCheckEvery,
+		jitterEnabled:         defaultJitterEnabled,
+		workerPool:            workerPool,
+		maxBufferSize:         defaultMaxBufferSize,
+		forcedFlushWindowSize: defaultForcedFlushWindowSize,
 
 		bufferForPastTimedMetric: defaultTimedMetricBuffer,
 	}
