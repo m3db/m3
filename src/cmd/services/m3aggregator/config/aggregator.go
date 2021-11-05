@@ -802,9 +802,9 @@ type flushManagerConfiguration struct {
 	// Number of workers per CPU.
 	NumWorkersPerCPU float64 `yaml:"numWorkersPerCPU" validate:"min=0.0,max=1.0"`
 
-	// How frequently the flush times are persisted.
-	// If unset or set to 0, this will update kv flush times after every flush.
-	FlushTimesPersistEvery time.Duration `yaml:"flushTimesPersistEvery"`
+	// DeprecatedFlushTimesPersistEvery controlled how often flush times were
+	// persisted, but is now deprecated.
+	DeprecatedFlushTimesPersistEvery time.Duration `yaml:"flushTimesPersistEvery"`
 
 	// Maximum buffer size.
 	MaxBufferSize time.Duration `yaml:"maxBufferSize"`
@@ -825,8 +825,7 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 		SetPlacementManager(placementManager).
 		SetElectionManager(electionManager).
 		SetFlushTimesManager(flushTimesManager).
-		SetBufferForPastTimedMetric(bufferForPastTimedMetric).
-		SetFlushTimesPersistEvery(c.FlushTimesPersistEvery)
+		SetBufferForPastTimedMetric(bufferForPastTimedMetric)
 	if c.CheckEvery != 0 {
 		opts = opts.SetCheckEvery(c.CheckEvery)
 	}

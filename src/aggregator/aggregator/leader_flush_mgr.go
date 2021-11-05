@@ -195,7 +195,7 @@ func (mgr *leaderFlushManager) persistFlushFn(buckets []*flushBucket) func() {
 
 		allShards := shards.All()
 		flushTimes := mgr.prepareFlushTimesWithLock(buckets, allShards)
-		if err := mgr.flushTimesManager.StoreAsync(flushTimes); err != nil {
+		if err := mgr.flushTimesManager.StoreSync(flushTimes); err != nil {
 			mgr.metrics.flushTimesUpdateError.Inc(1)
 			mgr.logger.Error("unable to store flush times", zap.Error(err))
 		}

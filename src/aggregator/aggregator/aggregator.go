@@ -172,6 +172,8 @@ func (agg *aggregator) Open() error {
 		return err
 	}
 	if agg.checkInterval > 0 {
+		// NB: tick updates some metrics on how many series the aggregator currently
+		// has of each type, and expires old metrics from the local metric lists.
 		go agg.tick()
 	}
 

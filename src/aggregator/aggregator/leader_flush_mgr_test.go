@@ -300,7 +300,7 @@ func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
 
 	flushTimesManager := NewMockFlushTimesManager(ctrl)
 	flushTimesManager.EXPECT().
-		StoreAsync(gomock.Any()).
+		StoreSync(gomock.Any()).
 		DoAndReturn(func(value *schema.ShardSetFlushTimes) error {
 			storeAsyncCount++
 			stored = value
@@ -309,9 +309,7 @@ func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
 	placementManager := NewMockPlacementManager(ctrl)
 	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil).Times(2)
 
-	opts := NewFlushManagerOptions().
-		SetJitterEnabled(false).
-		SetFlushTimesPersistEvery(time.Second)
+	opts := NewFlushManagerOptions().SetJitterEnabled(false)
 
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn
@@ -354,7 +352,7 @@ func TestLeaderFlushManagerPrepareWithRedirectedShard(t *testing.T) {
 
 	flushTimesManager := NewMockFlushTimesManager(ctrl)
 	flushTimesManager.EXPECT().
-		StoreAsync(gomock.Any()).
+		StoreSync(gomock.Any()).
 		DoAndReturn(func(value *schema.ShardSetFlushTimes) error {
 			storeAsyncCount++
 			stored = value
@@ -365,9 +363,7 @@ func TestLeaderFlushManagerPrepareWithRedirectedShard(t *testing.T) {
 		Return(shard.NewShards([]shard.Shard{redirectedShard}), nil).
 		AnyTimes()
 
-	opts := NewFlushManagerOptions().
-		SetJitterEnabled(false).
-		SetFlushTimesPersistEvery(time.Second)
+	opts := NewFlushManagerOptions().SetJitterEnabled(false)
 
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn

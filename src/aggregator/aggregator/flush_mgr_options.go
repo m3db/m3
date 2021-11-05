@@ -98,12 +98,6 @@ type FlushManagerOptions interface {
 	// FlushTimesManager returns the flush times manager.
 	FlushTimesManager() FlushTimesManager
 
-	// SetFlushTimesPersistEvery sets how frequently the flush times are stored in kv.
-	SetFlushTimesPersistEvery(value time.Duration) FlushManagerOptions
-
-	// FlushTimesPersistEvery returns how frequently the flush times are stored in kv.
-	FlushTimesPersistEvery() time.Duration
-
 	// SetMaxBufferSize sets the maximum duration data are buffered for without getting
 	// flushed or discarded to handle transient KV issues or for backing out of active
 	// topology changes.
@@ -128,18 +122,17 @@ type FlushManagerOptions interface {
 }
 
 type flushManagerOptions struct {
-	clockOpts              clock.Options
-	instrumentOpts         instrument.Options
-	checkEvery             time.Duration
-	jitterEnabled          bool
-	maxJitterFn            FlushJitterFn
-	workerPool             sync.WorkerPool
-	placementManager       PlacementManager
-	electionManager        ElectionManager
-	flushTimesManager      FlushTimesManager
-	flushTimesPersistEvery time.Duration
-	maxBufferSize          time.Duration
-	forcedFlushWindowSize  time.Duration
+	clockOpts             clock.Options
+	instrumentOpts        instrument.Options
+	checkEvery            time.Duration
+	jitterEnabled         bool
+	maxJitterFn           FlushJitterFn
+	workerPool            sync.WorkerPool
+	placementManager      PlacementManager
+	electionManager       ElectionManager
+	flushTimesManager     FlushTimesManager
+	maxBufferSize         time.Duration
+	forcedFlushWindowSize time.Duration
 
 	bufferForPastTimedMetric time.Duration
 }
@@ -249,16 +242,6 @@ func (o *flushManagerOptions) SetFlushTimesManager(value FlushTimesManager) Flus
 
 func (o *flushManagerOptions) FlushTimesManager() FlushTimesManager {
 	return o.flushTimesManager
-}
-
-func (o *flushManagerOptions) SetFlushTimesPersistEvery(value time.Duration) FlushManagerOptions {
-	opts := *o
-	opts.flushTimesPersistEvery = value
-	return &opts
-}
-
-func (o *flushManagerOptions) FlushTimesPersistEvery() time.Duration {
-	return o.flushTimesPersistEvery
 }
 
 func (o *flushManagerOptions) SetMaxBufferSize(value time.Duration) FlushManagerOptions {
