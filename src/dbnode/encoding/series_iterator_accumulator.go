@@ -67,6 +67,7 @@ func NewSeriesIteratorAccumulator(
 		id:              ident.StringID(iter.ID().String()),
 		nsID:            ident.StringID(nsID),
 		seriesIterators: make([]SeriesIterator, 0, 2),
+		firstNext:       true,
 	}
 
 	if opts.RetainTags {
@@ -198,6 +199,7 @@ func (it *seriesIteratorAccumulator) Close() {
 		it.tagIterator = nil
 	}
 	it.iters.reset()
+	it.firstNext = true
 	it.firstAnnotation = nil
 }
 
