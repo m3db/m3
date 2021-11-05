@@ -133,13 +133,13 @@ func (it *seriesIteratorAccumulator) End() xtime.UnixNano {
 }
 
 func (it *seriesIteratorAccumulator) Next() bool {
-	if !it.firstNext {
+	//if !it.firstNext {
 		if !it.hasNext() {
 			return false
 		}
 
 		it.moveToNext()
-	}
+	//}
 
 	it.firstNext = false
 	return it.hasNext()
