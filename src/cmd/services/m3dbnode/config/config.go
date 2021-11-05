@@ -51,8 +51,10 @@ import (
 const (
 	defaultEtcdDirSuffix  = "etcd"
 	defaultEtcdListenHost = "http://0.0.0.0"
-	defaultEtcdClientPort = 2379
-	defaultEtcdServerPort = 2380
+	// DefaultEtcdClientPort is the default port for etcd client.
+	DefaultEtcdClientPort = 2379
+	// DefaultEtcdServerPort is the default port for etcd server.
+	DefaultEtcdServerPort = 2380
 )
 
 var (
@@ -718,13 +720,13 @@ func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 	}
 	newKVCfg.Dir = dir
 
-	LPUrls, err := convertToURLsWithDefault(kvCfg.ListenPeerUrls, newURL(defaultEtcdListenHost, defaultEtcdServerPort))
+	LPUrls, err := convertToURLsWithDefault(kvCfg.ListenPeerUrls, newURL(defaultEtcdListenHost, DefaultEtcdServerPort))
 	if err != nil {
 		return nil, err
 	}
 	newKVCfg.LPUrls = LPUrls
 
-	LCUrls, err := convertToURLsWithDefault(kvCfg.ListenClientUrls, newURL(defaultEtcdListenHost, defaultEtcdClientPort))
+	LCUrls, err := convertToURLsWithDefault(kvCfg.ListenClientUrls, newURL(defaultEtcdListenHost, DefaultEtcdClientPort))
 	if err != nil {
 		return nil, err
 	}
@@ -739,13 +741,13 @@ func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 		newKVCfg.ClusterState = host.ClusterState
 	}
 
-	APUrls, err := convertToURLsWithDefault(kvCfg.InitialAdvertisePeerUrls, newURL(endpoint, defaultEtcdServerPort))
+	APUrls, err := convertToURLsWithDefault(kvCfg.InitialAdvertisePeerUrls, newURL(endpoint, DefaultEtcdServerPort))
 	if err != nil {
 		return nil, err
 	}
 	newKVCfg.APUrls = APUrls
 
-	ACUrls, err := convertToURLsWithDefault(kvCfg.AdvertiseClientUrls, newURL(endpoint, defaultEtcdClientPort))
+	ACUrls, err := convertToURLsWithDefault(kvCfg.AdvertiseClientUrls, newURL(endpoint, DefaultEtcdClientPort))
 	if err != nil {
 		return nil, err
 	}
@@ -836,7 +838,7 @@ func InitialClusterEndpoints(initialCluster []environment.SeedNode) ([]string, e
 			return nil, errors.New("invalid initialCluster format")
 		}
 
-		endpoints = append(endpoints, newURL(endpoint[:colonIdx], defaultEtcdClientPort))
+		endpoints = append(endpoints, newURL(endpoint[:colonIdx], DefaultEtcdClientPort))
 	}
 
 	return endpoints, nil

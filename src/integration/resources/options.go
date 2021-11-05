@@ -10,10 +10,11 @@ import (
 type ClusterOptions struct {
 	// DBNode contains cluster options for spinning up dbnodes.
 	DBNode *DBNodeClusterOptions
-
 	// Aggregator is the optional cluster options for spinning up aggregators.
 	// If Aggregator is nil, the cluster contains only m3coordinator and dbnodes.
 	Aggregator *AggregatorClusterOptions
+	// CoordinatorGeneratePorts indicates whether to update the coordinator config to use open ports.
+	CoordinatorGeneratePorts bool
 }
 
 // Validate validates the ClusterOptions.

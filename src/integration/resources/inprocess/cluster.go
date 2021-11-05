@@ -23,6 +23,7 @@ package inprocess
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"strconv"
 
@@ -37,12 +38,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/integration/resources"
+	nettest "github.com/m3db/m3/src/integration/resources/net"
+	"github.com/m3db/m3/src/query/storage/m3"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/hostid"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
-// ClusterConfigs contain the config to use for components within
+// ClusterConfigs contain the input config to use for components within
 // the cluster.
 type ClusterConfigs struct {
 	// DBNode is the configuration for db nodes.
@@ -52,6 +55,22 @@ type ClusterConfigs struct {
 	// Aggregator is the configuration for aggregators.
 	// If Aggregator is nil, the cluster contains only m3coordinator and dbnodes.
 	Aggregator *aggcfg.Configuration
+}
+
+// ClusterFullConfigs contain the final configs to use for components within
+// the cluster.
+type ClusterFullConfigs struct {
+	// DBNodes is the configuration for db nodes.
+	DBNodes []dbcfg.Configuration
+	// DBNodeOpts is the options for setting up db nodes.
+	DBNodeOpts []DBNodeOptions
+	// EnvConfig is the env configuration shared by dbnodes and the coordinator.
+	EnvConfig environment.Configuration
+	// Coordinator is the configuration for the coordinator.
+	Coordinator coordinatorcfg.Configuration
+	// Aggregators is the configuration for aggregators.
+	// If Aggregator is nil, the cluster contains only m3coordinator and dbnodes.
+	Aggregators []aggcfg.Configuration
 }
 
 // NewClusterConfigsFromConfigFile creates a new ClusterConfigs object from the
@@ -114,7 +133,24 @@ func NewClusterConfigsFromYAML(dbnodeYaml string, coordYaml string, aggYaml stri
 
 // NewCluster creates a new M3 cluster based on the ClusterOptions provided.
 // Expects at least a coordinator, a dbnode and an aggregator config.
-func NewCluster(configs ClusterConfigs, opts resources.ClusterOptions) (resources.M3Resources, error) {
+func NewCluster(
+	configs ClusterConfigs,
+	opts resources.ClusterOptions,
+) (resources.M3Resources, error) {
+	fullConfigs, err := GenerateClusterFullConfigs(configs, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewClusterFromFullConfigs(fullConfigs, opts)
+}
+
+// NewClusterFromFullConfigs creates a new M3 cluster with the given full
+// set of configuration and options.
+func NewClusterFromFullConfigs(
+	fullConfigs ClusterFullConfigs,
+	opts resources.ClusterOptions,
+) (resources.M3Resources, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -124,23 +160,10 @@ func NewCluster(configs ClusterConfigs, opts resources.ClusterOptions) (resource
 		return nil, err
 	}
 
-	nodeCfgs, nodeOpts, envConfig, err := GenerateDBNodeConfigsForCluster(configs, opts.DBNode)
-	if err != nil {
-		return nil, err
-	}
-
-	var aggCfgs []aggcfg.Configuration
-	if opts.Aggregator != nil {
-		aggCfgs, err = GenerateAggregatorConfigsForCluster(configs, opts.Aggregator)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	var (
 		coord resources.Coordinator
-		nodes = make(resources.Nodes, 0, len(nodeCfgs))
-		aggs  = make(resources.Aggregators, 0, len(aggCfgs))
+		nodes = make(resources.Nodes, 0, len(fullConfigs.DBNodes))
+		aggs  = make(resources.Aggregators, 0, len(fullConfigs.Aggregators))
 	)
 
 	fs.DisableIndexClaimsManagersCheckUnsafe()
@@ -153,24 +176,24 @@ func NewCluster(configs ClusterConfigs, opts resources.ClusterOptions) (resource
 		}
 	}()
 
-	for i := 0; i < len(nodeCfgs); i++ {
+	for i := 0; i < len(fullConfigs.DBNodes); i++ {
 		var node resources.Node
-		node, err = NewDBNode(nodeCfgs[i], nodeOpts[i])
+		node, err = NewDBNode(fullConfigs.DBNodes[i], fullConfigs.DBNodeOpts[i])
 		if err != nil {
 			return nil, err
 		}
 		nodes = append(nodes, node)
 	}
 
-	coordConfig := configs.Coordinator
-	// TODO(nate): refactor to support having envconfig if no DB.
-	coordConfig.Clusters[0].Client.EnvironmentConfig = &envConfig
-	coord, err = NewCoordinator(coordConfig, CoordinatorOptions{})
+	coord, err = NewCoordinator(
+		fullConfigs.Coordinator,
+		CoordinatorOptions{GeneratePorts: opts.CoordinatorGeneratePorts},
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, aggCfg := range aggCfgs {
+	for _, aggCfg := range fullConfigs.Aggregators {
 		var agg resources.Aggregator
 		agg, err = NewAggregator(aggCfg, AggregatorOptions{
 			GeneratePorts:  true,
@@ -196,6 +219,47 @@ func NewCluster(configs ClusterConfigs, opts resources.ClusterOptions) (resource
 	return m3, nil
 }
 
+// GenerateClusterFullConfigs generates the full set of configuration for the cluster set up
+// based on the given input configuation and options.
+func GenerateClusterFullConfigs(
+	configs ClusterConfigs,
+	opts resources.ClusterOptions,
+) (ClusterFullConfigs, error) {
+	if err := opts.Validate(); err != nil {
+		return ClusterFullConfigs{}, err
+	}
+
+	nodeCfgs, nodeOpts, envConfig, err := GenerateDBNodeConfigsForCluster(configs, opts.DBNode)
+	if err != nil {
+		return ClusterFullConfigs{}, err
+	}
+
+	coordConfig := configs.Coordinator
+	// TODO(nate): refactor to support having envconfig if no DB.
+	if coordConfig.Clusters == nil {
+		coordConfig.Clusters = []m3.ClusterStaticConfiguration{
+			{Namespaces: nil},
+		}
+	}
+	coordConfig.Clusters[0].Client.EnvironmentConfig = &envConfig
+
+	var aggCfgs []aggcfg.Configuration
+	if opts.Aggregator != nil {
+		aggCfgs, err = GenerateAggregatorConfigsForCluster(configs, opts.Aggregator)
+		if err != nil {
+			return ClusterFullConfigs{}, err
+		}
+	}
+
+	return ClusterFullConfigs{
+		DBNodes:     nodeCfgs,
+		DBNodeOpts:  nodeOpts,
+		EnvConfig:   envConfig,
+		Coordinator: coordConfig,
+		Aggregators: aggCfgs,
+	}, nil
+}
+
 // GenerateDBNodeConfigsForCluster generates the unique configs and options
 // for each DB node that will be instantiated. Additionally, provides
 // default environment config that can be used to connect to embedded KV
@@ -208,6 +272,11 @@ func GenerateDBNodeConfigsForCluster(
 		return nil, nil, environment.Configuration{}, errors.New("dbnode cluster options is nil")
 	}
 
+	var (
+		numNodes            = opts.RF * opts.NumInstances
+		generatePortsAndIDs = numNodes > 1
+	)
+
 	// TODO(nate): eventually support clients specifying their own discovery stanza.
 	// Practically, this should cover 99% of cases.
 	//
@@ -215,15 +284,16 @@ func GenerateDBNodeConfigsForCluster(
 	// the etcd server (i.e. seed node).
 	hostID := uuid.NewString()
 	defaultDBNodesCfg := configs.DBNode
-	discoveryCfg, envConfig, err := generateDefaultDiscoveryConfig(defaultDBNodesCfg, hostID)
+	discoveryCfg, envConfig, err := generateDefaultDiscoveryConfig(
+		defaultDBNodesCfg,
+		hostID,
+		generatePortsAndIDs)
 	if err != nil {
 		return nil, nil, environment.Configuration{}, err
 	}
 
 	var (
-		numNodes            = opts.RF * opts.NumInstances
-		generatePortsAndIDs = numNodes > 1
-		defaultDBNodeOpts   = DBNodeOptions{
+		defaultDBNodeOpts = DBNodeOptions{
 			GenerateHostID: generatePortsAndIDs,
 			GeneratePorts:  generatePortsAndIDs,
 		}
@@ -261,6 +331,7 @@ func GenerateDBNodeConfigsForCluster(
 func generateDefaultDiscoveryConfig(
 	cfg dbcfg.Configuration,
 	hostID string,
+	generatePortsAndIDs bool,
 ) (discovery.Configuration, environment.Configuration, error) {
 	discoveryConfig := cfg.DB.DiscoveryOrDefault()
 	envConfig, err := discoveryConfig.EnvironmentConfig(hostID)
@@ -268,18 +339,42 @@ func generateDefaultDiscoveryConfig(
 		return discovery.Configuration{}, environment.Configuration{}, err
 	}
 
-	// TODO(nate): Fix expectations in envconfig for:
-	//   - InitialAdvertisePeerUrls
-	//	 - AdvertiseClientUrls
-	//	 - ListenPeerUrls
-	//	 - ListenClientUrls
-	// when not using the default ports of 2379 and 2380
-	envConfig.SeedNodes.InitialCluster[0].Endpoint =
-		fmt.Sprintf("http://0.0.0.0:%d", 2380)
-	envConfig.SeedNodes.InitialCluster[0].HostID = hostID
-	envConfig.Services[0].Service.ETCDClusters[0].Endpoints = []string{
-		net.JoinHostPort("0.0.0.0", strconv.Itoa(2379)),
+	var (
+		etcdClientPort = dbcfg.DefaultEtcdClientPort
+		etcdServerPort = dbcfg.DefaultEtcdServerPort
+	)
+	if generatePortsAndIDs {
+		etcdClientPort, err = nettest.GetAvailablePort()
+		if err != nil {
+			return discovery.Configuration{}, environment.Configuration{}, err
+		}
+
+		etcdServerPort, err = nettest.GetAvailablePort()
+		if err != nil {
+			return discovery.Configuration{}, environment.Configuration{}, err
+		}
 	}
+
+	etcdServerURL := fmt.Sprintf("http://0.0.0.0:%d", etcdServerPort)
+	etcdClientAddr := net.JoinHostPort("0.0.0.0", strconv.Itoa(etcdClientPort))
+	etcdClientURL := fmt.Sprintf("http://0.0.0.0:%d", etcdClientPort)
+
+	envConfig.SeedNodes.InitialCluster[0].Endpoint = etcdServerURL
+	envConfig.SeedNodes.InitialCluster[0].HostID = hostID
+	envConfig.Services[0].Service.ETCDClusters[0].Endpoints = []string{etcdClientAddr}
+	if generatePortsAndIDs {
+		// TODO: clean the temp dir
+		dir, err := ioutil.TempDir("", "m3kv-*")
+		if err != nil {
+			return discovery.Configuration{}, environment.Configuration{}, err
+		}
+		envConfig.Services[0].Service.CacheDir = dir
+		envConfig.SeedNodes.ListenPeerUrls = []string{etcdServerURL}
+		envConfig.SeedNodes.ListenClientUrls = []string{etcdClientURL}
+		envConfig.SeedNodes.InitialAdvertisePeerUrls = []string{etcdServerURL}
+		envConfig.SeedNodes.AdvertiseClientUrls = []string{etcdClientURL}
+	}
+
 	configType := discovery.ConfigType
 	return discovery.Configuration{
 		Type:   &configType,
