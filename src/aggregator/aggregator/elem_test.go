@@ -761,6 +761,7 @@ func TestCounterFindOrCreateNoSourceSet(t *testing.T) {
 	}
 }
 
+// nolint: dupl
 func TestCounterFindOrCreateWithSourceSet(t *testing.T) {
 	e, err := NewCounterElem(testCounterElemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
@@ -2549,6 +2550,7 @@ func TestPanics(t *testing.T) {
 	}
 }
 
+// nolint: dupl
 func TestGaugeFindOrCreateWithSourceSet(t *testing.T) {
 	e, err := NewGaugeElem(testGaugeElemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
