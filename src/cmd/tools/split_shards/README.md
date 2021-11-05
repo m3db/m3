@@ -11,7 +11,7 @@ $ make split_shards
 $ ./bin/split_shards
 Usage: split_shards [-b value] [-d value] [-f value] [-h value] [-s value] [parameters ...]
  -b, --block-until=value
-       Block Until Time [in nsec]
+       Block Until Time, exclusive [in nsec]
  -d, --dst-path=value
        Destination path prefix [e.g. /var/lib/m3db/data]
  -f, --factor=value
