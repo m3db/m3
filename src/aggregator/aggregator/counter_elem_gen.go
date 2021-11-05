@@ -708,9 +708,10 @@ func (e *CounterElem) processValue(
 							l.Error("previous start time not in state map",
 								zap.Time("ts", ts))
 						})
+					} else {
+						prev.Value = prevFlushState.consumedValues[aggTypeIdx]
+						prev.TimeNanos = int64(prevTimestamp)
 					}
-					prev.Value = prevFlushState.consumedValues[aggTypeIdx]
-					prev.TimeNanos = int64(prevTimestamp)
 				}
 				curr := transformation.Datapoint{
 					TimeNanos: int64(timestamp),
