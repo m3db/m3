@@ -192,7 +192,6 @@ func TestFlushTimesManagerStoreSyncSuccess(t *testing.T) {
 	var res schema.ShardSetFlushTimes
 	require.NoError(t, value.Unmarshal(&res))
 	require.Equal(t, *testFlushTimesProto, res)
-	return
 }
 
 func TestFlushTimesManagerCloseClosed(t *testing.T) {
