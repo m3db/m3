@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -43,30 +44,6 @@ var testForwardedWriterAggregationKey = aggregationKey{
 	aggregationID:     aggregation.MustCompressTypes(aggregation.Count),
 	storagePolicy:     policy.MustParseStoragePolicy("10s:2d"),
 	numForwardedTimes: 1,
-}
-
-func TestCachedValuesGrowth(t *testing.T) {
-	timeNanos := time.Now().UnixNano()
-	key := forwardedAggregationWithKey{
-		key:                      aggregationKey{},
-		totalRefCnt:              1,
-		currRefCnt:               0,
-		buckets:                  make(map[int64]forwardedAggregationBucket),
-		bufferForPastTimedMetric: int64(time.Minute * 5),
-		nowFn:                    time.Now,
-	}
-	for i := 0; i < 100; i++ {
-		for n := 0; n < 3; n++ {
-			timeNanos++
-			key.add(timeNanos, 1.0, 0.5, nil, true)
-		}
-		key.reset()
-	}
-	// 3 calls to add, each call adds 2 slices to the cache arrays.
-	require.Equal(t, 3*2, len(key.cachedValueArrays))
-	// go might increase the underlying array more than 1 when appending, so the capacity is > 6. Just need to make sure
-	// it doesn't grow on the order of calls to reset.
-	require.Equal(t, 8, cap(key.cachedValueArrays))
 }
 
 func TestForwardedWriterRegisterWriterClosed(t *testing.T) {
@@ -164,34 +141,36 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 	require.Equal(t, 0, len(agg.byKey[0].buckets))
 
 	// Validate that writeFn can be used to write data to the aggregation.
-	writeFn(aggKey, 1234, 5.67, 5.0, nil, false)
+	ts1 := xtime.UnixNano(1234)
+	writeFn(aggKey, int64(ts1), 5.67, 5.0, nil, false)
 	require.Equal(t, 1, len(agg.byKey[0].buckets))
-	require.Equal(t, int64(1234), agg.byKey[0].buckets[1234].timeNanos)
-	require.Equal(t, []float64{5.67}, agg.byKey[0].buckets[1234].values)
-	require.Equal(t, []float64{5.0}, agg.byKey[0].buckets[1234].prevValues)
-	require.Equal(t, uint32(0), agg.byKey[0].buckets[1234].version)
+	require.Equal(t, ts1, agg.byKey[0].buckets[0].timeNanos)
+	require.Equal(t, []float64{5.67}, agg.byKey[0].buckets[0].values)
+	require.Equal(t, []float64{5.0}, agg.byKey[0].buckets[0].prevValues)
+	require.Equal(t, uint32(0), agg.byKey[0].versions[ts1])
 	require.Nil(t, agg.byKey[0].buckets[0].annotation)
 
-	writeFn(aggKey, 1234, 1.78, 1.0, testAnnot, false)
+	writeFn(aggKey, int64(ts1), 1.78, 1.0, testAnnot, false)
 	require.Equal(t, 1, len(agg.byKey[0].buckets))
-	require.Equal(t, int64(1234), agg.byKey[0].buckets[1234].timeNanos)
-	require.Equal(t, []float64{5.67, 1.78}, agg.byKey[0].buckets[1234].values)
-	require.Equal(t, []float64{5.0, 1.0}, agg.byKey[0].buckets[1234].prevValues)
-	require.Equal(t, uint32(0), agg.byKey[0].buckets[1234].version)
-	require.Equal(t, testAnnot, agg.byKey[0].buckets[1234].annotation)
+	require.Equal(t, ts1, agg.byKey[0].buckets[0].timeNanos)
+	require.Equal(t, []float64{5.67, 1.78}, agg.byKey[0].buckets[0].values)
+	require.Equal(t, []float64{5.0, 1.0}, agg.byKey[0].buckets[0].prevValues)
+	require.Equal(t, uint32(0), agg.byKey[0].versions[ts1])
+	require.Equal(t, testAnnot, agg.byKey[0].buckets[0].annotation)
 
-	writeFn(aggKey, 1240, -2.95, 0.0, nil, false)
+	ts2 := xtime.UnixNano(1240)
+	writeFn(aggKey, int64(ts2), -2.95, 0.0, nil, false)
 	require.Equal(t, 2, len(agg.byKey[0].buckets))
-	require.Equal(t, int64(1240), agg.byKey[0].buckets[1240].timeNanos)
-	require.Equal(t, []float64{-2.95}, agg.byKey[0].buckets[1240].values)
-	require.Equal(t, []float64{0.0}, agg.byKey[0].buckets[1240].prevValues)
-	require.Equal(t, uint32(0), agg.byKey[0].buckets[1240].version)
+	require.Equal(t, ts2, agg.byKey[0].buckets[1].timeNanos)
+	require.Equal(t, []float64{-2.95}, agg.byKey[0].buckets[1].values)
+	require.Equal(t, []float64{0.0}, agg.byKey[0].buckets[1].prevValues)
+	require.Equal(t, uint32(0), agg.byKey[0].versions[ts2])
 
 	// Validate that onDoneFn can be used to flush data out.
 	expectedMetric1 := aggregated.ForwardedMetric{
 		Type:       mt,
 		ID:         mid,
-		TimeNanos:  1234,
+		TimeNanos:  int64(ts1),
 		Values:     []float64{5.67, 1.78},
 		PrevValues: []float64{5.0, 1.0},
 		Annotation: testAnnot,
@@ -199,7 +178,7 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 	expectedMetric2 := aggregated.ForwardedMetric{
 		Type:       mt,
 		ID:         mid,
-		TimeNanos:  1240,
+		TimeNanos:  int64(ts2),
 		Values:     []float64{-2.95},
 		PrevValues: []float64{0.0},
 		Version:    0,
@@ -212,7 +191,7 @@ func TestForwardedWriterRegisterNewAggregation(t *testing.T) {
 	}
 	c.EXPECT().WriteForwarded(expectedMetric1, expectedMeta).Return(nil)
 	c.EXPECT().WriteForwarded(expectedMetric2, expectedMeta).Return(nil)
-	require.NoError(t, onDoneFn(aggKey))
+	require.NoError(t, onDoneFn(aggKey, nil))
 	require.Equal(t, 1, agg.byKey[0].currRefCnt)
 }
 
@@ -414,7 +393,6 @@ func TestForwardedWriterPrepare(t *testing.T) {
 		TimeNanos:  1240,
 		Values:     []float64{98.2},
 		PrevValues: []float64{98.0},
-		Version:    0,
 	}
 	expectedMetric3 := aggregated.ForwardedMetric{
 		Type:       mt,
@@ -429,7 +407,6 @@ func TestForwardedWriterPrepare(t *testing.T) {
 		TimeNanos:  1239,
 		Values:     []float64{3.5},
 		PrevValues: []float64{0.0},
-		Version:    0,
 	}
 	expectedMeta := metadata.ForwardMetadata{
 		AggregationID:     aggregation.MustCompressTypes(aggregation.Count),
@@ -441,8 +418,8 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	c.EXPECT().WriteForwarded(expectedMetric2, expectedMeta).Return(nil).Times(2)
 	c.EXPECT().WriteForwarded(expectedMetric3, expectedMeta).Return(nil).Times(2)
 	c.EXPECT().WriteForwarded(expectedMetric4, expectedMeta).Return(nil).Times(2)
-	require.NoError(t, onDoneFn(aggKey))
-	require.NoError(t, onDoneFn2(aggKey))
+	require.NoError(t, onDoneFn(aggKey, nil))
+	require.NoError(t, onDoneFn2(aggKey, nil))
 
 	fw := w.(*forwardedWriter)
 	require.Equal(t, 2, len(fw.aggregations))
@@ -451,13 +428,11 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	require.Equal(t, 1, len(agg.byKey))
 	require.Equal(t, 2, len(agg.byKey[0].buckets))
 	require.Equal(t, 1, agg.byKey[0].currRefCnt)
-	require.Equal(t, 0, len(agg.byKey[0].cachedValueArrays))
 	agg, exists = fw.aggregations[newIDKey(mt, mid2)]
 	require.True(t, exists)
 	require.Equal(t, 1, len(agg.byKey))
 	require.Equal(t, 2, len(agg.byKey[0].buckets))
 	require.Equal(t, 1, agg.byKey[0].currRefCnt)
-	require.Equal(t, 0, len(agg.byKey[0].cachedValueArrays))
 
 	w.Prepare()
 
@@ -468,13 +443,11 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	require.Equal(t, 1, len(agg.byKey))
 	require.Equal(t, 0, len(agg.byKey[0].buckets))
 	require.Equal(t, 0, agg.byKey[0].currRefCnt)
-	require.Equal(t, 4, len(agg.byKey[0].cachedValueArrays))
 	agg, exists = fw.aggregations[newIDKey(mt, mid2)]
 	require.True(t, exists)
 	require.Equal(t, 1, len(agg.byKey))
 	require.Equal(t, 0, len(agg.byKey[0].buckets))
 	require.Equal(t, 0, agg.byKey[0].currRefCnt)
-	require.Equal(t, 4, len(agg.byKey[0].cachedValueArrays))
 
 	// Write datapoints again.
 	writeFn(aggKey, 1234, 3.4, 3.0, nil, false)
@@ -482,8 +455,8 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	writeFn(aggKey, 1240, 98.2, 98.0, nil, false)
 	writeFn2(aggKey, 1238, 3.4, 0.0, nil, false)
 	writeFn2(aggKey, 1239, 3.5, 0.0, nil, false)
-	require.NoError(t, onDoneFn(aggKey))
-	require.NoError(t, onDoneFn2(aggKey))
+	require.NoError(t, onDoneFn(aggKey, nil))
+	require.NoError(t, onDoneFn2(aggKey, nil))
 
 	require.Equal(t, 2, len(fw.aggregations))
 	agg, exists = fw.aggregations[newIDKey(mt, mid)]
@@ -491,13 +464,11 @@ func TestForwardedWriterPrepare(t *testing.T) {
 	require.Equal(t, 1, len(agg.byKey))
 	require.Equal(t, 2, len(agg.byKey[0].buckets))
 	require.Equal(t, 1, agg.byKey[0].currRefCnt)
-	require.Equal(t, 0, len(agg.byKey[0].cachedValueArrays))
 	agg, exists = fw.aggregations[newIDKey(mt, mid2)]
 	require.True(t, exists)
 	require.Equal(t, 1, len(agg.byKey))
 	require.Equal(t, 2, len(agg.byKey[0].buckets))
 	require.Equal(t, 1, agg.byKey[0].currRefCnt)
-	require.Equal(t, 0, len(agg.byKey[0].cachedValueArrays))
 }
 
 func TestForwardedWriterResend(t *testing.T) {
@@ -589,8 +560,8 @@ func TestForwardedWriterResend(t *testing.T) {
 	c.EXPECT().WriteForwarded(expectedMetric2, expectedMeta).Return(nil)
 	c.EXPECT().WriteForwarded(expectedMetric3, expectedMeta).Return(nil)
 	c.EXPECT().WriteForwarded(expectedMetric4, expectedMeta).Return(nil)
-	require.NoError(t, onDoneFn(aggKey))
-	require.NoError(t, onDoneFn2(aggKey))
+	require.NoError(t, onDoneFn(aggKey, nil))
+	require.NoError(t, onDoneFn2(aggKey, nil))
 
 	fw := w.(*forwardedWriter)
 	require.Equal(t, 2, len(fw.aggregations))
@@ -599,13 +570,11 @@ func TestForwardedWriterResend(t *testing.T) {
 	require.Equal(t, 1, len(agg.byKey))
 	require.Equal(t, 2, len(agg.byKey[0].buckets))
 	require.Equal(t, 1, agg.byKey[0].currRefCnt)
-	require.Equal(t, 0, len(agg.byKey[0].cachedValueArrays))
 	agg, exists = fw.aggregations[newIDKey(mt, mid2)]
 	require.True(t, exists)
 	require.Equal(t, 1, len(agg.byKey))
 	require.Equal(t, 2, len(agg.byKey[0].buckets))
 	require.Equal(t, 1, agg.byKey[0].currRefCnt)
-	require.Equal(t, 0, len(agg.byKey[0].cachedValueArrays))
 
 	w.Prepare()
 
@@ -614,15 +583,15 @@ func TestForwardedWriterResend(t *testing.T) {
 	agg, exists = fw.aggregations[newIDKey(mt, mid)]
 	require.True(t, exists)
 	require.Equal(t, 1, len(agg.byKey))
-	require.Equal(t, 2, len(agg.byKey[0].buckets))
+	require.Equal(t, 0, len(agg.byKey[0].buckets))
+	require.Equal(t, 2, len(agg.byKey[0].versions))
 	require.Equal(t, 0, agg.byKey[0].currRefCnt)
-	require.Equal(t, 4, len(agg.byKey[0].cachedValueArrays))
 	agg, exists = fw.aggregations[newIDKey(mt, mid2)]
 	require.True(t, exists)
 	require.Equal(t, 1, len(agg.byKey))
-	require.Equal(t, 2, len(agg.byKey[0].buckets))
+	require.Equal(t, 0, len(agg.byKey[0].buckets))
+	require.Equal(t, 2, len(agg.byKey[0].versions))
 	require.Equal(t, 0, agg.byKey[0].currRefCnt)
-	require.Equal(t, 4, len(agg.byKey[0].cachedValueArrays))
 
 	// Write datapoints again.
 	writeFn(aggKey, 1234, 3.4, 3.0, nil, true)
@@ -641,8 +610,8 @@ func TestForwardedWriterResend(t *testing.T) {
 	c.EXPECT().WriteForwarded(expectedMetric3, expectedMeta).Return(nil)
 	c.EXPECT().WriteForwarded(expectedMetric4, expectedMeta).Return(nil)
 
-	require.NoError(t, onDoneFn(aggKey))
-	require.NoError(t, onDoneFn2(aggKey))
+	require.NoError(t, onDoneFn(aggKey, nil))
+	require.NoError(t, onDoneFn2(aggKey, nil))
 
 	require.Equal(t, 2, len(fw.aggregations))
 	agg, exists = fw.aggregations[newIDKey(mt, mid)]
@@ -650,27 +619,25 @@ func TestForwardedWriterResend(t *testing.T) {
 	require.Equal(t, 1, len(agg.byKey))
 	require.Equal(t, 2, len(agg.byKey[0].buckets))
 	require.Equal(t, 1, agg.byKey[0].currRefCnt)
-	require.Equal(t, 4, len(agg.byKey[0].cachedValueArrays))
+	require.Equal(t, 2, len(agg.byKey[0].versions))
 	agg, exists = fw.aggregations[newIDKey(mt, mid2)]
 	require.True(t, exists)
 	require.Equal(t, 1, len(agg.byKey))
 	require.Equal(t, 2, len(agg.byKey[0].buckets))
+	require.Equal(t, 2, len(agg.byKey[0].versions))
 	require.Equal(t, 1, agg.byKey[0].currRefCnt)
-	require.Equal(t, 4, len(agg.byKey[0].cachedValueArrays))
 
-	// advance the time past the buffer to GC the buckets.
-	now = now.Add(time.Second * 10)
-	nowPtr = &now
 	w.Prepare()
+
+	// expire the versions
+	require.NoError(t, onDoneFn(aggKey, []xtime.UnixNano{xtime.UnixNano(1234), xtime.UnixNano(1240)}))
+	require.NoError(t, onDoneFn2(aggKey, []xtime.UnixNano{xtime.UnixNano(1238), xtime.UnixNano(1239)}))
 	require.Equal(t, 2, len(fw.aggregations))
-	agg, exists = fw.aggregations[newIDKey(mt, mid)]
+	agg = fw.aggregations[newIDKey(mt, mid)]
 	require.True(t, exists)
-	require.Equal(t, 1, len(agg.byKey))
-	require.Equal(t, 0, len(agg.byKey[0].buckets))
-	agg, exists = fw.aggregations[newIDKey(mt, mid2)]
-	require.True(t, exists)
-	require.Equal(t, 1, len(agg.byKey))
-	require.Equal(t, 0, len(agg.byKey[0].buckets))
+	require.Equal(t, 0, len(agg.byKey[0].versions))
+	agg = fw.aggregations[newIDKey(mt, mid2)]
+	require.Equal(t, 0, len(agg.byKey[0].versions))
 }
 
 func TestForwardedWriterCloseWriterClosed(t *testing.T) {
