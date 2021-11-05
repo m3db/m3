@@ -178,7 +178,7 @@ func (agg *aggregator) Open() error {
 	// NB: placement tick watches the placement manager, and initializes a
 	// topology change if the placement is updated. This changes which shards this
 	// aggregator is repsonsible for, and initiates leader elections. In the
-	// scenario where a placement change is ongoing when this aggregator is
+	// scenario where a placement change is received when this aggregator is
 	// closed, it's fine to ignore the result of the placement update, as applying
 	// the change only affects the current aggregator that is being closed anyway.
 	go agg.placementTick()
@@ -427,7 +427,8 @@ func (agg *aggregator) shardFor(id id.RawID) (*aggregatorShard, error) {
 func (agg *aggregator) processPlacementWithLock(
 	newPlacement placement.Placement,
 ) error {
-	// If someone has already processed the placement ahead of us, do nothing.
+	// If someone has already processed the placement ahead of us, or if the
+	// aggregator was closed before the placement update started, do nothing.
 	if !agg.shouldProcessPlacementWithLock(newPlacement) {
 		return nil
 	}
@@ -474,6 +475,10 @@ func (agg *aggregator) processPlacementWithLock(
 func (agg *aggregator) shouldProcessPlacementWithLock(
 	newPlacement placement.Placement,
 ) bool {
+	if agg.state == aggregatorClosed {
+		return false
+	}
+
 	// If there is no placement yet, or the placement has been updated,
 	// process this placement.
 	if agg.currPlacement == nil || agg.currPlacement != newPlacement {

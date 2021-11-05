@@ -339,7 +339,6 @@ func (mgr *flushManager) flush() {
 		if flushTask != nil {
 			flushTask.Run()
 		}
-
 		if waitFor > 0 {
 			mgr.sleepFn(waitFor)
 		}

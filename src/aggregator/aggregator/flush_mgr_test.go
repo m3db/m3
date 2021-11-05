@@ -708,11 +708,13 @@ func TestFlushManagerFlushTaskBlocksCloseAsLeader(t *testing.T) {
 
 	leaderFlushTask := NewMockflushTask(ctrl)
 	leaderFlushCh := make(chan struct{})
+	flushed := false
 	leaderFlushTask.EXPECT().Run().Do(func() {
 		<-leaderFlushCh
 		// NB: add some runtime to this task to ensure that Close does not finish
 		// before waiting for the UpdateFlushTimes call.
 		time.Sleep(time.Millisecond * 100)
+		flushed = true
 	})
 
 	leaderMgr := NewMockroleBasedFlushManager(ctrl)
@@ -733,4 +735,5 @@ func TestFlushManagerFlushTaskBlocksCloseAsLeader(t *testing.T) {
 
 	// NB: Close should be blocked until leaderFlushChan is signaled.
 	require.NoError(t, mgr.Close())
+	require.True(t, flushed)
 }

@@ -31,11 +31,10 @@ import (
 )
 
 const (
-	defaultCheckEvery             = time.Second
-	defaultJitterEnabled          = true
-	defaultFlushTimesPersistEvery = 10 * time.Second
-	defaultMaxBufferSize          = 5 * time.Minute
-	defaultForcedFlushWindowSize  = 10 * time.Second
+	defaultCheckEvery            = time.Second
+	defaultJitterEnabled         = true
+	defaultMaxBufferSize         = 5 * time.Minute
+	defaultForcedFlushWindowSize = 10 * time.Second
 )
 
 var defaultWorkerPoolSize = int(math.Max(float64(runtime.GOMAXPROCS(0)/8), 1.0))
