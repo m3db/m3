@@ -411,38 +411,6 @@ func (a commitlogsByTimeAndIndexAscending) Less(i, j int) bool {
 	return ti.Equal(tj) && ii < ij
 }
 
-// dataFileSetFilesByTimeAndVolumeIndexAscending sorts file sets files by their
-// block start times and volume index in ascending order. If the files do not
-// have block start times or indexes in their names, the result is undefined.
-type dataFileSetFilesByTimeAndVolumeIndexAscending []string
-
-func (a dataFileSetFilesByTimeAndVolumeIndexAscending) Len() int      { return len(a) }
-func (a dataFileSetFilesByTimeAndVolumeIndexAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a dataFileSetFilesByTimeAndVolumeIndexAscending) Less(i, j int) bool {
-	ti, ii, _ := TimeAndVolumeIndexFromDataFileSetFilename(a[i])
-	tj, ij, _ := TimeAndVolumeIndexFromDataFileSetFilename(a[j])
-	if ti.Before(tj) {
-		return true
-	}
-	return ti.Equal(tj) && ii < ij
-}
-
-// fileSetFilesByTimeAndVolumeIndexAscending sorts file sets files by their
-// block start times and volume index in ascending order. If the files do not
-// have block start times or indexes in their names, the result is undefined.
-type fileSetFilesByTimeAndVolumeIndexAscending []string
-
-func (a fileSetFilesByTimeAndVolumeIndexAscending) Len() int      { return len(a) }
-func (a fileSetFilesByTimeAndVolumeIndexAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a fileSetFilesByTimeAndVolumeIndexAscending) Less(i, j int) bool {
-	ti, ii, _ := TimeAndVolumeIndexFromFileSetFilename(a[i])
-	tj, ij, _ := TimeAndVolumeIndexFromFileSetFilename(a[j])
-	if ti.Before(tj) {
-		return true
-	}
-	return ti.Equal(tj) && ii < ij
-}
-
 // Returns the positions of filename delimiters ('-' and '.') and the number of
 // delimeters found, to be used in conjunction with the intComponentAtIndex
 // function to extract filename components. This function is deliberately
