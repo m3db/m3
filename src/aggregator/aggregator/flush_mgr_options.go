@@ -128,17 +128,18 @@ type FlushManagerOptions interface {
 }
 
 type flushManagerOptions struct {
-	clockOpts             clock.Options
-	instrumentOpts        instrument.Options
-	checkEvery            time.Duration
-	jitterEnabled         bool
-	maxJitterFn           FlushJitterFn
-	workerPool            sync.WorkerPool
-	placementManager      PlacementManager
-	electionManager       ElectionManager
-	flushTimesManager     FlushTimesManager
-	maxBufferSize         time.Duration
-	forcedFlushWindowSize time.Duration
+	clockOpts              clock.Options
+	instrumentOpts         instrument.Options
+	checkEvery             time.Duration
+	jitterEnabled          bool
+	maxJitterFn            FlushJitterFn
+	workerPool             sync.WorkerPool
+	placementManager       PlacementManager
+	electionManager        ElectionManager
+	flushTimesManager      FlushTimesManager
+	flushTimesPersistEvery time.Duration
+	maxBufferSize          time.Duration
+	forcedFlushWindowSize  time.Duration
 
 	bufferForPastTimedMetric time.Duration
 }

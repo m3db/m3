@@ -297,7 +297,10 @@ func TestLeaderFlushManagerPrepareNoFlushNoPersist(t *testing.T) {
 		doneCh          = make(chan struct{})
 	)
 
-	opts := NewFlushManagerOptions().SetJitterEnabled(false)
+	opts := NewFlushManagerOptions().
+		SetJitterEnabled(false).
+		SetFlushTimesPersistEvery(time.Second)
+
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn
 	buckets := testFlushBuckets(ctrl)
