@@ -220,9 +220,6 @@ func (mgr *followerFlushManager) Prepare(buckets []*flushBucket) (flushTask, tim
 	return mgr.flushTask, 0
 }
 
-// NB(artem): follower can not update flush times.
-func (mgr *followerFlushManager) UpdateFlushTimes([]*flushBucket) {}
-
 // NB(xichen): The follower flush manager flushes data based on the flush times
 // stored in kv and does not need to take extra actions when a new bucket is added.
 func (mgr *followerFlushManager) OnBucketAdded(int, *flushBucket) {}

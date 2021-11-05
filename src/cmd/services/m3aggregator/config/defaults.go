@@ -274,9 +274,10 @@ var (
 					MaxJitterPercent: 0.25,
 				},
 			},
-			NumWorkersPerCPU:      0.5,
-			MaxBufferSize:         5 * time.Minute,
-			ForcedFlushWindowSize: 10 * time.Second,
+			NumWorkersPerCPU:       0.5,
+			FlushTimesPersistEvery: 10 * time.Second,
+			MaxBufferSize:          5 * time.Minute,
+			ForcedFlushWindowSize:  10 * time.Second,
 		},
 		Flush: handler.FlushConfiguration{
 			Handlers: []handler.FlushHandlerConfiguration{
