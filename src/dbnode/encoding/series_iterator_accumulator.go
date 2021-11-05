@@ -135,27 +135,28 @@ func (it *seriesIteratorAccumulator) End() xtime.UnixNano {
 }
 
 func (it *seriesIteratorAccumulator) Next() bool {
-	if !it.firstNext {
+	if it.firstNext {
+		it.firstNext = false
 		if !it.hasNext() {
 			return false
 		}
 
-		it.moveToNext()
+		_, _, currAnnotation := it.Current()
+		fmt.Printf("seriesIteratorAccumulator len(currAnnotation)=%d, len(i.firstAnnotation_)=%d\n", len(currAnnotation), len(it.firstAnnotation))
+		if len(currAnnotation) > 0 {
+			it.firstAnnotation = make(ts.Annotation, len(currAnnotation))
+			copy(it.firstAnnotation, currAnnotation)
+		}
+
+		return true
 	}
 
-	it.firstNext = false
 	if !it.hasNext() {
 		return false
 	}
+	it.moveToNext()
 
-	_, _, currAnnotation := it.Current()
-	fmt.Printf("seriesIteratorAccumulator len(currAnnotation)=%d, len(i.firstAnnotation_)=%d\n", len(currAnnotation), len(it.firstAnnotation))
-	if len(currAnnotation) > 0 {
-		it.firstAnnotation = make(ts.Annotation, len(currAnnotation))
-		copy(it.firstAnnotation, currAnnotation)
-	}
-
-	return true
+	return it.hasNext()
 }
 
 func (it *seriesIteratorAccumulator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
