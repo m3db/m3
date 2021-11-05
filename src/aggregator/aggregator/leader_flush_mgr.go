@@ -117,9 +117,8 @@ func newLeaderFlushManager(
 		metrics:                newLeaderFlushManagerMetrics(scope),
 	}
 	mgr.flushTask = &leaderFlushTask{
-		mgr:            mgr,
-		flushers:       make([]flushingMetricList, 0, defaultInitialFlushCapacity),
-		onCompleteTask: &runFunctionTask{fn: func() {}},
+		mgr:      mgr,
+		flushers: make([]flushingMetricList, 0, defaultInitialFlushCapacity),
 	}
 	return mgr
 }
@@ -139,9 +138,8 @@ func (mgr *leaderFlushManager) Init(buckets []*flushBucket) {
 
 func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.Duration) {
 	var (
-		shouldFlush            = false
-		shouldUpdateFlushTimes = false
-		waitFor                = mgr.checkEvery
+		shouldFlush = false
+		waitFor     = mgr.checkEvery
 	)
 
 	mgr.Lock()
@@ -150,16 +148,6 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 	numFlushTimes := mgr.flushTimes.Len()
 	mgr.metrics.queueSize.Update(float64(numFlushTimes))
 	nowNanos := mgr.nowNanos()
-
-	// NB: if mgr.flushTimesPersistEvery is zero, always prepare a flush times
-	// update task.
-	durationSinceLastPersist := time.Duration(nowNanos - mgr.lastPersistAtNanos)
-	if durationSinceLastPersist >= mgr.flushTimesPersistEvery {
-		mgr.flushTask.onCompleteTask = mgr.newUpdateFlushTimesTask(buckets)
-		mgr.flushTask.runNextOnCompleteTask = true
-		shouldUpdateFlushTimes = true
-	}
-
 	if numFlushTimes > 0 {
 		earliestFlush := mgr.flushTimes.Min()
 		if nowNanos >= earliestFlush.timeNanos {
@@ -190,67 +178,53 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 		}
 	}
 
-	if !shouldFlush {
-		// NB: if enough time has passed since last flush time persist, run the
-		// persist by itself.
-		if shouldUpdateFlushTimes {
-			mgr.flushTask.runNextOnCompleteTask = false
-			return mgr.flushTask.onCompleteTask, waitFor
+	// NB: if mgr.flushTimesPersistEvery is zero, always prepare a flush times
+	// update task.
+	durationSinceLastPersist := time.Duration(nowNanos - mgr.lastPersistAtNanos)
+	if durationSinceLastPersist >= mgr.flushTimesPersistEvery && mgr.flushedSincePersist {
+		if shouldFlush {
+			mgr.flushTask.onComplete = func() {
+				mgr.Lock()
+				mgr.updateFlushTimesStoreWithLock(buckets)
+				mgr.Unlock()
+			}
+		} else {
+			mgr.updateFlushTimesStoreWithLock(buckets)
 		}
+	}
 
+	if !shouldFlush {
 		return nil, waitFor
 	}
 
 	return mgr.flushTask, waitFor
 }
 
-type runFunctionTask struct {
-	fn func()
-}
-
-func (t *runFunctionTask) Run() {
-	t.fn()
-}
-
-func (mgr *leaderFlushManager) newUpdateFlushTimesTask(
+func (mgr *leaderFlushManager) updateFlushTimesStoreWithLock(
 	buckets []*flushBucket,
-) flushTask {
-	fn := func() {
-		mgr.RLock()
-		if !mgr.flushedSincePersist {
-			mgr.RUnlock()
-			return
-		}
-
-		shards, err := mgr.placementManager.Shards()
-		if err != nil {
-			mgr.RUnlock()
-			mgr.metrics.getShardsError.Inc(1)
-			mgr.logger.Error("unable to determine shards owned by this instance", zap.Error(err))
-			return
-		}
-
-		mgr.RUnlock()
-
-		allShards := shards.All()
-
-		mgr.Lock()
-		defer mgr.Unlock()
-		if !mgr.flushedSincePersist {
-			return
-		}
-
-		mgr.flushedSincePersist = false
-		flushTimes := mgr.prepareFlushTimesWithLock(buckets, allShards)
-		if err := mgr.flushTimesManager.StoreAsync(flushTimes); err != nil {
-			mgr.metrics.flushTimesUpdateError.Inc(1)
-			mgr.logger.Error("unable to store flush times", zap.Error(err))
-		}
-
-		mgr.lastPersistAtNanos = mgr.nowNanos()
+) {
+	if !mgr.flushedSincePersist {
+		return
 	}
 
-	return &runFunctionTask{fn: fn}
+	shards, err := mgr.placementManager.Shards()
+	if err != nil {
+		mgr.RUnlock()
+		mgr.metrics.getShardsError.Inc(1)
+		mgr.logger.Error("unable to determine shards owned by this instance", zap.Error(err))
+		return
+	}
+
+	allShards := shards.All()
+
+	mgr.flushedSincePersist = false
+	flushTimes := mgr.prepareFlushTimesWithLock(buckets, allShards)
+	if err := mgr.flushTimesManager.StoreSync(flushTimes); err != nil {
+		mgr.metrics.flushTimesUpdateError.Inc(1)
+		mgr.logger.Error("unable to store flush times", zap.Error(err))
+	}
+
+	mgr.lastPersistAtNanos = mgr.nowNanos()
 }
 
 // NB(xichen): if the current instance is a leader, we need to update the flush
@@ -527,12 +501,11 @@ func cloneForwardedFlushTimesForResolution(
 }
 
 type leaderFlushTask struct {
-	mgr                   *leaderFlushManager
-	duration              tally.Timer
-	jitter                time.Duration
-	flushers              []flushingMetricList
-	onCompleteTask        flushTask
-	runNextOnCompleteTask bool
+	mgr        *leaderFlushManager
+	duration   tally.Timer
+	jitter     time.Duration
+	flushers   []flushingMetricList
+	onComplete func()
 }
 
 func (t *leaderFlushTask) Run() {
@@ -579,9 +552,8 @@ func (t *leaderFlushTask) Run() {
 	wgWorkers.Wait()
 	t.duration.Record(mgr.nowFn().Sub(start))
 
-	if t.onCompleteTask != nil && t.runNextOnCompleteTask {
-		t.runNextOnCompleteTask = false
-		t.onCompleteTask.Run()
+	if t.onComplete != nil {
+		t.onComplete()
 	}
 }
 
