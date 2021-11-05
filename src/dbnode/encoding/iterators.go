@@ -21,6 +21,7 @@
 package encoding
 
 import (
+	"fmt"
 	"math"
 	"sort"
 
@@ -163,6 +164,7 @@ func (i *iterators) moveToValidNext() (bool, error) {
 		if next {
 			if len(i.firstAnnotation_) == 0 {
 				_, _, currAnnotation := iter.Current()
+				fmt.Printf("len(currAnnotation)=%d, len(i.firstAnnotation_)=%d\n", len(currAnnotation), len(i.firstAnnotation_))
 				if len(currAnnotation) > 0 {
 					i.firstAnnotation_ = make(ts.Annotation, len(currAnnotation))
 					copy(i.firstAnnotation_, currAnnotation)
