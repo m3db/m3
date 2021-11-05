@@ -280,7 +280,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 
 	var (
 		shardDir       = ShardDataDirPath(filePathPrefix, testNs1ID, shard)
-		checkpointFile = dataFilesetPathFromTimeAndIndex(shardDir, testWriterStart, 0, checkpointFileSuffix, false)
+		checkpointFile = dataFilesetPathFromTimeAndIndex(shardDir, testWriterStart, 0, CheckpointFileSuffix, false)
 	)
 	exists, err := CompleteCheckpointFileExists(checkpointFile)
 	require.NoError(t, err)
@@ -351,11 +351,11 @@ func TestReadOpenDigestOfDigestMismatch(t *testing.T) {
 	testReadOpen(
 		t,
 		map[string][]byte{
-			infoFileSuffix:       {0x1},
+			InfoFileSuffix:       {0x1},
 			indexFileSuffix:      {0x2},
 			dataFileSuffix:       {0x3},
-			digestFileSuffix:     {0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
-			checkpointFileSuffix: {0x12, 0x0, 0x7a, 0x0},
+			DigestFileSuffix:     {0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
+			CheckpointFileSuffix: {0x12, 0x0, 0x7a, 0x0},
 		},
 	)
 }
@@ -364,11 +364,11 @@ func TestReadOpenInfoDigestMismatch(t *testing.T) {
 	testReadOpen(
 		t,
 		map[string][]byte{
-			infoFileSuffix:       {0xa},
+			InfoFileSuffix:       {0xa},
 			indexFileSuffix:      {0x2},
 			dataFileSuffix:       {0x3},
-			digestFileSuffix:     {0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
-			checkpointFileSuffix: {0x13, 0x0, 0x7a, 0x0},
+			DigestFileSuffix:     {0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
+			CheckpointFileSuffix: {0x13, 0x0, 0x7a, 0x0},
 		},
 	)
 }
@@ -388,11 +388,11 @@ func TestReadOpenIndexDigestMismatch(t *testing.T) {
 	testReadOpen(
 		t,
 		map[string][]byte{
-			infoFileSuffix:       b,
+			InfoFileSuffix:       b,
 			indexFileSuffix:      {0xa},
 			dataFileSuffix:       {0x3},
-			digestFileSuffix:     digestOfDigest,
-			checkpointFileSuffix: buf,
+			DigestFileSuffix:     digestOfDigest,
+			CheckpointFileSuffix: buf,
 		},
 	)
 }

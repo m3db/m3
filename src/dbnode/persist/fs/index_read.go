@@ -121,9 +121,9 @@ func (r *indexReader) Open(
 	default:
 		return result, fmt.Errorf("cannot open index reader for fileset type: %s", opts.FileSetType)
 	}
-	checkpointFilepath = filesetPathFromTimeAndIndex(r.namespaceDir, r.start, r.volumeIndex, checkpointFileSuffix)
-	infoFilepath = filesetPathFromTimeAndIndex(r.namespaceDir, r.start, r.volumeIndex, infoFileSuffix)
-	digestFilepath = filesetPathFromTimeAndIndex(r.namespaceDir, r.start, r.volumeIndex, digestFileSuffix)
+	checkpointFilepath = FilesetPathFromTimeAndIndex(r.namespaceDir, r.start, r.volumeIndex, CheckpointFileSuffix)
+	infoFilepath = FilesetPathFromTimeAndIndex(r.namespaceDir, r.start, r.volumeIndex, InfoFileSuffix)
+	digestFilepath = FilesetPathFromTimeAndIndex(r.namespaceDir, r.start, r.volumeIndex, DigestFileSuffix)
 
 	// If there is no checkpoint file, don't read the index files.
 	if err := r.readCheckpointFile(checkpointFilepath); err != nil {

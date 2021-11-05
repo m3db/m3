@@ -57,7 +57,7 @@ func TestPersistenceManagerPrepareDataFileExistsNoDelete(t *testing.T) {
 		shard              = uint32(0)
 		blockStart         = xtime.FromSeconds(1000)
 		shardDir           = createDataShardDir(t, pm.filePathPrefix, testNs1ID, shard)
-		checkpointFilePath = filesetPathFromTimeLegacy(shardDir, blockStart, checkpointFileSuffix)
+		checkpointFilePath = filesetPathFromTimeLegacy(shardDir, blockStart, CheckpointFileSuffix)
 		checkpointFileBuf  = make([]byte, CheckpointFileSizeBytes)
 	)
 	createFile(t, checkpointFilePath, checkpointFileBuf)
@@ -103,7 +103,7 @@ func TestPersistenceManagerPrepareDataFileExistsWithDelete(t *testing.T) {
 
 	var (
 		shardDir           = createDataShardDir(t, pm.filePathPrefix, testNs1ID, shard)
-		checkpointFilePath = filesetPathFromTimeLegacy(shardDir, blockStart, checkpointFileSuffix)
+		checkpointFilePath = filesetPathFromTimeLegacy(shardDir, blockStart, CheckpointFileSuffix)
 		checkpointFileBuf  = make([]byte, CheckpointFileSizeBytes)
 	)
 	createFile(t, checkpointFilePath, checkpointFileBuf)
@@ -323,7 +323,7 @@ func TestPersistenceManagerPrepareIndexFileExists(t *testing.T) {
 
 	blockStart := xtime.FromSeconds(1000)
 	indexDir := createIndexDataDir(t, pm.filePathPrefix, testNs1ID)
-	checkpointFilePath := filesetPathFromTimeAndIndex(indexDir, blockStart, 0, checkpointFileSuffix)
+	checkpointFilePath := FilesetPathFromTimeAndIndex(indexDir, blockStart, 0, CheckpointFileSuffix)
 
 	digestBuf := digest.NewBuffer()
 	digestBuf.WriteDigest(digest.Checksum([]byte("foo")))
