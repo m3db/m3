@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -653,8 +654,8 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
 	require.Len(t, e.flushState, 1)
-	flushState := e.flushState[xtime.UnixNano(alignedstartAtNanos[0])]
-	consumedVal := flushState.consumedValues
+	fState := e.flushState[xtime.UnixNano(alignedstartAtNanos[0])]
+	consumedVal := fState.consumedValues
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0])
 
@@ -685,8 +686,8 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 1, len(e.values))
 	require.Len(t, e.flushState, 1)
-	flushState = e.flushState[xtime.UnixNano(alignedstartAtNanos[2])]
-	consumedVal = flushState.consumedValues
+	fState = e.flushState[xtime.UnixNano(alignedstartAtNanos[2])]
+	consumedVal = fState.consumedValues
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 589.0, consumedVal[0])
 
@@ -1193,8 +1194,8 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
 	require.Len(t, e.flushState, 1)
-	flushState := e.flushState[xtime.UnixNano(alignedstartAtNanos[0])]
-	consumedVal := flushState.consumedValues
+	fState := e.flushState[xtime.UnixNano(alignedstartAtNanos[0])]
+	consumedVal := fState.consumedValues
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0])
 
@@ -1221,8 +1222,8 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 1, len(e.values))
 	require.Len(t, e.flushState, 1)
-	flushState = e.flushState[xtime.UnixNano(alignedstartAtNanos[2])]
-	consumedVal = flushState.consumedValues
+	fState = e.flushState[xtime.UnixNano(alignedstartAtNanos[2])]
+	consumedVal = fState.consumedValues
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 589.0, consumedVal[0])
 
@@ -2154,8 +2155,8 @@ func TestGaugeElemResendBufferForwarding(t *testing.T) {
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 3, len(e.values))
 	require.Len(t, e.flushState, 1)
-	flushState := e.flushState[xtime.UnixNano(alignedstartAtNanos[0])]
-	consumedVal := flushState.consumedValues
+	fState := e.flushState[xtime.UnixNano(alignedstartAtNanos[0])]
+	consumedVal := fState.consumedValues
 	require.Len(t, consumedVal, 1)
 	require.Equal(t, 123.0, consumedVal[0])
 
@@ -2358,6 +2359,138 @@ func TestGaugeFindOrCreateNoSourceSet(t *testing.T) {
 			_, ok := expected[k]
 			require.True(t, ok)
 		}
+	}
+}
+
+// confirms that when panics are enabled, we do panic, and when disabled,
+// the code safely proceeds (and does not encounter some unexpected runtime panic)
+func TestPanics(t *testing.T) {
+	opts := newTestOptions().SetInstrumentOptions(instrument.NewOptions())
+	elemData := testCounterElemData
+
+	tests := []struct {
+		name   string
+		testFn func()
+	}{
+		{
+			name: "panic if non-existent flush states are expired",
+			testFn: func() {
+				elem, err := NewCounterElem(elemData, NewElemOptions(opts))
+				require.NoError(t, err)
+				elem.flushStateToExpire = []xtime.UnixNano{0, 1, 2}
+				elem.expireFlushState()
+			},
+		},
+		{
+			name: "panic if minStartTime moved beyond remaining values on Close",
+			testFn: func() {
+				elem, err := NewCounterElem(elemData, NewElemOptions(opts))
+				require.NoError(t, err)
+				elem.flushStateToExpire = []xtime.UnixNano{0, 1, 2}
+
+				// Panic case where minStartTime > min(elem.values)
+				elem.values[10] = timedCounter{
+					lockedAgg: &lockedCounterAggregation{
+						aggregation: newCounterAggregation(raggregation.NewCounter(elem.aggOpts)),
+					},
+				}
+				elem.minStartTime = 11
+
+				elem.Close()
+			},
+		},
+		{
+			name: "panic from dangling flushState on Close",
+			testFn: func() {
+				elem, err := NewCounterElem(elemData, NewElemOptions(opts))
+				require.NoError(t, err)
+				elem.flushStateToExpire = []xtime.UnixNano{0, 1, 2}
+
+				// i.e. flushState to cleanup but no associated elem.values
+				elem.flushState[10] = flushState{}
+
+				elem.Close()
+			},
+		},
+		{
+			name: "panic if invalid flush state",
+			testFn: func() {
+				elem, err := NewCounterElem(elemData, NewElemOptions(opts))
+				require.NoError(t, err)
+
+				counter := timedCounter{
+					lockedAgg: &lockedCounterAggregation{
+						aggregation: newCounterAggregation(raggregation.NewCounter(elem.aggOpts)),
+					},
+				}
+
+				elem.toConsume, _ = elem.appendConsumeStateWithLock(counter, elem.toConsume, nil)
+				toConsume := elem.toConsume[0]
+				toConsume.startAt = xtime.UnixNano(10)
+
+				// Panic case is where dirty + flushed + !resendEnabled since only resendEnabled
+				// allows for updating dirty/flushed aggs.
+				toConsume.dirty = true
+				toConsume.resendEnabled = false
+				elem.flushState[toConsume.startAt] = flushState{
+					flushed: true,
+				}
+
+				localFn, _ := testFlushLocalMetricFn()
+				forwardFn, _ := testFlushForwardedMetricFn()
+				elem.processValue(toConsume,
+					standardMetricTimestampNanos,
+					localFn,
+					forwardFn,
+					0, 0, 0,
+					consumeType)
+			},
+		},
+		{
+			name: "panic if no consumedValues",
+			testFn: func() {
+				elemData := testCounterElemData
+				elemData.Pipeline = testPipeline
+				elem, err := NewCounterElem(elemData, NewElemOptions(opts))
+				require.NoError(t, err)
+
+				counter := timedCounter{
+					lockedAgg: &lockedCounterAggregation{
+						aggregation: newCounterAggregation(raggregation.NewCounter(elem.aggOpts)),
+					},
+				}
+				elem.toConsume, _ = elem.appendConsumeStateWithLock(counter, elem.toConsume, nil)
+				toConsume := elem.toConsume[0]
+
+				// Panic case is where startAt has a flushState entry but prevStartTime does not.
+				toConsume.startAt = xtime.UnixNano(10)
+				toConsume.prevStartTime = xtime.UnixNano(9)
+				elem.flushState[toConsume.startAt] = flushState{
+					flushed: true,
+				}
+				elem.flushState[toConsume.startAt] = flushState{}
+
+				localFn, _ := testFlushLocalMetricFn()
+				forwardFn, _ := testFlushForwardedMetricFn()
+				elem.processValue(toConsume,
+					standardMetricTimestampNanos,
+					localFn,
+					forwardFn,
+					0, 0, 0,
+					consumeType)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			// Test panics enabled/disabled.
+			instrument.SetShouldPanicEnvironmentVariable(true)
+			assert.Panics(t, tt.testFn, "should panic but did not")
+			instrument.SetShouldPanicEnvironmentVariable(false)
+			tt.testFn()
+		})
 	}
 }
 
