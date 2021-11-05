@@ -20,14 +20,15 @@
 
 package docker
 
-type dockerImage struct {
-	name string
-	tag  string
+// Image represents a docker image.
+type Image struct {
+	Name string
+	Tag  string
 }
 
 type setupOptions struct {
-	dbNodeImage      dockerImage
-	coordinatorImage dockerImage
+	dbNodeImage      Image
+	coordinatorImage Image
 
 	existingCluster          bool
 	dbNodeContainerName      string
@@ -40,14 +41,14 @@ type SetupOptions func(*setupOptions)
 // WithDBNodeImage sets an option to use an image name and tag for the DB node.
 func WithDBNodeImage(name, tag string) SetupOptions {
 	return func(o *setupOptions) {
-		o.dbNodeImage = dockerImage{name: name, tag: tag}
+		o.dbNodeImage = Image{Name: name, Tag: tag}
 	}
 }
 
 // WithCoordinatorImage sets an option to use an image name and tag for the coordinator.
 func WithCoordinatorImage(name, tag string) SetupOptions {
 	return func(o *setupOptions) {
-		o.coordinatorImage = dockerImage{name: name, tag: tag}
+		o.coordinatorImage = Image{Name: name, Tag: tag}
 	}
 }
 
