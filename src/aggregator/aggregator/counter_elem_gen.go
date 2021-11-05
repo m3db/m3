@@ -370,6 +370,43 @@ func (e *CounterElem) Consume(
 		e.Unlock()
 		return false
 	}
+
+	// move currently dirty aggs to toConsume to process next
+	e.dirtyToConsumeWithLock(targetNanos, resolution, isEarlierThanFn)
+
+	// expire the values and aggregations while we still hold the lock.
+	e.expireValuesWithLock(targetNanos, isEarlierThanFn)
+	canCollect := len(e.dirty) == 0 && e.tombstoned
+	e.Unlock()
+
+	// Process the aggregations that are ready for consumption.
+	for _, cState := range e.toConsume {
+		e.processValue(cState,
+			timestampNanosFn,
+			flushLocalFn,
+			flushForwardedFn,
+			resolution,
+			latenessAllowed,
+			jitter,
+			flushType,
+		)
+	}
+
+	// expire the flush state after processing since it's needed in the processing.
+	e.expireFlushState()
+
+	if e.parsedPipeline.HasRollup {
+		forwardedAggregationKey, _ := e.ForwardedAggregationKey()
+		onForwardedFlushedFn(e.onForwardedAggregationWrittenFn, forwardedAggregationKey)
+	}
+
+	return canCollect
+}
+
+func (e *CounterElem) dirtyToConsumeWithLock(targetNanos int64,
+	resolution time.Duration,
+	isEarlierThanFn isEarlierThanFn,
+) {
 	e.toConsume = e.toConsume[:0]
 	// Evaluate and GC expired items.
 	dirtyTimes := e.dirty
@@ -415,33 +452,6 @@ func (e *CounterElem) Consume(
 			}
 		}
 	}
-	// expire the values and aggregations while we still hold the lock.
-	e.expireValuesWithLock(targetNanos, isEarlierThanFn)
-	canCollect := len(e.dirty) == 0 && e.tombstoned
-	e.Unlock()
-
-	// Process the aggregations that are ready for consumption.
-	for _, cState := range e.toConsume {
-		e.processValue(cState,
-			timestampNanosFn,
-			flushLocalFn,
-			flushForwardedFn,
-			resolution,
-			latenessAllowed,
-			jitter,
-			flushType,
-		)
-	}
-
-	// expire the flush state after processing since it's needed in the processing.
-	e.expireFlushState()
-
-	if e.parsedPipeline.HasRollup {
-		forwardedAggregationKey, _ := e.ForwardedAggregationKey()
-		onForwardedFlushedFn(e.onForwardedAggregationWrittenFn, forwardedAggregationKey)
-	}
-
-	return canCollect
 }
 
 func (e *CounterElem) isFlushed(c consumeState) bool {
