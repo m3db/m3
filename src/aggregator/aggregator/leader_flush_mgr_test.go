@@ -428,7 +428,7 @@ func TestLeaderFlushManagerPrepareNoFlushWithPersistTwice(t *testing.T) {
 
 func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
 	ctrl := xtest.NewController(t)
-	// defer ctrl.Finish()
+	defer ctrl.Finish()
 
 	var (
 		storeAsyncCount int
@@ -449,7 +449,10 @@ func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
 	placementManager := NewMockPlacementManager(ctrl)
 	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil)
 
-	opts := NewFlushManagerOptions().SetJitterEnabled(false)
+	opts := NewFlushManagerOptions().
+		SetJitterEnabled(false).
+		SetFlushTimesPersistEvery(time.Second)
+
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn
 	mgr.lastPersistAtNanos = now.UnixNano()
@@ -460,13 +463,12 @@ func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
 	mgr.Init(buckets)
 	now = now.Add(2 * time.Second)
 	flushTask, dur := mgr.Prepare(buckets)
-	// task.onCompleteTask.Run()
 
 	// Validate flush times persisted match expectation.
 	require.NotNil(t, flushTask)
 	require.Equal(t, time.Duration(0), dur)
 	task := flushTask.(*leaderFlushTask)
-	// task := flushTask.(*leaderFlushTask)
+	task.onCompleteTask.Run()
 	require.False(t, mgr.flushedSincePersist)
 	require.Equal(t, buckets[2].flushers, task.flushers)
 	require.Equal(t, 1, storeAsyncCount)
@@ -503,7 +505,10 @@ func TestLeaderFlushManagerPrepareWithRedirectedShard(t *testing.T) {
 	placementManager := NewMockPlacementManager(ctrl)
 	placementManager.EXPECT().Shards().Return(shard.NewShards([]shard.Shard{redirectedShard}), nil)
 
-	opts := NewFlushManagerOptions().SetJitterEnabled(false)
+	opts := NewFlushManagerOptions().
+		SetJitterEnabled(false).
+		SetFlushTimesPersistEvery(time.Second)
+
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn
 	mgr.lastPersistAtNanos = now.UnixNano()
@@ -519,8 +524,9 @@ func TestLeaderFlushManagerPrepareWithRedirectedShard(t *testing.T) {
 	// Validate flush times persisted match expectation.
 	require.NotNil(t, flushTask)
 	require.Equal(t, time.Duration(0), dur)
-	require.False(t, mgr.flushedSincePersist)
 	task := flushTask.(*leaderFlushTask)
+	task.onCompleteTask.Run()
+	require.False(t, mgr.flushedSincePersist)
 	require.Equal(t, buckets[2].flushers, task.flushers)
 	require.Equal(t, 1, storeAsyncCount)
 	validateShardSetFlushTimes(t, testFlushTimesWithRedirected, stored)

@@ -21,7 +21,6 @@
 package aggregator
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -152,12 +151,10 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 	mgr.metrics.queueSize.Update(float64(numFlushTimes))
 	nowNanos := mgr.nowNanos()
 
-	// NB: if mgr.flushTimesPersistEvery is zero, always complete a flush times
-	// update when mgr.flushedSincePersist is true.
+	// NB: if mgr.flushTimesPersistEvery is zero, always prepare a flush times
+	// update task.
 	durationSinceLastPersist := time.Duration(nowNanos - mgr.lastPersistAtNanos)
-	fmt.Println("durationSinceLastPersist", durationSinceLastPersist)
-	if mgr.flushTimesPersistEvery == 0 ||
-		durationSinceLastPersist > mgr.flushTimesPersistEvery {
+	if durationSinceLastPersist >= mgr.flushTimesPersistEvery {
 		mgr.flushTask.onCompleteTask = mgr.newUpdateFlushTimesTask(buckets)
 		mgr.flushTask.runNextOnCompleteTask = true
 		shouldUpdateFlushTimes = true
@@ -197,6 +194,7 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 		// NB: if enough time has passed since last flush time persist, run the
 		// persist by itself.
 		if shouldUpdateFlushTimes {
+			mgr.flushTask.runNextOnCompleteTask = false
 			return mgr.flushTask.onCompleteTask, waitFor
 		}
 

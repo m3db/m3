@@ -450,16 +450,15 @@ func TestFlushManagerFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		slept                    int32
-		followerFlushes          int
-		followerInits            int
-		leaderFlushes            int
-		leaderInits              int
-		electionStateLock        sync.Mutex
-		electionState            = FollowerState
-		signalCh                 = make(chan struct{})
-		captured                 []*flushBucket
-		capturedFlushTimeUpdates []*flushBucket
+		slept             int32
+		followerFlushes   int
+		followerInits     int
+		leaderFlushes     int
+		leaderInits       int
+		electionStateLock sync.Mutex
+		electionState     = FollowerState
+		signalCh          = make(chan struct{})
+		captured          []*flushBucket
 	)
 	followerFlushTask := NewMockflushTask(ctrl)
 	followerFlushTask.EXPECT().
@@ -515,12 +514,6 @@ func TestFlushManagerFlush(t *testing.T) {
 			return leaderFlushTask, time.Second
 		}).
 		AnyTimes()
-	leaderMgr.EXPECT().
-		UpdateFlushTimes(gomock.Any()).
-		DoAndReturn(func(buckets []*flushBucket) {
-			capturedFlushTimeUpdates = buckets
-		}).
-		AnyTimes()
 
 	followerMgr := NewMockroleBasedFlushManager(ctrl)
 	followerMgr.EXPECT().Open().AnyTimes()
@@ -533,12 +526,6 @@ func TestFlushManagerFlush(t *testing.T) {
 		DoAndReturn(func(buckets []*flushBucket) (flushTask, time.Duration) {
 			captured = buckets
 			return followerFlushTask, time.Second
-		}).
-		AnyTimes()
-	followerMgr.EXPECT().
-		UpdateFlushTimes(gomock.Any()).
-		DoAndReturn(func(buckets []*flushBucket) {
-			capturedFlushTimeUpdates = buckets
 		}).
 		AnyTimes()
 
@@ -613,12 +600,6 @@ func TestFlushManagerFlush(t *testing.T) {
 	for i := range expectedBuckets {
 		require.Equal(t, expectedBuckets[i].interval, captured[i].interval)
 		require.Equal(t, expectedBuckets[i].flushers, captured[i].flushers)
-	}
-
-	require.Equal(t, len(expectedBuckets), len(capturedFlushTimeUpdates))
-	for i := range expectedBuckets {
-		require.Equal(t, expectedBuckets[i].interval, capturedFlushTimeUpdates[i].interval)
-		require.Equal(t, expectedBuckets[i].flushers, capturedFlushTimeUpdates[i].flushers)
 	}
 
 	mgr.state = flushManagerClosed
@@ -738,7 +719,6 @@ func TestFlushManagerFlushTaskBlocksCloseAsLeader(t *testing.T) {
 	leaderMgr.EXPECT().Open()
 	leaderMgr.EXPECT().Init(gomock.Any())
 	leaderMgr.EXPECT().Prepare(gomock.Any()).Return(leaderFlushTask, waitFor)
-	leaderMgr.EXPECT().UpdateFlushTimes(gomock.Any())
 	leaderMgr.EXPECT().Close().Do(func() {
 		leaderFlushCh <- struct{}{}
 	})

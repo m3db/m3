@@ -175,6 +175,12 @@ func (agg *aggregator) Open() error {
 		go agg.tick()
 	}
 
+	// NB: placement tick watches the placement manager, and initializes a
+	// topology change if the placement is updated. This changes which shards this
+	// aggregator is repsonsible for, and initiates leader elections. In the
+	// scenario where a placement change is ongoing when this aggregator is
+	// closed, it's fine to ignore the result of the placement update, as applying
+	// the change only affects the current aggregator that is being closed anyway.
 	go agg.placementTick()
 	agg.state = aggregatorOpen
 	return nil
