@@ -353,6 +353,7 @@ func setupIndex(t *testing.T,
 	lifecycleFns.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
 
 	if !expectAggregateQuery {
+		lifecycleFns.EXPECT().ReconciledOnIndexSeries().Return(lifecycleFns, func() {}, false)
 		lifecycleFns.EXPECT().IndexedRange().Return(ts, ts)
 		lifecycleFns.EXPECT().IndexedForBlockStart(ts).Return(true)
 	}

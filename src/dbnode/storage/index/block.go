@@ -170,6 +170,7 @@ type blockMetrics struct {
 	queryDocsMatched                tally.Histogram
 	aggregateSeriesMatched          tally.Histogram
 	aggregateDocsMatched            tally.Histogram
+	reconciledEntryOnQuery          tally.Counter
 }
 
 func newBlockMetrics(s tally.Scope) blockMetrics {
@@ -196,6 +197,7 @@ func newBlockMetrics(s tally.Scope) blockMetrics {
 		queryDocsMatched:       s.Histogram("query-docs-matched", buckets),
 		aggregateSeriesMatched: s.Histogram("aggregate-series-matched", buckets),
 		aggregateDocsMatched:   s.Histogram("aggregate-docs-matched", buckets),
+		reconciledEntryOnQuery: s.Counter("reconciled-entry-on-query"),
 	}
 }
 
@@ -543,15 +545,20 @@ func (b *block) queryWithSpan(
 		// Ensure that the block contains any of the relevant time segments for the query range.
 		doc := iter.Current()
 		if md, ok := doc.Metadata(); ok && md.OnIndexSeries != nil {
+			onIndexSeries, cleanup, reconciled := md.OnIndexSeries.ReconciledOnIndexSeries()
+			if reconciled {
+				b.metrics.reconciledEntryOnQuery.Inc(1)
+			}
+
 			var (
 				inBlock                bool
 				currentBlock           = opts.StartInclusive.Truncate(b.blockSize)
 				endExclusive           = opts.EndExclusive
-				minIndexed, maxIndexed = md.OnIndexSeries.IndexedRange()
+				minIndexed, maxIndexed = onIndexSeries.IndexedRange()
 			)
-
 			if maxIndexed == 0 {
 				// Empty range.
+				cleanup()
 				continue
 			}
 
@@ -566,9 +573,11 @@ func (b *block) queryWithSpan(
 			}
 
 			for !inBlock && currentBlock.Before(endExclusive) {
-				inBlock = md.OnIndexSeries.IndexedForBlockStart(currentBlock)
+				inBlock = onIndexSeries.IndexedForBlockStart(currentBlock)
 				currentBlock = currentBlock.Add(b.blockSize)
 			}
+
+			cleanup()
 
 			if !inBlock {
 				continue

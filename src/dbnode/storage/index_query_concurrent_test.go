@@ -185,6 +185,10 @@ func testNamespaceIndexHighConcurrentQueries(
 				return ts.Equal(st)
 			}).
 			AnyTimes()
+		onIndexSeries.EXPECT().
+			ReconciledOnIndexSeries().
+			Return(onIndexSeries, func() {}, false).
+			AnyTimes()
 
 		batch := index.NewWriteBatch(index.WriteBatchOptions{
 			InitialCapacity: idsPerBlock,

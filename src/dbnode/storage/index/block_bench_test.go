@@ -134,3 +134,7 @@ func (m mockOnIndexSeries) NeedsIndexGarbageCollected() bool           { return 
 func (m mockOnIndexSeries) IndexedRange() (xtime.UnixNano, xtime.UnixNano) {
 	return 0, 0
 }
+
+func (m mockOnIndexSeries) ReconciledOnIndexSeries() (doc.OnIndexSeries, doc.ReconciledOnIndexSeriesCleanupFn, bool) {
+	return m, func() {}, false
+}

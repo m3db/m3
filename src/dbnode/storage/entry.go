@@ -151,6 +151,26 @@ func (entry *Entry) IndexedRange() (xtime.UnixNano, xtime.UnixNano) {
 	return min, max
 }
 
+// ReconciledOnIndexSeries attempts to retrieve the most recent index entry from the
+// shard if the entry this method was called on was never inserted there. If there
+// is an error during retrieval, simply returns the current entry. Additionally,
+// returns a cleanup function to run once finished using the reconciled entry and
+// a boolean value indicating whether the result came from reconciliation or not.
+func (entry *Entry) ReconciledOnIndexSeries() (doc.OnIndexSeries, doc.ReconciledOnIndexSeriesCleanupFn, bool) {
+	if entry.insertTime.Load() > 0 {
+		return entry, func() {}, false
+	}
+
+	e, _, err := entry.Shard.TryRetrieveSeriesAndIncrementReaderWriterCount(entry.ID)
+	if err != nil || e == nil {
+		return entry, func() {}, false
+	}
+
+	return e, func() {
+		e.DecrementReaderWriterCount()
+	}, true
+}
+
 // NeedsIndexUpdate returns a bool to indicate if the Entry needs to be indexed
 // for the provided blockStart. It only allows a single index attempt at a time
 // for a single entry.

@@ -129,4 +129,17 @@ type OnIndexSeries interface {
 	// The range is inclusive. Note that there may be uncovered gaps within the range.
 	// Returns (0, 0) for an empty range.
 	IndexedRange() (xtime.UnixNano, xtime.UnixNano)
+
+	// ReconciledOnIndexSeries attempts to retrieve the most recent index entry from the
+	// shard if the entry this method was called on was never inserted there. If there
+	// is an error during retrieval, simply returns the current entry. Additionally,
+	// returns a cleanup function to run once finished using the reconciled entry and
+	// a boolean value indicating whether the result came from reconciliation or not.
+	// Cleanup function must be called once done with the reconciled entry so that
+	// reader and writer counts are accurately updated.
+	ReconciledOnIndexSeries() (OnIndexSeries, ReconciledOnIndexSeriesCleanupFn, bool)
 }
+
+// ReconciledOnIndexSeriesCleanupFn is a function for performing cleanup when
+// ReconciledOnIndexSeries is called.
+type ReconciledOnIndexSeriesCleanupFn func()
