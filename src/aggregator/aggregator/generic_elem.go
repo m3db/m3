@@ -115,10 +115,12 @@ type lockedAggregation struct {
 }
 
 type timedAggregation struct {
-	startAtNanos  xtime.UnixNano // start time of an aggregation window
+	startAt       xtime.UnixNano // start time of an aggregation window
 	lockedAgg     *lockedAggregation
 	resendEnabled bool
 	inDirtySet    bool
+	prevStart     xtime.UnixNano
+	nextStart     xtime.UnixNano
 }
 
 // close is called when the aggregation has been expired or the element is being closed.
@@ -139,8 +141,10 @@ type GenericElem struct {
 	flushState map[xtime.UnixNano]flushState
 	// sorted start aligned times that have been written to since the last flush
 	dirty []xtime.UnixNano
-	// min time in the values map. allow for iterating through map.
+	// min time in the values map. allows for iterating through map.
 	minStartTime xtime.UnixNano
+	// max time in the values map. allows for iterating through map.
+	maxStartTime xtime.UnixNano
 
 	// internal consume state that does not need to be synchronized.
 	toConsume          []consumeState   // small buffer to avoid memory allocations during consumption
@@ -297,49 +301,51 @@ func (e *GenericElem) expireValuesWithLock(
 	}
 	resolution := e.sp.Resolution().Window
 
-	currStart := e.minStartTime
+	currAgg := e.values[e.minStartTime]
 	resendExpire := targetNanos - int64(e.bufferForPastTimedMetricFn(resolution))
-	for isEarlierThanFn(int64(currStart), resolution, targetNanos) {
-		if currV, ok := e.values[currStart]; ok {
-			if currV.resendEnabled {
-				// if resend enabled we want to keep this value until it is outside the buffer past period.
-				if !isEarlierThanFn(int64(currStart), resolution, resendExpire) {
-					break
-				}
-			}
-
-			// close the agg to prevent any more writes.
-			dirty := false
-			currV.lockedAgg.Lock()
-			currV.lockedAgg.closed = true
-			dirty = currV.lockedAgg.dirty
-			currV.lockedAgg.Unlock()
-			if dirty {
-				// a race occurred and a write happened before we could close the aggregation. will expire next time.
+	for isEarlierThanFn(int64(currAgg.startAt), resolution, targetNanos) {
+		if currAgg.resendEnabled {
+			// if resend enabled we want to keep this value until it is outside the buffer past period.
+			if !isEarlierThanFn(int64(currAgg.startAt), resolution, resendExpire) {
 				break
 			}
-
-			// if this current value is closed and clean it will no longer be flushed. this means it's safe
-			// to remove the previous value since it will no longer be needed for binary transformations. when the
-			// next value is eligible to be expired, this current value will actually be removed.
-			// if we're currently pointing at the start skip this because there is no previous for the start. this
-			// ensures we always keep at least one value in the map for binary transformations.
-			if prevV, ok := e.values[e.minStartTime]; ok && currStart != e.minStartTime {
-				// can't expire flush state until after the flushing, so we save the time to expire later.
-				e.flushStateToExpire = append(e.flushStateToExpire, e.minStartTime)
-				delete(e.values, e.minStartTime)
-				e.minStartTime = currStart
-
-				// it's safe to access this outside the agg lock since it was closed in a previous iteration.
-				// This is to make sure there aren't too many cached source sets taking up
-				// too much space.
-				if prevV.lockedAgg.sourcesSeen != nil && len(e.cachedSourceSets) < e.opts.MaxNumCachedSourceSets() {
-					e.cachedSourceSets = append(e.cachedSourceSets, prevV.lockedAgg.sourcesSeen)
-				}
-				prevV.close()
-			}
 		}
-		currStart = currStart.Add(resolution)
+
+		// close the agg to prevent any more writes.
+		dirty := false
+		currAgg.lockedAgg.Lock()
+		currAgg.lockedAgg.closed = true
+		dirty = currAgg.lockedAgg.dirty
+		currAgg.lockedAgg.Unlock()
+		if dirty {
+			// a race occurred and a write happened before we could close the aggregation. will expire next time.
+			break
+		}
+
+		// if this current value is closed and clean it will no longer be flushed. this means it's safe
+		// to remove the previous value since it will no longer be needed for binary transformations. when the
+		// next value is eligible to be expired, this current value will actually be removed.
+		// if we're currently pointing at the start skip this because there is no previous for the start. this
+		// ensures we always keep at least one value in the map for binary transformations.
+		if prevAgg, ok := e.prevAggWithLock(currAgg); ok && currAgg.startAt != e.minStartTime {
+			// can't expire flush state until after the flushing, so we save the time to expire later.
+			e.flushStateToExpire = append(e.flushStateToExpire, e.minStartTime)
+			delete(e.values, e.minStartTime)
+			e.minStartTime = currAgg.startAt
+
+			// it's safe to access this outside the agg lock since it was closed in a previous iteration.
+			// This is to make sure there aren't too many cached source sets taking up
+			// too much space.
+			if prevAgg.lockedAgg.sourcesSeen != nil && len(e.cachedSourceSets) < e.opts.MaxNumCachedSourceSets() {
+				e.cachedSourceSets = append(e.cachedSourceSets, prevAgg.lockedAgg.sourcesSeen)
+			}
+			prevAgg.close()
+		}
+		var ok bool
+		currAgg, ok = e.nextAggWithLock(currAgg)
+		if !ok {
+			break
+		}
 	}
 }
 
@@ -358,40 +364,47 @@ func (e *GenericElem) expireFlushState() {
 	}
 }
 
-// return the timestamp in the values map that is before the provided time. returns false if the provided time is the
-// smallest time or the map is empty.
-func (e *GenericElem) previousStartAlignedWithLock(timestamp xtime.UnixNano) (xtime.UnixNano, bool) {
+// return the previous aggregation before the provided time. returns false if the provided time is the
+// earliest time or the map is empty.
+func (e *GenericElem) prevAggWithLock(agg timedAggregation) (timedAggregation, bool) {
 	if len(e.values) == 0 {
-		return 0, false
+		return timedAggregation{}, false
 	}
+	if agg.prevStart != 0 {
+		prevAgg, ok := e.values[agg.prevStart]
+		return prevAgg, ok
+	}
+
 	resolution := e.sp.Resolution().Window
-	// ensure the input is start aligned and then calculate the previous start time.
-	startAligned := timestamp.Truncate(resolution).Add(-resolution)
-	for !startAligned.Before(e.minStartTime) {
-		_, ok := e.values[startAligned]
+	startTime := agg.startAt.Add(-resolution)
+	for !startTime.Before(e.minStartTime) {
+		agg, ok := e.values[startTime]
 		if ok {
-			return startAligned, true
+			return agg, true
 		}
-		startAligned = startAligned.Add(-resolution)
+		startTime = startTime.Add(-resolution)
 	}
-	return 0, false
+	return timedAggregation{}, false
 }
 
 // return the next aggregation after the provided time. returns false if the provided time is the
 // largest time or the map is empty.
-func (e *GenericElem) nextAggWithLock(startAligned xtime.UnixNano, targetNanos int64,
-	isEarlierThanFn isEarlierThanFn) (timedAggregation, bool) {
+func (e *GenericElem) nextAggWithLock(agg timedAggregation) (timedAggregation, bool) {
 	if len(e.values) == 0 {
 		return timedAggregation{}, false
 	}
+	if agg.nextStart != 0 {
+		nextAgg, ok := e.values[agg.nextStart]
+		return nextAgg, ok
+	}
 	resolution := e.sp.Resolution().Window
-	ts := startAligned.Add(resolution)
-	for isEarlierThanFn(int64(ts), resolution, targetNanos) {
-		agg, ok := e.values[ts]
+	start := agg.startAt.Add(resolution)
+	for !start.After(e.maxStartTime) {
+		agg, ok := e.values[start]
 		if ok {
 			return agg, true
 		}
-		ts = ts.Add(resolution)
+		start = start.Add(resolution)
 	}
 	return timedAggregation{}, false
 }
@@ -455,11 +468,11 @@ func (e *GenericElem) Consume(
 		// current aggregation value. if the nextAgg was already flushed, it used an outdated value for the previous
 		// value (this agg). this can only happen when we allow updating previously flushed data (i.e resendEnabled).
 		if agg.resendEnabled {
-			nextAgg, ok := e.nextAggWithLock(dirtyTime, targetNanos, isEarlierThanFn)
+			nextAgg, ok := e.nextAggWithLock(agg)
 			// only need to add if not already in the dirty set (since it will be added in a subsequent iteration).
 			if ok &&
 				// at the end of the dirty times OR the next dirty time does not match.
-				(i == len(dirtyTimes)-1 || dirtyTimes[i+1] != nextAgg.startAtNanos) {
+				(i == len(dirtyTimes)-1 || dirtyTimes[i+1] != nextAgg.startAt) {
 				// only need to add if it was previously flushed.
 				e.toConsume, _ = e.appendConsumeStateWithLock(nextAgg, e.toConsume, e.isFlushed)
 			}
@@ -523,14 +536,14 @@ func (e *GenericElem) appendConsumeStateWithLock(
 	agg.lockedAgg.Unlock()
 
 	// update with everything else.
-	previousStartAligned, ok := e.previousStartAlignedWithLock(agg.startAtNanos)
+	prevAgg, ok := e.prevAggWithLock(agg)
 	if ok {
-		cState.prevStartTime = previousStartAligned
+		cState.prevStartTime = prevAgg.startAt
 	} else {
 		cState.prevStartTime = 0
 	}
 	cState.resendEnabled = agg.resendEnabled
-	cState.startAt = agg.startAtNanos
+	cState.startAt = agg.startAt
 	toConsume[len(toConsume)-1] = cState
 
 	if includeFilter != nil && !includeFilter(cState) {
@@ -701,7 +714,7 @@ func (e *GenericElem) findOrCreate(
 		}
 	}
 	timedAgg = timedAggregation{
-		startAtNanos: alignedStart,
+		startAt: alignedStart,
 		lockedAgg: &lockedAggregation{
 			sourcesSeen: sourcesSeen,
 			aggregation: e.NewAggregation(e.opts, e.aggOpts),
@@ -709,11 +722,41 @@ func (e *GenericElem) findOrCreate(
 		resendEnabled: createOpts.resendEnabled,
 		inDirtySet:    true,
 	}
-	e.values[alignedStart] = timedAgg
-	e.insertDirty(alignedStart)
-	if len(e.values) == 1 || e.minStartTime > alignedStart {
+
+	if len(e.values) == 0 || e.minStartTime > alignedStart {
 		e.minStartTime = alignedStart
 	}
+	prevMaxStart := e.maxStartTime
+	if len(e.values) == 0 || alignedStart > e.maxStartTime {
+		e.maxStartTime = alignedStart
+	}
+
+	if len(e.values) > 0 {
+		if e.maxStartTime == alignedStart {
+			// common case we are adding the latest start time.
+			timedAgg.prevStart = prevMaxStart
+			prevAgg := e.values[prevMaxStart]
+			prevAgg.nextStart = alignedStart
+			e.values[prevMaxStart] = prevAgg
+		} else {
+			// look up
+			prevAgg, ok := e.prevAggWithLock(timedAgg)
+			if ok {
+				timedAgg.prevStart = prevAgg.startAt
+				prevAgg.nextStart = alignedStart
+				e.values[prevAgg.startAt] = prevAgg
+			}
+			nextAgg, ok := e.nextAggWithLock(timedAgg)
+			if ok {
+				timedAgg.nextStart = nextAgg.startAt
+				nextAgg.prevStart = alignedStart
+				e.values[nextAgg.startAt] = nextAgg
+			}
+		}
+	}
+
+	e.values[alignedStart] = timedAgg
+	e.insertDirty(alignedStart)
 	e.Unlock()
 	return timedAgg.lockedAgg, nil
 }
