@@ -21,6 +21,8 @@
 package encoding
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -34,10 +36,11 @@ type seriesIterator struct {
 	end              xtime.UnixNano
 	iters            iterators
 	multiReaderIters []MultiReaderIterator
+	pool             SeriesIteratorPool
+	firstAnnotation  ts.Annotation
 	err              error
 	firstNext        bool
 	closed           bool
-	pool             SeriesIteratorPool
 }
 
 // NewSeriesIterator creates a new series iterator.
@@ -72,14 +75,25 @@ func (it *seriesIterator) End() xtime.UnixNano {
 }
 
 func (it *seriesIterator) Next() bool {
-	//if !it.firstNext {
+	if !it.firstNext {
 		if !it.hasNext() {
 			return false
 		}
 		it.moveToNext()
-	//}
+	}
 	it.firstNext = false
-	return it.hasNext()
+	if !it.hasNext() {
+		return false
+	}
+
+	_, _, currAnnotation := it.Current()
+	fmt.Printf("seriesIterator len(currAnnotation)=%d, len(i.firstAnnotation_)=%d\n", len(currAnnotation), len(it.firstAnnotation))
+	if len(currAnnotation) > 0 {
+		it.firstAnnotation = make(ts.Annotation, len(currAnnotation))
+		copy(it.firstAnnotation, currAnnotation)
+	}
+
+	return true
 }
 
 func (it *seriesIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
@@ -91,7 +105,7 @@ func (it *seriesIterator) Err() error {
 }
 
 func (it *seriesIterator) FirstAnnotation() ts.Annotation {
-	return it.iters.firstAnnotation()
+	return it.firstAnnotation
 }
 
 func (it *seriesIterator) Close() {
@@ -120,6 +134,8 @@ func (it *seriesIterator) Close() {
 	if it.pool != nil {
 		it.pool.Put(it)
 	}
+
+	it.firstAnnotation = nil
 }
 
 func (it *seriesIterator) Replicas() ([]MultiReaderIterator, error) {

@@ -21,7 +21,6 @@
 package encoding
 
 import (
-	"fmt"
 	"math"
 	"sort"
 
@@ -44,7 +43,6 @@ type iterators struct {
 	filterEnd          xtime.UnixNano
 	filtering          bool
 	equalTimesStrategy IterateEqualTimestampStrategy
-	firstAnnotation_   ts.Annotation
 
 	// Used for caching reuse of value frequency lookup
 	valueFrequencies map[float64]int
@@ -109,10 +107,6 @@ func (i *iterators) at() xtime.UnixNano {
 	return i.earliestAt
 }
 
-func (i *iterators) firstAnnotation() ts.Annotation {
-	return i.firstAnnotation_
-}
-
 func (i *iterators) push(iter Iterator) bool {
 	if i.filtering && !i.moveIteratorToFilterNext(iter) {
 		return false
@@ -162,14 +156,6 @@ func (i *iterators) moveToValidNext() (bool, error) {
 	for _, iter := range i.earliest {
 		next := iter.Next()
 		if next {
-			if len(i.firstAnnotation_) == 0 {
-				_, _, currAnnotation := iter.Current()
-				fmt.Printf("len(currAnnotation)=%d, len(i.firstAnnotation_)=%d\n", len(currAnnotation), len(i.firstAnnotation_))
-				if len(currAnnotation) > 0 {
-					i.firstAnnotation_ = make(ts.Annotation, len(currAnnotation))
-					copy(i.firstAnnotation_, currAnnotation)
-				}
-			}
 			if i.filtering {
 				// Filter out values if applying filters
 				next = i.moveIteratorToFilterNext(iter)
@@ -251,7 +237,6 @@ func (i *iterators) reset() {
 	}
 	i.earliest = i.earliest[:0]
 	i.earliestAt = timeMaxNanos
-	i.firstAnnotation_ = nil
 }
 
 func (i *iterators) setFilter(start, end xtime.UnixNano) {
