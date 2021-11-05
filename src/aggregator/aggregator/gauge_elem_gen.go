@@ -371,7 +371,7 @@ func (e *GaugeElem) Consume(
 		return false
 	}
 
-	// move currently dirty aggs to toConsume to process next
+	// move currently dirty aggs to toConsume to process next.
 	e.dirtyToConsumeWithLock(targetNanos, resolution, isEarlierThanFn)
 
 	// expire the values and aggregations while we still hold the lock.
