@@ -490,6 +490,7 @@ func (agg *forwardedAggregation) onDone(key aggregationKey, expiredTimes []xtime
 			var version uint32
 			if b.resendEnabled {
 				version = versions[b.timeNanos]
+				versions[b.timeNanos] = version + 1
 			}
 			metric := aggregated.ForwardedMetric{
 				Type:       agg.metricType,
@@ -499,9 +500,6 @@ func (agg *forwardedAggregation) onDone(key aggregationKey, expiredTimes []xtime
 				PrevValues: b.prevValues,
 				Annotation: b.annotation,
 				Version:    version,
-			}
-			if b.resendEnabled {
-				versions[b.timeNanos] = version + 1
 			}
 			if err := agg.client.WriteForwarded(metric, meta); err != nil {
 				multiErr = multiErr.Add(err)
