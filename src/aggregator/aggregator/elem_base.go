@@ -148,9 +148,9 @@ type metricElem interface {
 // ElemData are initialization parameters for an element.
 type ElemData struct {
 	ID                 id.RawID
-	StoragePolicy      policy.StoragePolicy
 	AggTypes           maggregation.Types
 	Pipeline           applied.Pipeline
+	StoragePolicy      policy.StoragePolicy
 	NumForwardedTimes  int
 	IDPrefixSuffixType IDPrefixSuffixType
 	ListType           metricListType
@@ -165,7 +165,6 @@ type elemBase struct {
 	aggTypesOpts                    maggregation.TypesOptions
 	id                              id.RawID
 	sp                              policy.StoragePolicy
-	useDefaultAggregation           bool
 	aggTypes                        maggregation.Types
 	aggOpts                         raggregation.Options
 	parsedPipeline                  parsedPipeline
@@ -178,11 +177,12 @@ type elemBase struct {
 	listType                        metricListType
 
 	// Mutable states.
-	tombstoned       bool
-	closed           bool
 	cachedSourceSets []map[uint32]*bitset.BitSet // nolint: structcheck
 	// a cache of the lag metrics that don't require grabbing a lock to access.
-	forwardLagMetrics map[forwardLagKey]tally.Histogram
+	forwardLagMetrics     map[forwardLagKey]tally.Histogram
+	tombstoned            bool
+	closed                bool
+	useDefaultAggregation bool // really immutable, but packed w/ the rest of bools
 }
 
 // consumeState is transient state for a timedAggregation that can change every flush round.
@@ -227,11 +227,11 @@ func (f *flushState) close() {
 }
 
 type elemMetrics struct {
-	sync.RWMutex
 	scope         tally.Scope
 	updatedValues tally.Counter
 	retriedValues tally.Counter
 	forwardLags   map[forwardLagKey]tally.Histogram
+	mtx           sync.RWMutex
 }
 
 type forwardLagKey struct {
@@ -243,17 +243,17 @@ type forwardLagKey struct {
 }
 
 func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
-	e.RLock()
+	e.mtx.RLock()
 	m, ok := e.forwardLags[key]
 	if ok {
-		e.RUnlock()
+		e.mtx.RUnlock()
 		return m
 	}
-	e.RUnlock()
-	e.Lock()
+	e.mtx.RUnlock()
+	e.mtx.Lock()
 	m, ok = e.forwardLags[key]
 	if ok {
-		e.Unlock()
+		e.mtx.Unlock()
 		return m
 	}
 	jitterApplied := "false"
@@ -287,7 +287,7 @@ func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
 			120 * time.Second,
 		})
 	e.forwardLags[key] = m
-	e.Unlock()
+	e.mtx.Unlock()
 	return m
 }
 

@@ -27,9 +27,9 @@ import (
 )
 
 type aggregationKey struct {
-	aggregationID      aggregation.ID
-	storagePolicy      policy.StoragePolicy
 	pipeline           applied.Pipeline
+	storagePolicy      policy.StoragePolicy
+	aggregationID      aggregation.ID
 	numForwardedTimes  int
 	idPrefixSuffixType IDPrefixSuffixType
 }
