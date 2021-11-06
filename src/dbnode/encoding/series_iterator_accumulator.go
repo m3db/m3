@@ -39,7 +39,6 @@ type seriesIteratorAccumulator struct {
 	iters           iterators
 	tagIterator     ident.TagIterator
 	seriesIterators []SeriesIterator
-	firstAnnotation ts.Annotation
 	err             error
 	firstNext       bool
 	closed          bool
@@ -62,13 +61,15 @@ func NewSeriesIteratorAccumulator(
 		nsID = iter.Namespace().String()
 	}
 	it := &seriesIteratorAccumulator{
-		// NB: clone id and nsID so that they will be accessbile after underlying
+		// NB: clone id and nsID so that they will be accessible after underlying
 		// iterators are closed.
 		id:              ident.StringID(iter.ID().String()),
 		nsID:            ident.StringID(nsID),
 		seriesIterators: make([]SeriesIterator, 0, 2),
 		firstNext:       true,
 	}
+
+	it.iters.reset()
 
 	if opts.RetainTags {
 		it.tagIterator = iter.Tags().Duplicate()
@@ -135,28 +136,20 @@ func (it *seriesIteratorAccumulator) End() xtime.UnixNano {
 }
 
 func (it *seriesIteratorAccumulator) Next() bool {
-	if it.firstNext {
-		it.firstNext = false
+	if !it.firstNext {
 		if !it.hasNext() {
 			return false
 		}
 
-		_, _, currAnnotation := it.Current()
-		fmt.Printf("seriesIteratorAccumulator len(currAnnotation)=%d, len(i.firstAnnotation_)=%d\n", len(currAnnotation), len(it.firstAnnotation))
-		if len(currAnnotation) > 0 {
-			it.firstAnnotation = make(ts.Annotation, len(currAnnotation))
-			copy(it.firstAnnotation, currAnnotation)
-		}
-
-		return true
+		it.moveToNext()
 	}
 
+	it.firstNext = false
 	if !it.hasNext() {
 		return false
 	}
-	it.moveToNext()
 
-	return it.hasNext()
+	return true
 }
 
 func (it *seriesIteratorAccumulator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
@@ -179,7 +172,7 @@ func (it *seriesIteratorAccumulator) Err() error {
 }
 
 func (it *seriesIteratorAccumulator) FirstAnnotation() ts.Annotation {
-	return it.firstAnnotation
+	return it.iters.firstAnnotation()
 }
 
 func (it *seriesIteratorAccumulator) Close() {
@@ -201,7 +194,6 @@ func (it *seriesIteratorAccumulator) Close() {
 	}
 	it.iters.reset()
 	it.firstNext = true
-	it.firstAnnotation = nil
 }
 
 func (it *seriesIteratorAccumulator) Replicas() ([]MultiReaderIterator, error) {

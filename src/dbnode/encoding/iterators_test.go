@@ -24,28 +24,30 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	at               = xtime.Now()
+	at               = xtime.Now().Truncate(time.Hour)
+	firstAnnotation  = []byte{1, 2, 3}
 	commonTestValues = [][]testValue{
-		[]testValue{
-			{t: at, value: 2.0, unit: xtime.Second},
-			{t: at.Add(time.Second), value: 6.0, unit: xtime.Second},
-			{t: at.Add(2 * time.Second), value: 7.0, unit: xtime.Second},
+		{
+			{t: at, value: 2.0, unit: xtime.Second, annotation: firstAnnotation},
+			{t: at.Add(time.Second), value: 6.0, unit: xtime.Second, annotation: []byte{2}},
+			{t: at.Add(2 * time.Second), value: 7.0, unit: xtime.Second, annotation: []byte{3}},
 		},
-		[]testValue{
-			{t: at, value: 1.0, unit: xtime.Second},
+		{
+			{t: at, value: 1.0, unit: xtime.Second, annotation: firstAnnotation},
 			{t: at.Add(time.Second), value: 5.0, unit: xtime.Second},
-			{t: at.Add(2 * time.Second), value: 9.0, unit: xtime.Second},
+			{t: at.Add(2 * time.Second), value: 9.0, unit: xtime.Second, annotation: []byte{4}},
 		},
-		[]testValue{
-			{t: at, value: 3.0, unit: xtime.Second},
+		{
+			{t: at, value: 3.0, unit: xtime.Second, annotation: firstAnnotation},
 			{t: at.Add(time.Second), value: 4.0, unit: xtime.Second},
-			{t: at.Add(2 * time.Second), value: 8.0, unit: xtime.Second},
+			{t: at.Add(2 * time.Second), value: 8.0, unit: xtime.Second, annotation: []byte{5}},
 		},
 	}
 )
@@ -57,7 +59,7 @@ func TestIteratorsIterateEqualTimestampStrategy(t *testing.T) {
 	iters := iterators{equalTimesStrategy: IterateLastPushed}
 	iters.reset()
 
-	assertIteratorsValues(t, iters, testValues, lastTestValues)
+	assertIteratorsValues(t, iters, testValues, lastTestValues, firstAnnotation)
 }
 
 func TestIteratorsIterateHighestValue(t *testing.T) {
@@ -71,7 +73,7 @@ func TestIteratorsIterateHighestValue(t *testing.T) {
 	iters := iterators{equalTimesStrategy: IterateHighestValue}
 	iters.reset()
 
-	assertIteratorsValues(t, iters, testValues, lastTestValues)
+	assertIteratorsValues(t, iters, testValues, lastTestValues, firstAnnotation)
 }
 
 func TestIteratorsIterateLowestValue(t *testing.T) {
@@ -85,22 +87,22 @@ func TestIteratorsIterateLowestValue(t *testing.T) {
 	iters := iterators{equalTimesStrategy: IterateLowestValue}
 	iters.reset()
 
-	assertIteratorsValues(t, iters, testValues, lastTestValues)
+	assertIteratorsValues(t, iters, testValues, lastTestValues, firstAnnotation)
 }
 
 func TestIteratorsIterateHighestFrequencyValue(t *testing.T) {
 	testValues := [][]testValue{
-		[]testValue{
+		{
 			{t: at, value: 2.0, unit: xtime.Second},
 			{t: at.Add(time.Second), value: 6.0, unit: xtime.Second},
 			{t: at.Add(2 * time.Second), value: 8.0, unit: xtime.Second},
 		},
-		[]testValue{
+		{
 			{t: at, value: 2.0, unit: xtime.Second},
 			{t: at.Add(time.Second), value: 6.0, unit: xtime.Second},
 			{t: at.Add(2 * time.Second), value: 9.0, unit: xtime.Second},
 		},
-		[]testValue{
+		{
 			{t: at, value: 3.0, unit: xtime.Second},
 			{t: at.Add(time.Second), value: 5.0, unit: xtime.Second},
 			{t: at.Add(2 * time.Second), value: 8.0, unit: xtime.Second},
@@ -119,7 +121,7 @@ func TestIteratorsIterateHighestFrequencyValue(t *testing.T) {
 	iters := iterators{equalTimesStrategy: IterateHighestFrequencyValue}
 	iters.reset()
 
-	assertIteratorsValues(t, iters, testValues, lastTestValues)
+	assertIteratorsValues(t, iters, testValues, lastTestValues, nil)
 }
 
 func assertIteratorsValues(
@@ -127,6 +129,7 @@ func assertIteratorsValues(
 	iters iterators,
 	testValues [][]testValue,
 	expectedValues []testValue,
+	expectedFirstAnnotation ts.Annotation,
 ) {
 	require.Equal(t, 0, len(iters.values))
 
@@ -146,9 +149,10 @@ func assertIteratorsValues(
 
 		dp, unit, annotation := iters.current()
 		require.Equal(t, expectedValue.t, dp.TimestampNanos)
-		require.Equal(t, dp.Value, expectedValue.value)
-		require.Equal(t, unit, expectedValue.unit)
-		require.Equal(t, []byte(annotation), expectedValue.annotation)
+		require.Equal(t, expectedValue.value, dp.Value)
+		require.Equal(t, expectedValue.unit, unit)
+		require.Equal(t, expectedValue.annotation, annotation)
+		require.Equal(t, expectedFirstAnnotation, iters.firstAnnotation())
 	}
 	ok, err := iters.moveToValidNext()
 	require.NoError(t, err)
