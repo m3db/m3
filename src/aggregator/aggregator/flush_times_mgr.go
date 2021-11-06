@@ -68,6 +68,9 @@ type FlushTimesManager interface {
 	// StoreAsync stores the flush times asynchronously.
 	StoreAsync(value *schema.ShardSetFlushTimes) error
 
+	// StoreSync stores the flush times synchronously.
+	StoreSync(value *schema.ShardSetFlushTimes) error
+
 	// Close closes the flush times manager.
 	Close() error
 }
@@ -88,16 +91,23 @@ var (
 
 type flushTimesManagerMetrics struct {
 	flushTimesUnmarshalErrors tally.Counter
-	flushTimesPersist         instrument.MethodMetrics
+	flushTimesPersistSync     instrument.MethodMetrics
+	flushTimesPersistAsync    instrument.MethodMetrics
 }
 
 func newFlushTimesManagerMetrics(
 	scope tally.Scope,
 	opts instrument.TimerOptions,
 ) flushTimesManagerMetrics {
+	buildMethodMetrics := func(persistType string) instrument.MethodMetrics {
+		subScope := scope.Tagged(map[string]string{"persist-type": persistType})
+		return instrument.NewMethodMetrics(subScope, "flush-times-persist", opts)
+	}
+
 	return flushTimesManagerMetrics{
 		flushTimesUnmarshalErrors: scope.Counter("flush-times-unmarshal-errors"),
-		flushTimesPersist:         instrument.NewMethodMetrics(scope, "flush-times-persist", opts),
+		flushTimesPersistAsync:    buildMethodMetrics("async"),
+		flushTimesPersistSync:     buildMethodMetrics("sync"),
 	}
 }
 
@@ -210,6 +220,36 @@ func (mgr *flushTimesManager) StoreAsync(value *schema.ShardSetFlushTimes) error
 	return nil
 }
 
+func (mgr *flushTimesManager) StoreSync(flushTimes *schema.ShardSetFlushTimes) error {
+	mgr.RLock()
+	defer mgr.RUnlock()
+
+	if mgr.state != flushTimesManagerOpen {
+		return errFlushTimesManagerNotOpenOrClosed
+	}
+
+	persistStart := mgr.nowFn()
+	persistErr := mgr.flushTimesPersistRetrier.Attempt(func() error {
+		_, err := mgr.flushTimesStore.Set(mgr.flushTimesKey, flushTimes)
+		return err
+	})
+	duration := mgr.nowFn().Sub(persistStart)
+	if persistErr == nil {
+		mgr.metrics.flushTimesPersistSync.ReportSuccess(duration)
+	} else {
+		mgr.metrics.flushTimesPersistSync.ReportError(duration)
+		mgr.logger.Error("flush times persist error",
+			zap.String("flushTimesKey", mgr.flushTimesKey),
+			zap.String("close type", "sync"),
+			zap.Error(persistErr),
+		)
+
+		return persistErr
+	}
+
+	return nil
+}
+
 func (mgr *flushTimesManager) Close() error {
 	mgr.Lock()
 	if mgr.state != flushTimesManagerOpen {
@@ -280,11 +320,12 @@ func (mgr *flushTimesManager) persistFlushTimes(persistWatch watch.Watch) {
 			})
 			duration := mgr.nowFn().Sub(persistStart)
 			if persistErr == nil {
-				mgr.metrics.flushTimesPersist.ReportSuccess(duration)
+				mgr.metrics.flushTimesPersistAsync.ReportSuccess(duration)
 			} else {
-				mgr.metrics.flushTimesPersist.ReportError(duration)
+				mgr.metrics.flushTimesPersistAsync.ReportError(duration)
 				mgr.logger.Error("flush times persist error",
 					zap.String("flushTimesKey", mgr.flushTimesKey),
+					zap.String("close type", "async"),
 					zap.Error(persistErr),
 				)
 			}

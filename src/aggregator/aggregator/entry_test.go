@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
@@ -1021,6 +1023,130 @@ func TestEntryAddUntimedWithNoRollup(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestAddUntimed_ResendEnabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, _ := testEntry(ctrl, testEntryOptions{})
+	// include 2 pipelines, one with ResendEnabled, one without.
+	metadatas := metadata.StagedMetadatas{
+		{
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+						ResendEnabled: true,
+						StoragePolicies: policy.StoragePolicies{
+							testStoragePolicy,
+						},
+					},
+					{
+						AggregationID: aggregation.MustCompressTypes(aggregation.Count),
+						ResendEnabled: false,
+						StoragePolicies: policy.StoragePolicies{
+							testStoragePolicy,
+						},
+					},
+				},
+			},
+		},
+	}
+	mu := testGauge
+	mu.ClientTimeNanos = xtime.ToUnixNano(e.nowFn().Add(-time.Minute))
+	require.NoError(t, e.addUntimed(mu, metadatas))
+	require.Len(t, e.aggregations, 2)
+
+	// the first aggregation has resendEnabled and uses the client timestamp.
+	require.True(t, e.aggregations[0].resendEnabled)
+	vals := e.aggregations[0].elem.Value.(*GaugeElem).values
+	require.Len(t, vals, 1)
+	ts := mu.ClientTimeNanos.Truncate(testStoragePolicy.Resolution().Window)
+	_, ok := vals[ts]
+	require.True(t, ok)
+
+	// the second aggregation does not have resendEnabled and uses the server timestamp.
+	require.False(t, e.aggregations[1].resendEnabled)
+	vals = e.aggregations[1].elem.Value.(*GaugeElem).values
+	require.Len(t, vals, 1)
+	ts = xtime.ToUnixNano(time.Now().Truncate(testStoragePolicy.Resolution().Window))
+	_, ok = vals[ts]
+	require.True(t, ok)
+}
+
+func TestAddUntimed_ClosedAggregation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, _ := testEntry(ctrl, testEntryOptions{})
+
+	metadatas := metadata.StagedMetadatas{
+		{
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						ResendEnabled: false,
+						StoragePolicies: policy.StoragePolicies{
+							testStoragePolicy,
+						},
+					},
+				},
+			},
+		},
+	}
+	resolution := testStoragePolicy.Resolution().Window
+
+	// add an aggregation
+	require.NoError(t, e.addUntimed(testGauge, metadatas))
+	require.Len(t, e.aggregations, 1)
+	agg := e.aggregations[0]
+	require.False(t, agg.resendEnabled)
+	elem := agg.elem.Value.(*GaugeElem)
+	vals := elem.values
+	require.Len(t, vals, 1)
+	t1 := xtime.ToUnixNano(e.nowFn().Truncate(resolution))
+	require.NotNil(t, vals[t1].lockedAgg)
+
+	// consume the aggregation.
+	t2 := t1.Add(resolution)
+	require.False(t, consume(elem, t2))
+	// the agg is now closed but still exists.
+	require.True(t, vals[t1].lockedAgg.closed)
+	require.Empty(t, elem.dirty)
+
+	// adding to a closed aggregation rolls forward to the next aggregation.
+	require.NoError(t, e.addUntimed(testGauge, metadatas))
+	require.Len(t, e.aggregations, 1)
+	require.Len(t, vals, 2)
+	require.NotNil(t, vals[t2].lockedAgg)
+
+	// consume next aggregation
+	t3 := t2.Add(resolution)
+	require.False(t, consume(elem, t3))
+	// the second agg is now closed but still exists.
+	require.True(t, vals[t2].lockedAgg.closed)
+	// the first agg is GC'd
+	require.Nil(t, vals[t1].lockedAgg)
+	// attempting to add to a closed aggregation leaks a dirty entry
+	require.Len(t, elem.dirty, 1)
+	require.Equal(t, t1, elem.dirty[0])
+
+	// consume again to clear the leaked dirty entry
+	require.False(t, consume(elem, t3.Add(resolution)))
+	require.True(t, vals[t2].lockedAgg.closed)
+	require.Empty(t, elem.dirty)
+}
+
+func consume(elem metricElem, targetTime xtime.UnixNano) bool {
+	l := &baseMetricList{
+		metrics: newMetricListMetrics(tally.NewTestScope("", nil)),
+	}
+	return elem.Consume(
+		int64(targetTime),
+		isStandardMetricEarlierThan, standardMetricTimestampNanos, standardMetricTargetNanos,
+		l.discardLocalMetric, l.discardForwardedMetric, l.onForwardingElemDiscarded,
+		0, discardType)
+}
+
 func TestShouldUpdateStagedMetadataWithLock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1430,7 +1556,7 @@ func TestEntryAddTimed(t *testing.T) {
 	expectedNanos := xtime.ToUnixNano(time.Unix(0, testTimedMetric.TimeNanos).Truncate(resolution))
 	v, ok := values[expectedNanos]
 	require.True(t, ok)
-	require.Equal(t, expectedNanos, v.startAtNanos)
+	require.Equal(t, expectedNanos, v.startAt)
 	require.Equal(t, int64(1), v.lockedAgg.aggregation.Count())
 	require.Equal(t, int64(1000), v.lockedAgg.aggregation.Sum())
 	require.Equal(t, float64(1000), v.lockedAgg.aggregation.Mean())
@@ -1462,7 +1588,7 @@ func TestEntryAddTimed(t *testing.T) {
 	expectedNanos = expectedNanos.Add(testTimedMetadata.StoragePolicy.Resolution().Window)
 	v, ok = values[expectedNanos]
 	require.True(t, ok)
-	require.Equal(t, expectedNanos, v.startAtNanos)
+	require.Equal(t, expectedNanos, v.startAt)
 	require.Equal(t, int64(1), v.lockedAgg.aggregation.Count())
 	require.Equal(t, int64(1000), v.lockedAgg.aggregation.Sum())
 
@@ -1503,7 +1629,7 @@ func TestEntryAddTimed(t *testing.T) {
 	require.Equal(t, 1, len(values))
 	resolution = metadata.StoragePolicy.Resolution().Window
 	expectedNanos = xtime.UnixNano(metric.TimeNanos).Truncate(resolution)
-	require.Equal(t, expectedNanos, values[0].startAtNanos)
+	require.Equal(t, expectedNanos, values[0].startAt)
 	require.Equal(t, int64(1), values[0].lockedAgg.aggregation.Count())
 	require.Equal(t, int64(1000), values[0].lockedAgg.aggregation.Sum())
 	require.Equal(t, metric.ID, counterElem.ID())
@@ -1688,7 +1814,7 @@ func TestEntryAddForwarded(t *testing.T) {
 	expectedNanos := xtime.UnixNano(testForwardedMetric.TimeNanos).Truncate(resolution)
 	v, ok := values[expectedNanos]
 	require.True(t, ok)
-	require.Equal(t, expectedNanos, v.startAtNanos)
+	require.Equal(t, expectedNanos, v.startAt)
 	require.Equal(t, int64(2), v.lockedAgg.aggregation.Count())
 	require.Equal(t, int64(100000), v.lockedAgg.aggregation.Sum())
 
@@ -1777,7 +1903,7 @@ func TestEntryAddForwarded(t *testing.T) {
 	expectedNanos = xtime.UnixNano(metric.TimeNanos).Truncate(resolution)
 	v, ok = values[expectedNanos]
 	require.True(t, ok)
-	require.Equal(t, expectedNanos, v.startAtNanos)
+	require.Equal(t, expectedNanos, v.startAt)
 	require.Equal(t, int64(2), v.lockedAgg.aggregation.Count())
 	require.Equal(t, int64(100000), v.lockedAgg.aggregation.Sum())
 	require.Equal(t, metric.ID, counterElem.ID())
@@ -2051,7 +2177,7 @@ func testEntryAddUntimed(
 					require.Equal(t, 1, len(aggregations))
 					v, ok := aggregations[alignedStartNanos]
 					require.True(t, ok)
-					require.True(t, alignedStartNanos.Equal(v.startAtNanos))
+					require.True(t, alignedStartNanos.Equal(v.startAt))
 					require.Equal(t, int64(1234), v.lockedAgg.aggregation.Sum())
 				}
 			},
@@ -2069,7 +2195,7 @@ func testEntryAddUntimed(
 					require.Equal(t, 1, len(aggregations))
 					v, ok := aggregations[xtime.ToUnixNano(alignedStart)]
 					require.True(t, ok)
-					require.True(t, alignedStartNanos.Equal(v.startAtNanos))
+					require.True(t, alignedStartNanos.Equal(v.startAt))
 					require.Equal(t, 18.0, v.lockedAgg.aggregation.Sum())
 				}
 			},
@@ -2087,7 +2213,7 @@ func testEntryAddUntimed(
 					require.Equal(t, 1, len(aggregations))
 					v, ok := aggregations[xtime.ToUnixNano(alignedStart)]
 					require.True(t, ok)
-					require.True(t, alignedStartNanos.Equal(v.startAtNanos))
+					require.True(t, alignedStartNanos.Equal(v.startAt))
 					require.Equal(t, 123.456, v.lockedAgg.aggregation.Last())
 				}
 			},

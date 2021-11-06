@@ -119,8 +119,7 @@ type aggregator struct {
 	currPlacement      placement.Placement
 	currNumShards      atomic.Int32
 	state              aggregatorState
-	doneCh             chan struct{}
-	wg                 sync.WaitGroup
+	sleepFn            sleepFn
 	shardsPendingClose atomic.Int32
 	metrics            aggregatorMetrics
 	logger             *zap.Logger
@@ -133,7 +132,7 @@ func NewAggregator(opts Options) Aggregator {
 	timerOpts := iOpts.TimerOptions()
 	logger := iOpts.Logger()
 
-	return &aggregator{
+	agg := &aggregator{
 		opts:              opts,
 		nowFn:             opts.ClockOptions().NowFn(),
 		shardFn:           opts.ShardFn(),
@@ -147,10 +146,12 @@ func NewAggregator(opts Options) Aggregator {
 		passthroughWriter: opts.PassthroughWriter(),
 		adminClient:       opts.AdminClient(),
 		resignTimeout:     opts.ResignTimeout(),
-		doneCh:            make(chan struct{}),
+		sleepFn:           time.Sleep,
 		metrics:           newAggregatorMetrics(scope, timerOpts, opts.MaxAllowedForwardingDelayFn()),
 		logger:            logger,
 	}
+
+	return agg
 }
 
 func (agg *aggregator) Open() error {
@@ -171,19 +172,23 @@ func (agg *aggregator) Open() error {
 		return err
 	}
 	if agg.checkInterval > 0 {
-		agg.wg.Add(1)
+		// NB: tick updates some metrics on how many series the aggregator currently
+		// has of each type, and expires old metrics from the local metric lists.
 		go agg.tick()
 	}
 
-	agg.wg.Add(1)
+	// NB: placement tick watches the placement manager, and initializes a
+	// topology change if the placement is updated. This changes which shards this
+	// aggregator is responsible for, and initiates leader elections. In the
+	// scenario where a placement change is received when this aggregator is
+	// closed, it's fine to ignore the result of the placement update, as applying
+	// the change only affects the current aggregator that is being closed anyway.
 	go agg.placementTick()
 	agg.state = aggregatorOpen
 	return nil
 }
 
 func (agg *aggregator) placementTick() {
-	defer agg.wg.Done()
-
 	ticker := time.NewTicker(placementCheckInterval)
 	defer ticker.Stop()
 
@@ -193,8 +198,6 @@ func (agg *aggregator) placementTick() {
 		select {
 		case <-ticker.C:
 		case <-agg.placementManager.C():
-		case <-agg.doneCh:
-			return
 		}
 
 		placement, err := agg.placementManager.Placement()
@@ -383,26 +386,12 @@ func (agg *aggregator) Close() error {
 	}
 	agg.state = aggregatorClosed
 
-	close(agg.doneCh)
-
-	// Waiting for the ticking goroutines to return.
-	// Doing this outside of agg.Lock to avoid potential deadlocks.
-	agg.Unlock()
-	agg.wg.Wait()
-	agg.Lock()
-
-	for _, shardID := range agg.shardIDs {
-		agg.shards[shardID].Close()
-	}
-	if agg.shardSetOpen {
-		agg.closeShardSetWithLock()
-	}
-	agg.flushHandler.Close()
-	agg.passthroughWriter.Close()
-	if agg.adminClient != nil {
-		agg.adminClient.Close()
-	}
-	return nil
+	// NB: closing the flush manager is the only really necessary step for
+	// gracefully closing an aggregator leader, as this will ensure that any
+	// currently running flush completes, and updates the shared shard flush
+	// times map in etcd, allowing the follower that will be promoted to leader
+	// to avoid re-computing and re-flushing this data.
+	return agg.flushManager.Close()
 }
 
 func (agg *aggregator) shardFor(id id.RawID) (*aggregatorShard, error) {
@@ -440,7 +429,8 @@ func (agg *aggregator) shardFor(id id.RawID) (*aggregatorShard, error) {
 func (agg *aggregator) processPlacementWithLock(
 	newPlacement placement.Placement,
 ) error {
-	// If someone has already processed the placement ahead of us, do nothing.
+	// If someone has already processed the placement ahead of us, or if the
+	// aggregator was closed before the placement update started, do nothing.
 	if !agg.shouldProcessPlacementWithLock(newPlacement) {
 		return nil
 	}
@@ -487,6 +477,10 @@ func (agg *aggregator) processPlacementWithLock(
 func (agg *aggregator) shouldProcessPlacementWithLock(
 	newPlacement placement.Placement,
 ) bool {
+	if agg.state == aggregatorClosed {
+		return false
+	}
+
 	// If there is no placement yet, or the placement has been updated,
 	// process this placement.
 	if agg.currPlacement == nil || agg.currPlacement != newPlacement {
@@ -711,15 +705,8 @@ func (agg *aggregator) closeShardsAsync(shards []*aggregatorShard) {
 }
 
 func (agg *aggregator) tick() {
-	defer agg.wg.Done()
-
 	for {
-		select {
-		case <-agg.doneCh:
-			return
-		default:
-			agg.tickInternal()
-		}
+		agg.tickInternal()
 	}
 }
 
@@ -731,7 +718,7 @@ func (agg *aggregator) tickInternal() {
 	agg.metrics.shards.owned.Update(float64(numShards))
 	agg.metrics.shards.pendingClose.Update(float64(agg.shardsPendingClose.Load()))
 	if numShards == 0 {
-		agg.waitForInterval(agg.checkInterval)
+		agg.sleepFn(agg.checkInterval)
 		return
 	}
 	var (
@@ -746,14 +733,7 @@ func (agg *aggregator) tickInternal() {
 	tickDuration := agg.nowFn().Sub(start)
 	agg.metrics.tick.Report(tickResult, tickDuration)
 	if tickDuration < agg.checkInterval {
-		agg.waitForInterval(agg.checkInterval - tickDuration)
-	}
-}
-
-func (agg *aggregator) waitForInterval(wait time.Duration) {
-	select {
-	case <-agg.doneCh:
-	case <-time.After(wait):
+		agg.sleepFn(agg.checkInterval - tickDuration)
 	}
 }
 

@@ -1,4 +1,6 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// +build linux
+//
+// Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,31 +22,31 @@
 
 package sync
 
-// CoreFn is a function that returns the ID of the
-// CPU currently running this goroutine.
-type CoreFn func() int
+import (
+	"bufio"
+	"os"
+	"strings"
+)
 
-var numCores = 1
-
-func init() {
-	numCores = checkNumCores()
-}
-
-// NumCores returns the number of cores returned from
-// OS-dependent checkNumCores(), if not available only returns 1
-func NumCores() int {
-	return numCores
-}
-
-// CPUCore returns the current CPU core.
-func CPUCore() int {
-	if numCores == 1 {
-		// Likely not linux and nothing available in procinfo meaning that
-		// even if RDTSCP is available we won't have setup correct number
-		// of cores, etc for our queues since we probed using NumCores
-		// and got 1 back.
-		return 0
+func checkNumCores() int {
+	f, err := os.Open("/proc/cpuinfo")
+	if err != nil {
+		return 1
 	}
-	// We know the number of cores, try to call RDTSCP to get the core.
-	return getCore()
+
+	n := 0
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		if strings.HasPrefix(scanner.Text(), "processor") {
+			n++
+		}
+	}
+
+	_ = f.Close()
+
+	if err := scanner.Err(); err != nil {
+		return 1
+	}
+
+	return n
 }
