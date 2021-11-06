@@ -145,11 +145,7 @@ func (it *seriesIteratorAccumulator) Next() bool {
 	}
 
 	it.firstNext = false
-	if !it.hasNext() {
-		return false
-	}
-
-	return true
+	return it.hasNext()
 }
 
 func (it *seriesIteratorAccumulator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {

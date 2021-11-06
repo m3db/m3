@@ -72,20 +72,13 @@ func (it *seriesIterator) End() xtime.UnixNano {
 }
 
 func (it *seriesIterator) Next() bool {
-	if it.firstNext {
-		it.firstNext = false
+	if !it.firstNext {
 		if !it.hasNext() {
 			return false
 		}
-
-		return true
+		it.moveToNext()
 	}
-
-	if !it.hasNext() {
-		return false
-	}
-	it.moveToNext()
-
+	it.firstNext = false
 	return it.hasNext()
 }
 

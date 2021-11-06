@@ -161,11 +161,9 @@ func (i *iterators) moveToValidNext() (bool, error) {
 	)
 	for _, iter := range i.earliest {
 		next := iter.Next()
-		if next {
-			if i.filtering {
-				// Filter out values if applying filters
-				next = i.moveIteratorToFilterNext(iter)
-			}
+		if next && i.filtering {
+			// Filter out values if applying filters
+			next = i.moveIteratorToFilterNext(iter)
 		}
 
 		err := iter.Err()
