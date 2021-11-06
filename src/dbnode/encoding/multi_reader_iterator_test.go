@@ -219,7 +219,7 @@ func TestMultiReaderIteratorDeduplicatesMulti(t *testing.T) {
 				{values: values},
 				{values: values},
 				{values: values},
-						},
+			},
 		},
 		expected: values,
 	}
@@ -269,7 +269,7 @@ func TestMultiReaderIteratorErrorOnInnerIteratorError(t *testing.T) {
 					err:   err,
 					atIdx: 2,
 				},
-						}},
+			}},
 		},
 		expected: values,
 		expectedErr: &testMultiReaderError{
