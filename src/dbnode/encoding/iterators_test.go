@@ -56,7 +56,7 @@ func TestIteratorsIterateEqualTimestampStrategy(t *testing.T) {
 	testValues := commonTestValues
 	lastTestValues := commonTestValues[len(commonTestValues)-1]
 
-	iters := iterators{equalTimesStrategy: IterateLastPushed}
+	iters := &iterators{equalTimesStrategy: IterateLastPushed}
 	iters.reset()
 
 	assertIteratorsValues(t, iters, testValues, lastTestValues, firstAnnotation)
@@ -70,7 +70,7 @@ func TestIteratorsIterateHighestValue(t *testing.T) {
 		testValues[1][2],
 	}
 
-	iters := iterators{equalTimesStrategy: IterateHighestValue}
+	iters := &iterators{equalTimesStrategy: IterateHighestValue}
 	iters.reset()
 
 	assertIteratorsValues(t, iters, testValues, lastTestValues, firstAnnotation)
@@ -84,7 +84,7 @@ func TestIteratorsIterateLowestValue(t *testing.T) {
 		testValues[0][2],
 	}
 
-	iters := iterators{equalTimesStrategy: IterateLowestValue}
+	iters := &iterators{equalTimesStrategy: IterateLowestValue}
 	iters.reset()
 
 	assertIteratorsValues(t, iters, testValues, lastTestValues, firstAnnotation)
@@ -118,15 +118,37 @@ func TestIteratorsIterateHighestFrequencyValue(t *testing.T) {
 		testValues[2][3],
 	}
 
-	iters := iterators{equalTimesStrategy: IterateHighestFrequencyValue}
+	iters := &iterators{equalTimesStrategy: IterateHighestFrequencyValue}
 	iters.reset()
 
 	assertIteratorsValues(t, iters, testValues, lastTestValues, nil)
 }
 
+func TestIteratorsReuse(t *testing.T) {
+	var (
+		testValues1 = [][]testValue{
+			{
+				{t: at, value: 1.0, unit: xtime.Second, annotation: []byte{1}},
+			},
+		}
+		testValues2 = [][]testValue{
+			{
+				{t: at.Add(time.Hour), value: 2.0, unit: xtime.Second, annotation: nil},
+			},
+		}
+	)
+
+	iters := &iterators{equalTimesStrategy: IterateLastPushed}
+	iters.reset()
+
+	assertIteratorsValues(t, iters, testValues1, testValues1[0], []byte{1})
+	iters.reset()
+	assertIteratorsValues(t, iters, testValues2, testValues2[0], nil)
+}
+
 func assertIteratorsValues(
 	t *testing.T,
-	iters iterators,
+	iters *iterators,
 	testValues [][]testValue,
 	expectedValues []testValue,
 	expectedFirstAnnotation ts.Annotation,
