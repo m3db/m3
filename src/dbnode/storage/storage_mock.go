@@ -57,6 +57,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
+	sync0 "github.com/m3db/m3/src/x/sync"
 	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -4117,6 +4118,20 @@ func (mr *MockOptionsMockRecorder) ContextPool() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContextPool", reflect.TypeOf((*MockOptions)(nil).ContextPool))
 }
 
+// CoreFn mocks base method.
+func (m *MockOptions) CoreFn() sync0.CoreFn {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CoreFn")
+	ret0, _ := ret[0].(sync0.CoreFn)
+	return ret0
+}
+
+// CoreFn indicates an expected call of CoreFn.
+func (mr *MockOptionsMockRecorder) CoreFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CoreFn", reflect.TypeOf((*MockOptions)(nil).CoreFn))
+}
+
 // DatabaseBlockOptions mocks base method.
 func (m *MockOptions) DatabaseBlockOptions() block.Options {
 	m.ctrl.T.Helper()
@@ -4759,6 +4774,20 @@ func (m *MockOptions) SetContextPool(value context.Pool) Options {
 func (mr *MockOptionsMockRecorder) SetContextPool(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetContextPool", reflect.TypeOf((*MockOptions)(nil).SetContextPool), value)
+}
+
+// SetCoreFn mocks base method.
+func (m *MockOptions) SetCoreFn(value sync0.CoreFn) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetCoreFn", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetCoreFn indicates an expected call of SetCoreFn.
+func (mr *MockOptionsMockRecorder) SetCoreFn(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCoreFn", reflect.TypeOf((*MockOptions)(nil).SetCoreFn), value)
 }
 
 // SetDatabaseBlockOptions mocks base method.
