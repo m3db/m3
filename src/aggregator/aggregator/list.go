@@ -37,6 +37,7 @@ import (
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -498,8 +499,9 @@ func (l *baseMetricList) discardForwardedMetric(
 func (l *baseMetricList) onForwardingElemConsumed(
 	onForwardedWrittenFn onForwardedAggregationDoneFn,
 	aggregationKey aggregationKey,
+	expiredTimes []xtime.UnixNano,
 ) {
-	if err := onForwardedWrittenFn(aggregationKey); err != nil {
+	if err := onForwardedWrittenFn(aggregationKey, expiredTimes); err != nil {
 		l.metrics.flushForwarded.onConsumedErrors.Inc(1)
 	} else {
 		l.metrics.flushForwarded.onConsumedSuccess.Inc(1)
@@ -508,8 +510,9 @@ func (l *baseMetricList) onForwardingElemConsumed(
 
 // nolint: unparam
 func (l *baseMetricList) onForwardingElemDiscarded(
-	onForwardedWrittenFn onForwardedAggregationDoneFn,
-	aggregationKey aggregationKey,
+	_ onForwardedAggregationDoneFn,
+	_ aggregationKey,
+	_ []xtime.UnixNano,
 ) {
 	l.metrics.flushForwarded.onDiscarded.Inc(1)
 }
