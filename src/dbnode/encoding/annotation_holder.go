@@ -24,6 +24,7 @@ func (a *annotationHolder) set(annotation ts.Annotation) {
 	if l <= len(a.inlineAnnotationBytes) {
 		copy(a.inlineAnnotationBytes[:l], annotation)
 		a.inlineAnnotationLen = l
+		a.allocatedAnnotation = nil
 		return
 	}
 
