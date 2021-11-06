@@ -33,15 +33,13 @@ type annotationHolder struct {
 func (a *annotationHolder) get() ts.Annotation {
 	if a.inlineAnnotationLen > 0 {
 		return a.inlineAnnotationBytes[:a.inlineAnnotationLen]
-	} else {
-		return a.allocatedAnnotation
 	}
+
+	return a.allocatedAnnotation
 }
 
 func (a *annotationHolder) set(annotation ts.Annotation) {
-	l := len(annotation)
-
-	if l <= len(a.inlineAnnotationBytes) {
+	if l := len(annotation); l <= len(a.inlineAnnotationBytes) {
 		copy(a.inlineAnnotationBytes[:l], annotation)
 		a.inlineAnnotationLen = l
 		a.allocatedAnnotation = nil
