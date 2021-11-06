@@ -22,7 +22,6 @@ package storage
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -62,19 +61,16 @@ func iteratorToPromResult(
 		samples = make([]prompb.Sample, 0, initRawFetchAllocSize)
 	)
 
-	fmt.Printf("iteratorToPromResult, maxResolution %s\n", maxResolution)
 	for iter.Next() {
 		dp, _, _ := iter.Current()
 
 		if firstDP && maxResolution >= resolutionThresholdForCounterNormalization {
 			firstAnnotation := iter.FirstAnnotation()
-			fmt.Printf("len(firstAnnotation) %d\n", len(firstAnnotation))
 			if len(firstAnnotation) > 0 {
 				if err := annotationPayload.Unmarshal(firstAnnotation); err != nil {
 					return nil, err
 				}
 				handleResets = annotationPayload.HandleValueResets
-				fmt.Printf("handleResets set to %t on %s, maxResolution %s\n", handleResets, dp.TimestampNanos.ToTime(), maxResolution)
 			}
 		}
 
