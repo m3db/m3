@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	dts "github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -296,4 +297,188 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	res, err = SeriesIteratorsToPromResult(context.Background(), buildIters(), pool, opts)
 	require.NoError(t, err)
 	verifyResult(t, res)
+}
+
+func TestSeriesIteratorsToPromResultNormalizeLowResCounters(t *testing.T) {
+	t0 := xtime.Now().Truncate(time.Hour)
+
+	tests := []struct {
+		name          string
+		isCounter     bool
+		maxResolution time.Duration
+		given         []dts.Datapoint
+		want          []prompb.Sample
+	}{
+		{
+			name:          "low resolution gauge",
+			isCounter:     false,
+			maxResolution: time.Hour,
+			given:         []dts.Datapoint{{t0, 1}, {t0.Add(time.Hour), 2}},
+			want:          []prompb.Sample{{1, ms(t0)}, {2, ms(t0.Add(time.Hour))}},
+		},
+		{
+			name:          "high resolution gauge",
+			isCounter:     false,
+			maxResolution: time.Minute,
+			given:         []dts.Datapoint{{t0, 1}, {t0.Add(time.Minute), 2}},
+			want:          []prompb.Sample{{1, ms(t0)}, {2, ms(t0.Add(time.Minute))}},
+		},
+		{
+			name:          "low resolution counter, no datapoints",
+			isCounter:     true,
+			maxResolution: time.Hour,
+		},
+		{
+			name:          "low resolution counter, one datapoint",
+			isCounter:     true,
+			maxResolution: time.Hour,
+			given:         []dts.Datapoint{{t0, 1}},
+			want:          []prompb.Sample{{1, ms(t0)}},
+		},
+		{
+			name:          "high resolution counter with no resets",
+			isCounter:     true,
+			maxResolution: time.Minute,
+			given: []dts.Datapoint{
+				{t0, 1},
+				{t0.Add(time.Minute), 2},
+				{t0.Add(2 * time.Minute), 3},
+				{t0.Add(3 * time.Minute), 4},
+			},
+			want: []prompb.Sample{
+				{1, ms(t0)},
+				{2, ms(t0.Add(time.Minute))},
+				{3, ms(t0.Add(2 * time.Minute))},
+				{4, ms(t0.Add(3 * time.Minute))},
+			},
+		},
+		{
+			name:          "high resolution counter with resets",
+			isCounter:     true,
+			maxResolution: time.Minute,
+			given: []dts.Datapoint{
+				{t0, 10},
+				{t0.Add(time.Minute), 3},
+				{t0.Add(2 * time.Minute), 5},
+				{t0.Add(3 * time.Minute), 8},
+			},
+			want: []prompb.Sample{
+				{10, ms(t0)},
+				{3, ms(t0.Add(time.Minute))},
+				{5, ms(t0.Add(2 * time.Minute))},
+				{8, ms(t0.Add(3 * time.Minute))},
+			},
+		},
+		{
+			name:          "low resolution counter with no resets",
+			isCounter:     true,
+			maxResolution: time.Hour,
+			given: []dts.Datapoint{
+				{t0, 1},
+				{t0.Add(time.Minute), 2},
+				{t0.Add(time.Hour), 3},
+				{t0.Add(time.Hour + time.Minute), 4},
+			},
+			want: []prompb.Sample{
+				{2, ms(t0.Add(time.Minute))},
+				{4, ms(t0.Add(time.Hour + time.Minute))},
+			},
+		},
+		{
+			name:          "low resolution counter with resets",
+			isCounter:     true,
+			maxResolution: time.Hour,
+			given: []dts.Datapoint{
+				{t0, 10},
+				{t0.Add(time.Minute), 3},
+				{t0.Add(time.Hour), 5},
+				{t0.Add(time.Hour + time.Minute), 8},
+			},
+			want: []prompb.Sample{
+				{13, ms(t0.Add(time.Minute))},
+				{18, ms(t0.Add(time.Hour + time.Minute))},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testSeriesIteratorsToPromResultNormalize(
+				t, tt.isCounter, tt.maxResolution, tt.given, tt.want)
+		})
+	}
+}
+
+func testSeriesIteratorsToPromResultNormalize(
+	t *testing.T,
+	isCounter bool,
+	maxResolution time.Duration,
+	given []dts.Datapoint,
+	want []prompb.Sample,
+) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		gaugePayload   = &annotation.Payload{MetricType: annotation.MetricType_GAUGE}
+		counterPayload = &annotation.Payload{MetricType: annotation.MetricType_COUNTER, HandleValueResets: true}
+	)
+
+	firstAnnotation := annotationBytes(t, gaugePayload)
+	if isCounter {
+		firstAnnotation = annotationBytes(t, counterPayload)
+	}
+
+	iter := encoding.NewMockSeriesIterator(ctrl)
+
+	iter.EXPECT().FirstAnnotation().Return(firstAnnotation).MaxTimes(1)
+	for _, dp := range given {
+		iter.EXPECT().Next().Return(true)
+		iter.EXPECT().Current().Return(dp, xtime.Second, nil)
+	}
+
+	iter.EXPECT().Err().Return(nil)
+	iter.EXPECT().Next().Return(false)
+
+	iter.EXPECT().Tags().Return(ident.EmptyTagIterator)
+
+	verifyResult := func(t *testing.T, expected []prompb.Sample, res PromResult) {
+		timeSeries := res.PromResult.GetTimeseries()
+		if len(expected) == 0 {
+			require.Equal(t, 0, len(timeSeries))
+		} else {
+			require.Equal(t, 1, len(timeSeries))
+			samples := timeSeries[0].Samples
+			require.Equal(t, expected, samples)
+		}
+	}
+
+	iters := []encoding.SeriesIterator{iter}
+
+	it := encoding.NewMockSeriesIterators(ctrl)
+	it.EXPECT().Iters().Return(iters).AnyTimes()
+	it.EXPECT().Len().Return(len(iters)).AnyTimes()
+
+	fetchResultMetadata := block.NewResultMetadata()
+	fetchResultMetadata.Resolutions = []time.Duration{maxResolution, maxResolution / 2}
+	fetchResult, err := consolidators.NewSeriesFetchResult(it, nil, fetchResultMetadata)
+	assert.NoError(t, err)
+
+	opts := models.NewTagOptions()
+	res, err := SeriesIteratorsToPromResult(context.Background(), fetchResult, nil, opts)
+	require.NoError(t, err)
+	verifyResult(t, want, res)
+}
+
+func ms(t xtime.UnixNano) int64 {
+	return t.ToNormalizedTime(time.Millisecond)
+}
+
+func annotationBytes(t *testing.T, payload *annotation.Payload) dts.Annotation {
+	if payload != nil {
+		annotationBytes, err := payload.Marshal()
+		require.NoError(t, err)
+		return annotationBytes
+	}
+	return nil
 }

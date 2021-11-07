@@ -52,7 +52,6 @@ func iteratorToPromResult(
 
 		firstDP           = true
 		handleResets      = false
-		lastDPEmitted     = true
 		annotationPayload annotation.Payload
 
 		cumulativeSum float64
@@ -74,17 +73,13 @@ func iteratorToPromResult(
 			}
 		}
 
-		firstDP = false
-
 		if handleResets {
-			lastDPEmitted = false
 			if dp.TimestampNanos/resolution != prevDP.TimestampNanos/resolution && !firstDP {
 				// reached next resolution window, emit previous DP
 				samples = append(samples, prompb.Sample{
 					Timestamp: TimeToPromTimestamp(prevDP.TimestampNanos),
 					Value:     cumulativeSum,
 				})
-				lastDPEmitted = true
 			}
 
 			if dp.Value <= prevDP.Value { // counter reset
@@ -101,13 +96,15 @@ func iteratorToPromResult(
 				Value:     dp.Value,
 			})
 		}
+
+		firstDP = false
 	}
 
 	if err := iter.Err(); err != nil {
 		return nil, err
 	}
 
-	if handleResets && !lastDPEmitted {
+	if handleResets {
 		samples = append(samples, prompb.Sample{
 			Timestamp: TimeToPromTimestamp(prevDP.TimestampNanos),
 			Value:     cumulativeSum,
