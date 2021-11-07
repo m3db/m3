@@ -82,7 +82,7 @@ func iteratorToPromResult(
 				})
 			}
 
-			if dp.Value <= prevDP.Value { // counter reset
+			if dp.Value < prevDP.Value { // counter reset
 				cumulativeSum += dp.Value
 			} else {
 				cumulativeSum += dp.Value - prevDP.Value

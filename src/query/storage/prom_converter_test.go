@@ -342,14 +342,14 @@ func TestSeriesIteratorsToPromResultNormalizeLowResCounters(t *testing.T) {
 			given: []dts.Datapoint{
 				{t0, 1},
 				{t0.Add(time.Minute), 2},
-				{t0.Add(2 * time.Minute), 3},
-				{t0.Add(3 * time.Minute), 4},
+				{t0.Add(2 * time.Minute), 2},
+				{t0.Add(3 * time.Minute), 3},
 			},
 			want: []prompb.Sample{
 				{1, ms(t0)},
 				{2, ms(t0.Add(time.Minute))},
-				{3, ms(t0.Add(2 * time.Minute))},
-				{4, ms(t0.Add(3 * time.Minute))},
+				{2, ms(t0.Add(2 * time.Minute))},
+				{3, ms(t0.Add(3 * time.Minute))},
 			},
 		},
 		{
@@ -376,12 +376,12 @@ func TestSeriesIteratorsToPromResultNormalizeLowResCounters(t *testing.T) {
 			given: []dts.Datapoint{
 				{t0, 1},
 				{t0.Add(time.Minute), 2},
-				{t0.Add(time.Hour), 3},
-				{t0.Add(time.Hour + time.Minute), 4},
+				{t0.Add(time.Hour), 2},
+				{t0.Add(time.Hour + time.Minute), 3},
 			},
 			want: []prompb.Sample{
 				{2, ms(t0.Add(time.Minute))},
-				{4, ms(t0.Add(time.Hour + time.Minute))},
+				{3, ms(t0.Add(time.Hour + time.Minute))},
 			},
 		},
 		{
