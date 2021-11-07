@@ -33,9 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -209,40 +207,6 @@ func TestIteratorsToPromResult(t *testing.T) {
 	}
 
 	assert.Equal(t, expected, result)
-}
-
-// overwrite overwrites existing tags with `!!!` literals.
-type overwrite func()
-
-func setupTags(name, value string) (ident.Tags, overwrite) {
-	buckets := []pool.Bucket{{Capacity: 100, Count: 2}}
-	bytesPool := pool.NewCheckedBytesPool(buckets, nil,
-		func(sizes []pool.Bucket) pool.BytesPool {
-			return pool.NewBytesPool(sizes, nil)
-		})
-
-	bytesPool.Init()
-	getFromPool := func(id string) checked.Bytes {
-		pID := bytesPool.Get(len(id))
-		pID.IncRef()
-		pID.AppendAll([]byte(id))
-		pID.DecRef()
-		return pID
-	}
-
-	idPool := ident.NewPool(bytesPool, ident.PoolOptions{})
-	tags := idPool.Tags()
-	tags.Append(idPool.BinaryTag(getFromPool(name), getFromPool(value)))
-	tags.Append(idPool.BinaryTag(getFromPool(name), getFromPool("")))
-	tags.Append(idPool.BinaryTag(getFromPool(""), getFromPool(value)))
-
-	overwrite := func() {
-		tags.Finalize()
-		getFromPool("!!!")
-		getFromPool("!!!")
-	}
-
-	return tags, overwrite
 }
 
 func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
