@@ -89,7 +89,6 @@ func iteratorToPromResult(
 			}
 
 			prevDP = dp
-
 		} else {
 			samples = append(samples, prompb.Sample{
 				Timestamp: TimeToPromTimestamp(dp.TimestampNanos),
