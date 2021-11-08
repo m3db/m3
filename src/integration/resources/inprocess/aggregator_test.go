@@ -295,7 +295,7 @@ func testAggMetrics(t *testing.T, coord resources.Coordinator) {
 
 	// Instant Query
 	require.NoError(t, resources.Retry(func() error {
-		result, err := coord.InstantQuery(resources.QueryRequest{QueryExpr: "cpu"}, queryHeaders)
+		result, err := coord.InstantQuery(resources.QueryRequest{Query: "cpu"}, queryHeaders)
 		if err != nil {
 			return err
 		}
@@ -312,9 +312,9 @@ func testAggMetrics(t *testing.T, coord resources.Coordinator) {
 	require.NoError(t, resources.Retry(func() error {
 		result, err := coord.RangeQuery(
 			resources.RangeQueryRequest{
-				QueryExpr: "cpu",
-				StartTime: time.Now().Add(-30 * time.Second),
-				EndTime:   time.Now(),
+				Query: "cpu",
+				Start: time.Now().Add(-30 * time.Second),
+				End:   time.Now(),
 				Step:      1 * time.Second,
 			},
 			queryHeaders,

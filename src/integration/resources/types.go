@@ -265,20 +265,20 @@ func (a Aggregators) WaitForHealthy() error {
 
 // QueryRequest represents an instant query request
 type QueryRequest struct {
-	// QueryExpr is the Prometheus expression query string.
-	QueryExpr string
+	// Query is the Prometheus expression query string.
+	Query string
 	// Time is the evaluation timestamp. It is optional.
 	Time *time.Time
 }
 
 // RangeQueryRequest represents a range query request
 type RangeQueryRequest struct {
-	// QueryExpr is the Prometheus expression query string.
-	QueryExpr string
-	// StartTime is the start timestamp of the query range. The default value is time.Now().
-	StartTime time.Time
-	// EndTime is the end timestamp of the query range. The default value is time.Now().
-	EndTime time.Time
+	// Query is the Prometheus expression query string.
+	Query string
+	// Start is the start timestamp of the query range. The default value is time.Now().
+	Start time.Time
+	// End is the end timestamp of the query range. The default value is time.Now().
+	End time.Time
 	// Step is the query resolution step width. It is default to 15 seconds.
 	Step time.Duration
 }
