@@ -2,6 +2,6 @@
 
 set -eo pipefail
 echo "--- ulimits"
-ulimit -a
+cat /proc/self/limits
 echo "--- :git: cleaning checkout"
 git clean -dffx
