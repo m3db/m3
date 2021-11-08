@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
-	genericstorage "github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -48,7 +48,7 @@ func noop() error {
 
 // Storage provides an interface for reading and writing to the TSDB.
 type Storage interface {
-	genericstorage.Storage
+	storage.Storage
 	Querier
 }
 
@@ -57,22 +57,22 @@ type Querier interface {
 	// FetchCompressedResult fetches timeseries data based on a query.
 	FetchCompressedResult(
 		ctx context.Context,
-		query *genericstorage.FetchQuery,
-		options *genericstorage.FetchOptions,
+		query *storage.FetchQuery,
+		options *storage.FetchOptions,
 	) (consolidators.SeriesFetchResult, Cleanup, error)
 
 	// SearchCompressed fetches matching tags based on a query.
 	SearchCompressed(
 		ctx context.Context,
-		query *genericstorage.FetchQuery,
-		options *genericstorage.FetchOptions,
+		query *storage.FetchQuery,
+		options *storage.FetchOptions,
 	) (consolidators.TagResult, Cleanup, error)
 
 	// CompleteTagsCompressed returns autocompleted tag results.
 	CompleteTagsCompressed(
 		ctx context.Context,
-		query *genericstorage.CompleteTagsQuery,
-		options *genericstorage.FetchOptions,
+		query *storage.CompleteTagsQuery,
+		options *storage.FetchOptions,
 	) (*consolidators.CompleteTagsResult, error)
 }
 
@@ -205,10 +205,10 @@ type Options interface {
 	Instrumented() bool
 	// SetPromConvertOptions sets options for converting raw series iterators
 	// to a Prometheus-compatible result.
-	SetPromConvertOptions(genericstorage.PromConvertOptions) Options
+	SetPromConvertOptions(storage.PromConvertOptions) Options
 	// PromConvertOptions returns options for converting raw series iterators
 	// to a Prometheus-compatible result.
-	PromConvertOptions() genericstorage.PromConvertOptions
+	PromConvertOptions() storage.PromConvertOptions
 	// Validate ensures that the given block options are valid.
 	Validate() error
 }

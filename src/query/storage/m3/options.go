@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
-	genericstorage "github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -141,7 +141,7 @@ type encodedBlockOptions struct {
 	batchingFn                    IteratorBatchingFn
 	blockSeriesProcessor          BlockSeriesProcessor
 	adminOptions                  []client.CustomAdminOption
-	promConvertOptions            genericstorage.PromConvertOptions
+	promConvertOptions            storage.PromConvertOptions
 	instrumented                  bool
 }
 
@@ -162,7 +162,7 @@ func newOptions(
 			MatchType: consolidators.MatchIDs,
 		},
 		tagsTransform:      defaultTagsTransform,
-		promConvertOptions: genericstorage.NewPromConvertOptions(),
+		promConvertOptions: storage.NewPromConvertOptions(),
 	}
 }
 
@@ -318,13 +318,13 @@ func (o *encodedBlockOptions) Instrumented() bool {
 	return o.instrumented
 }
 
-func (o *encodedBlockOptions) SetPromConvertOptions(value genericstorage.PromConvertOptions) Options {
+func (o *encodedBlockOptions) SetPromConvertOptions(value storage.PromConvertOptions) Options {
 	opts := *o
 	opts.promConvertOptions = value
 	return &opts
 }
 
-func (o *encodedBlockOptions) PromConvertOptions() genericstorage.PromConvertOptions {
+func (o *encodedBlockOptions) PromConvertOptions() storage.PromConvertOptions {
 	return o.promConvertOptions
 }
 
