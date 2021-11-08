@@ -22,6 +22,8 @@
 package inprocess
 
 import (
+	"fmt"
+	"syscall"
 	"testing"
 
 	"github.com/m3db/m3/src/integration/resources"
@@ -29,6 +31,11 @@ import (
 )
 
 func TestNewCluster(t *testing.T) {
+	var l syscall.Rlimit
+	syscall.Getrlimit(syscall.RLIMIT_NOFILE, &l)
+	fmt.Printf("%v\n", l)
+	return
+
 	configs, err := NewClusterConfigsFromYAML(clusterDBNodeConfig, clusterCoordConfig, "")
 	require.NoError(t, err)
 

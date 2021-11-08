@@ -262,7 +262,8 @@ SUBDIR_TARGETS := \
 
 .PHONY: test-harness
 test-harness:
-	go test -v -tags=integration_test_harness ./src/integration/...
+	go test -v -tags=integration_test_harness ./src/integration/... -run ^TestNewCluster$
+	#go test -v -tags=integration_test_harness ./src/integration/...
 
 .PHONY: test-ci-unit
 test-ci-unit: test-base
