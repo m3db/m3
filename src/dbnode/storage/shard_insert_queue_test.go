@@ -31,6 +31,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 func TestShardInsertQueueBatchBackoff(t *testing.T) {
@@ -68,7 +70,7 @@ func TestShardInsertQueueBatchBackoff(t *testing.T) {
 		timeLock.Lock()
 		defer timeLock.Unlock()
 		return currTime
-	}, tally.NoopScope, zap.NewNop())
+	}, xsync.CPUCore, tally.NoopScope, zap.NewNop())
 
 	q.insertBatchBackoff = backoff
 
@@ -146,7 +148,7 @@ func TestShardInsertQueueRateLimit(t *testing.T) {
 		timeLock.Lock()
 		defer timeLock.Unlock()
 		return currTime
-	}, tally.NoopScope, zap.NewNop())
+	}, xsync.CPUCore, tally.NoopScope, zap.NewNop())
 
 	q.insertPerSecondLimit.Store(2)
 
@@ -207,7 +209,7 @@ func TestShardInsertQueueFlushedOnClose(t *testing.T) {
 	q := newDatabaseShardInsertQueue(func(value []dbShardInsert) error {
 		atomic.AddInt64(&numInsertObserved, int64(len(value)))
 		return nil
-	}, func() time.Time { return currTime }, tally.NoopScope, zap.NewNop())
+	}, func() time.Time { return currTime }, xsync.CPUCore, tally.NoopScope, zap.NewNop())
 
 	require.NoError(t, q.Start())
 

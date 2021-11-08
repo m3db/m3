@@ -148,9 +148,9 @@ type metricElem interface {
 // ElemData are initialization parameters for an element.
 type ElemData struct {
 	ID                 id.RawID
-	StoragePolicy      policy.StoragePolicy
 	AggTypes           maggregation.Types
 	Pipeline           applied.Pipeline
+	StoragePolicy      policy.StoragePolicy
 	NumForwardedTimes  int
 	IDPrefixSuffixType IDPrefixSuffixType
 	ListType           metricListType
@@ -165,7 +165,6 @@ type elemBase struct {
 	aggTypesOpts                    maggregation.TypesOptions
 	id                              id.RawID
 	sp                              policy.StoragePolicy
-	useDefaultAggregation           bool
 	aggTypes                        maggregation.Types
 	aggOpts                         raggregation.Options
 	parsedPipeline                  parsedPipeline
@@ -178,53 +177,61 @@ type elemBase struct {
 	listType                        metricListType
 
 	// Mutable states.
-	tombstoned       bool
-	closed           bool
 	cachedSourceSets []map[uint32]*bitset.BitSet // nolint: structcheck
 	// a cache of the lag metrics that don't require grabbing a lock to access.
-	forwardLagMetrics map[forwardLagKey]tally.Histogram
+	forwardLagMetrics     map[forwardLagKey]tally.Histogram
+	tombstoned            bool
+	closed                bool
+	useDefaultAggregation bool // really immutable, but packed w/ the rest of bools
 }
 
-// mutable state for a timedAggregation that is local to the flusher. does not need to be synchronized.
-type aggFlushState struct {
+// consumeState is transient state for a timedAggregation that can change every flush round.
+// this state is thrown away after the timedAggregation is processed in a flush round.
+type consumeState struct {
 	// the annotation copied from the lockedAgg.
 	annotation []byte
 	// the values copied from the lockedAgg.
 	values []float64
-	// the consumed values from the previous flush. used for binary transformations. note these are the values before
-	// transformation. emittedValues are after transformation.
-	consumedValues []float64
-	// the emitted values from the previous flush. used to determine if the emitted values have not changed and
-	// can be skipped.
-	emittedValues []float64
-	// the start time of the aggregation. immutable.
+	// the start time of the aggregation.
 	startAt xtime.UnixNano
-	// the timestamp of the aggregation. effectively immutable, but lazily set at flush time.
-	timestamp xtime.UnixNano
 	// the start aligned timestamp of the previous aggregation. used to lookup the consumedValues of the previous
 	// aggregation for binary transformations.
 	prevStartTime xtime.UnixNano
-	// true if this aggregation has ever been flushed.
-	flushed bool
 	// the dirty bit copied from the lockedAgg.
 	dirty bool
 	// copied from the timedAggregation
 	resendEnabled bool
 }
 
+// mutable state for a timedAggregation that is local to the flusher. does not need to be synchronized.
+// this state is kept around for the lifetime of the timedAggregation.
+type flushState struct {
+	// the consumed values from the previous flush. used for binary transformations. note these are the values before
+	// transformation. emittedValues are after transformation.
+	consumedValues []float64
+	// the emitted values from the previous flush. used to determine if the emitted values have not changed and
+	// can be skipped.
+	emittedValues []float64
+	// true if this aggregation has ever been flushed.
+	flushed bool
+}
+
+var isDirty = func(state consumeState) bool {
+	return state.dirty
+}
+
 // close is called when the aggregation has expired and is no longer needed.
-func (a *aggFlushState) close() {
-	a.values = a.values[:0]
-	a.consumedValues = a.consumedValues[:0]
-	a.emittedValues = a.emittedValues[:0]
+func (f *flushState) close() {
+	f.consumedValues = f.consumedValues[:0]
+	f.emittedValues = f.emittedValues[:0]
 }
 
 type elemMetrics struct {
-	sync.RWMutex
 	scope         tally.Scope
 	updatedValues tally.Counter
 	retriedValues tally.Counter
 	forwardLags   map[forwardLagKey]tally.Histogram
+	mtx           sync.RWMutex
 }
 
 type forwardLagKey struct {
@@ -236,17 +243,17 @@ type forwardLagKey struct {
 }
 
 func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
-	e.RLock()
+	e.mtx.RLock()
 	m, ok := e.forwardLags[key]
 	if ok {
-		e.RUnlock()
+		e.mtx.RUnlock()
 		return m
 	}
-	e.RUnlock()
-	e.Lock()
+	e.mtx.RUnlock()
+	e.mtx.Lock()
 	m, ok = e.forwardLags[key]
 	if ok {
-		e.Unlock()
+		e.mtx.Unlock()
 		return m
 	}
 	jitterApplied := "false"
@@ -280,7 +287,7 @@ func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
 			120 * time.Second,
 		})
 	e.forwardLags[key] = m
-	e.Unlock()
+	e.mtx.Unlock()
 	return m
 }
 

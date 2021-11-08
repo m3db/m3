@@ -218,11 +218,8 @@ func (m *metricMap) AddForwarded(
 	return err
 }
 
-func (m *metricMap) Tick(
-	target time.Duration,
-	doneCh <-chan struct{},
-) tickResult {
-	mapTickRes := m.tick(target, doneCh)
+func (m *metricMap) Tick(target time.Duration) tickResult {
+	mapTickRes := m.tick(target)
 	listsTickRes := m.metricLists.Tick()
 	mapTickRes.standard.activeElems = listsTickRes.standard
 	mapTickRes.forwarded.activeElems = listsTickRes.forwarded
@@ -323,10 +320,7 @@ func (m *metricMap) lookupEntryWithLock(key entryKey) (*Entry, bool) {
 // tick performs two operations:
 // 1. Delete entries that have expired, and report the number of expired entries.
 // 2. Report number of standard entries and forwarded entries that are active.
-func (m *metricMap) tick(
-	target time.Duration,
-	doneCh <-chan struct{},
-) tickResult {
+func (m *metricMap) tick(target time.Duration) tickResult {
 	// Determine batch size.
 	m.RLock()
 	numEntries := m.entryList.Len()
@@ -346,22 +340,9 @@ func (m *metricMap) tick(
 		numTimedActive       int
 		numTimedExpired      int
 		entryIdx             int
-
-		done bool
 	)
 
 	m.forEachEntry(func(entry hashedEntry) {
-		if done {
-			return
-		}
-
-		select {
-		case <-doneCh:
-			done = true
-			return
-		default:
-		}
-
 		now := m.nowFn()
 		if entryIdx > 0 && entryIdx%defaultSoftDeadlineCheckEvery == 0 {
 			targetDeadline := start.Add(time.Duration(entryIdx) * perEntrySoftDeadline)

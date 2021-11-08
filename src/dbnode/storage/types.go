@@ -56,6 +56,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -1403,6 +1404,12 @@ type Options interface {
 
 	// SetLimitsOptions sets the limits options.
 	SetLimitsOptions(value limits.Options) Options
+
+	// CoreFn gets the function for determining the current core.
+	CoreFn() xsync.CoreFn
+
+	// SetCoreFn sets the function for determining the current core.
+	SetCoreFn(value xsync.CoreFn) Options
 }
 
 // MemoryTracker tracks memory.

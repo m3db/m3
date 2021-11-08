@@ -51,7 +51,7 @@ func main() {
 	var (
 		optSrcPath       = getopt.StringLong("src-path", 's', "", "Source path [e.g. /temp/lib/m3db/data]")
 		optDstPathPrefix = getopt.StringLong("dst-path", 'd', "", "Destination path prefix [e.g. /var/lib/m3db/data]")
-		optBlockUntil    = getopt.Int64Long("block-until", 'b', 0, "Block Until Time [in nsec]")
+		optBlockUntil    = getopt.Int64Long("block-until", 'b', 0, "Block Until Time, exclusive [in nsec]")
 		optShards        = getopt.Uint32Long("src-shards", 'h', 0, "Original (source) number of shards")
 		optFactor        = getopt.IntLong("factor", 'f', 0, "Integer factor to increase the number of shards by")
 	)

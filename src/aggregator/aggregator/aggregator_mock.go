@@ -390,6 +390,20 @@ func (mr *MockFlushTimesManagerMockRecorder) StoreAsync(arg0 interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreAsync", reflect.TypeOf((*MockFlushTimesManager)(nil).StoreAsync), arg0)
 }
 
+// StoreSync mocks base method.
+func (m *MockFlushTimesManager) StoreSync(arg0 *flush.ShardSetFlushTimes) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StoreSync", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// StoreSync indicates an expected call of StoreSync.
+func (mr *MockFlushTimesManagerMockRecorder) StoreSync(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreSync", reflect.TypeOf((*MockFlushTimesManager)(nil).StoreSync), arg0)
+}
+
 // Watch mocks base method.
 func (m *MockFlushTimesManager) Watch() (watch.Watch, error) {
 	m.ctrl.T.Helper()

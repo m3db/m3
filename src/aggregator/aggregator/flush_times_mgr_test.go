@@ -180,6 +180,20 @@ func TestFlushTimesManagerStoreAsyncSuccess(t *testing.T) {
 	}
 }
 
+func TestFlushTimesManagerStoreSyncSuccess(t *testing.T) {
+	mgr, store := testFlushTimesManager()
+	require.NoError(t, mgr.Open(testShardSetID))
+
+	// Store flush times and wait for change to propagate.
+	require.NoError(t, mgr.StoreSync(testFlushTimesProto))
+	value, err := store.Get(testFlushTimesKey)
+	require.NoError(t, err)
+	require.NotNil(t, value)
+	var res schema.ShardSetFlushTimes
+	require.NoError(t, value.Unmarshal(&res))
+	require.Equal(t, *testFlushTimesProto, res)
+}
+
 func TestFlushTimesManagerCloseClosed(t *testing.T) {
 	mgr, _ := testFlushTimesManager()
 	require.Equal(t, errFlushTimesManagerNotOpenOrClosed, mgr.Close())

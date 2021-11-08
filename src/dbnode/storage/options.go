@@ -50,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 const (
@@ -178,6 +179,7 @@ type options struct {
 	tileAggregator                  TileAggregator
 	permitsOptions                  permits.Options
 	limitsOptions                   limits.Options
+	coreFn                          xsync.CoreFn
 }
 
 // NewOptions creates a new set of storage options with defaults.
@@ -253,6 +255,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		tileAggregator:                  &noopTileAggregator{},
 		permitsOptions:                  permits.NewOptions(),
 		limitsOptions:                   limits.DefaultLimitsOptions(iOpts),
+		coreFn:                          xsync.CPUCore,
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -934,6 +937,16 @@ func (o *options) SetLimitsOptions(value limits.Options) Options {
 
 func (o *options) TileAggregator() TileAggregator {
 	return o.tileAggregator
+}
+
+func (o *options) CoreFn() xsync.CoreFn {
+	return o.coreFn
+}
+
+func (o *options) SetCoreFn(value xsync.CoreFn) Options {
+	opts := *o
+	opts.coreFn = value
+	return &opts
 }
 
 type noOpColdFlush struct{}

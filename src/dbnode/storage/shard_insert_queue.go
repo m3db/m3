@@ -66,6 +66,7 @@ type dbShardInsertQueue struct {
 	nowFn              clock.NowFn
 	insertEntryBatchFn dbShardInsertEntryBatchFn
 	sleepFn            func(time.Duration)
+	coreFn             xsync.CoreFn
 
 	// rate limits, protected by mutex
 	insertBatchBackoff   time.Duration
@@ -124,6 +125,7 @@ type dbShardInsertEntryBatchFn func(inserts []dbShardInsert) error
 func newDatabaseShardInsertQueue(
 	insertEntryBatchFn dbShardInsertEntryBatchFn,
 	nowFn clock.NowFn,
+	coreFn xsync.CoreFn,
 	scope tally.Scope,
 	logger *zap.Logger,
 ) *dbShardInsertQueue {
@@ -133,6 +135,7 @@ func newDatabaseShardInsertQueue(
 		nowFn:              nowFn,
 		insertEntryBatchFn: insertEntryBatchFn,
 		sleepFn:            time.Sleep,
+		coreFn:             coreFn,
 		currBatch:          currBatch,
 		// NB(r): Use 2 * num cores so that each CPU insert queue which
 		// is 1 per num CPU core can always enqueue a notification without
@@ -287,7 +290,7 @@ func (q *dbShardInsertQueue) Insert(insert dbShardInsert) (*sync.WaitGroup, erro
 		}
 	}
 
-	inserts := q.currBatch.insertsByCPUCore[xsync.CPUCore()]
+	inserts := q.currBatch.insertsByCPUCore[q.coreFn()]
 	inserts.Lock()
 	// Track if first insert, if so then we need to notify insert loop,
 	// otherwise we already have a pending notification.

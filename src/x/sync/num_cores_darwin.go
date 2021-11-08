@@ -1,4 +1,6 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// +build darwin
+//
+// Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,26 +20,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package aggregator
+package sync
 
-import (
-	"github.com/m3db/m3/src/metrics/aggregation"
-	"github.com/m3db/m3/src/metrics/pipeline/applied"
-	"github.com/m3db/m3/src/metrics/policy"
-)
+import "syscall"
 
-type aggregationKey struct {
-	pipeline           applied.Pipeline
-	storagePolicy      policy.StoragePolicy
-	aggregationID      aggregation.ID
-	numForwardedTimes  int
-	idPrefixSuffixType IDPrefixSuffixType
-}
+func checkNumCores() int {
+	cores, err := syscall.SysctlUint32("hw.physicalcpu")
+	if err != nil {
+		return 1
+	}
 
-func (k aggregationKey) Equal(other aggregationKey) bool {
-	return k.aggregationID == other.aggregationID &&
-		k.storagePolicy == other.storagePolicy &&
-		k.pipeline.Equal(other.pipeline) &&
-		k.numForwardedTimes == other.numForwardedTimes &&
-		k.idPrefixSuffixType == other.idPrefixSuffixType
+	return int(cores)
 }
