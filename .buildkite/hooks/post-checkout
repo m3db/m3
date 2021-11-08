@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -eo pipefail
-
+echo "--- ulimits"
+ulimit -a
 echo "--- :git: cleaning checkout"
 git clean -dffx
