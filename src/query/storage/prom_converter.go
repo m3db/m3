@@ -36,19 +36,17 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-const (
-	initRawFetchAllocSize = 32
-
-	resolutionThresholdForCounterNormalization = time.Hour
-)
+const initRawFetchAllocSize = 32
 
 func iteratorToPromResult(
 	iter encoding.SeriesIterator,
 	tags models.Tags,
 	maxResolution time.Duration,
+	promConvertOptions PromConvertOptions,
 ) (*prompb.TimeSeries, error) {
 	var (
-		resolution = xtime.UnixNano(maxResolution)
+		resolution          = xtime.UnixNano(maxResolution)
+		resolutionThreshold = promConvertOptions.ResolutionThresholdForCounterNormalization()
 
 		firstDP           = true
 		handleResets      = false
@@ -63,7 +61,7 @@ func iteratorToPromResult(
 	for iter.Next() {
 		dp, _, _ := iter.Current()
 
-		if firstDP && maxResolution >= resolutionThresholdForCounterNormalization {
+		if firstDP && maxResolution >= resolutionThreshold {
 			firstAnnotation := iter.FirstAnnotation()
 			if len(firstAnnotation) > 0 {
 				if err := annotationPayload.Unmarshal(firstAnnotation); err != nil {
@@ -121,6 +119,7 @@ func toPromSequentially(
 	fetchResult consolidators.SeriesFetchResult,
 	tagOptions models.TagOptions,
 	maxResolution time.Duration,
+	promConvertOptions PromConvertOptions,
 ) (PromResult, error) {
 	count := fetchResult.Count()
 	seriesList := make([]*prompb.TimeSeries, 0, count)
@@ -130,7 +129,7 @@ func toPromSequentially(
 			return PromResult{}, err
 		}
 
-		series, err := iteratorToPromResult(iter, tags, maxResolution)
+		series, err := iteratorToPromResult(iter, tags, maxResolution, promConvertOptions)
 		if err != nil {
 			return PromResult{}, err
 		}
@@ -153,6 +152,7 @@ func toPromConcurrently(
 	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 	maxResolution time.Duration,
+	promConvertOptions PromConvertOptions,
 ) (PromResult, error) {
 	count := fetchResult.Count()
 	var (
@@ -174,7 +174,7 @@ func toPromConcurrently(
 		wg.Add(1)
 		available := fastWorkerPool.GoWithContext(ctx, func() {
 			defer wg.Done()
-			series, err := iteratorToPromResult(iter, tags, maxResolution)
+			series, err := iteratorToPromResult(iter, tags, maxResolution, promConvertOptions)
 			if err != nil {
 				mu.Lock()
 				multiErr = multiErr.Add(err)
@@ -218,12 +218,13 @@ func seriesIteratorsToPromResult(
 	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 	maxResolution time.Duration,
+	promConvertOptions PromConvertOptions,
 ) (PromResult, error) {
 	if readWorkerPool == nil {
-		return toPromSequentially(fetchResult, tagOptions, maxResolution)
+		return toPromSequentially(fetchResult, tagOptions, maxResolution, promConvertOptions)
 	}
 
-	return toPromConcurrently(ctx, fetchResult, readWorkerPool, tagOptions, maxResolution)
+	return toPromConcurrently(ctx, fetchResult, readWorkerPool, tagOptions, maxResolution, promConvertOptions)
 }
 
 // SeriesIteratorsToPromResult converts raw series iterators directly to a
@@ -233,6 +234,7 @@ func SeriesIteratorsToPromResult(
 	fetchResult consolidators.SeriesFetchResult,
 	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
+	promConvertOptions PromConvertOptions,
 ) (PromResult, error) {
 	defer fetchResult.Close()
 	if err := fetchResult.Verify(); err != nil {
@@ -247,7 +249,7 @@ func SeriesIteratorsToPromResult(
 	}
 
 	promResult, err := seriesIteratorsToPromResult(ctx, fetchResult,
-		readWorkerPool, tagOptions, maxResolution)
+		readWorkerPool, tagOptions, maxResolution, promConvertOptions)
 	promResult.Metadata = fetchResult.Metadata
 
 	return promResult, err

@@ -356,3 +356,15 @@ type PromResult struct {
 	// ResultMetadata is the metadata for the result.
 	Metadata block.ResultMetadata
 }
+
+// PromConvertOptions are options controlling the conversion of raw series iterators
+// to a Prometheus-compatible result.
+type PromConvertOptions interface {
+	// SetResolutionThresholdForCounterNormalization sets resolution
+	// starting from which (inclusive) a normalization of counter values is performed.
+	SetResolutionThresholdForCounterNormalization(time.Duration) PromConvertOptions
+
+	// ResolutionThresholdForCounterNormalization returns resolution
+	// starting from which (inclusive) a normalization of counter values is performed.
+	ResolutionThresholdForCounterNormalization() time.Duration
+}

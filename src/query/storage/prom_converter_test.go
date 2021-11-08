@@ -80,7 +80,8 @@ func verifyExpandPromSeries(
 		Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
 	}
 
-	results, err := SeriesIteratorsToPromResult(context.Background(), fetchResult, pools, nil)
+	results, err := SeriesIteratorsToPromResult(
+		context.Background(), fetchResult, pools, nil, NewPromConvertOptions())
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
@@ -125,7 +126,8 @@ func TestContextCanceled(t *testing.T) {
 
 	iters := seriesiter.NewMockSeriesIters(ctrl, ident.Tag{}, 1, 2)
 	fetchResult := fr(t, iters, makeTag("foo", "bar", 1)...)
-	_, err = SeriesIteratorsToPromResult(ctx, fetchResult, pool, nil)
+	_, err = SeriesIteratorsToPromResult(
+		ctx, fetchResult, pool, nil, NewPromConvertOptions())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "context canceled")
 }
@@ -286,7 +288,8 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	}
 
 	opts := models.NewTagOptions()
-	res, err := SeriesIteratorsToPromResult(context.Background(), buildIters(), nil, opts)
+	res, err := SeriesIteratorsToPromResult(
+		context.Background(), buildIters(), nil, opts, NewPromConvertOptions())
 	require.NoError(t, err)
 	verifyResult(t, res)
 
@@ -294,7 +297,8 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	require.NoError(t, err)
 	pool.Init()
 
-	res, err = SeriesIteratorsToPromResult(context.Background(), buildIters(), pool, opts)
+	res, err = SeriesIteratorsToPromResult(
+		context.Background(), buildIters(), pool, opts, NewPromConvertOptions())
 	require.NoError(t, err)
 	verifyResult(t, res)
 }
@@ -477,7 +481,8 @@ func testSeriesIteratorsToPromResultNormalize(
 	assert.NoError(t, err)
 
 	opts := models.NewTagOptions()
-	res, err := SeriesIteratorsToPromResult(context.Background(), fetchResult, nil, opts)
+	res, err := SeriesIteratorsToPromResult(
+		context.Background(), fetchResult, nil, opts, NewPromConvertOptions())
 	require.NoError(t, err)
 	verifyResult(t, want, res)
 }

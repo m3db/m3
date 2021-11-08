@@ -148,6 +148,7 @@ func (s *m3storage) FetchProm(
 		result,
 		s.opts.ReadWorkerPool(),
 		s.opts.TagOptions(),
+		s.opts.PromConvertOptions(),
 	)
 	if err != nil {
 		return storage.PromResult{}, err

@@ -94,7 +94,7 @@ type DynamicClusterOptions interface {
 	// SetDynamicClusterNamespaceConfiguration sets the configuration for the dynamically fetching cluster namespaces.
 	SetDynamicClusterNamespaceConfiguration(value []DynamicClusterNamespaceConfiguration) DynamicClusterOptions
 
-	// SetDynamicClusterNamespaceConfiguration returns the configuration for the dynamically fetching cluster namespaces.
+	// DynamicClusterNamespaceConfiguration returns the configuration for the dynamically fetching cluster namespaces.
 	DynamicClusterNamespaceConfiguration() []DynamicClusterNamespaceConfiguration
 
 	// SetInstrumentOptions sets the instrument options.
@@ -151,11 +151,11 @@ type Options interface {
 	SetLookbackDuration(time.Duration) Options
 	// LookbackDuration returns the lookback duration.
 	LookbackDuration() time.Duration
-	// SetLookbackDuration sets the consolidation function for the converter.
+	// SetConsolidationFunc sets the consolidation function for the converter.
 	SetConsolidationFunc(consolidators.ConsolidationFunc) Options
-	// LookbackDuration returns the consolidation function.
+	// ConsolidationFunc returns the consolidation function.
 	ConsolidationFunc() consolidators.ConsolidationFunc
-	// SetLookbackDuration sets the tag options for the converter.
+	// SetTagOptions sets the tag options for the converter.
 	SetTagOptions(models.TagOptions) Options
 	// TagOptions returns the tag options.
 	TagOptions() models.TagOptions
@@ -175,13 +175,13 @@ type Options interface {
 	SetReadWorkerPool(sync.PooledWorkerPool) Options
 	// ReadWorkerPool returns the read worker pool for the converter.
 	ReadWorkerPool() sync.PooledWorkerPool
-	// SetReadWorkerPool sets the write worker pool for the converter.
+	// SetWriteWorkerPool sets the write worker pool for the converter.
 	SetWriteWorkerPool(sync.PooledWorkerPool) Options
-	// ReadWorkerPool returns the write worker pool for the converter.
+	// WriteWorkerPool returns the write worker pool for the converter.
 	WriteWorkerPool() sync.PooledWorkerPool
 	// SetSeriesConsolidationMatchOptions sets series consolidation options.
 	SetSeriesConsolidationMatchOptions(value consolidators.MatchOptions) Options
-	// SetSeriesConsolidationMatchOptions sets series consolidation options.
+	// SeriesConsolidationMatchOptions sets series consolidation options.
 	SeriesConsolidationMatchOptions() consolidators.MatchOptions
 	// SetSeriesIteratorProcessor sets the series iterator processor.
 	SetSeriesIteratorProcessor(SeriesIteratorProcessor) Options
@@ -203,6 +203,12 @@ type Options interface {
 	SetInstrumented(bool) Options
 	// Instrumented returns if the encoding step should have instrumentation enabled.
 	Instrumented() bool
+	// SetPromConvertOptions sets options for converting raw series iterators
+	// to a Prometheus-compatible result.
+	SetPromConvertOptions(genericstorage.PromConvertOptions) Options
+	// PromConvertOptions returns options for converting raw series iterators
+	// to a Prometheus-compatible result.
+	PromConvertOptions() genericstorage.PromConvertOptions
 	// Validate ensures that the given block options are valid.
 	Validate() error
 }
