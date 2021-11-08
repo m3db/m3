@@ -41,6 +41,9 @@ type ResponseVerifier func(int, map[string][]string, string, error) error
 // GoalStateVerifier verifies that the given results are valid.
 type GoalStateVerifier func(string, error) error
 
+// Headers represents http headers.
+type Headers map[string][]string
+
 // Coordinator is a wrapper for a coordinator. It provides a wrapper on HTTP
 // endpoints that expose cluster management APIs as well as read and write
 // endpoints for series data.
@@ -57,11 +60,11 @@ type Coordinator interface {
 	// WriteProm writes a prometheus metric.
 	WriteProm(name string, tags map[string]string, samples []prompb.Sample) error
 	// RunQuery runs the given query with a given verification function.
-	RunQuery(verifier ResponseVerifier, query string, headers map[string][]string) error
+	RunQuery(verifier ResponseVerifier, query string, headers Headers) error
 	// InstantQuery runs an instant query with provided headers
-	InstantQuery(req QueryRequest, headers map[string][]string) (model.Vector, error)
+	InstantQuery(req QueryRequest, headers Headers) (model.Vector, error)
 	// RangeQuery runs a range query with provided headers
-	RangeQuery(req RangeQueryRequest, headers map[string][]string) (model.Matrix, error)
+	RangeQuery(req RangeQueryRequest, headers Headers) (model.Matrix, error)
 }
 
 // Admin is a wrapper for admin functions.

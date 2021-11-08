@@ -222,7 +222,9 @@ func (c *coordinator) ApplyKVUpdate(update string) error {
 }
 
 func (c *coordinator) RunQuery(
-	verifier resources.ResponseVerifier, query string, headers map[string][]string,
+	verifier resources.ResponseVerifier,
+	query string,
+	headers resources.Headers,
 ) error {
 	if c.resource.closed {
 		return errClosed
@@ -233,7 +235,7 @@ func (c *coordinator) RunQuery(
 
 func (c *coordinator) InstantQuery(
 	req resources.QueryRequest,
-	headers map[string][]string,
+	headers resources.Headers,
 ) (model.Vector, error) {
 	if c.resource.closed {
 		return nil, errClosed
@@ -244,7 +246,7 @@ func (c *coordinator) InstantQuery(
 // RangeQuery runs a range query with provided headers
 func (c *coordinator) RangeQuery(
 	req resources.RangeQueryRequest,
-	headers map[string][]string,
+	headers resources.Headers,
 ) (model.Matrix, error) {
 	if c.resource.closed {
 		return nil, errClosed

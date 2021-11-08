@@ -291,7 +291,7 @@ func testAggMetrics(t *testing.T, coord resources.Coordinator) {
 		return coord.WriteProm("cpu", map[string]string{"host": "host1"}, samples)
 	}))
 
-	queryHeaders := map[string][]string{"M3-Metrics-Type": {"aggregated"}, "M3-Storage-Policy": {"10s:6h"}}
+	queryHeaders := resources.Headers{"M3-Metrics-Type": {"aggregated"}, "M3-Storage-Policy": {"10s:6h"}}
 
 	// Instant Query
 	require.NoError(t, resources.Retry(func() error {

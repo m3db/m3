@@ -418,7 +418,7 @@ func (c *Coordinator) WriteProm(name string, tags map[string]string, samples []p
 func (c *Coordinator) RunQuery(
 	verifier resources.ResponseVerifier,
 	query string,
-	headers map[string][]string,
+	headers resources.Headers,
 ) error {
 	return c.client.RunQuery(verifier, query, headers)
 }
@@ -426,7 +426,7 @@ func (c *Coordinator) RunQuery(
 // InstantQuery runs an instant query with provided headers
 func (c *Coordinator) InstantQuery(
 	req resources.QueryRequest,
-	headers map[string][]string,
+	headers resources.Headers,
 ) (model.Vector, error) {
 	return c.client.InstantQuery(req, headers)
 }
@@ -434,7 +434,7 @@ func (c *Coordinator) InstantQuery(
 // RangeQuery runs a range query with provided headers
 func (c *Coordinator) RangeQuery(
 	req resources.RangeQueryRequest,
-	headers map[string][]string,
+	headers resources.Headers,
 ) (model.Matrix, error) {
 	return c.client.RangeQuery(req, headers)
 }
