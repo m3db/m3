@@ -385,7 +385,7 @@ func TestSeriesIteratorsToPromResultNormalizeLowResCounters(t *testing.T) {
 				{Value: 8, Timestamp: ms(t0.Add(3 * time.Minute))},
 			},
 		},
-		{
+		{ // nolint: dupl
 			name:          "low resolution counter with no resets",
 			isCounter:     true,
 			maxResolution: time.Hour,
@@ -400,7 +400,7 @@ func TestSeriesIteratorsToPromResultNormalizeLowResCounters(t *testing.T) {
 				{Value: 3, Timestamp: ms(t0.Add(time.Hour + time.Minute))},
 			},
 		},
-		{
+		{ // nolint: dupl
 			name:          "low resolution counter with resets",
 			isCounter:     true,
 			maxResolution: time.Hour,
