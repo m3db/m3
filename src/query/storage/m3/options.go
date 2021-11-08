@@ -161,7 +161,8 @@ func newOptions(
 		queryConsolidatorMatchOptions: consolidators.MatchOptions{
 			MatchType: consolidators.MatchIDs,
 		},
-		tagsTransform: defaultTagsTransform,
+		tagsTransform:      defaultTagsTransform,
+		promConvertOptions: genericstorage.NewPromConvertOptions(),
 	}
 }
 
