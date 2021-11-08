@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // flushingMetricList periodically flushes metrics stored in the list for a given shard.
@@ -119,4 +120,5 @@ type flushForwardedMetricFn func(
 type onForwardingElemFlushedFn func(
 	onDoneFn onForwardedAggregationDoneFn,
 	aggregationKey aggregationKey,
+	expiredTimes []xtime.UnixNano,
 )

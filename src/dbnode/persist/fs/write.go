@@ -183,26 +183,26 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 			return err
 		}
 
-		w.checkpointFilePath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix)
-		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix)
-		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix)
-		summariesFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, summariesFileSuffix)
-		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix)
-		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix)
-		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix)
+		w.checkpointFilePath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, CheckpointFileSuffix)
+		infoFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, InfoFileSuffix)
+		indexFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix)
+		summariesFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, summariesFileSuffix)
+		bloomFilterFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix)
+		dataFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix)
+		digestFilepath = FilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, DigestFileSuffix)
 	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(w.filePathPrefix, namespace, shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
 		}
 
-		w.checkpointFilePath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix, false)
-		infoFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix, false)
+		w.checkpointFilePath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, CheckpointFileSuffix, false)
+		infoFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, InfoFileSuffix, false)
 		indexFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix, false)
 		summariesFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, summariesFileSuffix, false)
 		bloomFilterFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, false)
 		dataFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix, false)
-		digestFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix, false)
+		digestFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, DigestFileSuffix, false)
 	default:
 		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FileSetType)
 	}

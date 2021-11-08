@@ -802,8 +802,9 @@ type flushManagerConfiguration struct {
 	// Number of workers per CPU.
 	NumWorkersPerCPU float64 `yaml:"numWorkersPerCPU" validate:"min=0.0,max=1.0"`
 
-	// How frequently the flush times are persisted.
-	FlushTimesPersistEvery time.Duration `yaml:"flushTimesPersistEvery"`
+	// DeprecatedFlushTimesPersistEvery controlled how often flush times were
+	// persisted, but is now deprecated.
+	DeprecatedFlushTimesPersistEvery time.Duration `yaml:"flushTimesPersistEvery"`
 
 	// Maximum buffer size.
 	MaxBufferSize time.Duration `yaml:"maxBufferSize"`
@@ -848,9 +849,6 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 		workerPool := sync.NewWorkerPool(workerPoolSize)
 		workerPool.Init()
 		opts = opts.SetWorkerPool(workerPool)
-	}
-	if c.FlushTimesPersistEvery != 0 {
-		opts = opts.SetFlushTimesPersistEvery(c.FlushTimesPersistEvery)
 	}
 	if c.MaxBufferSize != 0 {
 		opts = opts.SetMaxBufferSize(c.MaxBufferSize)

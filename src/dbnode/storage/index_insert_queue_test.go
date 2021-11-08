@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -46,11 +47,12 @@ func newTestIndexInsertQueue(
 	var (
 		nsIndexInsertBatchFn = func(inserts *index.WriteBatch) {}
 		nowFn                = time.Now
+		coreFn               = xsync.CPUCore
 		scope                = tally.NoopScope
 	)
 
 	q := newNamespaceIndexInsertQueue(nsIndexInsertBatchFn,
-		namespace, nowFn, scope).(*nsIndexInsertQueue)
+		namespace, nowFn, coreFn, scope).(*nsIndexInsertQueue)
 	q.indexBatchBackoff = 10 * time.Millisecond
 	return q
 }
@@ -58,6 +60,7 @@ func newTestIndexInsertQueue(
 func testID(i int) ident.ID {
 	return ident.StringID(fmt.Sprintf("foo%d", i))
 }
+
 func testTags(i int) ident.Tags {
 	return ident.NewTags(ident.Tag{Name: testID(i), Value: testID(i)})
 }
@@ -230,6 +233,7 @@ func TestIndexInsertQueueFlushedOnClose(t *testing.T) {
 		func() time.Time {
 			return currTime
 		},
+		xsync.CPUCore,
 		tally.NoopScope)
 
 	require.NoError(t, q.Start())
