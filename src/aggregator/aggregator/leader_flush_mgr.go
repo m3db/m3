@@ -21,7 +21,6 @@
 package aggregator
 
 import (
-	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -93,6 +92,7 @@ type leaderFlushManager struct {
 	initialFlushes        int
 	flushTask             *leaderFlushTask
 	metrics               leaderFlushManagerMetrics
+	computeMetrics        *computeMetrics
 }
 
 func newLeaderFlushManager(
@@ -114,6 +114,7 @@ func newLeaderFlushManager(
 		doneCh:            doneCh,
 		flushedByShard:    make(map[uint32]*schema.ShardFlushTimes, defaultInitialFlushCapacity),
 		metrics:           newLeaderFlushManagerMetrics(scope),
+		computeMetrics:    newComputeMetrics(scope),
 	}
 	mgr.flushTask = &leaderFlushTask{
 		mgr:      mgr,
@@ -145,21 +146,53 @@ func (mgr *leaderFlushManager) Init(buckets []*flushBucket) {
 	mgr.Unlock()
 }
 
+type computeMetrics struct {
+	noShardSetFlushTimes tally.Counter
+	noShard              tally.Counter
+	noStandardRes        tally.Counter
+	noFwdRes             tally.Counter
+	noFwdNumFwds         tally.Counter
+	noTimedRes           tally.Counter
+	invalidFlushNanos    tally.Counter
+	validFlushNanos      tally.Counter
+
+	remainingToCompute tally.Gauge
+}
+
+func newComputeMetrics(scope tally.Scope) *computeMetrics {
+	newCounter := func(name string) tally.Counter {
+		return scope.Tagged(map[string]string{"compute_status": name}).Counter("computed")
+	}
+	return &computeMetrics{
+		noShardSetFlushTimes: newCounter("no_shard_set_flush_times"),
+		noShard:              newCounter("no_shard"),
+		noStandardRes:        newCounter("no_standard_res"),
+		noFwdRes:             newCounter("no_fwd_res"),
+		noFwdNumFwds:         newCounter("no_fwd_num_fwds"),
+		noTimedRes:           newCounter("no_timed_res"),
+		invalidFlushNanos:    newCounter("invalid_flush_nanos"),
+		validFlushNanos:      newCounter("valid_flush_nanos"),
+
+		remainingToCompute: scope.Gauge("remaining_to_compute"),
+	}
+}
+
 func computeFlusherWithTime(
 	flusher flushingMetricList,
 	shardSetFlushTimes *schema.ShardSetFlushTimes,
 	bucketID metricListID,
+	m *computeMetrics,
 ) flusherWithTime {
 	flush := flusherWithTime{flusher: flusher}
 	if shardSetFlushTimes == nil {
+		m.noShardSetFlushTimes.Inc(1)
 		return flush
 	}
 
 	shard := flusher.Shard()
 	shardFlushTimes, exists := shardSetFlushTimes.ByShard[shard]
 	if !exists {
-		// TODO artem: metric or log
-		fmt.Println("not exists shard set flush times for shard", shard)
+		m.noShard.Inc(1)
 		return flush
 	}
 
@@ -170,8 +203,7 @@ func computeFlusherWithTime(
 		flushTimes := getStandardFlushTimesByResolutionFn(shardFlushTimes)
 		lastFlushedAtNanos, exists := flushTimes[resolution]
 		if !exists {
-			// TODO artem: metric or log
-			fmt.Println("not exists standard lastFlushedAtNanos for", shard, "res", resolution)
+			m.noStandardRes.Inc(1)
 			return flush
 		}
 
@@ -180,16 +212,14 @@ func computeFlusherWithTime(
 		resolution := int64(bucketID.forwarded.resolution)
 		flushTimesForResolution, exists := shardFlushTimes.ForwardedByResolution[resolution]
 		if !exists {
-			// TODO artem: metric or log
-			fmt.Println("not exists fwd flushTimesForResolution for", shard, "res", resolution)
+			m.noFwdRes.Inc(1)
 			return flush
 		}
 
 		numForwards := int32(bucketID.forwarded.numForwardedTimes)
 		lastFlushedAtNanos, exists := flushTimesForResolution.ByNumForwardedTimes[numForwards]
 		if !exists {
-			// TODO artem: metric or log
-			fmt.Println("not exists fwd lastFlushedAtNanos for", shard, "res", resolution)
+			m.noFwdNumFwds.Inc(1)
 			return flush
 		}
 
@@ -199,8 +229,7 @@ func computeFlusherWithTime(
 		flushTimes := getTimedFlushTimesByResolutionFn(shardFlushTimes)
 		lastFlushedAtNanos, exists := flushTimes[resolution]
 		if !exists {
-			// TODO artem: metric or log
-			fmt.Println("not exists timed lastFlushedAtNanos for", shard, "res", resolution)
+			m.noTimedRes.Inc(1)
 			return flush
 		}
 
@@ -210,9 +239,10 @@ func computeFlusherWithTime(
 	}
 
 	if flush.flushBeforeNanos == math.MaxInt64 {
+		m.invalidFlushNanos.Inc(1)
 		flush.flushBeforeNanos = 0
-		// } else {
-		// 	fmt.Println("success for last flush:", flush.flushBeforeNanos)
+	} else {
+		m.validFlushNanos.Inc(1)
 	}
 
 	return flush
@@ -222,11 +252,12 @@ func computeFlushersWithTime(
 	dst []flusherWithTime,
 	bucket *flushBucket,
 	shardSetFlushTimes *schema.ShardSetFlushTimes,
+	m *computeMetrics,
 ) []flusherWithTime {
 	dst = dst[:0]
 	bucketID := bucket.bucketID
 	for _, flusher := range bucket.flushers {
-		dst = append(dst, computeFlusherWithTime(flusher, shardSetFlushTimes, bucketID))
+		dst = append(dst, computeFlusherWithTime(flusher, shardSetFlushTimes, bucketID, m))
 	}
 
 	return dst
@@ -262,6 +293,7 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 				mgr.flushTask.flushers,
 				buckets[bucketIdx],
 				mgr.initialFlushedByShard,
+				mgr.computeMetrics,
 			)
 
 			if earliestFlush.initialFlush {
@@ -273,6 +305,7 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 				}
 			}
 
+			mgr.computeMetrics.remainingToCompute.Update(float64(mgr.initialFlushes))
 			// NB: initialFlush should always be set to false on re-adding to heap.
 			nextFlushMetadata := flushMetadata{
 				timeNanos: earliestFlush.timeNanos + int64(buckets[bucketIdx].interval),
