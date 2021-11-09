@@ -209,8 +209,8 @@ func computeFlusherWithTime(
 
 	if flush.flushBeforeNanos == math.MaxInt64 {
 		flush.flushBeforeNanos = 0
-	} else {
-		fmt.Println("success for last flush:", flush.flushBeforeNanos)
+		// } else {
+		// 	fmt.Println("success for last flush:", flush.flushBeforeNanos)
 	}
 
 	return flush
@@ -264,7 +264,7 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 
 			// NB(arnikola): clear out the initial flushed data after the first flush
 			// has been prepared.
-			mgr.initialFlushedByShard = nil
+			// mgr.initialFlushedByShard = nil
 
 			nextFlushMetadata := flushMetadata{
 				timeNanos: earliestFlush.timeNanos + int64(buckets[bucketIdx].interval),
