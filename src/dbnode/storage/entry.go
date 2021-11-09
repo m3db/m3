@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -149,6 +150,26 @@ func (entry *Entry) IndexedRange() (xtime.UnixNano, xtime.UnixNano) {
 	min, max := entry.reverseIndex.indexedRangeWithRLock()
 	entry.reverseIndex.RUnlock()
 	return min, max
+}
+
+// ReconciledOnIndexSeries attempts to retrieve the most recent index entry from the
+// shard if the entry this method was called on was never inserted there. If there
+// is an error during retrieval, simply returns the current entry. Additionally,
+// returns a cleanup function to run once finished using the reconciled entry and
+// a boolean value indicating whether the result came from reconciliation or not.
+func (entry *Entry) ReconciledOnIndexSeries() (doc.OnIndexSeries, resource.SimpleCloser, bool) {
+	if entry.insertTime.Load() > 0 {
+		return entry, resource.SimpleCloserFn(func() {}), false
+	}
+
+	e, _, err := entry.Shard.TryRetrieveSeriesAndIncrementReaderWriterCount(entry.ID)
+	if err != nil || e == nil {
+		return entry, resource.SimpleCloserFn(func() {}), false
+	}
+
+	return e, resource.SimpleCloserFn(func() {
+		e.DecrementReaderWriterCount()
+	}), true
 }
 
 // NeedsIndexUpdate returns a bool to indicate if the Entry needs to be indexed

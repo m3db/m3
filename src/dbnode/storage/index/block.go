@@ -170,6 +170,8 @@ type blockMetrics struct {
 	queryDocsMatched                tally.Histogram
 	aggregateSeriesMatched          tally.Histogram
 	aggregateDocsMatched            tally.Histogram
+	entryReconciledOnQuery          tally.Counter
+	entryUnreconciledOnQuery        tally.Counter
 }
 
 func newBlockMetrics(s tally.Scope) blockMetrics {
@@ -192,10 +194,12 @@ func newBlockMetrics(s tally.Scope) blockMetrics {
 			"skip_type": "not-immutable",
 		}).Counter(segmentFreeMmap),
 
-		querySeriesMatched:     s.Histogram("query-series-matched", buckets),
-		queryDocsMatched:       s.Histogram("query-docs-matched", buckets),
-		aggregateSeriesMatched: s.Histogram("aggregate-series-matched", buckets),
-		aggregateDocsMatched:   s.Histogram("aggregate-docs-matched", buckets),
+		querySeriesMatched:       s.Histogram("query-series-matched", buckets),
+		queryDocsMatched:         s.Histogram("query-docs-matched", buckets),
+		aggregateSeriesMatched:   s.Histogram("aggregate-series-matched", buckets),
+		aggregateDocsMatched:     s.Histogram("aggregate-docs-matched", buckets),
+		entryReconciledOnQuery:   s.Counter("entry-reconciled-on-query"),
+		entryUnreconciledOnQuery: s.Counter("entry-unreconciled-on-query"),
 	}
 }
 
@@ -542,37 +546,8 @@ func (b *block) queryWithSpan(
 
 		// Ensure that the block contains any of the relevant time segments for the query range.
 		doc := iter.Current()
-		if md, ok := doc.Metadata(); ok && md.OnIndexSeries != nil {
-			var (
-				inBlock                bool
-				currentBlock           = opts.StartInclusive.Truncate(b.blockSize)
-				endExclusive           = opts.EndExclusive
-				minIndexed, maxIndexed = md.OnIndexSeries.IndexedRange()
-			)
-
-			if maxIndexed == 0 {
-				// Empty range.
-				continue
-			}
-
-			// Narrow down the range of blocks to scan because the client could have
-			// queried for an arbitrary wide range.
-			if currentBlock.Before(minIndexed) {
-				currentBlock = minIndexed
-			}
-			maxIndexedExclusive := maxIndexed.Add(time.Nanosecond)
-			if endExclusive.After(maxIndexedExclusive) {
-				endExclusive = maxIndexedExclusive
-			}
-
-			for !inBlock && currentBlock.Before(endExclusive) {
-				inBlock = md.OnIndexSeries.IndexedForBlockStart(currentBlock)
-				currentBlock = currentBlock.Add(b.blockSize)
-			}
-
-			if !inBlock {
-				continue
-			}
+		if !b.docWithinQueryRange(doc, opts) {
+			continue
 		}
 
 		batch = append(batch, doc)
@@ -601,6 +576,49 @@ func (b *block) queryWithSpan(
 	iter.AddDocs(docsCount - docsCountBefore)
 
 	return nil
+}
+
+func (b *block) docWithinQueryRange(doc doc.Document, opts QueryOptions) bool {
+	md, ok := doc.Metadata()
+	if !ok || md.OnIndexSeries == nil {
+		return true
+	}
+
+	onIndexSeries, closer, reconciled := md.OnIndexSeries.ReconciledOnIndexSeries()
+	if reconciled {
+		b.metrics.entryReconciledOnQuery.Inc(1)
+	} else {
+		b.metrics.entryUnreconciledOnQuery.Inc(1)
+	}
+	defer closer.Close()
+
+	var (
+		inBlock                bool
+		currentBlock           = opts.StartInclusive.Truncate(b.blockSize)
+		endExclusive           = opts.EndExclusive
+		minIndexed, maxIndexed = onIndexSeries.IndexedRange()
+	)
+	if maxIndexed == 0 {
+		// Empty range.
+		return false
+	}
+
+	// Narrow down the range of blocks to scan because the client could have
+	// queried for an arbitrary wide range.
+	if currentBlock.Before(minIndexed) {
+		currentBlock = minIndexed
+	}
+	maxIndexedExclusive := maxIndexed.Add(time.Nanosecond)
+	if endExclusive.After(maxIndexedExclusive) {
+		endExclusive = maxIndexedExclusive
+	}
+
+	for !inBlock && currentBlock.Before(endExclusive) {
+		inBlock = onIndexSeries.IndexedForBlockStart(currentBlock)
+		currentBlock = currentBlock.Add(b.blockSize)
+	}
+
+	return inBlock
 }
 
 func (b *block) closeAsync(closer io.Closer) {
