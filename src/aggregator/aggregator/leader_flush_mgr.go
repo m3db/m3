@@ -21,6 +21,7 @@
 package aggregator
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -84,11 +85,12 @@ type leaderFlushManager struct {
 	logger            *zap.Logger
 	scope             tally.Scope
 
-	doneCh         <-chan struct{}
-	flushTimes     flushMetadataHeap
-	flushedByShard map[uint32]*schema.ShardFlushTimes
-	flushTask      *leaderFlushTask
-	metrics        leaderFlushManagerMetrics
+	doneCh                <-chan struct{}
+	flushTimes            flushMetadataHeap
+	flushedByShard        map[uint32]*schema.ShardFlushTimes
+	initialFlushedByShard *schema.ShardSetFlushTimes
+	flushTask             *leaderFlushTask
+	metrics               leaderFlushManagerMetrics
 }
 
 func newLeaderFlushManager(
@@ -113,7 +115,7 @@ func newLeaderFlushManager(
 	}
 	mgr.flushTask = &leaderFlushTask{
 		mgr:      mgr,
-		flushers: make([]flushingMetricList, 0, defaultInitialFlushCapacity),
+		flushers: make([]flusherWithTime, 0, defaultInitialFlushCapacity),
 	}
 	return mgr
 }
@@ -124,11 +126,102 @@ func (mgr *leaderFlushManager) Open() {}
 // the flushers in the buckets.
 func (mgr *leaderFlushManager) Init(buckets []*flushBucket) {
 	mgr.Lock()
+	shardSetFlushTimes, err := mgr.flushTimesManager.Get()
+	if err != nil {
+		mgr.logger.Warn("could not load shard set flush times", zap.Error(err))
+		// arnikola metric
+	} else {
+		mgr.initialFlushedByShard = shardSetFlushTimes
+	}
+
 	mgr.flushTimes.Reset()
 	for bucketIdx, bucket := range buckets {
 		mgr.enqueueBucketWithLock(bucketIdx, bucket)
 	}
+
 	mgr.Unlock()
+}
+
+func computeFlusherWithTime(
+	flusher flushingMetricList,
+	shardSetFlushTimes *schema.ShardSetFlushTimes,
+	bucketID metricListID,
+) flusherWithTime {
+	flush := flusherWithTime{flusher: flusher}
+	if shardSetFlushTimes == nil {
+		return flush
+	}
+
+	shard := flusher.Shard()
+	shardFlushTimes, exists := shardSetFlushTimes.ByShard[shard]
+	if !exists {
+		// TODO artem: metric or log
+		fmt.Println("not exists shard set flush times for shard", shard)
+		return flush
+	}
+
+	// var lastPersisted int64
+	switch bucketID.listType {
+	case standardMetricListType:
+		resolution := int64(bucketID.standard.resolution)
+		flushTimes := getStandardFlushTimesByResolutionFn(shardFlushTimes)
+		lastFlushedAtNanos, exists := flushTimes[resolution]
+		if !exists {
+			// TODO artem: metric or log
+			fmt.Println("not exists standard lastFlushedAtNanos for", shard, "res", resolution)
+			return flush
+		}
+
+		flush.flushBeforeNanos = lastFlushedAtNanos
+	case forwardedMetricListType:
+		resolution := int64(bucketID.forwarded.resolution)
+		flushTimesForResolution, exists := shardFlushTimes.ForwardedByResolution[resolution]
+		if !exists {
+			// TODO artem: metric or log
+			fmt.Println("not exists fwd flushTimesForResolution for", shard, "res", resolution)
+			return flush
+		}
+
+		numForwards := int32(bucketID.forwarded.numForwardedTimes)
+		lastFlushedAtNanos, exists := flushTimesForResolution.ByNumForwardedTimes[numForwards]
+		if !exists {
+			// TODO artem: metric or log
+			fmt.Println("not exists fwd lastFlushedAtNanos for", shard, "res", resolution)
+			return flush
+		}
+
+		flush.flushBeforeNanos = lastFlushedAtNanos
+	case timedMetricListType:
+		resolution := int64(bucketID.timed.resolution)
+		flushTimes := getTimedFlushTimesByResolutionFn(shardFlushTimes)
+		lastFlushedAtNanos, exists := flushTimes[resolution]
+		if !exists {
+			// TODO artem: metric or log
+			fmt.Println("not exists timed lastFlushedAtNanos for", shard, "res", resolution)
+			return flush
+		}
+
+		flush.flushBeforeNanos = lastFlushedAtNanos
+	default:
+		panic("should never get here")
+	}
+
+	fmt.Println("success for last flush:", flush.flushBeforeNanos)
+	return flush
+}
+
+func computeFlushersWithTime(
+	dst []flusherWithTime,
+	bucket *flushBucket,
+	shardSetFlushTimes *schema.ShardSetFlushTimes,
+) []flusherWithTime {
+	dst = dst[:0]
+	bucketID := bucket.bucketID
+	for _, flusher := range bucket.flushers {
+		dst = append(dst, computeFlusherWithTime(flusher, shardSetFlushTimes, bucketID))
+	}
+
+	return dst
 }
 
 func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.Duration) {
@@ -156,10 +249,22 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 			// flushers are registered or old flushers are unregistered.
 			mgr.flushTask.duration = buckets[bucketIdx].duration
 			mgr.flushTask.jitter = buckets[bucketIdx].offset
-			mgr.flushTask.flushers = append(mgr.flushTask.flushers[:0], buckets[bucketIdx].flushers...)
+			mgr.flushTask.flushers = mgr.flushTask.flushers[:0]
+			mgr.flushTask.flushers = computeFlushersWithTime(
+				mgr.flushTask.flushers,
+				buckets[bucketIdx],
+				mgr.initialFlushedByShard,
+			)
+
+			// NB(arnikola): clear out the initial flushed data after the first flush
+			// has been prepared.
+			mgr.initialFlushedByShard = nil
+
+			// NB: explicitly do not add
 			nextFlushMetadata := flushMetadata{
-				timeNanos: earliestFlush.timeNanos + int64(buckets[bucketIdx].interval),
-				bucketIdx: bucketIdx,
+				timeNanos:  earliestFlush.timeNanos + int64(buckets[bucketIdx].interval),
+				bucketIdx:  bucketIdx,
+				resolution: earliestFlush.resolution,
 			}
 
 			mgr.flushTask.persistFlushFn = mgr.persistFlushFn(buckets)
@@ -250,8 +355,9 @@ func (mgr *leaderFlushManager) enqueueBucketWithLock(
 ) {
 	nextFlushNanos := mgr.computeNextFlushNanos(bucket.interval, bucket.offset)
 	newFlushMetadata := flushMetadata{
-		timeNanos: nextFlushNanos,
-		bucketIdx: bucketIdx,
+		timeNanos:  nextFlushNanos,
+		bucketIdx:  bucketIdx,
+		resolution: bucket.interval,
 	}
 	mgr.flushTimes.Push(newFlushMetadata)
 }
@@ -479,7 +585,7 @@ type leaderFlushTask struct {
 	mgr            *leaderFlushManager
 	duration       tally.Timer
 	jitter         time.Duration
-	flushers       []flushingMetricList
+	flushers       []flusherWithTime
 	persistFlushFn func()
 }
 
@@ -496,7 +602,9 @@ func (t *leaderFlushTask) Run() {
 		start     = mgr.nowFn()
 		jitter    = t.jitter
 	)
-	for _, flusher := range t.flushers {
+	// fiolter though here.
+	for _, timedFlusher := range t.flushers {
+		flusher := timedFlusher.flusher
 		// By default traffic is cut off from a shard, unless the shard is in the list of
 		// shards owned by the instance, in which case the cutover time and the cutoff time
 		// are set to the corresponding cutover and cutoff times of the shard.
@@ -512,12 +620,12 @@ func (t *leaderFlushTask) Run() {
 		// topology change in case we need to back out of the change and move the shard
 		// back to the instance.
 		req := flushRequest{
-			CutoverNanos:      cutoverNanos,
-			CutoffNanos:       cutoffNanos,
-			BufferAfterCutoff: mgr.maxBufferSize,
-			Jitter:            jitter,
+			CutoverNanos:         cutoverNanos,
+			CutoffNanos:          cutoffNanos,
+			BufferAfterCutoff:    mgr.maxBufferSize,
+			Jitter:               jitter,
+			LatestPersistedFlush: timedFlusher.flushBeforeNanos,
 		}
-		flusher := flusher
 		wgWorkers.Add(1)
 		mgr.workers.Go(func() {
 			flusher.Flush(req)
@@ -531,7 +639,9 @@ func (t *leaderFlushTask) Run() {
 
 // flushMetadata contains metadata information for a flush.
 type flushMetadata struct {
-	timeNanos int64
+	timeNanos  int64
+	resolution time.Duration
+
 	bucketIdx int
 }
 
@@ -582,7 +692,10 @@ func (h *flushMetadataHeap) Fix(i int) {
 func (h flushMetadataHeap) up(i int) {
 	for {
 		parent := (i - 1) / 2
-		if parent == i || h[parent].timeNanos <= h[i].timeNanos {
+		if parent == i || h[parent].timeNanos < h[i].timeNanos {
+			break
+		}
+		if h[parent].timeNanos == h[i].timeNanos && h[parent].resolution <= h[i].resolution {
 			break
 		}
 		h[parent], h[i] = h[i], h[parent]
@@ -598,15 +711,25 @@ func (h flushMetadataHeap) down(i0, n int) bool {
 		left := i*2 + 1
 		right := left + 1
 		smallest := i
-		if left < n && h[left].timeNanos < h[smallest].timeNanos {
-			smallest = left
+
+		if left < n {
+			diffLeft := h[left].timeNanos - h[smallest].timeNanos
+			if diffLeft < 0 || diffLeft == 0 && (h[left].resolution < h[smallest].resolution) {
+				smallest = left
+			}
 		}
-		if right < n && h[right].timeNanos < h[smallest].timeNanos {
-			smallest = right
+
+		if right < n {
+			diffRight := h[right].timeNanos - h[smallest].timeNanos
+			if diffRight < 0 || diffRight == 0 && (h[right].resolution < h[smallest].resolution) {
+				smallest = right
+			}
 		}
+
 		if smallest == i {
 			break
 		}
+
 		h[i], h[smallest] = h[smallest], h[i]
 		i = smallest
 	}

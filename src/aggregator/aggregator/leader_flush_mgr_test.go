@@ -226,6 +226,41 @@ var (
 	}
 )
 
+func TestFlushMetadataHeap(t *testing.T) {
+	flushIn := []flushMetadata{
+		{timeNanos: 1200250000000, bucketIdx: 4, resolution: time.Second},
+		{timeNanos: 1200250000000, bucketIdx: 3},
+		{timeNanos: 1200000000000, bucketIdx: 6},
+		{timeNanos: 1201000000000, bucketIdx: 2},
+		{timeNanos: 1234250000000, bucketIdx: 0},
+		{timeNanos: 1200250000000, bucketIdx: 1, resolution: time.Minute},
+		{timeNanos: 1200250000000, bucketIdx: 5, resolution: time.Millisecond},
+	}
+
+	heap := flushMetadataHeap{}
+	for _, in := range flushIn {
+		heap.Push(in)
+	}
+
+	out := make([]flushMetadata, 0, heap.Len())
+	for heap.Len() > 0 {
+		out = append(out, heap.Min())
+		heap.Pop()
+	}
+
+	expected := []flushMetadata{
+		{timeNanos: 1200000000000, bucketIdx: 6},
+		{timeNanos: 1200250000000, bucketIdx: 3},
+		{timeNanos: 1200250000000, bucketIdx: 5, resolution: time.Millisecond},
+		{timeNanos: 1200250000000, bucketIdx: 4, resolution: time.Second},
+		{timeNanos: 1200250000000, bucketIdx: 1, resolution: time.Minute},
+		{timeNanos: 1201000000000, bucketIdx: 2},
+		{timeNanos: 1234250000000, bucketIdx: 0},
+	}
+
+	require.Equal(t, expected, out)
+}
+
 func TestLeaderFlushManagerInit(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
