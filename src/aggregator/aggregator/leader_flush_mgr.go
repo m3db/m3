@@ -22,6 +22,7 @@ package aggregator
 
 import (
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -206,7 +207,12 @@ func computeFlusherWithTime(
 		panic("should never get here")
 	}
 
-	fmt.Println("success for last flush:", flush.flushBeforeNanos)
+	if flush.flushBeforeNanos == math.MaxInt64 {
+		flush.flushBeforeNanos = 0
+	} else {
+		fmt.Println("success for last flush:", flush.flushBeforeNanos)
+	}
+
 	return flush
 }
 
@@ -260,11 +266,9 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 			// has been prepared.
 			mgr.initialFlushedByShard = nil
 
-			// NB: explicitly do not add
 			nextFlushMetadata := flushMetadata{
-				timeNanos:  earliestFlush.timeNanos + int64(buckets[bucketIdx].interval),
-				bucketIdx:  bucketIdx,
-				resolution: earliestFlush.resolution,
+				timeNanos: earliestFlush.timeNanos + int64(buckets[bucketIdx].interval),
+				bucketIdx: bucketIdx,
 			}
 
 			mgr.flushTask.persistFlushFn = mgr.persistFlushFn(buckets)
@@ -355,9 +359,8 @@ func (mgr *leaderFlushManager) enqueueBucketWithLock(
 ) {
 	nextFlushNanos := mgr.computeNextFlushNanos(bucket.interval, bucket.offset)
 	newFlushMetadata := flushMetadata{
-		timeNanos:  nextFlushNanos,
-		bucketIdx:  bucketIdx,
-		resolution: bucket.interval,
+		timeNanos: nextFlushNanos,
+		bucketIdx: bucketIdx,
 	}
 	mgr.flushTimes.Push(newFlushMetadata)
 }
@@ -639,9 +642,7 @@ func (t *leaderFlushTask) Run() {
 
 // flushMetadata contains metadata information for a flush.
 type flushMetadata struct {
-	timeNanos  int64
-	resolution time.Duration
-
+	timeNanos int64
 	bucketIdx int
 }
 
@@ -692,10 +693,7 @@ func (h *flushMetadataHeap) Fix(i int) {
 func (h flushMetadataHeap) up(i int) {
 	for {
 		parent := (i - 1) / 2
-		if parent == i || h[parent].timeNanos < h[i].timeNanos {
-			break
-		}
-		if h[parent].timeNanos == h[i].timeNanos && h[parent].resolution <= h[i].resolution {
+		if parent == i || h[parent].timeNanos <= h[i].timeNanos {
 			break
 		}
 		h[parent], h[i] = h[i], h[parent]
@@ -711,25 +709,15 @@ func (h flushMetadataHeap) down(i0, n int) bool {
 		left := i*2 + 1
 		right := left + 1
 		smallest := i
-
-		if left < n {
-			diffLeft := h[left].timeNanos - h[smallest].timeNanos
-			if diffLeft < 0 || diffLeft == 0 && (h[left].resolution < h[smallest].resolution) {
-				smallest = left
-			}
+		if left < n && h[left].timeNanos < h[smallest].timeNanos {
+			smallest = left
 		}
-
-		if right < n {
-			diffRight := h[right].timeNanos - h[smallest].timeNanos
-			if diffRight < 0 || diffRight == 0 && (h[right].resolution < h[smallest].resolution) {
-				smallest = right
-			}
+		if right < n && h[right].timeNanos < h[smallest].timeNanos {
+			smallest = right
 		}
-
 		if smallest == i {
 			break
 		}
-
 		h[i], h[smallest] = h[smallest], h[i]
 		i = smallest
 	}
