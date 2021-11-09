@@ -90,6 +90,7 @@ type leaderFlushManager struct {
 	flushTimes            flushMetadataHeap
 	flushedByShard        map[uint32]*schema.ShardFlushTimes
 	initialFlushedByShard *schema.ShardSetFlushTimes
+	initialFlushes        int
 	flushTask             *leaderFlushTask
 	metrics               leaderFlushManagerMetrics
 }
@@ -137,9 +138,10 @@ func (mgr *leaderFlushManager) Init(buckets []*flushBucket) {
 
 	mgr.flushTimes.Reset()
 	for bucketIdx, bucket := range buckets {
-		mgr.enqueueBucketWithLock(bucketIdx, bucket)
+		mgr.enqueueBucketWithLock(bucketIdx, bucket, true)
 	}
 
+	mgr.initialFlushes = mgr.flushTimes.Len()
 	mgr.Unlock()
 }
 
@@ -262,10 +264,16 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 				mgr.initialFlushedByShard,
 			)
 
-			// NB(arnikola): clear out the initial flushed data after the first flush
-			// has been prepared.
-			// mgr.initialFlushedByShard = nil
+			if earliestFlush.initialFlush {
+				mgr.initialFlushes--
+				// NB(arnikola): clear out the initial flushed data after each of the
+				// initial flushes have been prepared or run.
+				if mgr.initialFlushes == 0 {
+					mgr.initialFlushedByShard = nil
+				}
+			}
 
+			// NB: initialFlush should always be set to false on re-adding to heap.
 			nextFlushMetadata := flushMetadata{
 				timeNanos: earliestFlush.timeNanos + int64(buckets[bucketIdx].interval),
 				bucketIdx: bucketIdx,
@@ -318,7 +326,7 @@ func (mgr *leaderFlushManager) OnBucketAdded(
 	bucket *flushBucket,
 ) {
 	mgr.Lock()
-	mgr.enqueueBucketWithLock(bucketIdx, bucket)
+	mgr.enqueueBucketWithLock(bucketIdx, bucket, false)
 	mgr.Unlock()
 }
 
@@ -356,11 +364,13 @@ func (mgr *leaderFlushManager) Close() {}
 func (mgr *leaderFlushManager) enqueueBucketWithLock(
 	bucketIdx int,
 	bucket *flushBucket,
+	initialFlsuh bool,
 ) {
 	nextFlushNanos := mgr.computeNextFlushNanos(bucket.interval, bucket.offset)
 	newFlushMetadata := flushMetadata{
-		timeNanos: nextFlushNanos,
-		bucketIdx: bucketIdx,
+		timeNanos:    nextFlushNanos,
+		bucketIdx:    bucketIdx,
+		initialFlush: initialFlsuh,
 	}
 	mgr.flushTimes.Push(newFlushMetadata)
 }
@@ -642,8 +652,9 @@ func (t *leaderFlushTask) Run() {
 
 // flushMetadata contains metadata information for a flush.
 type flushMetadata struct {
-	timeNanos int64
-	bucketIdx int
+	initialFlush bool
+	timeNanos    int64
+	bucketIdx    int
 }
 
 // flushMetadataHeap is a min heap for flush metadata where the metadata with the
