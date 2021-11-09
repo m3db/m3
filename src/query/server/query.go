@@ -639,15 +639,27 @@ func Run(runOpts RunOptions) RunResult {
 		}
 	}
 
+	prometheusEngineFn := func(lookbackDuration time.Duration) (*prometheuspromql.Engine, error) {
+		// NB: use nil metric registry to avoid duplicate metric registration when creating multiple engines
+		return newPromQLEngine(lookbackDuration, cfg, nil, instrumentOptions)
+	}
+	engineCache := promqlengine.NewCache(prometheusEngineFn)
+	if mult := cfg.Middleware.Prometheus.ResolutionMultiplier; mult > 0 {
+		for _, cluster := range runOpts.Config.Clusters {
+			for _, ns := range cluster.Namespaces {
+				resolutionBasedLookback := ns.Resolution * time.Duration(mult)
+				eng, err := prometheusEngineFn(resolutionBasedLookback)
+				if err != nil {
+					logger.Fatal("unable to create PromQL engine", zap.Error(err))
+				}
+				engineCache.Set(resolutionBasedLookback, eng)
+			}
+		}
+	}
 	defaultPrometheusEngine, err := newPromQLEngine(lookbackDuration, cfg, prometheusEngineRegistry, instrumentOptions)
 	if err != nil {
 		logger.Fatal("unable to create PromQL engine", zap.Error(err))
 	}
-
-	prometheusEngineFn := func(lookbackDuration time.Duration) (*prometheuspromql.Engine, error) {
-		return newPromQLEngine(lookbackDuration, cfg, nil, instrumentOptions)
-	}
-	engineCache := promqlengine.NewCache(prometheusEngineFn)
 	engineCache.Set(lookbackDuration, defaultPrometheusEngine)
 
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,

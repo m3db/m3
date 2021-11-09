@@ -21,38 +21,55 @@
 package promqlengine
 
 import (
+	"errors"
+	"testing"
 	"time"
 
 	"github.com/prometheus/prometheus/promql"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// NewEngineFn is a function to create a new promql.Engine with given lookback duration.
-type NewEngineFn func(lookbackDelta time.Duration) (*promql.Engine, error)
+func TestGet(t *testing.T) {
+	lookback := time.Second
+	expected := newTestEngine(lookback)
+	cache := NewCache(func(l time.Duration) (*promql.Engine, error) {
+		if l == lookback {
+			return expected, nil
+		}
+		return &promql.Engine{}, errors.New(l.String())
+	})
 
-// Cache caches PromQL engines by lookback duration.
-type Cache struct {
-	cachedEngines map[time.Duration]*promql.Engine
-	newEngineFn   NewEngineFn
+	actual, err := cache.Get(lookback)
+	require.NoError(t, err)
+	assert.Equal(t, expected, actual)
+
+	_, err = cache.Get(time.Minute)
+	require.EqualError(t, err, time.Minute.String())
 }
 
-// NewCache creates a new Cache.
-func NewCache(newEngineFn NewEngineFn) *Cache {
-	return &Cache{
-		cachedEngines: make(map[time.Duration]*promql.Engine),
-		newEngineFn:   newEngineFn,
+func TestSet(t *testing.T) {
+	cache := NewCache(func(l time.Duration) (*promql.Engine, error) {
+		return &promql.Engine{}, errors.New("not set")
+	})
+
+	lookbacks := []time.Duration{time.Second, time.Minute, time.Hour}
+	expecteds := make([]*promql.Engine, 0)
+	for _, l := range lookbacks {
+		e := newTestEngine(l)
+		cache.Set(l, e)
+		expecteds = append(expecteds, e)
+	}
+
+	for i, l := range lookbacks {
+		e, err := cache.Get(l)
+		require.NoError(t, err)
+		require.Equal(t, expecteds[i], e)
 	}
 }
 
-// Get returns a new or cached promql.Engine.
-func (c *Cache) Get(lookbackDelta time.Duration) (*promql.Engine, error) {
-	if engine, ok := c.cachedEngines[lookbackDelta]; ok {
-		return engine, nil
-	}
-
-	return c.newEngineFn(lookbackDelta)
-}
-
-// Set allows manually caching promql.Engine.
-func (c *Cache) Set(lookbackDelta time.Duration, engine *promql.Engine) {
-	c.cachedEngines[lookbackDelta] = engine
+func newTestEngine(l time.Duration) *promql.Engine {
+	return promql.NewEngine(promql.EngineOpts{
+		LookbackDelta: l,
+	})
 }
