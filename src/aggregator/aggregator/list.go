@@ -300,7 +300,7 @@ func (l *baseMetricList) Flush(req flushRequest) {
 	nowNanos := l.nowFn().UnixNano()
 	l.timeLock.Unlock()
 	targetNanos := l.targetNanosFn(nowNanos)
-	lastPersistedNanos := l.targetNanosFn(req.LatestPersistedFlush)
+	lastPersistedNanos := req.LatestPersistedFlush // l.targetNanosFn(req.LatestPersistedFlush)
 
 	discardBeforeNanos := req.CutoverNanos
 	if discardBeforeNanos < lastPersistedNanos {
