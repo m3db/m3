@@ -22,6 +22,7 @@ package m3tsz
 
 import (
 	"errors"
+	"fmt"
 	"math"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -96,12 +97,14 @@ func (it *readerIterator) Next() bool {
 	}
 
 	it.curr.TimestampNanos = it.tsIterator.PrevTime
+	fmt.Printf("intOptimized: %t, isFloat: %t\n", it.intOptimized, it.isFloat)
 	if !it.intOptimized || it.isFloat {
 		it.curr.Value = math.Float64frombits(it.floatIter.PrevFloatBits)
 	} else {
 		prevValue := it.curr.Value
 		currValue := convertFromIntFloat(it.intVal, it.mult)
 		decreaseTolerance, toleranceUntil := it.opts.ValueDecreaseTolerance()
+		fmt.Printf("%e %s\n", decreaseTolerance, toleranceUntil.ToTime())
 		if decreaseTolerance > 0 && it.curr.TimestampNanos.Before(toleranceUntil) &&
 			!first && currValue < prevValue && currValue > prevValue*(1-decreaseTolerance) {
 			currValue = prevValue
