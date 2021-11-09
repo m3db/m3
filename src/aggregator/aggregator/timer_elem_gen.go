@@ -241,7 +241,6 @@ func (e *TimerElem) expireValuesWithLock(
 	currAgg := e.values[e.minStartTime]
 	resendExpire := targetNanos - int64(e.bufferForPastTimedMetricFn(resolution))
 	for isEarlierThanFn(int64(currAgg.startAt), resolution, targetNanos) {
-		fmt.Println("timer earlier than", int64(currAgg.startAt), "res", resolution, "target", targetNanos)
 		if currAgg.resendEnabled {
 			// if resend enabled we want to keep this value until it is outside the buffer past period.
 			if !isEarlierThanFn(int64(currAgg.startAt), resolution, resendExpire) {
