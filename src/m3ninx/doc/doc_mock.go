@@ -27,6 +27,7 @@ package doc
 import (
 	"reflect"
 
+	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -414,11 +415,11 @@ func (mr *MockOnIndexSeriesMockRecorder) OnIndexSuccess(blockStart interface{}) 
 }
 
 // ReconciledOnIndexSeries mocks base method.
-func (m *MockOnIndexSeries) ReconciledOnIndexSeries() (OnIndexSeries, ReconciledOnIndexSeriesCleanupFn, bool) {
+func (m *MockOnIndexSeries) ReconciledOnIndexSeries() (OnIndexSeries, resource.SimpleCloser, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReconciledOnIndexSeries")
 	ret0, _ := ret[0].(OnIndexSeries)
-	ret1, _ := ret[1].(ReconciledOnIndexSeriesCleanupFn)
+	ret1, _ := ret[1].(resource.SimpleCloser)
 	ret2, _ := ret[2].(bool)
 	return ret0, ret1, ret2
 }

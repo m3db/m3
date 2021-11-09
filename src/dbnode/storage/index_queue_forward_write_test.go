@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -126,7 +127,9 @@ func setupForwardIndex(
 	)
 
 	if !expectAggregateQuery {
-		lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, func() {}, false).AnyTimes()
+		lifecycle.EXPECT().ReconciledOnIndexSeries().Return(
+			lifecycle, resource.SimpleCloserFn(func() {}), false,
+		).AnyTimes()
 
 		lifecycle.EXPECT().IndexedRange().Return(ts, ts)
 		lifecycle.EXPECT().IndexedForBlockStart(ts).Return(true)

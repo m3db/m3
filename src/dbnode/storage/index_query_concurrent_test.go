@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/resource"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -187,7 +188,7 @@ func testNamespaceIndexHighConcurrentQueries(
 			AnyTimes()
 		onIndexSeries.EXPECT().
 			ReconciledOnIndexSeries().
-			Return(onIndexSeries, func() {}, false).
+			Return(onIndexSeries, resource.SimpleCloserFn(func() {}), false).
 			AnyTimes()
 
 		batch := index.NewWriteBatch(index.WriteBatchOptions{

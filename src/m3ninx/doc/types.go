@@ -21,6 +21,7 @@
 package doc
 
 import (
+	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -137,9 +138,5 @@ type OnIndexSeries interface {
 	// a boolean value indicating whether the result came from reconciliation or not.
 	// Cleanup function must be called once done with the reconciled entry so that
 	// reader and writer counts are accurately updated.
-	ReconciledOnIndexSeries() (OnIndexSeries, ReconciledOnIndexSeriesCleanupFn, bool)
+	ReconciledOnIndexSeries() (OnIndexSeries, resource.SimpleCloser, bool)
 }
-
-// ReconciledOnIndexSeriesCleanupFn is a function for performing cleanup when
-// ReconciledOnIndexSeries is called.
-type ReconciledOnIndexSeriesCleanupFn func()

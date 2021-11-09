@@ -234,16 +234,16 @@ func TestReconciledOnIndexSeries(t *testing.T) {
 	_ = addMockSeries(ctrl, shard, series.ID(), ident.Tags{}, 1)
 
 	// Validate we perform the reconciliation.
-	e, cleanup, reconciled := entry.ReconciledOnIndexSeries()
+	e, closer, reconciled := entry.ReconciledOnIndexSeries()
 	require.True(t, reconciled)
 	require.Equal(t, uint64(1), e.(*Entry).Index)
-	cleanup()
+	closer.Close()
 
 	// Set the entry's insert time emulating being inserted into the shard.
 	// Ensure no reconciliation.
 	entry.SetInsertTime(time.Now())
-	e, cleanup, reconciled = entry.ReconciledOnIndexSeries()
+	e, closer, reconciled = entry.ReconciledOnIndexSeries()
 	require.False(t, reconciled)
 	require.Equal(t, uint64(0), e.(*Entry).Index)
-	cleanup()
+	closer.Close()
 }

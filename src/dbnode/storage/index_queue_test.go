@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -353,7 +354,9 @@ func setupIndex(t *testing.T,
 	lifecycleFns.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
 
 	if !expectAggregateQuery {
-		lifecycleFns.EXPECT().ReconciledOnIndexSeries().Return(lifecycleFns, func() {}, false)
+		lifecycleFns.EXPECT().ReconciledOnIndexSeries().Return(
+			lifecycleFns, resource.SimpleCloserFn(func() {}), false,
+		)
 		lifecycleFns.EXPECT().IndexedRange().Return(ts, ts)
 		lifecycleFns.EXPECT().IndexedForBlockStart(ts).Return(true)
 	}
