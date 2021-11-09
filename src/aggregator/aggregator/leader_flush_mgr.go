@@ -132,7 +132,6 @@ func (mgr *leaderFlushManager) Init(buckets []*flushBucket) {
 	shardSetFlushTimes, err := mgr.flushTimesManager.Get()
 	if err != nil {
 		mgr.logger.Warn("could not load shard set flush times", zap.Error(err))
-		// arnikola metric
 	} else {
 		mgr.initialFlushedByShard = shardSetFlushTimes
 	}
@@ -196,7 +195,6 @@ func computeFlusherWithTime(
 		return flush
 	}
 
-	// var lastPersisted int64
 	switch bucketID.listType {
 	case standardMetricListType:
 		resolution := int64(bucketID.standard.resolution)

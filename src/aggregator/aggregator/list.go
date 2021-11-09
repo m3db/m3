@@ -324,12 +324,6 @@ func (l *baseMetricList) Flush(req flushRequest) {
 		return
 	}
 
-	if targetNanos <= req.CutoffNanos {
-		l.flushBeforeFn(targetNanos, req.Jitter, consumeType)
-		l.metrics.flushBetweenCutoverCutoff.Inc(1)
-		return
-	}
-
 	// Metrics after now-keepAfterCutoff are retained.
 	l.flushBeforeFn(req.CutoffNanos, req.Jitter, consumeType)
 	bufferEndNanos := targetNanos - int64(req.BufferAfterCutoff)
