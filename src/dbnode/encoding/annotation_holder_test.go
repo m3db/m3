@@ -21,6 +21,7 @@
 package encoding
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -97,9 +98,5 @@ func TestAnnotationHolderWithReset(t *testing.T) {
 }
 
 func repeat(b byte, n int) ts.Annotation {
-	a := make(ts.Annotation, 0, n)
-	for i := 0; i < n; i++ {
-		a = append(a, b)
-	}
-	return a
+	return bytes.Repeat([]byte{b}, n)
 }
