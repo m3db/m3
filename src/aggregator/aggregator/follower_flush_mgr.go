@@ -136,7 +136,7 @@ func newFollowerFlushManager(
 	scope := instrumentOpts.MetricsScope()
 	mgr := &followerFlushManager{
 		nowFn:                    nowFn,
-		checkEvery:               opts.CheckEvery(),
+		checkEvery:               time.Second * 30, // opts.CheckEvery(),
 		workers:                  opts.WorkerPool(),
 		placementManager:         opts.PlacementManager(),
 		electionManager:          opts.ElectionManager(),
