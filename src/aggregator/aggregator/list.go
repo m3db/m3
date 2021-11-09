@@ -306,9 +306,21 @@ func (l *baseMetricList) Flush(req flushRequest) {
 		discardBeforeNanos = req.LatestPersistedFlush
 	}
 
+	// // Metrics before shard cutover are discarded.
+	// if targetNanos <= discardBeforeNanos {
+	// 	l.flushBeforeFn(targetNanos, req.Jitter, discardType)
+	// 	l.metrics.flushBeforeCutover.Inc(1)
+	// 	return
+	// }
+
+	// // Metrics between shard cutover and shard cutoff are consumed.
+	// if req.CutoverNanos > 0 {
+	// 	l.flushBeforeFn(req.CutoverNanos, req.Jitter, discardType)
+	// }
+
 	// Metrics before shard cutover are discarded.
 	if targetNanos <= discardBeforeNanos {
-		l.flushBeforeFn(discardBeforeNanos, req.Jitter, discardType)
+		l.flushBeforeFn(targetNanos, req.Jitter, discardType)
 		l.metrics.flushBeforeCutover.Inc(1)
 		return
 	}
@@ -318,12 +330,17 @@ func (l *baseMetricList) Flush(req flushRequest) {
 		l.flushBeforeFn(discardBeforeNanos, req.Jitter, discardType)
 	}
 
-	// TODO(artem): This seems unnecessary?
-	// if targetNanos <= req.CutoffNanos {
-	// 	l.flushBeforeFn(targetNanos, req.Jitter, consumeType)
-	// 	l.metrics.flushBetweenCutoverCutoff.Inc(1)
-	// 	return
-	// }
+	if targetNanos <= req.CutoffNanos {
+		l.flushBeforeFn(targetNanos, req.Jitter, consumeType)
+		l.metrics.flushBetweenCutoverCutoff.Inc(1)
+		return
+	}
+
+	if targetNanos <= req.CutoffNanos {
+		l.flushBeforeFn(targetNanos, req.Jitter, consumeType)
+		l.metrics.flushBetweenCutoverCutoff.Inc(1)
+		return
+	}
 
 	// Metrics after now-keepAfterCutoff are retained.
 	l.flushBeforeFn(req.CutoffNanos, req.Jitter, consumeType)
