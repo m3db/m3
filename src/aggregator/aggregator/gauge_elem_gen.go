@@ -43,21 +43,20 @@ import (
 )
 
 type lockedGaugeAggregation struct {
-	sync.Mutex
-
+	aggregation gaugeAggregation
+	sourcesSeen map[uint32]*bitset.BitSet
+	mtx         sync.Mutex
 	dirty       bool
 	closed      bool
-	sourcesSeen map[uint32]*bitset.BitSet
-	aggregation gaugeAggregation
 }
 
 type timedGauge struct {
-	startAt       xtime.UnixNano // start time of an aggregation window
 	lockedAgg     *lockedGaugeAggregation
-	resendEnabled bool
-	inDirtySet    bool
+	startAt       xtime.UnixNano // start time of an aggregation window
 	prevStart     xtime.UnixNano
 	nextStart     xtime.UnixNano
+	resendEnabled bool
+	inDirtySet    bool
 }
 
 // close is called when the aggregation has been expired or the element is being closed.
@@ -68,9 +67,8 @@ func (ta *timedGauge) close() {
 
 // GaugeElem is an element storing time-bucketed aggregations.
 type GaugeElem struct {
-	elemBase
 	gaugeElemBase
-
+	elemBase
 	// startTime -> agg (new one per every resolution)
 	values map[xtime.UnixNano]timedGauge
 	// startTime -> state. this is local state to the flusher and does not need to guarded with a lock.
@@ -78,14 +76,16 @@ type GaugeElem struct {
 	flushState map[xtime.UnixNano]flushState
 	// sorted start aligned times that have been written to since the last flush
 	dirty []xtime.UnixNano
+
+	// internal/no need for synchronization: small buffers to avoid memory allocations during consumption
+	toConsume          []consumeState
+	flushStateToExpire []xtime.UnixNano
+	// end internal state
+
 	// min time in the values map. allows for iterating through map.
 	minStartTime xtime.UnixNano
 	// max time in the values map. allows for iterating through map.
 	maxStartTime xtime.UnixNano
-
-	// internal consume state that does not need to be synchronized.
-	toConsume          []consumeState   // small buffer to avoid memory allocations during consumption
-	flushStateToExpire []xtime.UnixNano // small buffer to avoid memory allocations during consumption
 }
 
 // NewGaugeElem returns a new GaugeElem.
@@ -137,11 +137,11 @@ func (e *GaugeElem) doAddUnion(timestamp time.Time, mu unaggregated.MetricUnion,
 	if err != nil {
 		return err
 	}
-	lockedAgg.Lock()
+	lockedAgg.mtx.Lock()
 	if lockedAgg.closed {
 		// Note: this might have created an entry in the dirty set for lockedAgg when calling findOrCreate, even though
 		// it's already closed. The Consume loop will detect this and clean it up.
-		lockedAgg.Unlock()
+		lockedAgg.mtx.Unlock()
 		if !resendEnabled && !retry {
 			// handle the edge case where the aggregation was already flushed/closed because the current time is right
 			// at the boundary. just roll the untimed metric into the next aggregation.
@@ -151,7 +151,7 @@ func (e *GaugeElem) doAddUnion(timestamp time.Time, mu unaggregated.MetricUnion,
 	}
 	lockedAgg.aggregation.AddUnion(timestamp, mu)
 	lockedAgg.dirty = true
-	lockedAgg.Unlock()
+	lockedAgg.mtx.Unlock()
 	if retry {
 		e.metrics.retriedValues.Inc(1)
 	}
@@ -165,14 +165,14 @@ func (e *GaugeElem) AddValue(timestamp time.Time, value float64, annotation []by
 	if err != nil {
 		return err
 	}
-	lockedAgg.Lock()
+	lockedAgg.mtx.Lock()
 	if lockedAgg.closed {
-		lockedAgg.Unlock()
+		lockedAgg.mtx.Unlock()
 		return errAggregationClosed
 	}
 	lockedAgg.aggregation.Add(timestamp, value, annotation)
 	lockedAgg.dirty = true
-	lockedAgg.Unlock()
+	lockedAgg.mtx.Unlock()
 	return nil
 }
 
@@ -193,9 +193,9 @@ func (e *GaugeElem) AddUnique(
 	if err != nil {
 		return err
 	}
-	lockedAgg.Lock()
+	lockedAgg.mtx.Lock()
 	if lockedAgg.closed {
-		lockedAgg.Unlock()
+		lockedAgg.mtx.Unlock()
 		return errAggregationClosed
 	}
 	versionsSeen := lockedAgg.sourcesSeen[metadata.SourceID]
@@ -206,7 +206,7 @@ func (e *GaugeElem) AddUnique(
 	}
 	version := uint(metric.Version)
 	if versionsSeen.Test(version) {
-		lockedAgg.Unlock()
+		lockedAgg.mtx.Unlock()
 		return errDuplicateForwardingSource
 	}
 	versionsSeen.Set(version)
@@ -224,7 +224,7 @@ func (e *GaugeElem) AddUnique(
 		}
 	}
 	lockedAgg.dirty = true
-	lockedAgg.Unlock()
+	lockedAgg.mtx.Unlock()
 	return nil
 }
 
@@ -250,10 +250,10 @@ func (e *GaugeElem) expireValuesWithLock(
 
 		// close the agg to prevent any more writes.
 		dirty := false
-		currAgg.lockedAgg.Lock()
+		currAgg.lockedAgg.mtx.Lock()
 		currAgg.lockedAgg.closed = true
 		dirty = currAgg.lockedAgg.dirty
-		currAgg.lockedAgg.Unlock()
+		currAgg.lockedAgg.mtx.Unlock()
 		if dirty {
 			// a race occurred and a write happened before we could close the aggregation. will expire next time.
 			break
@@ -370,6 +370,43 @@ func (e *GaugeElem) Consume(
 		e.Unlock()
 		return false
 	}
+
+	// move currently dirty aggs to toConsume to process next.
+	e.dirtyToConsumeWithLock(targetNanos, resolution, isEarlierThanFn)
+
+	// expire the values and aggregations while we still hold the lock.
+	e.expireValuesWithLock(targetNanos, isEarlierThanFn)
+	canCollect := len(e.dirty) == 0 && e.tombstoned
+	e.Unlock()
+
+	// Process the aggregations that are ready for consumption.
+	for _, cState := range e.toConsume {
+		e.processValue(cState,
+			timestampNanosFn,
+			flushLocalFn,
+			flushForwardedFn,
+			resolution,
+			latenessAllowed,
+			jitter,
+			flushType,
+		)
+	}
+
+	// expire the flush state after processing since it's needed in the processing.
+	e.expireFlushState()
+
+	if e.parsedPipeline.HasRollup {
+		forwardedAggregationKey, _ := e.ForwardedAggregationKey()
+		onForwardedFlushedFn(e.onForwardedAggregationWrittenFn, forwardedAggregationKey, e.flushStateToExpire)
+	}
+
+	return canCollect
+}
+
+func (e *GaugeElem) dirtyToConsumeWithLock(targetNanos int64,
+	resolution time.Duration,
+	isEarlierThanFn isEarlierThanFn,
+) {
 	e.toConsume = e.toConsume[:0]
 	// Evaluate and GC expired items.
 	dirtyTimes := e.dirty
@@ -415,33 +452,6 @@ func (e *GaugeElem) Consume(
 			}
 		}
 	}
-	// expire the values and aggregations while we still hold the lock.
-	e.expireValuesWithLock(targetNanos, isEarlierThanFn)
-	canCollect := len(e.dirty) == 0 && e.tombstoned
-	e.Unlock()
-
-	// Process the aggregations that are ready for consumption.
-	for _, cState := range e.toConsume {
-		e.processValue(cState,
-			timestampNanosFn,
-			flushLocalFn,
-			flushForwardedFn,
-			resolution,
-			latenessAllowed,
-			jitter,
-			flushType,
-		)
-	}
-
-	// expire the flush state after processing since it's needed in the processing.
-	e.expireFlushState()
-
-	if e.parsedPipeline.HasRollup {
-		forwardedAggregationKey, _ := e.ForwardedAggregationKey()
-		onForwardedFlushedFn(e.onForwardedAggregationWrittenFn, forwardedAggregationKey, e.flushStateToExpire)
-	}
-
-	return canCollect
 }
 
 func (e *GaugeElem) isFlushed(c consumeState) bool {
@@ -462,7 +472,7 @@ func (e *GaugeElem) appendConsumeStateWithLock(
 	}
 	cState.values = cState.values[:0]
 	// copy the lockedAgg data while holding the lock.
-	agg.lockedAgg.Lock()
+	agg.lockedAgg.mtx.Lock()
 	cState.dirty = agg.lockedAgg.dirty
 	for _, aggType := range e.aggTypes {
 		cState.values = append(cState.values, agg.lockedAgg.aggregation.ValueOf(aggType))
@@ -470,7 +480,7 @@ func (e *GaugeElem) appendConsumeStateWithLock(
 	cState.annotation = raggregation.MaybeReplaceAnnotation(
 		cState.annotation, agg.lockedAgg.aggregation.Annotation())
 	agg.lockedAgg.dirty = false
-	agg.lockedAgg.Unlock()
+	agg.lockedAgg.mtx.Unlock()
 
 	// update with everything else.
 	prevAgg, ok := e.prevAggWithLock(agg)

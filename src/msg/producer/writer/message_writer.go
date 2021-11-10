@@ -369,11 +369,11 @@ func randIndex(iterationIndexes []int, i int) int {
 }
 
 func (w *messageWriterImpl) Ack(meta metadata) bool {
-	acked, initNanos := w.acks.ack(meta)
+	acked, expectedProcessNanos := w.acks.ack(meta)
 	if acked {
 		w.RLock()
 		defer w.RUnlock()
-		w.m.messageConsumeLatency.Record(time.Duration(w.nowFn().UnixNano() - initNanos))
+		w.m.messageConsumeLatency.Record(time.Duration(w.nowFn().UnixNano() - expectedProcessNanos))
 		w.m.messageAcked.Inc(1)
 		return true
 	}
@@ -482,7 +482,7 @@ func (w *messageWriterImpl) writeBatch(
 			return err
 		}
 		if i%_recordMessageDelayEvery == 0 {
-			delay.Record(time.Duration(nowFn().UnixNano() - messages[i].InitNanos()))
+			delay.Record(time.Duration(nowFn().UnixNano() - messages[i].ExpectedProcessAtNanos()))
 		}
 	}
 	return nil
@@ -748,6 +748,8 @@ func (a *acks) remove(meta metadata) {
 	a.Unlock()
 }
 
+// ack processes the ack. returns true if the message was not already acked. additionally returns the expected
+// processing time for lag calculations.
 func (a *acks) ack(meta metadata) (bool, int64) {
 	a.Lock()
 	m, ok := a.ackMap[meta]
@@ -758,9 +760,9 @@ func (a *acks) ack(meta metadata) (bool, int64) {
 	}
 	delete(a.ackMap, meta)
 	a.Unlock()
-	initNanos := m.InitNanos()
+	expectedProcessAtNanos := m.ExpectedProcessAtNanos()
 	m.Ack()
-	return true, initNanos
+	return true, expectedProcessAtNanos
 }
 
 func (a *acks) size() int {

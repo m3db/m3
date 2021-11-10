@@ -27,6 +27,7 @@ package doc
 import (
 	"reflect"
 
+	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -411,6 +412,22 @@ func (m *MockOnIndexSeries) OnIndexSuccess(blockStart time.UnixNano) {
 func (mr *MockOnIndexSeriesMockRecorder) OnIndexSuccess(blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexSuccess", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexSuccess), blockStart)
+}
+
+// ReconciledOnIndexSeries mocks base method.
+func (m *MockOnIndexSeries) ReconciledOnIndexSeries() (OnIndexSeries, resource.SimpleCloser, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReconciledOnIndexSeries")
+	ret0, _ := ret[0].(OnIndexSeries)
+	ret1, _ := ret[1].(resource.SimpleCloser)
+	ret2, _ := ret[2].(bool)
+	return ret0, ret1, ret2
+}
+
+// ReconciledOnIndexSeries indicates an expected call of ReconciledOnIndexSeries.
+func (mr *MockOnIndexSeriesMockRecorder) ReconciledOnIndexSeries() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReconciledOnIndexSeries", reflect.TypeOf((*MockOnIndexSeries)(nil).ReconciledOnIndexSeries))
 }
 
 // TryMarkIndexGarbageCollected mocks base method.

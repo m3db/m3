@@ -22,10 +22,12 @@ package aggregator
 
 import (
 	"math"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/willf/bitset"
+	"go.uber.org/atomic"
 
 	raggregation "github.com/m3db/m3/src/aggregator/aggregation"
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
@@ -759,6 +761,7 @@ func TestCounterFindOrCreateNoSourceSet(t *testing.T) {
 	}
 }
 
+// nolint: dupl
 func TestCounterFindOrCreateWithSourceSet(t *testing.T) {
 	e, err := NewCounterElem(testCounterElemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
@@ -2362,6 +2365,59 @@ func TestGaugeFindOrCreateNoSourceSet(t *testing.T) {
 	}
 }
 
+func TestDirtyConsumption(t *testing.T) {
+	e, err := NewCounterElem(testCounterElemData, NewElemOptions(newTestOptions()))
+	require.NoError(t, err)
+
+	resolution := e.sp.Resolution().Window
+
+	// Test 100 startAligned timestamps (and targetNanos is far enough to consume any of them)
+	n := int64(100)
+	targetNanos := resolution.Nanoseconds() * (n + 1)
+
+	var (
+		wg sync.WaitGroup
+		// time by consume count
+		consumed = make(map[xtime.UnixNano]int)
+	)
+	stop := atomic.NewBool(false)
+	for i := int64(0); i < n; i++ {
+		i := i
+		wg.Add(1)
+
+		// For each timestamp, repeatedly add an aggregation (will findOrCreate and make dirty)
+		// and then consume the presently dirty points. This validates that new times are consumed
+		// once added, and existing times are made dirty to be re-consumed.
+		go func() {
+			for !stop.Load() {
+				require.NoError(t, e.AddUnion(time.Unix(0, i*resolution.Nanoseconds()), testCounter, false))
+
+				e.Lock()
+				e.dirtyToConsumeWithLock(targetNanos, resolution, isStandardMetricEarlierThan)
+
+				for _, c := range e.toConsume {
+					consumed[c.startAt]++
+				}
+				e.Unlock()
+			}
+			wg.Done()
+		}()
+	}
+
+	time.Sleep(time.Second * 2)
+	stop.Store(true)
+	wg.Wait()
+
+	require.Equal(t, 0, len(e.dirty), "all dirty should have been consumed")
+	require.Equal(t, int(n), len(e.values), "values should have all N consumed times")
+	require.Equal(t, int(n), len(consumed), "consumed should have all N consumed times")
+
+	for _, count := range consumed {
+		// Ensure times were consumed at least (a) upon first creation and (b) upon subsequent dirty
+		require.True(t, count > 1)
+	}
+}
+
 // confirms that when panics are enabled, we do panic, and when disabled,
 // the code safely proceeds (and does not encounter some unexpected runtime panic)
 func TestPanics(t *testing.T) {
@@ -2494,6 +2550,7 @@ func TestPanics(t *testing.T) {
 	}
 }
 
+// nolint: dupl
 func TestGaugeFindOrCreateWithSourceSet(t *testing.T) {
 	e, err := NewGaugeElem(testGaugeElemData, NewElemOptions(newTestOptions()))
 	require.NoError(t, err)
