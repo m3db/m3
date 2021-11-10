@@ -29,54 +29,38 @@ import (
 	"go.uber.org/zap"
 )
 
-type consumerHandler struct {
-	opts      Options
-	mPool     *messagePool
-	consumeFn ConsumeFn
-	m         metrics
+type messageHandler struct {
+	opts                  Options
+	mPool                 *messagePool
+	newMessageProcessorFn NewMessageProcessorFn
+	m                     metrics
 }
 
-// NewConsumerHandler creates a new server handler with consumerFn.
-func NewConsumerHandler(consumeFn ConsumeFn, opts Options) server.Handler {
-	mPool := newMessagePool(opts.MessagePoolOptions())
-	mPool.Init()
-	return &consumerHandler{
-		consumeFn: consumeFn,
-		opts:      opts,
-		mPool:     mPool,
-		m:         newConsumerMetrics(opts.InstrumentOptions().MetricsScope()),
+// NewMessageProcessorFn creates a new MessageProcessor scoped to a single connection. Messages are processed serially
+// in a connection.
+type NewMessageProcessorFn func() MessageProcessor
+
+// SingletonMessageProcessor uses the same MessageProcessor for all connections.
+func SingletonMessageProcessor(p MessageProcessor) NewMessageProcessorFn {
+	return func() MessageProcessor {
+		return p
 	}
 }
 
-func (h *consumerHandler) Handle(conn net.Conn) {
-	c := newConsumer(conn, h.mPool, h.opts, h.m)
-	c.Init()
-	h.consumeFn(c)
-}
-
-func (h *consumerHandler) Close() {}
-
-type messageHandler struct {
-	opts  Options
-	mPool *messagePool
-	mp    MessageProcessor
-	m     metrics
-}
-
 // NewMessageHandler creates a new server handler with messageFn.
-func NewMessageHandler(mp MessageProcessor, opts Options) server.Handler {
+func NewMessageHandler(newMessageProcessorFn NewMessageProcessorFn, opts Options) server.Handler {
 	mPool := newMessagePool(opts.MessagePoolOptions())
 	mPool.Init()
 	return &messageHandler{
-		mp:    mp,
-		opts:  opts,
-		mPool: mPool,
-		m:     newConsumerMetrics(opts.InstrumentOptions().MetricsScope()),
+		newMessageProcessorFn: newMessageProcessorFn,
+		opts:                  opts,
+		mPool:                 mPool,
+		m:                     newConsumerMetrics(opts.InstrumentOptions().MetricsScope()),
 	}
 }
 
 func (h *messageHandler) Handle(conn net.Conn) {
-	c := newConsumer(conn, h.mPool, h.opts, h.m)
+	c := newConsumer(conn, h.mPool, h.opts, h.m, h.newMessageProcessorFn)
 	c.Init()
 	var (
 		msgErr error
@@ -87,7 +71,7 @@ func (h *messageHandler) Handle(conn net.Conn) {
 		if msgErr != nil {
 			break
 		}
-		h.mp.Process(msg)
+		c.process(msg)
 	}
 	if msgErr != nil && msgErr != io.EOF {
 		h.opts.InstrumentOptions().Logger().With(zap.Error(msgErr)).Error("could not read message from consumer")
@@ -95,4 +79,4 @@ func (h *messageHandler) Handle(conn net.Conn) {
 	c.Close()
 }
 
-func (h *messageHandler) Close() { h.mp.Close() }
+func (h *messageHandler) Close() {}

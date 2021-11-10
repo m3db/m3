@@ -129,6 +129,32 @@ type MessageProcessor interface {
 	Close()
 }
 
+// NewNoOpMessageProcessor creates a new MessageProcessor that does nothing.
+func NewNoOpMessageProcessor() MessageProcessor {
+	return &noOpMessageProcessor{}
+}
+
+type noOpMessageProcessor struct{}
+
+func (n noOpMessageProcessor) Process(Message) {}
+
+func (n noOpMessageProcessor) Close() {}
+
+// NewMessageProcessorFromFn creates a new MessageProcessor that applies the provided function to each message.
+func NewMessageProcessorFromFn(fn func(m Message)) MessageProcessor {
+	return &fnMessageProcessor{fn: fn}
+}
+
+type fnMessageProcessor struct {
+	fn func(m Message)
+}
+
+func (f fnMessageProcessor) Process(m Message) {
+	f.fn(m)
+}
+
+func (f fnMessageProcessor) Close() {}
+
 // ConsumeFn processes the consumer. This is useful when user want to reuse
 // resource across messages received on the same consumer or have finer level
 // control on how to read messages from consumer.

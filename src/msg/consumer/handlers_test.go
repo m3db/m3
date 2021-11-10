@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/server"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -59,7 +60,7 @@ func TestServerWithMessageFn(t *testing.T) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	s := server.NewServer("a", NewMessageHandler(p, opts), server.NewOptions())
+	s := server.NewServer("a", NewMessageHandler(SingletonMessageProcessor(p), opts), server.NewOptions())
 	s.Serve(l)
 
 	conn, err := net.Dial("tcp", l.Addr().String())
@@ -88,57 +89,54 @@ func TestServerWithMessageFn(t *testing.T) {
 	s.Close()
 }
 
-func TestServerWithConsumeFn(t *testing.T) {
+func TestServerMessageDifferentConnections(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	var (
-		count  = 0
-		bytes  []byte
-		closed bool
-		wg     sync.WaitGroup
-	)
-	consumeFn := func(c Consumer) {
-		for {
-			count++
-			m, err := c.Message()
-			if err != nil {
-				break
-			}
-			bytes = m.Bytes()
-			m.Ack()
-			wg.Done()
-		}
-		c.Close()
-		closed = true
-	}
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
+	var wg sync.WaitGroup
+	wg.Add(2)
+	handleMessage := func(m Message) {
+		wg.Done()
+	}
+
+	mp1 := NewMockMessageProcessor(ctrl)
+	mp2 := NewMockMessageProcessor(ctrl)
+	mp1.EXPECT().Process(gomock.Any()).Do(handleMessage)
+	mp1.EXPECT().Close()
+	mp2.EXPECT().Process(gomock.Any()).Do(handleMessage)
+	mp2.EXPECT().Close()
+
 	// Set a large ack buffer size to make sure the background go routine
 	// can flush it.
 	opts := testOptions().SetAckBufferSize(100)
-	s := server.NewServer("a", NewConsumerHandler(consumeFn, opts), server.NewOptions())
-	require.NoError(t, err)
-	s.Serve(l)
+	first := true
+	newMessageProcessor := func() MessageProcessor {
+		if first {
+			first = false
+			return mp1
+		}
+		return mp2
+	}
 
-	conn, err := net.Dial("tcp", l.Addr().String())
+	s := server.NewServer("a", NewMessageHandler(newMessageProcessor, opts), server.NewOptions())
+	require.NoError(t, err)
+	require.NoError(t, s.Serve(l))
+
+	conn1, err := net.Dial("tcp", l.Addr().String())
+	require.NoError(t, err)
+	conn2, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
 
-	wg.Add(1)
-	err = produce(conn, &testMsg1)
+	err = produce(conn1, &testMsg1)
+	require.NoError(t, err)
+	err = produce(conn2, &testMsg1)
 	require.NoError(t, err)
 
 	wg.Wait()
-	require.Equal(t, testMsg1.Value, bytes)
-
-	var ack msgpb.Ack
-	testDecoder := proto.NewDecoder(conn, opts.DecoderOptions(), 10)
-	err = testDecoder.Decode(&ack)
-	require.NoError(t, err)
-	require.Equal(t, 1, len(ack.Metadata))
-	require.Equal(t, testMsg1.Metadata, ack.Metadata[0])
-
 	s.Close()
-	require.True(t, closed)
 }
