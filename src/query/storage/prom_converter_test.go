@@ -304,7 +304,10 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 }
 
 func TestSeriesIteratorsToPromResultNormalizeLowResCounters(t *testing.T) {
-	t0 := xtime.Now().Truncate(time.Hour)
+	var (
+		t0   = xtime.Now().Truncate(time.Hour)
+		opts = NewPromConvertOptions()
+	)
 
 	tests := []struct {
 		name          string
@@ -419,18 +422,106 @@ func TestSeriesIteratorsToPromResultNormalizeLowResCounters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testSeriesIteratorsToPromResultNormalize(
-				t, tt.isCounter, tt.maxResolution, tt.given, tt.want)
+			testSeriesIteratorsToPromResult(
+				t, tt.isCounter, tt.maxResolution, tt.given, tt.want, opts)
 		})
 	}
 }
 
-func testSeriesIteratorsToPromResultNormalize(
+func TestSeriesIteratorsToPromResultValueDecreaseTolerance(t *testing.T) {
+	now := xtime.Now().Truncate(time.Hour)
+
+	tests := []struct {
+		name      string
+		given     []float64
+		tolerance float64
+		until     xtime.UnixNano
+		want      []float64
+	}{
+		{
+			name:      "no tolerance",
+			given:     []float64{187.80131100000006, 187.801311, 187.80131100000006, 187.801311, 200, 199.99},
+			tolerance: 0,
+			until:     0,
+			want:      []float64{187.80131100000006, 187.801311, 187.80131100000006, 187.801311, 200, 199.99},
+		},
+		{
+			name:      "low tolerance",
+			given:     []float64{187.80131100000006, 187.801311, 187.80131100000006, 187.801311, 200, 199.99},
+			tolerance: 0.00000001,
+			until:     now.Add(time.Hour),
+			want:      []float64{187.80131100000006, 187.80131100000006, 187.80131100000006, 187.80131100000006, 200, 199.99},
+		},
+		{
+			name:      "high tolerance",
+			given:     []float64{187.80131100000006, 187.801311, 187.80131100000006, 187.801311, 200, 199.99},
+			tolerance: 0.0001,
+			until:     now.Add(time.Hour),
+			want:      []float64{187.80131100000006, 187.80131100000006, 187.80131100000006, 187.80131100000006, 200, 200},
+		},
+		{
+			name:      "tolerance expired",
+			given:     []float64{200, 199.99, 200, 199.99, 200, 199.99},
+			tolerance: 0.0001,
+			until:     now,
+			want:      []float64{200, 199.99, 200, 199.99, 200, 199.99},
+		},
+		{
+			name:      "tolerance expires in the middle",
+			given:     []float64{200, 199.99, 200, 199.99, 200, 199.99},
+			tolerance: 0.0001,
+			until:     now.Add(3 * time.Minute),
+			want:      []float64{200, 200, 200, 199.99, 200, 199.99},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testSeriesIteratorsToPromResultValueDecreaseTolerance(
+				t, now, tt.given, tt.want, tt.tolerance, tt.until)
+		})
+	}
+}
+
+func testSeriesIteratorsToPromResultValueDecreaseTolerance(
+	t *testing.T,
+	now xtime.UnixNano,
+	input []float64,
+	expectedOutput []float64,
+	decreaseTolerance float64,
+	toleranceUntil xtime.UnixNano,
+) {
+	var (
+		given = make([]dts.Datapoint, 0, len(input))
+		want  = make([]prompb.Sample, 0, len(expectedOutput))
+	)
+	for i, v := range input {
+		given = append(given, dts.Datapoint{
+			TimestampNanos: now.Add(time.Duration(i) * time.Minute),
+			Value:          v,
+		})
+	}
+	for i, v := range expectedOutput {
+		want = append(want, prompb.Sample{
+			Timestamp: ms(now.Add(time.Duration(i) * time.Minute)),
+			Value:     v,
+		})
+	}
+
+	opts := NewPromConvertOptions().
+		SetValueDecreaseTolerance(decreaseTolerance).
+		SetValueDecreaseToleranceUntil(toleranceUntil)
+
+	testSeriesIteratorsToPromResult(t, false, 0, given, want, opts)
+}
+
+func testSeriesIteratorsToPromResult(
 	t *testing.T,
 	isCounter bool,
 	maxResolution time.Duration,
 	given []dts.Datapoint,
 	want []prompb.Sample,
+	opts PromConvertOptions,
 ) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
@@ -480,9 +571,8 @@ func testSeriesIteratorsToPromResultNormalize(
 	fetchResult, err := consolidators.NewSeriesFetchResult(it, nil, fetchResultMetadata)
 	assert.NoError(t, err)
 
-	opts := models.NewTagOptions()
 	res, err := SeriesIteratorsToPromResult(
-		context.Background(), fetchResult, nil, opts, NewPromConvertOptions())
+		context.Background(), fetchResult, nil, models.NewTagOptions(), opts)
 	require.NoError(t, err)
 	verifyResult(t, want, res)
 }

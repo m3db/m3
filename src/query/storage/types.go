@@ -50,8 +50,6 @@ const (
 	TypeRemoteDC
 	// TypeMultiDC is for storages that will aggregate multiple datacenters.
 	TypeMultiDC
-	// TypeDebug is for storages that are used for debugging purposes.
-	TypeDebug
 )
 
 // ErrorBehavior describes what this storage type should do on error. This is
@@ -367,4 +365,16 @@ type PromConvertOptions interface {
 	// ResolutionThresholdForCounterNormalization returns resolution
 	// starting from which (inclusive) a normalization of counter values is performed.
 	ResolutionThresholdForCounterNormalization() time.Duration
+
+	// SetValueDecreaseTolerance sets relative tolerance against decoded time series value decrease.
+	SetValueDecreaseTolerance(value float64) PromConvertOptions
+
+	// ValueDecreaseTolerance returns relative tolerance against decoded time series value decrease.
+	ValueDecreaseTolerance() float64
+
+	// SetValueDecreaseToleranceUntil sets the timestamp (exclusive) until which the tolerance applies.
+	SetValueDecreaseToleranceUntil(value xtime.UnixNano) PromConvertOptions
+
+	// ValueDecreaseToleranceUntil the timestamp (exclusive) until which the tolerance applies.
+	ValueDecreaseToleranceUntil() xtime.UnixNano
 }
