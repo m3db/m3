@@ -20,7 +20,11 @@
 
 package storage
 
-import "time"
+import (
+	"time"
+
+	xtime "github.com/m3db/m3/src/x/time"
+)
 
 const (
 	defaultResolutionThresholdForCounterNormalization = time.Hour
@@ -28,6 +32,9 @@ const (
 
 type promConvertOptions struct {
 	resolutionThresholdForCounterNormalization time.Duration
+
+	valueDecreaseTolerance      float64
+	valueDecreaseToleranceUntil xtime.UnixNano
 }
 
 // NewPromConvertOptions builds a new PromConvertOptions with default values.
@@ -45,4 +52,24 @@ func (o *promConvertOptions) SetResolutionThresholdForCounterNormalization(value
 
 func (o *promConvertOptions) ResolutionThresholdForCounterNormalization() time.Duration {
 	return o.resolutionThresholdForCounterNormalization
+}
+
+func (o *promConvertOptions) SetValueDecreaseTolerance(value float64) PromConvertOptions {
+	opts := *o
+	opts.valueDecreaseTolerance = value
+	return &opts
+}
+
+func (o *promConvertOptions) ValueDecreaseTolerance() float64 {
+	return o.valueDecreaseTolerance
+}
+
+func (o *promConvertOptions) SetValueDecreaseToleranceUntil(value xtime.UnixNano) PromConvertOptions {
+	opts := *o
+	opts.valueDecreaseToleranceUntil = value
+	return &opts
+}
+
+func (o *promConvertOptions) ValueDecreaseToleranceUntil() xtime.UnixNano {
+	return o.valueDecreaseToleranceUntil
 }

@@ -135,7 +135,7 @@ type seriesGen struct {
 	res  time.Duration
 }
 
-// FetchCompressed fetches timeseries data based on a query.
+// FetchCompressedResult fetches timeseries data based on a query.
 func (q *querier) FetchCompressedResult(
 	ctx context.Context,
 	query *storage.FetchQuery,

@@ -48,6 +48,9 @@ func iteratorToPromResult(
 		resolution          = xtime.UnixNano(maxResolution)
 		resolutionThreshold = promConvertOptions.ResolutionThresholdForCounterNormalization()
 
+		valueDecreaseTolerance      = promConvertOptions.ValueDecreaseTolerance()
+		valueDecreaseToleranceUntil = promConvertOptions.ValueDecreaseToleranceUntil()
+
 		firstDP           = true
 		handleResets      = false
 		annotationPayload annotation.Payload
@@ -60,6 +63,12 @@ func iteratorToPromResult(
 
 	for iter.Next() {
 		dp, _, _ := iter.Current()
+
+		if valueDecreaseTolerance > 0 && dp.TimestampNanos.Before(valueDecreaseToleranceUntil) {
+			if !firstDP && dp.Value < prevDP.Value && dp.Value > prevDP.Value*(1-valueDecreaseTolerance) {
+				dp.Value = prevDP.Value
+			}
+		}
 
 		if firstDP && maxResolution >= resolutionThreshold {
 			firstAnnotation := iter.FirstAnnotation()
@@ -85,8 +94,6 @@ func iteratorToPromResult(
 			} else {
 				cumulativeSum += dp.Value - prevDP.Value
 			}
-
-			prevDP = dp
 		} else {
 			samples = append(samples, prompb.Sample{
 				Timestamp: TimeToPromTimestamp(dp.TimestampNanos),
@@ -94,6 +101,7 @@ func iteratorToPromResult(
 			})
 		}
 
+		prevDP = dp
 		firstDP = false
 	}
 
