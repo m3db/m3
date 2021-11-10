@@ -796,6 +796,15 @@ func TestNextRetryAfterNanos(t *testing.T) {
 	require.True(t, retryAtNanos == nowNanos+2*int64(backoffDuration))
 }
 
+func TestExpectedProcessedAt(t *testing.T) {
+	m := newMessage()
+	m.initNanos = 100
+	m.SetRetryAtNanos(200)
+	require.Equal(t, int64(100), m.ExpectedProcessAtNanos())
+	m.SetRetryAtNanos(300)
+	require.Equal(t, int64(200), m.ExpectedProcessAtNanos())
+}
+
 func TestMessageWriterCloseCleanupAllMessages(t *testing.T) {
 	defer leaktest.Check(t)()
 

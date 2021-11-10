@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/tallytest"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -1500,6 +1501,7 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, resource.SimpleCloserFn(func() {}), false)
 	h1.EXPECT().IndexedRange().Return(blockStart, blockStart)
 	h1.EXPECT().IndexedForBlockStart(blockStart).Return(true)
 
@@ -1588,12 +1590,14 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, resource.SimpleCloserFn(func() {}), false)
 	h1.EXPECT().IndexedRange().Return(blockStart, blockStart)
 	h1.EXPECT().IndexedForBlockStart(blockStart).Return(true)
 
 	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
+	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, resource.SimpleCloserFn(func() {}), false)
 	h2.EXPECT().IndexedRange().Return(blockStart, blockStart)
 	h2.EXPECT().IndexedForBlockStart(blockStart).Return(true)
 
@@ -1688,6 +1692,7 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, resource.SimpleCloserFn(func() {}), false)
 	h1.EXPECT().IndexedRange().Return(blockStart, blockStart)
 	h1.EXPECT().IndexedForBlockStart(blockStart).Return(true)
 
@@ -1778,6 +1783,7 @@ func TestBlockE2EInsertAddResultsQueryNarrowingBlockRange(t *testing.T) {
 	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, resource.SimpleCloserFn(func() {}), false)
 	h1.EXPECT().IndexedRange().Return(blockStart, blockStart.Add(2*blockSize))
 	h1.EXPECT().IndexedForBlockStart(blockStart).Return(false)
 	h1.EXPECT().IndexedForBlockStart(blockStart.Add(1 * blockSize)).Return(false)
@@ -1786,6 +1792,7 @@ func TestBlockE2EInsertAddResultsQueryNarrowingBlockRange(t *testing.T) {
 	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
+	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, resource.SimpleCloserFn(func() {}), false)
 	h2.EXPECT().IndexedRange().Return(xtime.UnixNano(0), xtime.UnixNano(0))
 
 	batch := NewWriteBatch(WriteBatchOptions{
