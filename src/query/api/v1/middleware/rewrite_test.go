@@ -29,8 +29,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	kitlogzap "github.com/go-kit/kit/log/zap"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/prometheus/promql"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
@@ -51,6 +55,7 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 
 		expectedQuery    string
 		expectedLookback *time.Duration
+		usePromEngine    bool
 	}{
 		{
 			name:    "query with range to unagg",
@@ -214,12 +219,71 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			expectedQuery:    "foo",
 			expectedLookback: durationPtr(15 * time.Minute),
 		},
+		{
+			name: "instant query; rewrite w/ prom engine",
+			attrs: []storagemetadata.Attributes{
+				{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Resolution:  5 * time.Minute,
+					Retention:   90 * 24 * time.Hour,
+				},
+			},
+			enabled:       true,
+			mult:          3,
+			instant:       true,
+			usePromEngine: true,
+			query:         "rate(foo[30s])",
+			lookback:      durationPtr(15 * time.Minute),
+
+			expectedQuery:    "rate(foo[15m])",
+			expectedLookback: durationPtr(15 * time.Minute),
+		},
+		{
+			name: "instant query; rewrite w/ prom engine & offset",
+			// Just testing the parsing code paths since this is a fake storage
+			attrs: []storagemetadata.Attributes{
+				{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Resolution:  5 * time.Minute,
+					Retention:   30 * 24 * time.Hour,
+				},
+			},
+			enabled:       true,
+			usePromEngine: true,
+			mult:          3,
+			instant:       true,
+			query:         "rate(foo[30s] offset 1w)",
+			lookback:      durationPtr(15 * time.Minute),
+
+			expectedQuery:    "rate(foo[15m] offset 1w)",
+			expectedLookback: durationPtr(15 * time.Minute),
+		},
+		{
+			name: "range query; rewrite w/ prom engine & offset",
+			// Just testing the parsing code paths since this is a fake storage
+			attrs: []storagemetadata.Attributes{
+				{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Resolution:  5 * time.Minute,
+					Retention:   30 * 24 * time.Hour,
+				},
+			},
+			enabled:       true,
+			usePromEngine: true,
+			mult:          3,
+			instant:       false,
+			query:         "rate(foo[30s] offset 1w)",
+			lookback:      durationPtr(15 * time.Minute),
+
+			expectedQuery:    "rate(foo[15m] offset 1w)",
+			expectedLookback: durationPtr(15 * time.Minute),
+		},
 	}
 	for _, tt := range queryTests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := mux.NewRouter()
 
-			opts := makeBaseOpts(t, r)
+			opts := makeBaseOpts(t, r, tt.usePromEngine)
 
 			store := opts.PrometheusRangeRewrite.Storage.(mock.Storage)
 			store.SetQueryStorageMetadataAttributesResult(tt.attrs, nil)
@@ -303,7 +367,24 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 	}
 }
 
-func makeBaseOpts(t *testing.T, r *mux.Router) Options {
+func durationMilliseconds(d time.Duration) int64 {
+	return int64(d / (time.Millisecond / time.Nanosecond))
+}
+
+func makeBaseOpts(t *testing.T, r *mux.Router, addPromEngine bool) Options {
+	var (
+		instrumentOpts = instrument.NewOptions()
+		kitLogger      = kitlogzap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
+		engineOpts     = promql.EngineOpts{
+			Logger:     log.With(kitLogger, "component", "query engine"),
+			MaxSamples: 100,
+			Timeout:    1 * time.Minute,
+			NoStepSubqueryIntervalFn: func(rangeMillis int64) int64 {
+				return durationMilliseconds(1 * time.Minute)
+			},
+		}
+	)
+	engine := promql.NewEngine(engineOpts)
 	route := r.NewRoute()
 
 	mockStorage := mock.NewMockStorage()
@@ -314,7 +395,7 @@ func makeBaseOpts(t *testing.T, r *mux.Router) Options {
 	fetchOptsBuilder, err := handleroptions.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
 	require.NoError(t, err)
 
-	return Options{
+	opts := Options{
 		InstrumentOpts: instrument.NewOptions(),
 		Route:          route,
 		PrometheusRangeRewrite: PrometheusRangeRewriteOptions{
@@ -325,6 +406,10 @@ func makeBaseOpts(t *testing.T, r *mux.Router) Options {
 			Storage:              mockStorage,
 		},
 	}
+	if addPromEngine {
+		opts.PrometheusRangeRewrite.PrometheusEngine = engine
+	}
+	return opts
 }
 
 func unaggregatedAttrs() []storagemetadata.Attributes {
