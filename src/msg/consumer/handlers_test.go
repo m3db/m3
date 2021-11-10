@@ -115,7 +115,10 @@ func TestServerMessageDifferentConnections(t *testing.T) {
 	// can flush it.
 	opts := testOptions().SetAckBufferSize(100)
 	first := true
+	var mu sync.Mutex
 	newMessageProcessor := func() MessageProcessor {
+		mu.Lock()
+		defer mu.Unlock()
 		if first {
 			first = false
 			return mp1
