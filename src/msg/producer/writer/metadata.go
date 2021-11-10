@@ -24,18 +24,21 @@ import "github.com/m3db/m3/src/msg/generated/proto/msgpb"
 
 // metadata is the metadata for a message.
 type metadata struct {
-	shard uint64
-	id    uint64
+	shard       uint64
+	id          uint64
+	sentAtNanos uint64
 }
 
 func (m metadata) ToProto(pb *msgpb.Metadata) {
 	pb.Shard = m.shard
 	pb.Id = m.id
+	pb.SentAtNanos = m.sentAtNanos
 }
 
 func (m *metadata) FromProto(pb msgpb.Metadata) {
 	m.shard = pb.Shard
 	m.id = pb.Id
+	m.sentAtNanos = pb.SentAtNanos
 }
 
 func newMetadataFromProto(pb msgpb.Metadata) metadata {

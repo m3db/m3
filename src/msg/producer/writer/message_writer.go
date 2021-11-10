@@ -318,6 +318,7 @@ func (w *messageWriterImpl) write(
 	m *message,
 ) error {
 	m.IncReads()
+	m.SetSentAt(w.nowFn().UnixNano())
 	msg, isValid := m.Marshaler()
 	if !isValid {
 		m.DecReads()
