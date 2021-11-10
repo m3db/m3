@@ -380,7 +380,7 @@ func Run(runOpts RunOptions) RunResult {
 	}
 	cfg.LookbackDuration = &lookbackDuration
 
-	promConvertOptions := cfg.PromConvertOptionsOrDefault()
+	promConvertOptions := cfg.Query.Prometheus.ConvertOptionsOrDefault()
 
 	readWorkerPool, writeWorkerPool, err := pools.BuildWorkerPools(
 		instrumentOptions,
