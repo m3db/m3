@@ -439,6 +439,30 @@ func (c *Coordinator) RangeQuery(
 	return c.client.RangeQuery(req, headers)
 }
 
+// LabelNames return matching label names based on the request.
+func (c *Coordinator) LabelNames(
+	req resources.LabelNamesRequest,
+	headers resources.Headers,
+) (model.LabelNames, error) {
+	return c.client.LabelNames(req, headers)
+}
+
+// LabelValues returns matching label values based on the request.
+func (c *Coordinator) LabelValues(
+	req resources.LabelValuesRequest,
+	headers resources.Headers,
+) (model.LabelValues, error) {
+	return c.client.LabelValues(req, headers)
+}
+
+// Series returns matching series based on the request.
+func (c *Coordinator) Series(
+	req resources.SeriesRequest,
+	headers resources.Headers,
+) ([]model.Metric, error) {
+	return c.client.Series(req, headers)
+}
+
 func updateCoordinatorConfig(
 	cfg config.Configuration,
 	opts CoordinatorOptions,

@@ -23,6 +23,9 @@
 package resources
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -65,6 +68,12 @@ type Coordinator interface {
 	InstantQuery(req QueryRequest, headers Headers) (model.Vector, error)
 	// RangeQuery runs a range query with provided headers
 	RangeQuery(req RangeQueryRequest, headers Headers) (model.Matrix, error)
+	// LabelNames return matching label names based on the request.
+	LabelNames(req LabelNamesRequest, headers Headers) (model.LabelNames, error)
+	// LabelValues returns matching label values based on the request.
+	LabelValues(req LabelValuesRequest, headers Headers) (model.LabelValues, error)
+	// Series returns matching series based on the request.
+	Series(req SeriesRequest, headers Headers) ([]model.Metric, error)
 }
 
 // Admin is a wrapper for admin functions.
@@ -281,4 +290,53 @@ type RangeQueryRequest struct {
 	End time.Time
 	// Step is the query resolution step width. It is default to 15 seconds.
 	Step time.Duration
+}
+
+// MetadataRequest contains the parameters for making API requests related to metadata.
+type MetadataRequest struct {
+	// Start is the start timestamp of labels to include.
+	Start time.Time
+	// End is the end timestamp of labels to include.
+	End time.Time
+	// Match is the series selector that selects series to read label names from.
+	Match string
+}
+
+// LabelNamesRequest contains the parameters for making label names API calls.
+type LabelNamesRequest struct {
+	MetadataRequest
+}
+
+// LabelValuesRequest contains the parameters for making label values API calls.
+type LabelValuesRequest struct {
+	MetadataRequest
+
+	// LabelName is the name of the label to retrieve values for.
+	LabelName string
+}
+
+// SeriesRequest contains the parameters for making series API calls.
+type SeriesRequest struct {
+	MetadataRequest
+}
+
+func (m *MetadataRequest) String() string {
+	var (
+		start string
+		end   string
+		parts []string
+	)
+	if !m.Start.IsZero() {
+		start = strconv.Itoa(int(m.Start.Unix()))
+		parts = append(parts, fmt.Sprintf("start=%v", start))
+	}
+	if !m.End.IsZero() {
+		end = strconv.Itoa(int(m.End.Unix()))
+		parts = append(parts, fmt.Sprintf("end=%v", end))
+	}
+	if m.Match != "" {
+		parts = append(parts, fmt.Sprintf("match[]=%v", m.Match))
+	}
+
+	return strings.Join(parts, "&")
 }
