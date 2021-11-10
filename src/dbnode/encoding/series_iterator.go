@@ -34,10 +34,10 @@ type seriesIterator struct {
 	end              xtime.UnixNano
 	iters            iterators
 	multiReaderIters []MultiReaderIterator
+	pool             SeriesIteratorPool
 	err              error
 	firstNext        bool
 	closed           bool
-	pool             SeriesIteratorPool
 }
 
 // NewSeriesIterator creates a new series iterator.
@@ -88,6 +88,10 @@ func (it *seriesIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 
 func (it *seriesIterator) Err() error {
 	return it.err
+}
+
+func (it *seriesIterator) FirstAnnotation() ts.Annotation {
+	return it.iters.firstAnnotation()
 }
 
 func (it *seriesIterator) Close() {

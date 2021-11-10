@@ -45,6 +45,8 @@ type testSeries struct {
 	input       []inputReplica
 	expected    []testValue
 	expectedErr *testSeriesErr
+
+	expectedFirstAnnotation ts.Annotation
 }
 
 type inputReplica struct {
@@ -94,12 +96,13 @@ func TestMultiReaderMergesReplicas(t *testing.T) {
 	}
 
 	test := testSeries{
-		id:       "foo",
-		nsID:     "bar",
-		start:    start,
-		end:      end,
-		input:    values,
-		expected: expected,
+		id:                      "foo",
+		nsID:                    "bar",
+		start:                   start,
+		end:                     end,
+		input:                   values,
+		expected:                expected,
+		expectedFirstAnnotation: []byte{1, 2, 3},
 	}
 
 	assertTestSeriesIterator(t, test)
@@ -123,12 +126,13 @@ func TestMultiReaderFiltersToRange(t *testing.T) {
 	}
 
 	test := testSeries{
-		id:       "foo",
-		nsID:     "bar",
-		start:    start,
-		end:      end,
-		input:    input,
-		expected: input[0].values[2:4],
+		id:                      "foo",
+		nsID:                    "bar",
+		start:                   start,
+		end:                     end,
+		input:                   input,
+		expected:                input[0].values[2:4],
+		expectedFirstAnnotation: []byte{1, 2, 3},
 	}
 
 	assertTestSeriesIterator(t, test)
@@ -139,7 +143,7 @@ func TestSeriesIteratorIgnoresEmptyReplicas(t *testing.T) {
 	end := start.Add(time.Minute)
 
 	values := []testValue{
-		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
+		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{3, 2, 1}},
 		{2.0, start.Add(2 * time.Second), xtime.Second, nil},
 		{3.0, start.Add(3 * time.Second), xtime.Second, nil},
 	}
@@ -154,7 +158,8 @@ func TestSeriesIteratorIgnoresEmptyReplicas(t *testing.T) {
 			{values: []testValue{}},
 			{values: values},
 		},
-		expected: values,
+		expected:                values,
+		expectedFirstAnnotation: []byte{3, 2, 1},
 	}
 
 	assertTestSeriesIterator(t, test)
@@ -192,12 +197,13 @@ func TestSeriesIteratorErrorOnOutOfOrder(t *testing.T) {
 	}
 
 	test := testSeries{
-		id:       "foo",
-		nsID:     "bar",
-		start:    start,
-		end:      end,
-		input:    []inputReplica{{values: values}},
-		expected: values[:2],
+		id:                      "foo",
+		nsID:                    "bar",
+		start:                   start,
+		end:                     end,
+		input:                   []inputReplica{{values: values}},
+		expected:                values[:2],
+		expectedFirstAnnotation: []byte{1, 2, 3},
 		expectedErr: &testSeriesErr{
 			err:   errOutOfOrderIterator,
 			atIdx: 2,
@@ -257,7 +263,7 @@ func TestSeriesIteratorSetSeriesIteratorConsolidator(t *testing.T) {
 	iter := newTestSeriesIterator(t, test).iter
 	newIter := NewMockMultiReaderIterator(ctrl)
 	newIter.EXPECT().Next().Return(true)
-	newIter.EXPECT().Current().Return(ts.Datapoint{}, xtime.Second, nil).Times(2)
+	newIter.EXPECT().Current().Return(ts.Datapoint{}, xtime.Second, nil).Times(3)
 
 	iter.iters.setFilter(0, 1)
 	consolidator := &testSeriesConsolidator{iters: []MultiReaderIterator{newIter}}
@@ -324,20 +330,21 @@ func assertTestSeriesIterator(
 	for i := 0; i < len(series.expected); i++ {
 		next := iter.Next()
 		if series.expectedErr != nil && i == series.expectedErr.atIdx {
-			assert.Equal(t, false, next)
+			assert.False(t, next)
 			break
 		}
-		require.Equal(t, true, next)
+		require.True(t, next)
 		dp, unit, annotation := iter.Current()
 		expected := series.expected[i]
 		assert.Equal(t, expected.value, dp.Value)
 		assert.Equal(t, expected.t, dp.TimestampNanos)
 		assert.Equal(t, expected.unit, unit)
-		assert.Equal(t, expected.annotation, []byte(annotation))
+		assert.Equal(t, expected.annotation, annotation)
+		assert.Equal(t, series.expectedFirstAnnotation, iter.FirstAnnotation())
 	}
 	// Ensure further calls to next false
 	for i := 0; i < 2; i++ {
-		assert.Equal(t, false, iter.Next())
+		assert.False(t, iter.Next())
 	}
 	if series.expectedErr == nil {
 		assert.NoError(t, iter.Err())
@@ -346,7 +353,7 @@ func assertTestSeriesIterator(
 	}
 	for _, iter := range multiReaderIterators {
 		if iter != nil {
-			assert.Equal(t, true, iter.(*testMultiIterator).closed)
+			assert.True(t, iter.(*testMultiIterator).closed)
 		}
 	}
 }

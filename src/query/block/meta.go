@@ -63,7 +63,7 @@ type ResultMetadata struct {
 	// Exhaustive indicates whether the underlying data set presents a full
 	// collection of retrieved data.
 	Exhaustive bool
-	// Warnings is a list of warnings that indicate potetitally partial or
+	// Warnings is a list of warnings that indicate potentially partial or
 	// incomplete results.
 	Warnings Warnings
 	// Resolutions is a list of resolutions for series obtained by this query.
@@ -202,7 +202,7 @@ func (m *ResultMetadata) VerifyTemporalRange(step time.Duration) {
 	if len(invalidResolutions) > 0 {
 		warnings := make([]string, 0, len(invalidResolutions))
 		for k := range invalidResolutions {
-			warnings = append(warnings, fmt.Sprintf("%v", time.Duration(k)))
+			warnings = append(warnings, fmt.Sprintf("%v", k))
 		}
 
 		sort.Strings(warnings)
