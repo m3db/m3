@@ -35,7 +35,26 @@ import (
 const (
 	// TestRepairDBNodeConfig is the test config for the dbnode.
 	TestRepairDBNodeConfig = `
-db: {}
+db:
+  repair:
+    enabled: true
+    throttle: 1ms
+    checkInterval: 1ms
+  replication:
+    clusters:
+      - name: "the_other_cluster"
+        repairEnabled: true
+        client:
+          config:
+            service:
+              env: default_env
+              zone: embedded
+              service: m3db
+              cacheDir: /var/lib/m3kv
+              etcdClusters:
+                - zone: embedded
+                  endpoints:
+                    - the_other_cluster_node:2379
 `
 
 	// TestRepairCoordinatorConfig is the test config for the coordinator.

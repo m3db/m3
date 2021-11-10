@@ -23,7 +23,6 @@ package inprocess
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"strconv"
 
@@ -39,14 +38,16 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/integration/resources"
 	nettest "github.com/m3db/m3/src/integration/resources/net"
-	"github.com/m3db/m3/src/query/storage/m3"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/hostid"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 // ClusterConfigs contain the input config to use for components within
-// the cluster.
+// the cluster. There is one default configuration for each type of component.
+// Given a set of ClusterConfigs, the function NewCluster can spin up an m3 cluster.
+// Or one use GenerateClusterFullConfigs to get the configs for every instance
+// based on the given ClusterConfigs.
 type ClusterConfigs struct {
 	// DBNode is the configuration for db nodes.
 	DBNode dbcfg.Configuration
@@ -57,15 +58,15 @@ type ClusterConfigs struct {
 	Aggregator *aggcfg.Configuration
 }
 
-// ClusterFullConfigs contain the final configs to use for components within
-// the cluster.
+// ClusterFullConfigs contain the final configs to use for each instance of
+// each components within the cluster.
+// The function NewClusterFromFullConfigs will spin up an m3 cluster
+// with the given full set of configs.
 type ClusterFullConfigs struct {
 	// DBNodes is the configuration for db nodes.
 	DBNodes []dbcfg.Configuration
 	// DBNodeOpts is the options for setting up db nodes.
 	DBNodeOpts []DBNodeOptions
-	// EnvConfig is the env configuration shared by dbnodes and the coordinator.
-	EnvConfig environment.Configuration
 	// Coordinator is the configuration for the coordinator.
 	Coordinator coordinatorcfg.Configuration
 	// Aggregators is the configuration for aggregators.
@@ -187,7 +188,7 @@ func NewClusterFromFullConfigs(
 
 	coord, err = NewCoordinator(
 		fullConfigs.Coordinator,
-		CoordinatorOptions{GeneratePorts: opts.CoordinatorGeneratePorts},
+		CoordinatorOptions{GeneratePorts: opts.Coordinator.GeneratePorts},
 	)
 	if err != nil {
 		return nil, err
@@ -236,11 +237,6 @@ func GenerateClusterFullConfigs(
 
 	coordConfig := configs.Coordinator
 	// TODO(nate): refactor to support having envconfig if no DB.
-	if coordConfig.Clusters == nil {
-		coordConfig.Clusters = []m3.ClusterStaticConfiguration{
-			{Namespaces: nil},
-		}
-	}
 	coordConfig.Clusters[0].Client.EnvironmentConfig = &envConfig
 
 	var aggCfgs []aggcfg.Configuration
@@ -254,7 +250,6 @@ func GenerateClusterFullConfigs(
 	return ClusterFullConfigs{
 		DBNodes:     nodeCfgs,
 		DBNodeOpts:  nodeOpts,
-		EnvConfig:   envConfig,
 		Coordinator: coordConfig,
 		Aggregators: aggCfgs,
 	}, nil
@@ -331,7 +326,7 @@ func GenerateDBNodeConfigsForCluster(
 func generateDefaultDiscoveryConfig(
 	cfg dbcfg.Configuration,
 	hostID string,
-	generatePortsAndIDs bool,
+	generateETCDPorts bool,
 ) (discovery.Configuration, environment.Configuration, error) {
 	discoveryConfig := cfg.DB.DiscoveryOrDefault()
 	envConfig, err := discoveryConfig.EnvironmentConfig(hostID)
@@ -343,7 +338,7 @@ func generateDefaultDiscoveryConfig(
 		etcdClientPort = dbcfg.DefaultEtcdClientPort
 		etcdServerPort = dbcfg.DefaultEtcdServerPort
 	)
-	if generatePortsAndIDs {
+	if generateETCDPorts {
 		etcdClientPort, err = nettest.GetAvailablePort()
 		if err != nil {
 			return discovery.Configuration{}, environment.Configuration{}, err
@@ -362,13 +357,7 @@ func generateDefaultDiscoveryConfig(
 	envConfig.SeedNodes.InitialCluster[0].Endpoint = etcdServerURL
 	envConfig.SeedNodes.InitialCluster[0].HostID = hostID
 	envConfig.Services[0].Service.ETCDClusters[0].Endpoints = []string{etcdClientAddr}
-	if generatePortsAndIDs {
-		// TODO: clean the temp dir
-		dir, err := ioutil.TempDir("", "m3kv-*")
-		if err != nil {
-			return discovery.Configuration{}, environment.Configuration{}, err
-		}
-		envConfig.Services[0].Service.CacheDir = dir
+	if generateETCDPorts {
 		envConfig.SeedNodes.ListenPeerUrls = []string{etcdServerURL}
 		envConfig.SeedNodes.ListenClientUrls = []string{etcdClientURL}
 		envConfig.SeedNodes.InitialAdvertisePeerUrls = []string{etcdServerURL}

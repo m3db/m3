@@ -13,8 +13,8 @@ type ClusterOptions struct {
 	// Aggregator is the optional cluster options for spinning up aggregators.
 	// If Aggregator is nil, the cluster contains only m3coordinator and dbnodes.
 	Aggregator *AggregatorClusterOptions
-	// CoordinatorGeneratePorts indicates whether to update the coordinator config to use open ports.
-	CoordinatorGeneratePorts bool
+	// Coordinator is the options for spinning up the coordinator
+	Coordinator CoordinatorClusterOptions
 }
 
 // Validate validates the ClusterOptions.
@@ -135,6 +135,13 @@ func (a *AggregatorClusterOptions) Validate() error {
 	}
 
 	return nil
+}
+
+// CoordinatorClusterOptions contains the cluster options for spinning up
+// the coordinator.
+type CoordinatorClusterOptions struct {
+	// GeneratePortsi ndicates whether to update the coordinator config to use open ports.
+	GeneratePorts bool
 }
 
 // M3msgTopicOptions represents a set of options for an m3msg topic.

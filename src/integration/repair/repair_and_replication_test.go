@@ -24,14 +24,10 @@ package repair
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	dbcfg "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
-	dbclient "github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/integration/resources"
 	"github.com/m3db/m3/src/integration/resources/inprocess"
 )
@@ -47,8 +43,19 @@ func testSetup(t *testing.T) (resources.M3Resources, resources.M3Resources, func
 	fullCfgs1 := getClusterFullConfgs(t)
 	fullCfgs2 := getClusterFullConfgs(t)
 
-	setRepairAndReplicationCfg(&fullCfgs1, "cluster-2", &fullCfgs2.EnvConfig)
-	setRepairAndReplicationCfg(&fullCfgs2, "cluster-1", &fullCfgs1.EnvConfig)
+	ep1 := fullCfgs1.Coordinator.Clusters[0].Client.EnvironmentConfig.Services[0].Service.ETCDClusters[0].Endpoints
+	ep2 := fullCfgs2.Coordinator.Clusters[0].Client.EnvironmentConfig.Services[0].Service.ETCDClusters[0].Endpoints
+
+	setRepairAndReplicationCfg(
+		&fullCfgs1,
+		"cluster-2",
+		ep2,
+	)
+	setRepairAndReplicationCfg(
+		&fullCfgs2,
+		"cluster-1",
+		ep1,
+	)
 
 	cluster1, err := inprocess.NewClusterFromFullConfigs(fullCfgs1, clusterOptions)
 	require.NoError(t, err)
@@ -74,25 +81,10 @@ func getClusterFullConfgs(t *testing.T) inprocess.ClusterFullConfigs {
 	return fullCfgs
 }
 
-func setRepairAndReplicationCfg(fullCfg *inprocess.ClusterFullConfigs, clusterName string, envCfg *environment.Configuration) {
+func setRepairAndReplicationCfg(fullCfg *inprocess.ClusterFullConfigs, clusterName string, endpoints []string) {
 	for _, dbnode := range fullCfg.DBNodes {
-		dbnode.DB.Repair = &dbcfg.RepairPolicy{
-			Enabled:       true,
-			Throttle:      time.Millisecond,
-			CheckInterval: time.Millisecond,
-		}
-
-		dbnode.DB.Replication = &dbcfg.ReplicationPolicy{
-			Clusters: []dbcfg.ReplicatedCluster{
-				{
-					Name:          clusterName,
-					RepairEnabled: true,
-					Client: &dbclient.Configuration{
-						EnvironmentConfig: envCfg,
-					},
-				},
-			},
-		}
+		dbnode.DB.Replication.Clusters[0].Name = clusterName
+		dbnode.DB.Replication.Clusters[0].Client.EnvironmentConfig.Services[0].Service.ETCDClusters[0].Endpoints = endpoints
 	}
 }
 
@@ -103,5 +95,7 @@ var clusterOptions = resources.ClusterOptions{
 		NumInstances:       1,
 		NumIsolationGroups: 2,
 	},
-	CoordinatorGeneratePorts: true,
+	Coordinator: resources.CoordinatorClusterOptions{
+		GeneratePorts: true,
+	},
 }
