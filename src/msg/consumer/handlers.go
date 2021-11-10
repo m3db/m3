@@ -36,17 +36,6 @@ type messageHandler struct {
 	m                     metrics
 }
 
-// NewMessageProcessorFn creates a new MessageProcessor scoped to a single connection. Messages are processed serially
-// in a connection.
-type NewMessageProcessorFn func() MessageProcessor
-
-// SingletonMessageProcessor uses the same MessageProcessor for all connections.
-func SingletonMessageProcessor(p MessageProcessor) NewMessageProcessorFn {
-	return func() MessageProcessor {
-		return p
-	}
-}
-
 // NewMessageHandler creates a new server handler with messageFn.
 func NewMessageHandler(newMessageProcessorFn NewMessageProcessorFn, opts Options) server.Handler {
 	mPool := newMessagePool(opts.MessagePoolOptions())

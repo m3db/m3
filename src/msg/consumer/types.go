@@ -129,6 +129,17 @@ type MessageProcessor interface {
 	Close()
 }
 
+// NewMessageProcessorFn creates a new MessageProcessor scoped to a single connection. Messages are processed serially
+// in a connection.
+type NewMessageProcessorFn func() MessageProcessor
+
+// SingletonMessageProcessor uses the same MessageProcessor for all connections.
+func SingletonMessageProcessor(p MessageProcessor) NewMessageProcessorFn {
+	return func() MessageProcessor {
+		return p
+	}
+}
+
 // NewNoOpMessageProcessor creates a new MessageProcessor that does nothing.
 func NewNoOpMessageProcessor() MessageProcessor {
 	return &noOpMessageProcessor{}
@@ -139,21 +150,6 @@ type noOpMessageProcessor struct{}
 func (n noOpMessageProcessor) Process(Message) {}
 
 func (n noOpMessageProcessor) Close() {}
-
-// NewMessageProcessorFromFn creates a new MessageProcessor that applies the provided function to each message.
-func NewMessageProcessorFromFn(fn func(m Message)) MessageProcessor {
-	return &fnMessageProcessor{fn: fn}
-}
-
-type fnMessageProcessor struct {
-	fn func(m Message)
-}
-
-func (f fnMessageProcessor) Process(m Message) {
-	f.fn(m)
-}
-
-func (f fnMessageProcessor) Close() {}
 
 // ConsumeFn processes the consumer. This is useful when user want to reuse
 // resource across messages received on the same consumer or have finer level
