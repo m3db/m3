@@ -248,7 +248,17 @@ func GenerateClusterSpecification(
 
 	coordConfig := configs.Coordinator
 	// TODO(nate): refactor to support having envconfig if no DB.
-	coordConfig.Clusters[0].Client.EnvironmentConfig = &envConfig
+	if len(coordConfig.Clusters) > 0 {
+		coordConfig.Clusters[0].Client.EnvironmentConfig = &envConfig
+	} else {
+		coordConfig.Clusters = m3.ClustersStaticConfiguration{
+			{
+				Client: client.Configuration{
+					EnvironmentConfig: &envConfig,
+				},
+			},
+		}
+	}
 
 	var aggCfgs []aggcfg.Configuration
 	if opts.Aggregator != nil {
