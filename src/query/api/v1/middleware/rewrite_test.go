@@ -120,8 +120,7 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			end:     "1625250298",
 			query:   "rate(foo[5m])",
 
-			expectedQuery:    "rate(foo[5m])",
-			expectedLookback: durationPtr(2 * time.Minute),
+			expectedQuery: "rate(foo[5m])",
 		},
 		{
 			name: "query with rewriteable range; disabled",
@@ -192,7 +191,77 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			expectedLookback: durationPtr(15 * time.Minute),
 		},
 		{
-			name: "range with lookback already set; no rewrite",
+			name: "range with lookback not set; keep default lookback",
+			attrs: []storagemetadata.Attributes{
+				{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Resolution:  1 * time.Minute,
+					Retention:   90 * 24 * time.Hour,
+				},
+			},
+			enabled: true,
+			mult:    2,
+			start:   "1624882294",
+			end:     "1624882295",
+			query:   "foo",
+
+			expectedQuery: "foo",
+		},
+		{
+			name: "instant with lookback not set; keep default lookback",
+			attrs: []storagemetadata.Attributes{
+				{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Resolution:  1 * time.Minute,
+					Retention:   90 * 24 * time.Hour,
+				},
+			},
+			enabled: true,
+			mult:    2,
+			now:     "1624882294",
+			instant: true,
+			query:   "foo",
+
+			expectedQuery: "foo",
+		},
+		{
+			name: "range with lookback not set; rewrite lookback to higher",
+			attrs: []storagemetadata.Attributes{
+				{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Resolution:  3 * time.Minute,
+					Retention:   90 * 24 * time.Hour,
+				},
+			},
+			enabled: true,
+			mult:    3,
+			start:   "1624882294",
+			end:     "1624882295",
+			query:   "foo",
+
+			expectedQuery:    "foo",
+			expectedLookback: durationPtr(9 * time.Minute),
+		},
+		{
+			name: "instant with lookback not set; rewrite lookback to higher",
+			attrs: []storagemetadata.Attributes{
+				{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Resolution:  4 * time.Minute,
+					Retention:   90 * 24 * time.Hour,
+				},
+			},
+			enabled: true,
+			mult:    3,
+			now:     "1624882294",
+			instant: true,
+			query:   "foo",
+
+			expectedQuery:    "foo",
+			expectedLookback: durationPtr(12 * time.Minute),
+		},
+		{
+			name: "range with lookback already set; keep existing lookback",
 			attrs: []storagemetadata.Attributes{
 				{
 					MetricsType: storagemetadata.AggregatedMetricsType,
@@ -201,9 +270,9 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 				},
 			},
 			enabled:  true,
-			mult:     3,
-			start:    "1614882294",
-			end:      "1614882295",
+			mult:     2,
+			start:    "1624882294",
+			end:      "1624882295",
 			query:    "foo",
 			lookback: durationPtr(11 * time.Minute),
 
@@ -211,7 +280,26 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			expectedLookback: durationPtr(11 * time.Minute),
 		},
 		{
-			name: "instant with lookback already set; no rewrite",
+			name: "instant with lookback already set; keep existing lookback",
+			attrs: []storagemetadata.Attributes{
+				{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Resolution:  4 * time.Minute,
+					Retention:   90 * 24 * time.Hour,
+				},
+			},
+			enabled:  true,
+			mult:     3,
+			now:      "1624882294",
+			instant:  true,
+			query:    "foo",
+			lookback: durationPtr(13 * time.Minute),
+
+			expectedQuery:    "foo",
+			expectedLookback: durationPtr(13 * time.Minute),
+		},
+		{
+			name: "range with lookback already set; rewrite lookback to higher",
 			attrs: []storagemetadata.Attributes{
 				{
 					MetricsType: storagemetadata.AggregatedMetricsType,
@@ -221,13 +309,32 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			},
 			enabled:  true,
 			mult:     3,
-			now:      "1614882294",
+			start:    "1624882294",
+			end:      "1624882295",
+			query:    "foo",
+			lookback: durationPtr(11 * time.Minute),
+
+			expectedQuery:    "foo",
+			expectedLookback: durationPtr(15 * time.Minute),
+		},
+		{
+			name: "instant with lookback already set; rewrite lookback to higher",
+			attrs: []storagemetadata.Attributes{
+				{
+					MetricsType: storagemetadata.AggregatedMetricsType,
+					Resolution:  5 * time.Minute,
+					Retention:   90 * 24 * time.Hour,
+				},
+			},
+			enabled:  true,
+			mult:     3,
+			now:      "1624882294",
 			instant:  true,
 			query:    "foo",
 			lookback: durationPtr(13 * time.Minute),
 
 			expectedQuery:    "foo",
-			expectedLookback: durationPtr(13 * time.Minute),
+			expectedLookback: durationPtr(15 * time.Minute),
 		},
 	}
 	for _, tt := range queryTests {
@@ -336,6 +443,7 @@ func makeBaseOpts(t *testing.T, r *mux.Router) Options {
 			Enabled:              true,
 			FetchOptionsBuilder:  fetchOptsBuilder,
 			ResolutionMultiplier: 2,
+			DefaultLookback:      5 * time.Minute,
 			Storage:              mockStorage,
 		},
 	}

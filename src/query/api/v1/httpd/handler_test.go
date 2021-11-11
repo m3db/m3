@@ -125,6 +125,7 @@ func setupHandler(
 		testM3DBOpts,
 		NewGraphiteRenderRouter(),
 		NewGraphiteFindRouter(),
+		defaultLookbackDuration,
 	)
 	if err != nil {
 		return nil, err
@@ -406,6 +407,7 @@ func TestCustomRoutes(t *testing.T) {
 		models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,
 		defaultPlacementServices, svcDefaultOptions, NewQueryRouter(), NewQueryRouter(),
 		graphiteStorage.M3WrappedStorageOptions{}, testM3DBOpts, NewGraphiteRenderRouter(), NewGraphiteFindRouter(),
+		defaultLookbackDuration,
 	)
 	require.NoError(t, err)
 	custom := &customHandler{

@@ -277,6 +277,11 @@ type HandlerOptions interface {
 	SetRegisterMiddleware(value middleware.Register) HandlerOptions
 	// RegisterMiddleware returns the function to construct the set of Middleware functions to run.
 	RegisterMiddleware() middleware.Register
+
+	// DefaultLookback returns the default value of lookback duration.
+	DefaultLookback() time.Duration
+	// SetDefaultLookback sets the default value of lookback duration.
+	SetDefaultLookback(value time.Duration) HandlerOptions
 }
 
 // HandlerOptions represents handler options.
@@ -311,6 +316,7 @@ type handlerOptions struct {
 	registerMiddleware                middleware.Register
 	graphiteRenderRouter              GraphiteRenderRouter
 	graphiteFindRouter                GraphiteFindRouter
+	defaultLookback                   time.Duration
 }
 
 // EmptyHandlerOptions returns  default handler options.
@@ -346,6 +352,7 @@ func NewHandlerOptions(
 	m3dbOpts m3.Options,
 	graphiteRenderRouter GraphiteRenderRouter,
 	graphiteFindRouter GraphiteFindRouter,
+	defaultLookback time.Duration,
 ) (HandlerOptions, error) {
 	storeMetricsType := false
 	if cfg.StoreMetricsType != nil {
@@ -381,6 +388,7 @@ func NewHandlerOptions(
 		registerMiddleware:                middleware.Default,
 		graphiteRenderRouter:              graphiteRenderRouter,
 		graphiteFindRouter:                graphiteFindRouter,
+		defaultLookback:                   defaultLookback,
 	}, nil
 }
 
@@ -706,6 +714,16 @@ func (o *handlerOptions) RegisterMiddleware() middleware.Register {
 func (o *handlerOptions) SetRegisterMiddleware(value middleware.Register) HandlerOptions {
 	opts := *o
 	opts.registerMiddleware = value
+	return &opts
+}
+
+func (o *handlerOptions) DefaultLookback() time.Duration {
+	return o.defaultLookback
+}
+
+func (o *handlerOptions) SetDefaultLookback(value time.Duration) HandlerOptions {
+	opts := *o
+	opts.defaultLookback = value
 	return &opts
 }
 

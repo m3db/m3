@@ -43,6 +43,7 @@ type PrometheusRangeRewriteOptions struct { // nolint:maligned
 	FetchOptionsBuilder  handleroptions.FetchOptionsBuilder
 	Instant              bool
 	ResolutionMultiplier int
+	DefaultLookback      time.Duration
 	Storage              storage.Storage
 }
 
@@ -89,7 +90,7 @@ func rewriteRangeDuration(
 	logger *zap.Logger,
 ) error {
 	// Extract relevant query params
-	query, start, end, lookbackSet, err := extractParams(r, opts.Instant)
+	query, start, end, lookback, isLookackSet, err := extractParams(r, opts.Instant)
 	if err != nil {
 		return err
 	}
@@ -143,14 +144,22 @@ func rewriteRangeDuration(
 	}
 
 	updateQuery := rewriteRangeInQuery(expr, res, opts.ResolutionMultiplier)
-	updateLookback := !lookbackSet
+
+	resolutionBasedLookback := res * time.Duration(opts.ResolutionMultiplier) // nolint: durationcheck
+	updateLookback := false
+	if !isLookackSet {
+		lookback = opts.DefaultLookback
+	}
+	if resolutionBasedLookback > lookback {
+		updateLookback = true
+	}
+
 	if !updateQuery && !updateLookback {
 		return nil
 	}
 
 	// Add updated query to the request where necessary
 	updatedQuery := expr.String()
-	resolutionAppropriateLookback := (res * time.Duration(opts.ResolutionMultiplier)).String() // nolint: durationcheck
 
 	// Update query and lookback params in URL, if present and needed.
 	urlQueryValues, err := url.ParseQuery(r.URL.RawQuery)
@@ -162,7 +171,7 @@ func rewriteRangeDuration(
 			urlQueryValues.Set(queryParam, updatedQuery)
 		}
 		if updateLookback {
-			urlQueryValues.Set(lookbackParam, resolutionAppropriateLookback)
+			urlQueryValues.Set(lookbackParam, resolutionBasedLookback.String())
 		}
 	}
 	updatedURL, err := url.Parse(r.URL.String())
@@ -178,7 +187,7 @@ func rewriteRangeDuration(
 			r.Form.Set(queryParam, updatedQuery)
 		}
 		if updateLookback {
-			r.Form.Set(lookbackParam, resolutionAppropriateLookback)
+			r.Form.Set(lookbackParam, resolutionBasedLookback.String())
 		}
 	}
 
@@ -187,14 +196,16 @@ func rewriteRangeDuration(
 		zap.String("originalQuery", query),
 		zap.String("updatedQuery", updatedQuery),
 		zap.Bool("updateLookback", updateLookback),
-		zap.String("updatedLookback", resolutionAppropriateLookback))
+		zap.Bool("isLookbackSet", isLookackSet),
+		zap.Duration("originalLookback", lookback),
+		zap.Duration("updatedLookback", resolutionBasedLookback))
 
 	return nil
 }
 
-func extractParams(r *http.Request, instant bool) (string, time.Time, time.Time, bool, error) {
+func extractParams(r *http.Request, instant bool) (string, time.Time, time.Time, time.Duration, bool, error) {
 	if err := r.ParseForm(); err != nil {
-		return "", time.Time{}, time.Time{}, false, err
+		return "", time.Time{}, time.Time{}, 0, false, err
 	}
 
 	query := r.FormValue(queryParam)
@@ -205,15 +216,15 @@ func extractParams(r *http.Request, instant bool) (string, time.Time, time.Time,
 
 	timeParams, err := prometheus.ParseTimeParams(r)
 	if err != nil {
-		return "", time.Time{}, time.Time{}, false, err
+		return "", time.Time{}, time.Time{}, 0, false, err
 	}
 
-	_, lookbackSet, err := handleroptions.ParseLookbackDuration(r)
+	lookback, isLookbackSet, err := handleroptions.ParseLookbackDuration(r)
 	if err != nil {
-		return "", time.Time{}, time.Time{}, false, err
+		return "", time.Time{}, time.Time{}, 0, false, err
 	}
 
-	return query, timeParams.Start, timeParams.End, lookbackSet, nil
+	return query, timeParams.Start, timeParams.End, lookback, isLookbackSet, nil
 }
 
 func rewriteRangeInQuery(expr parser.Node, res time.Duration, multiplier int) bool {

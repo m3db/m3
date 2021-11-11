@@ -492,6 +492,7 @@ func (h *Handler) RegisterRoutes() error {
 			PrometheusRangeRewrite: middleware.PrometheusRangeRewriteOptions{
 				FetchOptionsBuilder:  h.options.FetchOptionsBuilder(),
 				ResolutionMultiplier: h.middlewareConfig.Prometheus.ResolutionMultiplier,
+				DefaultLookback:      h.options.DefaultLookback(),
 				Storage:              h.options.Storage(),
 			},
 		}
