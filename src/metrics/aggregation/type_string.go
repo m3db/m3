@@ -24,11 +24,11 @@ package aggregation
 
 import "fmt"
 
-const _Type_name = "UnknownTypeLastMinMaxMeanMedianCountSumSumSqStdevP10P20P30P40P50P60P70P80P90P95P99P999P9999"
+const _Type_name = "UnknownTypeLastMinMaxMeanMedianCountSumSumSqStdevP10P20P30P40P50P60P70P80P90P95P99P999P9999P25P75"
 
-var _Type_name_bytes = []byte("UnknownTypeLastMinMaxMeanMedianCountSumSumSqStdevP10P20P30P40P50P60P70P80P90P95P99P999P9999")
+var _Type_name_bytes = []byte("UnknownTypeLastMinMaxMeanMedianCountSumSumSqStdevP10P20P30P40P50P60P70P80P90P95P99P999P9999P25P75")
 
-var _Type_index = [...]uint8{0, 11, 15, 18, 21, 25, 31, 36, 39, 44, 49, 52, 55, 58, 61, 64, 67, 70, 73, 76, 79, 82, 86, 91}
+var _Type_index = [...]uint8{0, 11, 15, 18, 21, 25, 31, 36, 39, 44, 49, 52, 55, 58, 61, 64, 67, 70, 73, 76, 79, 82, 86, 91, 94, 97}
 
 func (i Type) String() string {
 	if i < 0 || i >= Type(len(_Type_index)-1) {

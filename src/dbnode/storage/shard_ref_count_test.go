@@ -27,6 +27,10 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -36,11 +40,9 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func TestShardWriteSyncRefCount(t *testing.T) {
@@ -154,8 +156,14 @@ func TestShardWriteTaggedSyncRefCountMockIndex(t *testing.T) {
 
 func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 10*time.Second)()
-	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
-		q := newNamespaceIndexInsertQueue(fn, md, nowFn, s)
+	newFn := func(
+		fn nsIndexInsertBatchFn,
+		md namespace.Metadata,
+		nowFn clock.NowFn,
+		coreFn xsync.CoreFn,
+		s tally.Scope,
+	) namespaceIndexInsertQueue {
+		q := newNamespaceIndexInsertQueue(fn, md, nowFn, coreFn, s)
 		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
 		return q
 	}
@@ -335,6 +343,7 @@ func newNowFnForWriteTaggedAsyncRefCount() func() time.Time {
 		return start
 	}
 }
+
 func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
@@ -366,8 +375,8 @@ func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
 func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 10*time.Second)()
 	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata,
-		nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
-		q := newNamespaceIndexInsertQueue(fn, md, nowFn, s)
+		nowFn clock.NowFn, coreFn xsync.CoreFn, s tally.Scope) namespaceIndexInsertQueue {
+		q := newNamespaceIndexInsertQueue(fn, md, nowFn, coreFn, s)
 		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
 		return q
 	}

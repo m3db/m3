@@ -51,10 +51,11 @@ import (
 )
 
 var (
-	testName     = "remote_foo"
-	errRead      = errors.New("read error")
-	poolsWrapper = pools.NewPoolsWrapper(
-		pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
+	testName  = "remote_foo"
+	errRead   = errors.New("read error")
+	iterPools = pools.BuildIteratorPools(encoding.NewOptions(),
+		pools.BuildIteratorPoolsOptions{})
+	poolsWrapper = pools.NewPoolsWrapper(iterPools)
 )
 
 type mockStorageOptions struct {
@@ -172,7 +173,7 @@ func buildClient(t *testing.T, hosts []string) Client {
 	readWorkerPool.Init()
 	require.NoError(t, err)
 
-	opts := m3.NewOptions().
+	opts := m3.NewOptions(encoding.NewOptions()).
 		SetReadWorkerPool(readWorkerPool).
 		SetTagOptions(models.NewTagOptions())
 
@@ -299,7 +300,7 @@ func TestMultipleClientRpc(t *testing.T) {
 
 func TestEmptyAddressListErrors(t *testing.T) {
 	addresses := []string{}
-	opts := m3.NewOptions()
+	opts := m3.NewOptions(encoding.NewOptions())
 	client, err := NewGRPCClient(testName, addresses, poolsWrapper, opts,
 		instrument.NewTestOptions(t), grpc.WithBlock())
 	assert.Nil(t, client)

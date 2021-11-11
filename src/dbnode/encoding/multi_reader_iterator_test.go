@@ -53,12 +53,12 @@ func TestMultiReaderIteratorMergesMulti(t *testing.T) {
 	start := xtime.Now().Truncate(time.Minute)
 
 	values := [][]testValue{
-		[]testValue{
+		{
 			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
 			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
 			{3.0, start.Add(3 * time.Second), xtime.Second, nil},
 		},
-		[]testValue{
+		{
 			{4.0, start.Add(4 * time.Second), xtime.Second, []byte{4, 5, 6}},
 			{5.0, start.Add(5 * time.Second), xtime.Second, nil},
 			{6.0, start.Add(6 * time.Second), xtime.Second, nil},
@@ -67,7 +67,7 @@ func TestMultiReaderIteratorMergesMulti(t *testing.T) {
 
 	test := testMultiReader{
 		input: [][]testMultiReaderEntries{
-			[]testMultiReaderEntries{{values: values[0]}, {values: values[1]}},
+			{{values: values[0]}, {values: values[1]}},
 		},
 		expected: append(values[0], values[1]...),
 	}
@@ -77,14 +77,14 @@ func TestMultiReaderIteratorMergesMulti(t *testing.T) {
 
 func TestMultiReaderIteratorMergesEmpty(t *testing.T) {
 	values := [][]testValue{
-		[]testValue{},
-		[]testValue{},
+		{},
+		{},
 	}
 
 	test := testMultiReader{
 		input: [][]testMultiReaderEntries{
-			[]testMultiReaderEntries{{values: values[0]}},
-			[]testMultiReaderEntries{{values: values[1]}},
+			{{values: values[0]}},
+			{{values: values[1]}},
 		},
 		expected: values[0],
 	}
@@ -93,7 +93,7 @@ func TestMultiReaderIteratorMergesEmpty(t *testing.T) {
 
 	test = testMultiReader{
 		input: [][]testMultiReaderEntries{
-			[]testMultiReaderEntries{{values: values[0]}, {values: values[1]}},
+			{{values: values[0]}, {values: values[1]}},
 		},
 		expected: values[0],
 	}
@@ -105,12 +105,12 @@ func TestMultiReaderIteratorReadsSlicesInOrder(t *testing.T) {
 	start := xtime.Now().Truncate(time.Minute)
 
 	values := [][]testValue{
-		[]testValue{
+		{
 			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
 			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
 			{3.0, start.Add(3 * time.Second), xtime.Second, nil},
 		},
-		[]testValue{
+		{
 			{4.0, start.Add(4 * time.Second), xtime.Second, []byte{4, 5, 6}},
 			{5.0, start.Add(5 * time.Second), xtime.Second, nil},
 			{6.0, start.Add(6 * time.Second), xtime.Second, nil},
@@ -119,8 +119,8 @@ func TestMultiReaderIteratorReadsSlicesInOrder(t *testing.T) {
 
 	test := testMultiReader{
 		input: [][]testMultiReaderEntries{
-			[]testMultiReaderEntries{{values: values[0]}},
-			[]testMultiReaderEntries{{values: values[1]}},
+			{{values: values[0]}},
+			{{values: values[1]}},
 		},
 		expected: append(values[0], values[1]...),
 	}
@@ -132,12 +132,12 @@ func TestMultiReaderIteratorReadsSlicesWithNoEntries(t *testing.T) {
 	start := xtime.Now().Truncate(time.Minute)
 
 	values := [][]testValue{
-		[]testValue{
+		{
 			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
 			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
 			{3.0, start.Add(3 * time.Second), xtime.Second, nil},
 		},
-		[]testValue{
+		{
 			{4.0, start.Add(4 * time.Second), xtime.Second, []byte{4, 5, 6}},
 			{5.0, start.Add(5 * time.Second), xtime.Second, nil},
 			{6.0, start.Add(6 * time.Second), xtime.Second, nil},
@@ -146,9 +146,9 @@ func TestMultiReaderIteratorReadsSlicesWithNoEntries(t *testing.T) {
 
 	test := testMultiReader{
 		input: [][]testMultiReaderEntries{
-			[]testMultiReaderEntries{{values: values[0]}},
-			[]testMultiReaderEntries{},
-			[]testMultiReaderEntries{{values: values[1]}},
+			{{values: values[0]}},
+			{},
+			{{values: values[1]}},
 		},
 		expected: append(values[0], values[1]...),
 	}
@@ -160,13 +160,13 @@ func TestMultiReaderIteratorReadsSlicesWithEmptyEntries(t *testing.T) {
 	start := xtime.Now().Truncate(time.Minute)
 
 	values := [][]testValue{
-		[]testValue{
+		{
 			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
 			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
 			{3.0, start.Add(3 * time.Second), xtime.Second, nil},
 		},
-		[]testValue{},
-		[]testValue{
+		{},
+		{
 			{4.0, start.Add(4 * time.Second), xtime.Second, []byte{4, 5, 6}},
 			{5.0, start.Add(5 * time.Second), xtime.Second, nil},
 			{6.0, start.Add(6 * time.Second), xtime.Second, nil},
@@ -175,9 +175,9 @@ func TestMultiReaderIteratorReadsSlicesWithEmptyEntries(t *testing.T) {
 
 	test := testMultiReader{
 		input: [][]testMultiReaderEntries{
-			[]testMultiReaderEntries{{values: values[0]}},
-			[]testMultiReaderEntries{{values: values[1]}},
-			[]testMultiReaderEntries{{values: values[2]}},
+			{{values: values[0]}},
+			{{values: values[1]}},
+			{{values: values[2]}},
 		},
 		expected: append(values[0], values[2]...),
 	}
@@ -196,7 +196,7 @@ func TestMultiReaderIteratorDeduplicatesSingle(t *testing.T) {
 
 	test := testMultiReader{
 		input: [][]testMultiReaderEntries{
-			[]testMultiReaderEntries{{values: values}},
+			{{values: values}},
 		},
 		expected: values[:2],
 	}
@@ -215,7 +215,7 @@ func TestMultiReaderIteratorDeduplicatesMulti(t *testing.T) {
 
 	test := testMultiReader{
 		input: [][]testMultiReaderEntries{
-			[]testMultiReaderEntries{
+			{
 				{values: values},
 				{values: values},
 				{values: values},
@@ -238,7 +238,7 @@ func TestMultiReaderIteratorErrorOnOutOfOrder(t *testing.T) {
 
 	test := testMultiReader{
 		input: [][]testMultiReaderEntries{
-			[]testMultiReaderEntries{{values: values}},
+			{{values: values}},
 		},
 		expected: values,
 		expectedErr: &testMultiReaderError{
@@ -263,7 +263,7 @@ func TestMultiReaderIteratorErrorOnInnerIteratorError(t *testing.T) {
 
 	test := testMultiReader{
 		input: [][]testMultiReaderEntries{
-			[]testMultiReaderEntries{{
+			{{
 				values: values,
 				err: &testMultiReaderError{
 					err:   err,
@@ -361,7 +361,7 @@ func assertTestMultiReaderIterator(
 		require.Equal(t, expected.value, dp.Value, fmt.Sprintf("mismatch for idx %d", i))
 		require.Equal(t, expected.t, dp.TimestampNanos, fmt.Sprintf("mismatch for idx %d", i))
 		require.Equal(t, expected.unit, unit, fmt.Sprintf("mismatch for idx %d", i))
-		require.Equal(t, expected.annotation, []byte(annotation), fmt.Sprintf("mismatch for idx %d", i))
+		require.Equal(t, expected.annotation, annotation, fmt.Sprintf("mismatch for idx %d", i))
 	}
 
 	// Ensure further calls to next false

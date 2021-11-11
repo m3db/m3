@@ -37,6 +37,7 @@ import (
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -147,7 +148,7 @@ func newMetricListMetrics(scope tally.Scope) baseMetricListMetrics {
 // of aggregation windows that are eligible for flushing.
 type targetNanosFn func(nowNanos int64) int64
 
-type flushBeforeFn func(beforeNanos int64, flushType flushType)
+type flushBeforeFn func(beforeNanos int64, jitter time.Duration, flushType flushType)
 
 // baseMetricList is a metric list storing aggregations at a given resolution and
 // flushing them periodically.
@@ -249,9 +250,7 @@ func (l *baseMetricList) Len() int {
 // elements and manage their lifetimes. If this becomes an issue,
 // need to switch to a custom type-specific list implementation.
 func (l *baseMetricList) PushBack(value metricElem) (*list.Element, error) {
-	var (
-		_, hasForwardedID = value.ForwardedID()
-	)
+	_, hasForwardedID := value.ForwardedID()
 	l.Lock()
 	if l.closed {
 		l.Unlock()
@@ -304,23 +303,23 @@ func (l *baseMetricList) Flush(req flushRequest) {
 
 	// Metrics before shard cutover are discarded.
 	if targetNanos <= req.CutoverNanos {
-		l.flushBeforeFn(targetNanos, discardType)
+		l.flushBeforeFn(targetNanos, req.Jitter, discardType)
 		l.metrics.flushBeforeCutover.Inc(1)
 		return
 	}
 
 	// Metrics between shard cutover and shard cutoff are consumed.
 	if req.CutoverNanos > 0 {
-		l.flushBeforeFn(req.CutoverNanos, discardType)
+		l.flushBeforeFn(req.CutoverNanos, req.Jitter, discardType)
 	}
 	if targetNanos <= req.CutoffNanos {
-		l.flushBeforeFn(targetNanos, consumeType)
+		l.flushBeforeFn(targetNanos, req.Jitter, consumeType)
 		l.metrics.flushBetweenCutoverCutoff.Inc(1)
 		return
 	}
 
 	// Metrics after now-keepAfterCutoff are retained.
-	l.flushBeforeFn(req.CutoffNanos, consumeType)
+	l.flushBeforeFn(req.CutoffNanos, req.Jitter, consumeType)
 	bufferEndNanos := targetNanos - int64(req.BufferAfterCutoff)
 	if bufferEndNanos <= req.CutoffNanos {
 		l.metrics.flushBetweenCutoffBufferEnd.Inc(1)
@@ -328,18 +327,18 @@ func (l *baseMetricList) Flush(req flushRequest) {
 	}
 
 	// Metrics between cutoff and now-bufferAfterCutoff are discarded.
-	l.flushBeforeFn(bufferEndNanos, discardType)
+	l.flushBeforeFn(bufferEndNanos, req.Jitter, discardType)
 	l.metrics.flushAfterBufferEnd.Inc(1)
 }
 
 func (l *baseMetricList) DiscardBefore(beforeNanos int64) {
-	l.flushBeforeFn(beforeNanos, discardType)
+	l.flushBeforeFn(beforeNanos, 0, discardType)
 	l.metrics.discardBefore.Inc(1)
 }
 
 // flushBefore flushes or discards data before a given time based on the flush type.
 // It is not thread-safe.
-func (l *baseMetricList) flushBefore(beforeNanos int64, flushType flushType) {
+func (l *baseMetricList) flushBefore(beforeNanos int64, jitter time.Duration, flushType flushType) {
 	if l.LastFlushedNanos() >= beforeNanos {
 		l.metrics.flushBeforeStale.Inc(1)
 		return
@@ -379,6 +378,8 @@ func (l *baseMetricList) flushBefore(beforeNanos int64, flushType flushType) {
 			flushLocalFn,
 			flushForwardedFn,
 			onForwardedFlushedFn,
+			jitter,
+			flushType,
 		) {
 			l.toCollect = append(l.toCollect, e)
 		}
@@ -476,8 +477,9 @@ func (l *baseMetricList) consumeForwardedMetric(
 	value float64,
 	prevValue float64,
 	annotation []byte,
+	resendEnabled bool,
 ) {
-	writeFn(aggregationKey, timeNanos, value, prevValue, annotation)
+	writeFn(aggregationKey, timeNanos, value, prevValue, annotation, resendEnabled)
 	l.metrics.flushForwarded.metricConsumed.Inc(1)
 }
 
@@ -489,6 +491,7 @@ func (l *baseMetricList) discardForwardedMetric(
 	value float64,
 	prevValue float64,
 	annotation []byte,
+	resendEnabled bool,
 ) {
 	l.metrics.flushForwarded.metricDiscarded.Inc(1)
 }
@@ -496,8 +499,9 @@ func (l *baseMetricList) discardForwardedMetric(
 func (l *baseMetricList) onForwardingElemConsumed(
 	onForwardedWrittenFn onForwardedAggregationDoneFn,
 	aggregationKey aggregationKey,
+	expiredTimes []xtime.UnixNano,
 ) {
-	if err := onForwardedWrittenFn(aggregationKey); err != nil {
+	if err := onForwardedWrittenFn(aggregationKey, expiredTimes); err != nil {
 		l.metrics.flushForwarded.onConsumedErrors.Inc(1)
 	} else {
 		l.metrics.flushForwarded.onConsumedSuccess.Inc(1)
@@ -506,8 +510,9 @@ func (l *baseMetricList) onForwardingElemConsumed(
 
 // nolint: unparam
 func (l *baseMetricList) onForwardingElemDiscarded(
-	onForwardedWrittenFn onForwardedAggregationDoneFn,
-	aggregationKey aggregationKey,
+	_ onForwardedAggregationDoneFn,
+	_ aggregationKey,
+	_ []xtime.UnixNano,
 ) {
 	l.metrics.flushForwarded.onDiscarded.Inc(1)
 }

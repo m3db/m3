@@ -52,7 +52,7 @@ func NewGauge(opts Options) Gauge {
 
 // Update updates the gauge value.
 func (g *Gauge) Update(timestamp time.Time, value float64, annotation []byte) {
-	g.annotation = maybeReplaceAnnotation(g.annotation, annotation)
+	g.annotation = MaybeReplaceAnnotation(g.annotation, annotation)
 	g.updateTotals(timestamp, value)
 	// min/max cannot be updated by an update to a value.
 	if math.IsNaN(g.max) || g.max < value {

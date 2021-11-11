@@ -30,6 +30,8 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -42,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	xidx "github.com/m3db/m3/src/m3ninx/idx"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -58,7 +61,17 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var testShardIDs = sharding.NewShards([]uint32{0, 1}, shard.Available)
+var (
+	sourceNsID = ident.StringID("source")
+	targetNsID = ident.StringID("target")
+
+	sourceBlockSize = time.Hour
+	targetBlockSize = 2 * time.Hour
+
+	insOpts = instrument.NewOptions()
+
+	testShardIDs = sharding.NewShards([]uint32{0, 1}, shard.Available)
+)
 
 type closerFn func()
 
@@ -1595,11 +1608,8 @@ func TestNamespaceAggregateTilesFailUntilBootstrapped(t *testing.T) {
 	defer ctx.Close()
 
 	var (
-		sourceNsID = ident.StringID("source")
-		targetNsID = ident.StringID("target")
-		start      = xtime.Now().Truncate(time.Hour)
-		insOpts    = instrument.NewOptions()
-		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour), InsOptions: insOpts}
+		start = xtime.Now().Truncate(time.Hour)
+		opts  = AggregateTilesOptions{Start: start, End: start.Add(time.Hour), InsOptions: insOpts}
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1625,19 +1635,16 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	defer ctx.Close()
 
 	var (
-		sourceNsID      = ident.StringID("source")
-		targetNsID      = ident.StringID("target")
-		sourceBlockSize = time.Hour
-		targetBlockSize = 2 * time.Hour
-		start           = xtime.Now().Truncate(targetBlockSize)
-		shard0ID        = uint32(10)
-		shard1ID        = uint32(20)
-		insOpts         = instrument.NewOptions()
-		process         = AggregateTilesRegular
+		start    = xtime.Now().Truncate(targetBlockSize)
+		shard0ID = uint32(10)
+		shard1ID = uint32(20)
+
+		createdWarmIndexForBlockStart xtime.UnixNano
 	)
 
 	opts, err := NewAggregateTilesOptions(
-		start, start.Add(targetBlockSize), time.Second, targetNsID, process, false, false, nil, insOpts)
+		start, start.Add(targetBlockSize), time.Second, targetNsID, AggregateTilesRegular,
+		false, false, nil, insOpts)
 	require.NoError(t, err)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1649,6 +1656,10 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
 	defer targetCloser()
 	targetNs.bootstrapState = Bootstrapped
+	targetNs.createEmptyWarmIndexIfNotExistsFn = func(blockStart xtime.UnixNano) error {
+		createdWarmIndexForBlockStart = blockStart
+		return nil
+	}
 	targetRetentionOpts := targetNs.nopts.RetentionOptions().SetBlockSize(targetBlockSize)
 	targetNs.nopts = targetNs.nopts.SetColdWritesEnabled(true).SetRetentionOptions(targetRetentionOpts)
 
@@ -1683,27 +1694,21 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(3+2), processedTileCount)
+	assert.Equal(t, start, createdWarmIndexForBlockStart)
 }
 
-func TestNamespaceAggregateTilesShipBootstrappingShards(t *testing.T) {
+func TestNamespaceAggregateTilesSkipBootstrappingShards(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	ctx := context.NewBackground()
 	defer ctx.Close()
 
-	var (
-		sourceNsID      = ident.StringID("source")
-		targetNsID      = ident.StringID("target")
-		sourceBlockSize = time.Hour
-		targetBlockSize = 2 * time.Hour
-		start           = xtime.Now().Truncate(targetBlockSize)
-		insOpts         = instrument.NewOptions()
-		process         = AggregateTilesRegular
-	)
+	start := xtime.Now().Truncate(targetBlockSize)
 
 	opts, err := NewAggregateTilesOptions(
-		start, start.Add(targetBlockSize), time.Second, targetNsID, process, false, false, nil, insOpts)
+		start, start.Add(targetBlockSize), time.Second, targetNsID, AggregateTilesRegular,
+		false, false, nil, insOpts)
 	require.NoError(t, err)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1715,6 +1720,9 @@ func TestNamespaceAggregateTilesShipBootstrappingShards(t *testing.T) {
 	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
 	defer targetCloser()
 	targetNs.bootstrapState = Bootstrapped
+	targetNs.createEmptyWarmIndexIfNotExistsFn = func(blockStart xtime.UnixNano) error {
+		return nil
+	}
 	targetRetentionOpts := targetNs.nopts.RetentionOptions().SetBlockSize(targetBlockSize)
 	targetNs.nopts = targetNs.nopts.SetColdWritesEnabled(true).SetRetentionOptions(targetRetentionOpts)
 
@@ -1733,6 +1741,94 @@ func TestNamespaceAggregateTilesShipBootstrappingShards(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Zero(t, processedTileCount)
+}
+
+func TestNamespaceAggregateTilesSkipIfNoShardsOwned(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewBackground()
+	defer ctx.Close()
+
+	start := xtime.Now().Truncate(targetBlockSize)
+
+	opts, err := NewAggregateTilesOptions(
+		start, start.Add(targetBlockSize), time.Second, targetNsID, AggregateTilesRegular,
+		false, false, nil, insOpts)
+	require.NoError(t, err)
+
+	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
+	defer sourceCloser()
+	sourceNs.bootstrapState = Bootstrapped
+	sourceRetentionOpts := sourceNs.nopts.RetentionOptions().SetBlockSize(sourceBlockSize)
+	sourceNs.nopts = sourceNs.nopts.SetRetentionOptions(sourceRetentionOpts)
+
+	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
+	defer targetCloser()
+	targetNs.bootstrapState = Bootstrapped
+	targetNs.createEmptyWarmIndexIfNotExistsFn = func(blockStart xtime.UnixNano) error {
+		return nil
+	}
+	targetRetentionOpts := targetNs.nopts.RetentionOptions().SetBlockSize(targetBlockSize)
+	targetNs.nopts = targetNs.nopts.SetColdWritesEnabled(true).SetRetentionOptions(targetRetentionOpts)
+
+	noShards := sharding.NewEmptyShardSet(sharding.DefaultHashFn(1))
+	targetNs.AssignShardSet(noShards)
+
+	processedTileCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
+
+	require.NoError(t, err)
+	assert.Zero(t, processedTileCount)
+}
+
+func TestCreateEmptyWarmIndexIfNotExists(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		nsID       = ident.StringID("warm")
+		nsOpts     = namespace.NewOptions()
+		blockStart = xtime.Now().Truncate(nsOpts.IndexOptions().BlockSize())
+	)
+
+	ns, nsCloser := newTestNamespaceWithIDOpts(t, nsID, nsOpts)
+	defer nsCloser()
+
+	shard0 := NewMockdatabaseShard(ctrl)
+	shard1 := NewMockdatabaseShard(ctrl)
+	ns.shards[0] = shard0
+	ns.shards[1] = shard1
+
+	shard0.EXPECT().IsBootstrapped().Return(false).Times(2)
+
+	shard1.EXPECT().IsBootstrapped().Return(true).Times(2)
+	shard1.EXPECT().ID().Return(uint32(5)).Times(2)
+
+	bootstrappedShardIds := map[uint32]struct{}{5: {}}
+
+	err := ns.createEmptyWarmIndexIfNotExists(blockStart)
+	require.NoError(t, err)
+
+	err = ns.createEmptyWarmIndexIfNotExists(blockStart)
+	require.NoError(t, err)
+
+	reader, err := fs.NewIndexReader(ns.StorageOptions().CommitLogOptions().FilesystemOptions())
+	require.NoError(t, err)
+
+	openOpts := fs.IndexReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			FileSetContentType: persist.FileSetIndexContentType,
+			Namespace:          nsID,
+			BlockStart:         blockStart,
+			VolumeIndex:        0,
+		},
+	}
+
+	idx, err := reader.Open(openOpts)
+	require.NoError(t, err)
+
+	assert.Equal(t, bootstrappedShardIds, idx.Shards)
+	assert.Equal(t, idxpersist.DefaultIndexVolumeType, reader.IndexVolumeType())
 }
 
 func waitForStats(

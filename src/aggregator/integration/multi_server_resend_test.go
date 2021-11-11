@@ -275,8 +275,8 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 	}
 	metricTypeFn := constantMetricTypeFnFactory(metric.GaugeType)
 	genOpts := valueGenOpts{
-		timed: timedValueGenOpts{
-			timedValueGenFn: func(intervalIdx, idIdx int) float64 {
+		untimed: untimedValueGenOpts{
+			gaugeValueGenFn: func(intervalIdx, idIdx int) float64 {
 				// Each gauge will have two datapoints within the same aggregation window.
 				// The first value is 0.0 and should be ignored, and the second value will
 				// be used for computing the `Increase` value and should result in a `Increase`
@@ -304,7 +304,7 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 		stop:         stop,
 		interval:     interval,
 		ids:          ids,
-		category:     timedMetric,
+		category:     untimedMetric,
 		typeFn:       metricTypeFn,
 		valueGenOpts: genOpts,
 		metadataFn:   metadataFn,
@@ -317,7 +317,7 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 		}
 
 		for _, mm := range data.metricWithMetadatas {
-			require.NoError(t, client.writeTimedMetricWithMetadatas(mm.metric.timed, mm.metadata.stagedMetadatas))
+			require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 		}
 		require.NoError(t, client.flush())
 
@@ -344,7 +344,7 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 	// send a datapoint late
 	data := dataset[3]
 	for _, mm := range data.metricWithMetadatas {
-		require.NoError(t, client.writeTimedMetricWithMetadatas(mm.metric.timed, mm.metadata.stagedMetadatas))
+		require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 	}
 	require.NoError(t, client.flush())
 

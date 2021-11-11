@@ -324,7 +324,7 @@ func TestFollowerFlushManagerPrepareNoFlush(t *testing.T) {
 	mgr.lastFlushed = now
 
 	now = now.Add(time.Second)
-	flushTask, dur := mgr.Prepare(testFlushBuckets(ctrl))
+	flushTask, dur := mgr.Prepare(testFlushBuckets(ctrl, false))
 
 	require.Nil(t, flushTask)
 	require.Equal(t, time.Second, dur)
@@ -346,7 +346,7 @@ func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
 	mgr.flushTimesState = flushTimesUpdated
 	mgr.received = testFlushTimes
 
-	buckets := testFlushBuckets(ctrl)
+	buckets := testFlushBuckets(ctrl, false)
 	flushTask, dur := mgr.Prepare(buckets)
 
 	expected := []flushersGroup{
@@ -426,8 +426,18 @@ func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
 	require.Equal(t, time.Duration(0), dur)
 	task := flushTask.(*followerFlushTask)
 	actual := task.flushersByInterval
-	require.Equal(t, expected, actual)
+	requireFlusherGroupEqual(t, expected, actual)
 	require.Equal(t, now, mgr.lastFlushed)
+}
+
+func requireFlusherGroupEqual(t *testing.T, expected, actual []flushersGroup) {
+	// NB: strip off the follower flush lag histogram when comparing to expected.
+	for idx := range actual {
+		actual[idx].followerFlushLag = nil
+		actual[idx].duration = nil
+	}
+
+	require.Equal(t, expected, actual)
 }
 
 func TestFollowerFlushManagerPrepareMaxBufferSizeExceeded(t *testing.T) {
@@ -449,7 +459,7 @@ func TestFollowerFlushManagerPrepareMaxBufferSizeExceeded(t *testing.T) {
 	// Advance time by forced flush window size and expect no flush because it's
 	// not in forced flush mode.
 	now = now.Add(10 * time.Second)
-	buckets := testFlushBuckets(ctrl)
+	buckets := testFlushBuckets(ctrl, false)
 	flushTask, dur := mgr.Prepare(buckets)
 	require.Nil(t, flushTask)
 	require.Equal(t, time.Second, dur)
@@ -535,7 +545,7 @@ func TestFollowerFlushManagerPrepareMaxBufferSizeExceeded(t *testing.T) {
 	require.Equal(t, time.Duration(0), dur)
 	task := flushTask.(*followerFlushTask)
 	actual := task.flushersByInterval
-	require.Equal(t, expected, actual)
+	requireFlusherGroupEqual(t, expected, actual)
 	require.Equal(t, now, mgr.lastFlushed)
 
 	// Advance time by less than the forced flush window size and expect no flush.

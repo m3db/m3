@@ -36,6 +36,7 @@ import (
 	handleroptions3 "github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/api/v1/handler/graphite"
 	"github.com/m3db/m3/src/query/api/v1/handler/influxdb"
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
@@ -57,7 +58,7 @@ import (
 var (
 	// Created by init().
 	testWorkerPool            xsync.PooledWorkerPool
-	testM3DBOpts              = m3storage.NewOptions()
+	testM3DBOpts              = m3storage.NewOptions(encoding.NewOptions())
 	defaultLookbackDuration   = time.Minute
 	defaultCPUProfileduration = 5 * time.Second
 	defaultPlacementServices  = []string{"m3db"}

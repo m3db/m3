@@ -37,53 +37,55 @@ var (
 	errClosed = errors.New("container has been closed")
 )
 
-type dockerResourceOptions struct {
-	overrideDefaults bool
-	source           string
-	containerName    string
-	image            dockerImage
-	portList         []int
-	// mounts creates mounts in the container that map back to a resource
+// ResourceOptions returns options for creating
+// a Resource.
+type ResourceOptions struct {
+	OverrideDefaults bool
+	Source           string
+	ContainerName    string
+	Image            Image
+	PortList         []int
+	// Mounts creates mounts in the container that map back to a resource
 	// on the host system.
-	mounts []string
-	// tmpfsMounts creates mounts to the container's temporary file system
-	tmpfsMounts []string
-	iOpts       instrument.Options
+	Mounts []string
+	// TmpfsMounts creates mounts to the container's temporary file system
+	TmpfsMounts    []string
+	InstrumentOpts instrument.Options
 }
 
 // NB: this will fill unset fields with given default values.
-func (o dockerResourceOptions) withDefaults(
-	defaultOpts dockerResourceOptions) dockerResourceOptions {
-	if o.overrideDefaults {
+func (o ResourceOptions) withDefaults(
+	defaultOpts ResourceOptions) ResourceOptions {
+	if o.OverrideDefaults {
 		return o
 	}
 
-	if len(o.source) == 0 {
-		o.source = defaultOpts.source
+	if len(o.Source) == 0 {
+		o.Source = defaultOpts.Source
 	}
 
-	if len(o.containerName) == 0 {
-		o.containerName = defaultOpts.containerName
+	if len(o.ContainerName) == 0 {
+		o.ContainerName = defaultOpts.ContainerName
 	}
 
-	if o.image == (dockerImage{}) {
-		o.image = defaultOpts.image
+	if o.Image == (Image{}) {
+		o.Image = defaultOpts.Image
 	}
 
-	if len(o.portList) == 0 {
-		o.portList = defaultOpts.portList
+	if len(o.PortList) == 0 {
+		o.PortList = defaultOpts.PortList
 	}
 
-	if len(o.tmpfsMounts) == 0 {
-		o.tmpfsMounts = defaultOpts.tmpfsMounts
+	if len(o.TmpfsMounts) == 0 {
+		o.TmpfsMounts = defaultOpts.TmpfsMounts
 	}
 
-	if len(o.mounts) == 0 {
-		o.mounts = defaultOpts.mounts
+	if len(o.Mounts) == 0 {
+		o.Mounts = defaultOpts.Mounts
 	}
 
-	if o.iOpts == nil {
-		o.iOpts = defaultOpts.iOpts
+	if o.InstrumentOpts == nil {
+		o.InstrumentOpts = defaultOpts.InstrumentOpts
 	}
 
 	return o
@@ -96,13 +98,14 @@ func newOptions(name string) *dockertest.RunOptions {
 	}
 }
 
-func useImage(opts *dockertest.RunOptions, image dockerImage) *dockertest.RunOptions {
-	opts.Repository = image.name
-	opts.Tag = image.tag
+func useImage(opts *dockertest.RunOptions, image Image) *dockertest.RunOptions {
+	opts.Repository = image.Name
+	opts.Tag = image.Tag
 	return opts
 }
 
-func setupNetwork(pool *dockertest.Pool) error {
+// SetupNetwork sets up a network within docker.
+func SetupNetwork(pool *dockertest.Pool) error {
 	networks, err := pool.Client.ListNetworks()
 	if err != nil {
 		return err

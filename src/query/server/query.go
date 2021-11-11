@@ -56,6 +56,7 @@ import (
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/httpd"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -380,6 +381,8 @@ func Run(runOpts RunOptions) RunResult {
 	}
 	cfg.LookbackDuration = &lookbackDuration
 
+	promConvertOptions := cfg.Query.Prometheus.ConvertOptionsOrDefault()
+
 	readWorkerPool, writeWorkerPool, err := pools.BuildWorkerPools(
 		instrumentOptions,
 		cfg.ReadWorkerPool,
@@ -390,17 +393,19 @@ func Run(runOpts RunOptions) RunResult {
 	}
 
 	var (
+		encodingOpts    = cfg.Encoding.NewEncodingOptions()
 		m3dbClusters    m3.Clusters
 		m3dbPoolWrapper *pools.PoolWrapper
 	)
 
-	tsdbOpts := m3.NewOptions().
+	tsdbOpts := m3.NewOptions(encodingOpts).
 		SetTagOptions(tagOptions).
 		SetLookbackDuration(lookbackDuration).
 		SetConsolidationFunc(consolidators.TakeLast).
 		SetReadWorkerPool(readWorkerPool).
 		SetWriteWorkerPool(writeWorkerPool).
-		SetSeriesConsolidationMatchOptions(matchOptions)
+		SetSeriesConsolidationMatchOptions(matchOptions).
+		SetPromConvertOptions(promConvertOptions)
 
 	if runOpts.ApplyCustomTSDBOptions != nil {
 		tsdbOpts, err = runOpts.ApplyCustomTSDBOptions(tsdbOpts, instrumentOptions)
@@ -425,7 +430,7 @@ func Run(runOpts RunOptions) RunResult {
 		// For grpc backend, we need to setup only the grpc client and a storage
 		// accompanying that client.
 		poolWrapper := pools.NewPoolsWrapper(
-			pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
+			pools.BuildIteratorPools(encodingOpts, pools.BuildIteratorPoolsOptions{}))
 		remoteOpts := config.RemoteOptionsFromConfig(cfg.RPC)
 		remotes, enabled, err := remoteClient(poolWrapper, remoteOpts,
 			tsdbOpts, instrumentOptions)
@@ -465,9 +470,9 @@ func Run(runOpts RunOptions) RunResult {
 	case "", config.M3DBStorageType:
 		// For m3db backend, we need to make connections to the m3db cluster
 		// which generates a session and use the storage with the session.
-		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBConfig, clusterNamespacesWatcher,
-			runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions(),
-		)
+		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBConfig,
+			clusterNamespacesWatcher, runOpts.DBClient, encodingOpts,
+			instrumentOptions, tsdbOpts.CustomAdminOptions())
 		if err != nil {
 			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
@@ -964,6 +969,7 @@ func initClusters(
 	dbCfg *dbconfig.DBConfiguration,
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	dbClientCh <-chan client.Client,
+	encodingOpts encoding.Options,
 	instrumentOpts instrument.Options,
 	customAdminOptions []client.CustomAdminOption,
 ) (m3.Clusters, *pools.PoolWrapper, error) {
@@ -987,6 +993,7 @@ func initClusters(
 		opts := m3.ClustersStaticConfigurationOptions{
 			AsyncSessions:      true,
 			CustomAdminOptions: customAdminOptions,
+			EncodingOptions:    encodingOpts,
 		}
 		if staticNamespaceConfig {
 			clusters, err = cfg.Clusters.NewStaticClusters(instrumentOpts, opts, clusterNamespacesWatcher)
@@ -999,7 +1006,7 @@ func initClusters(
 		}
 
 		poolWrapper = pools.NewPoolsWrapper(
-			pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
+			pools.BuildIteratorPools(encodingOpts, pools.BuildIteratorPoolsOptions{}))
 	} else {
 		localCfg := cfg.Local
 		if localCfg == nil {
@@ -1046,6 +1053,7 @@ func initClusters(
 		cfgOptions := m3.ClustersStaticConfigurationOptions{
 			ProvidedSession:    session,
 			CustomAdminOptions: customAdminOptions,
+			EncodingOptions:    encodingOpts,
 		}
 
 		if staticNamespaceConfig {

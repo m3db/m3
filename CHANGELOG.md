@@ -1,5 +1,10 @@
 # Changelog
 
+# Upcoming
+
+## Performance
+- **M3Aggregator**: Rework close and remove `persitFlushTimesEvery` semantics in leader flushing in favour of always persisting shard flush times on a successful flush for optimized graceful failovers. ([#3890](https://github.com/m3db/m3/pull/3890))
+
 # 1.3.0
 
 ## Features

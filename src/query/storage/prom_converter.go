@@ -23,13 +23,17 @@ package storage
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const initRawFetchAllocSize = 32
@@ -37,19 +41,79 @@ const initRawFetchAllocSize = 32
 func iteratorToPromResult(
 	iter encoding.SeriesIterator,
 	tags models.Tags,
-	tagOptions models.TagOptions,
+	maxResolution time.Duration,
+	promConvertOptions PromConvertOptions,
 ) (*prompb.TimeSeries, error) {
-	samples := make([]prompb.Sample, 0, initRawFetchAllocSize)
+	var (
+		resolution          = xtime.UnixNano(maxResolution)
+		resolutionThreshold = promConvertOptions.ResolutionThresholdForCounterNormalization()
+
+		valueDecreaseTolerance      = promConvertOptions.ValueDecreaseTolerance()
+		valueDecreaseToleranceUntil = promConvertOptions.ValueDecreaseToleranceUntil()
+
+		firstDP           = true
+		handleResets      = false
+		annotationPayload annotation.Payload
+
+		cumulativeSum float64
+		prevDP        ts.Datapoint
+
+		samples = make([]prompb.Sample, 0, initRawFetchAllocSize)
+	)
+
 	for iter.Next() {
 		dp, _, _ := iter.Current()
-		samples = append(samples, prompb.Sample{
-			Timestamp: TimeToPromTimestamp(dp.TimestampNanos),
-			Value:     dp.Value,
-		})
+
+		if valueDecreaseTolerance > 0 && dp.TimestampNanos.Before(valueDecreaseToleranceUntil) {
+			if !firstDP && dp.Value < prevDP.Value && dp.Value > prevDP.Value*(1-valueDecreaseTolerance) {
+				dp.Value = prevDP.Value
+			}
+		}
+
+		if firstDP && maxResolution >= resolutionThreshold {
+			firstAnnotation := iter.FirstAnnotation()
+			if len(firstAnnotation) > 0 {
+				if err := annotationPayload.Unmarshal(firstAnnotation); err != nil {
+					return nil, err
+				}
+				handleResets = annotationPayload.HandleValueResets
+			}
+		}
+
+		if handleResets {
+			if dp.TimestampNanos/resolution != prevDP.TimestampNanos/resolution && !firstDP {
+				// reached next resolution window, emit previous DP
+				samples = append(samples, prompb.Sample{
+					Timestamp: TimeToPromTimestamp(prevDP.TimestampNanos),
+					Value:     cumulativeSum,
+				})
+			}
+
+			if dp.Value < prevDP.Value { // counter reset
+				cumulativeSum += dp.Value
+			} else {
+				cumulativeSum += dp.Value - prevDP.Value
+			}
+		} else {
+			samples = append(samples, prompb.Sample{
+				Timestamp: TimeToPromTimestamp(dp.TimestampNanos),
+				Value:     dp.Value,
+			})
+		}
+
+		prevDP = dp
+		firstDP = false
 	}
 
 	if err := iter.Err(); err != nil {
 		return nil, err
+	}
+
+	if handleResets {
+		samples = append(samples, prompb.Sample{
+			Timestamp: TimeToPromTimestamp(prevDP.TimestampNanos),
+			Value:     cumulativeSum,
+		})
 	}
 
 	return &prompb.TimeSeries{
@@ -62,6 +126,8 @@ func iteratorToPromResult(
 func toPromSequentially(
 	fetchResult consolidators.SeriesFetchResult,
 	tagOptions models.TagOptions,
+	maxResolution time.Duration,
+	promConvertOptions PromConvertOptions,
 ) (PromResult, error) {
 	count := fetchResult.Count()
 	seriesList := make([]*prompb.TimeSeries, 0, count)
@@ -71,7 +137,7 @@ func toPromSequentially(
 			return PromResult{}, err
 		}
 
-		series, err := iteratorToPromResult(iter, tags, tagOptions)
+		series, err := iteratorToPromResult(iter, tags, maxResolution, promConvertOptions)
 		if err != nil {
 			return PromResult{}, err
 		}
@@ -93,6 +159,8 @@ func toPromConcurrently(
 	fetchResult consolidators.SeriesFetchResult,
 	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
+	maxResolution time.Duration,
+	promConvertOptions PromConvertOptions,
 ) (PromResult, error) {
 	count := fetchResult.Count()
 	var (
@@ -114,7 +182,7 @@ func toPromConcurrently(
 		wg.Add(1)
 		available := fastWorkerPool.GoWithContext(ctx, func() {
 			defer wg.Done()
-			series, err := iteratorToPromResult(iter, tags, tagOptions)
+			series, err := iteratorToPromResult(iter, tags, maxResolution, promConvertOptions)
 			if err != nil {
 				mu.Lock()
 				multiErr = multiErr.Add(err)
@@ -157,12 +225,14 @@ func seriesIteratorsToPromResult(
 	fetchResult consolidators.SeriesFetchResult,
 	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
+	maxResolution time.Duration,
+	promConvertOptions PromConvertOptions,
 ) (PromResult, error) {
 	if readWorkerPool == nil {
-		return toPromSequentially(fetchResult, tagOptions)
+		return toPromSequentially(fetchResult, tagOptions, maxResolution, promConvertOptions)
 	}
 
-	return toPromConcurrently(ctx, fetchResult, readWorkerPool, tagOptions)
+	return toPromConcurrently(ctx, fetchResult, readWorkerPool, tagOptions, maxResolution, promConvertOptions)
 }
 
 // SeriesIteratorsToPromResult converts raw series iterators directly to a
@@ -172,14 +242,23 @@ func SeriesIteratorsToPromResult(
 	fetchResult consolidators.SeriesFetchResult,
 	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
+	promConvertOptions PromConvertOptions,
 ) (PromResult, error) {
 	defer fetchResult.Close()
 	if err := fetchResult.Verify(); err != nil {
 		return PromResult{}, err
 	}
 
+	var maxResolution time.Duration
+	for _, res := range fetchResult.Metadata.Resolutions {
+		if res > maxResolution {
+			maxResolution = res
+		}
+	}
+
 	promResult, err := seriesIteratorsToPromResult(ctx, fetchResult,
-		readWorkerPool, tagOptions)
+		readWorkerPool, tagOptions, maxResolution, promConvertOptions)
 	promResult.Metadata = fetchResult.Metadata
+
 	return promResult, err
 }

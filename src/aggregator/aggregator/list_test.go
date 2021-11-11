@@ -124,7 +124,7 @@ func TestBaseMetricListFlushWithRequests(t *testing.T) {
 	opts := testOptions(ctrl).SetClockOptions(clock.NewOptions().SetNowFn(nowFn))
 	l, err := newBaseMetricList(testShard, time.Second, targetNanosFn, isEarlierThanFn, timestampNanosFn, opts)
 	require.NoError(t, err)
-	l.flushBeforeFn = func(beforeNanos int64, flushType flushType) {
+	l.flushBeforeFn = func(beforeNanos int64, jitter time.Duration, flushType flushType) {
 		results = append(results, flushBeforeResult{
 			beforeNanos: beforeNanos,
 			flushType:   flushType,
@@ -237,7 +237,7 @@ func TestBaseMetricListFlushBeforeStale(t *testing.T) {
 	l, err := newBaseMetricList(testShard, 0, targetNanosFn, isEarlierThanFn, timestampNanosFn, opts)
 	require.NoError(t, err)
 	l.lastFlushedNanos = 1234
-	l.flushBefore(1000, discardType)
+	l.flushBefore(1000, 0, discardType)
 	require.Equal(t, int64(1234), l.LastFlushedNanos())
 }
 
@@ -350,8 +350,8 @@ func TestStandardMetricListFlushConsumingAndCollectingLocalMetrics(t *testing.T)
 	}
 
 	for _, ep := range elemPairs {
-		require.NoError(t, ep.elem.AddUnion(nowTs, ep.metric))
-		require.NoError(t, ep.elem.AddUnion(nowTs.Add(l.resolution), ep.metric))
+		require.NoError(t, ep.elem.AddUnion(nowTs, ep.metric, false))
+		require.NoError(t, ep.elem.AddUnion(nowTs.Add(l.resolution), ep.metric, false))
 		_, err := l.PushBack(ep.elem)
 		require.NoError(t, err)
 	}

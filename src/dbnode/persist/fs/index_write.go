@@ -24,6 +24,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"time"
@@ -138,16 +139,17 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	if err := os.MkdirAll(w.namespaceDir, w.newDirectoryMode); err != nil {
 		return err
 	}
-	w.infoFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, infoFileSuffix)
-	w.digestFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, digestFileSuffix)
-	w.checkpointFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, checkpointFileSuffix)
+	w.infoFilePath = FilesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, InfoFileSuffix)
+	w.digestFilePath = FilesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, DigestFileSuffix)
+	w.checkpointFilePath = FilesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, CheckpointFileSuffix)
 
 	exists, err := CompleteCheckpointFileExists(w.checkpointFilePath)
 	if err != nil {
 		return err
 	}
 	if exists {
-		return fmt.Errorf("checkpoint already exists for volume: %s",
+		return xerrors.Wrapf(fs.ErrExist,
+			"checkpoint already exists for volume: %s",
 			w.checkpointFilePath)
 	}
 

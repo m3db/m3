@@ -42,24 +42,24 @@ const (
 var (
 	defaultDBNodePortList = []int{2379, 2380, 9000, 9001, 9002, 9003, 9004}
 
-	defaultDBNodeOptions = dockerResourceOptions{
-		source:        defaultDBNodeSource,
-		containerName: defaultDBNodeContainerName,
-		portList:      defaultDBNodePortList,
+	defaultDBNodeOptions = ResourceOptions{
+		Source:        defaultDBNodeSource,
+		ContainerName: defaultDBNodeContainerName,
+		PortList:      defaultDBNodePortList,
 	}
 )
 
 type dbNode struct {
 	tchanClient *integration.TestTChannelClient
-	resource    *dockerResource
+	resource    *Resource
 }
 
 func newDockerHTTPNode(
 	pool *dockertest.Pool,
-	opts dockerResourceOptions,
+	opts ResourceOptions,
 ) (resources.Node, error) {
 	opts = opts.withDefaults(defaultDBNodeOptions)
-	resource, err := newDockerResource(pool, opts)
+	resource, err := NewDockerResource(pool, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func newDockerHTTPNode(
 	completed := false
 	defer func() {
 		if !completed {
-			resource.close()
+			_ = resource.Close()
 		}
 	}()
 
@@ -257,7 +257,7 @@ func (c *dbNode) Exec(commands ...string) (string, error) {
 		return "", errClosed
 	}
 
-	return c.resource.exec(commands...)
+	return c.resource.Exec(commands...)
 }
 
 func (c *dbNode) GoalStateExec(
@@ -268,7 +268,7 @@ func (c *dbNode) GoalStateExec(
 		return errClosed
 	}
 
-	return c.resource.goalStateExec(verifier, commands...)
+	return c.resource.GoalStateExec(verifier, commands...)
 }
 
 func (c *dbNode) Close() error {
@@ -276,5 +276,5 @@ func (c *dbNode) Close() error {
 		return errClosed
 	}
 
-	return c.resource.close()
+	return c.resource.Close()
 }
