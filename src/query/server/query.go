@@ -380,6 +380,8 @@ func Run(runOpts RunOptions) RunResult {
 	}
 	cfg.LookbackDuration = &lookbackDuration
 
+	promConvertOptions := cfg.Query.Prometheus.ConvertOptionsOrDefault()
+
 	readWorkerPool, writeWorkerPool, err := pools.BuildWorkerPools(
 		instrumentOptions,
 		cfg.ReadWorkerPool,
@@ -401,7 +403,8 @@ func Run(runOpts RunOptions) RunResult {
 		SetConsolidationFunc(consolidators.TakeLast).
 		SetReadWorkerPool(readWorkerPool).
 		SetWriteWorkerPool(writeWorkerPool).
-		SetSeriesConsolidationMatchOptions(matchOptions)
+		SetSeriesConsolidationMatchOptions(matchOptions).
+		SetPromConvertOptions(promConvertOptions)
 
 	if runOpts.ApplyCustomTSDBOptions != nil {
 		tsdbOpts, err = runOpts.ApplyCustomTSDBOptions(tsdbOpts, instrumentOptions)

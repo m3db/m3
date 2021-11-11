@@ -66,7 +66,7 @@ func (l *listener) Accept() (Consumer, error) {
 		return nil, err
 	}
 
-	return newConsumer(conn, l.msgPool, l.opts, l.m), nil
+	return newConsumer(conn, l.msgPool, l.opts, l.m, NewNoOpMessageProcessor), nil
 }
 
 type metrics struct {
@@ -97,11 +97,12 @@ type consumer struct {
 	w       xio.ResettableWriter
 	conn    net.Conn
 
-	ackPb  msgpb.Ack
-	closed bool
-	doneCh chan struct{}
-	wg     sync.WaitGroup
-	m      metrics
+	ackPb            msgpb.Ack
+	closed           bool
+	doneCh           chan struct{}
+	wg               sync.WaitGroup
+	m                metrics
+	messageProcessor MessageProcessor
 }
 
 func newConsumer(
@@ -109,6 +110,7 @@ func newConsumer(
 	mPool *messagePool,
 	opts Options,
 	m metrics,
+	newMessageProcessorFn NewMessageProcessorFn,
 ) *consumer {
 	var (
 		wOpts = xio.ResettableWriterOptions{
@@ -126,11 +128,12 @@ func newConsumer(
 		decoder: proto.NewDecoder(
 			conn, opts.DecoderOptions(), opts.ConnectionReadBufferSize(),
 		),
-		w:      writerFn(newConnWithTimeout(conn, opts.ConnectionWriteTimeout(), time.Now), wOpts),
-		conn:   conn,
-		closed: false,
-		doneCh: make(chan struct{}),
-		m:      m,
+		w:                writerFn(newConnWithTimeout(conn, opts.ConnectionWriteTimeout(), time.Now), wOpts),
+		conn:             conn,
+		closed:           false,
+		doneCh:           make(chan struct{}),
+		m:                m,
+		messageProcessor: newMessageProcessorFn(),
 	}
 }
 
@@ -140,6 +143,9 @@ func (c *consumer) Init() {
 		c.ackUntilClose()
 		c.wg.Done()
 	}()
+}
+func (c *consumer) process(m Message) {
+	c.messageProcessor.Process(m)
 }
 
 func (c *consumer) Message() (Message, error) {
@@ -230,6 +236,7 @@ func (c *consumer) Close() {
 	close(c.doneCh)
 	c.wg.Wait()
 	c.conn.Close()
+	c.messageProcessor.Close()
 }
 
 type message struct {
