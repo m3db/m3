@@ -650,9 +650,9 @@ func Run(runOpts RunOptions) RunResult {
 	}
 	engineCache := promqlengine.NewCache(prometheusEngineFn)
 	if mult := cfg.Middleware.Prometheus.ResolutionMultiplier; mult > 0 {
-		for _, cluster := range runOpts.Config.Clusters {
-			for _, ns := range cluster.Namespaces {
-				resolutionBasedLookback := ns.Resolution * time.Duration(mult)
+		for _, res := range extractNamespaceResolutions(runOpts.Config.Clusters) {
+			if res > 0 {
+				resolutionBasedLookback := res * time.Duration(mult)
 				eng, err := prometheusEngineFn(resolutionBasedLookback)
 				if err != nil {
 					logger.Fatal("unable to create PromQL engine", zap.Error(err))
@@ -1388,4 +1388,19 @@ func newPromQLEngine(
 
 func durationMilliseconds(d time.Duration) int64 {
 	return int64(d / (time.Millisecond / time.Nanosecond))
+}
+
+func extractNamespaceResolutions(clusters m3.ClustersStaticConfiguration) []time.Duration {
+	resolutions := make(map[time.Duration]struct{})
+	for _, c := range clusters {
+		for _, ns := range c.Namespaces {
+			resolutions[ns.Resolution] = struct{}{}
+		}
+	}
+
+	result := make([]time.Duration, 0)
+	for r := range resolutions {
+		result = append(result, r)
+	}
+	return result
 }
