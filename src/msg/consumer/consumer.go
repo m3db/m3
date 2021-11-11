@@ -284,6 +284,10 @@ func (m *message) ShardID() uint64 {
 	return m.Metadata.Shard
 }
 
+func (m *message) SentAtNanos() uint64 {
+	return m.Metadata.SentAtNanos
+}
+
 func resetProto(m *msgpb.Message) {
 	m.Metadata.Id = 0
 	m.Metadata.Shard = 0
