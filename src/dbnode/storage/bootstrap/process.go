@@ -191,9 +191,8 @@ func (b bootstrapProcess) Run(
 		var (
 			ropts       = namespace.Metadata.Options().RetentionOptions()
 			idxopts     = namespace.Metadata.Options().IndexOptions()
-			readOnly    = namespace.ReadOnly
-			dataRanges  = b.targetRangesForData(at, ropts, readOnly)
-			indexRanges = b.targetRangesForIndex(at, ropts, idxopts, readOnly)
+			dataRanges  = b.targetRangesForData(at, ropts, namespace.ReadOnly)
+			indexRanges = b.targetRangesForIndex(at, ropts, idxopts, namespace.ReadOnly)
 			firstRanges = b.newShardTimeRanges(
 				dataRanges.firstRangeWithPersistTrue.Range,
 				namespace.Shards,
