@@ -77,6 +77,7 @@ func testDatabaseBootstrapWithBootstrapError(t *testing.T, async bool) {
 	gomock.InOrder(
 		ns.EXPECT().PrepareBootstrap(gomock.Any()).Return([]databaseShard{}, nil),
 		ns.EXPECT().Metadata().Return(meta),
+		ns.EXPECT().ReadOnly().Return(false),
 		ns.EXPECT().ID().Return(id),
 		ns.EXPECT().
 			Bootstrap(gomock.Any(), gomock.Any()).
@@ -141,9 +142,9 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	ns.EXPECT().PrepareBootstrap(gomock.Any()).Return([]databaseShard{}, nil).AnyTimes()
-	ns.EXPECT().Metadata().Return(meta).AnyTimes()
-
+	ns.EXPECT().PrepareBootstrap(gomock.Any()).Return([]databaseShard{}, nil).Times(2)
+	ns.EXPECT().Metadata().Return(meta).Times(2)
+	ns.EXPECT().ReadOnly().Return(true).Times(2)
 	ns.EXPECT().
 		Bootstrap(gomock.Any(), gomock.Any()).
 		Return(nil).
@@ -216,7 +217,7 @@ func TestDatabaseBootstrapBootstrapHooks(t *testing.T) {
 
 		ns.EXPECT().PrepareBootstrap(gomock.Any()).Return(shards, nil).AnyTimes()
 		ns.EXPECT().Metadata().Return(meta).AnyTimes()
-
+		ns.EXPECT().ReadOnly().Return(false).Times(2)
 		ns.EXPECT().
 			Bootstrap(gomock.Any(), gomock.Any()).
 			Return(nil).

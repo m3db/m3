@@ -188,19 +188,24 @@ func (b bootstrapProcess) Run(
 	}
 	namespaceDetails := make([]NamespaceDetails, 0, len(namespaces))
 	for _, namespace := range namespaces {
-		ropts := namespace.Metadata.Options().RetentionOptions()
-		idxopts := namespace.Metadata.Options().IndexOptions()
-		dataRanges := b.targetRangesForData(at, ropts)
-		indexRanges := b.targetRangesForIndex(at, ropts, idxopts)
-		firstRanges := b.newShardTimeRanges(
-			dataRanges.firstRangeWithPersistTrue.Range,
-			namespace.Shards,
+		var (
+			ropts       = namespace.Metadata.Options().RetentionOptions()
+			idxopts     = namespace.Metadata.Options().IndexOptions()
+			readOnly    = namespace.ReadOnly
+			dataRanges  = b.targetRangesForData(at, ropts, readOnly)
+			indexRanges = b.targetRangesForIndex(at, ropts, idxopts, readOnly)
+			firstRanges = b.newShardTimeRanges(
+				dataRanges.firstRangeWithPersistTrue.Range,
+				namespace.Shards,
+			)
 		)
+
 		namespacesRunFirst.Namespaces.Set(namespace.Metadata.ID(), Namespace{
 			Metadata:         namespace.Metadata,
 			Shards:           namespace.Shards,
 			DataAccumulator:  namespace.DataAccumulator,
 			Hooks:            namespace.Hooks,
+			ReadOnly:         namespace.ReadOnly,
 			DataTargetRange:  dataRanges.firstRangeWithPersistTrue,
 			IndexTargetRange: indexRanges.firstRangeWithPersistTrue,
 			DataRunOptions: NamespaceRunOptions{
@@ -215,23 +220,24 @@ func (b bootstrapProcess) Run(
 			},
 		})
 		secondRanges := b.newShardTimeRanges(
-			dataRanges.secondRangeWithPersistFalse.Range, namespace.Shards)
+			dataRanges.secondRange.Range, namespace.Shards)
 		namespacesRunSecond.Namespaces.Set(namespace.Metadata.ID(), Namespace{
 			Metadata:         namespace.Metadata,
 			Shards:           namespace.Shards,
 			DataAccumulator:  namespace.DataAccumulator,
 			Hooks:            namespace.Hooks,
-			DataTargetRange:  dataRanges.secondRangeWithPersistFalse,
-			IndexTargetRange: indexRanges.secondRangeWithPersistFalse,
+			ReadOnly:         namespace.ReadOnly,
+			DataTargetRange:  dataRanges.secondRange,
+			IndexTargetRange: indexRanges.secondRange,
 			DataRunOptions: NamespaceRunOptions{
 				ShardTimeRanges:       secondRanges.Copy(),
 				TargetShardTimeRanges: secondRanges.Copy(),
-				RunOptions:            dataRanges.secondRangeWithPersistFalse.RunOptions,
+				RunOptions:            dataRanges.secondRange.RunOptions,
 			},
 			IndexRunOptions: NamespaceRunOptions{
 				ShardTimeRanges:       secondRanges.Copy(),
 				TargetShardTimeRanges: secondRanges.Copy(),
-				RunOptions:            indexRanges.secondRangeWithPersistFalse.RunOptions,
+				RunOptions:            indexRanges.secondRange.RunOptions,
 			},
 		})
 		namespaceDetails = append(namespaceDetails, NamespaceDetails{
@@ -248,7 +254,7 @@ func (b bootstrapProcess) Run(
 	}
 
 	bootstrapResult := NewNamespaceResults(namespacesRunFirst)
-	for _, namespaces := range []Namespaces{
+	for runIndex, namespaces := range []Namespaces{
 		namespacesRunFirst,
 		namespacesRunSecond,
 	} {
@@ -266,24 +272,23 @@ func (b bootstrapProcess) Run(
 				continue
 			}
 
-			// Check if snapshot-type ranges have advanced while bootstrapping previous ranges.
+			// If second run, check if snapshot-type ranges have advanced while bootstrapping previous ranges.
 			// If yes, return an error to force a retry
-			if persistConf := ns.DataRunOptions.RunOptions.PersistConfig(); persistConf.Enabled &&
-				persistConf.FileSetType == persist.FileSetSnapshotType {
+			if runIndex == 1 {
 				var (
 					now                = xtime.ToUnixNano(b.nowFn())
 					nsOptions          = ns.Metadata.Options()
-					upToDateDataRanges = b.targetRangesForData(now, nsOptions.RetentionOptions())
+					upToDateDataRanges = b.targetRangesForData(now, nsOptions.RetentionOptions(), ns.ReadOnly)
 				)
 				// Only checking data ranges. Since index blocks can only be a multiple of
 				// data block size, the ranges for index could advance only if data ranges
 				// have advanced, too (while opposite is not necessarily true)
-				if !upToDateDataRanges.secondRangeWithPersistFalse.Range.Equal(ns.DataTargetRange.Range) {
+				if !upToDateDataRanges.secondRange.Range.Equal(ns.DataTargetRange.Range) {
 					upToDateIndexRanges := b.targetRangesForIndex(now, nsOptions.RetentionOptions(),
-						nsOptions.IndexOptions())
+						nsOptions.IndexOptions(), ns.ReadOnly)
 					fields := b.logFields(ns.Metadata, ns.Shards,
-						upToDateDataRanges.secondRangeWithPersistFalse.Range,
-						upToDateIndexRanges.secondRangeWithPersistFalse.Range)
+						upToDateDataRanges.secondRange.Range,
+						upToDateIndexRanges.secondRange.Range)
 					b.log.Error("time ranges of snapshot-type blocks advanced", fields...)
 					return NamespaceResults{}, ErrFileSetSnapshotTypeRangeAdvanced
 				}
@@ -445,6 +450,7 @@ func (b bootstrapProcess) logBootstrapResult(
 func (b bootstrapProcess) targetRangesForData(
 	at xtime.UnixNano,
 	ropts retention.Options,
+	readOnly bool,
 ) targetRangesResult {
 	return b.targetRanges(at, targetRangesOptions{
 		retentionPeriod:       ropts.RetentionPeriod(),
@@ -452,6 +458,7 @@ func (b bootstrapProcess) targetRangesForData(
 		blockSize:             ropts.BlockSize(),
 		bufferPast:            ropts.BufferPast(),
 		bufferFuture:          ropts.BufferFuture(),
+		readOnly:              readOnly,
 	})
 }
 
@@ -459,6 +466,7 @@ func (b bootstrapProcess) targetRangesForIndex(
 	at xtime.UnixNano,
 	ropts retention.Options,
 	idxopts namespace.IndexOptions,
+	readOnly bool,
 ) targetRangesResult {
 	return b.targetRanges(at, targetRangesOptions{
 		retentionPeriod:       ropts.RetentionPeriod(),
@@ -466,6 +474,7 @@ func (b bootstrapProcess) targetRangesForIndex(
 		blockSize:             idxopts.BlockSize(),
 		bufferPast:            ropts.BufferPast(),
 		bufferFuture:          ropts.BufferFuture(),
+		readOnly:              readOnly,
 	})
 }
 
@@ -475,11 +484,12 @@ type targetRangesOptions struct {
 	blockSize             time.Duration
 	bufferPast            time.Duration
 	bufferFuture          time.Duration
+	readOnly              bool
 }
 
 type targetRangesResult struct {
-	firstRangeWithPersistTrue   TargetRange
-	secondRangeWithPersistFalse TargetRange
+	firstRangeWithPersistTrue TargetRange
+	secondRange               TargetRange
 }
 
 func (b bootstrapProcess) targetRanges(
@@ -499,6 +509,12 @@ func (b bootstrapProcess) targetRanges(
 		Truncate(opts.blockSize).
 		Add(opts.blockSize)
 
+	secondRangeFilesetType := persist.FileSetSnapshotType
+	if opts.readOnly {
+		// NB: If namespace is read-only, we don't want to keep blocks in memory.
+		secondRangeFilesetType = persist.FileSetFlushType
+	}
+
 	// NB(r): We want the large initial time range bootstrapped to
 	// bootstrap with persistence so we don't keep the full raw
 	// data in process until we finish bootstrapping which could
@@ -514,7 +530,7 @@ func (b bootstrapProcess) targetRanges(
 				FileSetType: persist.FileSetFlushType,
 			}),
 		},
-		secondRangeWithPersistFalse: TargetRange{
+		secondRange: TargetRange{
 			Range: xtime.Range{Start: midPoint, End: cutover},
 			RunOptions: b.newRunOptions().SetPersistConfig(PersistConfig{
 				Enabled: true,
@@ -522,7 +538,7 @@ func (b bootstrapProcess) targetRanges(
 				// in memory, but we want to snapshot them as we receive them
 				// so that once bootstrapping completes we can still recover
 				// from just the commit log bootstrapper.
-				FileSetType: persist.FileSetSnapshotType,
+				FileSetType: secondRangeFilesetType,
 			}),
 		},
 	}
