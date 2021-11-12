@@ -46,8 +46,8 @@ import (
 // ClusterConfigs contain the input config to use for components within
 // the cluster. There is one default configuration for each type of component.
 // Given a set of ClusterConfigs, the function NewCluster can spin up an m3 cluster.
-// Or one use GenerateClusterFullConfigs to get the configs for every instance
-// based on the given ClusterConfigs.
+// Or one can use GenerateClusterSpecification to get the per-instance configuration
+// and options based on the given ClusterConfigs.
 type ClusterConfigs struct {
 	// DBNode is the configuration for db nodes.
 	DBNode dbcfg.Configuration
@@ -58,20 +58,32 @@ type ClusterConfigs struct {
 	Aggregator *aggcfg.Configuration
 }
 
-// ClusterFullConfigs contain the final configs to use for each instance of
-// each components within the cluster.
-// The function NewClusterFromFullConfigs will spin up an m3 cluster
-// with the given full set of configs.
-type ClusterFullConfigs struct {
-	// DBNodes is the configuration for db nodes.
+// ClusterSpecification contain the per-instance configuration and options to use
+// for starting each components within the cluster.
+// The function NewClusterFromSpecification will spin up an m3 cluster
+// with the given ClusterSpecification.
+type ClusterSpecification struct {
+	// Configs contains the per-instance configuration for all components in the cluster.
+	Configs PerInstanceConfigs
+	// ComponentOptions contains the per-insatance options for setting up the cluster.
+	ComponentOptions PerInstanceOptions
+}
+
+// PerInstanceConfigs contain the per-instance configuration for all components.
+type PerInstanceConfigs struct {
+	// DBNodes contains the per-instance configuration for db nodes.
 	DBNodes []dbcfg.Configuration
-	// DBNodeOpts is the options for setting up db nodes.
-	DBNodeOpts []DBNodeOptions
 	// Coordinator is the configuration for the coordinator.
 	Coordinator coordinatorcfg.Configuration
 	// Aggregators is the configuration for aggregators.
-	// If Aggregator is nil, the cluster contains only m3coordinator and dbnodes.
+	// If Aggregators is nil, the cluster contains only m3coordinator and dbnodes.
 	Aggregators []aggcfg.Configuration
+}
+
+// PerInstanceOptions contain the per-instance options for setting up the cluster.
+type PerInstanceOptions struct {
+	// DBNodes contains the per-instance options for db nodes in the cluster.
+	DBNode []DBNodeOptions
 }
 
 // NewClusterConfigsFromConfigFile creates a new ClusterConfigs object from the
@@ -138,18 +150,17 @@ func NewCluster(
 	configs ClusterConfigs,
 	opts resources.ClusterOptions,
 ) (resources.M3Resources, error) {
-	fullConfigs, err := GenerateClusterFullConfigs(configs, opts)
+	fullConfigs, err := GenerateClusterSpecification(configs, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewClusterFromFullConfigs(fullConfigs, opts)
+	return NewClusterFromSpecification(fullConfigs, opts)
 }
 
-// NewClusterFromFullConfigs creates a new M3 cluster with the given full
-// set of configuration and options.
-func NewClusterFromFullConfigs(
-	fullConfigs ClusterFullConfigs,
+// NewClusterFromSpecification creates a new M3 cluster with the given ClusterSpecification.
+func NewClusterFromSpecification(
+	specs ClusterSpecification,
 	opts resources.ClusterOptions,
 ) (resources.M3Resources, error) {
 	if err := opts.Validate(); err != nil {
@@ -163,8 +174,8 @@ func NewClusterFromFullConfigs(
 
 	var (
 		coord resources.Coordinator
-		nodes = make(resources.Nodes, 0, len(fullConfigs.DBNodes))
-		aggs  = make(resources.Aggregators, 0, len(fullConfigs.Aggregators))
+		nodes = make(resources.Nodes, 0, len(specs.Configs.DBNodes))
+		aggs  = make(resources.Aggregators, 0, len(specs.Configs.Aggregators))
 	)
 
 	fs.DisableIndexClaimsManagersCheckUnsafe()
@@ -177,9 +188,9 @@ func NewClusterFromFullConfigs(
 		}
 	}()
 
-	for i := 0; i < len(fullConfigs.DBNodes); i++ {
+	for i := 0; i < len(specs.Configs.DBNodes); i++ {
 		var node resources.Node
-		node, err = NewDBNode(fullConfigs.DBNodes[i], fullConfigs.DBNodeOpts[i])
+		node, err = NewDBNode(specs.Configs.DBNodes[i], specs.ComponentOptions.DBNode[i])
 		if err != nil {
 			return nil, err
 		}
@@ -187,14 +198,14 @@ func NewClusterFromFullConfigs(
 	}
 
 	coord, err = NewCoordinator(
-		fullConfigs.Coordinator,
+		specs.Configs.Coordinator,
 		CoordinatorOptions{GeneratePorts: opts.Coordinator.GeneratePorts},
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, aggCfg := range fullConfigs.Aggregators {
+	for _, aggCfg := range specs.Configs.Aggregators {
 		var agg resources.Aggregator
 		agg, err = NewAggregator(aggCfg, AggregatorOptions{
 			GeneratePorts:  true,
@@ -220,19 +231,19 @@ func NewClusterFromFullConfigs(
 	return m3, nil
 }
 
-// GenerateClusterFullConfigs generates the full set of configuration for the cluster set up
-// based on the given input configuation and options.
-func GenerateClusterFullConfigs(
+// GenerateClusterSpecification generates the per-instance configuration and options
+// for the cluster set up based on the given input configuation and options.
+func GenerateClusterSpecification(
 	configs ClusterConfigs,
 	opts resources.ClusterOptions,
-) (ClusterFullConfigs, error) {
+) (ClusterSpecification, error) {
 	if err := opts.Validate(); err != nil {
-		return ClusterFullConfigs{}, err
+		return ClusterSpecification{}, err
 	}
 
 	nodeCfgs, nodeOpts, envConfig, err := GenerateDBNodeConfigsForCluster(configs, opts.DBNode)
 	if err != nil {
-		return ClusterFullConfigs{}, err
+		return ClusterSpecification{}, err
 	}
 
 	coordConfig := configs.Coordinator
@@ -243,15 +254,19 @@ func GenerateClusterFullConfigs(
 	if opts.Aggregator != nil {
 		aggCfgs, err = GenerateAggregatorConfigsForCluster(configs, opts.Aggregator)
 		if err != nil {
-			return ClusterFullConfigs{}, err
+			return ClusterSpecification{}, err
 		}
 	}
 
-	return ClusterFullConfigs{
-		DBNodes:     nodeCfgs,
-		DBNodeOpts:  nodeOpts,
-		Coordinator: coordConfig,
-		Aggregators: aggCfgs,
+	return ClusterSpecification{
+		Configs: PerInstanceConfigs{
+			DBNodes:     nodeCfgs,
+			Coordinator: coordConfig,
+			Aggregators: aggCfgs,
+		},
+		ComponentOptions: PerInstanceOptions{
+			DBNode: nodeOpts,
+		},
 	}, nil
 }
 

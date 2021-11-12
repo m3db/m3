@@ -43,8 +43,8 @@ func testSetup(t *testing.T) (resources.M3Resources, resources.M3Resources, func
 	fullCfgs1 := getClusterFullConfgs(t)
 	fullCfgs2 := getClusterFullConfgs(t)
 
-	ep1 := fullCfgs1.Coordinator.Clusters[0].Client.EnvironmentConfig.Services[0].Service.ETCDClusters[0].Endpoints
-	ep2 := fullCfgs2.Coordinator.Clusters[0].Client.EnvironmentConfig.Services[0].Service.ETCDClusters[0].Endpoints
+	ep1 := fullCfgs1.Configs.Coordinator.Clusters[0].Client.EnvironmentConfig.Services[0].Service.ETCDClusters[0].Endpoints
+	ep2 := fullCfgs2.Configs.Coordinator.Clusters[0].Client.EnvironmentConfig.Services[0].Service.ETCDClusters[0].Endpoints
 
 	setRepairAndReplicationCfg(
 		&fullCfgs1,
@@ -57,10 +57,10 @@ func testSetup(t *testing.T) (resources.M3Resources, resources.M3Resources, func
 		ep1,
 	)
 
-	cluster1, err := inprocess.NewClusterFromFullConfigs(fullCfgs1, clusterOptions)
+	cluster1, err := inprocess.NewClusterFromSpecification(fullCfgs1, clusterOptions)
 	require.NoError(t, err)
 
-	cluster2, err := inprocess.NewClusterFromFullConfigs(fullCfgs2, clusterOptions)
+	cluster2, err := inprocess.NewClusterFromSpecification(fullCfgs2, clusterOptions)
 	require.NoError(t, err)
 
 	return cluster1, cluster2, func() {
@@ -69,20 +69,20 @@ func testSetup(t *testing.T) (resources.M3Resources, resources.M3Resources, func
 	}
 }
 
-func getClusterFullConfgs(t *testing.T) inprocess.ClusterFullConfigs {
+func getClusterFullConfgs(t *testing.T) inprocess.ClusterSpecification {
 	cfgs, err := inprocess.NewClusterConfigsFromYAML(
 		TestRepairDBNodeConfig, TestRepairCoordinatorConfig, "",
 	)
 	require.NoError(t, err)
 
-	fullCfgs, err := inprocess.GenerateClusterFullConfigs(cfgs, clusterOptions)
+	fullCfgs, err := inprocess.GenerateClusterSpecification(cfgs, clusterOptions)
 	require.NoError(t, err)
 
 	return fullCfgs
 }
 
-func setRepairAndReplicationCfg(fullCfg *inprocess.ClusterFullConfigs, clusterName string, endpoints []string) {
-	for _, dbnode := range fullCfg.DBNodes {
+func setRepairAndReplicationCfg(fullCfg *inprocess.ClusterSpecification, clusterName string, endpoints []string) {
+	for _, dbnode := range fullCfg.Configs.DBNodes {
 		dbnode.DB.Replication.Clusters[0].Name = clusterName
 		dbnode.DB.Replication.Clusters[0].Client.EnvironmentConfig.Services[0].Service.ETCDClusters[0].Endpoints = endpoints
 	}
