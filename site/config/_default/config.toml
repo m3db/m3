@@ -36,12 +36,24 @@
     path = "versions"
 
   [[module.imports.mounts]]
-    source = "content/v1"
-    target = "content/docs/v1"
+    source = "content/v0.15.17"
+    target = "content/docs/v0.15.17"
 
   [[module.imports.mounts]]
-    source = "content/v2"
-    target = "content/docs/v2"
+    source = "content/v1.0"
+    target = "content/docs/v1.0"
+
+  [[module.imports.mounts]]
+    source = "content/v1.1"
+    target = "content/docs/v1.1"
+
+  [[module.imports.mounts]]
+    source = "content/v1.2"
+    target = "content/docs/v1.2"
+
+  [[module.imports.mounts]]
+    source = "content/v1.3"
+    target = "content/docs/v1.3"
 
 ignoreFiles = [ "\\.ttf$", "\\.woff$", "\\.woff2$", "\\.eot$" ]
 metaDataFormat = "yaml"
