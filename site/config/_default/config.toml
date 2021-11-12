@@ -32,6 +32,17 @@
     source = "archetypes"
     target = "archetypes"
 
+  [[module.imports]]
+    path = "versions"
+
+  [[module.imports.mounts]]
+    source = "content/v1"
+    target = "content/docs/v1"
+
+  [[module.imports.mounts]]
+    source = "content/v2"
+    target = "content/docs/v2"
+
 ignoreFiles = [ "\\.ttf$", "\\.woff$", "\\.woff2$", "\\.eot$" ]
 metaDataFormat = "yaml"
 # theme = "docs-theme"
