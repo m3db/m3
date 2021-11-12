@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -38,7 +39,7 @@ const (
 )
 
 var (
-	errSessionUninitialized = errors.New("M3DB session not yet initialized")
+	errSessionUninitialized = xerrors.NewRetryableError(errors.New("M3DB session not yet initialized"))
 )
 
 // AsyncSession is a thin wrapper around an M3DB session that does not block
