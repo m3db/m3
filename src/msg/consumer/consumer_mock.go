@@ -79,6 +79,20 @@ func (mr *MockMessageMockRecorder) Bytes() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bytes", reflect.TypeOf((*MockMessage)(nil).Bytes))
 }
 
+// SentAtNanos mocks base method.
+func (m *MockMessage) SentAtNanos() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SentAtNanos")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// SentAtNanos indicates an expected call of SentAtNanos.
+func (mr *MockMessageMockRecorder) SentAtNanos() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SentAtNanos", reflect.TypeOf((*MockMessage)(nil).SentAtNanos))
+}
+
 // ShardID mocks base method.
 func (m *MockMessage) ShardID() uint64 {
 	m.ctrl.T.Helper()
