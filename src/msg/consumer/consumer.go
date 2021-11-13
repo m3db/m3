@@ -226,17 +226,20 @@ func (c *consumer) trySendAcksWithLock(ackLen int) {
 	if err != nil {
 		c.m.ackEncodeError.Inc(1)
 		log.Error("failed to encode ack. client will retry sending message.", zap.Error(err))
+		return
 	}
 	_, err = c.w.Write(c.encoder.Bytes())
 	if err != nil {
 		c.m.ackWriteError.Inc(1)
 		log.Error("failed to write ack. client will retry sending message.", zap.Error(err))
 		c.tryCloseConn()
+		return
 	}
 	if err := c.w.Flush(); err != nil {
 		c.m.ackWriteError.Inc(1)
 		log.Error("failed to flush ack. client will retry sending message.", zap.Error(err))
 		c.tryCloseConn()
+		return
 	}
 	c.m.ackSent.Inc(int64(ackLen))
 }

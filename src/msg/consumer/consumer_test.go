@@ -141,7 +141,7 @@ func TestConsumerAckReusedMessage(t *testing.T) {
 	require.Equal(t, testMsg2.Metadata, cc.ackPb.Metadata[1])
 }
 
-func TestConsumerAckError(t *testing.T) {
+func TestConsumerWriteAckError(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	opts := testOptions()
@@ -169,11 +169,60 @@ func TestConsumerAckError(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, testMsg1.Value, m.Bytes())
 
-	mockEncoder.EXPECT().Encode(gomock.Any()).Return(errors.New("mock encode err"))
+	mockEncoder.EXPECT().Encode(gomock.Any())
+	mockEncoder.EXPECT().Bytes().Return([]byte("foo"))
+	// force a bad write
+	cc.w.Reset(&badWriter{})
 	m.Ack()
 
+	// connection can no longer be used.
 	_, err = cc.Message()
 	require.Error(t, err)
+}
+
+type badWriter struct{}
+
+func (w *badWriter) Write([]byte) (int, error) {
+	return 0, errors.New("fail")
+}
+
+func TestConsumerDecodeAckError(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	opts := testOptions()
+	l, err := NewListener("127.0.0.1:0", opts)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, l.Close())
+	}()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	conn, err := net.Dial("tcp", l.Addr().String())
+	require.NoError(t, err)
+
+	c, err := l.Accept()
+	require.NoError(t, err)
+
+	mockEncoder := proto.NewMockEncoder(ctrl)
+	cc := c.(*consumer)
+	cc.encoder = mockEncoder
+
+	err = produce(conn, &testMsg1)
+	require.NoError(t, err)
+
+	m, err := cc.Message()
+	require.NoError(t, err)
+	require.Equal(t, testMsg1.Value, m.Bytes())
+
+	mockEncoder.EXPECT().Encode(gomock.Any())
+	mockEncoder.EXPECT().Bytes()
+	m.Ack()
+
+	// can still use the connection after failing to decode an ack.
+	err = produce(conn, &testMsg1)
+	require.NoError(t, err)
 }
 
 func TestConsumerMessageError(t *testing.T) {
