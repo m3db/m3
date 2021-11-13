@@ -30,8 +30,8 @@ type metadata struct {
 
 // metadataKey uniquely identifies a metadata.
 type metadataKey struct {
-	shard       uint64
-	id          uint64
+	shard uint64
+	id    uint64
 }
 
 func (m metadata) ToProto(pb *msgpb.Metadata) {
