@@ -35,6 +35,12 @@ func Now() UnixNano {
 	return ToUnixNano(time.Now())
 }
 
+// Since returns the time elapsed since t.
+// It is shorthand for time.Now().Sub(t).
+func Since(t UnixNano) time.Duration {
+	return Now().Sub(t)
+}
+
 // ToNormalizedTime returns the normalized units of time given a time unit.
 func ToNormalizedTime(t time.Time, u time.Duration) int64 {
 	return t.UnixNano() / u.Nanoseconds()

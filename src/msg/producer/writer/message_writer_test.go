@@ -160,7 +160,7 @@ func TestMessageWriterWithPooling(t *testing.T) {
 	require.Equal(t, 1, w.queue.Len())
 
 	mm2.EXPECT().Finalize(producer.Consumed)
-	w.Ack(metadata{shard: 200, id: 2})
+	w.Ack(metadata{metadataKey: metadataKey{shard: 200, id: 2}})
 	require.True(t, isEmptyWithLock(w.acks))
 	for {
 		w.RLock()
@@ -243,7 +243,7 @@ func TestMessageWriterWithoutPooling(t *testing.T) {
 	require.Equal(t, 1, w.queue.Len())
 
 	mm2.EXPECT().Finalize(producer.Consumed)
-	w.Ack(metadata{shard: 200, id: 2})
+	w.Ack(metadata{metadataKey: metadataKey{shard: 200, id: 2}})
 	require.True(t, isEmptyWithLock(w.acks))
 	for {
 		w.RLock()
@@ -295,7 +295,7 @@ func TestMessageWriterRetryWithoutPooling(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	_, ok := w.acks.ackMap[metadata{shard: 200, id: 1}]
+	_, ok := w.acks.ackMap[metadataKey{shard: 200, id: 1}]
 	require.True(t, ok)
 
 	cw := newConsumerWriter(addr, a, opts, testConsumerWriterMetrics())
@@ -355,7 +355,7 @@ func TestMessageWriterRetryWithPooling(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	m1, ok := w.acks.ackMap[metadata{shard: 200, id: 1}]
+	m1, ok := w.acks.ackMap[metadataKey{shard: 200, id: 1}]
 	require.True(t, ok)
 
 	cw := newConsumerWriter(addr, a, opts, testConsumerWriterMetrics())
@@ -453,8 +453,10 @@ func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 	}
 	acks := w.acks
 	meta := metadata{
-		id:    1,
-		shard: 200,
+		metadataKey: metadataKey{
+			id:    1,
+			shard: 200,
+		},
 	}
 	// The message will not be finalized because it's still being hold by another message writer.
 	acks.ack(meta)

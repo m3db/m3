@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/clock"
 	xio "github.com/m3db/m3/src/x/io"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -75,6 +76,10 @@ type metrics struct {
 	ackSent            tally.Counter
 	ackEncodeError     tally.Counter
 	ackWriteError      tally.Counter
+	// the duration between the producer sending the message and the consumer reading the message.
+	receiveLatency tally.Histogram
+	// the duration between the consumer reading the message and sending an ack to the producer.
+	handleLatency tally.Histogram
 }
 
 func newConsumerMetrics(scope tally.Scope) metrics {
@@ -84,6 +89,12 @@ func newConsumerMetrics(scope tally.Scope) metrics {
 		ackSent:            scope.Counter("ack-sent"),
 		ackEncodeError:     scope.Counter("ack-encode-error"),
 		ackWriteError:      scope.Counter("ack-write-error"),
+		receiveLatency: scope.Histogram("receive-latency",
+			// 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.2s, 2.4s, 4.8s, 9.6s
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 11)),
+		handleLatency: scope.Histogram("handle-latency",
+			// 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.2s, 2.4s, 4.8s, 9.6s
+			tally.MustMakeExponentialDurationBuckets(time.Millisecond*10, 2, 11)),
 	}
 }
 
@@ -155,6 +166,9 @@ func (c *consumer) Message() (Message, error) {
 		c.mPool.Put(m)
 		c.m.messageDecodeError.Inc(1)
 		return nil, err
+	}
+	if m.Metadata.SentAtNanos > 0 {
+		c.m.receiveLatency.RecordDuration(xtime.Since(xtime.UnixNano(m.Metadata.SentAtNanos)))
 	}
 	c.m.messageReceived.Inc(1)
 	return m, nil
@@ -268,6 +282,10 @@ func (m *message) reset(c *consumer) {
 
 func (m *message) ShardID() uint64 {
 	return m.Metadata.Shard
+}
+
+func (m *message) SentAtNanos() uint64 {
+	return m.Metadata.SentAtNanos
 }
 
 func resetProto(m *msgpb.Message) {

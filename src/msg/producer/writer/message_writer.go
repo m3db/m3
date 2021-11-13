@@ -279,8 +279,10 @@ func (w *messageWriterImpl) Write(rm *producer.RefCountedMessage) {
 	rm.IncRef()
 	w.msgID++
 	meta := metadata{
-		shard: w.replicatedShardID,
-		id:    w.msgID,
+		metadataKey: metadataKey{
+			shard: w.replicatedShardID,
+			id:    w.msgID,
+		},
 	}
 	msg.Set(meta, rm, nowNanos)
 	w.acks.add(meta, msg)
@@ -318,6 +320,7 @@ func (w *messageWriterImpl) write(
 	m *message,
 ) error {
 	m.IncReads()
+	m.SetSentAt(w.nowFn().UnixNano())
 	msg, isValid := m.Marshaler()
 	if !isValid {
 		m.DecReads()
@@ -726,25 +729,25 @@ func (w *messageWriterImpl) close(m *message) {
 type acks struct {
 	sync.Mutex
 
-	ackMap map[metadata]*message
+	ackMap map[metadataKey]*message
 }
 
 // nolint: unparam
 func newAckHelper(size int) *acks {
 	return &acks{
-		ackMap: make(map[metadata]*message, size),
+		ackMap: make(map[metadataKey]*message, size),
 	}
 }
 
 func (a *acks) add(meta metadata, m *message) {
 	a.Lock()
-	a.ackMap[meta] = m
+	a.ackMap[meta.metadataKey] = m
 	a.Unlock()
 }
 
 func (a *acks) remove(meta metadata) {
 	a.Lock()
-	delete(a.ackMap, meta)
+	delete(a.ackMap, meta.metadataKey)
 	a.Unlock()
 }
 
@@ -752,13 +755,13 @@ func (a *acks) remove(meta metadata) {
 // processing time for lag calculations.
 func (a *acks) ack(meta metadata) (bool, int64) {
 	a.Lock()
-	m, ok := a.ackMap[meta]
+	m, ok := a.ackMap[meta.metadataKey]
 	if !ok {
 		a.Unlock()
 		// Acking a message that is already acked, which is ok.
 		return false, 0
 	}
-	delete(a.ackMap, meta)
+	delete(a.ackMap, meta.metadataKey)
 	a.Unlock()
 	expectedProcessAtNanos := m.ExpectedProcessAtNanos()
 	m.Ack()

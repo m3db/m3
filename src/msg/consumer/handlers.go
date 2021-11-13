@@ -23,6 +23,7 @@ package consumer
 import (
 	"io"
 	"net"
+	"time"
 
 	"github.com/m3db/m3/src/x/server"
 
@@ -60,7 +61,9 @@ func (h *messageHandler) Handle(conn net.Conn) {
 		if msgErr != nil {
 			break
 		}
+		start := time.Now()
 		c.process(msg)
+		h.m.handleLatency.RecordDuration(time.Since(start))
 	}
 	if msgErr != nil && msgErr != io.EOF {
 		h.opts.InstrumentOptions().Logger().With(zap.Error(msgErr)).Error("could not read message from consumer")
