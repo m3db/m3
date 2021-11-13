@@ -279,8 +279,10 @@ func (w *messageWriterImpl) Write(rm *producer.RefCountedMessage) {
 	rm.IncRef()
 	w.msgID++
 	meta := metadata{
-		shard: w.replicatedShardID,
-		id:    w.msgID,
+		metadataKey: metadataKey{
+			shard: w.replicatedShardID,
+			id:    w.msgID,
+		},
 	}
 	msg.Set(meta, rm, nowNanos)
 	w.acks.add(meta, msg)
@@ -318,6 +320,7 @@ func (w *messageWriterImpl) write(
 	m *message,
 ) error {
 	m.IncReads()
+	m.SetSentAt(w.nowFn().UnixNano())
 	msg, isValid := m.Marshaler()
 	if !isValid {
 		m.DecReads()
@@ -369,11 +372,11 @@ func randIndex(iterationIndexes []int, i int) int {
 }
 
 func (w *messageWriterImpl) Ack(meta metadata) bool {
-	acked, initNanos := w.acks.ack(meta)
+	acked, expectedProcessNanos := w.acks.ack(meta)
 	if acked {
 		w.RLock()
 		defer w.RUnlock()
-		w.m.messageConsumeLatency.Record(time.Duration(w.nowFn().UnixNano() - initNanos))
+		w.m.messageConsumeLatency.Record(time.Duration(w.nowFn().UnixNano() - expectedProcessNanos))
 		w.m.messageAcked.Inc(1)
 		return true
 	}
@@ -482,7 +485,7 @@ func (w *messageWriterImpl) writeBatch(
 			return err
 		}
 		if i%_recordMessageDelayEvery == 0 {
-			delay.Record(time.Duration(nowFn().UnixNano() - messages[i].InitNanos()))
+			delay.Record(time.Duration(nowFn().UnixNano() - messages[i].ExpectedProcessAtNanos()))
 		}
 	}
 	return nil
@@ -726,41 +729,43 @@ func (w *messageWriterImpl) close(m *message) {
 type acks struct {
 	sync.Mutex
 
-	ackMap map[metadata]*message
+	ackMap map[metadataKey]*message
 }
 
 // nolint: unparam
 func newAckHelper(size int) *acks {
 	return &acks{
-		ackMap: make(map[metadata]*message, size),
+		ackMap: make(map[metadataKey]*message, size),
 	}
 }
 
 func (a *acks) add(meta metadata, m *message) {
 	a.Lock()
-	a.ackMap[meta] = m
+	a.ackMap[meta.metadataKey] = m
 	a.Unlock()
 }
 
 func (a *acks) remove(meta metadata) {
 	a.Lock()
-	delete(a.ackMap, meta)
+	delete(a.ackMap, meta.metadataKey)
 	a.Unlock()
 }
 
+// ack processes the ack. returns true if the message was not already acked. additionally returns the expected
+// processing time for lag calculations.
 func (a *acks) ack(meta metadata) (bool, int64) {
 	a.Lock()
-	m, ok := a.ackMap[meta]
+	m, ok := a.ackMap[meta.metadataKey]
 	if !ok {
 		a.Unlock()
 		// Acking a message that is already acked, which is ok.
 		return false, 0
 	}
-	delete(a.ackMap, meta)
+	delete(a.ackMap, meta.metadataKey)
 	a.Unlock()
-	initNanos := m.InitNanos()
+	expectedProcessAtNanos := m.ExpectedProcessAtNanos()
 	m.Ack()
-	return true, initNanos
+	return true, expectedProcessAtNanos
 }
 
 func (a *acks) size() int {

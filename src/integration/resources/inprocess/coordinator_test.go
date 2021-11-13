@@ -284,6 +284,5 @@ coordinator:
                 endpoints:
                   - 127.0.0.1:2379
 
-db:
-  writeNewSeriesAsync: false
+db: {}
 `

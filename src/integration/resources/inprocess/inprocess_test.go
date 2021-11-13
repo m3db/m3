@@ -41,6 +41,6 @@ func TestSetupInprocessCluster(t *testing.T) {
 		DBNodes:     resources.Nodes{dbnode},
 	})
 
-	require.NoError(t, resources.SetupCluster(cluster, nil))
+	require.NoError(t, resources.SetupCluster(cluster, resources.ClusterOptions{}))
 	require.NoError(t, cluster.Cleanup())
 }

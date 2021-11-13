@@ -21,8 +21,10 @@
 package docker
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/ory/dockertest/v3"
 
@@ -35,7 +37,7 @@ type prometheus struct {
 	pathToCfg string
 	iOpts     instrument.Options
 
-	resource *dockerResource
+	resource *Resource
 }
 
 // PrometheusOptions contains the options for
@@ -70,21 +72,21 @@ func (p *prometheus) Setup() error {
 			"before attempting to setup again")
 	}
 
-	if err := setupNetwork(p.pool); err != nil {
+	if err := SetupNetwork(p.pool); err != nil {
 		return err
 	}
 
-	res, err := newDockerResource(p.pool, dockerResourceOptions{
-		containerName: "prometheus",
-		image: dockerImage{
-			name: "prom/prometheus",
-			tag:  "latest",
+	res, err := NewDockerResource(p.pool, ResourceOptions{
+		ContainerName: "prometheus",
+		Image: Image{
+			Name: "prom/prometheus",
+			Tag:  "latest",
 		},
-		portList: []int{9090},
-		mounts: []string{
+		PortList: []int{9090},
+		Mounts: []string{
 			fmt.Sprintf("%s:/etc/prometheus/prometheus.yml", p.pathToCfg),
 		},
-		iOpts: p.iOpts,
+		InstrumentOpts: p.iOpts,
 	})
 	if err != nil {
 		return err
@@ -92,15 +94,41 @@ func (p *prometheus) Setup() error {
 
 	p.resource = res
 
-	return nil
+	return p.waitForHealthy()
+}
+
+func (p *prometheus) waitForHealthy() error {
+	return resources.Retry(func() error {
+		req, err := http.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"http://0.0.0.0:9090/-/ready",
+			nil,
+		)
+		if err != nil {
+			return err
+		}
+
+		client := http.Client{}
+		res, _ := client.Do(req)
+		if res != nil {
+			_ = res.Body.Close()
+
+			if res.StatusCode == http.StatusOK {
+				return nil
+			}
+		}
+
+		return errors.New("prometheus not ready")
+	})
 }
 
 func (p *prometheus) Close() error {
-	if p.resource.closed {
+	if p.resource.Closed() {
 		return errClosed
 	}
 
-	if err := p.resource.close(); err != nil {
+	if err := p.resource.Close(); err != nil {
 		return err
 	}
 

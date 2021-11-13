@@ -287,7 +287,7 @@ func newDatabaseShard(
 		tileAggregator:       opts.TileAggregator(),
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
-		s.nowFn, scope, opts.InstrumentOptions().Logger())
+		s.nowFn, opts.CoreFn(), scope, opts.InstrumentOptions().Logger())
 
 	registerRuntimeOptionsListener := func(listener runtime.OptionsListener) {
 		elem := opts.RuntimeOptionsManager().RegisterListener(listener)

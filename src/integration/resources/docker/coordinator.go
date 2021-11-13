@@ -21,11 +21,13 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/ory/dockertest/v3"
+	"github.com/prometheus/common/model"
 
 	"github.com/m3db/m3/src/integration/resources"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
@@ -40,26 +42,26 @@ const (
 var (
 	defaultCoordinatorList = []int{7201, 7203, 7204}
 
-	defaultCoordinatorOptions = dockerResourceOptions{
-		source:        defaultCoordinatorSource,
-		containerName: defaultCoordinatorName,
-		portList:      defaultCoordinatorList,
+	defaultCoordinatorOptions = ResourceOptions{
+		Source:        defaultCoordinatorSource,
+		ContainerName: defaultCoordinatorName,
+		PortList:      defaultCoordinatorList,
 	}
 )
 
 type coordinator struct {
-	resource *dockerResource
+	resource *Resource
 	client   resources.CoordinatorClient
 }
 
 func newDockerHTTPCoordinator(
 	pool *dockertest.Pool,
-	opts dockerResourceOptions,
+	opts ResourceOptions,
 ) (resources.Coordinator, error) {
 	opts = opts.withDefaults(defaultCoordinatorOptions)
-	opts.tmpfsMounts = []string{"/etc/m3coordinator/"}
+	opts.TmpfsMounts = []string{"/etc/m3coordinator/"}
 
-	resource, err := newDockerResource(pool, opts)
+	resource, err := NewDockerResource(pool, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -73,6 +75,11 @@ func newDockerHTTPCoordinator(
 			RetryFunc: resource.pool.Retry,
 		}),
 	}, nil
+}
+
+func (c *coordinator) HostDetails() (*resources.InstanceInfo, error) {
+	// TODO: add implementation
+	return nil, errors.New("not implemented")
 }
 
 func (c *coordinator) GetNamespace() (admin.NamespaceGetResponse, error) {
@@ -224,12 +231,33 @@ func (c *coordinator) RunQuery(
 	return c.client.RunQuery(verifier, query, headers)
 }
 
+func (c *coordinator) InstantQuery(
+	req resources.QueryRequest,
+	headers map[string][]string,
+) (model.Vector, error) {
+	if c.resource.closed {
+		return nil, errClosed
+	}
+	return c.client.InstantQuery(req, headers)
+}
+
+// RangeQuery runs a range query with provided headers
+func (c *coordinator) RangeQuery(
+	req resources.RangeQueryRequest,
+	headers map[string][]string,
+) (model.Matrix, error) {
+	if c.resource.closed {
+		return nil, errClosed
+	}
+	return c.client.RangeQuery(req, headers)
+}
+
 func (c *coordinator) Close() error {
 	if c.resource.closed {
 		return errClosed
 	}
 
-	return c.resource.close()
+	return c.resource.Close()
 }
 
 func (c *coordinator) InitM3msgTopic(

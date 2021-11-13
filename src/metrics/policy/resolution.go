@@ -45,7 +45,7 @@ type Resolution struct {
 	// Window is the bucket size represented by the resolution.
 	Window time.Duration
 
-	// Precision is the precision of datapoints stored at this resoluion.
+	// Precision is the precision of datapoints stored at this resolution.
 	Precision xtime.Unit
 }
 

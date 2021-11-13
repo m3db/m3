@@ -23,9 +23,9 @@ package aggregator
 import "time"
 
 type tickResultForMetricCategory struct {
+	activeElems    map[time.Duration]int
 	activeEntries  int
 	expiredEntries int
-	activeElems    map[time.Duration]int
 }
 
 func (r *tickResultForMetricCategory) merge(

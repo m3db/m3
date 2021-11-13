@@ -62,7 +62,7 @@ func buildBlock(
 	return &encodedBlock{
 		seriesBlockIterators: iters,
 		seriesMetas:          seriesMetas,
-		options:              NewOptions(),
+		options:              NewOptions(encoding.NewOptions()),
 	}
 }
 
@@ -125,7 +125,7 @@ func TestMultiSeriesIter(t *testing.T) {
 }
 
 func TestMultiSeriesIterError(t *testing.T) {
-	b := &encodedBlock{options: NewOptions()}
+	b := &encodedBlock{options: NewOptions(encoding.NewOptions())}
 	_, err := b.MultiSeriesIter(0)
 	require.Error(t, err)
 

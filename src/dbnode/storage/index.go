@@ -321,6 +321,7 @@ func newNamespaceIndexWithOptions(
 		instrumentOpts  = newIndexOpts.opts.InstrumentOptions()
 		newIndexQueueFn = newIndexOpts.newIndexQueueFn
 		newBlockFn      = newIndexOpts.newBlockFn
+		coreFn          = newIndexOpts.opts.CoreFn()
 		runtimeOptsMgr  = newIndexOpts.opts.RuntimeOptionsManager()
 	)
 	if err := indexOpts.Validate(); err != nil {
@@ -425,7 +426,7 @@ func newNamespaceIndexWithOptions(
 	idx.forwardIndexDice = dice
 
 	// allocate indexing queue and start it up.
-	queue := newIndexQueueFn(idx.writeBatches, nsMD, nowFn, scope)
+	queue := newIndexQueueFn(idx.writeBatches, nsMD, nowFn, coreFn, scope)
 	if err := queue.Start(); err != nil {
 		return nil, err
 	}

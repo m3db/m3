@@ -81,6 +81,7 @@ type timestampNanosFn func(windowStartNanos int64, resolution time.Duration) int
 type createAggregationOptions struct {
 	// initSourceSet determines whether to initialize the source set.
 	initSourceSet bool
+	resendEnabled bool
 }
 
 // IDPrefixSuffixType configs if the id should be added with prefix or suffix
@@ -111,7 +112,7 @@ type metricElem interface {
 	)
 
 	// AddUnion adds a metric value union at a given timestamp.
-	AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) error
+	AddUnion(timestamp time.Time, mu unaggregated.MetricUnion, resendEnabled bool) error
 
 	// AddMetric adds a metric value at a given timestamp.
 	AddValue(timestamp time.Time, value float64, annotation []byte) error
@@ -132,6 +133,8 @@ type metricElem interface {
 		flushLocalFn flushLocalMetricFn,
 		flushForwardedFn flushForwardedMetricFn,
 		onForwardedFlushedFn onForwardingElemFlushedFn,
+		jitter time.Duration,
+		flushType flushType,
 	) bool
 
 	// MarkAsTombstoned marks an element as tombstoned, which means this element
@@ -145,12 +148,11 @@ type metricElem interface {
 // ElemData are initialization parameters for an element.
 type ElemData struct {
 	ID                 id.RawID
-	StoragePolicy      policy.StoragePolicy
 	AggTypes           maggregation.Types
 	Pipeline           applied.Pipeline
+	StoragePolicy      policy.StoragePolicy
 	NumForwardedTimes  int
 	IDPrefixSuffixType IDPrefixSuffixType
-	ResendEnabled      bool
 	ListType           metricListType
 }
 
@@ -163,7 +165,6 @@ type elemBase struct {
 	aggTypesOpts                    maggregation.TypesOptions
 	id                              id.RawID
 	sp                              policy.StoragePolicy
-	useDefaultAggregation           bool
 	aggTypes                        maggregation.Types
 	aggOpts                         raggregation.Options
 	parsedPipeline                  parsedPipeline
@@ -172,63 +173,100 @@ type elemBase struct {
 	writeForwardedMetricFn          writeForwardedMetricFn
 	onForwardedAggregationWrittenFn onForwardedAggregationDoneFn
 	metrics                         *elemMetrics
-	resendEnabled                   bool
 	bufferForPastTimedMetricFn      BufferForPastTimedMetricFn
 	listType                        metricListType
 
 	// Mutable states.
-	tombstoned           bool
-	closed               bool
-	cachedSourceSetsLock sync.Mutex                  // nolint: structcheck
-	cachedSourceSets     []map[uint32]*bitset.BitSet // nolint: structcheck
+	cachedSourceSets []map[uint32]*bitset.BitSet // nolint: structcheck
 	// a cache of the lag metrics that don't require grabbing a lock to access.
-	forwardLagMetrics map[forwardLagKey]tally.Histogram
+	forwardLagMetrics     map[forwardLagKey]tally.Histogram
+	tombstoned            bool
+	closed                bool
+	useDefaultAggregation bool // really immutable, but packed w/ the rest of bools
 }
 
-type valuesByTime map[xtime.UnixNano][]transformation.Datapoint
+// consumeState is transient state for a timedAggregation that can change every flush round.
+// this state is thrown away after the timedAggregation is processed in a flush round.
+type consumeState struct {
+	// the annotation copied from the lockedAgg.
+	annotation []byte
+	// the values copied from the lockedAgg.
+	values []float64
+	// the start time of the aggregation.
+	startAt xtime.UnixNano
+	// the start aligned timestamp of the previous aggregation. used to lookup the consumedValues of the previous
+	// aggregation for binary transformations.
+	prevStartTime xtime.UnixNano
+	// the dirty bit copied from the lockedAgg.
+	dirty bool
+	// copied from the timedAggregation
+	resendEnabled bool
+}
 
-// Return the latest timestamp in the map that is less than the provided timestamp. Returns 0 if a previous timestamp
-// does not exist.
-func (v valuesByTime) previousTimestamp(t xtime.UnixNano) xtime.UnixNano {
-	var previous xtime.UnixNano
-	for ts := range v {
-		if ts.Before(t) && !ts.Before(previous) {
-			previous = ts
-		}
-	}
-	return previous
+// mutable state for a timedAggregation that is local to the flusher. does not need to be synchronized.
+// this state is kept around for the lifetime of the timedAggregation.
+type flushState struct {
+	// the consumed values from the previous flush. used for binary transformations. note these are the values before
+	// transformation. emittedValues are after transformation.
+	consumedValues []float64
+	// the emitted values from the previous flush. used to determine if the emitted values have not changed and
+	// can be skipped.
+	emittedValues []float64
+	// true if this aggregation has ever been flushed.
+	flushed bool
+}
+
+var isDirty = func(state consumeState) bool {
+	return state.dirty
+}
+
+// close is called when the aggregation has expired and is no longer needed.
+func (f *flushState) close() {
+	f.consumedValues = f.consumedValues[:0]
+	f.emittedValues = f.emittedValues[:0]
 }
 
 type elemMetrics struct {
-	sync.RWMutex
 	scope         tally.Scope
 	updatedValues tally.Counter
+	retriedValues tally.Counter
 	forwardLags   map[forwardLagKey]tally.Histogram
+	mtx           sync.RWMutex
 }
 
 type forwardLagKey struct {
-	resolution time.Duration
-	listType   metricListType
+	resolution    time.Duration
+	listType      metricListType
+	flushType     flushType
+	fwdType       string
+	jitterApplied bool
 }
 
 func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
-	e.RLock()
+	e.mtx.RLock()
 	m, ok := e.forwardLags[key]
 	if ok {
-		e.RUnlock()
+		e.mtx.RUnlock()
 		return m
 	}
-	e.RUnlock()
-	e.Lock()
+	e.mtx.RUnlock()
+	e.mtx.Lock()
 	m, ok = e.forwardLags[key]
 	if ok {
-		e.Unlock()
+		e.mtx.Unlock()
 		return m
+	}
+	jitterApplied := "false"
+	if key.jitterApplied {
+		jitterApplied = "true"
 	}
 	m = e.scope.
 		Tagged(map[string]string{
 			"resolution": key.resolution.String(),
 			"list-type":  key.listType.String(),
+			"flush-type": key.flushType.String(),
+			"type":       key.fwdType,
+			"jitter":     jitterApplied,
 		}).
 		Histogram("forward-lag", tally.DurationBuckets{
 			10 * time.Millisecond,
@@ -249,7 +287,7 @@ func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
 			120 * time.Second,
 		})
 	e.forwardLags[key] = m
-	e.Unlock()
+	e.mtx.Unlock()
 	return m
 }
 
@@ -268,6 +306,7 @@ func NewElemOptions(aggregatorOpts Options) ElemOptions {
 		aggregationOpts: raggregation.NewOptions(aggregatorOpts.InstrumentOptions()),
 		elemMetrics: &elemMetrics{
 			updatedValues: scope.Counter("updated-values"),
+			retriedValues: scope.Counter("retried-values"),
 			scope:         scope,
 			forwardLags:   make(map[forwardLagKey]tally.Histogram),
 		},
@@ -285,10 +324,15 @@ func newElemBase(opts ElemOptions) elemBase {
 	}
 }
 
-func (e *elemBase) forwardLagMetric(resolution time.Duration) tally.Histogram {
+func (e *elemBase) forwardLagMetric(
+	resolution time.Duration, fwdType string, jitterApplied bool, flushType flushType,
+) tally.Histogram {
 	key := forwardLagKey{
-		resolution: resolution,
-		listType:   e.listType,
+		resolution:    resolution,
+		listType:      e.listType,
+		fwdType:       fwdType,
+		flushType:     flushType,
+		jitterApplied: jitterApplied,
 	}
 	m, ok := e.forwardLagMetrics[key]
 	if !ok {
@@ -317,7 +361,6 @@ func (e *elemBase) resetSetData(data ElemData, useDefaultAggregation bool) error
 	e.tombstoned = false
 	e.closed = false
 	e.idPrefixSuffixType = data.IDPrefixSuffixType
-	e.resendEnabled = data.ResendEnabled
 	e.listType = data.ListType
 	return nil
 }

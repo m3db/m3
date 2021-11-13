@@ -22,17 +22,11 @@
 package docker
 
 import (
-	"context"
-	"errors"
-	"net/http"
 	"path"
 	"runtime"
 	"testing"
-	"time"
 
-	"github.com/cenkalti/backoff/v3"
 	"github.com/ory/dockertest/v3"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,30 +40,5 @@ func TestNewPrometheus(t *testing.T) {
 		PathToCfg: path.Join(path.Dir(filename), "config/prometheus.yml"),
 	})
 	require.NoError(t, prom.Setup())
-	defer func() {
-		assert.NoError(t, prom.Close())
-	}()
-
-	bo := backoff.NewConstantBackOff(1 * time.Second)
-	var (
-		attempts    = 0
-		maxAttempts = 5
-	)
-	err = backoff.Retry(func() error {
-		req, err := http.NewRequestWithContext(context.Background(), "GET", "http://0.0.0.0:9090/-/ready", nil)
-		require.NoError(t, err)
-
-		client := http.Client{}
-		res, _ := client.Do(req)
-		if res != nil && res.StatusCode == 200 {
-			return nil
-		}
-
-		attempts++
-		if attempts >= maxAttempts {
-			return backoff.Permanent(errors.New("prometheus not ready"))
-		}
-		return errors.New("retryable error")
-	}, bo)
-	require.NoError(t, err)
+	require.NoError(t, prom.Close())
 }

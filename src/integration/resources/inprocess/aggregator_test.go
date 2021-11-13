@@ -22,21 +22,24 @@
 package inprocess
 
 import (
+	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	m3agg "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
-	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
+	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/integration/resources"
-	nettest "github.com/m3db/m3/src/integration/resources/net"
 	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
-	"github.com/m3db/m3/src/x/config/hostid"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/query/storage"
+	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/prometheus/common/model"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 func TestNewAggregator(t *testing.T) {
@@ -44,16 +47,16 @@ func TestNewAggregator(t *testing.T) {
 	defer closer()
 	require.NoError(t, coord.WaitForNamespace(""))
 
-	setupPlacement(t, coord)
-	setupM3msgTopic(t, coord)
-
-	agg, err := NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{GenerateHostID: true})
+	agg, err := NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{})
 	require.NoError(t, err)
+	setupPlacement(t, coord, resources.Aggregators{agg})
+	setupM3msgTopic(t, coord)
+	agg.Start()
 	require.NoError(t, resources.Retry(agg.IsHealthy))
 	require.NoError(t, agg.Close())
 
-	// restart an aggregator instance
-	agg, err = NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{GenerateHostID: true})
+	// re-construct and restart an aggregator instance
+	agg, err = NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{Start: true})
 	require.NoError(t, err)
 	require.NoError(t, resources.Retry(agg.IsHealthy))
 	require.NoError(t, agg.Close())
@@ -64,33 +67,32 @@ func TestMultiAggregators(t *testing.T) {
 	defer closer()
 	require.NoError(t, coord.WaitForNamespace(""))
 
-	args, err := generateTestAggregatorArgs(2)
-	require.NoError(t, err)
-	setupPlacementMultiAggs(t, coord, args)
-	setupM3msgTopic(t, coord)
+	aggOpts := AggregatorOptions{
+		GenerateHostID: true,
+		GeneratePorts:  true,
+		Start:          false,
+	}
 
-	var (
-		cfg1 config.Configuration
-		cfg2 config.Configuration
-	)
-	require.NoError(t, yaml.Unmarshal([]byte(defaultAggregatorConfig), &cfg1))
-	updateTestAggConfig(&cfg1, args[0])
-	require.NoError(t, yaml.Unmarshal([]byte(defaultAggregatorConfig), &cfg2))
-	updateTestAggConfig(&cfg2, args[1])
-
-	agg1, err := NewAggregator(cfg1, AggregatorOptions{GeneratePorts: true})
-	require.NoError(t, err)
-	require.NoError(t, resources.Retry(agg1.IsHealthy))
+	agg1, err := NewAggregatorFromYAML(defaultAggregatorConfig, aggOpts)
 	defer func() {
 		assert.NoError(t, agg1.Close())
 	}()
-
-	agg2, err := NewAggregator(cfg2, AggregatorOptions{GeneratePorts: true})
 	require.NoError(t, err)
-	require.NoError(t, resources.Retry(agg2.IsHealthy))
+
+	agg2, err := NewAggregatorFromYAML(defaultAggregatorConfig, aggOpts)
 	defer func() {
 		assert.NoError(t, agg2.Close())
 	}()
+	require.NoError(t, err)
+
+	setupPlacement(t, coord, resources.Aggregators{agg1, agg2})
+	setupM3msgTopic(t, coord)
+
+	agg1.Start()
+	require.NoError(t, resources.Retry(agg1.IsHealthy))
+
+	agg2.Start()
+	require.NoError(t, resources.Retry(agg2.IsHealthy))
 }
 
 func TestAggregatorStatus(t *testing.T) {
@@ -98,14 +100,19 @@ func TestAggregatorStatus(t *testing.T) {
 	defer closer()
 	require.NoError(t, coord.WaitForNamespace(""))
 
-	setupPlacement(t, coord)
-	setupM3msgTopic(t, coord)
-
-	agg, err := NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{})
+	agg, err := NewAggregatorFromYAML(
+		defaultAggregatorConfig,
+		AggregatorOptions{GenerateHostID: true, GeneratePorts: true},
+	)
 	require.NoError(t, err)
 	defer func() {
 		assert.NoError(t, agg.Close())
 	}()
+
+	setupPlacement(t, coord, resources.Aggregators{agg})
+	setupM3msgTopic(t, coord)
+	agg.Start()
+	require.NoError(t, resources.Retry(agg.IsHealthy))
 
 	followerStatus := m3agg.RuntimeStatus{
 		FlushStatus: m3agg.FlushStatus{
@@ -114,7 +121,6 @@ func TestAggregatorStatus(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, resources.Retry(agg.IsHealthy))
 	status, err := agg.Status()
 	require.NoError(t, err)
 	require.Equal(t, followerStatus, status)
@@ -124,6 +130,36 @@ func TestAggregatorStatus(t *testing.T) {
 	status, err = agg.Status()
 	require.NoError(t, err)
 	require.Equal(t, followerStatus, status)
+}
+
+func TestAggregatorWriteWithCluster(t *testing.T) {
+	cfgs, err := NewClusterConfigsFromYAML(defaultDBNodeConfig, aggregatorCoordConfig, defaultAggregatorConfig)
+	require.NoError(t, err)
+
+	cluster, err := NewCluster(cfgs,
+		resources.ClusterOptions{
+			DBNode: resources.NewDBNodeClusterOptions(),
+		},
+	)
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, cluster.Cleanup())
+	}()
+
+	coord := cluster.Coordinator()
+	agg, err := NewAggregatorFromYAML(defaultAggregatorConfig, AggregatorOptions{Start: false})
+	defer func() {
+		assert.NoError(t, agg.Close())
+	}()
+	require.NoError(t, err)
+
+	setupPlacement(t, coord, resources.Aggregators{agg})
+	setupM3msgTopic(t, coord)
+
+	agg.Start()
+	require.NoError(t, resources.Retry(agg.IsHealthy))
+
+	testAggMetrics(t, coord)
 }
 
 func setupCoordinator(t *testing.T) (resources.Coordinator, func()) {
@@ -152,7 +188,7 @@ func setupM3msgTopic(t *testing.T, coord resources.Coordinator) {
 	_, err = coord.AddM3msgTopicConsumer(m3msgTopicOpts, admin.TopicAddRequest{
 		ConsumerService: &topicpb.ConsumerService{
 			ServiceId: &topicpb.ServiceID{
-				Name:        "m3aggregator",
+				Name:        handleroptions.M3AggregatorServiceName,
 				Environment: m3msgTopicOpts.Env,
 				Zone:        m3msgTopicOpts.Zone,
 			},
@@ -173,7 +209,7 @@ func setupM3msgTopic(t *testing.T, coord resources.Coordinator) {
 	_, err = coord.AddM3msgTopicConsumer(aggregatedTopicOpts, admin.TopicAddRequest{
 		ConsumerService: &topicpb.ConsumerService{
 			ServiceId: &topicpb.ServiceID{
-				Name:        "m3coordinator",
+				Name:        handleroptions.M3CoordinatorServiceName,
 				Environment: aggregatedTopicOpts.Env,
 				Zone:        aggregatedTopicOpts.Zone,
 			},
@@ -184,235 +220,122 @@ func setupM3msgTopic(t *testing.T, coord resources.Coordinator) {
 	require.NoError(t, err)
 }
 
-func setupPlacement(t *testing.T, coord resources.Coordinator) {
-	_, err := coord.InitPlacement(
-		resources.PlacementRequestOptions{
-			Service: resources.ServiceTypeM3Aggregator,
-			Zone:    "embedded",
-			Env:     "default_env",
-		},
-		admin.PlacementInitRequest{
-			NumShards:         4,
-			ReplicationFactor: 1,
-			Instances: []*placementpb.Instance{
-				{
-					Id:             "m3aggregator01",
-					IsolationGroup: "rack1",
-					Zone:           "embedded",
-					Weight:         1,
-					Endpoint:       "0.0.0.0:6000",
-					Hostname:       "m3aggregator01",
-					Port:           6000,
-				},
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	_, err = coord.InitPlacement(
-		resources.PlacementRequestOptions{
-			Service: resources.ServiceTypeM3Coordinator,
-			Zone:    "embedded",
-			Env:     "default_env",
-		},
-		admin.PlacementInitRequest{
-			Instances: []*placementpb.Instance{
-				{
-					Id:       "m3coordinator01",
-					Zone:     "embedded",
-					Endpoint: "0.0.0.0:7507",
-					Hostname: "m3coordinator01",
-					Port:     7507,
-				},
-			},
-		},
-	)
-	require.NoError(t, err)
-}
-
-func setupPlacementMultiAggs(t *testing.T, coord resources.Coordinator, args []testAggregatorArgs) {
-	require.Equal(t, 2, len(args))
-	_, err := coord.InitPlacement(
-		resources.PlacementRequestOptions{
-			Service: resources.ServiceTypeM3Aggregator,
-			Zone:    "embedded",
-			Env:     "default_env",
-		},
-		admin.PlacementInitRequest{
-			NumShards:         4,
-			ReplicationFactor: 1,
-			Instances: []*placementpb.Instance{
-				{
-					Id:             args[0].hostID,
-					IsolationGroup: "rack1",
-					Zone:           "embedded",
-					Weight:         1,
-					Endpoint:       args[0].m3msgAddr,
-					Hostname:       args[0].hostID,
-					Port:           args[0].m3msgPort,
-				},
-				{
-					Id:             args[1].hostID,
-					IsolationGroup: "rack2",
-					Zone:           "embedded",
-					Weight:         1,
-					Endpoint:       args[1].m3msgAddr,
-					Hostname:       args[1].hostID,
-					Port:           args[1].m3msgPort,
-				},
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	_, err = coord.InitPlacement(
-		resources.PlacementRequestOptions{
-			Service: resources.ServiceTypeM3Coordinator,
-			Zone:    "embedded",
-			Env:     "default_env",
-		},
-		admin.PlacementInitRequest{
-			Instances: []*placementpb.Instance{
-				{
-					Id:       "m3coordinator01",
-					Zone:     "embedded",
-					Endpoint: "0.0.0.0:7507",
-					Hostname: "m3coordinator01",
-					Port:     7507,
-				},
-			},
-		},
-	)
-	require.NoError(t, err)
-}
-
-func generateTestAggregatorArgs(numAggs int) ([]testAggregatorArgs, error) {
-	opts := make([]testAggregatorArgs, 0, numAggs)
-	for i := 1; i <= numAggs; i++ {
-		addr, p, err := nettest.GeneratePort("0.0.0.0:0")
-		if err != nil {
-			return nil, err
+func setupPlacement(t *testing.T, coord resources.Coordinator, aggs resources.Aggregators) {
+	instances := make([]*placementpb.Instance, 0, len(aggs))
+	for _, agg := range aggs {
+		info, err := agg.HostDetails()
+		require.NoError(t, err)
+		instance := &placementpb.Instance{
+			Id:             info.ID,
+			IsolationGroup: info.ID,
+			Zone:           info.Zone,
+			Weight:         1,
+			Endpoint:       fmt.Sprintf("%s:%d", info.M3msgAddress, info.M3msgPort),
+			Hostname:       info.ID,
+			Port:           info.M3msgPort,
 		}
-		opts = append(opts, testAggregatorArgs{
-			hostID:    fmt.Sprintf("m3aggregator%02d", i),
-			m3msgAddr: addr,
-			m3msgPort: uint32(p),
-		})
+
+		instances = append(instances, instance)
 	}
 
-	return opts, nil
+	_, err := coord.InitPlacement(
+		resources.PlacementRequestOptions{
+			Service: resources.ServiceTypeM3Aggregator,
+			Zone:    "embedded",
+			Env:     "default_env",
+		},
+		admin.PlacementInitRequest{
+			NumShards:         4,
+			ReplicationFactor: 1,
+			Instances:         instances,
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = coord.InitPlacement(
+		resources.PlacementRequestOptions{
+			Service: resources.ServiceTypeM3Coordinator,
+			Zone:    "embedded",
+			Env:     "default_env",
+		},
+		admin.PlacementInitRequest{
+			Instances: []*placementpb.Instance{
+				{
+					Id:       "m3coordinator01",
+					Zone:     "embedded",
+					Endpoint: "0.0.0.0:7507",
+					Hostname: "m3coordinator01",
+					Port:     7507,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
 }
 
-func updateTestAggConfig(cfg *config.Configuration, args testAggregatorArgs) {
-	cfg.Aggregator.HostID = &hostid.Configuration{
-		Resolver: hostid.ConfigResolver,
-		Value:    &args.hostID,
-	}
+func testAggMetrics(t *testing.T, coord resources.Coordinator) {
+	var (
+		ts      = time.Now()
+		ts1     = xtime.ToUnixNano(ts)
+		ts2     = xtime.ToUnixNano(ts.Add(1 * time.Millisecond))
+		ts3     = xtime.ToUnixNano(ts.Add(2 * time.Millisecond))
+		samples = []prompb.Sample{
+			{Value: 1, Timestamp: storage.TimeToPromTimestamp(ts1)},
+			{Value: 2, Timestamp: storage.TimeToPromTimestamp(ts2)},
+			{Value: 3, Timestamp: storage.TimeToPromTimestamp(ts3)},
+		}
+		// 6=1+2+3 is the sum of all three samples.
+		expectedValue = model.SampleValue(6)
+	)
+	assert.NoError(t, resources.Retry(func() error {
+		return coord.WriteProm("cpu", map[string]string{"host": "host1"}, samples)
+	}))
 
-	if cfg.M3Msg != nil {
-		cfg.M3Msg.Server.ListenAddress = args.m3msgAddr
-	}
+	queryHeaders := map[string][]string{"M3-Metrics-Type": {"aggregated"}, "M3-Storage-Policy": {"10s:6h"}}
+
+	// Instant Query
+	require.NoError(t, resources.Retry(func() error {
+		result, err := coord.InstantQuery(resources.QueryRequest{QueryExpr: "cpu"}, queryHeaders)
+		if err != nil {
+			return err
+		}
+		if len(result) != 1 {
+			return errors.New("wrong amount of datapoints")
+		}
+		if result[0].Value != expectedValue {
+			return errors.New("wrong data point value")
+		}
+		return nil
+	}))
+
+	// Range Query
+	require.NoError(t, resources.Retry(func() error {
+		result, err := coord.RangeQuery(
+			resources.RangeQueryRequest{
+				QueryExpr: "cpu",
+				StartTime: time.Now().Add(-30 * time.Second),
+				EndTime:   time.Now(),
+				Step:      1 * time.Second,
+			},
+			queryHeaders,
+		)
+		if err != nil {
+			return err
+		}
+		if len(result) != 1 {
+			return errors.New("wrong amount of series in the range query result")
+		}
+		if len(result[0].Values) == 0 {
+			return errors.New("empty range query result")
+		}
+		if result[0].Values[0].Value != expectedValue {
+			return errors.New("wrong range query value")
+		}
+		return nil
+	}))
 }
 
-type testAggregatorArgs struct {
-	hostID    string
-	m3msgAddr string
-	m3msgPort uint32
-}
-
-const defaultAggregatorConfig = `
-metrics:
-  prometheus:
-    handlerPath: /metrics
-    listenAddress: 0.0.0.0:6002
-    timerType: histogram
-  sanitization: prometheus
-  samplingRate: 1.0
-http:
-  listenAddress: 0.0.0.0:6001
-  readTimeout: 60s
-  writeTimeout: 60s
-m3msg:
-  server:
-    listenAddress: 0.0.0.0:6000
-    retry:
-      maxBackoff: 10s
-      jitter: true
-  consumer:
-    messagePool:
-      size: 16384
-      watermark:
-        low: 0.2
-        high: 0.5
-kvClient:
-  etcd:
-    env: default_env
-    zone: embedded
-    service: m3aggregator
-    cacheDir: "*"
-    etcdClusters:
-      - zone: embedded
-        endpoints:
-        - 127.0.0.1:2379
-aggregator:
-  hostID:
-    resolver: config
-    value: m3aggregator01
-  instanceID:
-    type: host_id
-  stream:
-    eps: 0.001
-    capacity: 32
-  client:
-    type: m3msg
-    m3msg:
-      producer:
-        writer:
-          topicName: aggregator_ingest
-          topicServiceOverride:
-            zone: embedded
-            environment: default_env
-          placement:
-            isStaged: true
-          placementServiceOverride:
-            namespaces:
-              placement: /placement
-          messagePool:
-            size: 16384
-            watermark:
-              low: 0.2
-              high: 0.5
-          ignoreCutoffCutover: true
-  placementManager:
-    kvConfig:
-      namespace: /placement
-      environment: default_env
-      zone: embedded
-    placementWatcher:
-      key: m3aggregator
-  electionManager:
-    serviceID:
-      name: m3aggregator
-      environment: default_env
-      zone: embedded
-  flush:
-    handlers:
-      - dynamicBackend:
-          name: m3msg
-          hashType: murmur32
-          producer:
-            writer:
-              topicName: aggregated_metrics
-              topicServiceOverride:
-                zone: embedded
-                environment: default_env
-              messagePool:
-                size: 16384
-                watermark:
-                  low: 0.2
-                  high: 0.5
-  entryCheckInterval: 1s
-`
+const defaultAggregatorConfig = `{}`
 
 const aggregatorCoordConfig = `
 clusters:
@@ -420,30 +343,33 @@ clusters:
       - namespace: default
         type: unaggregated
         retention: 1h
+      - namespace: aggregated
+        type: aggregated
+        resolution: 10s
+        retention: 6h
     client:
       config:
         service:
           env: default_env
           zone: embedded
           service: m3db
-          cacheDir: "*"
           etcdClusters:
             - zone: embedded
               endpoints:
                 - 127.0.0.1:2379
+downsample:
+  rules:
+    mappingRules:
+      - name: "agged metrics"
+        filter: "host:*"
+        aggregations: ["Sum"]
+        storagePolicies:
+          - resolution: 10s
+            retention: 6h
 ingest:
   ingester:
     workerPoolSize: 10000
-    opPool:
-      size: 10000
-    retry:
-      maxRetries: 3
-      jitter: true
-    logSampleRate: 0.01
   m3msg:
     server:
       listenAddress: "0.0.0.0:7507"
-      retry:
-        maxBackoff: 10s
-        jitter: true
 `

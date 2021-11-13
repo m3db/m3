@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -34,13 +36,9 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/uber-go/tally"
 )
 
-var (
-	errWriteQueryNoDatapoints = errors.New("write query with no datapoints")
-)
+var errWriteQueryNoDatapoints = errors.New("write query with no datapoints")
 
 // Type describes the type of storage.
 type Type int
@@ -52,8 +50,6 @@ const (
 	TypeRemoteDC
 	// TypeMultiDC is for storages that will aggregate multiple datacenters.
 	TypeMultiDC
-	// TypeDebug is for storages that are used for debugging purposes.
-	TypeDebug
 )
 
 // ErrorBehavior describes what this storage type should do on error. This is
@@ -147,6 +143,20 @@ type FetchOptions struct {
 	Timeout time.Duration
 	// Source is the source for the query.
 	Source []byte
+
+	RelatedQueryOptions *RelatedQueryOptions
+}
+
+// QueryTimespan represents the start and end time of a query
+type QueryTimespan struct {
+	Start xtime.UnixNano
+	End   xtime.UnixNano
+}
+
+// RelatedQueryOptions describes the timespan of any related queries the client might be making
+// This is used to align the resolution of returned data across all queries.
+type RelatedQueryOptions struct {
+	Timespans []QueryTimespan
 }
 
 // FanoutOptions describes which namespaces should be fanned out to for
@@ -343,4 +353,28 @@ type PromResult struct {
 	PromResult *prompb.QueryResult
 	// ResultMetadata is the metadata for the result.
 	Metadata block.ResultMetadata
+}
+
+// PromConvertOptions are options controlling the conversion of raw series iterators
+// to a Prometheus-compatible result.
+type PromConvertOptions interface {
+	// SetResolutionThresholdForCounterNormalization sets resolution
+	// starting from which (inclusive) a normalization of counter values is performed.
+	SetResolutionThresholdForCounterNormalization(time.Duration) PromConvertOptions
+
+	// ResolutionThresholdForCounterNormalization returns resolution
+	// starting from which (inclusive) a normalization of counter values is performed.
+	ResolutionThresholdForCounterNormalization() time.Duration
+
+	// SetValueDecreaseTolerance sets relative tolerance against decoded time series value decrease.
+	SetValueDecreaseTolerance(value float64) PromConvertOptions
+
+	// ValueDecreaseTolerance returns relative tolerance against decoded time series value decrease.
+	ValueDecreaseTolerance() float64
+
+	// SetValueDecreaseToleranceUntil sets the timestamp (exclusive) until which the tolerance applies.
+	SetValueDecreaseToleranceUntil(value xtime.UnixNano) PromConvertOptions
+
+	// ValueDecreaseToleranceUntil the timestamp (exclusive) until which the tolerance applies.
+	ValueDecreaseToleranceUntil() xtime.UnixNano
 }

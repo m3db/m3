@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
-	genericstorage "github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -48,7 +48,7 @@ func noop() error {
 
 // Storage provides an interface for reading and writing to the TSDB.
 type Storage interface {
-	genericstorage.Storage
+	storage.Storage
 	Querier
 }
 
@@ -57,22 +57,22 @@ type Querier interface {
 	// FetchCompressedResult fetches timeseries data based on a query.
 	FetchCompressedResult(
 		ctx context.Context,
-		query *genericstorage.FetchQuery,
-		options *genericstorage.FetchOptions,
+		query *storage.FetchQuery,
+		options *storage.FetchOptions,
 	) (consolidators.SeriesFetchResult, Cleanup, error)
 
 	// SearchCompressed fetches matching tags based on a query.
 	SearchCompressed(
 		ctx context.Context,
-		query *genericstorage.FetchQuery,
-		options *genericstorage.FetchOptions,
+		query *storage.FetchQuery,
+		options *storage.FetchOptions,
 	) (consolidators.TagResult, Cleanup, error)
 
 	// CompleteTagsCompressed returns autocompleted tag results.
 	CompleteTagsCompressed(
 		ctx context.Context,
-		query *genericstorage.CompleteTagsQuery,
-		options *genericstorage.FetchOptions,
+		query *storage.CompleteTagsQuery,
+		options *storage.FetchOptions,
 	) (*consolidators.CompleteTagsResult, error)
 }
 
@@ -94,7 +94,7 @@ type DynamicClusterOptions interface {
 	// SetDynamicClusterNamespaceConfiguration sets the configuration for the dynamically fetching cluster namespaces.
 	SetDynamicClusterNamespaceConfiguration(value []DynamicClusterNamespaceConfiguration) DynamicClusterOptions
 
-	// SetDynamicClusterNamespaceConfiguration returns the configuration for the dynamically fetching cluster namespaces.
+	// DynamicClusterNamespaceConfiguration returns the configuration for the dynamically fetching cluster namespaces.
 	DynamicClusterNamespaceConfiguration() []DynamicClusterNamespaceConfiguration
 
 	// SetInstrumentOptions sets the instrument options.
@@ -151,11 +151,11 @@ type Options interface {
 	SetLookbackDuration(time.Duration) Options
 	// LookbackDuration returns the lookback duration.
 	LookbackDuration() time.Duration
-	// SetLookbackDuration sets the consolidation function for the converter.
+	// SetConsolidationFunc sets the consolidation function for the converter.
 	SetConsolidationFunc(consolidators.ConsolidationFunc) Options
-	// LookbackDuration returns the consolidation function.
+	// ConsolidationFunc returns the consolidation function.
 	ConsolidationFunc() consolidators.ConsolidationFunc
-	// SetLookbackDuration sets the tag options for the converter.
+	// SetTagOptions sets the tag options for the converter.
 	SetTagOptions(models.TagOptions) Options
 	// TagOptions returns the tag options.
 	TagOptions() models.TagOptions
@@ -163,10 +163,6 @@ type Options interface {
 	TagsTransform() TagsTransform
 	// SetTagsTransform sets the TagsTransform.
 	SetTagsTransform(value TagsTransform) Options
-	// SetIterAlloc sets the iterator allocator.
-	SetIterAlloc(encoding.ReaderIteratorAllocate) Options
-	// IterAlloc returns the reader iterator allocator.
-	IterAlloc() encoding.ReaderIteratorAllocate
 	// SetIteratorPools sets the iterator pools for the converter.
 	SetIteratorPools(encoding.IteratorPools) Options
 	// IteratorPools returns the iterator pools for the converter.
@@ -179,13 +175,13 @@ type Options interface {
 	SetReadWorkerPool(sync.PooledWorkerPool) Options
 	// ReadWorkerPool returns the read worker pool for the converter.
 	ReadWorkerPool() sync.PooledWorkerPool
-	// SetReadWorkerPool sets the write worker pool for the converter.
+	// SetWriteWorkerPool sets the write worker pool for the converter.
 	SetWriteWorkerPool(sync.PooledWorkerPool) Options
-	// ReadWorkerPool returns the write worker pool for the converter.
+	// WriteWorkerPool returns the write worker pool for the converter.
 	WriteWorkerPool() sync.PooledWorkerPool
 	// SetSeriesConsolidationMatchOptions sets series consolidation options.
 	SetSeriesConsolidationMatchOptions(value consolidators.MatchOptions) Options
-	// SetSeriesConsolidationMatchOptions sets series consolidation options.
+	// SeriesConsolidationMatchOptions sets series consolidation options.
 	SeriesConsolidationMatchOptions() consolidators.MatchOptions
 	// SetSeriesIteratorProcessor sets the series iterator processor.
 	SetSeriesIteratorProcessor(SeriesIteratorProcessor) Options
@@ -207,6 +203,12 @@ type Options interface {
 	SetInstrumented(bool) Options
 	// Instrumented returns if the encoding step should have instrumentation enabled.
 	Instrumented() bool
+	// SetPromConvertOptions sets options for converting raw series iterators
+	// to a Prometheus-compatible result.
+	SetPromConvertOptions(storage.PromConvertOptions) Options
+	// PromConvertOptions returns options for converting raw series iterators
+	// to a Prometheus-compatible result.
+	PromConvertOptions() storage.PromConvertOptions
 	// Validate ensures that the given block options are valid.
 	Validate() error
 }

@@ -28,9 +28,9 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -42,7 +42,6 @@ var (
 	defaultCount                = 10
 	defaultLookbackDuration     = time.Duration(0)
 	defaultConsolidationFn      = consolidators.TakeLast
-	defaultIterAlloc            = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
 	defaultIteratorBatchingFn   = iteratorBatchingFn
 	defaultBlockSeriesProcessor = NewBlockSeriesProcessor()
 	defaultInstrumented         = true
@@ -113,7 +112,7 @@ func (d *dynamicClusterOptions) ClusterNamespacesWatcher() ClusterNamespacesWatc
 
 // NewOptions creates a default encoded block options which dictates how
 // encoded blocks are generated.
-func NewOptions() Options {
+func NewOptions(encodingOpts encoding.Options) Options {
 	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{{
 		Capacity: defaultCapacity,
 		Count:    pool.Size(defaultCount),
@@ -122,7 +121,7 @@ func NewOptions() Options {
 	})
 	bytesPool.Init()
 
-	iteratorPools := pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{})
+	iteratorPools := pools.BuildIteratorPools(encodingOpts, pools.BuildIteratorPoolsOptions{})
 	return newOptions(bytesPool, iteratorPools)
 }
 
@@ -133,7 +132,6 @@ type encodedBlockOptions struct {
 	consolidationFn               consolidators.ConsolidationFunc
 	tagOptions                    models.TagOptions
 	tagsTransform                 TagsTransform
-	iterAlloc                     encoding.ReaderIteratorAllocate
 	pools                         encoding.IteratorPools
 	checkedPools                  pool.CheckedBytesPool
 	readWorkerPools               xsync.PooledWorkerPool
@@ -143,6 +141,7 @@ type encodedBlockOptions struct {
 	batchingFn                    IteratorBatchingFn
 	blockSeriesProcessor          BlockSeriesProcessor
 	adminOptions                  []client.CustomAdminOption
+	promConvertOptions            storage.PromConvertOptions
 	instrumented                  bool
 }
 
@@ -154,7 +153,6 @@ func newOptions(
 		lookbackDuration:     defaultLookbackDuration,
 		consolidationFn:      defaultConsolidationFn,
 		tagOptions:           models.NewTagOptions(),
-		iterAlloc:            defaultIterAlloc,
 		pools:                iteratorPools,
 		checkedPools:         bytesPool,
 		batchingFn:           defaultIteratorBatchingFn,
@@ -163,7 +161,8 @@ func newOptions(
 		queryConsolidatorMatchOptions: consolidators.MatchOptions{
 			MatchType: consolidators.MatchIDs,
 		},
-		tagsTransform: defaultTagsTransform,
+		tagsTransform:      defaultTagsTransform,
+		promConvertOptions: storage.NewPromConvertOptions(),
 	}
 }
 
@@ -215,16 +214,6 @@ func (o *encodedBlockOptions) SetTagsTransform(value TagsTransform) Options {
 
 func (o *encodedBlockOptions) TagsTransform() TagsTransform {
 	return o.tagsTransform
-}
-
-func (o *encodedBlockOptions) SetIterAlloc(ia encoding.ReaderIteratorAllocate) Options {
-	opts := *o
-	opts.iterAlloc = ia
-	return &opts
-}
-
-func (o *encodedBlockOptions) IterAlloc() encoding.ReaderIteratorAllocate {
-	return o.iterAlloc
 }
 
 func (o *encodedBlockOptions) SetIteratorPools(p encoding.IteratorPools) Options {
@@ -327,6 +316,16 @@ func (o *encodedBlockOptions) SetInstrumented(i bool) Options {
 
 func (o *encodedBlockOptions) Instrumented() bool {
 	return o.instrumented
+}
+
+func (o *encodedBlockOptions) SetPromConvertOptions(value storage.PromConvertOptions) Options {
+	opts := *o
+	opts.promConvertOptions = value
+	return &opts
+}
+
+func (o *encodedBlockOptions) PromConvertOptions() storage.PromConvertOptions {
+	return o.promConvertOptions
 }
 
 func (o *encodedBlockOptions) Validate() error {

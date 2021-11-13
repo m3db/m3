@@ -56,6 +56,7 @@ const (
 	defaultEntryCheckInterval         = time.Second
 	defaultJitterEnabled              = true
 	defaultDiscardNaNAggregatedValues = true
+	defaultEntryTTL                   = time.Hour
 )
 
 type testServerOptions interface {
@@ -226,6 +227,12 @@ type testServerOptions interface {
 
 	// BufferForPastTimedMetric is how long to wait for timed metrics to arrive.
 	BufferForPastTimedMetric() time.Duration
+
+	// SetEntryTTL sets the EntryTTL.
+	SetEntryTTL(value time.Duration) testServerOptions
+
+	// EntryTTL is how long to wait before expiring the aggregation when it's inactive.
+	EntryTTL() time.Duration
 }
 
 type serverOptions struct {
@@ -257,6 +264,7 @@ type serverOptions struct {
 	maxAllowedForwardingDelayFn   aggregator.MaxAllowedForwardingDelayFn
 	discardNaNAggregatedValues    bool
 	resendBufferForPastTimeMetric time.Duration
+	entryTTL                      time.Duration
 }
 
 func newTestServerOptions(t *testing.T) testServerOptions {
@@ -299,6 +307,7 @@ func newTestServerOptions(t *testing.T) testServerOptions {
 		maxJitterFn:                 defaultMaxJitterFn,
 		maxAllowedForwardingDelayFn: defaultMaxAllowedForwardingDelayFn,
 		discardNaNAggregatedValues:  defaultDiscardNaNAggregatedValues,
+		entryTTL:                    defaultEntryTTL,
 	}
 }
 
@@ -580,6 +589,16 @@ func (o *serverOptions) SetDiscardNaNAggregatedValues(value bool) testServerOpti
 
 func (o *serverOptions) DiscardNaNAggregatedValues() bool {
 	return o.discardNaNAggregatedValues
+}
+
+func (o *serverOptions) SetEntryTTL(value time.Duration) testServerOptions {
+	opts := *o
+	opts.entryTTL = value
+	return &opts
+}
+
+func (o *serverOptions) EntryTTL() time.Duration {
+	return o.entryTTL
 }
 
 func defaultMaxJitterFn(interval time.Duration) time.Duration {

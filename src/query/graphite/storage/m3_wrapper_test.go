@@ -26,6 +26,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/query/block"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
@@ -38,15 +43,11 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var (
 	// alloc once so default pools are created just once
-	testM3DBOpts = m3.NewOptions()
+	testM3DBOpts = m3.NewOptions(encoding.NewOptions())
 )
 
 func TestTranslateQuery(t *testing.T) {

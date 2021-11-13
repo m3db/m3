@@ -45,13 +45,13 @@ var (
 	errBothDynamicAndStaticBackendConfiguration = errors.New("both dynamic and static backend were configured")
 )
 
-// FlushHandlerConfiguration configures flush handlers.
-type FlushHandlerConfiguration struct {
-	Handlers []flushHandlerConfiguration `yaml:"handlers" validate:"nonzero"`
+// FlushConfiguration configures flush handlers.
+type FlushConfiguration struct {
+	Handlers []FlushHandlerConfiguration `yaml:"handlers" validate:"nonzero"`
 }
 
 // NewHandler creates a new flush handler based on the configuration.
-func (c FlushHandlerConfiguration) NewHandler(
+func (c FlushConfiguration) NewHandler(
 	cs client.Client,
 	instrumentOpts instrument.Options,
 	rwOpts xio.Options,
@@ -59,9 +59,7 @@ func (c FlushHandlerConfiguration) NewHandler(
 	if len(c.Handlers) == 0 {
 		return nil, errNoHandlerConfiguration
 	}
-	var (
-		handlers = make([]Handler, 0, len(c.Handlers))
-	)
+	handlers := make([]Handler, 0, len(c.Handlers))
 	for _, hc := range c.Handlers {
 		handler, err := hc.newHandler(cs, instrumentOpts, rwOpts)
 		if err != nil {
@@ -101,15 +99,16 @@ func (c writerConfiguration) NewWriterOptions(
 	return opts
 }
 
-type flushHandlerConfiguration struct {
+// FlushHandlerConfiguration contains configuration for individual flush handlers.
+type FlushHandlerConfiguration struct {
 	// StaticBackend configures the backend.
-	StaticBackend *staticBackendConfiguration `yaml:"staticBackend"`
+	StaticBackend *StaticBackendConfiguration `yaml:"staticBackend"`
 
 	// DynamicBackend configures the dynamic backend.
-	DynamicBackend *dynamicBackendConfiguration `yaml:"dynamicBackend"`
+	DynamicBackend *DynamicBackendConfiguration `yaml:"dynamicBackend"`
 }
 
-func (c flushHandlerConfiguration) newHandler(
+func (c FlushHandlerConfiguration) newHandler(
 	cs client.Client,
 	instrumentOpts instrument.Options,
 	rwOpts xio.Options,
@@ -134,7 +133,8 @@ func (c flushHandlerConfiguration) newHandler(
 	}
 }
 
-func (c flushHandlerConfiguration) Validate() error {
+// Validate validates the FlushHandlerConfiguration.
+func (c FlushHandlerConfiguration) Validate() error {
 	if c.StaticBackend == nil && c.DynamicBackend == nil {
 		return errNoDynamicOrStaticBackendConfiguration
 	}
@@ -144,7 +144,8 @@ func (c flushHandlerConfiguration) Validate() error {
 	return nil
 }
 
-type dynamicBackendConfiguration struct {
+// DynamicBackendConfiguration configures a dynamic backend as a flush handler.
+type DynamicBackendConfiguration struct {
 	// Name of the backend.
 	Name string `yaml:"name"`
 
@@ -164,7 +165,7 @@ type dynamicBackendConfiguration struct {
 	Writer writerConfiguration `yaml:"writer"`
 }
 
-func (c *dynamicBackendConfiguration) newProtobufHandler(
+func (c *DynamicBackendConfiguration) newProtobufHandler(
 	cs client.Client,
 	instrumentOpts instrument.Options,
 	rwOpts xio.Options,
@@ -217,7 +218,8 @@ func (c consumerServiceFilterConfiguration) NewConsumerServiceFilter() (services
 	return c.ServiceID.NewServiceID(), filter.NewShardSetFilter(c.ShardSet)
 }
 
-type staticBackendConfiguration struct {
+// StaticBackendConfiguration configures a static backend as a flush handler.
+type StaticBackendConfiguration struct {
 	// Static backend type.
 	Type Type `yaml:"type"`
 

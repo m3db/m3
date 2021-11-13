@@ -23,9 +23,7 @@ package aggregator
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
-	"regexp"
 	"strconv"
 	"sync"
 	"time"
@@ -41,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
-	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -101,20 +98,19 @@ type Aggregator interface {
 type aggregator struct {
 	sync.RWMutex
 
-	opts                               Options
-	nowFn                              clock.NowFn
-	shardFn                            sharding.ShardFn
-	checkInterval                      time.Duration
-	placementManager                   PlacementManager
-	flushTimesManager                  FlushTimesManager
-	flushTimesChecker                  flushTimesChecker
-	electionManager                    ElectionManager
-	flushManager                       FlushManager
-	flushHandler                       handler.Handler
-	passthroughWriter                  writer.Writer
-	adminClient                        client.AdminClient
-	resignTimeout                      time.Duration
-	timedForResendEnabledRollupRegexps []*regexp.Regexp
+	opts              Options
+	nowFn             clock.NowFn
+	shardFn           sharding.ShardFn
+	checkInterval     time.Duration
+	placementManager  PlacementManager
+	flushTimesManager FlushTimesManager
+	flushTimesChecker flushTimesChecker
+	electionManager   ElectionManager
+	flushManager      FlushManager
+	flushHandler      handler.Handler
+	passthroughWriter writer.Writer
+	adminClient       client.AdminClient
+	resignTimeout     time.Duration
 
 	shardSetID         uint32
 	shardSetOpen       bool
@@ -123,8 +119,6 @@ type aggregator struct {
 	currPlacement      placement.Placement
 	currNumShards      atomic.Int32
 	state              aggregatorState
-	doneCh             chan struct{}
-	wg                 sync.WaitGroup
 	sleepFn            sleepFn
 	shardsPendingClose atomic.Int32
 	metrics            aggregatorMetrics
@@ -138,41 +132,26 @@ func NewAggregator(opts Options) Aggregator {
 	timerOpts := iOpts.TimerOptions()
 	logger := iOpts.Logger()
 
-	return &aggregator{
-		opts:                               opts,
-		nowFn:                              opts.ClockOptions().NowFn(),
-		shardFn:                            opts.ShardFn(),
-		checkInterval:                      opts.EntryCheckInterval(),
-		placementManager:                   opts.PlacementManager(),
-		flushTimesManager:                  opts.FlushTimesManager(),
-		flushTimesChecker:                  newFlushTimesChecker(scope.SubScope("tick.shard-check")),
-		electionManager:                    opts.ElectionManager(),
-		flushManager:                       opts.FlushManager(),
-		flushHandler:                       opts.FlushHandler(),
-		passthroughWriter:                  opts.PassthroughWriter(),
-		adminClient:                        opts.AdminClient(),
-		resignTimeout:                      opts.ResignTimeout(),
-		timedForResendEnabledRollupRegexps: compileRegexps(logger, opts.TimedForResendEnabledRollupRegexps()),
-		doneCh:                             make(chan struct{}),
-		sleepFn:                            time.Sleep,
-		metrics:                            newAggregatorMetrics(scope, timerOpts, opts.MaxAllowedForwardingDelayFn()),
-		logger:                             logger,
+	agg := &aggregator{
+		opts:              opts,
+		nowFn:             opts.ClockOptions().NowFn(),
+		shardFn:           opts.ShardFn(),
+		checkInterval:     opts.EntryCheckInterval(),
+		placementManager:  opts.PlacementManager(),
+		flushTimesManager: opts.FlushTimesManager(),
+		flushTimesChecker: newFlushTimesChecker(scope.SubScope("tick.shard-check")),
+		electionManager:   opts.ElectionManager(),
+		flushManager:      opts.FlushManager(),
+		flushHandler:      opts.FlushHandler(),
+		passthroughWriter: opts.PassthroughWriter(),
+		adminClient:       opts.AdminClient(),
+		resignTimeout:     opts.ResignTimeout(),
+		sleepFn:           time.Sleep,
+		metrics:           newAggregatorMetrics(scope, timerOpts, opts.MaxAllowedForwardingDelayFn()),
+		logger:            logger,
 	}
-}
 
-func compileRegexps(logger *zap.Logger, regexps []string) []*regexp.Regexp {
-	timedForResendEnabledRollupRegexps := make([]*regexp.Regexp, 0, len(regexps))
-	for _, r := range regexps {
-		compiled, err := regexp.Compile(r)
-		if err != nil {
-			logger.Error("failed to compile timed for resend enabled rollup regex",
-				zap.Error(err),
-				zap.String("regexp", r))
-			continue
-		}
-		timedForResendEnabledRollupRegexps = append(timedForResendEnabledRollupRegexps, compiled)
-	}
-	return timedForResendEnabledRollupRegexps
+	return agg
 }
 
 func (agg *aggregator) Open() error {
@@ -193,19 +172,23 @@ func (agg *aggregator) Open() error {
 		return err
 	}
 	if agg.checkInterval > 0 {
-		agg.wg.Add(1)
+		// NB: tick updates some metrics on how many series the aggregator currently
+		// has of each type, and expires old metrics from the local metric lists.
 		go agg.tick()
 	}
 
-	agg.wg.Add(1)
+	// NB: placement tick watches the placement manager, and initializes a
+	// topology change if the placement is updated. This changes which shards this
+	// aggregator is responsible for, and initiates leader elections. In the
+	// scenario where a placement change is received when this aggregator is
+	// closed, it's fine to ignore the result of the placement update, as applying
+	// the change only affects the current aggregator that is being closed anyway.
 	go agg.placementTick()
 	agg.state = aggregatorOpen
 	return nil
 }
 
 func (agg *aggregator) placementTick() {
-	defer agg.wg.Done()
-
 	ticker := time.NewTicker(placementCheckInterval)
 	defer ticker.Stop()
 
@@ -215,8 +198,6 @@ func (agg *aggregator) placementTick() {
 		select {
 		case <-ticker.C:
 		case <-agg.placementManager.C():
-		case <-agg.doneCh:
-			return
 		}
 
 		placement, err := agg.placementManager.Placement()
@@ -240,26 +221,6 @@ func (agg *aggregator) placementTick() {
 	}
 }
 
-func (agg *aggregator) partitionResendEnabled(pipelines metadata.PipelineMetadatas) (
-	metadata.PipelineMetadatas,
-	metadata.PipelineMetadatas,
-) {
-	if len(pipelines) == 0 {
-		return nil, nil
-	}
-	s := 0
-	e := len(pipelines) - 1
-	for s <= e {
-		if agg.timedForResendEnabledOnPipeline(pipelines[s]) {
-			s++
-		} else {
-			pipelines[s], pipelines[e] = pipelines[e], pipelines[s]
-			e--
-		}
-	}
-	return pipelines[0:s], pipelines[s:]
-}
-
 func (agg *aggregator) AddUntimed(
 	union unaggregated.MetricUnion,
 	metadatas metadata.StagedMetadatas,
@@ -276,35 +237,10 @@ func (agg *aggregator) AddUntimed(
 		return err
 	}
 
-	prevPipelines := metadatas[0].Pipelines
-	timedPipelines, untimedPipelines := agg.partitionResendEnabled(metadatas[0].Pipelines)
-	if len(timedPipelines) > 0 {
-		metadatas[0].Pipelines = timedPipelines
-		if union.Type != metric.GaugeType {
-			return fmt.Errorf("cannot convert a %s to a timed metric", union.Type)
-		}
-		timedMetric := aggregated.Metric{
-			Type:       metric.GaugeType,
-			ID:         union.ID,
-			TimeNanos:  int64(union.ClientTimeNanos),
-			Value:      union.GaugeVal,
-			Annotation: union.Annotation,
-		}
-		agg.metrics.untimedToTimed.Inc(1)
-		if err = shard.AddTimedWithStagedMetadatas(timedMetric, metadatas); err != nil {
-			agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
-			return err
-		}
+	if err = shard.AddUntimed(union, metadatas); err != nil {
+		agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
+		return err
 	}
-	if len(untimedPipelines) > 0 {
-		metadatas[0].Pipelines = untimedPipelines
-		if err = shard.AddUntimed(union, metadatas); err != nil {
-			agg.metrics.addUntimed.ReportError(err, agg.electionManager.ElectionState())
-			return err
-		}
-	}
-	// reset initial pipelines so the slice can be reused on the next request (i.e restore cap).
-	metadatas[0].Pipelines = prevPipelines
 
 	agg.metrics.addUntimed.ReportSuccess()
 	sw.Stop()
@@ -358,38 +294,8 @@ func (agg *aggregator) updateStagedMetadatas(sms metadata.StagedMetadatas) {
 			if agg.opts.AddToReset() {
 				sms[s].Pipelines[p].Pipeline = sms[s].Pipelines[p].Pipeline.WithResets()
 			}
-			if !agg.timedForResendEnabledOnPipeline(sms[s].Pipelines[p]) {
-				// disable resending for the pipeline if the feature flag is off.
-				sms[s].Pipelines[p].ResendEnabled = false
-			}
 		}
 	}
-}
-
-func (agg *aggregator) timedForResendEnabledOnPipeline(p metadata.PipelineMetadata) bool {
-	if !p.ResendEnabled {
-		return false
-	}
-	if len(agg.timedForResendEnabledRollupRegexps) == 0 {
-		return false
-	}
-	for _, op := range p.Pipeline.Operations {
-		// Scan for a single rollup rule to check if the name matches.
-		// For resending it is expected that there only is at most one present in the pipeline.
-		if op.Type != pipeline.RollupOpType {
-			continue
-		}
-
-		for _, r := range agg.timedForResendEnabledRollupRegexps {
-			if r.Match(op.Rollup.ID) {
-				return true
-			}
-		}
-
-		// Should only have one rollup op in a pipeline so can break after we found one.
-		break
-	}
-	return false
 }
 
 func (agg *aggregator) AddForwarded(
@@ -480,26 +386,12 @@ func (agg *aggregator) Close() error {
 	}
 	agg.state = aggregatorClosed
 
-	close(agg.doneCh)
-
-	// Waiting for the ticking goroutines to return.
-	// Doing this outside of agg.Lock to avoid potential deadlocks.
-	agg.Unlock()
-	agg.wg.Wait()
-	agg.Lock()
-
-	for _, shardID := range agg.shardIDs {
-		agg.shards[shardID].Close()
-	}
-	if agg.shardSetOpen {
-		agg.closeShardSetWithLock()
-	}
-	agg.flushHandler.Close()
-	agg.passthroughWriter.Close()
-	if agg.adminClient != nil {
-		agg.adminClient.Close()
-	}
-	return nil
+	// NB: closing the flush manager is the only really necessary step for
+	// gracefully closing an aggregator leader, as this will ensure that any
+	// currently running flush completes, and updates the shared shard flush
+	// times map in etcd, allowing the follower that will be promoted to leader
+	// to avoid re-computing and re-flushing this data.
+	return agg.flushManager.Close()
 }
 
 func (agg *aggregator) shardFor(id id.RawID) (*aggregatorShard, error) {
@@ -537,7 +429,8 @@ func (agg *aggregator) shardFor(id id.RawID) (*aggregatorShard, error) {
 func (agg *aggregator) processPlacementWithLock(
 	newPlacement placement.Placement,
 ) error {
-	// If someone has already processed the placement ahead of us, do nothing.
+	// If someone has already processed the placement ahead of us, or if the
+	// aggregator was closed before the placement update started, do nothing.
 	if !agg.shouldProcessPlacementWithLock(newPlacement) {
 		return nil
 	}
@@ -584,6 +477,10 @@ func (agg *aggregator) processPlacementWithLock(
 func (agg *aggregator) shouldProcessPlacementWithLock(
 	newPlacement placement.Placement,
 ) bool {
+	if agg.state == aggregatorClosed {
+		return false
+	}
+
 	// If there is no placement yet, or the placement has been updated,
 	// process this placement.
 	if agg.currPlacement == nil || agg.currPlacement != newPlacement {
@@ -808,15 +705,8 @@ func (agg *aggregator) closeShardsAsync(shards []*aggregatorShard) {
 }
 
 func (agg *aggregator) tick() {
-	defer agg.wg.Done()
-
 	for {
-		select {
-		case <-agg.doneCh:
-			return
-		default:
-			agg.tickInternal()
-		}
+		agg.tickInternal()
 	}
 }
 

@@ -77,14 +77,29 @@ func resolveUnaggregatedNamespaceForQuery(
 // resolveClusterNamespacesForQuery returns the namespaces that need to be
 // fanned out to depending on the query time and the namespaces configured.
 func resolveClusterNamespacesForQuery(
-	now, start, end xtime.UnixNano,
+	now,
+	start,
+	end xtime.UnixNano,
 	clusters Clusters,
 	opts *storage.FanoutOptions,
 	restrict *storage.RestrictQueryOptions,
+	relatedQueryOpts *storage.RelatedQueryOptions,
 ) (consolidators.QueryFanoutType, ClusterNamespaces, error) {
+	// Calculate a new start time if related query opts are present.
+	// NB: We do not calculate a new end time because it does not factor
+	// into namespace selection.
+	namespaceSelectionStart := start
+	if relatedQueryOpts != nil {
+		for _, timeRange := range relatedQueryOpts.Timespans {
+			if timeRange.Start < namespaceSelectionStart {
+				namespaceSelectionStart = timeRange.Start
+			}
+		}
+	}
+
 	// 1. First resolve the logical plan.
 	fanout, namespaces, err := resolveClusterNamespacesForQueryLogicalPlan(now,
-		start, end, clusters, opts, restrict)
+		namespaceSelectionStart, end, clusters, opts, restrict)
 	if err != nil {
 		return fanout, namespaces, err
 	}

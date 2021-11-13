@@ -341,6 +341,7 @@ func (m *metricMap) tick(target time.Duration) tickResult {
 		numTimedExpired      int
 		entryIdx             int
 	)
+
 	m.forEachEntry(func(entry hashedEntry) {
 		now := m.nowFn()
 		if entryIdx > 0 && entryIdx%defaultSoftDeadlineCheckEvery == 0 {

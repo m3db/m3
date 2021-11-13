@@ -74,7 +74,7 @@ func (c *Counter) Update(timestamp time.Time, value int64, annotation []byte) {
 		c.sumSq += value * value
 	}
 
-	c.annotation = maybeReplaceAnnotation(c.annotation, annotation)
+	c.annotation = MaybeReplaceAnnotation(c.annotation, annotation)
 }
 
 // LastAt returns the time of the last value received.
