@@ -230,17 +230,10 @@ func (c *CoordinatorClient) WaitForNamespace(name string) error {
 		}
 
 		nss := ns.GetRegistry().GetNamespaces()
-		namespace, found := nss[name]
+		_, found := nss[name]
 		if !found {
 			err := fmt.Errorf("no namespace with name %s", name)
 			logger.Error("could not get namespace", zap.Error(err))
-			return err
-		}
-
-		enabled := namespace.GetIndexOptions().GetEnabled()
-		if !enabled {
-			err := fmt.Errorf("namespace %s not enabled", name)
-			logger.Error("namespace not enabled", zap.Error(err))
 			return err
 		}
 
