@@ -65,8 +65,8 @@ type ClusterConfigs struct {
 type ClusterSpecification struct {
 	// Configs contains the per-instance configuration for all components in the cluster.
 	Configs PerInstanceConfigs
-	// ComponentOptions contains the per-insatance options for setting up the cluster.
-	ComponentOptions PerInstanceOptions
+	// Options contains the per-insatance options for setting up the cluster.
+	Options PerInstanceOptions
 }
 
 // PerInstanceConfigs contain the per-instance configuration for all components.
@@ -190,7 +190,7 @@ func NewClusterFromSpecification(
 
 	for i := 0; i < len(specs.Configs.DBNodes); i++ {
 		var node resources.Node
-		node, err = NewDBNode(specs.Configs.DBNodes[i], specs.ComponentOptions.DBNode[i])
+		node, err = NewDBNode(specs.Configs.DBNodes[i], specs.Options.DBNode[i])
 		if err != nil {
 			return nil, err
 		}
@@ -264,7 +264,7 @@ func GenerateClusterSpecification(
 			Coordinator: coordConfig,
 			Aggregators: aggCfgs,
 		},
-		ComponentOptions: PerInstanceOptions{
+		Options: PerInstanceOptions{
 			DBNode: nodeOpts,
 		},
 	}, nil
