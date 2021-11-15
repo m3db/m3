@@ -74,8 +74,6 @@ type ProcessNamespace struct {
 	DataAccumulator NamespaceDataAccumulator
 	// Hooks is a set of namespace bootstrap hooks.
 	Hooks NamespaceHooks
-	// ReadOnly returns true if namespace is read-only.
-	ReadOnly bool
 }
 
 // NamespaceHooks is a set of namespace bootstrap hooks.

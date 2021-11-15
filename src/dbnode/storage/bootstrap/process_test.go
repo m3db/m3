@@ -139,9 +139,10 @@ func TestBootstrapProcessRunActiveBlockAdvanced(t *testing.T) {
 
 func TestTargetRangesFileSetTypeForReadOnlyNamespace(t *testing.T) {
 	sut := bootstrapProcess{processOpts: NewProcessOptions()}
+	nsOpts := namespace.NewOptions().SetSnapshotEnabled(false)
 
-	rangesForData := sut.targetRangesForData(xtime.Now(), retention.NewOptions(), true)
-	rangesForIndex := sut.targetRangesForIndex(xtime.Now(), retention.NewOptions(), namespace.NewIndexOptions(), true)
+	rangesForData := sut.targetRangesForData(xtime.Now(), nsOpts)
+	rangesForIndex := sut.targetRangesForIndex(xtime.Now(), nsOpts)
 
 	requireFilesetTypes(t, rangesForData, persist.FileSetFlushType)
 	requireFilesetTypes(t, rangesForIndex, persist.FileSetFlushType)
@@ -149,9 +150,10 @@ func TestTargetRangesFileSetTypeForReadOnlyNamespace(t *testing.T) {
 
 func TestTargetRangesFileSetTypeForNonReadOnlyNamespace(t *testing.T) {
 	sut := bootstrapProcess{processOpts: NewProcessOptions()}
+	nsOpts := namespace.NewOptions().SetSnapshotEnabled(true)
 
-	rangesForData := sut.targetRangesForData(xtime.Now(), retention.NewOptions(), false)
-	rangesForIndex := sut.targetRangesForIndex(xtime.Now(), retention.NewOptions(), namespace.NewIndexOptions(), false)
+	rangesForData := sut.targetRangesForData(xtime.Now(), nsOpts)
+	rangesForIndex := sut.targetRangesForIndex(xtime.Now(), nsOpts)
 
 	requireFilesetTypes(t, rangesForData, persist.FileSetSnapshotType)
 	requireFilesetTypes(t, rangesForIndex, persist.FileSetSnapshotType)

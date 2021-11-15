@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
@@ -189,10 +188,9 @@ func (b bootstrapProcess) Run(
 	namespaceDetails := make([]NamespaceDetails, 0, len(namespaces))
 	for _, namespace := range namespaces {
 		var (
-			ropts       = namespace.Metadata.Options().RetentionOptions()
-			idxopts     = namespace.Metadata.Options().IndexOptions()
-			dataRanges  = b.targetRangesForData(at, ropts, namespace.ReadOnly)
-			indexRanges = b.targetRangesForIndex(at, ropts, idxopts, namespace.ReadOnly)
+			nsOpts      = namespace.Metadata.Options()
+			dataRanges  = b.targetRangesForData(at, nsOpts)
+			indexRanges = b.targetRangesForIndex(at, nsOpts)
 			firstRanges = b.newShardTimeRanges(
 				dataRanges.firstRangeWithPersistTrue.Range,
 				namespace.Shards,
@@ -204,7 +202,6 @@ func (b bootstrapProcess) Run(
 			Shards:           namespace.Shards,
 			DataAccumulator:  namespace.DataAccumulator,
 			Hooks:            namespace.Hooks,
-			ReadOnly:         namespace.ReadOnly,
 			DataTargetRange:  dataRanges.firstRangeWithPersistTrue,
 			IndexTargetRange: indexRanges.firstRangeWithPersistTrue,
 			DataRunOptions: NamespaceRunOptions{
@@ -225,7 +222,6 @@ func (b bootstrapProcess) Run(
 			Shards:           namespace.Shards,
 			DataAccumulator:  namespace.DataAccumulator,
 			Hooks:            namespace.Hooks,
-			ReadOnly:         namespace.ReadOnly,
 			DataTargetRange:  dataRanges.secondRange,
 			IndexTargetRange: indexRanges.secondRange,
 			DataRunOptions: NamespaceRunOptions{
@@ -252,12 +248,12 @@ func (b bootstrapProcess) Run(
 		return NamespaceResults{}, err
 	}
 
-	bootstrapResult := NewNamespaceResults(namespacesRunFirst)
-	for runIndex, namespaces := range []Namespaces{
-		namespacesRunFirst,
-		namespacesRunSecond,
-	} {
-
+	var (
+		bootstrapResult = NewNamespaceResults(namespacesRunFirst)
+		namespacesToRun = []Namespaces{namespacesRunFirst, namespacesRunSecond}
+		lastRunIndex    = len(namespacesToRun) - 1
+	)
+	for runIndex, namespaces := range namespacesToRun {
 		for _, entry := range namespaces.Namespaces.Iter() {
 			ns := entry.Value()
 
@@ -271,20 +267,19 @@ func (b bootstrapProcess) Run(
 				continue
 			}
 
-			// If second run, check if snapshot-type ranges have advanced while bootstrapping previous ranges.
-			// If yes, return an error to force a retry
-			if runIndex == 1 {
+			// If last run, check if ranges have advanced while bootstrapping previous ranges.
+			// If yes, return an error to force a retry.
+			if runIndex == lastRunIndex {
 				var (
 					now                = xtime.ToUnixNano(b.nowFn())
 					nsOptions          = ns.Metadata.Options()
-					upToDateDataRanges = b.targetRangesForData(now, nsOptions.RetentionOptions(), ns.ReadOnly)
+					upToDateDataRanges = b.targetRangesForData(now, nsOptions)
 				)
 				// Only checking data ranges. Since index blocks can only be a multiple of
 				// data block size, the ranges for index could advance only if data ranges
 				// have advanced, too (while opposite is not necessarily true)
 				if !upToDateDataRanges.secondRange.Range.Equal(ns.DataTargetRange.Range) {
-					upToDateIndexRanges := b.targetRangesForIndex(now, nsOptions.RetentionOptions(),
-						nsOptions.IndexOptions(), ns.ReadOnly)
+					upToDateIndexRanges := b.targetRangesForIndex(now, nsOptions)
 					fields := b.logFields(ns.Metadata, ns.Shards,
 						upToDateDataRanges.secondRange.Range,
 						upToDateIndexRanges.secondRange.Range)
@@ -448,32 +443,31 @@ func (b bootstrapProcess) logBootstrapResult(
 
 func (b bootstrapProcess) targetRangesForData(
 	at xtime.UnixNano,
-	ropts retention.Options,
-	readOnly bool,
+	nsOpts namespace.Options,
 ) targetRangesResult {
+	ropts := nsOpts.RetentionOptions()
 	return b.targetRanges(at, targetRangesOptions{
 		retentionPeriod:       ropts.RetentionPeriod(),
 		futureRetentionPeriod: ropts.FutureRetentionPeriod(),
 		blockSize:             ropts.BlockSize(),
 		bufferPast:            ropts.BufferPast(),
 		bufferFuture:          ropts.BufferFuture(),
-		readOnly:              readOnly,
+		snapshotEnabled:       nsOpts.SnapshotEnabled(),
 	})
 }
 
 func (b bootstrapProcess) targetRangesForIndex(
 	at xtime.UnixNano,
-	ropts retention.Options,
-	idxopts namespace.IndexOptions,
-	readOnly bool,
+	nsOpts namespace.Options,
 ) targetRangesResult {
+	ropts := nsOpts.RetentionOptions()
 	return b.targetRanges(at, targetRangesOptions{
 		retentionPeriod:       ropts.RetentionPeriod(),
 		futureRetentionPeriod: ropts.FutureRetentionPeriod(),
-		blockSize:             idxopts.BlockSize(),
+		blockSize:             nsOpts.IndexOptions().BlockSize(),
 		bufferPast:            ropts.BufferPast(),
 		bufferFuture:          ropts.BufferFuture(),
-		readOnly:              readOnly,
+		snapshotEnabled:       nsOpts.SnapshotEnabled(),
 	})
 }
 
@@ -483,7 +477,7 @@ type targetRangesOptions struct {
 	blockSize             time.Duration
 	bufferPast            time.Duration
 	bufferFuture          time.Duration
-	readOnly              bool
+	snapshotEnabled       bool
 }
 
 type targetRangesResult struct {
@@ -509,8 +503,8 @@ func (b bootstrapProcess) targetRanges(
 		Add(opts.blockSize)
 
 	secondRangeFilesetType := persist.FileSetSnapshotType
-	if opts.readOnly {
-		// NB: If namespace is read-only, we don't want to keep blocks in memory.
+	if !opts.snapshotEnabled {
+		// NB: If snapshots are disabled for a namespace, we want to use flush type.
 		secondRangeFilesetType = persist.FileSetFlushType
 	}
 

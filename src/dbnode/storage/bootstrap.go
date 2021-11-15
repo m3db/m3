@@ -331,7 +331,6 @@ func (m *bootstrapManager) bootstrap() error {
 			Shards:          bootstrapShards,
 			Hooks:           hooks,
 			DataAccumulator: accumulator,
-			ReadOnly:        ns.namespace.ReadOnly(),
 		})
 	}
 
