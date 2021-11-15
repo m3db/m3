@@ -29,7 +29,7 @@ import (
 
 const (
 	retryMaxInterval = 5 * time.Second
-	retryMaxTime     = 3 * time.Minute
+	retryMaxTime     = 1 * time.Minute
 )
 
 // Retry is a function for retrying an operation in integration tests.

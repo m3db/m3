@@ -60,8 +60,11 @@ type Coordinator interface {
 	ApplyKVUpdate(update string) error
 	// WriteCarbon writes a carbon metric datapoint at a given time.
 	WriteCarbon(port int, metric string, v float64, t time.Time) error
-	// WriteProm writes a prometheus metric.
-	WriteProm(name string, tags map[string]string, samples []prompb.Sample) error
+	// WriteProm writes a prometheus metric. Takes tags/labels as a map for convenience.
+	WriteProm(name string, tags map[string]string, samples []prompb.Sample, headers Headers) error
+	// WritePromWithLabels writes a prometheus metric. Allows you to provide the labels for
+	// the write directly instead of conveniently converting them from a map.
+	WritePromWithLabels(name string, labels []prompb.Label, samples []prompb.Sample, headers Headers) error
 	// RunQuery runs the given query with a given verification function.
 	RunQuery(verifier ResponseVerifier, query string, headers Headers) error
 	// InstantQuery runs an instant query with provided headers

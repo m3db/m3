@@ -288,7 +288,7 @@ func testAggMetrics(t *testing.T, coord resources.Coordinator) {
 		expectedValue = model.SampleValue(6)
 	)
 	assert.NoError(t, resources.Retry(func() error {
-		return coord.WriteProm("cpu", map[string]string{"host": "host1"}, samples)
+		return coord.WriteProm("cpu", map[string]string{"host": "host1"}, samples, nil)
 	}))
 
 	queryHeaders := resources.Headers{"M3-Metrics-Type": {"aggregated"}, "M3-Storage-Policy": {"10s:6h"}}
@@ -315,7 +315,7 @@ func testAggMetrics(t *testing.T, coord resources.Coordinator) {
 				Query: "cpu",
 				Start: time.Now().Add(-30 * time.Second),
 				End:   time.Now(),
-				Step:      1 * time.Second,
+				Step:  1 * time.Second,
 			},
 			queryHeaders,
 		)
