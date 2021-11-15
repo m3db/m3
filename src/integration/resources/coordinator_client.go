@@ -43,7 +43,9 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/placementhandler"
 	"github.com/m3db/m3/src/query/api/v1/handler/graphite"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -758,7 +760,30 @@ func (c *CoordinatorClient) query(
 
 // InstantQuery runs an instant query with provided headers
 func (c *CoordinatorClient) InstantQuery(req QueryRequest, headers Headers) (model.Vector, error) {
-	queryStr := fmt.Sprintf("%s?query=%s", route.QueryURL, req.Query)
+	return c.instantQuery(req, route.QueryURL, headers)
+}
+
+// InstantQueryWithEngine runs an instant query with provided headers and the specified
+// query engine.
+func (c *CoordinatorClient) InstantQueryWithEngine(
+	req QueryRequest,
+	engine options.QueryEngine,
+	headers Headers,
+) (model.Vector, error) {
+	if engine == options.M3QueryEngine {
+		return c.instantQuery(req, native.M3QueryReadInstantURL, headers)
+	} else if engine == options.PrometheusEngine {
+		return c.instantQuery(req, native.PrometheusReadInstantURL, headers)
+	}
+	return nil, fmt.Errorf("unknown query engine: %s", engine)
+}
+
+func (c *CoordinatorClient) instantQuery(
+	req QueryRequest,
+	queryRoute string,
+	headers Headers,
+) (model.Vector, error) {
+	queryStr := fmt.Sprintf("%s?query=%s", queryRoute, req.Query)
 	if req.Time != nil {
 		queryStr = fmt.Sprintf("%s&time=%d", queryStr, req.Time.Unix())
 	}
@@ -787,13 +812,39 @@ type vectorResult struct {
 }
 
 // RangeQuery runs a range query with provided headers
-func (c *CoordinatorClient) RangeQuery(req RangeQueryRequest, headers Headers) (model.Matrix, error) {
+func (c *CoordinatorClient) RangeQuery(
+	req RangeQueryRequest,
+	headers Headers,
+) (model.Matrix, error) {
+	return c.rangeQuery(req, route.QueryRangeURL, headers)
+}
+
+// RangeQueryWithEngine runs a range query with provided headers and the specified
+// query engine.
+func (c *CoordinatorClient) RangeQueryWithEngine(
+	req RangeQueryRequest,
+	engine options.QueryEngine,
+	headers Headers,
+) (model.Matrix, error) {
+	if engine == options.M3QueryEngine {
+		return c.rangeQuery(req, native.M3QueryReadURL, headers)
+	} else if engine == options.PrometheusEngine {
+		return c.rangeQuery(req, native.PrometheusReadURL, headers)
+	}
+	return nil, fmt.Errorf("unknown query engine: %s", engine)
+}
+
+func (c *CoordinatorClient) rangeQuery(
+	req RangeQueryRequest,
+	queryRoute string,
+	headers Headers,
+) (model.Matrix, error) {
 	if req.Step == 0 {
 		req.Step = 15 * time.Second // default step is 15 seconds.
 	}
 	queryStr := fmt.Sprintf(
 		"%s?query=%s&start=%d&end=%d&step=%f",
-		route.QueryRangeURL, req.Query,
+		queryRoute, req.Query,
 		req.Start.Unix(),
 		req.End.Unix(),
 		req.Step.Seconds(),

@@ -33,6 +33,7 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/x/errors"
@@ -69,10 +70,16 @@ type Coordinator interface {
 	RunQuery(verifier ResponseVerifier, query string, headers Headers) error
 	// InstantQuery runs an instant query with provided headers
 	InstantQuery(req QueryRequest, headers Headers) (model.Vector, error)
+	// InstantQueryWithEngine runs an instant query with provided headers and the specified
+	// query engine.
+	InstantQueryWithEngine(req QueryRequest, engine options.QueryEngine, headers Headers) (model.Vector, error)
 	// RangeQuery runs a range query with provided headers
 	RangeQuery(req RangeQueryRequest, headers Headers) (model.Matrix, error)
 	// GraphiteQuery retrieves graphite raw data.
 	GraphiteQuery(GraphiteQueryRequest) ([]Datapoint, error)
+	// RangeQueryWithEngine runs a range query with provided headers and the specified
+	// query engine.
+	RangeQueryWithEngine(req RangeQueryRequest, engine options.QueryEngine, headers Headers) (model.Matrix, error)
 	// LabelNames return matching label names based on the request.
 	LabelNames(req LabelNamesRequest, headers Headers) (model.LabelNames, error)
 	// LabelValues returns matching label values based on the request.
