@@ -221,8 +221,6 @@ type Namespace struct {
 	// IndexRunOptions are the options for the index bootstrap for this
 	// namespace.
 	IndexRunOptions NamespaceRunOptions
-	// ReadOnly returns true if namespace is read-only.
-	ReadOnly bool
 }
 
 // NamespaceRunOptions are the run options for a bootstrap process run.
