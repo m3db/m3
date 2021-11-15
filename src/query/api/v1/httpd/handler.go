@@ -47,6 +47,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
 	"github.com/m3db/m3/src/query/api/v1/middleware"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	xdebug "github.com/m3db/m3/src/x/debug"
@@ -323,7 +324,7 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Series match endpoints.
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:               remote.PromSeriesMatchURL,
+		Path:               route.SeriesMatchURL,
 		Handler:            remote.NewPromSeriesMatchHandler(h.options),
 		Methods:            remote.PromSeriesMatchHTTPMethods,
 		MiddlewareOverride: native.WithQueryParams,
