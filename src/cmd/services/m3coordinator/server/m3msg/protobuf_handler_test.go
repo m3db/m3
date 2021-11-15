@@ -67,7 +67,7 @@ func TestM3MsgServerWithProtobufHandler(t *testing.T) {
 
 	s := server.NewServer(
 		"a",
-		consumer.NewMessageHandler(newProtobufProcessor(hOpts), opts),
+		consumer.NewMessageHandler(consumer.SingletonMessageProcessor(newProtobufProcessor(hOpts)), opts),
 		server.NewOptions(),
 	)
 	s.Serve(l)
@@ -150,7 +150,7 @@ func TestM3MsgServerWithProtobufHandler_Blackhole(t *testing.T) {
 
 	s := server.NewServer(
 		"a",
-		consumer.NewMessageHandler(newProtobufProcessor(hOpts), opts),
+		consumer.NewMessageHandler(consumer.SingletonMessageProcessor(newProtobufProcessor(hOpts)), opts),
 		server.NewOptions(),
 	)
 	s.Serve(l)

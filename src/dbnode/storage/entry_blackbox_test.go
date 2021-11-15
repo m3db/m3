@@ -171,7 +171,19 @@ func TestEntryIndexedRange(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	entry := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
+	opts := DefaultTestOptions()
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	shard := testDatabaseShard(t, opts)
+	defer func() {
+		require.NoError(t, shard.Close())
+	}()
+
+	entry := NewEntry(NewEntryOptions{
+		Shard:  shard,
+		Series: newMockSeries(ctrl),
+	})
 
 	assertRange := func(expectedMin, expectedMax xtime.UnixNano) {
 		min, max := entry.IndexedRange()
@@ -195,4 +207,43 @@ func TestEntryIndexedRange(t *testing.T) {
 
 	entry.OnIndexSuccess(3)
 	assertRange(1, 5)
+}
+
+func TestReconciledOnIndexSeries(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := DefaultTestOptions()
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	shard := testDatabaseShard(t, opts)
+	defer func() {
+		require.NoError(t, shard.Close())
+	}()
+
+	// Create entry with index 0 that's not inserted
+	series := newMockSeries(ctrl)
+	entry := NewEntry(NewEntryOptions{
+		Index:  0,
+		Shard:  shard,
+		Series: series,
+	})
+
+	// Create entry with index 1 that gets inserted into the lookup map
+	_ = addMockSeries(ctrl, shard, series.ID(), ident.Tags{}, 1)
+
+	// Validate we perform the reconciliation.
+	e, closer, reconciled := entry.ReconciledOnIndexSeries()
+	require.True(t, reconciled)
+	require.Equal(t, uint64(1), e.(*Entry).Index)
+	closer.Close()
+
+	// Set the entry's insert time emulating being inserted into the shard.
+	// Ensure no reconciliation.
+	entry.SetInsertTime(time.Now())
+	e, closer, reconciled = entry.ReconciledOnIndexSeries()
+	require.False(t, reconciled)
+	require.Equal(t, uint64(0), e.(*Entry).Index)
+	closer.Close()
 }

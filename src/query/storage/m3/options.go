@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -140,6 +141,7 @@ type encodedBlockOptions struct {
 	batchingFn                    IteratorBatchingFn
 	blockSeriesProcessor          BlockSeriesProcessor
 	adminOptions                  []client.CustomAdminOption
+	promConvertOptions            storage.PromConvertOptions
 	instrumented                  bool
 }
 
@@ -159,7 +161,8 @@ func newOptions(
 		queryConsolidatorMatchOptions: consolidators.MatchOptions{
 			MatchType: consolidators.MatchIDs,
 		},
-		tagsTransform: defaultTagsTransform,
+		tagsTransform:      defaultTagsTransform,
+		promConvertOptions: storage.NewPromConvertOptions(),
 	}
 }
 
@@ -313,6 +316,16 @@ func (o *encodedBlockOptions) SetInstrumented(i bool) Options {
 
 func (o *encodedBlockOptions) Instrumented() bool {
 	return o.instrumented
+}
+
+func (o *encodedBlockOptions) SetPromConvertOptions(value storage.PromConvertOptions) Options {
+	opts := *o
+	opts.promConvertOptions = value
+	return &opts
+}
+
+func (o *encodedBlockOptions) PromConvertOptions() storage.PromConvertOptions {
+	return o.promConvertOptions
 }
 
 func (o *encodedBlockOptions) Validate() error {

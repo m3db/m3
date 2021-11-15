@@ -291,13 +291,30 @@ func isIndexed(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags id
 	return result
 }
 
-func isIndexedChecked(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags ident.TagIterator) (bool, error) {
+func isIndexedChecked(
+	t *testing.T,
+	s client.Session,
+	ns ident.ID,
+	id ident.ID,
+	tags ident.TagIterator,
+) (bool, error) {
+	return isIndexedCheckedWithTime(t, s, ns, id, tags, xtime.Now())
+}
+
+func isIndexedCheckedWithTime(
+	t *testing.T,
+	s client.Session,
+	ns ident.ID,
+	id ident.ID,
+	tags ident.TagIterator,
+	queryTime xtime.UnixNano,
+) (bool, error) {
 	q := newQuery(t, tags)
 	iter, _, err := s.FetchTaggedIDs(ContextWithDefaultTimeout(), ns,
 		index.Query{Query: q},
 		index.QueryOptions{
-			StartInclusive: xtime.Now(),
-			EndExclusive:   xtime.Now(),
+			StartInclusive: queryTime,
+			EndExclusive:   queryTime.Add(time.Nanosecond),
 			SeriesLimit:    10,
 		})
 	if err != nil {

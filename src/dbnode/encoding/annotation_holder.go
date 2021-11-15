@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,36 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package writer
+package encoding
 
-import "github.com/m3db/m3/src/msg/generated/proto/msgpb"
+import "github.com/m3db/m3/src/dbnode/ts"
 
-// metadata is the metadata for a message.
-type metadata struct {
-	metadataKey
-	sentAtNanos uint64
+// annotationHolder holds annotations up to ts.OptimizedAnnotationLen bytes long within
+// inlined backing array, and only allocates a new byte slice for longer annotations.
+type annotationHolder struct {
+	inlineAnnotationBytes [ts.OptimizedAnnotationLen]byte
+	inlineAnnotationLen   int
+	allocatedAnnotation   ts.Annotation
 }
 
-// metadataKey uniquely identifies a metadata.
-type metadataKey struct {
-	shard uint64
-	id    uint64
+func (a *annotationHolder) get() ts.Annotation {
+	if a.inlineAnnotationLen > 0 {
+		return a.inlineAnnotationBytes[:a.inlineAnnotationLen]
+	}
+
+	return a.allocatedAnnotation
 }
 
-func (m metadata) ToProto(pb *msgpb.Metadata) {
-	pb.Shard = m.shard
-	pb.Id = m.id
-	pb.SentAtNanos = m.sentAtNanos
+func (a *annotationHolder) set(annotation ts.Annotation) {
+	if l := len(annotation); l <= len(a.inlineAnnotationBytes) {
+		copy(a.inlineAnnotationBytes[:l], annotation)
+		a.inlineAnnotationLen = l
+		a.allocatedAnnotation = nil
+		return
+	}
+
+	a.allocatedAnnotation = append(a.allocatedAnnotation[:0], annotation...)
+	a.inlineAnnotationLen = 0
 }
 
-func (m *metadata) FromProto(pb msgpb.Metadata) {
-	m.shard = pb.Shard
-	m.id = pb.Id
-	m.sentAtNanos = pb.SentAtNanos
-}
-
-func newMetadataFromProto(pb msgpb.Metadata) metadata {
-	var m metadata
-	m.FromProto(pb)
-	return m
+func (a *annotationHolder) reset() {
+	a.inlineAnnotationLen = 0
+	a.allocatedAnnotation = nil
 }

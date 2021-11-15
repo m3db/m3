@@ -50,8 +50,6 @@ const (
 	TypeRemoteDC
 	// TypeMultiDC is for storages that will aggregate multiple datacenters.
 	TypeMultiDC
-	// TypeDebug is for storages that are used for debugging purposes.
-	TypeDebug
 )
 
 // ErrorBehavior describes what this storage type should do on error. This is
@@ -355,4 +353,28 @@ type PromResult struct {
 	PromResult *prompb.QueryResult
 	// ResultMetadata is the metadata for the result.
 	Metadata block.ResultMetadata
+}
+
+// PromConvertOptions are options controlling the conversion of raw series iterators
+// to a Prometheus-compatible result.
+type PromConvertOptions interface {
+	// SetResolutionThresholdForCounterNormalization sets resolution
+	// starting from which (inclusive) a normalization of counter values is performed.
+	SetResolutionThresholdForCounterNormalization(time.Duration) PromConvertOptions
+
+	// ResolutionThresholdForCounterNormalization returns resolution
+	// starting from which (inclusive) a normalization of counter values is performed.
+	ResolutionThresholdForCounterNormalization() time.Duration
+
+	// SetValueDecreaseTolerance sets relative tolerance against decoded time series value decrease.
+	SetValueDecreaseTolerance(value float64) PromConvertOptions
+
+	// ValueDecreaseTolerance returns relative tolerance against decoded time series value decrease.
+	ValueDecreaseTolerance() float64
+
+	// SetValueDecreaseToleranceUntil sets the timestamp (exclusive) until which the tolerance applies.
+	SetValueDecreaseToleranceUntil(value xtime.UnixNano) PromConvertOptions
+
+	// ValueDecreaseToleranceUntil the timestamp (exclusive) until which the tolerance applies.
+	ValueDecreaseToleranceUntil() xtime.UnixNano
 }

@@ -262,6 +262,11 @@ type SeriesIterator interface {
 	// End returns the end time filter specified for the iterator.
 	End() xtime.UnixNano
 
+	// FirstAnnotation returns the value of the first annotation (disregarding the filter)
+	// on the underlying iterators. Only use after the first call to Next() has returned true.
+	// Consumers must make a copy of the returned slice as it will be invalidated by Reset.
+	FirstAnnotation() ts.Annotation
+
 	// Reset resets the iterator to read from a set of iterators from different
 	// replicas, one  must note that this can be an array with nil entries if
 	// some replicas did not return successfully.

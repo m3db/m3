@@ -7,6 +7,7 @@ import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 message Metadata {
     uint64 shard = 1;
     uint64 id = 2;
+    uint64 sentAtNanos = 3;
 }
 
 message Message {
