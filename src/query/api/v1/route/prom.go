@@ -35,4 +35,7 @@ const (
 
 	// QueryURL return the url for the query endpoint.
 	QueryURL = Prefix + "/query"
+
+	// SeriesMatchURL is the url for remote prom series matcher handler.
+	SeriesMatchURL = Prefix + "/series"
 )

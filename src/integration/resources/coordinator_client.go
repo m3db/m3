@@ -29,6 +29,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
@@ -317,7 +318,22 @@ func (c *CoordinatorClient) WaitForClusterReady() error {
 			logger.Error("failed checking cluster readiness", zap.Error(err))
 			return err
 		}
-		resp.Body.Close()
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			err = errors.New("non-200 status code received")
+
+			body, rerr := ioutil.ReadAll(resp.Body)
+			if rerr != nil {
+				logger.Warn("failed parse response body", zap.Error(rerr))
+				body = []byte("")
+			}
+
+			logger.Error("failed to check cluster readiness", zap.Error(err),
+				zap.String("responseBody", string(body)),
+			)
+			return err
+		}
 
 		logger.Info("cluster ready to receive reads and writes")
 
@@ -715,8 +731,8 @@ func (c *CoordinatorClient) query(
 }
 
 // InstantQuery runs an instant query with provided headers
-func (c *CoordinatorClient) InstantQuery(req QueryRequest, headers map[string][]string) (model.Vector, error) {
-	queryStr := fmt.Sprintf("%s?query=%s", route.QueryURL, req.QueryExpr)
+func (c *CoordinatorClient) InstantQuery(req QueryRequest, headers Headers) (model.Vector, error) {
+	queryStr := fmt.Sprintf("%s?query=%s", route.QueryURL, req.Query)
 	if req.Time != nil {
 		queryStr = fmt.Sprintf("%s&time=%d", queryStr, req.Time.Unix())
 	}
@@ -745,21 +761,21 @@ type vectorResult struct {
 }
 
 // RangeQuery runs a range query with provided headers
-func (c *CoordinatorClient) RangeQuery(req RangeQueryRequest, headers map[string][]string) (model.Matrix, error) {
-	if req.StartTime.IsZero() {
-		req.StartTime = time.Now()
+func (c *CoordinatorClient) RangeQuery(req RangeQueryRequest, headers Headers) (model.Matrix, error) {
+	if req.Start.IsZero() {
+		req.Start = time.Now()
 	}
-	if req.EndTime.IsZero() {
-		req.EndTime = time.Now()
+	if req.End.IsZero() {
+		req.End = time.Now()
 	}
 	if req.Step == 0 {
 		req.Step = 15 * time.Second // default step is 15 seconds.
 	}
 	queryStr := fmt.Sprintf(
 		"%s?query=%s&start=%d&end=%d&step=%f",
-		route.QueryRangeURL, req.QueryExpr,
-		req.StartTime.Unix(),
-		req.EndTime.Unix(),
+		route.QueryRangeURL, req.Query,
+		req.Start.Unix(),
+		req.End.Unix(),
 		req.Step.Seconds(),
 	)
 
@@ -776,6 +792,84 @@ func (c *CoordinatorClient) RangeQuery(req RangeQueryRequest, headers map[string
 	return parsedResp.Data.Result, nil
 }
 
+// LabelNames return matching label names based on the request.
+func (c *CoordinatorClient) LabelNames(
+	req LabelNamesRequest,
+	headers Headers,
+) (model.LabelNames, error) {
+	urlPathAndQuery := fmt.Sprintf("%s?%s", route.LabelNamesURL, req.String())
+	resp, err := c.runQuery(urlPathAndQuery, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsedResp labelResponse
+	if err := json.Unmarshal([]byte(resp), &parsedResp); err != nil {
+		return nil, err
+	}
+
+	labelNames := make(model.LabelNames, 0, len(parsedResp.Data))
+	for _, label := range parsedResp.Data {
+		labelNames = append(labelNames, model.LabelName(label))
+	}
+
+	return labelNames, nil
+}
+
+// LabelValues return matching label values based on the request.
+func (c *CoordinatorClient) LabelValues(
+	req LabelValuesRequest,
+	headers Headers,
+) (model.LabelValues, error) {
+	urlPathAndQuery := fmt.Sprintf("%s?%s",
+		path.Join(route.Prefix, "label", req.LabelName, "values"),
+		req.String())
+	resp, err := c.runQuery(urlPathAndQuery, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsedResp labelResponse
+	if err := json.Unmarshal([]byte(resp), &parsedResp); err != nil {
+		return nil, err
+	}
+
+	labelValues := make(model.LabelValues, 0, len(parsedResp.Data))
+	for _, label := range parsedResp.Data {
+		labelValues = append(labelValues, model.LabelValue(label))
+	}
+
+	return labelValues, nil
+}
+
+// Series returns matching series based on the request.
+func (c *CoordinatorClient) Series(
+	req SeriesRequest,
+	headers Headers,
+) ([]model.Metric, error) {
+	urlPathAndQuery := fmt.Sprintf("%s?%s", route.SeriesMatchURL, req.String())
+	resp, err := c.runQuery(urlPathAndQuery, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsedResp seriesResponse
+	if err := json.Unmarshal([]byte(resp), &parsedResp); err != nil {
+		return nil, err
+	}
+
+	series := make([]model.Metric, 0, len(parsedResp.Data))
+	for _, labels := range parsedResp.Data {
+		labelSet := make(model.LabelSet)
+		for name, val := range labels {
+			labelSet[model.LabelName(name)] = model.LabelValue(val)
+		}
+		series = append(series, model.Metric(labelSet))
+	}
+
+	return series, nil
+}
+
 type jsonRangeQueryResponse struct {
 	Status string
 	Data   matrixResult
@@ -784,6 +878,16 @@ type jsonRangeQueryResponse struct {
 type matrixResult struct {
 	ResultType model.ValueType
 	Result     model.Matrix
+}
+
+type labelResponse struct {
+	Status string
+	Data   []string
+}
+
+type seriesResponse struct {
+	Status string
+	Data   []map[string]string
 }
 
 func (c *CoordinatorClient) runQuery(
