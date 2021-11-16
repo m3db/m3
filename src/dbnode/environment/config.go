@@ -238,7 +238,7 @@ func (c *Configuration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // Validate validates the configuration.
 func (c *Configuration) Validate() error {
 	if (c.Services == nil && c.Statics == nil) ||
-		(c.Services != nil && c.Statics != nil) {
+		(len(c.Services) > 0 && len(c.Statics) > 0) {
 		return errInvalidConfig
 	}
 

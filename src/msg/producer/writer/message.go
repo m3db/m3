@@ -122,6 +122,11 @@ func (m *message) Metadata() metadata {
 	return m.meta
 }
 
+// SetSentAt sets the sentAtNanos on the metadata proto.
+func (m *message) SetSentAt(nanos int64) {
+	m.pb.Metadata.SentAtNanos = uint64(nanos)
+}
+
 // Marshaler returns the marshaler and a bool to indicate whether the marshaler is valid.
 func (m *message) Marshaler() (proto.Marshaler, bool) {
 	return &m.pb, !m.RefCountedMessage.IsDroppedOrConsumed()
