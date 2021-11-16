@@ -644,28 +644,34 @@ func Run(runOpts RunOptions) RunResult {
 		}
 	}
 
-	prometheusEngineFn := func(lookbackDuration time.Duration) (*prometheuspromql.Engine, error) {
-		// NB: use nil metric registry to avoid duplicate metric registration when creating multiple engines
-		return newPromQLEngine(lookbackDuration, cfg, nil, instrumentOptions)
-	}
-	engineCache := promqlengine.NewCache(prometheusEngineFn)
-	if mult := cfg.Middleware.Prometheus.ResolutionMultiplier; mult > 0 {
-		for _, res := range extractNamespaceResolutions(runOpts.Config.Clusters) {
-			if res > 0 {
-				resolutionBasedLookback := res * time.Duration(mult)
-				eng, err := prometheusEngineFn(resolutionBasedLookback)
-				if err != nil {
-					logger.Fatal("unable to create PromQL engine", zap.Error(err))
-				}
-				engineCache.Set(resolutionBasedLookback, eng)
-			}
-		}
-	}
 	defaultPrometheusEngine, err := newPromQLEngine(lookbackDuration, cfg, prometheusEngineRegistry, instrumentOptions)
 	if err != nil {
 		logger.Fatal("unable to create PromQL engine", zap.Error(err))
 	}
-	engineCache.Set(lookbackDuration, defaultPrometheusEngine)
+	prometheusEngineFn := func(lookbackDuration time.Duration) (*prometheuspromql.Engine, error) {
+		// NB: use nil metric registry to avoid duplicate metric registration when creating multiple engines
+		return newPromQLEngine(lookbackDuration, cfg, nil, instrumentOptions)
+	}
+
+	enginesByLookback := make(map[time.Duration]*prometheuspromql.Engine)
+	enginesByLookback[lookbackDuration] = defaultPrometheusEngine
+	if mult := cfg.Middleware.Prometheus.ResolutionMultiplier; mult > 0 {
+		for _, cluster := range runOpts.Config.Clusters {
+			for _, ns := range cluster.Namespaces {
+				if res := ns.Resolution; res > 0 {
+					resolutionBasedLookback := res * time.Duration(mult)
+					if _, ok := enginesByLookback[resolutionBasedLookback]; !ok {
+						eng, err := prometheusEngineFn(resolutionBasedLookback)
+						if err != nil {
+							logger.Fatal("unable to create PromQL engine", zap.Error(err))
+						}
+						enginesByLookback[resolutionBasedLookback] = eng
+					}
+				}
+			}
+		}
+	}
+	engineCache := promqlengine.NewCache(enginesByLookback, prometheusEngineFn)
 
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
 		tagOptions, engine, engineCache.Get, m3dbClusters, clusterClient, cfg,
@@ -1387,19 +1393,4 @@ func newPromQLEngine(
 
 func durationMilliseconds(d time.Duration) int64 {
 	return int64(d / (time.Millisecond / time.Nanosecond))
-}
-
-func extractNamespaceResolutions(clusters m3.ClustersStaticConfiguration) []time.Duration {
-	resolutions := make(map[time.Duration]struct{})
-	for _, c := range clusters {
-		for _, ns := range c.Namespaces {
-			resolutions[ns.Resolution] = struct{}{}
-		}
-	}
-
-	result := make([]time.Duration, 0)
-	for r := range resolutions {
-		result = append(result, r)
-	}
-	return result
 }

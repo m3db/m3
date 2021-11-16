@@ -36,9 +36,13 @@ type Cache struct {
 }
 
 // NewCache creates a new Cache.
-func NewCache(newEngineFn NewEngineFn) *Cache {
+func NewCache(defaultEngines map[time.Duration]*promql.Engine, newEngineFn NewEngineFn) *Cache {
+	cachedEngines := make(map[time.Duration]*promql.Engine)
+	for l, e := range defaultEngines {
+		cachedEngines[l] = e
+	}
 	return &Cache{
-		cachedEngines: make(map[time.Duration]*promql.Engine),
+		cachedEngines: cachedEngines,
 		newEngineFn:   newEngineFn,
 	}
 }
@@ -50,9 +54,4 @@ func (c *Cache) Get(lookbackDelta time.Duration) (*promql.Engine, error) {
 	}
 
 	return c.newEngineFn(lookbackDelta)
-}
-
-// Set allows manually caching promql.Engine.
-func (c *Cache) Set(lookbackDelta time.Duration, engine *promql.Engine) {
-	c.cachedEngines[lookbackDelta] = engine
 }
