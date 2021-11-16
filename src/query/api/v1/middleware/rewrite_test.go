@@ -195,8 +195,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			attrs:   aggregatedAttrs(1 * time.Minute),
 			enabled: true,
 			mult:    2,
-			start:   "1624882294",
-			end:     "1624882295",
 			query:   "foo",
 
 			expectedQuery: "foo",
@@ -206,7 +204,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			attrs:   aggregatedAttrs(1 * time.Minute),
 			enabled: true,
 			mult:    2,
-			now:     "1624882294",
 			instant: true,
 			query:   "foo",
 
@@ -217,8 +214,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			attrs:   aggregatedAttrs(3 * time.Minute),
 			enabled: true,
 			mult:    3,
-			start:   "1624882294",
-			end:     "1624882295",
 			query:   "foo",
 
 			expectedQuery:    "foo",
@@ -229,7 +224,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			attrs:   aggregatedAttrs(4 * time.Minute),
 			enabled: true,
 			mult:    3,
-			now:     "1624882294",
 			instant: true,
 			query:   "foo",
 
@@ -241,8 +235,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			attrs:    aggregatedAttrs(5 * time.Minute),
 			enabled:  true,
 			mult:     2,
-			start:    "1624882294",
-			end:      "1624882295",
 			query:    "foo",
 			lookback: durationPtr(11 * time.Minute),
 
@@ -254,7 +246,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			attrs:    aggregatedAttrs(4 * time.Minute),
 			enabled:  true,
 			mult:     3,
-			now:      "1624882294",
 			instant:  true,
 			query:    "foo",
 			lookback: durationPtr(13 * time.Minute),
@@ -267,8 +258,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			attrs:    aggregatedAttrs(5 * time.Minute),
 			enabled:  true,
 			mult:     3,
-			start:    "1624882294",
-			end:      "1624882295",
 			query:    "foo",
 			lookback: durationPtr(11 * time.Minute),
 
@@ -280,7 +269,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			attrs:    aggregatedAttrs(5 * time.Minute),
 			enabled:  true,
 			mult:     3,
-			now:      "1624882294",
 			instant:  true,
 			query:    "foo",
 			lookback: durationPtr(13 * time.Minute),
@@ -305,8 +293,15 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			params := url.Values{}
 			params.Add("step", (time.Duration(3600) * time.Second).String())
 			if tt.instant {
+				if len(tt.now) == 0 {
+					tt.now = "1600000000"
+				}
 				params.Add("now", tt.now)
 			} else {
+				if len(tt.start) == 0 || len(tt.end) == 0 {
+					tt.start = "1600000000"
+					tt.end = "1600000001"
+				}
 				params.Add(startParam, tt.start)
 				params.Add(endParam, tt.end)
 			}
