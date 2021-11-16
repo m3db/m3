@@ -227,7 +227,7 @@ func extractParams(r *http.Request, instant bool) (params, error) {
 }
 
 func maybeRewriteRangeInQuery(query string, expr parser.Node, res time.Duration, multiplier int) (bool, string) {
-	updated := false
+	updated := false // nolint: ifshort
 	parser.Inspect(expr, func(node parser.Node, path []parser.Node) error {
 		// nolint:gocritic
 		switch n := node.(type) {
