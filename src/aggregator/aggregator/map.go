@@ -64,6 +64,26 @@ const (
 	timedMetric
 )
 
+var validMetricCategories = []metricCategory{
+	unknownMetricCategory,
+	untimedMetric,
+	forwardedMetric,
+	timedMetric,
+}
+
+func (c metricCategory) String() string {
+	switch c {
+	case untimedMetric:
+		return "untimed"
+	case forwardedMetric:
+		return "forwarded"
+	case timedMetric:
+		return "timed"
+	default:
+		return "unknown"
+	}
+}
+
 type entryKey struct {
 	idHash         hash.Hash128
 	metricType     metricType
@@ -358,7 +378,8 @@ func (m *metricMap) tick(target time.Duration) tickResult {
 		case timedMetric:
 			numTimedActive++
 		}
-		if entry.entry.ShouldExpire(now) {
+
+		if entry.entry.ShouldExpire(now, entry.key.metricCategory) {
 			expired = append(expired, entry)
 		}
 		if len(expired) >= defaultExpireBatchSize {
@@ -408,8 +429,8 @@ func (m *metricMap) purgeExpired(
 	m.entryListDelLock.Lock()
 	m.Lock()
 	for i := range entries {
-		if entries[i].entry.TryExpire(now) {
-			key := entries[i].key
+		key := entries[i].key
+		if entries[i].entry.TryExpire(now, key.metricCategory) {
 			switch key.metricCategory {
 			case untimedMetric:
 				numStandardExpired++
