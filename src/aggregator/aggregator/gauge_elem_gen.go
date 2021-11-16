@@ -78,8 +78,9 @@ type GaugeElem struct {
 	dirty []xtime.UnixNano
 
 	// internal/no need for synchronization: small buffers to avoid memory allocations during consumption
-	toConsume          []consumeState
-	flushStateToExpire []xtime.UnixNano
+	toConsume            []consumeState
+	flushStateToExpire   []xtime.UnixNano
+	forwardTimesToExpire []xtime.UnixNano
 	// end internal state
 
 	// min time in the values map. allows for iterating through map.
@@ -397,7 +398,14 @@ func (e *GaugeElem) Consume(
 
 	if e.parsedPipeline.HasRollup {
 		forwardedAggregationKey, _ := e.ForwardedAggregationKey()
-		onForwardedFlushedFn(e.onForwardedAggregationWrittenFn, forwardedAggregationKey, e.flushStateToExpire)
+		e.forwardTimesToExpire = e.forwardTimesToExpire[:0]
+		for _, startTime := range e.flushStateToExpire {
+			// the forward writer uses the timestamp of the aggregation, so need to convert the start aligned time
+			// to a timestamp.
+			e.forwardTimesToExpire = append(e.forwardTimesToExpire,
+				xtime.UnixNano(timestampNanosFn(int64(startTime), resolution)))
+		}
+		onForwardedFlushedFn(e.onForwardedAggregationWrittenFn, forwardedAggregationKey, e.forwardTimesToExpire)
 	}
 
 	return canCollect
