@@ -162,7 +162,7 @@ func SetupCluster(
 	}
 
 	logger.Info("waiting for namespace", zap.String("name", ColdWriteNsName))
-	if err := coordinator.WaitForNamespace(UnaggName); err != nil {
+	if err := coordinator.WaitForNamespace(ColdWriteNsName); err != nil {
 		return err
 	}
 

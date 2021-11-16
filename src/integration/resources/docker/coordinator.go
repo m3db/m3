@@ -222,7 +222,9 @@ func (c *coordinator) ApplyKVUpdate(update string) error {
 }
 
 func (c *coordinator) RunQuery(
-	verifier resources.ResponseVerifier, query string, headers map[string][]string,
+	verifier resources.ResponseVerifier,
+	query string,
+	headers resources.Headers,
 ) error {
 	if c.resource.closed {
 		return errClosed
@@ -233,7 +235,7 @@ func (c *coordinator) RunQuery(
 
 func (c *coordinator) InstantQuery(
 	req resources.QueryRequest,
-	headers map[string][]string,
+	headers resources.Headers,
 ) (model.Vector, error) {
 	if c.resource.closed {
 		return nil, errClosed
@@ -244,12 +246,45 @@ func (c *coordinator) InstantQuery(
 // RangeQuery runs a range query with provided headers
 func (c *coordinator) RangeQuery(
 	req resources.RangeQueryRequest,
-	headers map[string][]string,
+	headers resources.Headers,
 ) (model.Matrix, error) {
 	if c.resource.closed {
 		return nil, errClosed
 	}
 	return c.client.RangeQuery(req, headers)
+}
+
+// LabelNames return matching label names based on the request.
+func (c *coordinator) LabelNames(
+	req resources.LabelNamesRequest,
+	headers resources.Headers,
+) (model.LabelNames, error) {
+	if c.resource.closed {
+		return nil, errClosed
+	}
+	return c.client.LabelNames(req, headers)
+}
+
+// LabelValues returns matching label values based on the request.
+func (c *coordinator) LabelValues(
+	req resources.LabelValuesRequest,
+	headers resources.Headers,
+) (model.LabelValues, error) {
+	if c.resource.closed {
+		return nil, errClosed
+	}
+	return c.client.LabelValues(req, headers)
+}
+
+// Series returns matching series based on the request.
+func (c *coordinator) Series(
+	req resources.SeriesRequest,
+	headers resources.Headers,
+) ([]model.Metric, error) {
+	if c.resource.closed {
+		return nil, errClosed
+	}
+	return c.client.Series(req, headers)
 }
 
 func (c *coordinator) Close() error {

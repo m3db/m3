@@ -684,6 +684,8 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.False(t, e.Consume(ts, isEarlierThanFn, timestampNanosFn, standardMetricTargetNanos,
 		localFn, forwardFn, onForwardedFlushedFn, 0, consumeType))
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
+	expectedOnFlushedRes[0].expiredTimes = append(expectedOnFlushedRes[0].expiredTimes,
+		xtime.ToUnixNano(time.Unix(220, 0)), xtime.ToUnixNano(time.Unix(230, 0)))
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 1, len(e.values))
@@ -700,6 +702,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
 	require.True(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, standardMetricTargetNanos,
 		localFn, forwardFn, onForwardedFlushedFn, 0, consumeType))
+	expectedOnFlushedRes[0].expiredTimes = nil
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
@@ -1221,6 +1224,8 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.False(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, standardMetricTargetNanos,
 		localFn, forwardFn, onForwardedFlushedFn, 0, consumeType))
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
+	expectedOnFlushedRes[0].expiredTimes = append(expectedOnFlushedRes[0].expiredTimes,
+		xtime.ToUnixNano(time.Unix(220, 0)), xtime.ToUnixNano(time.Unix(230, 0)))
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 1, len(e.values))
@@ -1237,6 +1242,7 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
 	require.True(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, standardMetricTargetNanos,
 		localFn, forwardFn, onForwardedFlushedFn, 0, consumeType))
+	expectedOnFlushedRes[0].expiredTimes = nil
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
@@ -1966,6 +1972,8 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	require.False(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, standardMetricTargetNanos,
 		localFn, forwardFn, onForwardedFlushedFn, 0, consumeType))
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
+	expectedOnFlushedRes[0].expiredTimes = append(expectedOnFlushedRes[0].expiredTimes,
+		xtime.ToUnixNano(time.Unix(220, 0)), xtime.ToUnixNano(time.Unix(230, 0)))
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 1, len(e.values))
@@ -1982,6 +1990,7 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
 	require.True(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, standardMetricTargetNanos,
 		localFn, forwardFn, onForwardedFlushedFn, 0, consumeType))
+	expectedOnFlushedRes[0].expiredTimes = nil
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
@@ -2949,6 +2958,7 @@ type testForwardedMetricWithMetadata struct {
 
 type testOnForwardedFlushedData struct {
 	aggregationKey aggregationKey
+	expiredTimes   []xtime.UnixNano
 }
 
 func testFlushLocalMetricFn() (
@@ -3010,6 +3020,7 @@ func testOnForwardedFlushedFn() (
 	) {
 		result = append(result, testOnForwardedFlushedData{
 			aggregationKey: aggregationKey,
+			expiredTimes:   expiredTimes,
 		})
 	}, &result
 }
@@ -3275,5 +3286,9 @@ func verifyOnForwardedFlushResult(t *testing.T, expected, actual []testOnForward
 	require.Equal(t, len(expected), len(actual))
 	for i := 0; i < len(expected); i++ {
 		require.True(t, expected[i].aggregationKey.Equal(actual[i].aggregationKey))
+		require.Equal(t, len(expected[i].expiredTimes), len(actual[i].expiredTimes))
+		for j := 0; j < len(expected[i].expiredTimes); j++ {
+			require.Equal(t, expected[i].expiredTimes[j], actual[i].expiredTimes[j])
+		}
 	}
 }

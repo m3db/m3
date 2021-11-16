@@ -418,7 +418,7 @@ func (c *Coordinator) WriteProm(name string, tags map[string]string, samples []p
 func (c *Coordinator) RunQuery(
 	verifier resources.ResponseVerifier,
 	query string,
-	headers map[string][]string,
+	headers resources.Headers,
 ) error {
 	return c.client.RunQuery(verifier, query, headers)
 }
@@ -426,7 +426,7 @@ func (c *Coordinator) RunQuery(
 // InstantQuery runs an instant query with provided headers
 func (c *Coordinator) InstantQuery(
 	req resources.QueryRequest,
-	headers map[string][]string,
+	headers resources.Headers,
 ) (model.Vector, error) {
 	return c.client.InstantQuery(req, headers)
 }
@@ -434,9 +434,33 @@ func (c *Coordinator) InstantQuery(
 // RangeQuery runs a range query with provided headers
 func (c *Coordinator) RangeQuery(
 	req resources.RangeQueryRequest,
-	headers map[string][]string,
+	headers resources.Headers,
 ) (model.Matrix, error) {
 	return c.client.RangeQuery(req, headers)
+}
+
+// LabelNames return matching label names based on the request.
+func (c *Coordinator) LabelNames(
+	req resources.LabelNamesRequest,
+	headers resources.Headers,
+) (model.LabelNames, error) {
+	return c.client.LabelNames(req, headers)
+}
+
+// LabelValues returns matching label values based on the request.
+func (c *Coordinator) LabelValues(
+	req resources.LabelValuesRequest,
+	headers resources.Headers,
+) (model.LabelValues, error) {
+	return c.client.LabelValues(req, headers)
+}
+
+// Series returns matching series based on the request.
+func (c *Coordinator) Series(
+	req resources.SeriesRequest,
+	headers resources.Headers,
+) ([]model.Metric, error) {
+	return c.client.Series(req, headers)
 }
 
 func updateCoordinatorConfig(

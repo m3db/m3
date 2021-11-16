@@ -38,6 +38,9 @@ type Message interface {
 
 	// ShardID returns shard ID of the Message.
 	ShardID() uint64
+
+	// SentAtNanos returns when the producer sent the Message.
+	SentAtNanos() uint64
 }
 
 // Consumer receives messages from a connection.
