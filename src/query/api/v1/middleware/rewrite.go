@@ -144,16 +144,7 @@ func rewriteRangeDuration(
 	}
 
 	updateQuery := rewriteRangeInQuery(expr, res, opts.ResolutionMultiplier)
-
-	resolutionBasedLookback := res * time.Duration(opts.ResolutionMultiplier) // nolint: durationcheck
-	updateLookback := false
-	lookback := params.lookback
-	if !params.isLookbackSet {
-		lookback = opts.DefaultLookback
-	}
-	if resolutionBasedLookback > lookback {
-		updateLookback = true
-	}
+	updateLookback, updatedLookback := maybeUpdateLookback(params, res, opts)
 
 	if !updateQuery && !updateLookback {
 		return nil
@@ -172,7 +163,7 @@ func rewriteRangeDuration(
 			urlQueryValues.Set(queryParam, updatedQuery)
 		}
 		if updateLookback {
-			urlQueryValues.Set(lookbackParam, resolutionBasedLookback.String())
+			urlQueryValues.Set(lookbackParam, updatedLookback.String())
 		}
 	}
 	updatedURL, err := url.Parse(r.URL.String())
@@ -188,18 +179,15 @@ func rewriteRangeDuration(
 			r.Form.Set(queryParam, updatedQuery)
 		}
 		if updateLookback {
-			r.Form.Set(lookbackParam, resolutionBasedLookback.String())
+			r.Form.Set(lookbackParam, updatedLookback.String())
 		}
 	}
 
 	logger.Debug("rewrote duration values in request",
-		zap.Bool("updateQuery", updateQuery),
 		zap.String("originalQuery", params.query),
 		zap.String("updatedQuery", updatedQuery),
-		zap.Bool("updateLookback", updateLookback),
-		zap.Bool("isLookbackSet", params.isLookbackSet),
-		zap.Duration("originalLookback", lookback),
-		zap.Duration("updatedLookback", resolutionBasedLookback))
+		zap.Duration("originalLookback", params.lookback),
+		zap.Duration("updatedLookback", updatedLookback))
 
 	return nil
 }
@@ -256,4 +244,19 @@ func rewriteRangeInQuery(expr parser.Node, res time.Duration, multiplier int) bo
 	})
 
 	return updated
+}
+
+func maybeUpdateLookback(
+	params params,
+	maxResolution time.Duration,
+	opts PrometheusRangeRewriteOptions,
+) (bool, time.Duration) {
+	resolutionBasedLookback := maxResolution * time.Duration(opts.ResolutionMultiplier) // nolint: durationcheck
+	if params.isLookbackSet && params.lookback < resolutionBasedLookback {
+		return true, resolutionBasedLookback
+	}
+	if !params.isLookbackSet && opts.DefaultLookback < resolutionBasedLookback {
+		return true, resolutionBasedLookback
+	}
+	return false, params.lookback
 }
