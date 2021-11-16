@@ -60,8 +60,11 @@ const (
 	M3QueryEngine QueryEngine = "m3query"
 )
 
-// PromQLEngineFn construct promql.Engine with the given lookbackDuration. promql.Engine uses
+// PromQLEngineFn constructs promql.Engine with the given lookbackDuration. promql.Engine uses
 // a fixed lookback, so we have to create multiple engines for different lookback values.
+//
+// TODO(vilius): there's a conversation at Prometheus mailing list about making lookback dynamic
+//   https://groups.google.com/g/prometheus-developers/c/9wzuobfLMV8
 type PromQLEngineFn func(lookbackDuration time.Duration) (*promql.Engine, error)
 
 // OptionTransformFn transforms given handler options.
