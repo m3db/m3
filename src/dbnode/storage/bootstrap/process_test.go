@@ -137,7 +137,7 @@ func TestBootstrapProcessRunActiveBlockAdvanced(t *testing.T) {
 	}
 }
 
-func TestTargetRangesFileSetTypeForReadOnlyNamespace(t *testing.T) {
+func TestTargetRangesFileSetTypeForSnapshotDisabledNamespace(t *testing.T) {
 	sut := bootstrapProcess{processOpts: NewProcessOptions()}
 	nsOpts := namespace.NewOptions().SetSnapshotEnabled(false)
 
@@ -148,7 +148,7 @@ func TestTargetRangesFileSetTypeForReadOnlyNamespace(t *testing.T) {
 	requireFilesetTypes(t, rangesForIndex, persist.FileSetFlushType)
 }
 
-func TestTargetRangesFileSetTypeForNonReadOnlyNamespace(t *testing.T) {
+func TestTargetRangesFileSetTypeForSnapshotEnabledNamespace(t *testing.T) {
 	sut := bootstrapProcess{processOpts: NewProcessOptions()}
 	nsOpts := namespace.NewOptions().SetSnapshotEnabled(true)
 
