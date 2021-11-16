@@ -46,9 +46,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 		enabled  bool
 		mult     int
 		query    string
-		now      string
-		start    string
-		end      string
 		instant  bool
 		lookback *time.Duration
 
@@ -65,8 +62,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			},
 			enabled: true,
 			mult:    2,
-			start:   "1614882294",
-			end:     "1625250298",
 			query:   "rate(foo[1m])",
 
 			expectedQuery: "rate(foo[1m])",
@@ -81,8 +76,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			},
 			enabled: true,
 			mult:    2,
-			start:   "1614882294",
-			end:     "1625250298",
 			query:   "foo",
 
 			expectedQuery: "foo",
@@ -98,8 +91,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			},
 			enabled: true,
 			mult:    2,
-			start:   "1614882294",
-			end:     "1625250298",
 			query:   "rate(foo[30s])",
 
 			expectedQuery:    "rate(foo[10m])",
@@ -116,8 +107,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			},
 			enabled: true,
 			mult:    2,
-			start:   "1614882294",
-			end:     "1625250298",
 			query:   "rate(foo[5m])",
 
 			expectedQuery: "rate(foo[5m])",
@@ -133,8 +122,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			},
 			enabled: false,
 			mult:    2,
-			start:   "1614882294",
-			end:     "1625250298",
 			query:   "rate(foo[30s])",
 
 			expectedQuery: "rate(foo[30s])",
@@ -150,8 +137,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			},
 			enabled: false,
 			mult:    0,
-			start:   "1614882294",
-			end:     "1625250298",
 			query:   "rate(foo[30s])",
 
 			expectedQuery: "rate(foo[30s])",
@@ -166,7 +151,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			},
 			enabled: true,
 			mult:    3,
-			now:     "1614882294",
 			instant: true,
 			query:   "rate(foo[1m])",
 
@@ -183,7 +167,6 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			},
 			enabled: true,
 			mult:    3,
-			now:     "1614882294",
 			instant: true,
 			query:   "rate(foo[30s])",
 
@@ -293,17 +276,10 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			params := url.Values{}
 			params.Add("step", (time.Duration(3600) * time.Second).String())
 			if tt.instant {
-				if len(tt.now) == 0 {
-					tt.now = "1600000000"
-				}
-				params.Add("now", tt.now)
+				params.Add("now", "1600000000")
 			} else {
-				if len(tt.start) == 0 || len(tt.end) == 0 {
-					tt.start = "1600000000"
-					tt.end = "1600000001"
-				}
-				params.Add(startParam, tt.start)
-				params.Add(endParam, tt.end)
+				params.Add(startParam, "1600000000")
+				params.Add(endParam, "1600000001")
 			}
 			params.Add(queryParam, tt.query)
 			if tt.lookback != nil {
