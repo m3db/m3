@@ -143,15 +143,12 @@ func rewriteRangeDuration(
 		return err
 	}
 
-	updateQuery := rewriteRangeInQuery(expr, res, opts.ResolutionMultiplier)
+	updateQuery, updatedQuery := maybeRewriteRangeInQuery(params.query, expr, res, opts.ResolutionMultiplier)
 	updateLookback, updatedLookback := maybeUpdateLookback(params, res, opts)
 
 	if !updateQuery && !updateLookback {
 		return nil
 	}
-
-	// Add updated query to the request where necessary
-	updatedQuery := expr.String()
 
 	// Update query and lookback params in URL, if present and needed.
 	urlQueryValues, err := url.ParseQuery(r.URL.RawQuery)
@@ -229,7 +226,7 @@ func extractParams(r *http.Request, instant bool) (params, error) {
 	}, nil
 }
 
-func rewriteRangeInQuery(expr parser.Node, res time.Duration, multiplier int) bool {
+func maybeRewriteRangeInQuery(query string, expr parser.Node, res time.Duration, multiplier int) (bool, string) {
 	updated := false
 	parser.Inspect(expr, func(node parser.Node, path []parser.Node) error {
 		// nolint:gocritic
@@ -243,7 +240,10 @@ func rewriteRangeInQuery(expr parser.Node, res time.Duration, multiplier int) bo
 		return nil
 	})
 
-	return updated
+	if updated {
+		return true, expr.String()
+	}
+	return false, query
 }
 
 func maybeUpdateLookback(
