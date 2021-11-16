@@ -1921,19 +1921,16 @@ func TestEntryMaybeExpireNoExpiry(t *testing.T) {
 	e, _, now := testEntry(ctrl, testEntryOptions{})
 
 	// If we are still within entry TTL, should not expire.
-	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(-time.Second),
-		unknownMetricCategory))
+	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(-time.Second)))
 
 	// If the entry is closed, should not expire.
 	e.closed = true
-	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(time.Second),
-		unknownMetricCategory))
+	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(time.Second)))
 
 	// If there are still active writers, should not expire.
 	e.closed = false
 	e.numWriters.Store(1)
-	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(time.Second),
-		unknownMetricCategory))
+	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(time.Second)))
 }
 
 func TestEntryMaybeExpireWithExpiry(t *testing.T) {

@@ -379,7 +379,7 @@ func (m *metricMap) tick(target time.Duration) tickResult {
 			numTimedActive++
 		}
 
-		if entry.entry.ShouldExpire(now, entry.key.metricCategory) {
+		if entry.entry.ShouldExpire(now) {
 			expired = append(expired, entry)
 		}
 		if len(expired) >= defaultExpireBatchSize {

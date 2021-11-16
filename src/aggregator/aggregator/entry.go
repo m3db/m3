@@ -351,7 +351,7 @@ func (e *Entry) AddForwarded(
 }
 
 // ShouldExpire returns whether the entry should expire.
-func (e *Entry) ShouldExpire(now time.Time, metricCategory metricCategory) bool {
+func (e *Entry) ShouldExpire(now time.Time) bool {
 	e.mtx.RLock()
 	if e.closed {
 		e.mtx.RUnlock()
@@ -359,7 +359,7 @@ func (e *Entry) ShouldExpire(now time.Time, metricCategory metricCategory) bool 
 	}
 	e.mtx.RUnlock()
 
-	return e.shouldExpire(xtime.UnixNano(now.UnixNano()), metricCategory)
+	return e.shouldExpire(xtime.UnixNano(now.UnixNano()), unknownMetricCategory, false)
 }
 
 // TryExpire attempts to expire the entry, returning true
@@ -370,7 +370,7 @@ func (e *Entry) TryExpire(now time.Time, metricCategory metricCategory) bool {
 		e.mtx.Unlock()
 		return false
 	}
-	if !e.shouldExpire(xtime.UnixNano(now.UnixNano()), metricCategory) {
+	if !e.shouldExpire(xtime.UnixNano(now.UnixNano()), metricCategory, true) {
 		e.mtx.Unlock()
 		return false
 	}
@@ -1146,11 +1146,15 @@ func (e *Entry) addForwardedWithLock(
 func (e *Entry) shouldExpire(
 	now xtime.UnixNano,
 	metricCategory metricCategory,
+	recordTiming bool,
 ) bool {
 	// Only expire the entry if there are no active writers
 	// and it has reached its ttl since last accessed.
 	age := now.Sub(xtime.UnixNano(e.lastAccessNanos.Load()))
-	e.metrics.entryExpiryByCategory[metricCategory].RecordDuration(age)
+	if recordTiming {
+		e.metrics.entryExpiryByCategory[metricCategory].RecordDuration(age)
+	}
+
 	return e.numWriters.Load() == 0 && age > e.opts.EntryTTL()
 }
 
