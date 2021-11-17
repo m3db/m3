@@ -842,19 +842,22 @@ func (e *GaugeElem) processValue(
 
 				if !fState.flushed {
 					e.forwardLagMetric(resolution, "local", false, flushType).
-						RecordDuration(time.Since(timestamp.ToTime().Add(-latenessAllowed - jitter)))
+						RecordDuration(time.Since(timestamp.ToTime().Add(latenessAllowed + jitter)))
 					e.forwardLagMetric(resolution, "local", true, flushType).
-						RecordDuration(time.Since(timestamp.ToTime().Add(-latenessAllowed)))
+						RecordDuration(time.Since(timestamp.ToTime().Add(latenessAllowed)))
 				}
 			}
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
 			// only record lag for the initial flush (not resends)
 			if !fState.flushed {
+				// add latenessAllowed and jitter to the timestamp of the aggregation, since those should not be
+				// counted towards the processing lag.
+				// forward lag = current time - (agg timestamp + lateness allowed + jitter)
 				e.forwardLagMetric(resolution, "remote", false, flushType).
-					RecordDuration(time.Since(timestamp.ToTime().Add(-latenessAllowed - jitter)))
+					RecordDuration(time.Since(timestamp.ToTime().Add(latenessAllowed + jitter)))
 				e.forwardLagMetric(resolution, "remote", true, flushType).
-					RecordDuration(time.Since(timestamp.ToTime().Add(-latenessAllowed)))
+					RecordDuration(time.Since(timestamp.ToTime().Add(latenessAllowed)))
 			}
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
 				int64(timestamp), value, prevValue, cState.annotation, cState.resendEnabled)
