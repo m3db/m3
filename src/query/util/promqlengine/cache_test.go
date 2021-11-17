@@ -49,20 +49,20 @@ func TestGet(t *testing.T) {
 }
 
 func TestDefaultEngines(t *testing.T) {
-	lookbacks := []time.Duration{time.Second, time.Minute, time.Hour}
-	expecteds := make(map[time.Duration]*promql.Engine)
-	for _, l := range lookbacks {
-		expecteds[l] = newTestEngine(l)
+	expecteds := map[time.Duration]*promql.Engine{
+		time.Second: newTestEngine(time.Second),
+		time.Minute: newTestEngine(time.Minute),
+		time.Hour:   newTestEngine(time.Hour),
 	}
 
 	cache := NewCache(expecteds, func(l time.Duration) (*promql.Engine, error) {
 		return &promql.Engine{}, errors.New("not set")
 	})
 
-	for _, l := range lookbacks {
+	for l, expected := range expecteds {
 		e, err := cache.Get(l)
 		require.NoError(t, err)
-		require.Equal(t, expecteds[l], e)
+		require.Equal(t, expected, e)
 	}
 }
 
