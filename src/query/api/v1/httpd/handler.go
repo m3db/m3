@@ -146,12 +146,12 @@ func (h *Handler) RegisterRoutes() error {
 		))
 
 	promqlQueryHandler, err := prom.NewReadHandler(nativeSourceOpts,
-		prom.WithEngine(h.options.PrometheusEngine()))
+		prom.WithEngine(h.options.PrometheusEngineFn()))
 	if err != nil {
 		return err
 	}
 	promqlInstantQueryHandler, err := prom.NewReadHandler(nativeSourceOpts,
-		prom.WithInstantEngine(h.options.PrometheusEngine()))
+		prom.WithInstantEngine(h.options.PrometheusEngineFn()))
 	if err != nil {
 		return err
 	}
@@ -493,6 +493,7 @@ func (h *Handler) RegisterRoutes() error {
 			PrometheusRangeRewrite: middleware.PrometheusRangeRewriteOptions{
 				FetchOptionsBuilder:  h.options.FetchOptionsBuilder(),
 				ResolutionMultiplier: h.middlewareConfig.Prometheus.ResolutionMultiplier,
+				DefaultLookback:      h.options.DefaultLookback(),
 				Storage:              h.options.Storage(),
 			},
 		}
