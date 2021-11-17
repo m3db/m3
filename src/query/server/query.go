@@ -653,23 +653,15 @@ func Run(runOpts RunOptions) RunResult {
 		return newPromQLEngine(lookbackDuration, cfg, nil, instrumentOptions)
 	}
 
-	enginesByLookback := make(map[time.Duration]*prometheuspromql.Engine)
-	enginesByLookback[lookbackDuration] = defaultPrometheusEngine
-	if mult := cfg.Middleware.Prometheus.ResolutionMultiplier; mult > 0 {
-		for _, cluster := range runOpts.Config.Clusters {
-			for _, ns := range cluster.Namespaces {
-				if res := ns.Resolution; res > 0 {
-					resolutionBasedLookback := res * time.Duration(mult)
-					if _, ok := enginesByLookback[resolutionBasedLookback]; !ok {
-						eng, err := prometheusEngineFn(resolutionBasedLookback)
-						if err != nil {
-							logger.Fatal("unable to create PromQL engine", zap.Error(err))
-						}
-						enginesByLookback[resolutionBasedLookback] = eng
-					}
-				}
-			}
-		}
+	enginesByLookback, err := createEnginesWithResolutionBasedLookbacks(
+		lookbackDuration,
+		defaultPrometheusEngine,
+		runOpts.Config.Clusters,
+		cfg.Middleware.Prometheus.ResolutionMultiplier,
+		prometheusEngineFn,
+	)
+	if err != nil {
+		logger.Fatal("failed creating PromgQL engines with resolution based lookback durations", zap.Error(err))
 	}
 	engineCache := promqlengine.NewCache(enginesByLookback, prometheusEngineFn)
 
@@ -1389,6 +1381,34 @@ func newPromQLEngine(
 		}
 	)
 	return prometheuspromql.NewEngine(opts), nil
+}
+
+func createEnginesWithResolutionBasedLookbacks(
+	defaultLookback time.Duration,
+	defaultEngine *prometheuspromql.Engine,
+	clusters m3.ClustersStaticConfiguration,
+	resolutionMultiplier int,
+	prometheusEngineFn func(time.Duration) (*prometheuspromql.Engine, error),
+) (map[time.Duration]*prometheuspromql.Engine, error) {
+	enginesByLookback := make(map[time.Duration]*prometheuspromql.Engine)
+	enginesByLookback[defaultLookback] = defaultEngine
+	if resolutionMultiplier > 0 {
+		for _, cluster := range clusters {
+			for _, ns := range cluster.Namespaces {
+				if res := ns.Resolution; res > 0 {
+					resolutionBasedLookback := res * time.Duration(resolutionMultiplier)
+					if _, ok := enginesByLookback[resolutionBasedLookback]; !ok {
+						eng, err := prometheusEngineFn(resolutionBasedLookback)
+						if err != nil {
+							return nil, err
+						}
+						enginesByLookback[resolutionBasedLookback] = eng
+					}
+				}
+			}
+		}
+	}
+	return enginesByLookback, nil
 }
 
 func durationMilliseconds(d time.Duration) int64 {
