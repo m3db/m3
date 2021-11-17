@@ -258,6 +258,9 @@ func setupPlacement(
 			NumShards:         opts.NumShards,
 			ReplicationFactor: opts.RF,
 			Instances:         instances,
+			OptionOverride: &placementpb.Options{
+				SkipPortMirroring: &protobuftypes.BoolValue{Value: true},
+			},
 		},
 	)
 	if err != nil {
