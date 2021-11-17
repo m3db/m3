@@ -251,12 +251,15 @@ func maybeUpdateLookback(
 	maxResolution time.Duration,
 	opts PrometheusRangeRewriteOptions,
 ) (bool, time.Duration) {
-	resolutionBasedLookback := maxResolution * time.Duration(opts.ResolutionMultiplier) // nolint: durationcheck
-	if params.isLookbackSet && params.lookback < resolutionBasedLookback {
+	var (
+		lookback                = params.lookback
+		resolutionBasedLookback = maxResolution * time.Duration(opts.ResolutionMultiplier) // nolint: durationcheck
+	)
+	if !params.isLookbackSet {
+		lookback = opts.DefaultLookback
+	}
+	if lookback < resolutionBasedLookback {
 		return true, resolutionBasedLookback
 	}
-	if !params.isLookbackSet && opts.DefaultLookback < resolutionBasedLookback {
-		return true, resolutionBasedLookback
-	}
-	return false, params.lookback
+	return false, lookback
 }
