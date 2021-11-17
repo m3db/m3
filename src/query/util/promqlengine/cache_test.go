@@ -60,9 +60,9 @@ func TestDefaultEngines(t *testing.T) {
 	})
 
 	for l, expected := range expecteds {
-		e, err := cache.Get(l)
+		engine, err := cache.Get(l)
 		require.NoError(t, err)
-		require.Equal(t, expected, e)
+		require.Equal(t, expected, engine)
 	}
 }
 
