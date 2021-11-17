@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -134,4 +135,36 @@ func TestBootstrapProcessRunActiveBlockAdvanced(t *testing.T) {
 			require.Equal(t, test.expectErr, err)
 		})
 	}
+}
+
+func TestTargetRangesFileSetTypeForSnapshotDisabledNamespace(t *testing.T) {
+	sut := bootstrapProcess{processOpts: NewProcessOptions()}
+	nsOpts := namespace.NewOptions().SetSnapshotEnabled(false)
+
+	rangesForData := sut.targetRangesForData(xtime.Now(), nsOpts)
+	rangesForIndex := sut.targetRangesForIndex(xtime.Now(), nsOpts)
+
+	requireFilesetTypes(t, rangesForData, persist.FileSetFlushType)
+	requireFilesetTypes(t, rangesForIndex, persist.FileSetFlushType)
+}
+
+func TestTargetRangesFileSetTypeForSnapshotEnabledNamespace(t *testing.T) {
+	sut := bootstrapProcess{processOpts: NewProcessOptions()}
+	nsOpts := namespace.NewOptions().SetSnapshotEnabled(true)
+
+	rangesForData := sut.targetRangesForData(xtime.Now(), nsOpts)
+	rangesForIndex := sut.targetRangesForIndex(xtime.Now(), nsOpts)
+
+	requireFilesetTypes(t, rangesForData, persist.FileSetSnapshotType)
+	requireFilesetTypes(t, rangesForIndex, persist.FileSetSnapshotType)
+}
+
+func requireFilesetTypes(t *testing.T, ranges targetRangesResult, expectedSecond persist.FileSetType) {
+	persistConfigFirstRange := ranges.firstRangeWithPersistTrue.RunOptions.PersistConfig()
+	require.True(t, persistConfigFirstRange.Enabled)
+	require.Equal(t, persist.FileSetFlushType, persistConfigFirstRange.FileSetType)
+
+	persistConfigSecondRange := ranges.secondRange.RunOptions.PersistConfig()
+	require.True(t, persistConfigSecondRange.Enabled)
+	require.Equal(t, expectedSecond, persistConfigSecondRange.FileSetType)
 }
