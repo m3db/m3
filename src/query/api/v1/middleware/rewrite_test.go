@@ -53,13 +53,8 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 		expectedLookback *time.Duration
 	}{
 		{
-			name: "query with range to unagg",
-			attrs: []storagemetadata.Attributes{
-				{
-					MetricsType: storagemetadata.UnaggregatedMetricsType,
-					Retention:   7 * 24 * time.Hour,
-				},
-			},
+			name:    "query with range to unagg",
+			attrs:   unaggregatedAttrs(),
 			enabled: true,
 			mult:    2,
 			query:   "rate(foo[1m])",
@@ -67,13 +62,8 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			expectedQuery: "rate(foo[1m])",
 		},
 		{
-			name: "query with no range",
-			attrs: []storagemetadata.Attributes{
-				{
-					MetricsType: storagemetadata.UnaggregatedMetricsType,
-					Retention:   7 * 24 * time.Hour,
-				},
-			},
+			name:    "query with no range",
+			attrs:   unaggregatedAttrs(),
 			enabled: true,
 			mult:    2,
 			query:   "foo",
@@ -81,14 +71,8 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			expectedQuery: "foo",
 		},
 		{
-			name: "query with rewriteable range",
-			attrs: []storagemetadata.Attributes{
-				{
-					MetricsType: storagemetadata.AggregatedMetricsType,
-					Resolution:  5 * time.Minute,
-					Retention:   90 * 24 * time.Hour,
-				},
-			},
+			name:    "query with rewriteable range",
+			attrs:   aggregatedAttrs(5 * time.Minute),
 			enabled: true,
 			mult:    2,
 			query:   "rate(foo[30s])",
@@ -97,14 +81,8 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			expectedLookback: durationPtr(10 * time.Minute),
 		},
 		{
-			name: "query with range to agg; no rewrite",
-			attrs: []storagemetadata.Attributes{
-				{
-					MetricsType: storagemetadata.AggregatedMetricsType,
-					Retention:   30 * 24 * time.Hour,
-					Resolution:  1 * time.Minute,
-				},
-			},
+			name:    "query with range to agg; no rewrite",
+			attrs:   aggregatedAttrs(1 * time.Minute),
 			enabled: true,
 			mult:    2,
 			query:   "rate(foo[5m])",
@@ -112,14 +90,8 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			expectedQuery: "rate(foo[5m])",
 		},
 		{
-			name: "query with rewriteable range; disabled",
-			attrs: []storagemetadata.Attributes{
-				{
-					MetricsType: storagemetadata.AggregatedMetricsType,
-					Resolution:  5 * time.Minute,
-					Retention:   90 * 24 * time.Hour,
-				},
-			},
+			name:    "query with rewriteable range; disabled",
+			attrs:   aggregatedAttrs(5 * time.Minute),
 			enabled: false,
 			mult:    2,
 			query:   "rate(foo[30s])",
@@ -127,14 +99,8 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			expectedQuery: "rate(foo[30s])",
 		},
 		{
-			name: "query with rewriteable range; zero multiplier",
-			attrs: []storagemetadata.Attributes{
-				{
-					MetricsType: storagemetadata.AggregatedMetricsType,
-					Resolution:  5 * time.Minute,
-					Retention:   90 * 24 * time.Hour,
-				},
-			},
+			name:    "query with rewriteable range; zero multiplier",
+			attrs:   aggregatedAttrs(5 * time.Minute),
 			enabled: false,
 			mult:    0,
 			query:   "rate(foo[30s])",
@@ -142,13 +108,8 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			expectedQuery: "rate(foo[30s])",
 		},
 		{
-			name: "instant query; no rewrite",
-			attrs: []storagemetadata.Attributes{
-				{
-					MetricsType: storagemetadata.UnaggregatedMetricsType,
-					Retention:   7 * 24 * time.Hour,
-				},
-			},
+			name:    "instant query; no rewrite",
+			attrs:   unaggregatedAttrs(),
 			enabled: true,
 			mult:    3,
 			instant: true,
@@ -157,14 +118,8 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			expectedQuery: "rate(foo[1m])",
 		},
 		{
-			name: "instant query; rewrite",
-			attrs: []storagemetadata.Attributes{
-				{
-					MetricsType: storagemetadata.AggregatedMetricsType,
-					Resolution:  5 * time.Minute,
-					Retention:   90 * 24 * time.Hour,
-				},
-			},
+			name:    "instant query; rewrite",
+			attrs:   aggregatedAttrs(5 * time.Minute),
 			enabled: true,
 			mult:    3,
 			instant: true,
@@ -368,6 +323,14 @@ func makeBaseOpts(t *testing.T, r *mux.Router) Options {
 			ResolutionMultiplier: 2,
 			DefaultLookback:      5 * time.Minute,
 			Storage:              mockStorage,
+		},
+	}
+}
+
+func unaggregatedAttrs() []storagemetadata.Attributes {
+	return []storagemetadata.Attributes{
+		{
+			MetricsType: storagemetadata.UnaggregatedMetricsType,
 		},
 	}
 }
