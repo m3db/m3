@@ -407,7 +407,9 @@ func makeBaseOpts(t *testing.T, r *mux.Router, addPromEngine bool) Options {
 		},
 	}
 	if addPromEngine {
-		opts.PrometheusRangeRewrite.PrometheusEngine = engine
+		opts.PrometheusRangeRewrite.PrometheusEngineFn = func(duration time.Duration) (*promql.Engine, error) {
+			return engine, nil
+		}
 	}
 	return opts
 }

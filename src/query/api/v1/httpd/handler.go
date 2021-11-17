@@ -497,7 +497,7 @@ func (h *Handler) RegisterRoutes() error {
 				ResolutionMultiplier: h.middlewareConfig.Prometheus.ResolutionMultiplier,
 				DefaultLookback:      h.options.DefaultLookback(),
 				Storage:              h.options.Storage(),
-				PrometheusEngine:     h.options.PrometheusEngine(),
+				PrometheusEngineFn:   h.options.PrometheusEngineFn(),
 			},
 		}
 		override := h.registry.MiddlewareOpts(route)

@@ -50,7 +50,7 @@ type PrometheusRangeRewriteOptions struct { // nolint:maligned
 	ResolutionMultiplier int
 	DefaultLookback      time.Duration
 	Storage              storage.Storage
-	PrometheusEngine     *promql.Engine
+	PrometheusEngineFn   func(time.Duration) (*promql.Engine, error)
 }
 
 // PrometheusRangeRewrite is middleware that, when enabled, will rewrite the query parameter
@@ -129,9 +129,20 @@ func RewriteRangeDuration(
 	// Using the prometheus engine in this way should be considered
 	// optional and best effort. Fall back to the frequently accurate logic
 	// of using the start and end time in the request
-	if opts.PrometheusEngine != nil {
+	if opts.PrometheusEngineFn != nil {
+		lookback := opts.DefaultLookback
+		if params.isLookbackSet {
+			lookback = params.lookback
+		}
+		engine, err := opts.PrometheusEngineFn(lookback)
+		if err != nil {
+			logger.Debug("Found an error when getting a Prom engine to "+
+				"calculate start/end time for query rewriting. Falling back to request start/end time",
+				zap.String("originalQuery", params.query),
+				zap.Duration("lookbackDuration", lookback))
+		}
 		queryable := fakeQueryable{
-			engine:  opts.PrometheusEngine,
+			engine:  engine,
 			instant: opts.Instant,
 		}
 		err = queryable.calculateQueryBounds(params.query, params.start, params.end, fetchOpts.Step)
