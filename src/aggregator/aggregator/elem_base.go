@@ -95,6 +95,13 @@ const (
 	NoPrefixNoSuffix
 )
 
+type forwardType int
+
+const (
+	forwardTypeLocal forwardType = iota
+	forwardTypeRemote
+)
+
 // metricElem is the common interface for metric elements.
 type metricElem interface {
 	Registerable
@@ -178,8 +185,8 @@ type elemBase struct {
 
 	// Mutable states.
 	cachedSourceSets []map[uint32]*bitset.BitSet // nolint: structcheck
-	// a cache of the lag metrics that don't require grabbing a lock to access.
-	forwardLagMetrics     map[forwardLagKey]tally.Histogram
+	// a cache of the flush metrics that don't require grabbing a lock to access.
+	flushMetricsCache     map[flushKey]flushMetrics
 	tombstoned            bool
 	closed                bool
 	useDefaultAggregation bool // really immutable, but packed w/ the rest of bools
@@ -230,63 +237,114 @@ type elemMetrics struct {
 	scope         tally.Scope
 	updatedValues tally.Counter
 	retriedValues tally.Counter
-	forwardLags   map[forwardLagKey]tally.Histogram
+	flush         map[flushKey]flushMetrics
 	mtx           sync.RWMutex
 }
 
-type forwardLagKey struct {
-	resolution    time.Duration
-	listType      metricListType
-	flushType     flushType
-	fwdType       string
-	jitterApplied bool
+// flushMetrics are the metrics produced by a flush task processing the metric element.
+type flushMetrics struct {
+	// count of element scanned.
+	elemsScanned tally.Counter
+	// count of values (i.e aggregated timestamps) processed.
+	valuesProcessed tally.Counter
+	// count of values expired.
+	valuesExpired tally.Counter
+	// the difference between actual and expected processing for a value.
+	forwardLags map[forwardKey]tally.Histogram
 }
 
-func (e *elemMetrics) forwardLagMetric(key forwardLagKey) tally.Histogram {
+func newFlushMetrics(scope tally.Scope) flushMetrics {
+	forwardLagBuckets := tally.DurationBuckets{
+		10 * time.Millisecond,
+		500 * time.Millisecond,
+		time.Second,
+		2 * time.Second,
+		5 * time.Second,
+		10 * time.Second,
+		15 * time.Second,
+		20 * time.Second,
+		25 * time.Second,
+		30 * time.Second,
+		35 * time.Second,
+		40 * time.Second,
+		45 * time.Second,
+		60 * time.Second,
+		90 * time.Second,
+		120 * time.Second,
+	}
+	jitterVals := []bool{true, false}
+	typeVals := []forwardType{forwardTypeRemote, forwardTypeLocal}
+	m := flushMetrics{
+		elemsScanned:    scope.Counter("elements-scanned"),
+		valuesProcessed: scope.Counter("values-processed"),
+		valuesExpired:   scope.Counter("values-expired"),
+		forwardLags:     make(map[forwardKey]tally.Histogram),
+	}
+	for _, jv := range jitterVals {
+		for _, tv := range typeVals {
+			key := forwardKey{jitter: jv, fwdType: tv}
+			m.forwardLags[key] = scope.Tagged(key.toTags()).Histogram("forward-lag", forwardLagBuckets)
+		}
+	}
+	return m
+}
+
+func (f flushMetrics) forwardLag(key forwardKey) tally.Histogram {
+	return f.forwardLags[key]
+}
+
+// flushKey identifies a flush task.
+type flushKey struct {
+	resolution time.Duration
+	listType   metricListType
+	flushType  flushType
+}
+
+// forwardKey identifies a type of forwarding lag.
+type forwardKey struct {
+	fwdType forwardType
+	jitter  bool
+}
+
+func (f forwardKey) toTags() map[string]string {
+	jitter := "false"
+	if f.jitter {
+		jitter = "true"
+	}
+	fwdType := "local"
+	if f.fwdType == forwardTypeRemote {
+		fwdType = "remote"
+	}
+	return map[string]string{
+		"type":   fwdType,
+		"jitter": jitter,
+	}
+}
+
+func (f flushKey) toTags() map[string]string {
+	return map[string]string{
+		"resolution": f.resolution.String(),
+		"list-type":  f.listType.String(),
+		"flush-type": f.flushType.String(),
+	}
+}
+
+func (e *elemMetrics) flushMetrics(key flushKey) flushMetrics {
 	e.mtx.RLock()
-	m, ok := e.forwardLags[key]
+	m, ok := e.flush[key]
 	if ok {
 		e.mtx.RUnlock()
 		return m
 	}
 	e.mtx.RUnlock()
 	e.mtx.Lock()
-	m, ok = e.forwardLags[key]
+	m, ok = e.flush[key]
 	if ok {
 		e.mtx.Unlock()
 		return m
 	}
-	jitterApplied := "false"
-	if key.jitterApplied {
-		jitterApplied = "true"
-	}
-	m = e.scope.
-		Tagged(map[string]string{
-			"resolution": key.resolution.String(),
-			"list-type":  key.listType.String(),
-			"flush-type": key.flushType.String(),
-			"type":       key.fwdType,
-			"jitter":     jitterApplied,
-		}).
-		Histogram("forward-lag", tally.DurationBuckets{
-			10 * time.Millisecond,
-			500 * time.Millisecond,
-			time.Second,
-			2 * time.Second,
-			5 * time.Second,
-			10 * time.Second,
-			15 * time.Second,
-			20 * time.Second,
-			25 * time.Second,
-			30 * time.Second,
-			35 * time.Second,
-			40 * time.Second,
-			45 * time.Second,
-			60 * time.Second,
-			90 * time.Second,
-			120 * time.Second,
-		})
-	e.forwardLags[key] = m
+	m = newFlushMetrics(e.scope.Tagged(key.toTags()))
+	e.flush[key] = m
 	e.mtx.Unlock()
 	return m
 }
@@ -308,7 +366,7 @@ func NewElemOptions(aggregatorOpts Options) ElemOptions {
 			updatedValues: scope.Counter("updated-values"),
 			retriedValues: scope.Counter("retried-values"),
 			scope:         scope,
-			forwardLags:   make(map[forwardLagKey]tally.Histogram),
+			flush:         make(map[flushKey]flushMetrics),
 		},
 	}
 }
@@ -320,25 +378,21 @@ func newElemBase(opts ElemOptions) elemBase {
 		aggOpts:                    opts.aggregationOpts,
 		metrics:                    opts.elemMetrics,
 		bufferForPastTimedMetricFn: opts.aggregatorOpts.BufferForPastTimedMetricFn(),
-		forwardLagMetrics:          make(map[forwardLagKey]tally.Histogram),
+		flushMetricsCache:          make(map[flushKey]flushMetrics),
 	}
 }
 
-func (e *elemBase) forwardLagMetric(
-	resolution time.Duration, fwdType string, jitterApplied bool, flushType flushType,
-) tally.Histogram {
-	key := forwardLagKey{
-		resolution:    resolution,
-		listType:      e.listType,
-		fwdType:       fwdType,
-		flushType:     flushType,
-		jitterApplied: jitterApplied,
+func (e *elemBase) flushMetrics(resolution time.Duration, flushType flushType) flushMetrics {
+	key := flushKey{
+		resolution: resolution,
+		flushType:  flushType,
+		listType:   e.listType,
 	}
-	m, ok := e.forwardLagMetrics[key]
+	m, ok := e.flushMetricsCache[key]
 	if !ok {
 		// if not cached locally, get from the singleton map that requires locking.
-		m = e.metrics.forwardLagMetric(key)
-		e.forwardLagMetrics[key] = m
+		m = e.metrics.flushMetrics(key)
+		e.flushMetricsCache[key] = m
 	}
 	return m
 }

@@ -295,7 +295,8 @@ func (e *GenericElem) AddUnique(
 // remove expired aggregations from the values map.
 func (e *GenericElem) expireValuesWithLock(
 	targetNanos int64,
-	isEarlierThanFn isEarlierThanFn) {
+	isEarlierThanFn isEarlierThanFn,
+	flushMetrics flushMetrics) {
 	e.flushStateToExpire = e.flushStateToExpire[:0]
 	if len(e.values) == 0 {
 		return
@@ -333,6 +334,7 @@ func (e *GenericElem) expireValuesWithLock(
 			e.flushStateToExpire = append(e.flushStateToExpire, e.minStartTime)
 			delete(e.values, e.minStartTime)
 			e.minStartTime = currAgg.startAt
+			flushMetrics.valuesExpired.Inc(1)
 
 			// it's safe to access this outside the agg lock since it was closed in a previous iteration.
 			// This is to make sure there aren't too many cached source sets taking up
@@ -427,6 +429,9 @@ func (e *GenericElem) Consume(
 	flushType flushType,
 ) bool {
 	resolution := e.sp.Resolution().Window
+	fMetrics := e.flushMetrics(resolution, flushType)
+	fMetrics.valuesProcessed.Inc(1)
+
 	// reverse engineer the allowed lateness.
 	latenessAllowed := time.Duration(targetNanos - targetNanosFn(targetNanos))
 	e.Lock()
@@ -439,7 +444,7 @@ func (e *GenericElem) Consume(
 	e.dirtyToConsumeWithLock(targetNanos, resolution, isEarlierThanFn)
 
 	// expire the values and aggregations while we still hold the lock.
-	e.expireValuesWithLock(targetNanos, isEarlierThanFn)
+	e.expireValuesWithLock(targetNanos, isEarlierThanFn, fMetrics)
 	canCollect := len(e.dirty) == 0 && e.tombstoned
 	e.Unlock()
 
@@ -452,7 +457,7 @@ func (e *GenericElem) Consume(
 			resolution,
 			latenessAllowed,
 			jitter,
-			flushType,
+			fMetrics,
 		)
 	}
 
@@ -476,8 +481,7 @@ func (e *GenericElem) Consume(
 
 func (e *GenericElem) dirtyToConsumeWithLock(targetNanos int64,
 	resolution time.Duration,
-	isEarlierThanFn isEarlierThanFn,
-) {
+	isEarlierThanFn isEarlierThanFn) {
 	e.toConsume = e.toConsume[:0]
 	// Evaluate and GC expired items.
 	dirtyTimes := e.dirty
@@ -788,7 +792,7 @@ func (e *GenericElem) processValue(
 	resolution time.Duration,
 	latenessAllowed time.Duration,
 	jitter time.Duration,
-	flushType flushType) {
+	flushMetrics flushMetrics) {
 	var (
 		transformations  = e.parsedPipeline.Transformations
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
@@ -802,6 +806,7 @@ func (e *GenericElem) processValue(
 			l.Error("reflushing aggregation without resendEnabled", zap.Any("consumeState", cState))
 		})
 	}
+	flushMetrics.valuesProcessed.Inc(1)
 	for aggTypeIdx, aggType := range e.aggTypes {
 		var extraDp transformation.Datapoint
 		value := cState.values[aggTypeIdx]
@@ -884,7 +889,9 @@ func (e *GenericElem) processValue(
 			}
 		}
 
+		fwdType := forwardTypeRemote
 		if !e.parsedPipeline.HasRollup {
+			fwdType = forwardTypeLocal
 			toFlush := make([]transformation.Datapoint, 0, 2)
 			toFlush = append(toFlush, transformation.Datapoint{
 				TimeNanos: int64(timestamp),
@@ -902,28 +909,21 @@ func (e *GenericElem) processValue(
 					flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType),
 						point.TimeNanos, point.Value, cState.annotation, e.sp)
 				}
-
-				if !fState.flushed {
-					e.forwardLagMetric(resolution, "local", false, flushType).
-						RecordDuration(time.Since(timestamp.ToTime().Add(latenessAllowed + jitter)))
-					e.forwardLagMetric(resolution, "local", true, flushType).
-						RecordDuration(time.Since(timestamp.ToTime().Add(latenessAllowed)))
-				}
 			}
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
-			// only record lag for the initial flush (not resends)
-			if !fState.flushed {
-				// add latenessAllowed and jitter to the timestamp of the aggregation, since those should not be
-				// counted towards the processing lag.
-				// forward lag = current time - (agg timestamp + lateness allowed + jitter)
-				e.forwardLagMetric(resolution, "remote", false, flushType).
-					RecordDuration(time.Since(timestamp.ToTime().Add(latenessAllowed + jitter)))
-				e.forwardLagMetric(resolution, "remote", true, flushType).
-					RecordDuration(time.Since(timestamp.ToTime().Add(latenessAllowed)))
-			}
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
 				int64(timestamp), value, prevValue, cState.annotation, cState.resendEnabled)
+		}
+		// only record lag for the initial flush (not resends)
+		if !fState.flushed {
+			// add latenessAllowed and jitter to the timestamp of the aggregation, since those should not be
+			// counted towards the processing lag.
+			// forward lag = current time - (agg timestamp + lateness allowed + jitter)
+			flushMetrics.forwardLag(forwardKey{fwdType: fwdType, jitter: false}).
+				RecordDuration(time.Since(timestamp.ToTime().Add(latenessAllowed + jitter)))
+			flushMetrics.forwardLag(forwardKey{fwdType: fwdType, jitter: true}).
+				RecordDuration(time.Since(timestamp.ToTime().Add(latenessAllowed)))
 		}
 	}
 	fState.flushed = true

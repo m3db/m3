@@ -1066,16 +1066,19 @@ type aggregatorTickMetrics struct {
 	duration         tally.Timer
 	standard         tickMetricsForMetricCategory
 	forwarded        tickMetricsForMetricCategory
+	timed            tickMetricsForMetricCategory
 }
 
 func newAggregatorTickMetrics(scope tally.Scope) aggregatorTickMetrics {
 	standardScope := scope.Tagged(map[string]string{"metric-type": "standard"})
 	forwardedScope := scope.Tagged(map[string]string{"metric-type": "forwarded"})
+	timedScope := scope.Tagged(map[string]string{"metric-type": "timed"})
 	return aggregatorTickMetrics{
 		flushTimesErrors: scope.Counter("flush-times-errors"),
 		duration:         scope.Timer("duration"),
 		standard:         newTickMetricsForMetricCategory(standardScope),
 		forwarded:        newTickMetricsForMetricCategory(forwardedScope),
+		timed:            newTickMetricsForMetricCategory(timedScope),
 	}
 }
 
@@ -1083,6 +1086,7 @@ func (m aggregatorTickMetrics) Report(tickResult tickResult, duration time.Durat
 	m.duration.Record(duration)
 	m.standard.Report(tickResult.standard)
 	m.forwarded.Report(tickResult.forwarded)
+	m.timed.Report(tickResult.timed)
 }
 
 type aggregatorShardsMetrics struct {
