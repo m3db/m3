@@ -42,6 +42,8 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
+var fakeQuerierError = fmt.Errorf("ignorable error")
+
 // PrometheusRangeRewriteOptions are the options for the prometheus range rewriting middleware.
 type PrometheusRangeRewriteOptions struct { // nolint:maligned
 	Enabled              bool
@@ -128,53 +130,25 @@ func RewriteRangeDuration(
 	if err != nil {
 		return err
 	}
-	startTime, endTime := params.start, params.end
-
-	// Using the prometheus engine in this way should be considered
-	// optional and best effort. Fall back to the frequently accurate logic
-	// of using the start and end time in the request
-	if opts.PrometheusEngineFn != nil {
-		lookback := opts.DefaultLookback
-		if params.isLookbackSet {
-			lookback = params.lookback
-		}
-		engine, err := opts.PrometheusEngineFn(lookback)
-		if err != nil {
-			logger.Debug("Found an error when getting a Prom engine to "+
-				"calculate start/end time for query rewriting. Falling back to request start/end time",
-				zap.String("originalQuery", params.query),
-				zap.Duration("lookbackDuration", lookback))
-		}
-		queryable := fakeQueryable{
-			engine:  engine,
-			instant: opts.Instant,
-		}
-		err = queryable.calculateQueryBounds(params.query, params.start, params.end, fetchOpts.Step)
-		if err != nil {
-			logger.Debug("Found an error when using the Prom engine to "+
-				"calculate start/end time for query rewriting. Falling back to request start/end time",
-				zap.String("originalQuery", params.query))
-		}
-		// calculates the query boundaries in roughly the same way as prometheus
-		startTime, endTime = queryable.getQueryBounds()
-	}
-	attrs, err := store.QueryStorageMetadataAttributes(ctx, startTime, endTime, fetchOpts)
+	// Get the appropriate time range before updating the lookback
+	// This is necessary to cover things like the offset and `@` modifiers.
+	startTime, endTime := getQueryBounds(opts, params, fetchOpts, logger)
+	res, err := findLargestQueryResolution(ctx, store, fetchOpts, startTime, endTime)
 	if err != nil {
 		return err
 	}
+	updateLookback, updatedLookback := maybeUpdateLookback(params, res, opts)
+	originalLookback := params.lookback
 
-	// Find the largest resolution
-	var res time.Duration
-	for _, attr := range attrs {
-		if attr.Resolution > res {
-			res = attr.Resolution
+	// We use the lookback as a part of bounds calculation. If the lookback changes, we need to recalculate
+	// If it has changed, we need to recalculate
+	if updateLookback {
+		params.lookback = updatedLookback
+		startTime, endTime = getQueryBounds(opts, params, fetchOpts, logger)
+		res, err = findLargestQueryResolution(ctx, store, fetchOpts, startTime, endTime)
+		if err != nil {
+			return err
 		}
-	}
-
-	// Largest resolution is 0 which means we're routing to the unaggregated namespace.
-	// Unaggregated namespace can service all requests, so return.
-	if res == 0 {
-		return nil
 	}
 
 	// parse the query so that we can manipulate it
@@ -182,9 +156,7 @@ func RewriteRangeDuration(
 	if err != nil {
 		return err
 	}
-
 	updateQuery, updatedQuery := maybeRewriteRangeInQuery(params.query, expr, res, opts.ResolutionMultiplier)
-	updateLookback, updatedLookback := maybeUpdateLookback(params, res, opts)
 
 	if !updateQuery && !updateLookback {
 		return nil
@@ -223,10 +195,71 @@ func RewriteRangeDuration(
 	logger.Debug("rewrote duration values in request",
 		zap.String("originalQuery", params.query),
 		zap.String("updatedQuery", updatedQuery),
-		zap.Duration("originalLookback", params.lookback),
+		zap.Duration("originalLookback", originalLookback),
 		zap.Duration("updatedLookback", updatedLookback))
 
 	return nil
+}
+
+func findLargestQueryResolution(ctx context.Context,
+	store storage.Storage,
+	fetchOpts *storage.FetchOptions,
+	startTime time.Time,
+	endTime time.Time,
+) (time.Duration, error) {
+	attrs, err := store.QueryStorageMetadataAttributes(ctx, startTime, endTime, fetchOpts)
+	if err != nil {
+		return 0, err
+	}
+
+	// Find the largest resolution
+	var res time.Duration
+	for _, attr := range attrs {
+		if attr.Resolution > res {
+			res = attr.Resolution
+		}
+	}
+	return res, nil
+}
+
+// Using the prometheus engine in this way should be considered
+// optional and best effort. Fall back to the frequently accurate logic
+// of using the start and end time in the request
+func getQueryBounds(
+	opts PrometheusRangeRewriteOptions,
+	params params,
+	fetchOpts *storage.FetchOptions,
+	logger *zap.Logger,
+) (start time.Time, end time.Time) {
+	start = params.start
+	end = params.end
+
+	if opts.PrometheusEngineFn != nil {
+		lookback := opts.DefaultLookback
+		if params.isLookbackSet {
+			lookback = params.lookback
+		}
+		engine, err := opts.PrometheusEngineFn(lookback)
+		if err != nil {
+			logger.Debug("Found an error when getting a Prom engine to "+
+				"calculate start/end time for query rewriting. Falling back to request start/end time",
+				zap.String("originalQuery", params.query),
+				zap.Duration("lookbackDuration", lookback))
+		}
+		queryable := fakeQueryable{
+			engine:  engine,
+			instant: opts.Instant,
+		}
+		err = queryable.calculateQueryBounds(params.query, params.start, params.end, fetchOpts.Step)
+		if err != nil {
+			logger.Debug("Found an error when using the Prom engine to "+
+				"calculate start/end time for query rewriting. Falling back to request start/end time",
+				zap.String("originalQuery", params.query))
+		}
+		// calculates the query boundaries in roughly the same way as prometheus
+		start, end = queryable.getQueryBounds()
+	}
+	return start, end
 }
 
 type params struct {
@@ -315,7 +348,7 @@ func (f *fakeQueryable) Querier(ctx context.Context, mint, maxt int64) (promstor
 	f.calculatedStartTime = xtime.FromUnixMillis(mint)
 	f.calculatedEndTime = xtime.FromUnixMillis(maxt)
 	// fail here to cause prometheus to give up on query execution
-	return nil, fmt.Errorf("ignorable error")
+	return nil, fakeQuerierError
 }
 
 func (f *fakeQueryable) calculateQueryBounds(
@@ -335,7 +368,7 @@ func (f *fakeQueryable) calculateQueryBounds(
 		return err
 	}
 	// The result returned by Exec will be an error, but that's expected
-	if res := query.Exec(context.Background()); res.Err != nil && res.Err.Error() != "ignorable error" {
+	if res := query.Exec(context.Background()); res.Err != nil && res.Err == fakeQuerierError {
 		return err
 	}
 	return nil
