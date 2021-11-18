@@ -23,6 +23,7 @@ package middleware
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -42,7 +43,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-var fakeQuerierError = fmt.Errorf("ignorable error")
+var errIgnorableQuerierError = fmt.Errorf("ignorable error")
 
 // PrometheusRangeRewriteOptions are the options for the prometheus range rewriting middleware.
 type PrometheusRangeRewriteOptions struct { // nolint:maligned
@@ -348,7 +349,7 @@ func (f *fakeQueryable) Querier(ctx context.Context, mint, maxt int64) (promstor
 	f.calculatedStartTime = xtime.FromUnixMillis(mint)
 	f.calculatedEndTime = xtime.FromUnixMillis(maxt)
 	// fail here to cause prometheus to give up on query execution
-	return nil, fakeQuerierError
+	return nil, errIgnorableQuerierError
 }
 
 func (f *fakeQueryable) calculateQueryBounds(
@@ -368,7 +369,7 @@ func (f *fakeQueryable) calculateQueryBounds(
 		return err
 	}
 	// The result returned by Exec will be an error, but that's expected
-	if res := query.Exec(context.Background()); res.Err != nil && res.Err == fakeQuerierError {
+	if res := query.Exec(context.Background()); errors.Is(res.Err, errIgnorableQuerierError) {
 		return err
 	}
 	return nil
