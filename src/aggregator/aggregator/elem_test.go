@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/uber-go/tally"
 	"github.com/willf/bitset"
 	"go.uber.org/atomic"
 
@@ -2508,7 +2509,7 @@ func TestPanics(t *testing.T) {
 					localFn,
 					forwardFn,
 					0, 0, 0,
-					consumeType)
+					newFlushMetrics(tally.NewTestScope("", nil)))
 			},
 		},
 		{
@@ -2542,7 +2543,7 @@ func TestPanics(t *testing.T) {
 					localFn,
 					forwardFn,
 					0, 0, 0,
-					consumeType)
+					newFlushMetrics(tally.NewTestScope("", nil)))
 			},
 		},
 	}
@@ -2915,7 +2916,8 @@ func TestExpireValues(t *testing.T) {
 			}
 
 			// Expire up to target.
-			e.expireValuesWithLock(int64(test.targetNanos), isStandardMetricEarlierThan)
+			e.expireValuesWithLock(int64(test.targetNanos), isStandardMetricEarlierThan,
+				newFlushMetrics(tally.NewTestScope("", nil)))
 
 			// Validate toExpire and remaining values.
 			require.Equal(t, len(test.expectedToExpire), len(e.flushStateToExpire))

@@ -42,6 +42,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/placementhandler"
+	"github.com/m3db/m3/src/query/api/v1/handler/graphite"
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
 	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
@@ -978,3 +979,80 @@ func toResponse(
 
 	return nil
 }
+
+// GraphiteQuery retrieves graphite raw data.
+func (c *CoordinatorClient) GraphiteQuery(
+	graphiteReq GraphiteQueryRequest,
+) ([]Datapoint, error) {
+	if graphiteReq.From.IsZero() {
+		graphiteReq.From = time.Now().Add(-24 * time.Hour)
+	}
+	if graphiteReq.Until.IsZero() {
+		graphiteReq.Until = time.Now()
+	}
+
+	queryStr := fmt.Sprintf(
+		"%s?target=%s&from=%d&until=%d",
+		graphite.ReadURL, graphiteReq.Target,
+		graphiteReq.From.Unix(),
+		graphiteReq.Until.Unix(),
+	)
+
+	url := c.makeURL(queryStr)
+	logger := c.logger.With(
+		ZapMethod("graphiteQuery"), zap.String("url", url))
+	logger.Info("running")
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		logger.Error("failed get", zap.Error(err))
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if status := resp.StatusCode; status != http.StatusOK {
+		return nil, fmt.Errorf("query response status not OK, received %v %s", status, resp.Status)
+	}
+
+	var parsedResp jsonGraphiteQueryResponse
+	if err := json.Unmarshal(b, &parsedResp); err != nil {
+		return nil, err
+	}
+
+	if len(parsedResp) == 0 {
+		return nil, nil
+	}
+
+	results := make([]Datapoint, 0, len(parsedResp[0].Datapoints))
+	for _, dp := range parsedResp[0].Datapoints {
+		if len(dp) != 2 {
+			return nil, fmt.Errorf("failed to parse response: %s", string(b))
+		}
+
+		results = append(results, Datapoint{
+			Value:     dp[0],
+			Timestamp: int64(*dp[1]),
+		})
+	}
+
+	return results, nil
+}
+
+type jsonGraphiteQueryResponse []series
+
+type series struct {
+	Target     string
+	Datapoints []tuple
+	StepSizeMs int
+}
+
+type tuple []*float64

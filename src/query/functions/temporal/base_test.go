@@ -151,9 +151,17 @@ func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 						Value: []byte("v2"),
 					}})}
 
-				// NB: name should be dropped from series tags, and the name
-				// should be the updated ID.
-				expectedSeriesMetas := []block.SeriesMeta{metaOne, metaTwo}
+				// The last_over_time function acts like offset;
+				// thus, it should keep the metric name.
+				// For all other functions,
+				// name should be dropped from series tags,
+				// and the name should be the updated ID.
+				var expectedSeriesMetas []block.SeriesMeta
+				if tt.opType != LastType {
+					expectedSeriesMetas = []block.SeriesMeta{metaOne, metaTwo}
+				} else {
+					expectedSeriesMetas = seriesMetas
+				}
 				require.Equal(t, expectedSeriesMetas, sink.Metas)
 			})
 		}

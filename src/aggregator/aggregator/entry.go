@@ -70,6 +70,20 @@ var (
 	errTimestampFormat   = time.RFC3339
 )
 
+// baseEntryMetrics are common to all entry types.
+type baseEntryMetrics struct {
+	rateLimit rateLimitEntryMetrics
+	// count of metrics added to the entry.
+	added tally.Counter
+}
+
+func newBaseEntryMetrics(scope tally.Scope) baseEntryMetrics {
+	return baseEntryMetrics{
+		rateLimit: newRateLimitEntryMetrics(scope),
+		added:     scope.Counter("added"),
+	}
+}
+
 type rateLimitEntryMetrics struct {
 	valueRateLimitExceeded tally.Counter
 	droppedValues          tally.Counter
@@ -83,7 +97,7 @@ func newRateLimitEntryMetrics(scope tally.Scope) rateLimitEntryMetrics {
 }
 
 type untimedEntryMetrics struct {
-	rateLimit               rateLimitEntryMetrics
+	baseEntryMetrics
 	emptyMetadatas          tally.Counter
 	noApplicableMetadata    tally.Counter
 	noPipelinesInMetadata   tally.Counter
@@ -96,7 +110,7 @@ type untimedEntryMetrics struct {
 
 func newUntimedEntryMetrics(scope tally.Scope) untimedEntryMetrics {
 	return untimedEntryMetrics{
-		rateLimit:               newRateLimitEntryMetrics(scope),
+		baseEntryMetrics:        newBaseEntryMetrics(scope),
 		emptyMetadatas:          scope.Counter("empty-metadatas"),
 		noApplicableMetadata:    scope.Counter("no-applicable-metadata"),
 		noPipelinesInMetadata:   scope.Counter("no-pipelines-in-metadata"),
@@ -109,7 +123,7 @@ func newUntimedEntryMetrics(scope tally.Scope) untimedEntryMetrics {
 }
 
 type timedEntryMetrics struct {
-	rateLimit             rateLimitEntryMetrics
+	baseEntryMetrics
 	tooFarInTheFuture     tally.Counter
 	tooFarInThePast       tally.Counter
 	ingestDelay           tally.Histogram
@@ -121,7 +135,7 @@ type timedEntryMetrics struct {
 
 func newTimedEntryMetrics(scope tally.Scope) timedEntryMetrics {
 	return timedEntryMetrics{
-		rateLimit:             newRateLimitEntryMetrics(scope),
+		baseEntryMetrics:      newBaseEntryMetrics(scope),
 		tooFarInTheFuture:     scope.Counter("too-far-in-the-future"),
 		tooFarInThePast:       scope.Counter("too-far-in-the-past"),
 		noPipelinesInMetadata: scope.Counter("no-pipelines-in-metadata"),
@@ -146,7 +160,7 @@ func newTimedEntryMetrics(scope tally.Scope) timedEntryMetrics {
 }
 
 type forwardedEntryMetrics struct {
-	rateLimit        rateLimitEntryMetrics
+	baseEntryMetrics
 	arrivedTooLate   tally.Counter
 	duplicateSources tally.Counter
 	metadataUpdates  tally.Counter
@@ -154,7 +168,7 @@ type forwardedEntryMetrics struct {
 
 func newForwardedEntryMetrics(scope tally.Scope) forwardedEntryMetrics {
 	return forwardedEntryMetrics{
-		rateLimit:        newRateLimitEntryMetrics(scope),
+		baseEntryMetrics: newBaseEntryMetrics(scope),
 		arrivedTooLate:   scope.Counter("arrived-too-late"),
 		duplicateSources: scope.Counter("duplicate-sources"),
 		metadataUpdates:  scope.Counter("metadata-updates"),

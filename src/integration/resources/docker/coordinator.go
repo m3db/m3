@@ -254,6 +254,11 @@ func (c *coordinator) RangeQuery(
 	return c.client.RangeQuery(req, headers)
 }
 
+// GraphiteQuery retrieves graphite raw data.
+func (c *coordinator) GraphiteQuery(req resources.GraphiteQueryRequest) ([]resources.Datapoint, error) {
+	return c.client.GraphiteQuery(req)
+}
+
 // LabelNames return matching label names based on the request.
 func (c *coordinator) LabelNames(
 	req resources.LabelNamesRequest,
