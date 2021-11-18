@@ -419,34 +419,51 @@ func groupHostsWithIsolationGroupCheck(hosts []host, rf int) (groups [][]host, u
 func groupInstancesByHostPort(hostGroups [][]host, skipPortMatching bool) ([][]placement.Instance, error) {
 	var instanceGroups = make([][]placement.Instance, 0, len(hostGroups))
 	for _, hostGroup := range hostGroups {
-		for port, instance := range hostGroup[0].portToInstance {
-			instanceGroup := make([]placement.Instance, 0, len(hostGroup))
-			instanceGroup = append(instanceGroup, instance)
-			for _, otherHost := range hostGroup[1:] {
-				var (
-					otherInstance placement.Instance
-					ok            bool
-				)
-				if !skipPortMatching {
-					otherInstance, ok = otherHost.portToInstance[port]
+		if !skipPortMatching {
+			for port, instance := range hostGroup[0].portToInstance {
+				instanceGroup := make([]placement.Instance, 0, len(hostGroup))
+				instanceGroup = append(instanceGroup, instance)
+				for _, otherHost := range hostGroup[1:] {
+					otherInstance, ok := otherHost.portToInstance[port]
 					if !ok {
 						return nil, fmt.Errorf("could not find port %d on host %s", port, otherHost.name)
 					}
-				} else {
-					if len(otherHost.portToInstance) == 0 {
-						return nil, fmt.Errorf("could not find any available instance on host %s", otherHost.name)
-					}
-					for _, v := range otherHost.portToInstance {
-						otherInstance = v
-						break
-					}
+					instanceGroup = append(instanceGroup, otherInstance)
 				}
-				instanceGroup = append(instanceGroup, otherInstance)
+				instanceGroups = append(instanceGroups, instanceGroup)
 			}
-			instanceGroups = append(instanceGroups, instanceGroup)
+		} else {
+			numInstancesPerHost, instancesByHost := convertHostGroupToInstanceLists(hostGroup)
+			for i := 0; i < numInstancesPerHost; i++ {
+				instanceGroup := make([]placement.Instance, 0, len(hostGroup))
+				for _, list := range instancesByHost {
+					instanceGroup = append(instanceGroup, list[i])
+				}
+				instanceGroups = append(instanceGroups, instanceGroup)
+			}
 		}
 	}
 	return instanceGroups, nil
+}
+
+func convertHostGroupToInstanceLists(hostGroup []host) (int, [][]placement.Instance) {
+	numInstancePerHost := 0
+	instancesByHost := make([][]placement.Instance, 0, len(hostGroup))
+	for i, host := range hostGroup {
+		if i == 0 {
+			numInstancePerHost = len(host.portToInstance)
+		} else if numInstancePerHost > len(host.portToInstance) {
+			numInstancePerHost = len(host.portToInstance)
+		}
+
+		instances := make([]placement.Instance, 0, numInstancePerHost)
+		for _, instance := range host.portToInstance {
+			instances = append(instances, instance)
+		}
+		instancesByHost = append(instancesByHost, instances)
+	}
+
+	return numInstancePerHost, instancesByHost
 }
 
 // assignShardsetsToGroupedInstances is a helper for mirrored selectors, which assigns shardset
