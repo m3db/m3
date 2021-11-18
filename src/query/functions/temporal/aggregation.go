@@ -52,6 +52,9 @@ const (
 	// StdVarType calculates the standard variance of all values in the specified interval.
 	StdVarType = "stdvar_over_time"
 
+	// LastType returns the most recent value in the specified interval.
+	LastType = "last_over_time"
+
 	// QuantileType calculates the φ-quantile (0 ≤ φ ≤ 1) of the values in the specified interval.
 	QuantileType = "quantile_over_time"
 )
@@ -67,6 +70,7 @@ var (
 		SumType:    sumOverTime,
 		StdDevType: stddevOverTime,
 		StdVarType: stdvarOverTime,
+		LastType:   lastOverTime,
 	}
 )
 
@@ -218,6 +222,15 @@ func stdvarOverTime(values []float64) float64 {
 	}
 
 	return aux / count
+}
+
+func lastOverTime(values []float64) float64 {
+	length := len(values)
+	if length == 0 {
+		return math.NaN()
+	}
+
+	return values[length-1]
 }
 
 func sumAndCount(values []float64) (float64, float64) {

@@ -208,7 +208,7 @@ func (c *baseNode) batchProcess(
 		idx = idx + batch.Size
 		p := c.makeProcessor.initialize(c.op.duration, c.transformOpts)
 		go func() {
-			err := parallelProcess(ctx, loopIndex, batch.Iter, builder, m, p, &mu)
+			err := parallelProcess(ctx, c.op.OpType(), loopIndex, batch.Iter, builder, m, p, &mu)
 			if err != nil {
 				mu.Lock()
 				// NB: this no-ops if the error is nil.
@@ -226,6 +226,7 @@ func (c *baseNode) batchProcess(
 
 func parallelProcess(
 	ctx context.Context,
+	opType string,
 	idx int,
 	iter block.SeriesIter,
 	builder block.Builder,
@@ -275,10 +276,15 @@ func parallelProcess(
 			decodeDuration += stats.DecodeDuration
 		}
 
-		// rename series to exclude their __name__ tag as
-		// part of function processing.
-		seriesMeta.Tags = seriesMeta.Tags.WithoutName()
-		seriesMeta.Name = seriesMeta.Tags.ID()
+		// The last_over_time function acts like offset;
+		// thus, it should keep the metric name.
+		// For all other functions,
+		// rename series to exclude their __name__ tag as part of function processing.
+		if opType != LastType {
+			seriesMeta.Tags = seriesMeta.Tags.WithoutName()
+			seriesMeta.Name = seriesMeta.Tags.ID()
+		}
+
 		values = values[:0]
 		for i := 0; i < blockMeta.steps; i++ {
 			iterBounds := iterationBounds{
@@ -342,14 +348,22 @@ func (c *baseNode) singleProcess(
 		return nil, err
 	}
 
+	// The last_over_time function acts like offset;
+	// thus, it should keep the metric name.
+	// For all other functions,
 	// rename series to exclude their __name__ tag as part of function processing.
-	resultSeriesMeta := make([]block.SeriesMeta, 0, len(seriesIter.SeriesMeta()))
-	for _, m := range seriesIter.SeriesMeta() {
-		tags := m.Tags.WithoutName()
-		resultSeriesMeta = append(resultSeriesMeta, block.SeriesMeta{
-			Name: tags.ID(),
-			Tags: tags,
-		})
+	var resultSeriesMeta []block.SeriesMeta
+	if c.op.OpType() != LastType {
+		resultSeriesMeta = make([]block.SeriesMeta, 0, len(seriesIter.SeriesMeta()))
+		for _, m := range seriesIter.SeriesMeta() {
+			tags := m.Tags.WithoutName()
+			resultSeriesMeta = append(resultSeriesMeta, block.SeriesMeta{
+				Name: tags.ID(),
+				Tags: tags,
+			})
+		}
+	} else {
+		resultSeriesMeta = seriesIter.SeriesMeta()
 	}
 
 	meta := b.Meta()
