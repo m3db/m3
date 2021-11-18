@@ -50,7 +50,11 @@ type PrometheusRangeRewriteOptions struct { // nolint:maligned
 	ResolutionMultiplier int
 	DefaultLookback      time.Duration
 	Storage              storage.Storage
-	PrometheusEngineFn   func(time.Duration) (*promql.Engine, error)
+
+	// TODO(marcus): There's a conversation with Prometheus about supporting dynamic lookback.
+	//  We can replace this with a single engine reference if that work is ever completed.
+	//   https://groups.google.com/g/prometheus-developers/c/9wzuobfLMV8
+	PrometheusEngineFn func(time.Duration) (*promql.Engine, error)
 }
 
 // PrometheusRangeRewrite is middleware that, when enabled, will rewrite the query parameter

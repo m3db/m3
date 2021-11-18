@@ -220,14 +220,8 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 			expectedLookback: durationPtr(15 * time.Minute),
 		},
 		{
-			name: "instant query; rewrite w/ prom engine",
-			attrs: []storagemetadata.Attributes{
-				{
-					MetricsType: storagemetadata.AggregatedMetricsType,
-					Resolution:  5 * time.Minute,
-					Retention:   90 * 24 * time.Hour,
-				},
-			},
+			name:          "instant query; rewrite w/ prom engine",
+			attrs:         aggregatedAttrs(5 * time.Minute),
 			enabled:       true,
 			mult:          3,
 			instant:       true,
@@ -241,13 +235,7 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 		{
 			name: "instant query; rewrite w/ prom engine & offset",
 			// Just testing the parsing code paths since this is a fake storage
-			attrs: []storagemetadata.Attributes{
-				{
-					MetricsType: storagemetadata.AggregatedMetricsType,
-					Resolution:  5 * time.Minute,
-					Retention:   30 * 24 * time.Hour,
-				},
-			},
+			attrs:         aggregatedAttrs(5 * time.Minute),
 			enabled:       true,
 			usePromEngine: true,
 			mult:          3,
@@ -261,13 +249,7 @@ func TestPrometheusRangeRewrite(t *testing.T) {
 		{
 			name: "range query; rewrite w/ prom engine & offset",
 			// Just testing the parsing code paths since this is a fake storage
-			attrs: []storagemetadata.Attributes{
-				{
-					MetricsType: storagemetadata.AggregatedMetricsType,
-					Resolution:  5 * time.Minute,
-					Retention:   30 * 24 * time.Hour,
-				},
-			},
+			attrs:         aggregatedAttrs(5 * time.Minute),
 			enabled:       true,
 			usePromEngine: true,
 			mult:          3,
