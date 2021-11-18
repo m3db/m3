@@ -1020,7 +1020,7 @@ func (c *CoordinatorClient) GraphiteQuery(
 	}
 
 	if status := resp.StatusCode; status != http.StatusOK {
-		return nil, fmt.Errorf("query response status not OK, received %v", status)
+		return nil, fmt.Errorf("query response status not OK, received %v %s", status, resp.Status)
 	}
 
 	var parsedResp jsonGraphiteQueryResponse
