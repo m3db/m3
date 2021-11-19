@@ -31,26 +31,27 @@ import (
 )
 
 type messageHandler struct {
-	opts                  Options
-	mPool                 *messagePool
-	newMessageProcessorFn NewMessageProcessorFn
-	m                     metrics
+	opts   Options
+	mPool  *messagePool
+	mpPool MessageProcessorPool
+	m      metrics
 }
 
 // NewMessageHandler creates a new server handler with messageFn.
-func NewMessageHandler(newMessageProcessorFn NewMessageProcessorFn, opts Options) server.Handler {
+func NewMessageHandler(mpPool MessageProcessorPool, opts Options) server.Handler {
 	mPool := newMessagePool(opts.MessagePoolOptions())
 	mPool.Init()
 	return &messageHandler{
-		newMessageProcessorFn: newMessageProcessorFn,
-		opts:                  opts,
-		mPool:                 mPool,
-		m:                     newConsumerMetrics(opts.InstrumentOptions().MetricsScope()),
+		mpPool: mpPool,
+		opts:   opts,
+		mPool:  mPool,
+		m:      newConsumerMetrics(opts.InstrumentOptions().MetricsScope()),
 	}
 }
 
 func (h *messageHandler) Handle(conn net.Conn) {
-	c := newConsumer(conn, h.mPool, h.opts, h.m, h.newMessageProcessorFn)
+	mp := h.mpPool.Get()
+	c := newConsumer(conn, h.mPool, h.opts, h.m, mp)
 	c.Init()
 	var (
 		msgErr error
@@ -68,7 +69,10 @@ func (h *messageHandler) Handle(conn net.Conn) {
 	if msgErr != nil && msgErr != io.EOF {
 		h.opts.InstrumentOptions().Logger().With(zap.Error(msgErr)).Error("could not read message from consumer")
 	}
+	h.mpPool.Put(mp)
 	c.Close()
 }
 
-func (h *messageHandler) Close() {}
+func (h *messageHandler) Close() {
+	h.mpPool.Close()
+}

@@ -132,16 +132,57 @@ type MessageProcessor interface {
 	Close()
 }
 
-// NewMessageProcessorFn creates a new MessageProcessor scoped to a single connection. Messages are processed serially
-// in a connection.
-type NewMessageProcessorFn func() MessageProcessor
-
-// SingletonMessageProcessor uses the same MessageProcessor for all connections.
-func SingletonMessageProcessor(p MessageProcessor) NewMessageProcessorFn {
-	return func() MessageProcessor {
-		return p
-	}
+// MessageProcessorPool returns MessageProcessors.
+type MessageProcessorPool interface {
+	// Get returns a MessageProcessor.
+	Get() MessageProcessor
+	// Put returns the MessageProcessor.
+	Put(mp MessageProcessor)
+	// Close the pool.
+	Close()
 }
+
+// SingletonMessageProcessor returns a MessageProcessorPool that shares the same MessageProcessor for all users. The
+// MessageProcessor is closed when the pool is closed.
+func SingletonMessageProcessor(mp MessageProcessor) MessageProcessorPool {
+	return &singletonMessageProcessorPool{mp: mp}
+}
+
+type singletonMessageProcessorPool struct {
+	mp MessageProcessor
+}
+
+func (s singletonMessageProcessorPool) Get() MessageProcessor {
+	return s.mp
+}
+
+func (s singletonMessageProcessorPool) Put(MessageProcessor) {
+	// mp is shared by all users, nothing to do.
+}
+
+func (s singletonMessageProcessorPool) Close() {
+	s.mp.Close()
+}
+
+// NewMessageProcessorPool returns a MessageProcessorPool that creates a new MessageProcessor for every call to Get
+// and closes the MessageProcessor for every call to Put.
+func NewMessageProcessorPool(fn func() MessageProcessor) MessageProcessorPool {
+	return &messageProcessorPool{fn: fn}
+}
+
+type messageProcessorPool struct {
+	fn func() MessageProcessor
+}
+
+func (m messageProcessorPool) Get() MessageProcessor {
+	return m.fn()
+}
+
+func (m messageProcessorPool) Put(mp MessageProcessor) {
+	mp.Close()
+}
+
+func (m messageProcessorPool) Close() {}
 
 // NewNoOpMessageProcessor creates a new MessageProcessor that does nothing.
 func NewNoOpMessageProcessor() MessageProcessor {

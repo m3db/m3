@@ -69,7 +69,7 @@ func (l *listener) Accept() (Consumer, error) {
 		return nil, err
 	}
 
-	return newConsumer(conn, l.msgPool, l.opts, l.m, NewNoOpMessageProcessor), nil
+	return newConsumer(conn, l.msgPool, l.opts, l.m, NewNoOpMessageProcessor()), nil
 }
 
 type metrics struct {
@@ -123,7 +123,7 @@ func newConsumer(
 	mPool *messagePool,
 	opts Options,
 	m metrics,
-	newMessageProcessorFn NewMessageProcessorFn,
+	mp MessageProcessor,
 ) *consumer {
 	var (
 		wOpts = xio.ResettableWriterOptions{
@@ -146,7 +146,7 @@ func newConsumer(
 		closed:           false,
 		doneCh:           make(chan struct{}),
 		m:                m,
-		messageProcessor: newMessageProcessorFn(),
+		messageProcessor: mp,
 	}
 }
 
@@ -262,7 +262,6 @@ func (c *consumer) Close() {
 	close(c.doneCh)
 	c.wg.Wait()
 	c.conn.Close()
-	c.messageProcessor.Close()
 }
 
 type message struct {

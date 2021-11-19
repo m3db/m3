@@ -35,7 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestServerWithMessageFn(t *testing.T) {
+func TestServerWithSingletonMessageProcessor(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	var (
@@ -53,7 +53,7 @@ func TestServerWithMessageFn(t *testing.T) {
 			m.Ack()
 			wg.Done()
 		},
-	).Times(2)
+	).Times(3)
 	// Set a large ack buffer size to make sure the background go routine
 	// can flush it.
 	opts := testOptions().SetAckBufferSize(100)
@@ -63,27 +63,35 @@ func TestServerWithMessageFn(t *testing.T) {
 	s := server.NewServer("a", NewMessageHandler(SingletonMessageProcessor(p), opts), server.NewOptions())
 	s.Serve(l)
 
-	conn, err := net.Dial("tcp", l.Addr().String())
+	conn1, err := net.Dial("tcp", l.Addr().String())
+	require.NoError(t, err)
+	conn2, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
 
-	wg.Add(1)
-	err = produce(conn, &testMsg1)
+	wg.Add(3)
+	err = produce(conn1, &testMsg1)
 	require.NoError(t, err)
-	wg.Add(1)
-	err = produce(conn, &testMsg2)
+	err = produce(conn1, &testMsg2)
+	require.NoError(t, err)
+	err = produce(conn2, &testMsg2)
 	require.NoError(t, err)
 
 	wg.Wait()
 	require.Equal(t, string(testMsg1.Value), data[0])
 	require.Equal(t, string(testMsg2.Value), data[1])
+	require.Equal(t, string(testMsg2.Value), data[2])
 
 	var ack msgpb.Ack
-	testDecoder := proto.NewDecoder(conn, opts.DecoderOptions(), 10)
+	testDecoder := proto.NewDecoder(conn1, opts.DecoderOptions(), 10)
 	err = testDecoder.Decode(&ack)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(ack.Metadata))
+	testDecoder = proto.NewDecoder(conn2, opts.DecoderOptions(), 10)
+	err = testDecoder.Decode(&ack)
+	require.NoError(t, err)
+	require.Equal(t, 3, len(ack.Metadata))
 	require.Equal(t, testMsg1.Metadata, ack.Metadata[0])
 	require.Equal(t, testMsg2.Metadata, ack.Metadata[1])
+	require.Equal(t, testMsg2.Metadata, ack.Metadata[2])
 
 	p.EXPECT().Close()
 	s.Close()
@@ -126,7 +134,7 @@ func TestServerMessageDifferentConnections(t *testing.T) {
 		return mp2
 	}
 
-	s := server.NewServer("a", NewMessageHandler(newMessageProcessor, opts), server.NewOptions())
+	s := server.NewServer("a", NewMessageHandler(NewMessageProcessorPool(newMessageProcessor), opts), server.NewOptions())
 	require.NoError(t, err)
 	require.NoError(t, s.Serve(l))
 

@@ -50,7 +50,7 @@ func NewServer(
 			logger:     opts.InstrumentOptions().Logger(),
 		}
 	}
-	handler := consumer.NewMessageHandler(newMessageProcessor, opts.ConsumerOptions())
+	handler := consumer.NewMessageHandler(consumer.NewMessageProcessorPool(newMessageProcessor), opts.ConsumerOptions())
 	return xserver.NewServer(address, handler, opts.ServerOptions()), nil
 }
 
