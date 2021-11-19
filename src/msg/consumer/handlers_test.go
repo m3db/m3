@@ -141,7 +141,8 @@ func TestServerMessageDifferentConnections(t *testing.T) {
 		return mp2
 	}
 
-	s := server.NewServer("a", NewMessageHandler(NewMessageProcessorFactory(newMessageProcessor), opts), server.NewOptions())
+	s := server.NewServer("a",
+		NewMessageHandler(NewMessageProcessorFactory(newMessageProcessor), opts), server.NewOptions())
 	require.NoError(t, err)
 	require.NoError(t, s.Serve(l))
 

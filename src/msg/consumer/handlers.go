@@ -31,7 +31,7 @@ import (
 )
 
 type messageHandler struct {
-	opts   Options
+	opts      Options
 	mPool     *messagePool
 	mpFactory MessageProcessorFactory
 	m         metrics
