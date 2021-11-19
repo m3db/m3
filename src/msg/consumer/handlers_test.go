@@ -22,6 +22,7 @@ package consumer
 
 import (
 	"net"
+	"sort"
 	"sync"
 	"testing"
 
@@ -41,6 +42,7 @@ func TestServerWithSingletonMessageProcessor(t *testing.T) {
 	var (
 		data []string
 		wg   sync.WaitGroup
+		mu sync.Mutex
 	)
 
 	ctrl := gomock.NewController(t)
@@ -49,7 +51,9 @@ func TestServerWithSingletonMessageProcessor(t *testing.T) {
 	p := NewMockMessageProcessor(ctrl)
 	p.EXPECT().Process(gomock.Any()).Do(
 		func(m Message) {
+			mu.Lock()
 			data = append(data, string(m.Bytes()))
+			mu.Unlock()
 			m.Ack()
 			wg.Done()
 		},
@@ -61,7 +65,8 @@ func TestServerWithSingletonMessageProcessor(t *testing.T) {
 	require.NoError(t, err)
 
 	s := server.NewServer("a", NewMessageHandler(SingletonMessageProcessor(p), opts), server.NewOptions())
-	s.Serve(l)
+	defer s.Close()
+	require.NoError(t, s.Serve(l))
 
 	conn1, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
@@ -77,24 +82,25 @@ func TestServerWithSingletonMessageProcessor(t *testing.T) {
 	require.NoError(t, err)
 
 	wg.Wait()
-	require.Equal(t, string(testMsg1.Value), data[0])
+	sort.Strings(data)
+	require.Equal(t, string(testMsg2.Value), data[0])
 	require.Equal(t, string(testMsg2.Value), data[1])
-	require.Equal(t, string(testMsg2.Value), data[2])
+	require.Equal(t, string(testMsg1.Value), data[2])
 
 	var ack msgpb.Ack
 	testDecoder := proto.NewDecoder(conn1, opts.DecoderOptions(), 10)
 	err = testDecoder.Decode(&ack)
-	require.NoError(t, err)
 	testDecoder = proto.NewDecoder(conn2, opts.DecoderOptions(), 10)
 	err = testDecoder.Decode(&ack)
 	require.NoError(t, err)
 	require.Equal(t, 3, len(ack.Metadata))
+	sort.Slice(ack.Metadata, func(i, j int) bool {
+		return ack.Metadata[i].Id < ack.Metadata[j].Id
+	})
 	require.Equal(t, testMsg1.Metadata, ack.Metadata[0])
 	require.Equal(t, testMsg2.Metadata, ack.Metadata[1])
 	require.Equal(t, testMsg2.Metadata, ack.Metadata[2])
-
 	p.EXPECT().Close()
-	s.Close()
 }
 
 func TestServerMessageDifferentConnections(t *testing.T) {
