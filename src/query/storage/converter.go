@@ -84,7 +84,8 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 	)
 
 	switch series.Source {
-	case prompb.Source_PROMETHEUS:
+	// TODO(linasm): implement internal support for OPEN_METRICS
+	case prompb.Source_PROMETHEUS | prompb.Source_OPEN_METRICS:
 		sourceType = ts.SourceTypePrometheus
 	case prompb.Source_GRAPHITE:
 		sourceType = ts.SourceTypeGraphite

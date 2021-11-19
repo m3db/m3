@@ -287,6 +287,10 @@ func TestPromTimeSeriesToSeriesAttributesSource(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ts.SourceTypePrometheus, attrs.Source)
 
+	attrs, err = PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Source: prompb.Source_OPEN_METRICS})
+	require.NoError(t, err)
+	assert.Equal(t, ts.SourceTypePrometheus, attrs.Source)
+
 	attrs, err = PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Source: prompb.Source_GRAPHITE})
 	require.NoError(t, err)
 	assert.Equal(t, ts.SourceTypeGraphite, attrs.Source)
