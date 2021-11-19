@@ -19,10 +19,11 @@ func TestMaxResendBuffer(t *testing.T) {
 		scope      = tally.NewTestScope("", nil)
 		iOpts      = instrument.NewOptions().SetMetricsScope(scope)
 		maxMetrics = NewMaxResendBufferMetrics(bufferSize, iOpts)
-		maxBuffer  = NewMaxBuffer(bufferSize, maxMetrics)
+		maxBuffer  = NewMaxBuffer(bufferSize, maxMetrics, iOpts)
 
-		inserted int64
-		updated  int64
+		inserted        int64
+		updated         int64
+		updatePersisted float64
 	)
 
 	b := maxBuffer.(*resendBuffer)
@@ -58,6 +59,7 @@ func TestMaxResendBuffer(t *testing.T) {
 	// Resend large values that appear in the list that should update the max.
 	for i := numToAdd - bufferSize; i < numToAdd; i++ {
 		updated++
+		updatePersisted++
 		updatedVal := float64(10 + i)
 		maxBuffer.Update(float64(i), updatedVal)
 		require.Equal(t, updatedVal, maxBuffer.Value())
@@ -70,22 +72,30 @@ func TestMaxResendBuffer(t *testing.T) {
 	smallVal := float64(100)
 
 	updated++
+	updatePersisted++
 	maxBuffer.Update(0, smallVal)
 	require.Equal(t, smallVal, maxBuffer.Value())
 
 	// Update the previously resent large value with a small value to ensure value
 	// is returned to max before the large value came in.
 	updated++
+	updatePersisted++
 	maxBuffer.Update(smallVal, 0)
 	require.Equal(t, currMax, maxBuffer.Value())
 
-	maxTags := map[string]string{"type": "max"}
+	snap := scope.Snapshot()
+	tags := map[string]string{"type": "max"}
+
 	tallytest.
-		AssertCounterValue(t, 1, scope.Snapshot(), "resend.count", maxTags)
+		AssertCounterValue(t, 1, snap, "resend.count", tags)
 	tallytest.
-		AssertCounterValue(t, inserted, scope.Snapshot(), "resend.inserted", maxTags)
+		AssertCounterValue(t, inserted, snap, "resend.inserted", tags)
 	tallytest.
-		AssertCounterValue(t, updated, scope.Snapshot(), "resend.updated", maxTags)
+		AssertCounterValue(t, updated, snap, "resend.updated", tags)
+	tallytest.
+		AssertGaugeValue(t, updatePersisted, snap, "resend.updates_persisted", tags)
+	tallytest.
+		AssertGaugeValue(t, float64(bufferSize), snap, "resend.buffer_limit", tags)
 
 	maxBuffer.Close()
 }
@@ -98,10 +108,11 @@ func TestMinResendBuffer(t *testing.T) {
 		scope      = tally.NewTestScope("", nil)
 		iOpts      = instrument.NewOptions().SetMetricsScope(scope)
 		minMetrics = NewMinResendBufferMetrics(bufferSize, iOpts)
-		minBuffer  = NewMinBuffer(bufferSize, minMetrics)
+		minBuffer  = NewMinBuffer(bufferSize, minMetrics, iOpts)
 
-		inserted int64
-		updated  int64
+		inserted        int64
+		updated         int64
+		updatePersisted float64
 	)
 
 	b := minBuffer.(*resendBuffer)
@@ -137,6 +148,7 @@ func TestMinResendBuffer(t *testing.T) {
 	// Resend small values that appear in the list that should update the min.
 	for i := numToAdd - bufferSize; i < numToAdd; i++ {
 		updated++
+		updatePersisted++
 		updatedVal := float64(-i)
 		minBuffer.Update(float64(i), updatedVal)
 		require.Equal(t, updatedVal, minBuffer.Value())
@@ -149,22 +161,30 @@ func TestMinResendBuffer(t *testing.T) {
 	smallVal := float64(-100)
 
 	updated++
+	updatePersisted++
 	minBuffer.Update(0, smallVal)
 	require.Equal(t, smallVal, minBuffer.Value())
 
 	// Update the previously resent small value with a large value to ensure value
 	// is returned to min before the large value came in.
 	updated++
+	updatePersisted++
 	minBuffer.Update(smallVal, 100)
 	require.Equal(t, currMin, minBuffer.Value())
 
-	minTags := map[string]string{"type": "min"}
+	snap := scope.Snapshot()
+	tags := map[string]string{"type": "min"}
+
 	tallytest.
-		AssertCounterValue(t, 1, scope.Snapshot(), "resend.count", minTags)
+		AssertCounterValue(t, 1, snap, "resend.count", tags)
 	tallytest.
-		AssertCounterValue(t, inserted, scope.Snapshot(), "resend.inserted", minTags)
+		AssertCounterValue(t, inserted, snap, "resend.inserted", tags)
 	tallytest.
-		AssertCounterValue(t, updated, scope.Snapshot(), "resend.updated", minTags)
+		AssertCounterValue(t, updated, snap, "resend.updated", tags)
+	tallytest.
+		AssertGaugeValue(t, updatePersisted, snap, "resend.updates_persisted", tags)
+	tallytest.
+		AssertGaugeValue(t, float64(bufferSize), snap, "resend.buffer_limit", tags)
 
 	minBuffer.Close()
 }

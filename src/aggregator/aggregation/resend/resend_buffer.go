@@ -55,57 +55,49 @@ type ResendMetrics struct {
 	// updates is he total number of resends across all resend buffers.
 	updates tally.Counter
 
-	// updatesPersisted is a
-	updatesPersisted tally.Histogram
-
-	// The bufferlimit is the size for the buffers.
+	// bufferLimit is the size for the buffers.
 	bufferLimit tally.Gauge
 }
 
 type resendBuffer struct {
-	metrics          *ResendMetrics
-	updatesPersisted float64
-	comparisonFn     comparisonFn
-	list             []float64
+	list         []float64
+	comparisonFn comparisonFn
+
+	updatesPersisted      float64
+	updatesPersistedGauge tally.Gauge
+	metrics               *ResendMetrics
+}
+
+func resendScope(resendType string, iOpts instrument.Options) tally.Scope {
+	return iOpts.MetricsScope().SubScope("resend").
+		Tagged(map[string]string{"type": resendType})
 }
 
 // NewMaxResendBufferMetrics builds resend metrics for the max buffer.
 func NewMaxResendBufferMetrics(size int, iOpts instrument.Options) *ResendMetrics {
-	scope := iOpts.MetricsScope().SubScope("resend").
-		Tagged(map[string]string{"type": "max"})
-	return newResendBufferMetrics(size, scope)
+	return newResendBufferMetrics(size, resendScope("max", iOpts))
 }
 
 // NewMinResendBufferMetrics builds resend metrics for the min buffer.
 func NewMinResendBufferMetrics(size int, iOpts instrument.Options) *ResendMetrics {
-	scope := iOpts.MetricsScope().SubScope("resend").
-		Tagged(map[string]string{"type": "min"})
-	return newResendBufferMetrics(size, scope)
+	return newResendBufferMetrics(size, resendScope("min", iOpts))
 }
 
 func newResendBufferMetrics(size int, scope tally.Scope) *ResendMetrics {
-	updateBuckets := make(tally.ValueBuckets, 0, size)
-	for i := 1; i <= size; i++ {
-		// Add the bucket with an epsilon; these will always be reported as an
-		// integer count, so adding an epsilon here will ensure we record into the
-		// correct bucket.
-		updateBuckets = append(updateBuckets, float64(i)+0.00001)
-	}
-
 	m := &ResendMetrics{
 		count:   scope.Counter("count"),
 		inserts: scope.Counter("inserted"),
 		updates: scope.Counter("updated"),
-
-		updatesPersisted: scope.Histogram("persisted]", updateBuckets),
 
 		bufferLimit: scope.Gauge("buffer_limit"),
 	}
 
 	// Start reporting loop for reporting the buffer size limit.
 	timer := time.NewTimer(resendBufferLimit)
+	bufferLimit := float64(size)
+	m.bufferLimit.Update(bufferLimit)
+
 	go func() {
-		bufferLimit := float64(size)
 		for {
 			<-timer.C
 			m.bufferLimit.Update(bufferLimit)
@@ -138,28 +130,38 @@ func max(a, b float64) bool {
 }
 
 // NewMaxBuffer returns a ResendBuffer that will keep up to  `k` max elements.
-func NewMaxBuffer(k int, metrics *ResendMetrics) ResendBuffer {
-	return newResendBuffer(k, max, metrics)
+func NewMaxBuffer(
+	k int,
+	metrics *ResendMetrics,
+	iOpts instrument.Options,
+) ResendBuffer {
+	return newResendBuffer(k, max, resendScope("max", iOpts), metrics)
 }
 
 // NewMinBuffer returns a ResendBuffer that will keep up to `k` max elements.
-func NewMinBuffer(k int, metrics *ResendMetrics) ResendBuffer {
-	return newResendBuffer(k, min, metrics)
+func NewMinBuffer(
+	k int,
+	metrics *ResendMetrics,
+	iOpts instrument.Options,
+) ResendBuffer {
+	return newResendBuffer(k, min, resendScope("min", iOpts), metrics)
 }
 
 func newResendBuffer(
 	k int,
 	comparisonFn comparisonFn,
+	scope tally.Scope,
 	metrics *ResendMetrics,
 ) ResendBuffer {
 	metrics.count.Inc(1)
 
 	return &resendBuffer{
-		metrics:      metrics,
+		// TODO: pooling.
+		list:         make([]float64, 0, k),
 		comparisonFn: comparisonFn,
 
-		// TODO: pooling.
-		list: make([]float64, 0, k),
+		metrics:               metrics,
+		updatesPersistedGauge: scope.Gauge("updates_persisted"),
 	}
 }
 
@@ -221,7 +223,7 @@ func (b *resendBuffer) Update(prevVal float64, newVal float64) {
 		if listVal == prevVal {
 			b.list[idx] = newVal
 			b.updatesPersisted++
-			b.metrics.updatesPersisted.RecordValue(b.updatesPersisted)
+			b.updatesPersistedGauge.Update(b.updatesPersisted)
 			return
 		}
 
@@ -238,7 +240,7 @@ func (b *resendBuffer) Update(prevVal float64, newVal float64) {
 	if len(b.list) == cap(b.list) && b.comparisonFn(newVal, toUpdateVal) {
 		b.list[toUpdateIdx] = newVal
 		b.updatesPersisted++
-		b.metrics.updatesPersisted.RecordValue(b.updatesPersisted)
+		b.updatesPersistedGauge.Update(b.updatesPersisted)
 	}
 }
 
