@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	ingestm3msg "github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/m3msg"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
-	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/graphite/graphite"
@@ -155,9 +154,6 @@ type Configuration struct {
 
 	// Backend is the backend store for query service.
 	Backend BackendStorageType `yaml:"backend"`
-
-	// Encoding is the encoding configuration options.
-	Encoding client.EncodingConfiguration `yaml:"encoding"`
 
 	// TagOptions is the tag configuration options.
 	TagOptions TagOptionsConfiguration `yaml:"tagOptions"`
