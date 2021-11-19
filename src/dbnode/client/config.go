@@ -23,7 +23,6 @@ package client
 import (
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -38,7 +37,6 @@ import (
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/sampler"
 	xsync "github.com/m3db/m3/src/x/sync"
-	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -88,9 +86,6 @@ type Configuration struct {
 	// HashingConfiguration is the configuration for hashing of IDs to shards.
 	HashingConfiguration *HashingConfiguration `yaml:"hashing"`
 
-	// Encoding contains the configuration specific for encoding.
-	Encoding EncodingConfiguration `yaml:"encoding"`
-
 	// Proto contains the configuration specific to running in the ProtoDataMode.
 	Proto *ProtoConfiguration `yaml:"proto"`
 
@@ -122,42 +117,6 @@ type Configuration struct {
 	// ShardsLeavingCountTowardsConsistency sets whether or not writes to leaving shards
 	// count towards consistency, by default they do not.
 	ShardsLeavingCountTowardsConsistency *bool `yaml:"shardsLeavingCountTowardsConsistency"`
-}
-
-// EncodingConfiguration is the configuration for encoding options.
-type EncodingConfiguration struct {
-	M3TSZ *M3TSZEncodingConfiguration `yaml:"m3tsz"`
-}
-
-// NewEncodingOptions returns new encoding options given the configuration.
-func (c EncodingConfiguration) NewEncodingOptions() encoding.Options {
-	encodingOpts := encoding.NewOptions()
-	if m3tsz := c.M3TSZ; m3tsz != nil {
-		encodingOpts = encodingOpts.SetValueDecreaseTolerance(m3tsz.ValueDecreaseTolerance)
-
-		// Default to max time so that it's always applicable if value
-		// decrease tolerance is non-zero.
-		toleranceUntil := xtime.UnixNano(math.MaxInt64)
-		if value := m3tsz.ValueDecreaseToleranceUntil; value != nil {
-			toleranceUntil = xtime.ToUnixNano(*value)
-		}
-		encodingOpts = encodingOpts.SetValueDecreaseToleranceUntil(toleranceUntil)
-	}
-	return encodingOpts
-}
-
-// M3TSZEncodingConfiguration is the configuration specific to when using M3TSZ
-// encoding.
-type M3TSZEncodingConfiguration struct {
-	// ValueDecreaseTolerance allows for setting a specific amount of tolerance
-	// to avoid returning a decrease if it's below a certain tolerance.
-	// This is useful for applications that have precision issues emitting
-	// monotonic increasing data and will accidentally make it seem like the
-	// counter value decreases when it hasn't changed.
-	ValueDecreaseTolerance float64 `yaml:"valueDecreaseTolerance"`
-	// ValueDecreaseToleranceUntil allows for setting a a time threshold on
-	// which to apply the conditional value decrease threshold.
-	ValueDecreaseToleranceUntil *time.Time `yaml:"valueDecreaseToleranceUntil"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -453,7 +412,7 @@ func (c Configuration) NewAdminClient(
 
 	encodingOpts := params.EncodingOptions
 	if encodingOpts == nil {
-		encodingOpts = c.Encoding.NewEncodingOptions()
+		encodingOpts = encoding.NewOptions()
 	}
 
 	v = v.SetReaderIteratorAllocate(m3tsz.DefaultReaderIteratorAllocFn(encodingOpts))

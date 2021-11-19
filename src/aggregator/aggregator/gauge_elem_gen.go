@@ -47,16 +47,17 @@ type lockedGaugeAggregation struct {
 	sourcesSeen map[uint32]*bitset.BitSet
 	mtx         sync.Mutex
 	dirty       bool
-	closed      bool
+	// resendEnabled is allowed to change while an aggregation is open, so it must be behind the lock.
+	resendEnabled bool
+	closed        bool
 }
 
 type timedGauge struct {
-	lockedAgg     *lockedGaugeAggregation
-	startAt       xtime.UnixNano // start time of an aggregation window
-	prevStart     xtime.UnixNano
-	nextStart     xtime.UnixNano
-	resendEnabled bool
-	inDirtySet    bool
+	lockedAgg  *lockedGaugeAggregation
+	startAt    xtime.UnixNano // start time of an aggregation window
+	prevStart  xtime.UnixNano
+	nextStart  xtime.UnixNano
+	inDirtySet bool
 }
 
 // close is called when the aggregation has been expired or the element is being closed.
@@ -126,15 +127,8 @@ func (e *GaugeElem) ResetSetData(data ElemData) error {
 
 // AddUnion adds a metric value union at a given timestamp.
 func (e *GaugeElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion, resendEnabled bool) error {
-	return e.doAddUnion(timestamp, mu, resendEnabled, false)
-}
-
-func (e *GaugeElem) doAddUnion(timestamp time.Time, mu unaggregated.MetricUnion, resendEnabled bool, retry bool,
-) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window)
-	lockedAgg, err := e.findOrCreate(alignedStart.UnixNano(), createAggregationOptions{
-		resendEnabled: resendEnabled,
-	})
+	lockedAgg, err := e.findOrCreate(alignedStart.UnixNano(), createAggregationOptions{})
 	if err != nil {
 		return err
 	}
@@ -142,20 +136,17 @@ func (e *GaugeElem) doAddUnion(timestamp time.Time, mu unaggregated.MetricUnion,
 	if lockedAgg.closed {
 		// Note: this might have created an entry in the dirty set for lockedAgg when calling findOrCreate, even though
 		// it's already closed. The Consume loop will detect this and clean it up.
+		aggResendEnabled := lockedAgg.resendEnabled
 		lockedAgg.mtx.Unlock()
-		if !resendEnabled && !retry {
-			// handle the edge case where the aggregation was already flushed/closed because the current time is right
-			// at the boundary. just roll the untimed metric into the next aggregation.
-			return e.doAddUnion(alignedStart.Add(e.sp.Resolution().Window), mu, false, true)
+		if !aggResendEnabled && resendEnabled {
+			return errClosedBeforeResendEnabledMigration
 		}
 		return errAggregationClosed
 	}
 	lockedAgg.aggregation.AddUnion(timestamp, mu)
 	lockedAgg.dirty = true
+	lockedAgg.resendEnabled = resendEnabled
 	lockedAgg.mtx.Unlock()
-	if retry {
-		e.metrics.retriedValues.Inc(1)
-	}
 	return nil
 }
 
@@ -189,7 +180,6 @@ func (e *GaugeElem) AddUnique(
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
 	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{
 		initSourceSet: true,
-		resendEnabled: metadata.ResendEnabled,
 	})
 	if err != nil {
 		return err
@@ -225,6 +215,7 @@ func (e *GaugeElem) AddUnique(
 		}
 	}
 	lockedAgg.dirty = true
+	lockedAgg.resendEnabled = metadata.ResendEnabled
 	lockedAgg.mtx.Unlock()
 	return nil
 }
@@ -243,7 +234,7 @@ func (e *GaugeElem) expireValuesWithLock(
 	currAgg := e.values[e.minStartTime]
 	resendExpire := targetNanos - int64(e.bufferForPastTimedMetricFn(resolution))
 	for isEarlierThanFn(int64(currAgg.startAt), resolution, targetNanos) {
-		if currAgg.resendEnabled {
+		if e.flushState[currAgg.startAt].latestResendEnabled {
 			// if resend enabled we want to keep this value until it is outside the buffer past period.
 			if !isEarlierThanFn(int64(currAgg.startAt), resolution, resendExpire) {
 				break
@@ -448,12 +439,13 @@ func (e *GaugeElem) dirtyToConsumeWithLock(targetNanos int64,
 		val := e.values[dirtyTime]
 		val.inDirtySet = false
 		e.values[dirtyTime] = val
+		cState := e.toConsume[len(e.toConsume)-1]
 
 		// potentially consume the nextAgg as well in case we need to cascade an update to the nextAgg.
 		// this is necessary for binary transformations that rely on the previous aggregation value for calculating the
 		// current aggregation value. if the nextAgg was already flushed, it used an outdated value for the previous
 		// value (this agg). this can only happen when we allow updating previously flushed data (i.e resendEnabled).
-		if agg.resendEnabled {
+		if cState.resendEnabled {
 			nextAgg, ok := e.nextAggWithLock(agg)
 			// only need to add if not already in the dirty set (since it will be added in a subsequent iteration).
 			if ok &&
@@ -486,6 +478,7 @@ func (e *GaugeElem) appendConsumeStateWithLock(
 	// copy the lockedAgg data while holding the lock.
 	agg.lockedAgg.mtx.Lock()
 	cState.dirty = agg.lockedAgg.dirty
+	cState.resendEnabled = agg.lockedAgg.resendEnabled
 	for _, aggType := range e.aggTypes {
 		cState.values = append(cState.values, agg.lockedAgg.aggregation.ValueOf(aggType))
 	}
@@ -501,9 +494,12 @@ func (e *GaugeElem) appendConsumeStateWithLock(
 	} else {
 		cState.prevStartTime = 0
 	}
-	cState.resendEnabled = agg.resendEnabled
 	cState.startAt = agg.startAt
 	toConsume[len(toConsume)-1] = cState
+	// update the flush state with the latestResendEnabled since expireValuesWithLock needs it before actual processing.
+	fState := e.flushState[cState.startAt]
+	fState.latestResendEnabled = cState.resendEnabled
+	e.flushState[cState.startAt] = fState
 
 	if includeFilter != nil && !includeFilter(cState) {
 		// since we eagerly appended, we need to remove if it should not be included.
@@ -635,7 +631,7 @@ func (e *GaugeElem) findOrCreate(
 		return nil, err
 	}
 	// if the aggregation is found and does not need to be updated, return as is.
-	if found.lockedAgg != nil && found.inDirtySet && found.resendEnabled == createOpts.resendEnabled {
+	if found.lockedAgg != nil && found.inDirtySet {
 		return found.lockedAgg, err
 	}
 
@@ -651,10 +647,8 @@ func (e *GaugeElem) findOrCreate(
 		if !timedAgg.inDirtySet {
 			timedAgg.inDirtySet = true
 			e.insertDirty(alignedStart)
+			e.values[alignedStart] = timedAgg
 		}
-		// ensure the resendEnabled state is the latest.
-		timedAgg.resendEnabled = createOpts.resendEnabled
-		e.values[alignedStart] = timedAgg
 		e.Unlock()
 		return timedAgg.lockedAgg, nil
 	}
@@ -678,8 +672,7 @@ func (e *GaugeElem) findOrCreate(
 			sourcesSeen: sourcesSeen,
 			aggregation: e.NewAggregation(e.opts, e.aggOpts),
 		},
-		resendEnabled: createOpts.resendEnabled,
-		inDirtySet:    true,
+		inDirtySet: true,
 	}
 
 	if len(e.values) == 0 || e.minStartTime > alignedStart {

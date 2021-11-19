@@ -2909,9 +2909,10 @@ func TestExpireValues(t *testing.T) {
 
 			// Add test values.
 			for _, v := range test.values {
-				_, err := e.findOrCreate(int64(v), createAggregationOptions{
-					resendEnabled: test.resendEnabled,
-				})
+				_, err := e.findOrCreate(int64(v), createAggregationOptions{})
+				// need to manually seed the flush state since we don't call Consume(), which takes care of setting
+				// the flush state for expireValuesWithLock to use.
+				e.flushState[v] = flushState{latestResendEnabled: test.resendEnabled}
 				require.NoError(t, err)
 			}
 
@@ -3118,17 +3119,17 @@ func testGaugeElemWithData(
 	require.NoError(t, e.ResetSetData(data))
 	for i, aligned := range alignedstartAtNanos {
 		gauge := &lockedGaugeAggregation{
-			aggregation: newGaugeAggregation(raggregation.NewGauge(e.aggOpts)),
-			sourcesSeen: make(map[uint32]*bitset.BitSet),
+			aggregation:   newGaugeAggregation(raggregation.NewGauge(e.aggOpts)),
+			sourcesSeen:   make(map[uint32]*bitset.BitSet),
+			resendEnabled: resendEnabled,
 		}
 		gauge.dirty = true
 		// offset the timestamp by 1 so the gauge value can be updated using the aligned timestamp later.
 		gauge.aggregation.Update(time.Unix(0, aligned-1), gaugeVals[i], nil)
 		startAligned := xtime.UnixNano(aligned)
 		e.values[startAligned] = timedGauge{
-			startAt:       startAligned,
-			lockedAgg:     gauge,
-			resendEnabled: resendEnabled,
+			startAt:   startAligned,
+			lockedAgg: gauge,
 		}
 		e.dirty = append(e.dirty, startAligned)
 	}
