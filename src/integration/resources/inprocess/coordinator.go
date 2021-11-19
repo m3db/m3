@@ -406,7 +406,7 @@ func (c *Coordinator) ApplyKVUpdate(update string) error {
 
 // WriteCarbon writes a carbon metric datapoint at a given time.
 func (c *Coordinator) WriteCarbon(port int, metric string, v float64, t time.Time) error {
-	return c.client.WriteCarbon(fmt.Sprintf("http://0.0.0.0/%d", port), metric, v, t)
+	return c.client.WriteCarbon(fmt.Sprintf("0.0.0.0:%d", port), metric, v, t)
 }
 
 // WriteProm writes a prometheus metric.
@@ -437,6 +437,11 @@ func (c *Coordinator) RangeQuery(
 	headers resources.Headers,
 ) (model.Matrix, error) {
 	return c.client.RangeQuery(req, headers)
+}
+
+// GraphiteQuery retrieves graphite raw data.
+func (c *Coordinator) GraphiteQuery(req resources.GraphiteQueryRequest) ([]resources.Datapoint, error) {
+	return c.client.GraphiteQuery(req)
 }
 
 // LabelNames return matching label names based on the request.

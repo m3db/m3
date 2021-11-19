@@ -26,15 +26,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/x/context"
-	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 )
 
@@ -141,9 +140,8 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	ns.EXPECT().PrepareBootstrap(gomock.Any()).Return([]databaseShard{}, nil).AnyTimes()
-	ns.EXPECT().Metadata().Return(meta).AnyTimes()
-
+	ns.EXPECT().PrepareBootstrap(gomock.Any()).Return([]databaseShard{}, nil).Times(2)
+	ns.EXPECT().Metadata().Return(meta).Times(2)
 	ns.EXPECT().
 		Bootstrap(gomock.Any(), gomock.Any()).
 		Return(nil).
@@ -216,7 +214,6 @@ func TestDatabaseBootstrapBootstrapHooks(t *testing.T) {
 
 		ns.EXPECT().PrepareBootstrap(gomock.Any()).Return(shards, nil).AnyTimes()
 		ns.EXPECT().Metadata().Return(meta).AnyTimes()
-
 		ns.EXPECT().
 			Bootstrap(gomock.Any(), gomock.Any()).
 			Return(nil).

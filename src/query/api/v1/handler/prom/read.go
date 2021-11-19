@@ -51,10 +51,14 @@ type NewQueryFn func(params models.RequestParams) (promql.Query, error)
 
 var (
 	newRangeQueryFn = func(
-		engine *promql.Engine,
+		engineFn options.PromQLEngineFn,
 		queryable promstorage.Queryable,
 	) NewQueryFn {
 		return func(params models.RequestParams) (promql.Query, error) {
+			engine, err := engineFn(params.LookbackDuration)
+			if err != nil {
+				return nil, err
+			}
 			return engine.NewRangeQuery(
 				queryable,
 				params.Query,
@@ -65,10 +69,14 @@ var (
 	}
 
 	newInstantQueryFn = func(
-		engine *promql.Engine,
+		engineFn options.PromQLEngineFn,
 		queryable promstorage.Queryable,
 	) NewQueryFn {
 		return func(params models.RequestParams) (promql.Query, error) {
+			engine, err := engineFn(params.LookbackDuration)
+			if err != nil {
+				return nil, err
+			}
 			return engine.NewInstantQuery(
 				queryable,
 				params.Query,

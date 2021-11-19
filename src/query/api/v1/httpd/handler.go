@@ -24,7 +24,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof" // needed for pprof handler registration
+
+	// needed for pprof handler registration
+	_ "net/http/pprof"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -146,12 +148,12 @@ func (h *Handler) RegisterRoutes() error {
 		))
 
 	promqlQueryHandler, err := prom.NewReadHandler(nativeSourceOpts,
-		prom.WithEngine(h.options.PrometheusEngine()))
+		prom.WithEngine(h.options.PrometheusEngineFn()))
 	if err != nil {
 		return err
 	}
 	promqlInstantQueryHandler, err := prom.NewReadHandler(nativeSourceOpts,
-		prom.WithInstantEngine(h.options.PrometheusEngine()))
+		prom.WithInstantEngine(h.options.PrometheusEngineFn()))
 	if err != nil {
 		return err
 	}
@@ -493,7 +495,9 @@ func (h *Handler) RegisterRoutes() error {
 			PrometheusRangeRewrite: middleware.PrometheusRangeRewriteOptions{
 				FetchOptionsBuilder:  h.options.FetchOptionsBuilder(),
 				ResolutionMultiplier: h.middlewareConfig.Prometheus.ResolutionMultiplier,
+				DefaultLookback:      h.options.DefaultLookback(),
 				Storage:              h.options.Storage(),
+				PrometheusEngineFn:   h.options.PrometheusEngineFn(),
 			},
 		}
 		override := h.registry.MiddlewareOpts(route)

@@ -60,6 +60,13 @@ const (
 	M3QueryEngine QueryEngine = "m3query"
 )
 
+// PromQLEngineFn constructs promql.Engine with the given lookbackDuration. promql.Engine uses
+// a fixed lookback, so we have to create multiple engines for different lookback values.
+//
+// TODO(vilius): there's a conversation at Prometheus mailing list about making lookback dynamic
+//   https://groups.google.com/g/prometheus-developers/c/9wzuobfLMV8
+type PromQLEngineFn func(lookbackDuration time.Duration) (*promql.Engine, error)
+
 // OptionTransformFn transforms given handler options.
 type OptionTransformFn func(opts HandlerOptions) HandlerOptions
 
@@ -144,10 +151,10 @@ type HandlerOptions interface {
 	// SetEngine sets the engine.
 	SetEngine(e executor.Engine) HandlerOptions
 
-	// PrometheusEngine returns the prometheus engine.
-	PrometheusEngine() *promql.Engine
-	// SetPrometheusEngine sets the prometheus engine.
-	SetPrometheusEngine(e *promql.Engine) HandlerOptions
+	// PrometheusEngineFn returns the function for Prometheus engine creation.
+	PrometheusEngineFn() PromQLEngineFn
+	// SetPrometheusEngineFn sets the function for Prometheus engine creation.
+	SetPrometheusEngineFn(fn PromQLEngineFn) HandlerOptions
 
 	// Clusters returns the clusters.
 	Clusters() m3.Clusters
@@ -275,6 +282,11 @@ type HandlerOptions interface {
 	SetRegisterMiddleware(value middleware.Register) HandlerOptions
 	// RegisterMiddleware returns the function to construct the set of Middleware functions to run.
 	RegisterMiddleware() middleware.Register
+
+	// DefaultLookback returns the default value of lookback duration.
+	DefaultLookback() time.Duration
+	// SetDefaultLookback sets the default value of lookback duration.
+	SetDefaultLookback(value time.Duration) HandlerOptions
 }
 
 // HandlerOptions represents handler options.
@@ -282,7 +294,7 @@ type handlerOptions struct {
 	storage                           storage.Storage
 	downsamplerAndWriter              ingest.DownsamplerAndWriter
 	engine                            executor.Engine
-	prometheusEngine                  *promql.Engine
+	prometheusEngineFn                PromQLEngineFn
 	defaultEngine                     QueryEngine
 	clusters                          m3.Clusters
 	clusterClient                     clusterclient.Client
@@ -309,6 +321,7 @@ type handlerOptions struct {
 	registerMiddleware                middleware.Register
 	graphiteRenderRouter              GraphiteRenderRouter
 	graphiteFindRouter                GraphiteFindRouter
+	defaultLookback                   time.Duration
 }
 
 // EmptyHandlerOptions returns  default handler options.
@@ -325,7 +338,7 @@ func NewHandlerOptions(
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
 	tagOptions models.TagOptions,
 	engine executor.Engine,
-	prometheusEngine *promql.Engine,
+	prometheusEngineFn PromQLEngineFn,
 	m3dbClusters m3.Clusters,
 	clusterClient clusterclient.Client,
 	cfg config.Configuration,
@@ -344,6 +357,7 @@ func NewHandlerOptions(
 	m3dbOpts m3.Options,
 	graphiteRenderRouter GraphiteRenderRouter,
 	graphiteFindRouter GraphiteFindRouter,
+	defaultLookback time.Duration,
 ) (HandlerOptions, error) {
 	storeMetricsType := false
 	if cfg.StoreMetricsType != nil {
@@ -353,7 +367,7 @@ func NewHandlerOptions(
 		storage:                           downsamplerAndWriter.Storage(),
 		downsamplerAndWriter:              downsamplerAndWriter,
 		engine:                            engine,
-		prometheusEngine:                  prometheusEngine,
+		prometheusEngineFn:                prometheusEngineFn,
 		defaultEngine:                     getDefaultQueryEngine(cfg.Query.DefaultEngine),
 		clusters:                          m3dbClusters,
 		clusterClient:                     clusterClient,
@@ -379,6 +393,7 @@ func NewHandlerOptions(
 		registerMiddleware:                middleware.Default,
 		graphiteRenderRouter:              graphiteRenderRouter,
 		graphiteFindRouter:                graphiteFindRouter,
+		defaultLookback:                   defaultLookback,
 	}, nil
 }
 
@@ -417,13 +432,13 @@ func (o *handlerOptions) SetEngine(e executor.Engine) HandlerOptions {
 	return &opts
 }
 
-func (o *handlerOptions) PrometheusEngine() *promql.Engine {
-	return o.prometheusEngine
+func (o *handlerOptions) PrometheusEngineFn() PromQLEngineFn {
+	return o.prometheusEngineFn
 }
 
-func (o *handlerOptions) SetPrometheusEngine(e *promql.Engine) HandlerOptions {
+func (o *handlerOptions) SetPrometheusEngineFn(fn PromQLEngineFn) HandlerOptions {
 	opts := *o
-	opts.prometheusEngine = e
+	opts.prometheusEngineFn = fn
 	return &opts
 }
 
@@ -704,6 +719,16 @@ func (o *handlerOptions) RegisterMiddleware() middleware.Register {
 func (o *handlerOptions) SetRegisterMiddleware(value middleware.Register) HandlerOptions {
 	opts := *o
 	opts.registerMiddleware = value
+	return &opts
+}
+
+func (o *handlerOptions) DefaultLookback() time.Duration {
+	return o.defaultLookback
+}
+
+func (o *handlerOptions) SetDefaultLookback(value time.Duration) HandlerOptions {
+	opts := *o
+	opts.defaultLookback = value
 	return &opts
 }
 

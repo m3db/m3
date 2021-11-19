@@ -469,6 +469,7 @@ var temporalParseTests = []struct {
 	{"sum_over_time(up[5m])", temporal.SumType},
 	{"stddev_over_time(up[5m])", temporal.StdDevType},
 	{"stdvar_over_time(up[5m])", temporal.StdVarType},
+	{"last_over_time(up[5m])", temporal.LastType},
 	{"quantile_over_time(0.2, up[5m])", temporal.QuantileType},
 	{"irate(up[5m])", temporal.IRateType},
 	{"idelta(up[5m])", temporal.IDeltaType},

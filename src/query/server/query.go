@@ -67,6 +67,7 @@ import (
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/pools"
+	"github.com/m3db/m3/src/query/promqlengine"
 	tsdbremote "github.com/m3db/m3/src/query/remote"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/fanout"
@@ -392,7 +393,7 @@ func Run(runOpts RunOptions) RunResult {
 	}
 
 	var (
-		encodingOpts    = cfg.Encoding.NewEncodingOptions()
+		encodingOpts    = encoding.NewOptions()
 		m3dbClusters    m3.Clusters
 		m3dbPoolWrapper *pools.PoolWrapper
 	)
@@ -643,18 +644,33 @@ func Run(runOpts RunOptions) RunResult {
 		}
 	}
 
-	prometheusEngine, err := newPromQLEngine(cfg, prometheusEngineRegistry,
-		instrumentOptions)
+	defaultPrometheusEngine, err := newPromQLEngine(lookbackDuration, cfg, prometheusEngineRegistry, instrumentOptions)
 	if err != nil {
 		logger.Fatal("unable to create PromQL engine", zap.Error(err))
 	}
+	prometheusEngineFn := func(lookbackDuration time.Duration) (*prometheuspromql.Engine, error) {
+		// NB: use nil metric registry to avoid duplicate metric registration when creating multiple engines
+		return newPromQLEngine(lookbackDuration, cfg, nil, instrumentOptions)
+	}
+
+	enginesByLookback, err := createEnginesWithResolutionBasedLookbacks(
+		lookbackDuration,
+		defaultPrometheusEngine,
+		runOpts.Config.Clusters,
+		cfg.Middleware.Prometheus.ResolutionMultiplier,
+		prometheusEngineFn,
+	)
+	if err != nil {
+		logger.Fatal("failed creating PromgQL engines with resolution based lookback durations", zap.Error(err))
+	}
+	engineCache := promqlengine.NewCache(enginesByLookback, prometheusEngineFn)
 
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
-		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
+		tagOptions, engine, engineCache.Get, m3dbClusters, clusterClient, cfg,
 		runOpts.DBConfig, fetchOptsBuilder, graphiteFindFetchOptsBuilder, graphiteRenderFetchOptsBuilder,
 		queryCtxOpts, instrumentOptions, cpuProfileDuration, []string{handleroptions3.M3DBServiceName},
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
-		graphiteStorageOpts, tsdbOpts, httpd.NewGraphiteRenderRouter(), httpd.NewGraphiteFindRouter())
+		graphiteStorageOpts, tsdbOpts, httpd.NewGraphiteRenderRouter(), httpd.NewGraphiteFindRouter(), lookbackDuration)
 	if err != nil {
 		logger.Fatal("unable to set up handler options", zap.Error(err))
 	}
@@ -1341,15 +1357,16 @@ func newDownsamplerAndWriter(
 }
 
 func newPromQLEngine(
+	lookbackDelta time.Duration,
 	cfg config.Configuration,
-	registry *extprom.Registry,
+	registry extprom.Registerer,
 	instrumentOpts instrument.Options,
 ) (*prometheuspromql.Engine, error) {
-	lookbackDelta, err := cfg.LookbackDurationOrDefault()
-	if err != nil {
-		return nil, err
+	if lookbackDelta < 0 {
+		return nil, errors.New("lookbackDelta cannot be negative")
 	}
 
+	instrumentOpts.Logger().Debug("creating new PromQL engine", zap.Duration("lookbackDelta", lookbackDelta))
 	var (
 		kitLogger = kitlogzap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
 		opts      = prometheuspromql.EngineOpts{
@@ -1364,6 +1381,34 @@ func newPromQLEngine(
 		}
 	)
 	return prometheuspromql.NewEngine(opts), nil
+}
+
+func createEnginesWithResolutionBasedLookbacks(
+	defaultLookback time.Duration,
+	defaultEngine *prometheuspromql.Engine,
+	clusters m3.ClustersStaticConfiguration,
+	resolutionMultiplier int,
+	prometheusEngineFn func(time.Duration) (*prometheuspromql.Engine, error),
+) (map[time.Duration]*prometheuspromql.Engine, error) {
+	enginesByLookback := make(map[time.Duration]*prometheuspromql.Engine)
+	enginesByLookback[defaultLookback] = defaultEngine
+	if resolutionMultiplier > 0 {
+		for _, cluster := range clusters {
+			for _, ns := range cluster.Namespaces {
+				if res := ns.Resolution; res > 0 {
+					resolutionBasedLookback := res * time.Duration(resolutionMultiplier)
+					if _, ok := enginesByLookback[resolutionBasedLookback]; !ok {
+						eng, err := prometheusEngineFn(resolutionBasedLookback)
+						if err != nil {
+							return nil, err
+						}
+						enginesByLookback[resolutionBasedLookback] = eng
+					}
+				}
+			}
+		}
+	}
+	return enginesByLookback, nil
 }
 
 func durationMilliseconds(d time.Duration) int64 {

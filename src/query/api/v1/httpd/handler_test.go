@@ -100,11 +100,14 @@ func setupHandler(
 	if err != nil {
 		return nil, err
 	}
+	promEngineFn := func(_ time.Duration) (*promql.Engine, error) {
+		return newPromEngine(), nil
+	}
 	opts, err := options.NewHandlerOptions(
 		downsamplerAndWriter,
 		makeTagOptions(),
 		engine,
-		newPromEngine(),
+		promEngineFn,
 		nil,
 		nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration},
@@ -123,6 +126,7 @@ func setupHandler(
 		testM3DBOpts,
 		NewGraphiteRenderRouter(),
 		NewGraphiteFindRouter(),
+		defaultLookbackDuration,
 	)
 	if err != nil {
 		return nil, err
@@ -393,14 +397,18 @@ func TestCustomRoutes(t *testing.T) {
 			Timeout: 15 * time.Second,
 		})
 	require.NoError(t, err)
+	promEngineFn := func(_ time.Duration) (*promql.Engine, error) {
+		return newPromEngine(), nil
+	}
 	opts, err := options.NewHandlerOptions(
 		downsamplerAndWriter, makeTagOptions().SetMetricName([]byte("z")),
-		engine, newPromEngine(), nil, nil,
+		engine, promEngineFn, nil, nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil,
 		fetchOptsBuilder, fetchOptsBuilder, fetchOptsBuilder,
 		models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,
 		defaultPlacementServices, svcDefaultOptions, NewQueryRouter(), NewQueryRouter(),
 		graphiteStorage.M3WrappedStorageOptions{}, testM3DBOpts, NewGraphiteRenderRouter(), NewGraphiteFindRouter(),
+		defaultLookbackDuration,
 	)
 	require.NoError(t, err)
 	custom := &customHandler{

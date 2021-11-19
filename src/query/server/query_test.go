@@ -31,6 +31,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/golang/mock/gomock"
+	"github.com/prometheus/prometheus/promql"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+	"google.golang.org/grpc"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -50,13 +58,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 )
 
 var configYAML = `
@@ -478,6 +479,53 @@ func testIngest(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller)
 		return numWrites.Load() == 1
 	}, 30*time.Second)
 
+}
+
+func TestCreateEnginesWithResolutionBasedLookbacks(t *testing.T) {
+	var (
+		defaultLookback      = 10 * time.Minute
+		resolutionMultiplier = 2
+		clusters             = m3.ClustersStaticConfiguration{
+			{
+				Namespaces: []m3.ClusterStaticNamespaceConfiguration{
+					{Resolution: 5 * time.Minute},
+					{Resolution: 10 * time.Minute},
+				},
+			},
+			{
+				Namespaces: []m3.ClusterStaticNamespaceConfiguration{
+					{Resolution: 5 * time.Minute},
+					{Resolution: 15 * time.Minute},
+				},
+			},
+		}
+		newEngineFn = func(lookback time.Duration) (*promql.Engine, error) {
+			return promql.NewEngine(promql.EngineOpts{}), nil
+		}
+
+		expecteds = []time.Duration{defaultLookback, 20 * time.Minute, 30 * time.Minute}
+	)
+	defaultEngine, err := newEngineFn(defaultLookback)
+	require.NoError(t, err)
+
+	enginesByLookback, err := createEnginesWithResolutionBasedLookbacks(
+		defaultLookback,
+		defaultEngine,
+		clusters,
+		resolutionMultiplier,
+		newEngineFn,
+	)
+	require.NoError(t, err)
+
+	engine, ok := enginesByLookback[defaultLookback]
+	require.True(t, ok)
+	assert.Equal(t, defaultEngine, engine)
+
+	for _, expected := range expecteds {
+		engine, ok = enginesByLookback[expected]
+		require.True(t, ok)
+		assert.NotNil(t, engine)
+	}
 }
 
 type closeFn func()
