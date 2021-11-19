@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -43,7 +42,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-var errIgnorableQuerierError = fmt.Errorf("ignorable error")
+var errIgnorableQuerierError = errors.New("ignorable error")
 
 // PrometheusRangeRewriteOptions are the options for the prometheus range rewriting middleware.
 type PrometheusRangeRewriteOptions struct { // nolint:maligned
@@ -131,6 +130,7 @@ func RewriteRangeDuration(
 	if err != nil {
 		return err
 	}
+
 	// Get the appropriate time range before updating the lookback
 	// This is necessary to cover things like the offset and `@` modifiers.
 	startTime, endTime := getQueryBounds(opts, params, fetchOpts, logger)
@@ -138,11 +138,17 @@ func RewriteRangeDuration(
 	if err != nil {
 		return err
 	}
-	updateLookback, updatedLookback := maybeUpdateLookback(params, res, opts)
+	// Largest resolution is 0 which means we're routing to the unaggregated namespace.
+	// Unaggregated namespace can service all requests, so return.
+	if res == 0 {
+		return nil
+	}
+
+	updatedLookback, updateLookback := maybeUpdateLookback(params, res, opts)
 	originalLookback := params.lookback
 
-	// We use the lookback as a part of bounds calculation. If the lookback changes, we need to recalculate
-	// If it has changed, we need to recalculate
+	// We use the lookback as a part of bounds calculation
+	// If the lookback had changed, we need to recalculate the bounds
 	if updateLookback {
 		params.lookback = updatedLookback
 		startTime, endTime = getQueryBounds(opts, params, fetchOpts, logger)
@@ -157,7 +163,7 @@ func RewriteRangeDuration(
 	if err != nil {
 		return err
 	}
-	updateQuery, updatedQuery := maybeRewriteRangeInQuery(params.query, expr, res, opts.ResolutionMultiplier)
+	updatedQuery, updateQuery := maybeRewriteRangeInQuery(params.query, expr, res, opts.ResolutionMultiplier)
 
 	if !updateQuery && !updateLookback {
 		return nil
@@ -234,32 +240,36 @@ func getQueryBounds(
 ) (start time.Time, end time.Time) {
 	start = params.start
 	end = params.end
-
-	if opts.PrometheusEngineFn != nil {
-		lookback := opts.DefaultLookback
-		if params.isLookbackSet {
-			lookback = params.lookback
-		}
-		engine, err := opts.PrometheusEngineFn(lookback)
-		if err != nil {
-			logger.Debug("Found an error when getting a Prom engine to "+
-				"calculate start/end time for query rewriting. Falling back to request start/end time",
-				zap.String("originalQuery", params.query),
-				zap.Duration("lookbackDuration", lookback))
-		}
-		queryable := fakeQueryable{
-			engine:  engine,
-			instant: opts.Instant,
-		}
-		err = queryable.calculateQueryBounds(params.query, params.start, params.end, fetchOpts.Step)
-		if err != nil {
-			logger.Debug("Found an error when using the Prom engine to "+
-				"calculate start/end time for query rewriting. Falling back to request start/end time",
-				zap.String("originalQuery", params.query))
-		}
-		// calculates the query boundaries in roughly the same way as prometheus
-		start, end = queryable.getQueryBounds()
+	if opts.PrometheusEngineFn == nil {
+		return start, end
 	}
+
+	lookback := opts.DefaultLookback
+	if params.isLookbackSet {
+		lookback = params.lookback
+	}
+	engine, err := opts.PrometheusEngineFn(lookback)
+	if err != nil {
+		logger.Debug("Found an error when getting a Prom engine to "+
+			"calculate start/end time for query rewriting. Falling back to request start/end time",
+			zap.String("originalQuery", params.query),
+			zap.Duration("lookbackDuration", lookback))
+		return start, end
+	}
+
+	queryable := fakeQueryable{
+		engine:  engine,
+		instant: opts.Instant,
+	}
+	err = queryable.calculateQueryBounds(params.query, params.start, params.end, fetchOpts.Step)
+	if err != nil {
+		logger.Debug("Found an error when using the Prom engine to "+
+			"calculate start/end time for query rewriting. Falling back to request start/end time",
+			zap.String("originalQuery", params.query))
+		return start, end
+	}
+	// calculates the query boundaries in roughly the same way as prometheus
+	start, end = queryable.getQueryBounds()
 	return start, end
 }
 
@@ -300,7 +310,7 @@ func extractParams(r *http.Request, instant bool) (params, error) {
 	}, nil
 }
 
-func maybeRewriteRangeInQuery(query string, expr parser.Node, res time.Duration, multiplier int) (bool, string) {
+func maybeRewriteRangeInQuery(query string, expr parser.Node, res time.Duration, multiplier int) (string, bool) {
 	updated := false // nolint: ifshort
 	parser.Inspect(expr, func(node parser.Node, path []parser.Node) error {
 		// nolint:gocritic
@@ -315,16 +325,16 @@ func maybeRewriteRangeInQuery(query string, expr parser.Node, res time.Duration,
 	})
 
 	if updated {
-		return true, expr.String()
+		return expr.String(), true
 	}
-	return false, query
+	return query, false
 }
 
 func maybeUpdateLookback(
 	params params,
 	maxResolution time.Duration,
 	opts PrometheusRangeRewriteOptions,
-) (bool, time.Duration) {
+) (time.Duration, bool) {
 	var (
 		lookback                = params.lookback
 		resolutionBasedLookback = maxResolution * time.Duration(opts.ResolutionMultiplier) // nolint: durationcheck
@@ -333,9 +343,9 @@ func maybeUpdateLookback(
 		lookback = opts.DefaultLookback
 	}
 	if lookback < resolutionBasedLookback {
-		return true, resolutionBasedLookback
+		return resolutionBasedLookback, true
 	}
-	return false, lookback
+	return lookback, false
 }
 
 type fakeQueryable struct {
@@ -369,7 +379,7 @@ func (f *fakeQueryable) calculateQueryBounds(
 		return err
 	}
 	// The result returned by Exec will be an error, but that's expected
-	if res := query.Exec(context.Background()); errors.Is(res.Err, errIgnorableQuerierError) {
+	if res := query.Exec(context.Background()); !errors.Is(res.Err, errIgnorableQuerierError) {
 		return err
 	}
 	return nil
