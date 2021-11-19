@@ -393,7 +393,7 @@ func Run(runOpts RunOptions) RunResult {
 	}
 
 	var (
-		encodingOpts    = cfg.Encoding.NewEncodingOptions()
+		encodingOpts    = encoding.NewOptions()
 		m3dbClusters    m3.Clusters
 		m3dbPoolWrapper *pools.PoolWrapper
 	)

@@ -1073,6 +1073,54 @@ func TestAddUntimed_ResendEnabled(t *testing.T) {
 	require.True(t, ok)
 }
 
+func TestAddUntimed_ResendEnabledMigrationRace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, _ := testEntry(ctrl, testEntryOptions{})
+	metadatas := metadata.StagedMetadatas{
+		{
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+						ResendEnabled: false,
+						StoragePolicies: policy.StoragePolicies{
+							testStoragePolicy,
+						},
+					},
+				},
+			},
+		},
+	}
+	resolution := testStoragePolicy.Resolution().Window
+	mu := testGauge
+
+	// add value with resendEnable=false
+	require.NoError(t, e.addUntimed(mu, metadatas))
+	require.Len(t, e.aggregations, 1)
+	require.False(t, e.aggregations[0].resendEnabled)
+	elem := e.aggregations[0].elem.Value.(*GaugeElem)
+	vals := elem.values
+	require.Len(t, vals, 1)
+	t1 := xtime.ToUnixNano(e.nowFn().Truncate(resolution))
+	_, ok := vals[t1]
+	require.True(t, ok)
+
+	// consume the aggregation so it's closed
+	t2 := t1.Add(resolution)
+	require.False(t, consume(elem, t2))
+	require.True(t, vals[t1].lockedAgg.closed)
+
+	// add value with resendEnabled=true that targets the closed aggregation. it will automatically roll forward.
+	metadatas[0].Metadata.Pipelines[0].ResendEnabled = true
+	mu.ClientTimeNanos = t1
+	require.NoError(t, e.addUntimed(mu, metadatas))
+	require.Len(t, vals, 2)
+	_, ok = vals[t2]
+	require.True(t, ok)
+}
+
 func TestAddUntimed_ClosedAggregation(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
