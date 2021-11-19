@@ -190,11 +190,6 @@ func (e *GenericElem) ResetSetData(data ElemData) error {
 
 // AddUnion adds a metric value union at a given timestamp.
 func (e *GenericElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion, resendEnabled bool) error {
-	return e.doAddUnion(timestamp, mu, resendEnabled, false)
-}
-
-func (e *GenericElem) doAddUnion(timestamp time.Time, mu unaggregated.MetricUnion, resendEnabled bool, retry bool,
-) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window)
 	lockedAgg, err := e.findOrCreate(alignedStart.UnixNano(), createAggregationOptions{})
 	if err != nil {
@@ -204,11 +199,10 @@ func (e *GenericElem) doAddUnion(timestamp time.Time, mu unaggregated.MetricUnio
 	if lockedAgg.closed {
 		// Note: this might have created an entry in the dirty set for lockedAgg when calling findOrCreate, even though
 		// it's already closed. The Consume loop will detect this and clean it up.
+		aggResendEnabled := lockedAgg.resendEnabled
 		lockedAgg.mtx.Unlock()
-		if !resendEnabled && !retry {
-			// handle the edge case where the aggregation was already flushed/closed because the current time is right
-			// at the boundary. just roll the untimed metric into the next aggregation.
-			return e.doAddUnion(alignedStart.Add(e.sp.Resolution().Window), mu, false, true)
+		if !aggResendEnabled && resendEnabled {
+			return errClosedBeforeResendEnabledMigration
 		}
 		return errAggregationClosed
 	}
@@ -216,9 +210,6 @@ func (e *GenericElem) doAddUnion(timestamp time.Time, mu unaggregated.MetricUnio
 	lockedAgg.dirty = true
 	lockedAgg.resendEnabled = resendEnabled
 	lockedAgg.mtx.Unlock()
-	if retry {
-		e.metrics.retriedValues.Inc(1)
-	}
 	return nil
 }
 

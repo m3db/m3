@@ -64,10 +64,11 @@ const (
 )
 
 var (
-	nan                          = math.NaN()
-	errElemClosed                = errors.New("element is closed")
-	errAggregationClosed         = errors.New("aggregation is closed")
-	errDuplicateForwardingSource = errors.New("duplicate forwarding source")
+	nan                                   = math.NaN()
+	errElemClosed                         = errors.New("element is closed")
+	errAggregationClosed                  = errors.New("aggregation is closed")
+	errClosedBeforeResendEnabledMigration = errors.New("aggregation closed before resendEnabled migration")
+	errDuplicateForwardingSource          = errors.New("duplicate forwarding source")
 )
 
 // isEarlierThanFn determines whether the timestamps of the metrics in a given
@@ -239,7 +240,6 @@ func (f *flushState) close() {
 type elemMetrics struct {
 	scope         tally.Scope
 	updatedValues tally.Counter
-	retriedValues tally.Counter
 	flush         map[flushKey]flushMetrics
 	mtx           sync.RWMutex
 }
@@ -367,7 +367,6 @@ func NewElemOptions(aggregatorOpts Options) ElemOptions {
 		aggregationOpts: raggregation.NewOptions(aggregatorOpts.InstrumentOptions()),
 		elemMetrics: &elemMetrics{
 			updatedValues: scope.Counter("updated-values"),
-			retriedValues: scope.Counter("retried-values"),
 			scope:         scope,
 			flush:         make(map[flushKey]flushMetrics),
 		},
