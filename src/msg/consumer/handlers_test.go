@@ -42,7 +42,7 @@ func TestServerWithSingletonMessageProcessor(t *testing.T) {
 	var (
 		data []string
 		wg   sync.WaitGroup
-		mu sync.Mutex
+		mu   sync.Mutex
 	)
 
 	ctrl := gomock.NewController(t)
@@ -90,6 +90,7 @@ func TestServerWithSingletonMessageProcessor(t *testing.T) {
 	var ack msgpb.Ack
 	testDecoder := proto.NewDecoder(conn1, opts.DecoderOptions(), 10)
 	err = testDecoder.Decode(&ack)
+	require.NoError(t, err)
 	testDecoder = proto.NewDecoder(conn2, opts.DecoderOptions(), 10)
 	err = testDecoder.Decode(&ack)
 	require.NoError(t, err)
@@ -140,7 +141,7 @@ func TestServerMessageDifferentConnections(t *testing.T) {
 		return mp2
 	}
 
-	s := server.NewServer("a", NewMessageHandler(NewMessageProcessorPool(newMessageProcessor), opts), server.NewOptions())
+	s := server.NewServer("a", NewMessageHandler(NewMessageProcessorFactory(newMessageProcessor), opts), server.NewOptions())
 	require.NoError(t, err)
 	require.NoError(t, s.Serve(l))
 

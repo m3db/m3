@@ -132,57 +132,58 @@ type MessageProcessor interface {
 	Close()
 }
 
-// MessageProcessorPool returns MessageProcessors.
-type MessageProcessorPool interface {
-	// Get returns a MessageProcessor.
-	Get() MessageProcessor
-	// Put returns the MessageProcessor.
-	Put(mp MessageProcessor)
-	// Close the pool.
+// MessageProcessorFactory creates MessageProcessors.
+type MessageProcessorFactory interface {
+	// Create returns a MessageProcessor.
+	Create() MessageProcessor
+	// Close the factory.
 	Close()
 }
 
-// SingletonMessageProcessor returns a MessageProcessorPool that shares the same MessageProcessor for all users. The
-// MessageProcessor is closed when the pool is closed.
-func SingletonMessageProcessor(mp MessageProcessor) MessageProcessorPool {
-	return &singletonMessageProcessorPool{mp: mp}
+// SingletonMessageProcessor returns a MessageProcessorFactory that shares the same MessageProcessor for all users. The
+// MessageProcessor is closed when the factory is closed.
+func SingletonMessageProcessor(mp MessageProcessor) MessageProcessorFactory {
+	return &singletonMessageProcessorFactory{mp: mp, noClose: &noCloseMessageProcessor{mp: mp}}
 }
 
-type singletonMessageProcessorPool struct {
-	mp MessageProcessor
+type singletonMessageProcessorFactory struct {
+	mp      MessageProcessor
+	noClose MessageProcessor
 }
 
-func (s singletonMessageProcessorPool) Get() MessageProcessor {
-	return s.mp
+func (s singletonMessageProcessorFactory) Create() MessageProcessor {
+	return s.noClose
 }
 
-func (s singletonMessageProcessorPool) Put(MessageProcessor) {
-	// mp is shared by all users, nothing to do.
-}
-
-func (s singletonMessageProcessorPool) Close() {
+func (s singletonMessageProcessorFactory) Close() {
 	s.mp.Close()
 }
 
-// NewMessageProcessorPool returns a MessageProcessorPool that creates a new MessageProcessor for every call to Get
-// and closes the MessageProcessor for every call to Put.
-func NewMessageProcessorPool(fn func() MessageProcessor) MessageProcessorPool {
-	return &messageProcessorPool{fn: fn}
+type noCloseMessageProcessor struct {
+	mp MessageProcessor
 }
 
-type messageProcessorPool struct {
+func (n noCloseMessageProcessor) Process(m Message) {
+	n.mp.Process(m)
+}
+
+func (n noCloseMessageProcessor) Close() {}
+
+// NewMessageProcessorFactory returns a MessageProcessorFactory that creates a new MessageProcessor for every call to
+// Create.
+func NewMessageProcessorFactory(fn func() MessageProcessor) MessageProcessorFactory {
+	return &messageProcessorFactory{fn: fn}
+}
+
+type messageProcessorFactory struct {
 	fn func() MessageProcessor
 }
 
-func (m messageProcessorPool) Get() MessageProcessor {
+func (m messageProcessorFactory) Create() MessageProcessor {
 	return m.fn()
 }
 
-func (m messageProcessorPool) Put(mp MessageProcessor) {
-	mp.Close()
-}
-
-func (m messageProcessorPool) Close() {}
+func (m messageProcessorFactory) Close() {}
 
 // NewNoOpMessageProcessor creates a new MessageProcessor that does nothing.
 func NewNoOpMessageProcessor() MessageProcessor {
