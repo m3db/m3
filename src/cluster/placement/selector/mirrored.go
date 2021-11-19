@@ -87,7 +87,7 @@ func (f *mirroredPortSelector) SelectInitialInstances(
 			continue
 		}
 
-		groupedInstances, err := groupInstancesByHostPort(groupedHosts)
+		groupedInstances, err := groupInstancesByHostPort(groupedHosts, f.opts.SkipPortMirroring())
 		if err != nil {
 			return nil, err
 		}
@@ -128,7 +128,7 @@ func (f *mirroredPortSelector) SelectAddingInstances(
 		if !f.opts.AddAllCandidates() {
 			// When AddAllCandidates option is disabled, we will only add
 			// one pair of hosts into the placement.
-			groups, err = groupInstancesByHostPort(groupedHosts[:1])
+			groups, err = groupInstancesByHostPort(groupedHosts[:1], f.opts.SkipPortMirroring())
 			if err != nil {
 				return nil, err
 			}
@@ -136,7 +136,7 @@ func (f *mirroredPortSelector) SelectAddingInstances(
 			break
 		}
 
-		newGroups, err := groupInstancesByHostPort(groupedHosts)
+		newGroups, err := groupInstancesByHostPort(groupedHosts, f.opts.SkipPortMirroring())
 		if err != nil {
 			return nil, err
 		}
@@ -222,7 +222,7 @@ func (f *mirroredPortSelector) SelectReplaceInstances(
 			continue
 		}
 
-		groups, err := groupInstancesByHostPort([][]host{[]host{h, candidateHost}})
+		groups, err := groupInstancesByHostPort([][]host{{h, candidateHost}}, f.opts.SkipPortMirroring())
 		if err != nil {
 			f.logger.Warn("could not match up candidate host with target host",
 				zap.String("candidate", candidateHost.name),
@@ -416,23 +416,54 @@ func groupHostsWithIsolationGroupCheck(hosts []host, rf int) (groups [][]host, u
 	return groups, ungrouped
 }
 
-func groupInstancesByHostPort(hostGroups [][]host) ([][]placement.Instance, error) {
+func groupInstancesByHostPort(hostGroups [][]host, skipPortMatching bool) ([][]placement.Instance, error) {
 	var instanceGroups = make([][]placement.Instance, 0, len(hostGroups))
 	for _, hostGroup := range hostGroups {
-		for port, instance := range hostGroup[0].portToInstance {
-			instanceGroup := make([]placement.Instance, 0, len(hostGroup))
-			instanceGroup = append(instanceGroup, instance)
-			for _, otherHost := range hostGroup[1:] {
-				otherInstance, ok := otherHost.portToInstance[port]
-				if !ok {
-					return nil, fmt.Errorf("could not find port %d on host %s", port, otherHost.name)
+		if !skipPortMatching {
+			for port, instance := range hostGroup[0].portToInstance {
+				instanceGroup := make([]placement.Instance, 0, len(hostGroup))
+				instanceGroup = append(instanceGroup, instance)
+				for _, otherHost := range hostGroup[1:] {
+					otherInstance, ok := otherHost.portToInstance[port]
+					if !ok {
+						return nil, fmt.Errorf("could not find port %d on host %s", port, otherHost.name)
+					}
+					instanceGroup = append(instanceGroup, otherInstance)
 				}
-				instanceGroup = append(instanceGroup, otherInstance)
+				instanceGroups = append(instanceGroups, instanceGroup)
 			}
-			instanceGroups = append(instanceGroups, instanceGroup)
+		} else {
+			numInstancesPerHost, instancesByHost := convertHostGroupToInstanceLists(hostGroup)
+			for i := 0; i < numInstancesPerHost; i++ {
+				instanceGroup := make([]placement.Instance, 0, len(hostGroup))
+				for _, list := range instancesByHost {
+					instanceGroup = append(instanceGroup, list[i])
+				}
+				instanceGroups = append(instanceGroups, instanceGroup)
+			}
 		}
 	}
 	return instanceGroups, nil
+}
+
+func convertHostGroupToInstanceLists(hostGroup []host) (int, [][]placement.Instance) {
+	numInstancePerHost := 0
+	instancesByHost := make([][]placement.Instance, 0, len(hostGroup))
+	for i, host := range hostGroup {
+		if i == 0 {
+			numInstancePerHost = len(host.portToInstance)
+		} else if numInstancePerHost > len(host.portToInstance) {
+			numInstancePerHost = len(host.portToInstance)
+		}
+
+		instances := make([]placement.Instance, 0, numInstancePerHost)
+		for _, instance := range host.portToInstance {
+			instances = append(instances, instance)
+		}
+		instancesByHost = append(instancesByHost, instances)
+	}
+
+	return numInstancePerHost, instancesByHost
 }
 
 // assignShardsetsToGroupedInstances is a helper for mirrored selectors, which assigns shardset

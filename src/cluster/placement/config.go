@@ -38,6 +38,7 @@ type Configuration struct {
 	IsSharded           *bool           `yaml:"isSharded"`
 	ShardStateMode      *ShardStateMode `yaml:"shardStateMode"`
 	IsMirrored          *bool           `yaml:"isMirrored"`
+	SkipPortMirroring   *bool           `yaml:"skipPortMirroring"`
 	IsStaged            *bool           `yaml:"isStaged"`
 	ValidZone           *string         `yaml:"validZone"`
 }
@@ -62,6 +63,9 @@ func (c *Configuration) NewOptions() Options {
 	}
 	if value := c.IsMirrored; value != nil {
 		opts = opts.SetIsMirrored(*value)
+	}
+	if value := c.SkipPortMirroring; value != nil {
+		opts = opts.SetSkipPortMirroring(*value)
 	}
 	if value := c.IsStaged; value != nil {
 		opts = opts.SetIsStaged(*value)
@@ -93,6 +97,10 @@ func (c Configuration) ApplyOverride(opts *placementpb.Options) Configuration {
 	if opts.IsSharded != nil {
 		isShardedValueCopy := opts.IsSharded.Value
 		c.IsSharded = &isShardedValueCopy
+	}
+	if opts.SkipPortMirroring != nil {
+		skipPortMirroringCopy := opts.SkipPortMirroring.Value
+		c.SkipPortMirroring = &skipPortMirroringCopy
 	}
 	return c
 }

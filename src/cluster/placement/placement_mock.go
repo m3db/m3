@@ -1523,6 +1523,20 @@ func (mr *MockOptionsMockRecorder) SetShardStateMode(value interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShardStateMode", reflect.TypeOf((*MockOptions)(nil).SetShardStateMode), value)
 }
 
+// SetSkipPortMirroring mocks base method.
+func (m *MockOptions) SetSkipPortMirroring(v bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSkipPortMirroring", v)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSkipPortMirroring indicates an expected call of SetSkipPortMirroring.
+func (mr *MockOptionsMockRecorder) SetSkipPortMirroring(v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSkipPortMirroring", reflect.TypeOf((*MockOptions)(nil).SetSkipPortMirroring), v)
+}
+
 // SetValidZone mocks base method.
 func (m *MockOptions) SetValidZone(z string) Options {
 	m.ctrl.T.Helper()
@@ -1591,6 +1605,20 @@ func (m *MockOptions) ShardStateMode() ShardStateMode {
 func (mr *MockOptionsMockRecorder) ShardStateMode() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardStateMode", reflect.TypeOf((*MockOptions)(nil).ShardStateMode))
+}
+
+// SkipPortMirroring mocks base method.
+func (m *MockOptions) SkipPortMirroring() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SkipPortMirroring")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// SkipPortMirroring indicates an expected call of SkipPortMirroring.
+func (mr *MockOptionsMockRecorder) SkipPortMirroring() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SkipPortMirroring", reflect.TypeOf((*MockOptions)(nil).SkipPortMirroring))
 }
 
 // ValidZone mocks base method.

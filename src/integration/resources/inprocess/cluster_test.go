@@ -22,8 +22,10 @@
 package inprocess
 
 import (
+	"errors"
 	"testing"
 
+	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/integration/resources"
 	"github.com/stretchr/testify/require"
 )
@@ -71,6 +73,75 @@ func TestNewClusterWithAgg(t *testing.T) {
 	require.NoError(t, m3.Nodes().WaitForHealthy())
 	require.NoError(t, m3.Aggregators().WaitForHealthy())
 	require.NoError(t, m3.Cleanup())
+}
+
+func TestNewClusterWithMultiAggs(t *testing.T) {
+	configs, err := NewClusterConfigsFromYAML(clusterDBNodeConfig, aggregatorCoordConfig, defaultAggregatorConfig)
+	require.NoError(t, err)
+
+	aggClusterOpts := &resources.AggregatorClusterOptions{
+		RF:                 2,
+		NumShards:          4,
+		NumInstances:       2,
+		NumIsolationGroups: 2,
+	}
+	m3, err := NewCluster(configs, resources.ClusterOptions{
+		DBNode:     resources.NewDBNodeClusterOptions(),
+		Aggregator: aggClusterOpts,
+	})
+	require.NoError(t, err)
+	require.NoError(t, m3.Nodes().WaitForHealthy())
+	require.NoError(t, m3.Aggregators().WaitForHealthy())
+
+	// wait for a leader aggregator
+	require.NoError(t, resources.Retry(func() error {
+		for _, agg := range m3.Aggregators() {
+			status, err := agg.Status()
+			if err != nil {
+				return err
+			}
+			if status.FlushStatus.ElectionState == aggregator.LeaderState {
+				return nil
+			}
+		}
+		return errors.New("no leader")
+	}))
+
+	// the leader resigns
+	leaderIdx := -1
+	for i, agg := range m3.Aggregators() {
+		status, err := agg.Status()
+		require.NoError(t, err)
+		if status.FlushStatus.ElectionState == aggregator.LeaderState {
+			verifyAggStatus(t, m3.Aggregators()[i], aggregator.LeaderState)
+			verifyAggStatus(t, m3.Aggregators()[1-i], aggregator.FollowerState)
+			require.NoError(t, agg.Resign())
+			leaderIdx = i
+			break
+		}
+	}
+
+	// wait for the other instance to lead
+	require.NoError(t, resources.Retry(func() error {
+		newStatus, err := m3.Aggregators()[leaderIdx].Status()
+		if err != nil {
+			return err
+		}
+		if newStatus.FlushStatus.ElectionState != aggregator.FollowerState {
+			return errors.New("follower state expected after resigning")
+		}
+		return nil
+	}))
+	verifyAggStatus(t, m3.Aggregators()[leaderIdx], aggregator.FollowerState)
+	verifyAggStatus(t, m3.Aggregators()[1-leaderIdx], aggregator.LeaderState)
+
+	require.NoError(t, m3.Cleanup())
+}
+
+func verifyAggStatus(t *testing.T, agg resources.Aggregator, expectedState aggregator.ElectionState) {
+	status, err := agg.Status()
+	require.NoError(t, err)
+	require.Equal(t, expectedState, status.FlushStatus.ElectionState)
 }
 
 const clusterDBNodeConfig = `

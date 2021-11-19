@@ -326,6 +326,14 @@ type Options interface {
 	// SetIsMirrored sets IsMirrored.
 	SetIsMirrored(m bool) Options
 
+	// SkipPortMirroring returns whether to ignore the port numbers while selecting
+	// mirroring instances.
+	SkipPortMirroring() bool
+
+	// SetSkipPortMirroring sets whether to ignore the port numbers while selecting
+	// mirroring instances.
+	SetSkipPortMirroring(v bool) Options
+
 	// IsStaged returns whether the placement should keep all the snapshots.
 	IsStaged() bool
 
