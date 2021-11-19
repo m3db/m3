@@ -67,16 +67,16 @@ func TestMaxResendBuffer(t *testing.T) {
 	currMax = maxBuffer.Value()
 
 	// Resend  a large value that should not appear in the list.
-	largeVal := float64(100)
+	smallVal := float64(100)
 
 	updated++
-	maxBuffer.Update(0, largeVal)
-	require.Equal(t, largeVal, maxBuffer.Value())
+	maxBuffer.Update(0, smallVal)
+	require.Equal(t, smallVal, maxBuffer.Value())
 
 	// Update the previously resent large value with a small value to ensure value
 	// is returned to max before the large value came in.
 	updated++
-	maxBuffer.Update(largeVal, 0)
+	maxBuffer.Update(smallVal, 0)
 	require.Equal(t, currMax, maxBuffer.Value())
 
 	maxTags := map[string]string{"type": "max"}
@@ -88,4 +88,83 @@ func TestMaxResendBuffer(t *testing.T) {
 		AssertCounterValue(t, updated, scope.Snapshot(), "resend.updated", maxTags)
 
 	maxBuffer.Close()
+}
+
+func TestMinResendBuffer(t *testing.T) {
+	var (
+		numToAdd   = 10
+		bufferSize = 4
+
+		scope      = tally.NewTestScope("", nil)
+		iOpts      = instrument.NewOptions().SetMetricsScope(scope)
+		minMetrics = NewMinResendBufferMetrics(bufferSize, iOpts)
+		minBuffer  = NewMinBuffer(bufferSize, minMetrics)
+
+		inserted int64
+		updated  int64
+	)
+
+	b := minBuffer.(*resendBuffer)
+	assert.True(t, math.IsNaN(minBuffer.Value()))
+
+	// Insert progressively smaller values that should update the min each insert.
+	for i := 0; i < numToAdd; i++ {
+		inserted++
+		floatVal := float64(numToAdd - i)
+		minBuffer.Insert(floatVal)
+		require.Equal(t, floatVal, minBuffer.Value())
+	}
+
+	// Insert large values that should not affect the min or change the list.
+	currMin := minBuffer.Value()
+	currBuffer := append([]float64{}, b.list...)
+	for i := 0; i < numToAdd-bufferSize; i++ {
+		inserted++
+		floatVal := float64(numToAdd - i)
+		minBuffer.Insert(floatVal)
+		require.Equal(t, currMin, minBuffer.Value())
+		require.Equal(t, currBuffer, b.list)
+	}
+
+	// Resend large values that should not affect the min or change the list.
+	for i := 0; i < numToAdd-bufferSize; i++ {
+		updated++
+		minBuffer.Update(float64(numToAdd-i), 100)
+		require.Equal(t, currMin, minBuffer.Value())
+		require.Equal(t, currBuffer, b.list)
+	}
+
+	// Resend small values that appear in the list that should update the min.
+	for i := numToAdd - bufferSize; i < numToAdd; i++ {
+		updated++
+		updatedVal := float64(-i)
+		minBuffer.Update(float64(i), updatedVal)
+		require.Equal(t, updatedVal, minBuffer.Value())
+	}
+
+	// Capture current smallest value.
+	currMin = minBuffer.Value()
+
+	// Resend  a small value that should not appear in the list.
+	smallVal := float64(-100)
+
+	updated++
+	minBuffer.Update(0, smallVal)
+	require.Equal(t, smallVal, minBuffer.Value())
+
+	// Update the previously resent small value with a large value to ensure value
+	// is returned to min before the large value came in.
+	updated++
+	minBuffer.Update(smallVal, 100)
+	require.Equal(t, currMin, minBuffer.Value())
+
+	minTags := map[string]string{"type": "min"}
+	tallytest.
+		AssertCounterValue(t, 1, scope.Snapshot(), "resend.count", minTags)
+	tallytest.
+		AssertCounterValue(t, inserted, scope.Snapshot(), "resend.inserted", minTags)
+	tallytest.
+		AssertCounterValue(t, updated, scope.Snapshot(), "resend.updated", minTags)
+
+	minBuffer.Close()
 }
