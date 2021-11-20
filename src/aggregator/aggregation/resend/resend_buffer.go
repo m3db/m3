@@ -24,15 +24,16 @@ import (
 	"math"
 	"time"
 
-	"github.com/m3db/m3/src/x/instrument"
 	"github.com/uber-go/tally"
 )
 
-const resendBufferLimit = time.Minute
+const bufferLimit = time.Minute
 
-// ResendBuffer is a fixed-size buffer for servicing resends of min and max
+// Buffer is a fixed-size buffer for servicing resends of min and max
 // aggregations.
-type ResendBuffer interface {
+type Buffer interface {
+	// Reset resets the resend buffer to the given buffer type.
+	Reset(isMaxBuffer bool)
 	// Insert inserts a value into the buffer.
 	//
 	//  For a max buffer of size `k`, this will capture the `k` largest elements
@@ -66,8 +67,8 @@ type ResendBuffer interface {
 	Close()
 }
 
-// ResendMetrics are metrics for resend buffers.
-type ResendMetrics struct {
+// metrics are metrics for resend buffers.
+type metrics struct {
 	// count is the total count of all created resend buffers.
 	count tally.Counter
 	// inserts is the total number of fresh inserts across all resend buffers.
@@ -75,56 +76,59 @@ type ResendMetrics struct {
 	// updates is he total number of resends across all resend buffers.
 	updates tally.Counter
 
-	// bufferLimit is the size for the buffers.
-	bufferLimit tally.Gauge
+	// overWarningThreshold increments for every update passes the
+	// resend buffer's warning threshold.
+	overWarningThreshold tally.Counter
+	// overCriticalThreshold increments for every update passes the
+	// resend buffer's critical threshold.
+	overCriticalThreshold tally.Counter
 }
 
-type resendBuffer struct {
-	list         []float64
-	comparisonFn comparisonFn
+type buffer struct {
+	// these vars are reset on Reset
+	open             bool
+	updatesPersisted float64
+	comparisonFn     comparisonFn
+	activeMetrics    *metrics
+	list             []float64
 
-	updatesPersisted      float64
-	updatesPersistedGauge tally.Gauge
-	metrics               *ResendMetrics
+	// these vars are set on initialization
+	warnThreshold     float64
+	criticalThreshold float64
+	minMetrics        *metrics
+	maxMetrics        *metrics
+	pool              BufferPool
 }
 
-func resendScope(resendType string, iOpts instrument.Options) tally.Scope {
-	return iOpts.MetricsScope().SubScope("resend").
-		Tagged(map[string]string{"type": resendType})
-}
+func newBufferMetrics(size int, scope tally.Scope) *metrics {
+	var (
+		// Start reporting loop for reporting the buffer size limit.
+		bufferLimitGauge = scope.Gauge("buffer_limit")
+		timer            = time.NewTimer(bufferLimit)
+		bufferLimit      = float64(size)
+	)
 
-// NewMaxResendBufferMetrics builds resend metrics for the max buffer.
-func NewMaxResendBufferMetrics(size int, iOpts instrument.Options) *ResendMetrics {
-	return newResendBufferMetrics(size, resendScope("max", iOpts))
-}
-
-// NewMinResendBufferMetrics builds resend metrics for the min buffer.
-func NewMinResendBufferMetrics(size int, iOpts instrument.Options) *ResendMetrics {
-	return newResendBufferMetrics(size, resendScope("min", iOpts))
-}
-
-func newResendBufferMetrics(size int, scope tally.Scope) *ResendMetrics {
-	m := &ResendMetrics{
-		count:   scope.Counter("count"),
-		inserts: scope.Counter("inserted"),
-		updates: scope.Counter("updated"),
-
-		bufferLimit: scope.Gauge("buffer_limit"),
-	}
-
-	// Start reporting loop for reporting the buffer size limit.
-	timer := time.NewTimer(resendBufferLimit)
-	bufferLimit := float64(size)
-	m.bufferLimit.Update(bufferLimit)
+	bufferLimitGauge.Update(bufferLimit)
 
 	go func() {
 		for {
 			<-timer.C
-			m.bufferLimit.Update(bufferLimit)
+			bufferLimitGauge.Update(bufferLimit)
 		}
 	}()
 
-	return m
+	thresholWithLevel := func(level string) tally.Counter {
+		return scope.Tagged(map[string]string{"level": level}).Counter("over_threshold")
+	}
+
+	return &metrics{
+		count:   scope.Counter("count"),
+		inserts: scope.Counter("inserted"),
+		updates: scope.Counter("updated"),
+
+		overWarningThreshold:  thresholWithLevel("warn"),
+		overCriticalThreshold: thresholWithLevel("critical"),
+	}
 }
 
 type comparisonFn func(a, b float64) bool
@@ -149,44 +153,32 @@ func max(a, b float64) bool {
 	return a > b
 }
 
-// NewMaxBuffer returns a ResendBuffer that will keep up to  `k` max elements.
-func NewMaxBuffer(
-	k int,
-	metrics *ResendMetrics,
-	iOpts instrument.Options,
-) ResendBuffer {
-	return newResendBuffer(k, max, resendScope("max", iOpts), metrics)
+type bufferOpts struct {
+	size              int
+	minMetrics        *metrics
+	maxMetrics        *metrics
+	pool              BufferPool
+	warnThreshold     float64
+	criticalThreshold float64
 }
 
-// NewMinBuffer returns a ResendBuffer that will keep up to `k` max elements.
-func NewMinBuffer(
-	k int,
-	metrics *ResendMetrics,
-	iOpts instrument.Options,
-) ResendBuffer {
-	return newResendBuffer(k, min, resendScope("min", iOpts), metrics)
-}
-
-func newResendBuffer(
-	k int,
-	comparisonFn comparisonFn,
-	scope tally.Scope,
-	metrics *ResendMetrics,
-) ResendBuffer {
-	metrics.count.Inc(1)
-
-	return &resendBuffer{
-		// TODO: pooling.
-		list:         make([]float64, 0, k),
-		comparisonFn: comparisonFn,
-
-		metrics:               metrics,
-		updatesPersistedGauge: scope.Gauge("updates_persisted"),
+func newBuffer(opts bufferOpts) Buffer {
+	return &buffer{
+		pool:              opts.pool,
+		list:              make([]float64, 0, opts.size),
+		minMetrics:        opts.minMetrics,
+		maxMetrics:        opts.maxMetrics,
+		warnThreshold:     opts.warnThreshold,
+		criticalThreshold: opts.criticalThreshold,
 	}
 }
 
-func (b *resendBuffer) Insert(val float64) {
-	b.metrics.inserts.Inc(1)
+func (b *buffer) Insert(val float64) {
+	if !b.open {
+		return
+	}
+
+	b.activeMetrics.inserts.Inc(1)
 
 	// if list not full yet, fill it up.
 	if len(b.list) < cap(b.list) {
@@ -212,7 +204,7 @@ func (b *resendBuffer) Insert(val float64) {
 	}
 }
 
-func (b *resendBuffer) Value() float64 {
+func (b *buffer) Value() float64 {
 	if len(b.list) == 0 {
 		return math.NaN()
 	}
@@ -227,13 +219,17 @@ func (b *resendBuffer) Value() float64 {
 	return toReturn
 }
 
-func (b *resendBuffer) Update(prevVal float64, newVal float64) {
+func (b *buffer) Update(prevVal float64, newVal float64) {
+	if !b.open {
+		return
+	}
+
 	if len(b.list) == 0 {
 		// received a resend before recording any values, which is an invalid case.
 		return
 	}
 
-	b.metrics.updates.Inc(1)
+	b.activeMetrics.updates.Inc(1)
 
 	toUpdateVal := b.list[0]
 	toUpdateIdx := 0
@@ -242,8 +238,7 @@ func (b *resendBuffer) Update(prevVal float64, newVal float64) {
 		// found the previously recorded value in the list. Update and shortcircuit.
 		if listVal == prevVal {
 			b.list[idx] = newVal
-			b.updatesPersisted++
-			b.updatesPersistedGauge.Update(b.updatesPersisted)
+			b.persistUpdate()
 			return
 		}
 
@@ -259,12 +254,48 @@ func (b *resendBuffer) Update(prevVal float64, newVal float64) {
 	// to update a value which SHOULD be in the list, which is an invalid case.
 	if len(b.list) == cap(b.list) && b.comparisonFn(newVal, toUpdateVal) {
 		b.list[toUpdateIdx] = newVal
-		b.updatesPersisted++
-		b.updatesPersistedGauge.Update(b.updatesPersisted)
+		b.persistUpdate()
 	}
 }
 
-func (b *resendBuffer) Close() {
+// persistUpdate persists the update and signals on any tripped thresholds.
+func (b *buffer) persistUpdate() {
+	b.updatesPersisted++
+	if b.warnThreshold > 0 && b.updatesPersisted > b.warnThreshold {
+		b.activeMetrics.overWarningThreshold.Inc(1)
+	}
+	if b.criticalThreshold > 0 && b.updatesPersisted > b.criticalThreshold {
+		b.activeMetrics.overCriticalThreshold.Inc(1)
+	}
+}
+
+func (b *buffer) Reset(isMaxBuffer bool) {
+	if b.open {
+		return
+	}
+
+	b.open = true
 	b.list = b.list[:0]
-	// TODO: return buffer to pool.
+	b.updatesPersisted = 0
+
+	if isMaxBuffer {
+		b.comparisonFn = max
+		b.activeMetrics = b.maxMetrics
+	} else {
+		b.comparisonFn = min
+		b.activeMetrics = b.minMetrics
+	}
+
+	b.activeMetrics.count.Inc(1)
+}
+
+func (b *buffer) Close() {
+	if !b.open {
+		return
+	}
+
+	b.open = false
+	b.list = b.list[:0]
+	b.updatesPersisted = 0
+	b.pool.put(b)
 }

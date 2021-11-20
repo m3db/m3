@@ -25,10 +25,8 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/tallytest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func TestMaxResendBuffer(t *testing.T) {
@@ -36,17 +34,22 @@ func TestMaxResendBuffer(t *testing.T) {
 		numToAdd   = 10
 		bufferSize = 4
 
-		scope      = tally.NewTestScope("", nil)
-		iOpts      = instrument.NewOptions().SetMetricsScope(scope)
-		maxMetrics = NewMaxResendBufferMetrics(bufferSize, iOpts)
-		maxBuffer  = NewMaxBuffer(bufferSize, maxMetrics, iOpts)
+		pool = NewBufferPool(BufferPoolOptions{
+			PoolSize:          1,
+			BufferSize:        bufferSize,
+			InstrumentOptions: instrument.NewOptions(),
+		})
+
+		maxBuffer = pool.Get()
 
 		inserted        int64
 		updated         int64
 		updatePersisted float64
 	)
 
-	b := maxBuffer.(*resendBuffer)
+	maxBuffer.Reset(true)
+
+	b := maxBuffer.(*buffer)
 	assert.True(t, math.IsNaN(maxBuffer.Value()))
 
 	// Insert progressively larger values that should update the max each insert.
@@ -88,7 +91,7 @@ func TestMaxResendBuffer(t *testing.T) {
 	// Capture current largest value.
 	currMax = maxBuffer.Value()
 
-	// Resend  a large value that should not appear in the list.
+	// Resend a large value that should not appear in the list.
 	smallVal := float64(100)
 
 	updated++
@@ -103,20 +106,6 @@ func TestMaxResendBuffer(t *testing.T) {
 	maxBuffer.Update(smallVal, 0)
 	require.Equal(t, currMax, maxBuffer.Value())
 
-	snap := scope.Snapshot()
-	tags := map[string]string{"type": "max"}
-
-	tallytest.
-		AssertCounterValue(t, 1, snap, "resend.count", tags)
-	tallytest.
-		AssertCounterValue(t, inserted, snap, "resend.inserted", tags)
-	tallytest.
-		AssertCounterValue(t, updated, snap, "resend.updated", tags)
-	tallytest.
-		AssertGaugeValue(t, updatePersisted, snap, "resend.updates_persisted", tags)
-	tallytest.
-		AssertGaugeValue(t, float64(bufferSize), snap, "resend.buffer_limit", tags)
-
 	maxBuffer.Close()
 }
 
@@ -125,17 +114,22 @@ func TestMinResendBuffer(t *testing.T) {
 		numToAdd   = 10
 		bufferSize = 4
 
-		scope      = tally.NewTestScope("", nil)
-		iOpts      = instrument.NewOptions().SetMetricsScope(scope)
-		minMetrics = NewMinResendBufferMetrics(bufferSize, iOpts)
-		minBuffer  = NewMinBuffer(bufferSize, minMetrics, iOpts)
+		pool = NewBufferPool(BufferPoolOptions{
+			PoolSize:          1,
+			BufferSize:        bufferSize,
+			InstrumentOptions: instrument.NewOptions(),
+		})
+
+		minBuffer = pool.Get()
 
 		inserted        int64
 		updated         int64
 		updatePersisted float64
 	)
 
-	b := minBuffer.(*resendBuffer)
+	minBuffer.Reset(false)
+
+	b := minBuffer.(*buffer)
 	assert.True(t, math.IsNaN(minBuffer.Value()))
 
 	// Insert progressively smaller values that should update the min each insert.
@@ -177,7 +171,7 @@ func TestMinResendBuffer(t *testing.T) {
 	// Capture current smallest value.
 	currMin = minBuffer.Value()
 
-	// Resend  a small value that should not appear in the list.
+	// Resend a small value that should not appear in the list.
 	smallVal := float64(-100)
 
 	updated++
@@ -191,20 +185,6 @@ func TestMinResendBuffer(t *testing.T) {
 	updatePersisted++
 	minBuffer.Update(smallVal, 100)
 	require.Equal(t, currMin, minBuffer.Value())
-
-	snap := scope.Snapshot()
-	tags := map[string]string{"type": "min"}
-
-	tallytest.
-		AssertCounterValue(t, 1, snap, "resend.count", tags)
-	tallytest.
-		AssertCounterValue(t, inserted, snap, "resend.inserted", tags)
-	tallytest.
-		AssertCounterValue(t, updated, snap, "resend.updated", tags)
-	tallytest.
-		AssertGaugeValue(t, updatePersisted, snap, "resend.updates_persisted", tags)
-	tallytest.
-		AssertGaugeValue(t, float64(bufferSize), snap, "resend.buffer_limit", tags)
 
 	minBuffer.Close()
 }
