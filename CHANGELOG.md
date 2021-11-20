@@ -1,5 +1,10 @@
 # Changelog
 
+# 1.4.1
+
+## Bug Fixes
+- **M3Coordinator**: Do not Close singleton MessageProcessors when closing connections. This fixes a panic introduced that affects M3Coordinator -> M3Aggregator communication. ([#3934](https://github.com/m3db/m3/pull/3934))
+
 # 1.4.0
 
 ## Features
@@ -8,8 +13,8 @@
 - **M3Aggregator**: Add p75/p25 as aggregation options ([#3867](https://github.com/m3db/m3/pull/3867))
 
 ## Bug Fixes
-- **M3DB**: Fix M3TSZ to be deterministic when encoding high precision values ([3872](https://github.com/m3db/m3/pull/3872))
-- **M3DB**: Gracefully handle reads including documents with stale index state ([3905](https://github.com/m3db/m3/pull/3905))
+- **M3DB**: Fix M3TSZ to be deterministic when encoding high precision values ([#3872](https://github.com/m3db/m3/pull/3872))
+- **M3DB**: Gracefully handle reads including documents with stale index state ([#3905](https://github.com/m3db/m3/pull/3905))
 
 ## Performance
 - **M3Aggregator**: Rework close and remove `persitFlushTimesEvery` semantics in leader flushing in favour of always persisting shard flush times on a successful flush for optimized graceful failovers ([#3890](https://github.com/m3db/m3/pull/3890))
