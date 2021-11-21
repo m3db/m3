@@ -177,6 +177,7 @@ func newForwardedEntryMetrics(scope tally.Scope) forwardedEntryMetrics {
 
 type entryMetrics struct {
 	resendEnabled tally.Counter
+	retriedValues tally.Counter
 	untimed       untimedEntryMetrics
 	timed         timedEntryMetrics
 	forwarded     forwardedEntryMetrics
@@ -191,6 +192,7 @@ func NewEntryMetrics(scope tally.Scope) *entryMetrics {
 	forwardedEntryScope := scope.Tagged(map[string]string{"entry-type": "forwarded"})
 	return &entryMetrics{
 		resendEnabled: scope.Counter("resend-enabled"),
+		retriedValues: scope.Counter("retried-values"),
 		untimed:       newUntimedEntryMetrics(untimedEntryScope),
 		timed:         newTimedEntryMetrics(timedEntryScope),
 		forwarded:     newForwardedEntryMetrics(forwardedEntryScope),
@@ -707,31 +709,51 @@ func (e *Entry) updateStagedMetadatasWithLock(
 	return nil
 }
 
-func (e *Entry) addUntimedWithLock(timestamp time.Time, mu unaggregated.MetricUnion) error {
+func (e *Entry) addUntimedWithLock(serverTimestamp time.Time, mu unaggregated.MetricUnion) error {
 	var err error
 	for i := range e.aggregations {
-		ts := timestamp
-		resendEnabled := e.aggregations[i].resendEnabled
+		multierr.AppendInto(&err, e.addUntimedValueWithLock(
+			e.aggregations[i], serverTimestamp, mu, e.aggregations[i].resendEnabled, false))
+	}
+	return err
+}
+
+// addUntimedValueWithLock adds the untimed value to the aggregationValue.
+// this method handles all the various cases of switching to use a client timestamp if resendEnabled is set for the
+// rollup rule.
+func (e *Entry) addUntimedValueWithLock(
+	aggValue aggregationValue,
+	serverTimestamp time.Time,
+	mu unaggregated.MetricUnion,
+	resendEnabled bool,
+	retry bool) error {
+	elem := aggValue.elem.Value.(metricElem)
+	resolution := aggValue.key.storagePolicy.Resolution().Window
+	if resendEnabled && mu.ClientTimeNanos > 0 {
 		// Migrate an originally untimed metric (server timestamp) to a "timed" metric (client timestamp) if
 		// resendEnabled is set on the rollup rule. Continuing to use untimed allows for a seamless transition since
 		// the Entry does not change.
-		if mu.ClientTimeNanos == 0 {
-			resendEnabled = false
+		e.metrics.resendEnabled.Inc(1)
+		err := e.checkTimestampForMetric(int64(mu.ClientTimeNanos), e.nowFn().UnixNano(), resolution)
+		if err != nil {
+			return err
 		}
-		if resendEnabled {
-			e.metrics.resendEnabled.Inc(1)
-			ts = mu.ClientTimeNanos.ToTime()
-			if multierr.AppendInto(
-				&err,
-				e.checkTimestampForMetric(
-					int64(mu.ClientTimeNanos),
-					e.nowFn().UnixNano(),
-					e.aggregations[i].key.storagePolicy.Resolution().Window),
-			) {
-				continue
-			}
+		err = elem.AddUnion(mu.ClientTimeNanos.ToTime(), mu, true)
+		if xerrors.Is(err, errClosedBeforeResendEnabledMigration) {
+			// this handles a race where the rule was just migrated to resendEnabled. if the client timestamp is
+			// delayed, most likely the aggregation has already been closed, since it did not previously have
+			// resendEnabled set. continue using the serverTimestamp and this will eventually resolve itself for future
+			// aggregations.
+			e.metrics.retriedValues.Inc(1)
+			return e.addUntimedValueWithLock(aggValue, serverTimestamp, mu, false, false)
 		}
-		multierr.AppendInto(&err, e.aggregations[i].elem.Value.(metricElem).AddUnion(ts, mu, resendEnabled))
+		return err
+	}
+	err := elem.AddUnion(serverTimestamp, mu, false)
+	if xerrors.Is(err, errAggregationClosed) && !retry {
+		// the aggregation just closed and we lost the race. roll the value into the next aggregation.
+		e.metrics.retriedValues.Inc(1)
+		return e.addUntimedValueWithLock(aggValue, serverTimestamp.Add(resolution), mu, false, true)
 	}
 	return err
 }

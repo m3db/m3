@@ -96,7 +96,7 @@ func (s *m3storage) QueryStorageMetadataAttributes(
 		s.clusters,
 		opts.FanoutOptions,
 		opts.RestrictQueryOptions,
-		nil)
+		opts.RelatedQueryOptions)
 	if err != nil {
 		return nil, err
 	}
