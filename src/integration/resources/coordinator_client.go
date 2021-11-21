@@ -582,19 +582,39 @@ func (c *CoordinatorClient) WriteCarbon(
 	return con.Close()
 }
 
-// WriteProm writes a prometheus metric.
-func (c *CoordinatorClient) WriteProm(name string, tags map[string]string, samples []prompb.Sample) error {
-	var (
-		url       = c.makeURL("api/v1/prom/remote/write")
-		reqLabels = []prompb.Label{{Name: []byte(model.MetricNameLabel), Value: []byte(name)}}
-	)
+// WriteProm writes a prometheus metric. Takes tags/labels as a map for convenience.
+func (c *CoordinatorClient) WriteProm(
+	name string,
+	tags map[string]string,
+	samples []prompb.Sample,
+	headers Headers,
+) error {
+	labels := make([]prompb.Label, 0, len(tags))
 
 	for tag, value := range tags {
-		reqLabels = append(reqLabels, prompb.Label{
+		labels = append(labels, prompb.Label{
 			Name:  []byte(tag),
 			Value: []byte(value),
 		})
 	}
+
+	return c.WritePromWithLabels(name, labels, samples, headers)
+}
+
+// WritePromWithLabels writes a prometheus metric. Allows you to provide the labels for the write
+// directly instead of conveniently converting them from a map.
+func (c *CoordinatorClient) WritePromWithLabels(
+	name string,
+	labels []prompb.Label,
+	samples []prompb.Sample,
+	headers Headers,
+) error {
+	var (
+		url       = c.makeURL("api/v1/prom/remote/write")
+		reqLabels = []prompb.Label{{Name: []byte(model.MetricNameLabel), Value: []byte(name)}}
+	)
+	reqLabels = append(reqLabels, labels...)
+
 	writeRequest := prompb.WriteRequest{
 		Timeseries: []prompb.TimeSeries{
 			{
@@ -619,6 +639,11 @@ func (c *CoordinatorClient) WriteProm(name string, tags map[string]string, sampl
 	if err != nil {
 		logger.Error("failed constructing request", zap.Error(err))
 		return err
+	}
+	for key, vals := range headers {
+		for _, val := range vals {
+			req.Header.Add(key, val)
+		}
 	}
 	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeProtobuf)
 
@@ -763,12 +788,6 @@ type vectorResult struct {
 
 // RangeQuery runs a range query with provided headers
 func (c *CoordinatorClient) RangeQuery(req RangeQueryRequest, headers Headers) (model.Matrix, error) {
-	if req.Start.IsZero() {
-		req.Start = time.Now()
-	}
-	if req.End.IsZero() {
-		req.End = time.Now()
-	}
 	if req.Step == 0 {
 		req.Step = 15 * time.Second // default step is 15 seconds.
 	}
@@ -917,7 +936,8 @@ func (c *CoordinatorClient) runQuery(
 	b, err := ioutil.ReadAll(resp.Body)
 
 	if status := resp.StatusCode; status != http.StatusOK {
-		return "", fmt.Errorf("query response status not OK, received %v", status)
+		return "", fmt.Errorf("query response status not OK, received %v. error=%v",
+			status, string(b))
 	}
 
 	if contentType, ok := resp.Header["Content-Type"]; !ok {

@@ -32,17 +32,17 @@ scrape_configs:
 
   - job_name: 'coordinator'
     static_configs:
-      - targets: ['coordinator01:7203']
+      - targets: ['host.docker.internal:7203']
 
   - job_name: 'dbnode'
     static_configs:
-      - targets: ['dbnode01:9004']
+      - targets: ['host.docker.internal:9004']
 
 remote_read:
-  - url: http://coordinator01:7201/api/v1/prom/remote/read
+  - url: http://host.docker.internal:7201/api/v1/prom/remote/read
 
 remote_write:
-  - url: http://coordinator01:7201/api/v1/prom/remote/write
+  - url: http://host.docker.internal:7201/api/v1/prom/remote/write
     write_relabel_configs:
       - target_label: metrics_storage
         replacement: m3db_remote

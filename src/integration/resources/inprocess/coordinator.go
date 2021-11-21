@@ -409,9 +409,25 @@ func (c *Coordinator) WriteCarbon(port int, metric string, v float64, t time.Tim
 	return c.client.WriteCarbon(fmt.Sprintf("0.0.0.0:%d", port), metric, v, t)
 }
 
-// WriteProm writes a prometheus metric.
-func (c *Coordinator) WriteProm(name string, tags map[string]string, samples []prompb.Sample) error {
-	return c.client.WriteProm(name, tags, samples)
+// WriteProm writes a prometheus metric. Takes tags/labels as a map for convenience.
+func (c *Coordinator) WriteProm(
+	name string,
+	tags map[string]string,
+	samples []prompb.Sample,
+	headers resources.Headers,
+) error {
+	return c.client.WriteProm(name, tags, samples, headers)
+}
+
+// WritePromWithLabels writes a prometheus metric. Allows you to provide the labels for
+// the write directly instead of conveniently converting them from a map.
+func (c *Coordinator) WritePromWithLabels(
+	name string,
+	labels []prompb.Label,
+	samples []prompb.Sample,
+	headers resources.Headers,
+) error {
+	return c.client.WritePromWithLabels(name, labels, samples, headers)
 }
 
 // RunQuery runs the given query with a given verification function.

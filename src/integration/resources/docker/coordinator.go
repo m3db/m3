@@ -205,12 +205,30 @@ func (c *coordinator) WriteCarbon(
 	return c.client.WriteCarbon(url, metric, v, t)
 }
 
-func (c *coordinator) WriteProm(name string, tags map[string]string, samples []prompb.Sample) error {
+func (c *coordinator) WriteProm(
+	name string,
+	tags map[string]string,
+	samples []prompb.Sample,
+	headers resources.Headers,
+) error {
 	if c.resource.closed {
 		return errClosed
 	}
 
-	return c.client.WriteProm(name, tags, samples)
+	return c.client.WriteProm(name, tags, samples, headers)
+}
+
+func (c *coordinator) WritePromWithLabels(
+	name string,
+	labels []prompb.Label,
+	samples []prompb.Sample,
+	headers resources.Headers,
+) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	return c.client.WritePromWithLabels(name, labels, samples, headers)
 }
 
 func (c *coordinator) ApplyKVUpdate(update string) error {
