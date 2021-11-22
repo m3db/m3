@@ -323,7 +323,7 @@ func TestPromTimeSeriesToSeriesAttributesPromMetricsType(t *testing.T) {
 		{prompb.MetricType_HISTOGRAM, "created"}: {metricType: ts.PromMetricTypeHistogram},
 
 		{prompb.MetricType_GAUGE_HISTOGRAM, "bucket"}:  {metricType: ts.PromMetricTypeGaugeHistogram},
-		{prompb.MetricType_GAUGE_HISTOGRAM, "count"}:   {metricType: ts.PromMetricTypeGaugeHistogram, handleValueResets: true},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "count"}:   {metricType: ts.PromMetricTypeGaugeHistogram, handleValueResets: true}, //nolint:lll
 		{prompb.MetricType_GAUGE_HISTOGRAM, "sum"}:     {metricType: ts.PromMetricTypeGaugeHistogram},
 		{prompb.MetricType_GAUGE_HISTOGRAM, "created"}: {metricType: ts.PromMetricTypeGaugeHistogram},
 
