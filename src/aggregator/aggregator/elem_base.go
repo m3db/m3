@@ -570,8 +570,8 @@ func (e gaugeElemBase) TypeStringFor(aggTypesOpts maggregation.TypesOptions, agg
 
 func (e gaugeElemBase) ElemPool(opts Options) GaugeElemPool { return opts.GaugeElemPool() }
 
-func (e gaugeElemBase) NewAggregation(opts Options, aggOpts raggregation.Options) gaugeAggregation {
-	return newGaugeAggregation(raggregation.NewGauge(opts.ResendMinMax(), aggOpts))
+func (e gaugeElemBase) NewAggregation(_ Options, aggOpts raggregation.Options) gaugeAggregation {
+	return newGaugeAggregation(raggregation.NewGauge(aggOpts))
 }
 
 func (e *gaugeElemBase) ResetSetData(

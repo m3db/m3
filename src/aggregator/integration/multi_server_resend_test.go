@@ -430,11 +430,11 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 			}
 			currTime := start.Add(time.Duration(i+1) * storagePolicy.Resolution().Window)
 			instrumentOpts := aggregatorOpts.InstrumentOptions()
-			agg := aggregation.NewGauge(true, aggregation.NewOptions(instrumentOpts))
+			agg := aggregation.NewGauge(aggregation.NewOptions(instrumentOpts))
 			expectedAnnotation := generateAnnotation(metric.GaugeType, numIDs-1)
 			agg.Update(time.Now(), expectedValuesList[spIdx][i], expectedAnnotation)
 			expectedValuesByTimeList[spIdx][currTime.UnixNano()] = agg
-			zero := aggregation.NewGauge(true, aggregation.NewOptions(instrumentOpts))
+			zero := aggregation.NewGauge(aggregation.NewOptions(instrumentOpts))
 			zero.Update(time.Now(), 0.0, expectedAnnotation)
 			resetTime := currTime.UnixNano() + int64(storagePolicy.Resolution().Window/2)
 			expectedValuesByTimeList[spIdx][resetTime] = zero

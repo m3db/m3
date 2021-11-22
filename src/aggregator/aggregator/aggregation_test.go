@@ -91,7 +91,7 @@ func TestTimerAggregationAddUnion(t *testing.T) {
 }
 
 func TestGaugeAggregationAdd(t *testing.T) {
-	g := newGaugeAggregation(aggregation.NewGauge(false, aggregation.NewOptions(instrument.NewOptions())))
+	g := newGaugeAggregation(aggregation.NewGauge(aggregation.NewOptions(instrument.NewOptions())))
 	for _, v := range testAggregationValues {
 		g.Add(time.Now(), v, nil)
 	}
@@ -100,7 +100,7 @@ func TestGaugeAggregationAdd(t *testing.T) {
 }
 
 func TestGaugeAggregationAddUnion(t *testing.T) {
-	g := newGaugeAggregation(aggregation.NewGauge(false, aggregation.NewOptions(instrument.NewOptions())))
+	g := newGaugeAggregation(aggregation.NewGauge(aggregation.NewOptions(instrument.NewOptions())))
 	for _, v := range testAggregationUnions {
 		g.AddUnion(time.Now(), v)
 	}

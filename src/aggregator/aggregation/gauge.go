@@ -31,24 +31,22 @@ import (
 type Gauge struct {
 	Options
 
-	resendMinMax bool
-	lastAt       time.Time
-	annotation   []byte
-	sum          float64
-	sumSq        float64
-	count        int64
-	max          float64
-	min          float64
-	last         float64
+	lastAt     time.Time
+	annotation []byte
+	sum        float64
+	sumSq      float64
+	count      int64
+	max        float64
+	min        float64
+	last       float64
 }
 
 // NewGauge creates a new gauge.
-func NewGauge(resendMinMax bool, opts Options) Gauge {
+func NewGauge(opts Options) Gauge {
 	return Gauge{
-		Options:      opts,
-		resendMinMax: resendMinMax,
-		max:          math.NaN(),
-		min:          math.NaN(),
+		Options: opts,
+		max:     math.NaN(),
+		min:     math.NaN(),
 	}
 }
 
@@ -65,8 +63,7 @@ func (g *Gauge) Update(timestamp time.Time, value float64, annotation []byte) {
 	}
 }
 
-// UpdatePrevious removes the prevValue from the aggregation and updates with the new value. This does not update
-// min/max since it's not possible to recalculate those.
+// UpdatePrevious removes the prevValue from the aggregation and updates with the new value.
 func (g *Gauge) UpdatePrevious(timestamp time.Time, value float64, prevValue float64) {
 	// remove the prevValue from the totals.
 	if !math.IsNaN(prevValue) {
@@ -78,13 +75,11 @@ func (g *Gauge) UpdatePrevious(timestamp time.Time, value float64, prevValue flo
 	g.count--
 	// add the new value to the totals.
 	g.updateTotals(timestamp, value)
-	if g.resendMinMax {
-		if math.IsNaN(g.max) || g.max < value {
-			g.max = value
-		}
-		if math.IsNaN(g.min) || g.min > value {
-			g.min = value
-		}
+	if math.IsNaN(g.max) || g.max < value {
+		g.max = value
+	}
+	if math.IsNaN(g.min) || g.min > value {
+		g.min = value
 	}
 }
 

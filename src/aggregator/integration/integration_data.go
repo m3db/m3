@@ -385,7 +385,7 @@ func computeExpectedAggregationBuckets(
 							aggTypes = aggTypeOpts.DefaultGaugeAggregationTypes()
 						}
 						aggregationOpts.ResetSetData(aggTypes)
-						values = aggregation.NewGauge(false, aggregationOpts)
+						values = aggregation.NewGauge(aggregationOpts)
 					default:
 						return nil, fmt.Errorf("unrecognized metric type %v", mu.Type())
 					}

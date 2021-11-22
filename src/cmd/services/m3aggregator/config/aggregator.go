@@ -177,9 +177,6 @@ type AggregatorConfiguration struct {
 	// AddToReset is the yaml config for aggregator.Options.AddToReset
 	AddToReset bool `yaml:"addToReset"`
 
-	// MinMaxResendEnabled enables resends for min and max.
-	MinMaxResendEnabled bool `yaml:"minMaxResendEnabled"`
-
 	// TimedMetricsFlushOffsetEnabled enables using FlushOffset for timed metrics.
 	TimedMetricsFlushOffsetEnabled bool `yaml:"timedMetricsFlushOffsetEnabled"`
 
@@ -276,8 +273,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		SetVerboseErrors(c.VerboseErrors).
 		SetAddToReset(c.AddToReset).
 		SetTimedMetricsFlushOffsetEnabled(c.TimedMetricsFlushOffsetEnabled).
-		SetFeatureFlagBundlesParsed(c.FeatureFlags.Parse()).
-		SetResendMinMax(c.MinMaxResendEnabled)
+		SetFeatureFlagBundlesParsed(c.FeatureFlags.Parse())
 
 	rwOpts := serveOpts.RWOptions()
 	if rwOpts == nil {

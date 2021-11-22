@@ -299,7 +299,7 @@ func TestGaugeElemBase(t *testing.T) {
 
 func TestGaugeElemBaseNewLockedAggregation(t *testing.T) {
 	e := gaugeElemBase{}
-	la := e.NewAggregation(newTestOptions(), raggregation.Options{})
+	la := e.NewAggregation(nil, raggregation.Options{})
 	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:     metric.GaugeType,
 		GaugeVal: 100.0,
@@ -320,8 +320,7 @@ func TestGaugeElemBaseNewLockedAggregation(t *testing.T) {
 
 func TestGaugeElemWithResendsBaseNewLockedAggregation(t *testing.T) {
 	e := gaugeElemBase{}
-	opts := newTestOptions().SetResendMinMax(true)
-	la := e.NewAggregation(opts, raggregation.Options{})
+	la := e.NewAggregation(nil, raggregation.Options{})
 	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:     metric.GaugeType,
 		GaugeVal: 100.0,

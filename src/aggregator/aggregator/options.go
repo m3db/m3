@@ -109,13 +109,6 @@ type Options interface {
 	// GaugePrefix returns the prefix for gauges.
 	GaugePrefix() []byte
 
-	// SetResendMinMax sets the reset min max setting.
-	SetResendMinMax(value bool) Options
-
-	// ResendMinMax gets the reset min max setting. If true, min and max gauges
-	// are eligible for resend.
-	ResendMinMax() bool
-
 	// SetTimeLock sets the time lock.
 	SetTimeLock(value *sync.RWMutex) Options
 
@@ -363,7 +356,6 @@ type options struct {
 	counterPrefix                    []byte
 	timerPrefix                      []byte
 	gaugePrefix                      []byte
-	gaugeResendMinMax                bool
 	timeLock                         *sync.RWMutex
 	clockOpts                        clock.Options
 	instrumentOpts                   instrument.Options
@@ -495,17 +487,6 @@ func (o *options) SetGaugePrefix(value []byte) Options {
 
 func (o *options) GaugePrefix() []byte {
 	return o.gaugePrefix
-}
-
-func (o *options) SetResendMinMax(value bool) Options {
-	opts := *o
-	opts.gaugeResendMinMax = value
-	opts.computeFullGaugePrefix()
-	return &opts
-}
-
-func (o *options) ResendMinMax() bool {
-	return o.gaugeResendMinMax
 }
 
 func (o *options) SetTimeLock(value *sync.RWMutex) Options {
