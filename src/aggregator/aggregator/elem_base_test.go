@@ -297,27 +297,6 @@ func TestGaugeElemBase(t *testing.T) {
 	require.True(t, opts.GaugeElemPool() == e.ElemPool(opts))
 }
 
-func TestGaugeElemBaseNewLockedAggregation(t *testing.T) {
-	e := gaugeElemBase{}
-	la := e.NewAggregation(nil, raggregation.Options{})
-	la.AddUnion(time.Now(), unaggregated.MetricUnion{
-		Type:     metric.GaugeType,
-		GaugeVal: 100.0,
-	})
-	la.AddUnion(time.Now(), unaggregated.MetricUnion{
-		Type:     metric.GaugeType,
-		GaugeVal: 200.0,
-	})
-
-	require.Equal(t, 200.0, la.ValueOf(maggregation.Last))
-	require.Equal(t, 200.0, la.ValueOf(maggregation.Max))
-
-	require.NoError(t, la.UpdateVal(time.Now(), 210, 200))
-	require.Equal(t, 210.0, la.ValueOf(maggregation.Last))
-	// NB: max is not updated.
-	require.Equal(t, 200.0, la.ValueOf(maggregation.Max))
-}
-
 func TestGaugeElemWithResendsBaseNewLockedAggregation(t *testing.T) {
 	e := gaugeElemBase{}
 	la := e.NewAggregation(nil, raggregation.Options{})
