@@ -561,34 +561,6 @@ func (mr *MockOptionsMockRecorder) SetTimeEncodingSchemes(value interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTimeEncodingSchemes", reflect.TypeOf((*MockOptions)(nil).SetTimeEncodingSchemes), value)
 }
 
-// SetValueDecreaseTolerance mocks base method.
-func (m *MockOptions) SetValueDecreaseTolerance(value float64) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetValueDecreaseTolerance", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetValueDecreaseTolerance indicates an expected call of SetValueDecreaseTolerance.
-func (mr *MockOptionsMockRecorder) SetValueDecreaseTolerance(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetValueDecreaseTolerance", reflect.TypeOf((*MockOptions)(nil).SetValueDecreaseTolerance), value)
-}
-
-// SetValueDecreaseToleranceUntil mocks base method.
-func (m *MockOptions) SetValueDecreaseToleranceUntil(value time0.UnixNano) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetValueDecreaseToleranceUntil", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetValueDecreaseToleranceUntil indicates an expected call of SetValueDecreaseToleranceUntil.
-func (mr *MockOptionsMockRecorder) SetValueDecreaseToleranceUntil(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetValueDecreaseToleranceUntil", reflect.TypeOf((*MockOptions)(nil).SetValueDecreaseToleranceUntil), value)
-}
-
 // TimeEncodingSchemes mocks base method.
 func (m *MockOptions) TimeEncodingSchemes() TimeEncodingSchemes {
 	m.ctrl.T.Helper()
@@ -601,21 +573,6 @@ func (m *MockOptions) TimeEncodingSchemes() TimeEncodingSchemes {
 func (mr *MockOptionsMockRecorder) TimeEncodingSchemes() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TimeEncodingSchemes", reflect.TypeOf((*MockOptions)(nil).TimeEncodingSchemes))
-}
-
-// ValueDecreaseTolerance mocks base method.
-func (m *MockOptions) ValueDecreaseTolerance() (float64, time0.UnixNano) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ValueDecreaseTolerance")
-	ret0, _ := ret[0].(float64)
-	ret1, _ := ret[1].(time0.UnixNano)
-	return ret0, ret1
-}
-
-// ValueDecreaseTolerance indicates an expected call of ValueDecreaseTolerance.
-func (mr *MockOptionsMockRecorder) ValueDecreaseTolerance() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValueDecreaseTolerance", reflect.TypeOf((*MockOptions)(nil).ValueDecreaseTolerance))
 }
 
 // MockIterator is a mock of Iterator interface.
