@@ -312,7 +312,7 @@ func TestGaugeElemBaseNewLockedAggregation(t *testing.T) {
 	require.Equal(t, 200.0, la.ValueOf(maggregation.Last))
 	require.Equal(t, 200.0, la.ValueOf(maggregation.Max))
 
-	la.UpdateVal(time.Now(), 210, 200)
+	require.NoError(t, la.UpdateVal(time.Now(), 210, 200))
 	require.Equal(t, 210.0, la.ValueOf(maggregation.Last))
 	// NB: max is not updated.
 	require.Equal(t, 200.0, la.ValueOf(maggregation.Max))
@@ -334,9 +334,13 @@ func TestGaugeElemWithResendsBaseNewLockedAggregation(t *testing.T) {
 	require.Equal(t, 200.0, la.ValueOf(maggregation.Last))
 	require.Equal(t, 200.0, la.ValueOf(maggregation.Max))
 
-	la.UpdateVal(time.Now(), 210, 200)
+	require.NoError(t, la.UpdateVal(time.Now(), 210, 200))
 	require.Equal(t, 210.0, la.ValueOf(maggregation.Last))
 	require.Equal(t, 210.0, la.ValueOf(maggregation.Max))
+
+	require.NoError(t, la.UpdateVal(time.Now(), 10, 100))
+	require.Equal(t, 10.0, la.ValueOf(maggregation.Last))
+	require.Equal(t, 10.0, la.ValueOf(maggregation.Min))
 }
 
 func TestGaugeElemBaseResetSetData(t *testing.T) {

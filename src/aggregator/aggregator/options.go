@@ -109,7 +109,7 @@ type Options interface {
 	// GaugePrefix returns the prefix for gauges.
 	GaugePrefix() []byte
 
-	// SetGaugeResendMinMax sets the reset min max setting.
+	// SetResendMinMax sets the reset min max setting.
 	SetResendMinMax(value bool) Options
 
 	// ResendMinMax gets the reset min max setting. If true, min and max gauges
