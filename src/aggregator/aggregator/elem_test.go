@@ -3119,7 +3119,7 @@ func testGaugeElemWithData(
 	require.NoError(t, e.ResetSetData(data))
 	for i, aligned := range alignedstartAtNanos {
 		gauge := &lockedGaugeAggregation{
-			aggregation:   newGaugeAggregation(raggregation.NewGauge(e.aggOpts)),
+			aggregation:   newGaugeAggregation(raggregation.NewGauge(false, e.aggOpts)),
 			sourcesSeen:   make(map[uint32]*bitset.BitSet),
 			resendEnabled: resendEnabled,
 		}

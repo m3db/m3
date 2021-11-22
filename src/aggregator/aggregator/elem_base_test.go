@@ -299,7 +299,7 @@ func TestGaugeElemBase(t *testing.T) {
 
 func TestGaugeElemBaseNewLockedAggregation(t *testing.T) {
 	e := gaugeElemBase{}
-	la := e.NewAggregation(nil, raggregation.Options{})
+	la := e.NewAggregation(newTestOptions(), raggregation.Options{})
 	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:     metric.GaugeType,
 		GaugeVal: 100.0,
@@ -308,8 +308,35 @@ func TestGaugeElemBaseNewLockedAggregation(t *testing.T) {
 		Type:     metric.GaugeType,
 		GaugeVal: 200.0,
 	})
-	res := la.ValueOf(maggregation.Last)
-	require.Equal(t, float64(200.0), res)
+
+	require.Equal(t, 200.0, la.ValueOf(maggregation.Last))
+	require.Equal(t, 200.0, la.ValueOf(maggregation.Max))
+
+	la.UpdateVal(time.Now(), 210, 200)
+	require.Equal(t, 210.0, la.ValueOf(maggregation.Last))
+	// NB: max is not updated.
+	require.Equal(t, 200.0, la.ValueOf(maggregation.Max))
+}
+
+func TestGaugeElemWithResendsBaseNewLockedAggregation(t *testing.T) {
+	e := gaugeElemBase{}
+	opts := newTestOptions().SetResendMinMax(true)
+	la := e.NewAggregation(opts, raggregation.Options{})
+	la.AddUnion(time.Now(), unaggregated.MetricUnion{
+		Type:     metric.GaugeType,
+		GaugeVal: 100.0,
+	})
+	la.AddUnion(time.Now(), unaggregated.MetricUnion{
+		Type:     metric.GaugeType,
+		GaugeVal: 200.0,
+	})
+
+	require.Equal(t, 200.0, la.ValueOf(maggregation.Last))
+	require.Equal(t, 200.0, la.ValueOf(maggregation.Max))
+
+	la.UpdateVal(time.Now(), 210, 200)
+	require.Equal(t, 210.0, la.ValueOf(maggregation.Last))
+	require.Equal(t, 210.0, la.ValueOf(maggregation.Max))
 }
 
 func TestGaugeElemBaseResetSetData(t *testing.T) {

@@ -31,22 +31,24 @@ import (
 type Gauge struct {
 	Options
 
-	lastAt     time.Time
-	annotation []byte
-	sum        float64
-	sumSq      float64
-	count      int64
-	max        float64
-	min        float64
-	last       float64
+	resendMinMax bool
+	lastAt       time.Time
+	annotation   []byte
+	sum          float64
+	sumSq        float64
+	count        int64
+	max          float64
+	min          float64
+	last         float64
 }
 
 // NewGauge creates a new gauge.
-func NewGauge(opts Options) Gauge {
+func NewGauge(resendMinMax bool, opts Options) Gauge {
 	return Gauge{
-		Options: opts,
-		max:     math.NaN(),
-		min:     math.NaN(),
+		Options:      opts,
+		resendMinMax: resendMinMax,
+		max:          math.NaN(),
+		min:          math.NaN(),
 	}
 }
 
@@ -76,6 +78,14 @@ func (g *Gauge) UpdatePrevious(timestamp time.Time, value float64, prevValue flo
 	g.count--
 	// add the new value to the totals.
 	g.updateTotals(timestamp, value)
+	if g.resendMinMax {
+		if math.IsNaN(g.max) || g.max < value {
+			g.max = value
+		}
+		if math.IsNaN(g.min) || g.min > value {
+			g.min = value
+		}
+	}
 }
 
 // update the set of aggregated values that are shared between Update and UpdatePrevious.

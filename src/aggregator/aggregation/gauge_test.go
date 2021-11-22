@@ -33,7 +33,7 @@ import (
 )
 
 func TestGaugeDefaultAggregationType(t *testing.T) {
-	g := NewGauge(NewOptions(instrument.NewOptions()))
+	g := NewGauge(false, NewOptions(instrument.NewOptions()))
 	require.False(t, g.HasExpensiveAggregations)
 	for i := 1.0; i <= 100.0; i++ {
 		g.Update(time.Now(), i, nil)
@@ -46,7 +46,7 @@ func TestGaugeDefaultAggregationType(t *testing.T) {
 	require.Equal(t, 100.0, g.ValueOf(aggregation.Max))
 	require.Equal(t, 1.0, g.ValueOf(aggregation.Min))
 
-	g = NewGauge(NewOptions(instrument.NewOptions()))
+	g = NewGauge(false, NewOptions(instrument.NewOptions()))
 	require.Equal(t, 0.0, g.Last())
 	require.Equal(t, 0.0, g.ValueOf(aggregation.Last))
 	require.Equal(t, 0.0, g.ValueOf(aggregation.Count))
@@ -59,7 +59,7 @@ func TestGaugeDefaultAggregationType(t *testing.T) {
 func TestGauge_UpdatePrevious(t *testing.T) {
 	opts := NewOptions(instrument.NewOptions())
 	opts.HasExpensiveAggregations = true
-	g := NewGauge(opts)
+	g := NewGauge(false, opts)
 
 	g.Update(time.Now(), 1.0, nil)
 	g.Update(time.Now(), 2.0, nil)
@@ -85,8 +85,47 @@ func TestGauge_UpdatePrevious(t *testing.T) {
 	require.Equal(t, 1.0, g.ValueOf(aggregation.Min))
 }
 
+func TestGauge_UpdatePrevious_withMinMax(t *testing.T) {
+	opts := NewOptions(instrument.NewOptions())
+	opts.HasExpensiveAggregations = true
+	g := NewGauge(true, opts)
+
+	g.Update(time.Now(), 1.0, nil)
+	g.Update(time.Now(), 2.0, nil)
+	g.Update(time.Now(), 3.0, nil)
+
+	require.Equal(t, 3.0, g.Last())
+	require.Equal(t, 3.0, g.ValueOf(aggregation.Last))
+	require.Equal(t, 3.0, g.ValueOf(aggregation.Count))
+	require.Equal(t, 2.0, g.ValueOf(aggregation.Mean))
+	require.Equal(t, 14.0, g.ValueOf(aggregation.SumSq))
+	require.Equal(t, 3.0, g.ValueOf(aggregation.Max))
+	require.Equal(t, 1.0, g.ValueOf(aggregation.Min))
+
+	g.UpdatePrevious(time.Now(), 4.0, 2.0)
+
+	require.Equal(t, 4.0, g.Last())
+	require.Equal(t, 4.0, g.ValueOf(aggregation.Last))
+	require.Equal(t, 3.0, g.ValueOf(aggregation.Count))
+	require.Equal(t, 2.6666666666666665, g.ValueOf(aggregation.Mean))
+	require.Equal(t, 26.0, g.ValueOf(aggregation.SumSq))
+	require.Equal(t, 4.0, g.ValueOf(aggregation.Max))
+	// min does not change.
+	require.Equal(t, 1.0, g.ValueOf(aggregation.Min))
+
+	g.UpdatePrevious(time.Now(), 0.0, 3.0)
+	require.Equal(t, 0.0, g.Last())
+	require.Equal(t, 0.0, g.ValueOf(aggregation.Last))
+	require.Equal(t, 3.0, g.ValueOf(aggregation.Count))
+	require.Equal(t, 5.0/3.0, g.ValueOf(aggregation.Mean))
+	require.Equal(t, 17.0, g.ValueOf(aggregation.SumSq))
+	require.Equal(t, 4.0, g.ValueOf(aggregation.Max))
+	// min does not change.
+	require.Equal(t, 0.0, g.ValueOf(aggregation.Min))
+}
+
 func TestGaugeReturnsLastNonEmptyAnnotation(t *testing.T) {
-	g := NewGauge(NewOptions(instrument.NewOptions()))
+	g := NewGauge(false, NewOptions(instrument.NewOptions()))
 	g.Update(time.Now(), 1.1, []byte("first"))
 	g.Update(time.Now(), 2.1, []byte("second"))
 	g.Update(time.Now(), 3.1, nil)
@@ -98,7 +137,7 @@ func TestGaugeCustomAggregationType(t *testing.T) {
 	opts := NewOptions(instrument.NewOptions())
 	opts.HasExpensiveAggregations = true
 
-	g := NewGauge(opts)
+	g := NewGauge(false, opts)
 	require.True(t, g.HasExpensiveAggregations)
 
 	for i := 1; i <= 100; i++ {
@@ -131,7 +170,7 @@ func TestGaugeCustomAggregationType(t *testing.T) {
 		}
 	}
 
-	g = NewGauge(opts)
+	g = NewGauge(false, opts)
 	require.Equal(t, 0.0, g.Last())
 	for aggType := range aggregation.ValidTypes {
 		v := g.ValueOf(aggType)
@@ -161,7 +200,7 @@ func TestGaugeCustomAggregationType(t *testing.T) {
 
 func TestGaugeLastOutOfOrderValues(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
-	g := NewGauge(NewOptions(instrument.NewOptions().SetMetricsScope(scope)))
+	g := NewGauge(false, NewOptions(instrument.NewOptions().SetMetricsScope(scope)))
 
 	timeMid := time.Now().Add(time.Minute)
 	timePre := timeMid.Add(-1 * time.Second)

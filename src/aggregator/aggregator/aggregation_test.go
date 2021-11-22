@@ -36,17 +36,17 @@ import (
 var (
 	testAggregationValues = []float64{1.2, 5, 789, 4.0}
 	testAggregationUnions = []unaggregated.MetricUnion{
-		unaggregated.MetricUnion{
+		{
 			Type:       metric.CounterType,
 			ID:         testCounterID,
 			CounterVal: 1234,
 		},
-		unaggregated.MetricUnion{
+		{
 			Type:          metric.TimerType,
 			ID:            testBatchTimerID,
 			BatchTimerVal: []float64{1.0, 3.5, 2.2, 6.5, 4.8},
 		},
-		unaggregated.MetricUnion{
+		{
 			Type:     metric.GaugeType,
 			ID:       testGaugeID,
 			GaugeVal: 123.456,
@@ -91,7 +91,7 @@ func TestTimerAggregationAddUnion(t *testing.T) {
 }
 
 func TestGaugeAggregationAdd(t *testing.T) {
-	g := newGaugeAggregation(aggregation.NewGauge(aggregation.NewOptions(instrument.NewOptions())))
+	g := newGaugeAggregation(aggregation.NewGauge(false, aggregation.NewOptions(instrument.NewOptions())))
 	for _, v := range testAggregationValues {
 		g.Add(time.Now(), v, nil)
 	}
@@ -100,7 +100,7 @@ func TestGaugeAggregationAdd(t *testing.T) {
 }
 
 func TestGaugeAggregationAddUnion(t *testing.T) {
-	g := newGaugeAggregation(aggregation.NewGauge(aggregation.NewOptions(instrument.NewOptions())))
+	g := newGaugeAggregation(aggregation.NewGauge(false, aggregation.NewOptions(instrument.NewOptions())))
 	for _, v := range testAggregationUnions {
 		g.AddUnion(time.Now(), v)
 	}
