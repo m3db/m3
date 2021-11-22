@@ -40,6 +40,8 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 )
 
+const _defaultHostQueueOpsArraySize = 8
+
 var (
 	// ErrCallMissingContext returned when call is missing required context.
 	ErrCallMissingContext = errors.New("call missing context")
@@ -111,16 +113,24 @@ func newHostQueue(
 	}
 	workerPool.Init()
 
-	size := opts.HostQueueOpsFlushSize()
+	var (
+		opsArrayLen     = _defaultHostQueueOpsArraySize
+		opArrayPoolSize = opts.HostQueueOpsArrayPoolSize()
+		opArrayPoolOpts = pool.NewObjectPoolOptions().
+				SetInstrumentOptions(
+				opts.InstrumentOptions().SetMetricsScope(scope.SubScope("op-array-pool")),
+			).
+			SetSize(int(opArrayPoolSize)).
+			SetDynamic(opArrayPoolSize.IsDynamic())
+	)
 
-	opsArraysLen := opts.HostQueueOpsArrayPoolSize()
-	opArrayPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(opsArraysLen).
-		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
-			scope.SubScope("op-array-pool"),
-		))
-	opArrayPoolCapacity := int(math.Max(float64(size), float64(opts.WriteBatchSize())))
-	opArrayPool := newOpArrayPool(opArrayPoolOpts, opArrayPoolCapacity)
+	if !opArrayPoolSize.IsDynamic() {
+		// for static pools, keep channel buffer size the same as pool size to preserve backwards-compat
+		opsArrayLen = int(opArrayPoolSize)
+	}
+
+	opArrayPoolElemCapacity := int(math.Max(float64(opts.HostQueueOpsFlushSize()), float64(opts.WriteBatchSize())))
+	opArrayPool := newOpArrayPool(opArrayPoolOpts, opArrayPoolElemCapacity)
 	opArrayPool.Init()
 
 	return &queue{
@@ -139,12 +149,12 @@ func newHostQueue(
 		fetchBatchRawV2RequestPool:                   hostQueueOpts.fetchBatchRawV2RequestPool,
 		fetchBatchRawV2RequestElementArrayPool:       hostQueueOpts.fetchBatchRawV2RequestElementArrayPool,
 		workerPool:                                   workerPool,
-		size:                                         size,
+		size:                                         opts.HostQueueOpsFlushSize(),
 		ops:                                          opArrayPool.Get(),
 		opsArrayPool:                                 opArrayPool,
 		writeOpBatchSize:                             scope.Histogram("write-op-batch-size", writeOpBatchSizeBuckets),
 		fetchOpBatchSize:                             scope.Histogram("fetch-op-batch-size", fetchOpBatchSizeBuckets),
-		drainIn:                                      make(chan []op, opsArraysLen),
+		drainIn:                                      make(chan []op, opsArrayLen),
 		serverSupportsV2APIs:                         opts.UseV2BatchAPIs(),
 	}, nil
 }

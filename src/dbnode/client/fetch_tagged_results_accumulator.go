@@ -85,12 +85,6 @@ type fetchTaggedShardConsistencyResult struct {
 	done     bool
 }
 
-type fetchTaggedResultAccumulatorStats struct {
-	exhaustive            bool
-	responseReplicas      int
-	responseBytesEstimate int
-}
-
 func (rs fetchTaggedShardConsistencyResult) pending() int32 {
 	return int32(rs.enqueued - (rs.success + rs.errors))
 }
@@ -323,13 +317,14 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 	nsID := pools.CheckedBytesWrapper().Get(elem.NameSpace)
 	seriesIter := pools.SeriesIterator().Get()
 	seriesIter.Reset(encoding.SeriesIteratorOptions{
-		ID:                         pools.ID().BinaryID(tsID),
-		Namespace:                  pools.ID().BinaryID(nsID),
-		Tags:                       decoder,
-		StartInclusive:             accum.startTime,
-		EndExclusive:               accum.endTime,
-		Replicas:                   iters,
-		SeriesIteratorConsolidator: opts.SeriesIteratorConsolidator,
+		ID:                            pools.ID().BinaryID(tsID),
+		Namespace:                     pools.ID().BinaryID(nsID),
+		Tags:                          decoder,
+		StartInclusive:                accum.startTime,
+		EndExclusive:                  accum.endTime,
+		Replicas:                      iters,
+		SeriesIteratorConsolidator:    opts.SeriesIteratorConsolidator,
+		IterateEqualTimestampStrategy: opts.IterateEqualTimestampStrategy,
 	})
 
 	return seriesIter
@@ -551,7 +546,7 @@ type aggregateValueResults []*rpc.AggregateQueryRawResultTagValueElement
 // bool indicates if the iteration should be continued past the curent batch.
 type forEachAggregateFn func(responsesForSingleTag aggregateResults, hasMore bool) (continueIterating bool)
 
-// forEachTag iterates over the provide results, and calls `fn` on each
+// forEachTag iterates over the provided results, and calls `fn` on each
 // group of responses with the same TagName.
 // NB: assumes the results array being operated upon has been sorted.
 func (results aggregateResults) forEachTag(fn forEachAggregateFn) {

@@ -34,8 +34,10 @@ import (
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
+	"github.com/m3db/m3/src/query/util"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/headers"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type headerKey string
@@ -49,7 +51,8 @@ const (
 	// LookbackParam is the lookback parameter.
 	LookbackParam = "lookback"
 	// TimeoutParam is the timeout parameter.
-	TimeoutParam           = "timeout"
+	TimeoutParam = "timeout"
+
 	requireExhaustiveParam = "requireExhaustive"
 	requireNoWaitParam     = "requireNoWait"
 	maxInt64               = float64(math.MaxInt64)
@@ -355,12 +358,14 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		fetchOpts.RestrictQueryOptions.RestrictByType.StoragePolicy = sp
 	}
 
+	metricsRestrictByStoragePoliciesHeaderFound := false
 	if str := req.Header.Get(headers.MetricsRestrictByStoragePoliciesHeader); str != "" {
 		if metricsTypeHeaderFound || metricsStoragePolicyHeaderFound {
 			err = fmt.Errorf(
 				"restrict by policies is incompatible with M3-Metrics-Type and M3-Storage-Policy headers")
 			return nil, nil, err
 		}
+		metricsRestrictByStoragePoliciesHeaderFound = true
 		policyStrs := strings.Split(str, ";")
 		if len(policyStrs) == 0 {
 			err = fmt.Errorf(
@@ -434,6 +439,20 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		return nil, nil, err
 	} else if ok {
 		fetchOpts.LookbackDuration = &lookback
+	}
+
+	if relatedQueryOpts, ok, err := ParseRelatedQueryOptions(req); err != nil {
+		err = fmt.Errorf(
+			"could not parse related query options: err=%w", err)
+		return nil, nil, err
+	} else if ok {
+		if metricsStoragePolicyHeaderFound || metricsTypeHeaderFound || metricsRestrictByStoragePoliciesHeaderFound {
+			err = fmt.Errorf(
+				"related queries are incompatible with M3-Metrics-Type, " +
+					"Restrict-By-Storage-Policies, and M3-Storage-Policy headers")
+			return nil, nil, err
+		}
+		fetchOpts.RelatedQueryOptions = relatedQueryOpts
 	}
 
 	fetchOpts.Timeout, err = ParseRequestTimeout(req, b.opts.Timeout)
@@ -596,6 +615,54 @@ func ParseRequestTimeout(
 	}
 
 	return duration, nil
+}
+
+// ParseRelatedQueryOptions parses the RelatedQueryOptions struct out of the request
+// it returns ok==false if no such options exist
+func ParseRelatedQueryOptions(r *http.Request) (*storage.RelatedQueryOptions, bool, error) {
+	str := r.Header.Get(headers.RelatedQueriesHeader)
+	if str == "" {
+		return nil, false, nil
+	}
+
+	vals := strings.Split(str, ";")
+	queryRanges := make([]storage.QueryTimespan, 0, len(vals))
+	for _, headerVal := range vals {
+		parts := strings.Split(headerVal, ":")
+		if len(parts) != 2 {
+			return nil, false, xerrors.NewInvalidParamsError(
+				fmt.Errorf("invalid '%s': expected colon-separated pair of start/end timestamps, but got %v",
+					headers.RelatedQueriesHeader,
+					headerVal))
+		}
+
+		startTS, endTS := parts[0], parts[1]
+		startTime, err := util.ParseTimeString(startTS)
+		if err != nil {
+			return nil, false, xerrors.NewInvalidParamsError(
+				fmt.Errorf("invalid '%s': Cannot parse %v to time in pair %v",
+					headers.RelatedQueriesHeader,
+					startTS,
+					headerVal))
+		}
+		endTime, err := util.ParseTimeString(endTS)
+		if err != nil {
+			return nil, false, xerrors.NewInvalidParamsError(
+				fmt.Errorf("invalid '%s': Cannot parse %v to time in pair %v", headers.RelatedQueriesHeader,
+					endTS, headerVal))
+		}
+		if startTime.After(endTime) {
+			return nil, false, xerrors.NewInvalidParamsError(
+				fmt.Errorf("invalid '%s': startTime after endTime in pair %v", headers.RelatedQueriesHeader,
+					headerVal))
+		}
+		val := storage.QueryTimespan{Start: xtime.ToUnixNano(startTime), End: xtime.ToUnixNano(endTime)}
+		queryRanges = append(queryRanges, val)
+	}
+
+	return &storage.RelatedQueryOptions{
+		Timespans: queryRanges,
+	}, true, nil
 }
 
 func validateTimeout(v time.Duration) error {

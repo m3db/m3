@@ -510,6 +510,107 @@ func TestParseRequestTimeout(t *testing.T) {
 	assert.Equal(t, 2*time.Minute, dur)
 }
 
+func TestParseRelatedQueryOptions(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		expectErr      bool
+		expectedOk     bool
+		headers        []string
+		expectedResult *storage.RelatedQueryOptions
+	}{
+		"simple": {
+			headers:    []string{"1635160222:1635166222"},
+			expectErr:  false,
+			expectedOk: true,
+			expectedResult: &storage.RelatedQueryOptions{
+				Timespans: []storage.QueryTimespan{
+					{Start: 1635160222000000000, End: 1635166222000000000},
+				},
+			},
+		},
+		"multiple queries (second header ignored)": {
+			headers:    []string{"1635160222:1635166222", "1635161222:1635165222"},
+			expectErr:  false,
+			expectedOk: true,
+			expectedResult: &storage.RelatedQueryOptions{
+				Timespans: []storage.QueryTimespan{
+					{Start: 1635160222000000000, End: 1635166222000000000},
+				},
+			},
+		},
+		"multiple queries same header.": {
+			headers:    []string{"1635160222:1635166222;1635161222:1635165222"},
+			expectErr:  false,
+			expectedOk: true,
+			expectedResult: &storage.RelatedQueryOptions{
+				Timespans: []storage.QueryTimespan{
+					{Start: 1635160222000000000, End: 1635166222000000000},
+					{Start: 1635161222000000000, End: 1635165222000000000},
+				},
+			},
+		},
+		"no related_queries": {
+			headers:        []string{},
+			expectErr:      false,
+			expectedOk:     false,
+			expectedResult: nil,
+		},
+		"incomplete pair": {
+			headers:        []string{"1635160222"},
+			expectErr:      true,
+			expectedOk:     false,
+			expectedResult: nil,
+		},
+		"invalid pair (start time)": {
+			headers:        []string{"2m:6m"},
+			expectErr:      true,
+			expectedOk:     false,
+			expectedResult: nil,
+		},
+		"invalid pair (end time)": {
+			headers:        []string{"1635160222:6m"},
+			expectErr:      true,
+			expectedOk:     false,
+			expectedResult: nil,
+		},
+		"invalid pair (end time after start time)": {
+			headers:        []string{"1635166222:1635160222"},
+			expectErr:      true,
+			expectedOk:     false,
+			expectedResult: nil,
+		},
+	}
+
+	for name, tc := range tests {
+		name, tc := name, tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest("GET", "/read", nil)
+			for _, header := range tc.headers {
+				req.Header.Add(headers.RelatedQueriesHeader, header)
+			}
+			options, ok, err := ParseRelatedQueryOptions(req)
+			assert.Equal(t, tc.expectedOk, ok,
+				"Expected result of ok to be %v got %v", tc.expectedOk, ok)
+
+			if tc.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			if tc.expectedResult == nil {
+				assert.Nil(t, options)
+			} else {
+				assert.NotNil(t, options)
+				assert.Equal(t, tc.expectedResult, options)
+			}
+		})
+	}
+}
+
 func TestTimeoutParseWithHeader(t *testing.T) {
 	req := httptest.NewRequest("POST", "/dummy", nil)
 	req.Header.Add("timeout", "1ms")

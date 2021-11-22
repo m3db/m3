@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -634,6 +635,19 @@ func TestLRU_TryGetExpired(t *testing.T) {
 	// and fail with a panic because the ctx is nil.
 	_, ok = lru.TryGet("foo")
 	require.False(t, ok)
+}
+
+func TestLRU_EnforceMaxEntries(t *testing.T) {
+	var (
+		maxEntries = 2
+		lru        = NewLRU(&LRUOptions{MaxEntries: maxEntries, TTL: time.Second, Now: time.Now})
+	)
+
+	for i := 0; i <= maxEntries; i++ {
+		lru.Put(strconv.Itoa(i), "foo")
+	}
+
+	assert.Len(t, lru.entries, maxEntries)
 }
 
 var defaultKeys = []string{

@@ -34,7 +34,7 @@ type testValue struct {
 	value      float64
 	t          xtime.UnixNano
 	unit       xtime.Unit
-	annotation []byte
+	annotation ts.Annotation
 }
 
 type testIterator struct {

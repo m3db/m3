@@ -120,7 +120,7 @@ func TestElemBaseResetSetDataNoRollup(t *testing.T) {
 }
 
 func TestElemBaseForwardedIDWithDefaultPipeline(t *testing.T) {
-	e := newElemBase(newTestOptions())
+	e := newElemBase(NewElemOptions(newTestOptions()))
 	_, ok := e.ForwardedID()
 	require.False(t, ok)
 }
@@ -134,7 +134,7 @@ func TestElemBaseForwardedIDWithCustomPipeline(t *testing.T) {
 }
 
 func TestElemBaseForwardedAggregationKeyWithDefaultPipeline(t *testing.T) {
-	e := newElemBase(newTestOptions())
+	e := newElemBase(NewElemOptions(newTestOptions()))
 	_, ok := e.ForwardedAggregationKey()
 	require.False(t, ok)
 }

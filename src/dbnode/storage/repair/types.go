@@ -48,6 +48,11 @@ var validTypes = []Type{
 	OnlyCompareRepair,
 }
 
+// MarshalYAML returns the YAML representation of the repair type.
+func (t Type) MarshalYAML() (interface{}, error) {
+	return t.String(), nil
+}
+
 // UnmarshalYAML unmarshals an Type into a valid type from string.
 func (t *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
@@ -107,6 +112,11 @@ const (
 var validStrategies = []Strategy{
 	DefaultStrategy,
 	FullSweepStrategy,
+}
+
+// MarshalYAML returns the YAML representation of the repair strategy.
+func (t Strategy) MarshalYAML() (interface{}, error) {
+	return t.String(), nil
 }
 
 // UnmarshalYAML unmarshals an Type into a valid type from string.

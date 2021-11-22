@@ -46,10 +46,10 @@ func waitUntil(fn conditionFn, timeout time.Duration) bool {
 func getAggregatorClientTypeFromEnv() (aggclient.AggregatorClientType, error) {
 	clientType := strings.ToLower(os.Getenv("TEST_AGGREGATOR_CLIENT_TYPE"))
 	switch clientType {
-	case "", "tcp":
-		return aggclient.TCPAggregatorClient, nil
-	case "m3msg":
+	case "", "m3msg":
 		return aggclient.M3MsgAggregatorClient, nil
+	case "tcp":
+		return aggclient.TCPAggregatorClient, nil
 	default:
 		return aggclient.AggregatorClientType(0), fmt.Errorf("unrecognized aggregator client type %v", clientType)
 	}

@@ -30,46 +30,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/aggregator/server"
-	clusterclient "github.com/m3db/m3/src/cluster/client"
-	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
-	"github.com/m3db/m3/src/cluster/kv"
-	handleroptions3 "github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
-	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
-	ingestcarbon "github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
-	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/query/api/v1/httpd"
-	"github.com/m3db/m3/src/query/api/v1/options"
-	m3dbcluster "github.com/m3db/m3/src/query/cluster/m3db"
-	"github.com/m3db/m3/src/query/executor"
-	graphite "github.com/m3db/m3/src/query/graphite/storage"
-	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/parser/promql"
-	"github.com/m3db/m3/src/query/policy/filter"
-	"github.com/m3db/m3/src/query/pools"
-	tsdbremote "github.com/m3db/m3/src/query/remote"
-	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/fanout"
-	"github.com/m3db/m3/src/query/storage/m3"
-	"github.com/m3db/m3/src/query/storage/m3/consolidators"
-	"github.com/m3db/m3/src/query/storage/remote"
-	"github.com/m3db/m3/src/query/stores/m3db"
-	"github.com/m3db/m3/src/x/clock"
-	xconfig "github.com/m3db/m3/src/x/config"
-	"github.com/m3db/m3/src/x/instrument"
-	xio "github.com/m3db/m3/src/x/io"
-	xnet "github.com/m3db/m3/src/x/net"
-	xos "github.com/m3db/m3/src/x/os"
-	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/serialize"
-	xserver "github.com/m3db/m3/src/x/server"
-	xsync "github.com/m3db/m3/src/x/sync"
-
 	"github.com/go-kit/kit/log"
 	kitlogzap "github.com/go-kit/kit/log/zap"
 	"github.com/opentracing/opentracing-go"
@@ -82,6 +42,50 @@ import (
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+
+	"github.com/m3db/m3/src/aggregator/server"
+	clusterclient "github.com/m3db/m3/src/cluster/client"
+	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
+	"github.com/m3db/m3/src/cluster/kv"
+	memcluster "github.com/m3db/m3/src/cluster/mem"
+	handleroptions3 "github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
+	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	ingestcarbon "github.com/m3db/m3/src/cmd/services/m3coordinator/ingest/carbon"
+	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/httpd"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	m3dbcluster "github.com/m3db/m3/src/query/cluster/m3db"
+	"github.com/m3db/m3/src/query/executor"
+	graphite "github.com/m3db/m3/src/query/graphite/storage"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser/promql"
+	"github.com/m3db/m3/src/query/policy/filter"
+	"github.com/m3db/m3/src/query/pools"
+	"github.com/m3db/m3/src/query/promqlengine"
+	tsdbremote "github.com/m3db/m3/src/query/remote"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/fanout"
+	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/promremote"
+	"github.com/m3db/m3/src/query/storage/remote"
+	"github.com/m3db/m3/src/query/stores/m3db"
+	"github.com/m3db/m3/src/x/clock"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
+	xnet "github.com/m3db/m3/src/x/net"
+	xos "github.com/m3db/m3/src/x/os"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
+	xserver "github.com/m3db/m3/src/x/server"
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 const (
@@ -221,6 +225,13 @@ func Run(runOpts RunOptions) RunResult {
 		}()
 	}
 
+	interruptOpts := xos.NewInterruptOptions()
+	if runOpts.InterruptCh != nil {
+		interruptOpts.InterruptCh = runOpts.InterruptCh
+	}
+	intWatchCancel := xos.WatchForInterrupt(logger, interruptOpts)
+	defer intWatchCancel()
+
 	defer logger.Sync()
 
 	cfg.Debug.SetRuntimeValues(logger)
@@ -340,7 +351,7 @@ func Run(runOpts RunOptions) RunResult {
 	}
 
 	var (
-		clusterNamespacesWatcher m3.ClusterNamespacesWatcher
+		clusterNamespacesWatcher = m3.NewClusterNamespacesWatcher()
 		backendStorage           storage.Storage
 		clusterClient            clusterclient.Client
 		downsampler              downsample.Downsampler
@@ -357,6 +368,7 @@ func Run(runOpts RunOptions) RunResult {
 			MatchType: cfg.Query.ConsolidationConfiguration.MatchType,
 		}
 	)
+	defer clusterNamespacesWatcher.Close()
 
 	tagOptions, err := config.TagOptionsFromConfig(cfg.TagOptions)
 	if err != nil {
@@ -369,6 +381,8 @@ func Run(runOpts RunOptions) RunResult {
 	}
 	cfg.LookbackDuration = &lookbackDuration
 
+	promConvertOptions := cfg.Query.Prometheus.ConvertOptionsOrDefault()
+
 	readWorkerPool, writeWorkerPool, err := pools.BuildWorkerPools(
 		instrumentOptions,
 		cfg.ReadWorkerPool,
@@ -379,17 +393,19 @@ func Run(runOpts RunOptions) RunResult {
 	}
 
 	var (
+		encodingOpts    = encoding.NewOptions()
 		m3dbClusters    m3.Clusters
 		m3dbPoolWrapper *pools.PoolWrapper
 	)
 
-	tsdbOpts := m3.NewOptions().
+	tsdbOpts := m3.NewOptions(encodingOpts).
 		SetTagOptions(tagOptions).
 		SetLookbackDuration(lookbackDuration).
 		SetConsolidationFunc(consolidators.TakeLast).
 		SetReadWorkerPool(readWorkerPool).
 		SetWriteWorkerPool(writeWorkerPool).
-		SetSeriesConsolidationMatchOptions(matchOptions)
+		SetSeriesConsolidationMatchOptions(matchOptions).
+		SetPromConvertOptions(promConvertOptions)
 
 	if runOpts.ApplyCustomTSDBOptions != nil {
 		tsdbOpts, err = runOpts.ApplyCustomTSDBOptions(tsdbOpts, instrumentOptions)
@@ -414,7 +430,7 @@ func Run(runOpts RunOptions) RunResult {
 		// For grpc backend, we need to setup only the grpc client and a storage
 		// accompanying that client.
 		poolWrapper := pools.NewPoolsWrapper(
-			pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
+			pools.BuildIteratorPools(encodingOpts, pools.BuildIteratorPoolsOptions{}))
 		remoteOpts := config.RemoteOptionsFromConfig(cfg.RPC)
 		remotes, enabled, err := remoteClient(poolWrapper, remoteOpts,
 			tsdbOpts, instrumentOptions)
@@ -454,15 +470,16 @@ func Run(runOpts RunOptions) RunResult {
 	case "", config.M3DBStorageType:
 		// For m3db backend, we need to make connections to the m3db cluster
 		// which generates a session and use the storage with the session.
-		m3dbClusters, clusterNamespacesWatcher, m3dbPoolWrapper, err = initClusters(cfg,
-			runOpts.DBConfig, runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions())
+		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBConfig,
+			clusterNamespacesWatcher, runOpts.DBClient, encodingOpts,
+			instrumentOptions, tsdbOpts.CustomAdminOptions())
 		if err != nil {
 			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
 
 		var cleanup cleanupFn
 		backendStorage, cleanup, err = newM3DBStorage(
-			cfg, m3dbClusters, m3dbPoolWrapper, queryCtxOpts, tsdbOpts, clusterNamespacesWatcher, instrumentOptions,
+			cfg, m3dbClusters, m3dbPoolWrapper, queryCtxOpts, tsdbOpts, instrumentOptions,
 		)
 		if err != nil {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
@@ -480,9 +497,44 @@ func Run(runOpts RunOptions) RunResult {
 
 		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, etcdConfig, backendStorage,
 			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
+			interruptOpts,
 		)
 		if err != nil {
+			var interruptErr *xos.InterruptError
+			if errors.As(err, &interruptErr) {
+				logger.Warn("interrupt received. closing server", zap.Error(err))
+				return runResult
+			}
 			logger.Fatal("unable to setup downsampler for m3db backend", zap.Error(err))
+		}
+	case config.PromRemoteStorageType:
+		opts, err := promremote.NewOptions(cfg.PrometheusRemoteBackend, scope, instrumentOptions.Logger())
+		if err != nil {
+			logger.Fatal("invalid configuration", zap.Error(err))
+		}
+		backendStorage, err = promremote.NewStorage(opts)
+		if err != nil {
+			logger.Fatal("unable to setup prom remote backend", zap.Error(err))
+		}
+		defer func() {
+			if err := backendStorage.Close(); err != nil {
+				logger.Error("error when closing storage", zap.Error(err))
+			}
+		}()
+
+		logger.Info("configuring downsampler to use with aggregated namespaces",
+			zap.Int("numAggregatedClusterNamespaces", opts.Namespaces().NumAggregatedClusterNamespaces()))
+		err = clusterNamespacesWatcher.Update(opts.Namespaces())
+		if err != nil {
+			logger.Fatal("unable to update namespaces", zap.Error(err))
+		}
+
+		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, cfg.ClusterManagement.Etcd, backendStorage,
+			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
+			interruptOpts,
+		)
+		if err != nil {
+			logger.Fatal("unable to setup downsampler for prom remote backend", zap.Error(err))
 		}
 	default:
 		logger.Fatal("unrecognized backend", zap.String("backend", string(cfg.Backend)))
@@ -550,21 +602,22 @@ func Run(runOpts RunOptions) RunResult {
 		graphiteStorageOpts            graphite.M3WrappedStorageOptions
 	)
 	if cfg.Carbon != nil {
-		graphiteStorageOpts.AggregateNamespacesAllData =
-			cfg.Carbon.AggregateNamespacesAllData
-		graphiteStorageOpts.ShiftTimeStart = cfg.Carbon.ShiftTimeStart
-		graphiteStorageOpts.ShiftTimeEnd = cfg.Carbon.ShiftTimeEnd
-		graphiteStorageOpts.ShiftStepsStart = cfg.Carbon.ShiftStepsStart
-		graphiteStorageOpts.ShiftStepsEnd = cfg.Carbon.ShiftStepsEnd
-		graphiteStorageOpts.ShiftStepsStartWhenAtResolutionBoundary = cfg.Carbon.ShiftStepsStartWhenAtResolutionBoundary
-		graphiteStorageOpts.ShiftStepsEndWhenAtResolutionBoundary = cfg.Carbon.ShiftStepsEndWhenAtResolutionBoundary
-		graphiteStorageOpts.ShiftStepsEndWhenStartAtResolutionBoundary = cfg.Carbon.ShiftStepsEndWhenStartAtResolutionBoundary
-		graphiteStorageOpts.ShiftStepsStartWhenEndAtResolutionBoundary = cfg.Carbon.ShiftStepsStartWhenEndAtResolutionBoundary
-		graphiteStorageOpts.RenderPartialStart = cfg.Carbon.RenderPartialStart
-		graphiteStorageOpts.RenderPartialEnd = cfg.Carbon.RenderPartialEnd
-		graphiteStorageOpts.RenderSeriesAllNaNs = cfg.Carbon.RenderSeriesAllNaNs
-		graphiteStorageOpts.CompileEscapeAllNotOnlyQuotes = cfg.Carbon.CompileEscapeAllNotOnlyQuotes
-
+		graphiteStorageOpts = graphite.M3WrappedStorageOptions{
+			AggregateNamespacesAllData:                 cfg.Carbon.AggregateNamespacesAllData,
+			ShiftTimeStart:                             cfg.Carbon.ShiftTimeStart,
+			ShiftTimeEnd:                               cfg.Carbon.ShiftTimeEnd,
+			ShiftStepsStart:                            cfg.Carbon.ShiftStepsStart,
+			ShiftStepsEnd:                              cfg.Carbon.ShiftStepsEnd,
+			ShiftStepsStartWhenAtResolutionBoundary:    cfg.Carbon.ShiftStepsStartWhenAtResolutionBoundary,
+			ShiftStepsEndWhenAtResolutionBoundary:      cfg.Carbon.ShiftStepsEndWhenAtResolutionBoundary,
+			ShiftStepsEndWhenStartAtResolutionBoundary: cfg.Carbon.ShiftStepsEndWhenStartAtResolutionBoundary,
+			ShiftStepsStartWhenEndAtResolutionBoundary: cfg.Carbon.ShiftStepsStartWhenEndAtResolutionBoundary,
+			RenderPartialStart:                         cfg.Carbon.RenderPartialStart,
+			RenderPartialEnd:                           cfg.Carbon.RenderPartialEnd,
+			RenderSeriesAllNaNs:                        cfg.Carbon.RenderSeriesAllNaNs,
+			CompileEscapeAllNotOnlyQuotes:              cfg.Carbon.CompileEscapeAllNotOnlyQuotes,
+			FindResultsIncludeBothExpandableAndLeaf:    cfg.Carbon.FindResultsIncludeBothExpandableAndLeaf,
+		}
 		if limits := cfg.Carbon.LimitsFind; limits != nil {
 			fetchOptsBuilderLimitsOpts := limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
 			graphiteFindFetchOptsBuilder, err = handleroptions.NewFetchOptionsBuilder(
@@ -591,18 +644,33 @@ func Run(runOpts RunOptions) RunResult {
 		}
 	}
 
-	prometheusEngine, err := newPromQLEngine(cfg, prometheusEngineRegistry,
-		instrumentOptions)
+	defaultPrometheusEngine, err := newPromQLEngine(lookbackDuration, cfg, prometheusEngineRegistry, instrumentOptions)
 	if err != nil {
 		logger.Fatal("unable to create PromQL engine", zap.Error(err))
 	}
+	prometheusEngineFn := func(lookbackDuration time.Duration) (*prometheuspromql.Engine, error) {
+		// NB: use nil metric registry to avoid duplicate metric registration when creating multiple engines
+		return newPromQLEngine(lookbackDuration, cfg, nil, instrumentOptions)
+	}
+
+	enginesByLookback, err := createEnginesWithResolutionBasedLookbacks(
+		lookbackDuration,
+		defaultPrometheusEngine,
+		runOpts.Config.Clusters,
+		cfg.Middleware.Prometheus.ResolutionMultiplier,
+		prometheusEngineFn,
+	)
+	if err != nil {
+		logger.Fatal("failed creating PromgQL engines with resolution based lookback durations", zap.Error(err))
+	}
+	engineCache := promqlengine.NewCache(enginesByLookback, prometheusEngineFn)
 
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
-		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
+		tagOptions, engine, engineCache.Get, m3dbClusters, clusterClient, cfg,
 		runOpts.DBConfig, fetchOptsBuilder, graphiteFindFetchOptsBuilder, graphiteRenderFetchOptsBuilder,
 		queryCtxOpts, instrumentOptions, cpuProfileDuration, []string{handleroptions3.M3DBServiceName},
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
-		graphiteStorageOpts, tsdbOpts, httpd.NewGraphiteRenderRouter(), httpd.NewGraphiteFindRouter())
+		graphiteStorageOpts, tsdbOpts, httpd.NewGraphiteRenderRouter(), httpd.NewGraphiteFindRouter(), lookbackDuration)
 	if err != nil {
 		logger.Fatal("unable to set up handler options", zap.Error(err))
 	}
@@ -698,10 +766,14 @@ func Run(runOpts RunOptions) RunResult {
 		defer server.Close()
 	}
 
-	// Wait for process interrupt.
-	xos.WaitForInterrupt(logger, xos.InterruptOptions{
-		InterruptCh: runOpts.InterruptCh,
-	})
+	// Stop our async watch and now block waiting for the interrupt.
+	intWatchCancel()
+	select {
+	case <-interruptOpts.InterruptedCh:
+		logger.Warn("interrupt already received. closing")
+	default:
+		xos.WaitForInterrupt(logger, interruptOpts)
+	}
 
 	return runResult
 }
@@ -709,7 +781,7 @@ func Run(runOpts RunOptions) RunResult {
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage
 func newM3DBStorage(cfg config.Configuration, clusters m3.Clusters, poolWrapper *pools.PoolWrapper,
 	queryContextOptions models.QueryContextOptions, tsdbOpts m3.Options,
-	clusterNamespacesWatcher m3.ClusterNamespacesWatcher, instrumentOptions instrument.Options,
+	instrumentOptions instrument.Options,
 ) (storage.Storage, cleanupFn, error) {
 	fanoutStorage, storageCleanup, err := newStorages(clusters, cfg,
 		poolWrapper, queryContextOptions, tsdbOpts, instrumentOptions)
@@ -723,8 +795,6 @@ func newM3DBStorage(cfg config.Configuration, clusters m3.Clusters, poolWrapper 
 		if lastErr != nil {
 			logger.Error("error during storage cleanup", zap.Error(lastErr))
 		}
-
-		clusterNamespacesWatcher.Close()
 
 		if err := clusters.Close(); err != nil {
 			lastErr = errors.Wrap(err, "unable to close M3DB cluster sessions")
@@ -754,7 +824,7 @@ func resolveEtcdForM3DB(cfg config.Configuration) (*etcdclient.Configuration, er
 func newDownsamplerAsync(
 	cfg downsample.Configuration, etcdCfg *etcdclient.Configuration, storage storage.Appender,
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher, tagOptions models.TagOptions, clockOpts clock.Options,
-	instrumentOptions instrument.Options, rwOpts xio.Options, runOpts RunOptions,
+	instrumentOptions instrument.Options, rwOpts xio.Options, runOpts RunOptions, interruptOpts xos.InterruptOptions,
 ) (downsample.Downsampler, clusterclient.Client, error) {
 	var (
 		clusterClient       clusterclient.Client
@@ -779,13 +849,20 @@ func newDownsamplerAsync(
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to create cluster management etcd client")
 		}
+	} else if cfg.RemoteAggregator == nil {
+		// NB(antanas): M3 Coordinator with in process aggregator can run with in memory cluster client.
+		instrumentOptions.Logger().Info("no etcd config and no remote aggregator - will run with in memory cluster client")
+		clusterClient = memcluster.New(kv.NewOverrideOptions())
+	} else {
+		return nil, nil, fmt.Errorf("no configured cluster management config, must set this config for remote aggregator")
 	}
 
 	newDownsamplerFn := func() (downsample.Downsampler, error) {
 		ds, err := newDownsampler(
 			cfg, clusterClient,
 			storage, clusterNamespacesWatcher,
-			tagOptions, clockOpts, instrumentOptions, rwOpts, runOpts.ApplyCustomRuleStore)
+			tagOptions, clockOpts, instrumentOptions, rwOpts, runOpts.ApplyCustomRuleStore,
+			interruptOpts.InterruptedCh)
 		if err != nil {
 			return nil, err
 		}
@@ -817,7 +894,7 @@ func newDownsamplerAsync(
 
 func newDownsampler(
 	cfg downsample.Configuration,
-	clusterManagementClient clusterclient.Client,
+	clusterClient clusterclient.Client,
 	storage storage.Appender,
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	tagOptions models.TagOptions,
@@ -825,27 +902,23 @@ func newDownsampler(
 	instrumentOpts instrument.Options,
 	rwOpts xio.Options,
 	applyCustomRuleStore downsample.CustomRuleStoreFn,
+	interruptedCh <-chan struct{},
 ) (downsample.Downsampler, error) {
 	// Namespace the downsampler metrics.
 	instrumentOpts = instrumentOpts.SetMetricsScope(
 		instrumentOpts.MetricsScope().SubScope("downsampler"))
 
-	if clusterManagementClient == nil {
-		return nil, fmt.Errorf("no configured cluster management config, " +
-			"must set this config for downsampler")
-	}
-
 	var kvStore kv.Store
 	var err error
 
 	if applyCustomRuleStore == nil {
-		kvStore, err = clusterManagementClient.KV()
+		kvStore, err = clusterClient.KV()
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to create KV store from the "+
 				"cluster management config client")
 		}
 	} else {
-		kvStore, err = applyCustomRuleStore(clusterManagementClient, instrumentOpts)
+		kvStore, err = applyCustomRuleStore(clusterClient, instrumentOpts)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to apply custom rule store")
 		}
@@ -868,7 +941,7 @@ func newDownsampler(
 
 	downsampler, err := cfg.NewDownsampler(downsample.DownsamplerOptions{
 		Storage:                    storage,
-		ClusterClient:              clusterManagementClient,
+		ClusterClient:              clusterClient,
 		RulesKVStore:               kvStore,
 		ClusterNamespacesWatcher:   clusterNamespacesWatcher,
 		ClockOptions:               clockOpts,
@@ -880,9 +953,10 @@ func newDownsampler(
 		TagOptions:                 tagOptions,
 		MetricsAppenderPoolOptions: metricsAppenderPoolOptions,
 		RWOptions:                  rwOpts,
+		InterruptedCh:              interruptedCh,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("unable to create downsampler: %v", err)
+		return nil, fmt.Errorf("unable to create downsampler: %w", err)
 	}
 
 	return downsampler, nil
@@ -891,20 +965,21 @@ func newDownsampler(
 func initClusters(
 	cfg config.Configuration,
 	dbCfg *dbconfig.DBConfiguration,
+	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	dbClientCh <-chan client.Client,
+	encodingOpts encoding.Options,
 	instrumentOpts instrument.Options,
 	customAdminOptions []client.CustomAdminOption,
-) (m3.Clusters, m3.ClusterNamespacesWatcher, *pools.PoolWrapper, error) {
+) (m3.Clusters, *pools.PoolWrapper, error) {
 	instrumentOpts = instrumentOpts.
 		SetMetricsScope(instrumentOpts.MetricsScope().SubScope("m3db-client"))
 
 	var (
-		logger                   = instrumentOpts.Logger()
-		clusterNamespacesWatcher = m3.NewClusterNamespacesWatcher()
-		clusters                 m3.Clusters
-		poolWrapper              *pools.PoolWrapper
-		staticNamespaceConfig    bool
-		err                      error
+		logger                = instrumentOpts.Logger()
+		clusters              m3.Clusters
+		poolWrapper           *pools.PoolWrapper
+		staticNamespaceConfig bool
+		err                   error
 	)
 	if len(cfg.Clusters) > 0 {
 		for _, clusterCfg := range cfg.Clusters {
@@ -916,6 +991,7 @@ func initClusters(
 		opts := m3.ClustersStaticConfigurationOptions{
 			AsyncSessions:      true,
 			CustomAdminOptions: customAdminOptions,
+			EncodingOptions:    encodingOpts,
 		}
 		if staticNamespaceConfig {
 			clusters, err = cfg.Clusters.NewStaticClusters(instrumentOpts, opts, clusterNamespacesWatcher)
@@ -924,11 +1000,11 @@ func initClusters(
 			clusters, err = cfg.Clusters.NewDynamicClusters(instrumentOpts, opts, clusterNamespacesWatcher)
 		}
 		if err != nil {
-			return nil, nil, nil, errors.Wrap(err, "unable to connect to clusters")
+			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
 
 		poolWrapper = pools.NewPoolsWrapper(
-			pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
+			pools.BuildIteratorPools(encodingOpts, pools.BuildIteratorPoolsOptions{}))
 	} else {
 		localCfg := cfg.Local
 		if localCfg == nil {
@@ -939,7 +1015,7 @@ func initClusters(
 		}
 
 		if dbClientCh == nil {
-			return nil, nil, nil, errors.New("no clusters configured and not running local cluster")
+			return nil, nil, errors.New("no clusters configured and not running local cluster")
 		}
 
 		sessionInitChan := make(chan struct{})
@@ -952,7 +1028,7 @@ func initClusters(
 		}
 		if !staticNamespaceConfig {
 			if dbCfg == nil {
-				return nil, nil, nil, errors.New("environment config required when dynamically fetching namespaces")
+				return nil, nil, errors.New("environment config required when dynamically fetching namespaces")
 			}
 
 			hostID, err := dbCfg.HostIDOrDefault().Resolve()
@@ -975,6 +1051,7 @@ func initClusters(
 		cfgOptions := m3.ClustersStaticConfigurationOptions{
 			ProvidedSession:    session,
 			CustomAdminOptions: customAdminOptions,
+			EncodingOptions:    encodingOpts,
 		}
 
 		if staticNamespaceConfig {
@@ -983,7 +1060,7 @@ func initClusters(
 			clusters, err = clustersCfg.NewDynamicClusters(instrumentOpts, cfgOptions, clusterNamespacesWatcher)
 		}
 		if err != nil {
-			return nil, nil, nil, errors.Wrap(err, "unable to connect to clusters")
+			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
 
 		poolWrapper = pools.NewAsyncPoolsWrapper()
@@ -998,7 +1075,7 @@ func initClusters(
 			zap.String("namespace", namespace.NamespaceID().String()))
 	}
 
-	return clusters, clusterNamespacesWatcher, poolWrapper, nil
+	return clusters, poolWrapper, nil
 }
 
 func newStorages(
@@ -1280,15 +1357,16 @@ func newDownsamplerAndWriter(
 }
 
 func newPromQLEngine(
+	lookbackDelta time.Duration,
 	cfg config.Configuration,
-	registry *extprom.Registry,
+	registry extprom.Registerer,
 	instrumentOpts instrument.Options,
 ) (*prometheuspromql.Engine, error) {
-	lookbackDelta, err := cfg.LookbackDurationOrDefault()
-	if err != nil {
-		return nil, err
+	if lookbackDelta < 0 {
+		return nil, errors.New("lookbackDelta cannot be negative")
 	}
 
+	instrumentOpts.Logger().Debug("creating new PromQL engine", zap.Duration("lookbackDelta", lookbackDelta))
 	var (
 		kitLogger = kitlogzap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
 		opts      = prometheuspromql.EngineOpts{
@@ -1303,6 +1381,34 @@ func newPromQLEngine(
 		}
 	)
 	return prometheuspromql.NewEngine(opts), nil
+}
+
+func createEnginesWithResolutionBasedLookbacks(
+	defaultLookback time.Duration,
+	defaultEngine *prometheuspromql.Engine,
+	clusters m3.ClustersStaticConfiguration,
+	resolutionMultiplier int,
+	prometheusEngineFn func(time.Duration) (*prometheuspromql.Engine, error),
+) (map[time.Duration]*prometheuspromql.Engine, error) {
+	enginesByLookback := make(map[time.Duration]*prometheuspromql.Engine)
+	enginesByLookback[defaultLookback] = defaultEngine
+	if resolutionMultiplier > 0 {
+		for _, cluster := range clusters {
+			for _, ns := range cluster.Namespaces {
+				if res := ns.Resolution; res > 0 {
+					resolutionBasedLookback := res * time.Duration(resolutionMultiplier)
+					if _, ok := enginesByLookback[resolutionBasedLookback]; !ok {
+						eng, err := prometheusEngineFn(resolutionBasedLookback)
+						if err != nil {
+							return nil, err
+						}
+						enginesByLookback[resolutionBasedLookback] = eng
+					}
+				}
+			}
+		}
+	}
+	return enginesByLookback, nil
 }
 
 func durationMilliseconds(d time.Duration) int64 {

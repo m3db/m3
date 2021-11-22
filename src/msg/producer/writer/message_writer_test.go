@@ -160,7 +160,7 @@ func TestMessageWriterWithPooling(t *testing.T) {
 	require.Equal(t, 1, w.queue.Len())
 
 	mm2.EXPECT().Finalize(producer.Consumed)
-	w.Ack(metadata{shard: 200, id: 2})
+	w.Ack(metadata{metadataKey: metadataKey{shard: 200, id: 2}})
 	require.True(t, isEmptyWithLock(w.acks))
 	for {
 		w.RLock()
@@ -243,7 +243,7 @@ func TestMessageWriterWithoutPooling(t *testing.T) {
 	require.Equal(t, 1, w.queue.Len())
 
 	mm2.EXPECT().Finalize(producer.Consumed)
-	w.Ack(metadata{shard: 200, id: 2})
+	w.Ack(metadata{metadataKey: metadataKey{shard: 200, id: 2}})
 	require.True(t, isEmptyWithLock(w.acks))
 	for {
 		w.RLock()
@@ -295,7 +295,7 @@ func TestMessageWriterRetryWithoutPooling(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	_, ok := w.acks.ackMap[metadata{shard: 200, id: 1}]
+	_, ok := w.acks.ackMap[metadataKey{shard: 200, id: 1}]
 	require.True(t, ok)
 
 	cw := newConsumerWriter(addr, a, opts, testConsumerWriterMetrics())
@@ -355,7 +355,7 @@ func TestMessageWriterRetryWithPooling(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	m1, ok := w.acks.ackMap[metadata{shard: 200, id: 1}]
+	m1, ok := w.acks.ackMap[metadataKey{shard: 200, id: 1}]
 	require.True(t, ok)
 
 	cw := newConsumerWriter(addr, a, opts, testConsumerWriterMetrics())
@@ -453,8 +453,10 @@ func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 	}
 	acks := w.acks
 	meta := metadata{
-		id:    1,
-		shard: 200,
+		metadataKey: metadataKey{
+			id:    1,
+			shard: 200,
+		},
 	}
 	// The message will not be finalized because it's still being hold by another message writer.
 	acks.ack(meta)
@@ -796,6 +798,15 @@ func TestNextRetryAfterNanos(t *testing.T) {
 	require.True(t, retryAtNanos == nowNanos+2*int64(backoffDuration))
 }
 
+func TestExpectedProcessedAt(t *testing.T) {
+	m := newMessage()
+	m.initNanos = 100
+	m.SetRetryAtNanos(200)
+	require.Equal(t, int64(100), m.ExpectedProcessAtNanos())
+	m.SetRetryAtNanos(300)
+	require.Equal(t, int64(200), m.ExpectedProcessAtNanos())
+}
+
 func TestMessageWriterCloseCleanupAllMessages(t *testing.T) {
 	defer leaktest.Check(t)()
 
@@ -855,6 +866,22 @@ func TestMessageWriterQueueFullScanOnWriteErrors(t *testing.T) {
 	require.Equal(t, int64(1), counters["message-processed+consumer=c1,result=drop"].Value())
 }
 
+func TestMessageWriter_WithoutConsumerScope(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testOptions().SetMessageQueueScanBatchSize(1)
+	scope := tally.NewTestScope("", nil)
+	metrics := newMessageWriterMetrics(scope, instrument.TimerOptions{}, true)
+	w := newMessageWriter(200, nil, opts, metrics).(*messageWriterImpl)
+	w.AddConsumerWriter(newConsumerWriter("bad", nil, opts, testConsumerWriterMetrics()))
+
+	snapshot := scope.Snapshot()
+	counters := snapshot.Counters()
+	require.Nil(t, counters["message-processed+consumer=c1,result=write"])
+	require.NotNil(t, counters["message-processed+result=write"])
+}
+
 func isEmptyWithLock(h *acks) bool {
 	h.Lock()
 	defer h.Unlock()
@@ -868,11 +895,11 @@ func testMessagePool(opts Options) messagePool {
 }
 
 func testMessageWriterMetrics() messageWriterMetrics {
-	return newMessageWriterMetrics(tally.NoopScope, instrument.TimerOptions{})
+	return newMessageWriterMetrics(tally.NoopScope, instrument.TimerOptions{}, false)
 }
 
 func testMessageWriterMetricsWithScope(scope tally.TestScope) messageWriterMetrics {
-	return newMessageWriterMetrics(scope, instrument.TimerOptions{})
+	return newMessageWriterMetrics(scope, instrument.TimerOptions{}, false)
 }
 
 func validateMessages(t *testing.T, msgs []*producer.RefCountedMessage, w *messageWriterImpl) {

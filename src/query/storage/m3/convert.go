@@ -113,7 +113,6 @@ func convertM3DBSegmentedBlockIterators(
 	defer result.Close()
 	blockBuilder := newEncodedBlockBuilder(result, opts)
 	var (
-		iterAlloc    = opts.IterAlloc()
 		pools        = opts.IteratorPools()
 		checkedPools = opts.CheckedBytesPool()
 	)
@@ -127,7 +126,6 @@ func convertM3DBSegmentedBlockIterators(
 
 		blockReplicas, err := blockReplicasFromSeriesIterator(
 			iter,
-			iterAlloc,
 			bounds,
 			pools,
 			checkedPools,
@@ -163,16 +161,12 @@ func convertM3DBSegmentedBlockIterators(
 
 func blockReplicasFromSeriesIterator(
 	seriesIterator encoding.SeriesIterator,
-	iterAlloc encoding.ReaderIteratorAllocate,
 	bounds models.Bounds,
 	pools encoding.IteratorPools,
 	checkedPools pool.CheckedBytesPool,
 ) (seriesBlocks, error) {
 	blocks := make(seriesBlocks, 0, bounds.Steps())
-	var pool encoding.MultiReaderIteratorPool
-	if pools != nil {
-		pool = pools.MultiReaderIterator()
-	}
+	pool := pools.MultiReaderIterator()
 
 	replicas, err := seriesIterator.Replicas()
 	if err != nil {
@@ -196,7 +190,7 @@ func blockReplicasFromSeriesIterator(
 				readers[i] = clonedReader
 			}
 
-			iter := encoding.NewMultiReaderIterator(iterAlloc, pool)
+			iter := pool.Get()
 			// TODO [haijun] query assumes schemaless iterators.
 			iter.Reset(readers, start, bs, nil)
 			inserted := false

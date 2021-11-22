@@ -23,6 +23,7 @@ package metadata
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
@@ -211,6 +212,20 @@ func (metadatas PipelineMetadatas) Equal(other PipelineMetadatas) bool {
 	return true
 }
 
+// Len returns the number of pipelines in the metadata.
+func (metadatas PipelineMetadatas) Len() int { return len(metadatas) }
+
+// Swap swaps the elements with indexes i and j.
+func (metadatas PipelineMetadatas) Swap(i, j int) {
+	metadatas[i], metadatas[j] = metadatas[j], metadatas[i]
+}
+
+// Less returns whether the element with
+// index i should sort before the element with index j.
+func (metadatas PipelineMetadatas) Less(i, j int) bool {
+	return strings.Compare(metadatas[i].String(), metadatas[j].String()) == -1
+}
+
 // Clone clones the list of pipeline metadatas.
 func (metadatas PipelineMetadatas) Clone() PipelineMetadatas {
 	cloned := make(PipelineMetadatas, 0, len(metadatas))
@@ -273,13 +288,18 @@ func (metadatas PipelineMetadatas) ApplyOrRemoveDropPolicies() (
 		return metadatas, NoDropPolicyPresentResult
 	}
 
+	result := metadatas
+
+	// Drop is effective as no other non drop pipelines, result is a drop
 	if nonDropPipelines == 0 {
-		// Drop is effective as no other non drop pipelines, result is a drop
-		return DropPipelineMetadatas, AppliedEffectiveDropPolicyResult
+		// nb: Do not directly return DropPipelineMetadatas, as the client could potentially save that reference
+		// and modify global state.
+		result = result[:0]
+		result = append(result, DropPipelineMetadata)
+		return result, AppliedEffectiveDropPolicyResult
 	}
 
 	// Remove all non-default drop policies as they must not be effective
-	result := metadatas
 	for i := len(result) - 1; i >= 0; i-- {
 		if !result[i].DropPolicy.IsDefault() {
 			// Remove by moving to tail and decrementing length so we can do in

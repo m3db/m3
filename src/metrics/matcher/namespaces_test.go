@@ -126,6 +126,17 @@ func TestNamespacesWatchRulesetHardErr(t *testing.T) {
 	require.Error(t, nss.Open())
 }
 
+func TestNamespacesOpenWithInterrupt(t *testing.T) {
+	interruptedCh := make(chan struct{}, 1)
+	interruptedCh <- struct{}{}
+
+	_, _, nss, _ := testNamespacesWithInterruptedCh(interruptedCh)
+	err := nss.Open()
+
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "interrupted")
+}
+
 func TestToNamespacesNilValue(t *testing.T) {
 	_, _, nss, _ := testNamespaces()
 	_, err := nss.toNamespaces(nil)
@@ -277,7 +288,7 @@ func TestNamespacesProcess(t *testing.T) {
 	}
 }
 
-func testNamespaces() (kv.TxnStore, cache.Cache, *namespaces, Options) {
+func testNamespacesWithInterruptedCh(interruptedCh chan struct{}) (kv.TxnStore, cache.Cache, *namespaces, Options) {
 	store := mem.NewStore()
 	cache := newMemCache()
 	opts := NewOptions().
@@ -293,8 +304,14 @@ func testNamespaces() (kv.TxnStore, cache.Cache, *namespaces, Options) {
 		}).
 		SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) {
 			cache.Register(namespace, ruleSet)
-		})
+		}).
+		SetInterruptedCh(interruptedCh)
+
 	return store, cache, NewNamespaces(testNamespacesKey, opts).(*namespaces), opts
+}
+
+func testNamespaces() (kv.TxnStore, cache.Cache, *namespaces, Options) {
+	return testNamespacesWithInterruptedCh(nil)
 }
 
 type memResults struct {

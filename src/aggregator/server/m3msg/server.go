@@ -21,9 +21,7 @@
 package m3msg
 
 import (
-	"errors"
 	"fmt"
-	"io"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/metrics/encoding"
@@ -35,11 +33,6 @@ import (
 	"go.uber.org/zap"
 )
 
-type server struct {
-	aggregator aggregator.Aggregator
-	logger     *zap.Logger
-}
-
 // NewServer creates a new M3Msg server.
 func NewServer(
 	address string,
@@ -49,49 +42,43 @@ func NewServer(
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-
-	s := &server{
-		aggregator: aggregator,
-		logger:     opts.InstrumentOptions().Logger(),
+	newMessageProcessor := func() consumer.MessageProcessor {
+		// construct a new messageProcessor per consumer so the internal protos can be reused across messages on the
+		// same connection.
+		return &messageProcessor{
+			aggregator: aggregator,
+			logger:     opts.InstrumentOptions().Logger(),
+		}
 	}
-
-	handler := consumer.NewConsumerHandler(s.Consume, opts.ConsumerOptions())
+	handler := consumer.NewMessageHandler(consumer.NewMessageProcessorFactory(newMessageProcessor), opts.ConsumerOptions())
 	return xserver.NewServer(address, handler, opts.ServerOptions()), nil
 }
 
-func (s *server) Consume(c consumer.Consumer) {
-	var (
-		pb    = &metricpb.MetricWithMetadatas{}
-		union = &encoding.UnaggregatedMessageUnion{}
-	)
-	for {
-		msg, err := c.Message()
-		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				s.logger.Error("could not read message", zap.Error(err))
-			}
-			break
-		}
-
-		// Reset and reuse the protobuf message for unpacking.
-		protobuf.ReuseMetricWithMetadatasProto(pb)
-		if err = s.handleMessage(pb, union, msg); err != nil {
-			s.logger.Error("could not process message",
-				zap.Error(err),
-				zap.Uint64("shard", msg.ShardID()),
-				zap.String("proto", pb.String()))
-		}
-	}
-	c.Close()
+type messageProcessor struct {
+	pb         metricpb.MetricWithMetadatas
+	union      encoding.UnaggregatedMessageUnion
+	aggregator aggregator.Aggregator
+	logger     *zap.Logger
 }
 
-func (s *server) handleMessage(
+func (m *messageProcessor) Process(msg consumer.Message) {
+	if err := m.handleMessage(&m.pb, &m.union, msg); err != nil {
+		m.logger.Error("could not process message",
+			zap.Error(err),
+			zap.Uint64("shard", msg.ShardID()),
+			zap.String("proto", m.pb.String()))
+	}
+}
+
+func (m *messageProcessor) handleMessage(
 	pb *metricpb.MetricWithMetadatas,
 	union *encoding.UnaggregatedMessageUnion,
 	msg consumer.Message,
 ) error {
 	defer msg.Ack()
 
+	// Reset and reuse the protobuf message for unpacking.
+	protobuf.ReuseMetricWithMetadatasProto(&m.pb)
 	// Unmarshal the message.
 	if err := pb.Unmarshal(msg.Bytes()); err != nil {
 		return err
@@ -104,27 +91,27 @@ func (s *server) handleMessage(
 			return err
 		}
 		u := union.CounterWithMetadatas.ToUnion()
-		return s.aggregator.AddUntimed(u, union.CounterWithMetadatas.StagedMetadatas)
+		return m.aggregator.AddUntimed(u, union.CounterWithMetadatas.StagedMetadatas)
 	case metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS:
 		err := union.BatchTimerWithMetadatas.FromProto(pb.BatchTimerWithMetadatas)
 		if err != nil {
 			return err
 		}
 		u := union.BatchTimerWithMetadatas.ToUnion()
-		return s.aggregator.AddUntimed(u, union.BatchTimerWithMetadatas.StagedMetadatas)
+		return m.aggregator.AddUntimed(u, union.BatchTimerWithMetadatas.StagedMetadatas)
 	case metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS:
 		err := union.GaugeWithMetadatas.FromProto(pb.GaugeWithMetadatas)
 		if err != nil {
 			return err
 		}
 		u := union.GaugeWithMetadatas.ToUnion()
-		return s.aggregator.AddUntimed(u, union.GaugeWithMetadatas.StagedMetadatas)
+		return m.aggregator.AddUntimed(u, union.GaugeWithMetadatas.StagedMetadatas)
 	case metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA:
 		err := union.ForwardedMetricWithMetadata.FromProto(pb.ForwardedMetricWithMetadata)
 		if err != nil {
 			return err
 		}
-		return s.aggregator.AddForwarded(
+		return m.aggregator.AddForwarded(
 			union.ForwardedMetricWithMetadata.ForwardedMetric,
 			union.ForwardedMetricWithMetadata.ForwardMetadata)
 	case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA:
@@ -132,7 +119,7 @@ func (s *server) handleMessage(
 		if err != nil {
 			return err
 		}
-		return s.aggregator.AddTimed(
+		return m.aggregator.AddTimed(
 			union.TimedMetricWithMetadata.Metric,
 			union.TimedMetricWithMetadata.TimedMetadata)
 	case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATAS:
@@ -140,10 +127,12 @@ func (s *server) handleMessage(
 		if err != nil {
 			return err
 		}
-		return s.aggregator.AddTimedWithStagedMetadatas(
+		return m.aggregator.AddTimedWithStagedMetadatas(
 			union.TimedMetricWithMetadatas.Metric,
 			union.TimedMetricWithMetadatas.StagedMetadatas)
 	default:
 		return fmt.Errorf("unrecognized message type: %v", pb.Type)
 	}
 }
+
+func (m *messageProcessor) Close() {}

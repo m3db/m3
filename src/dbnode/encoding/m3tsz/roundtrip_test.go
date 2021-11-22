@@ -92,48 +92,23 @@ func TestMixedRoundTrip(t *testing.T) {
 	}
 }
 
-func TestIntOverflow(t *testing.T) {
-	testRoundTrip(t, generateOverflowDatapoints())
-}
-
-func TestConstantValuesRoundTrip(t *testing.T) {
-	numIterations := 100
-	for i := 1; i < numIterations; i++ {
-		testRoundTrip(t, generateConstDatapoints(i, 5))
-	}
-	for i := 1; i < numIterations; i++ {
-		testRoundTrip(t, generateConstDatapoints(i, 99.5))
-	}
-}
-
-func TestMostlyConstantValuesRoundTrip(t *testing.T) {
+func TestPrecision(t *testing.T) {
 	var (
-		currentTime = xtime.FromSeconds(1630436128)
-		dps         []ts.Datapoint
+		num       = 100
+		input     = make([]ts.Datapoint, 0, num)
+		timestamp = xtime.Now()
 	)
 
-	dps, currentTime = addDP(dps, currentTime, time.Second, 1)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 1)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 1)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 2)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 3)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 3)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 3)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 3)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 0)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 1)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 3)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 3)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 3)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 4)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 4)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 4)
-	dps, currentTime = addDP(dps, currentTime, 2*time.Second, 4)
-	dps, currentTime = addDP(dps, currentTime, 3*time.Second, 4)
-	dps, currentTime = addDP(dps, currentTime, time.Second, 0)
-	dps, _ = addDP(dps, currentTime, time.Second, 0)
+	for i := 0; i < num; i++ {
+		input = append(input, ts.Datapoint{TimestampNanos: timestamp, Value: 187.80131100000006})
+		timestamp = timestamp.Add(time.Minute)
+	}
 
-	testRoundTrip(t, dps)
+	testRoundTrip(t, input)
+}
+
+func TestIntOverflow(t *testing.T) {
+	testRoundTrip(t, generateOverflowDatapoints())
 }
 
 func testRoundTrip(t *testing.T, input []ts.Datapoint) {
@@ -199,10 +174,10 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 			expectedAnnotation = nil
 		}
 
-		require.Equal(t, input[i].TimestampNanos, v.TimestampNanos)
-		require.Equal(t, input[i].Value, v.Value)
-		require.Equal(t, timeUnits[i], u)
-		require.Equal(t, expectedAnnotation, a)
+		require.Equal(t, input[i].TimestampNanos, v.TimestampNanos, "datapoint #%d", i)
+		require.Equal(t, input[i].Value, v.Value, "datapoint #%d", i)
+		require.Equal(t, timeUnits[i], u, "datapoint #%d", i)
+		require.Equal(t, expectedAnnotation, a, "datapoint #%d", i)
 
 		i++
 	}
@@ -307,29 +282,4 @@ func generateOverflowDatapoints() []ts.Datapoint {
 	}
 
 	return res
-}
-
-func generateConstDatapoints(numPoints int, value float64) []ts.Datapoint {
-	var (
-		currentTime = xtime.FromSeconds(1630436128)
-		res         = make([]ts.Datapoint, 0, numPoints)
-	)
-
-	for i := 0; i < numPoints; i++ {
-		res, currentTime = addDP(res, currentTime, time.Second, value)
-	}
-
-	return res
-}
-
-func addDP(
-	res []ts.Datapoint,
-	currentTime xtime.UnixNano,
-	delta time.Duration,
-	value float64,
-) ([]ts.Datapoint, xtime.UnixNano) {
-	res = append(res, ts.Datapoint{TimestampNanos: currentTime, Value: value})
-	currentTime = currentTime.Add(delta)
-
-	return res, currentTime
 }

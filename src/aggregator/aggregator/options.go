@@ -347,13 +347,6 @@ type Options interface {
 	// SetWritesIgnoreCutoffCutover sets a flag controlling whether cutoff/cutover timestamps
 	// are ignored for incoming writes.
 	SetWritesIgnoreCutoffCutover(value bool) Options
-
-	// TimedForResendEnabled is a feature flag that changes AddUntimed calls to AddTimed calls if the pipeline has
-	// resends enabled. This allows gracefully migrating from untimed to timed aggregated metrics.
-	TimedForResendEnabled() bool
-
-	// SetTimedForResendEnabled sets TimedForResendEnabled.
-	SetTimedForResendEnabled(value bool) Options
 }
 
 type options struct {
@@ -399,7 +392,6 @@ type options struct {
 	timedMetricsFlushOffsetEnabled   bool
 	featureFlagBundlesParsed         []FeatureFlagBundleParsed
 	writesIgnoreCutoffCutover        bool
-	timedForResendEnabled            bool
 
 	// Derived options.
 	fullCounterPrefix []byte
@@ -851,19 +843,20 @@ func (o *options) initPools() {
 		return NewEntryWithMetrics(nil, metrics, defaultRuntimeOpts, o)
 	})
 
+	elemOpts := NewElemOptions(o)
 	o.counterElemPool = NewCounterElemPool(nil)
 	o.counterElemPool.Init(func() *CounterElem {
-		return MustNewCounterElem(ElemData{}, o)
+		return MustNewCounterElem(ElemData{}, elemOpts)
 	})
 
 	o.timerElemPool = NewTimerElemPool(nil)
 	o.timerElemPool.Init(func() *TimerElem {
-		return MustNewTimerElem(ElemData{}, o)
+		return MustNewTimerElem(ElemData{}, elemOpts)
 	})
 
 	o.gaugeElemPool = NewGaugeElemPool(nil)
 	o.gaugeElemPool.Init(func() *GaugeElem {
-		return MustNewGaugeElem(ElemData{}, o)
+		return MustNewGaugeElem(ElemData{}, elemOpts)
 	})
 }
 
@@ -935,17 +928,6 @@ func (o *options) WritesIgnoreCutoffCutover() bool {
 func (o *options) SetWritesIgnoreCutoffCutover(value bool) Options {
 	opts := *o
 	opts.writesIgnoreCutoffCutover = value
-	return &opts
-}
-
-func (o *options) TimedForResendEnabled() bool {
-	return o.timedForResendEnabled
-}
-
-// SetTimedForResendEnabled sets TimedForResendEnabled.
-func (o *options) SetTimedForResendEnabled(value bool) Options {
-	opts := *o
-	opts.timedForResendEnabled = value
 	return &opts
 }
 

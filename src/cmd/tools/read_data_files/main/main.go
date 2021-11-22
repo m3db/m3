@@ -24,8 +24,10 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -45,6 +48,8 @@ import (
 const (
 	snapshotType = "snapshot"
 	flushType    = "flush"
+
+	allShards = -1
 )
 
 type benchmarkMode uint8
@@ -62,9 +67,10 @@ const (
 
 func main() {
 	var (
-		optPathPrefix  = getopt.StringLong("path-prefix", 'p', "", "Path prefix [e.g. /var/lib/m3db]")
-		optNamespace   = getopt.StringLong("namespace", 'n', "default", "Namespace [e.g. metrics]")
-		optShard       = getopt.Uint32Long("shard", 's', 0, "Shard [expected format uint32]")
+		optPathPrefix = getopt.StringLong("path-prefix", 'p', "", "Path prefix [e.g. /var/lib/m3db]")
+		optNamespace  = getopt.StringLong("namespace", 'n', "default", "Namespace [e.g. metrics]")
+		optShard      = getopt.IntLong("shard", 's', allShards,
+			fmt.Sprintf("Shard [expected format uint32], or %v for all shards in the directory", allShards))
 		optBlockstart  = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
 		volume         = getopt.Int64Long("volume", 'v', 0, "Volume number")
 		fileSetTypeArg = getopt.StringLong("fileset-type", 't', flushType, fmt.Sprintf("%s|%s", flushType, snapshotType))
@@ -82,7 +88,7 @@ func main() {
 
 	if *optPathPrefix == "" ||
 		*optNamespace == "" ||
-		*optShard < 0 ||
+		*optShard < allShards ||
 		*optBlockstart <= 0 ||
 		*volume < 0 ||
 		(*fileSetTypeArg != snapshotType && *fileSetTypeArg != flushType) {
@@ -117,101 +123,141 @@ func main() {
 
 	fsOpts := fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
 
-	var (
-		seriesCount         = 0
-		datapointCount      = 0
-		annotationSizeTotal uint64
-		start               = time.Now()
-	)
+	shards := []uint32{uint32(*optShard)}
+	if *optShard == allShards {
+		shards, err = getShards(*optPathPrefix, fileSetType, *optNamespace)
+		if err != nil {
+			log.Fatalf("failed to resolve shards: %v", err)
+		}
+	}
 
 	reader, err := fs.NewReader(bytesPool, fsOpts)
 	if err != nil {
 		log.Fatalf("could not create new reader: %v", err)
 	}
 
-	openOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   ident.StringID(*optNamespace),
-			Shard:       *optShard,
-			BlockStart:  xtime.UnixNano(*optBlockstart),
-			VolumeIndex: int(*volume),
-		},
-		FileSetType:      fileSetType,
-		StreamingEnabled: true,
-	}
-
-	err = reader.Open(openOpts)
-	if err != nil {
-		log.Fatalf("unable to open reader: %v", err)
-	}
-
-	for {
-		entry, err := reader.StreamingRead()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Fatalf("err reading metadata: %v", err)
-		}
-
+	for _, shard := range shards {
 		var (
-			id   = entry.ID
-			data = entry.Data
+			seriesCount         = 0
+			datapointCount      = 0
+			annotationSizeTotal uint64
+			start               = time.Now()
 		)
 
-		if *idFilter != "" && !strings.Contains(id.String(), *idFilter) {
-			continue
+		openOpts := fs.DataReaderOpenOptions{
+			Identifier: fs.FileSetFileIdentifier{
+				Namespace:   ident.StringID(*optNamespace),
+				Shard:       shard,
+				BlockStart:  xtime.UnixNano(*optBlockstart),
+				VolumeIndex: int(*volume),
+			},
+			FileSetType:      fileSetType,
+			StreamingEnabled: true,
 		}
 
-		if benchMode != benchmarkSeries {
-			iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
-			for iter.Next() {
-				dp, _, annotation := iter.Current()
-				if benchMode == benchmarkNone {
-					// Use fmt package so it goes to stdout instead of stderr
-					fmt.Printf("{id: %s, dp: %+v", id.String(), dp) // nolint: forbidigo
-					if len(annotation) > 0 {
-						fmt.Printf(", annotation: %s", // nolint: forbidigo
-							base64.StdEncoding.EncodeToString(annotation))
+		err = reader.Open(openOpts)
+		if err != nil {
+			log.Fatalf("unable to open reader for shard %v: %v", shard, err)
+		}
+
+		for {
+			entry, err := reader.StreamingRead()
+			if xerrors.Is(err, io.EOF) {
+				break
+			}
+			if err != nil {
+				log.Fatalf("err reading metadata: %v", err)
+			}
+
+			var (
+				id   = entry.ID
+				data = entry.Data
+			)
+
+			if *idFilter != "" && !strings.Contains(id.String(), *idFilter) {
+				continue
+			}
+
+			if benchMode != benchmarkSeries {
+				iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
+				for iter.Next() {
+					dp, _, annotation := iter.Current()
+					if benchMode == benchmarkNone {
+						// Use fmt package so it goes to stdout instead of stderr
+						fmt.Printf("{id: %s, dp: %+v", id.String(), dp) // nolint: forbidigo
+						if len(annotation) > 0 {
+							fmt.Printf(", annotation: %s", // nolint: forbidigo
+								base64.StdEncoding.EncodeToString(annotation))
+						}
+						fmt.Println("}") // nolint: forbidigo
 					}
-					fmt.Println("}") // nolint: forbidigo
+					annotationSizeTotal += uint64(len(annotation))
+					datapointCount++
 				}
-				annotationSizeTotal += uint64(len(annotation))
-				datapointCount++
+				if err := iter.Err(); err != nil {
+					log.Fatalf("unable to iterate original data: %v", err)
+				}
+				iter.Close()
 			}
-			if err := iter.Err(); err != nil {
-				log.Fatalf("unable to iterate original data: %v", err)
-			}
-			iter.Close()
+
+			seriesCount++
 		}
 
-		seriesCount++
-	}
-
-	if seriesCount != reader.Entries() {
-		log.Fatalf("actual time series count (%d) did not match info file data (%d)",
-			seriesCount, reader.Entries())
-	}
-
-	if benchMode != benchmarkNone {
-		runTime := time.Since(start)
-		fmt.Printf("Running time: %s\n", runTime)     // nolint: forbidigo
-		fmt.Printf("\n%d series read\n", seriesCount) // nolint: forbidigo
-		if runTime > 0 {
-			fmt.Printf("(%.2f series/second)\n", float64(seriesCount)/runTime.Seconds()) // nolint: forbidigo
+		if seriesCount != reader.Entries() && *idFilter == "" {
+			log.Warnf("actual time series count (%d) did not match info file data (%d)",
+				seriesCount, reader.Entries())
 		}
 
-		if benchMode == benchmarkDatapoints {
-			fmt.Printf("\n%d datapoints decoded\n", datapointCount) // nolint: forbidigo
+		if benchMode != benchmarkNone {
+			runTime := time.Since(start)
+			fmt.Printf("Running time: %s\n", runTime)     // nolint: forbidigo
+			fmt.Printf("\n%d series read\n", seriesCount) // nolint: forbidigo
 			if runTime > 0 {
-				fmt.Printf("(%.2f datapoints/second)\n", float64(datapointCount)/runTime.Seconds()) // nolint: forbidigo
+				fmt.Printf("(%.2f series/second)\n", float64(seriesCount)/runTime.Seconds()) // nolint: forbidigo
 			}
 
-			fmt.Printf("\nTotal annotation size: %d bytes\n", annotationSizeTotal) // nolint: forbidigo
+			if benchMode == benchmarkDatapoints {
+				fmt.Printf("\n%d datapoints decoded\n", datapointCount) // nolint: forbidigo
+				if runTime > 0 {
+					fmt.Printf("(%.2f datapoints/second)\n", float64(datapointCount)/runTime.Seconds()) // nolint: forbidigo
+				}
+
+				fmt.Printf("\nTotal annotation size: %d bytes\n", annotationSizeTotal) // nolint: forbidigo
+			}
 		}
 	}
 
 	if err := reader.Close(); err != nil {
 		log.Fatalf("unable to close reader: %v", err)
 	}
+}
+
+func getShards(pathPrefix string, fileSetType persist.FileSetType, namespace string) ([]uint32, error) {
+	nsID := ident.StringID(namespace)
+	path := fs.NamespaceDataDirPath(pathPrefix, nsID)
+	if fileSetType == persist.FileSetSnapshotType {
+		path = fs.NamespaceSnapshotsDirPath(pathPrefix, nsID)
+	}
+
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed reading namespace directory: %w", err)
+	}
+
+	shards := make([]uint32, 0)
+	for _, f := range files {
+		if !f.IsDir() {
+			continue
+		}
+		i, err := strconv.Atoi(f.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed extracting shard number: %w", err)
+		}
+		if i < 0 {
+			return nil, fmt.Errorf("negative shard number %v", i)
+		}
+		shards = append(shards, uint32(i))
+	}
+
+	return shards, nil
 }

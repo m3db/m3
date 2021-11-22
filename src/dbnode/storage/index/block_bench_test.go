@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -131,3 +132,10 @@ func (m mockOnIndexSeries) IndexedForBlockStart(_ xtime.UnixNano) bool { return 
 func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool                { return false }
 func (m mockOnIndexSeries) TryMarkIndexGarbageCollected() bool         { return false }
 func (m mockOnIndexSeries) NeedsIndexGarbageCollected() bool           { return false }
+func (m mockOnIndexSeries) IndexedRange() (xtime.UnixNano, xtime.UnixNano) {
+	return 0, 0
+}
+
+func (m mockOnIndexSeries) ReconciledOnIndexSeries() (doc.OnIndexSeries, resource.SimpleCloser, bool) {
+	return m, resource.SimpleCloserFn(func() {}), false
+}

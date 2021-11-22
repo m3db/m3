@@ -32,35 +32,36 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/backoff/v3"
+	"github.com/prometheus/common/model"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/integration/resources"
-	"github.com/m3db/m3/src/integration/resources/common"
 	nettest "github.com/m3db/m3/src/integration/resources/net"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/server"
 	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/headers"
+	xos "github.com/m3db/m3/src/x/os"
 )
 
 const (
 	interruptTimeout = 5 * time.Second
 	shutdownTimeout  = time.Minute
-
-	retryMaxInterval = 5 * time.Second
-	retryMaxTime     = time.Minute
 )
 
-// coordinator is an in-process implementation of resources.Coordinator for use
+// Coordinator is an in-process implementation of resources.Coordinator for use
 // in integration tests.
-type coordinator struct {
-	cfg     config.Configuration
-	client  common.CoordinatorClient
-	logger  *zap.Logger
-	tmpDirs []string
+type Coordinator struct {
+	cfg      config.Configuration
+	client   resources.CoordinatorClient
+	logger   *zap.Logger
+	tmpDirs  []string
+	embedded bool
+	startFn  StartFn
 
 	interruptCh chan<- error
 	shutdownCh  <-chan struct{}
@@ -68,6 +69,11 @@ type coordinator struct {
 
 // CoordinatorOptions are options for starting a coordinator server.
 type CoordinatorOptions struct {
+	// GeneratePorts will automatically update the config to use open ports
+	// if set to true. If false, configuration is used as-is re: ports.
+	GeneratePorts bool
+	// StartFn is a custom function that can be used to start the Coordinator.
+	StartFn StartFn
 	// Logger is the logger to use for the coordinator. If not provided,
 	// a default one will be created.
 	Logger *zap.Logger
@@ -111,28 +117,29 @@ func NewCoordinatorFromYAML(yamlCfg string, opts CoordinatorOptions) (resources.
 //
 // The coordinator will start up as you specify in your config. However, there is some
 // helper logic to avoid port and filesystem collisions when spinning up multiple components
-// within the process. If you specify a port of 0 in any address, 0 will be automatically
-// replace with an open port. This is similar to the behavior net.Listen provides for you.
-// Similarly, for filepaths, if a "*" is specified in the config, then that field will
-// be updated with a temp directory that will be cleaned up when the coordinator is destroyed.
-// This should ensure that many of the same component can be spun up in-process without any
-// issues with collisions.
+// within the process. If you specify a GeneratePorts: true in the CoordinatorOptions, address ports
+// will be replaced with an open port.
+//
+// Similarly, filepath fields will  be updated with a temp directory that will be cleaned up
+// when the coordinator is destroyed. This should ensure that many of the same component can be
+// spun up in-process without any issues with collisions.
 func NewCoordinator(cfg config.Configuration, opts CoordinatorOptions) (resources.Coordinator, error) {
-	// Replace any "0" ports with an open port
-	cfg, err := updateCoordinatorPorts(cfg)
+	// Massage config so it runs properly in tests.
+	cfg, tmpDirs, err := updateCoordinatorConfig(cfg, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	// Replace any "*" filepath with a temporary directory
-	cfg, tmpDirs, err := updateCoordinatorFilepaths(cfg)
-	if err != nil {
-		return nil, err
+	logging := cfg.LoggingOrDefault()
+	if len(logging.Fields) == 0 {
+		logging.Fields = make(map[string]interface{})
 	}
+	logging.Fields["component"] = "coordinator"
+	cfg.Logging = &logging
 
 	// Configure logger
 	if opts.Logger == nil {
-		opts.Logger, err = zap.NewDevelopment()
+		opts.Logger, err = resources.NewLogger()
 		if err != nil {
 			return nil, err
 		}
@@ -150,16 +157,17 @@ func NewCoordinator(cfg config.Configuration, opts CoordinatorOptions) (resource
 	}
 
 	// Start the coordinator
-	coord := &coordinator{
+	coord := &Coordinator{
 		cfg: cfg,
-		client: common.NewCoordinatorClient(common.CoordinatorClientOptions{
+		client: resources.NewCoordinatorClient(resources.CoordinatorClientOptions{
 			Client:    &http.Client{},
 			HTTPPort:  port,
 			Logger:    opts.Logger,
-			RetryFunc: retry,
+			RetryFunc: resources.Retry,
 		}),
 		logger:  opts.Logger,
 		tmpDirs: tmpDirs,
+		startFn: opts.StartFn,
 	}
 	coord.start()
 
@@ -169,7 +177,11 @@ func NewCoordinator(cfg config.Configuration, opts CoordinatorOptions) (resource
 // NewEmbeddedCoordinator creates a coordinator from one embedded within an existing
 // db node. This method expects that the DB node has already been started before
 // being called.
-func NewEmbeddedCoordinator(d dbNode) (resources.Coordinator, error) {
+func NewEmbeddedCoordinator(d *DBNode) (resources.Coordinator, error) {
+	if !d.started {
+		return nil, errors.New("dbnode must be started to create the embedded coordinator")
+	}
+
 	_, p, err := net.SplitHostPort(d.cfg.Coordinator.ListenAddressOrDefault())
 	if err != nil {
 		return nil, err
@@ -180,21 +192,27 @@ func NewEmbeddedCoordinator(d dbNode) (resources.Coordinator, error) {
 		return nil, err
 	}
 
-	return &coordinator{
+	return &Coordinator{
 		cfg: *d.cfg.Coordinator,
-		client: common.NewCoordinatorClient(common.CoordinatorClientOptions{
+		client: resources.NewCoordinatorClient(resources.CoordinatorClientOptions{
 			Client:    &http.Client{},
 			HTTPPort:  port,
 			Logger:    d.logger,
-			RetryFunc: retry,
+			RetryFunc: resources.Retry,
 		}),
+		embedded:    true,
 		logger:      d.logger,
 		interruptCh: d.interruptCh,
 		shutdownCh:  d.shutdownCh,
 	}, nil
 }
 
-func (c *coordinator) start() {
+func (c *Coordinator) start() {
+	if c.startFn != nil {
+		c.interruptCh, c.shutdownCh = c.startFn()
+		return
+	}
+
 	interruptCh := make(chan error, 1)
 	shutdownCh := make(chan struct{}, 1)
 
@@ -210,43 +228,131 @@ func (c *coordinator) start() {
 	c.shutdownCh = shutdownCh
 }
 
-func (c *coordinator) GetNamespace() (admin.NamespaceGetResponse, error) {
+// HostDetails returns the coordinator's host details.
+func (c *Coordinator) HostDetails() (*resources.InstanceInfo, error) {
+	addr, p, err := net.SplitHostPort(c.cfg.ListenAddressOrDefault())
+	if err != nil {
+		return nil, err
+	}
+
+	port, err := strconv.Atoi(p)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		m3msgAddr string
+		m3msgPort int
+	)
+	if c.cfg.Ingest != nil {
+		a, p, err := net.SplitHostPort(c.cfg.Ingest.M3Msg.Server.ListenAddress)
+		if err != nil {
+			return nil, err
+		}
+
+		mp, err := strconv.Atoi(p)
+		if err != nil {
+			return nil, err
+		}
+
+		m3msgAddr, m3msgPort = a, mp
+	}
+
+	zone := headers.DefaultServiceZone
+	if len(c.cfg.Clusters) > 0 && c.cfg.Clusters[0].Client.EnvironmentConfig != nil {
+		envCfg := c.cfg.Clusters[0].Client.EnvironmentConfig
+		if len(envCfg.Services) > 0 && envCfg.Services[0].Service != nil {
+			zone = envCfg.Services[0].Service.Zone
+		}
+	}
+
+	return &resources.InstanceInfo{
+		ID:           "m3coordinator",
+		Zone:         zone,
+		Address:      addr,
+		Port:         uint32(port),
+		M3msgAddress: m3msgAddr,
+		M3msgPort:    uint32(m3msgPort),
+	}, nil
+}
+
+// GetNamespace gets namespaces.
+func (c *Coordinator) GetNamespace() (admin.NamespaceGetResponse, error) {
 	return c.client.GetNamespace()
 }
 
-func (c *coordinator) WaitForNamespace(name string) error {
+// WaitForNamespace blocks until the given namespace is enabled.
+func (c *Coordinator) WaitForNamespace(name string) error {
 	return c.client.WaitForNamespace(name)
 }
 
-func (c *coordinator) AddNamespace(request admin.NamespaceAddRequest) (admin.NamespaceGetResponse, error) {
+// AddNamespace adds a namespace.
+func (c *Coordinator) AddNamespace(request admin.NamespaceAddRequest) (admin.NamespaceGetResponse, error) {
 	return c.client.AddNamespace(request)
 }
 
-func (c *coordinator) UpdateNamespace(request admin.NamespaceUpdateRequest) (admin.NamespaceGetResponse, error) {
+// UpdateNamespace updates the namespace.
+func (c *Coordinator) UpdateNamespace(request admin.NamespaceUpdateRequest) (admin.NamespaceGetResponse, error) {
 	return c.client.UpdateNamespace(request)
 }
 
-func (c *coordinator) DeleteNamespace(namespaceID string) error {
+// DeleteNamespace removes the namespace.
+func (c *Coordinator) DeleteNamespace(namespaceID string) error {
 	return c.client.DeleteNamespace(namespaceID)
 }
 
-func (c *coordinator) CreateDatabase(request admin.DatabaseCreateRequest) (admin.DatabaseCreateResponse, error) {
+// CreateDatabase creates a database.
+func (c *Coordinator) CreateDatabase(request admin.DatabaseCreateRequest) (admin.DatabaseCreateResponse, error) {
 	return c.client.CreateDatabase(request)
 }
 
-func (c *coordinator) GetPlacement() (admin.PlacementGetResponse, error) {
-	return c.client.GetPlacement()
+// GetPlacement gets placements.
+func (c *Coordinator) GetPlacement(
+	opts resources.PlacementRequestOptions,
+) (admin.PlacementGetResponse, error) {
+	return c.client.GetPlacement(opts)
 }
 
-func (c *coordinator) WaitForInstances(ids []string) error {
+// InitPlacement initializes placements.
+func (c *Coordinator) InitPlacement(
+	opts resources.PlacementRequestOptions,
+	req admin.PlacementInitRequest,
+) (admin.PlacementGetResponse, error) {
+	return c.client.InitPlacement(opts, req)
+}
+
+// DeleteAllPlacements deletes all placements for the service specified
+// in the PlacementRequestOptions.
+func (c *Coordinator) DeleteAllPlacements(
+	opts resources.PlacementRequestOptions,
+) error {
+	return c.client.DeleteAllPlacements(opts)
+}
+
+// WaitForInstances blocks until the given instance is available.
+func (c *Coordinator) WaitForInstances(ids []string) error {
 	return c.client.WaitForInstances(ids)
 }
 
-func (c *coordinator) WaitForShardsReady() error {
+// WaitForShardsReady waits until all shards gets ready.
+func (c *Coordinator) WaitForShardsReady() error {
 	return c.client.WaitForShardsReady()
 }
 
-func (c *coordinator) Close() error {
+// WaitForClusterReady waits until the cluster is ready to receive reads and writes.
+func (c *Coordinator) WaitForClusterReady() error {
+	return c.client.WaitForClusterReady()
+}
+
+// Close closes the wrapper and releases any held resources, including
+// deleting docker containers.
+func (c *Coordinator) Close() error {
+	if c.embedded {
+		// NB(nate): for embedded coordinators, close is handled by the dbnode that
+		// it is spun up inside of.
+		return nil
+	}
+
 	defer func() {
 		for _, dir := range c.tmpDirs {
 			if err := os.RemoveAll(dir); err != nil {
@@ -255,9 +361,8 @@ func (c *coordinator) Close() error {
 		}
 	}()
 
-	// TODO: confirm this works correctly when using an embedded coordinator
 	select {
-	case c.interruptCh <- errors.New("in-process coordinator being shut down"):
+	case c.interruptCh <- xos.NewInterruptError("in-process coordinator being shut down"):
 	case <-time.After(interruptTimeout):
 		return errors.New("timeout sending interrupt. closing without graceful shutdown")
 	}
@@ -265,41 +370,205 @@ func (c *coordinator) Close() error {
 	select {
 	case <-c.shutdownCh:
 	case <-time.After(shutdownTimeout):
-		return errors.New("timeout waiting for shutdown notification. server closing may" +
+		return errors.New("timeout waiting for shutdown notification. coordinator closing may" +
 			" not be completely graceful")
 	}
 
 	return nil
 }
 
-func (c *coordinator) ApplyKVUpdate(update string) error {
+// InitM3msgTopic initializes an m3msg topic.
+func (c *Coordinator) InitM3msgTopic(
+	opts resources.M3msgTopicOptions,
+	req admin.TopicInitRequest,
+) (admin.TopicGetResponse, error) {
+	return c.client.InitM3msgTopic(opts, req)
+}
+
+// GetM3msgTopic gets an m3msg topic.
+func (c *Coordinator) GetM3msgTopic(
+	opts resources.M3msgTopicOptions,
+) (admin.TopicGetResponse, error) {
+	return c.client.GetM3msgTopic(opts)
+}
+
+// AddM3msgTopicConsumer adds a consumer service to an m3msg topic.
+func (c *Coordinator) AddM3msgTopicConsumer(
+	opts resources.M3msgTopicOptions,
+	req admin.TopicAddRequest,
+) (admin.TopicGetResponse, error) {
+	return c.client.AddM3msgTopicConsumer(opts, req)
+}
+
+// ApplyKVUpdate applies a KV update.
+func (c *Coordinator) ApplyKVUpdate(update string) error {
 	return c.client.ApplyKVUpdate(update)
 }
 
-func (c *coordinator) WriteCarbon(port int, metric string, v float64, t time.Time) error {
-	return c.client.WriteCarbon(fmt.Sprintf("http://0.0.0.0/%d", port), metric, v, t)
+// WriteCarbon writes a carbon metric datapoint at a given time.
+func (c *Coordinator) WriteCarbon(port int, metric string, v float64, t time.Time) error {
+	return c.client.WriteCarbon(fmt.Sprintf("0.0.0.0:%d", port), metric, v, t)
 }
 
-func (c *coordinator) WriteProm(name string, tags map[string]string, samples []prompb.Sample) error {
-	return c.client.WriteProm(name, tags, samples)
+// WriteProm writes a prometheus metric. Takes tags/labels as a map for convenience.
+func (c *Coordinator) WriteProm(
+	name string,
+	tags map[string]string,
+	samples []prompb.Sample,
+	headers resources.Headers,
+) error {
+	return c.client.WriteProm(name, tags, samples, headers)
 }
 
-func (c *coordinator) RunQuery(
+// WritePromWithLabels writes a prometheus metric. Allows you to provide the labels for
+// the write directly instead of conveniently converting them from a map.
+func (c *Coordinator) WritePromWithLabels(
+	name string,
+	labels []prompb.Label,
+	samples []prompb.Sample,
+	headers resources.Headers,
+) error {
+	return c.client.WritePromWithLabels(name, labels, samples, headers)
+}
+
+// RunQuery runs the given query with a given verification function.
+func (c *Coordinator) RunQuery(
 	verifier resources.ResponseVerifier,
 	query string,
-	headers map[string][]string,
+	headers resources.Headers,
 ) error {
 	return c.client.RunQuery(verifier, query, headers)
 }
 
+// InstantQuery runs an instant query with provided headers
+func (c *Coordinator) InstantQuery(
+	req resources.QueryRequest,
+	headers resources.Headers,
+) (model.Vector, error) {
+	return c.client.InstantQuery(req, headers)
+}
+
+// InstantQueryWithEngine runs an instant query with provided headers and the specified
+// query engine.
+func (c *Coordinator) InstantQueryWithEngine(
+	req resources.QueryRequest,
+	engine options.QueryEngine,
+	headers resources.Headers,
+) (model.Vector, error) {
+	return c.client.InstantQueryWithEngine(req, engine, headers)
+}
+
+// RangeQuery runs a range query with provided headers
+func (c *Coordinator) RangeQuery(
+	req resources.RangeQueryRequest,
+	headers resources.Headers,
+) (model.Matrix, error) {
+	return c.client.RangeQuery(req, headers)
+}
+
+// GraphiteQuery retrieves graphite raw data.
+func (c *Coordinator) GraphiteQuery(req resources.GraphiteQueryRequest) ([]resources.Datapoint, error) {
+	return c.client.GraphiteQuery(req)
+}
+
+// RangeQueryWithEngine runs a range query with provided headers and the specified
+// query engine.
+func (c *Coordinator) RangeQueryWithEngine(
+	req resources.RangeQueryRequest,
+	engine options.QueryEngine,
+	headers resources.Headers,
+) (model.Matrix, error) {
+	return c.client.RangeQueryWithEngine(req, engine, headers)
+}
+
+// LabelNames return matching label names based on the request.
+func (c *Coordinator) LabelNames(
+	req resources.LabelNamesRequest,
+	headers resources.Headers,
+) (model.LabelNames, error) {
+	return c.client.LabelNames(req, headers)
+}
+
+// LabelValues returns matching label values based on the request.
+func (c *Coordinator) LabelValues(
+	req resources.LabelValuesRequest,
+	headers resources.Headers,
+) (model.LabelValues, error) {
+	return c.client.LabelValues(req, headers)
+}
+
+// Series returns matching series based on the request.
+func (c *Coordinator) Series(
+	req resources.SeriesRequest,
+	headers resources.Headers,
+) ([]model.Metric, error) {
+	return c.client.Series(req, headers)
+}
+
+func updateCoordinatorConfig(
+	cfg config.Configuration,
+	opts CoordinatorOptions,
+) (config.Configuration, []string, error) {
+	var (
+		tmpDirs []string
+		err     error
+	)
+	if opts.GeneratePorts {
+		// Replace any port with an open port
+		cfg, err = updateCoordinatorPorts(cfg)
+		if err != nil {
+			return config.Configuration{}, nil, err
+		}
+	}
+
+	// Replace any filepath with a temporary directory
+	cfg, tmpDirs, err = updateCoordinatorFilepaths(cfg)
+	if err != nil {
+		return config.Configuration{}, nil, err
+	}
+
+	return cfg, tmpDirs, nil
+}
+
 func updateCoordinatorPorts(cfg config.Configuration) (config.Configuration, error) {
-	if cfg.ListenAddress != nil {
-		addr, _, _, err := nettest.MaybeGeneratePort(*cfg.ListenAddress)
+	addr, _, err := nettest.GeneratePort(cfg.ListenAddressOrDefault())
+	if err != nil {
+		return cfg, err
+	}
+	cfg.ListenAddress = &addr
+
+	metrics := cfg.MetricsOrDefault()
+	if metrics.PrometheusReporter != nil && metrics.PrometheusReporter.ListenAddress != "" {
+		addr, _, err := nettest.GeneratePort(metrics.PrometheusReporter.ListenAddress)
 		if err != nil {
 			return cfg, err
 		}
+		metrics.PrometheusReporter.ListenAddress = addr
+	}
+	cfg.Metrics = metrics
 
-		cfg.ListenAddress = &addr
+	if cfg.RPC != nil && cfg.RPC.ListenAddress != "" {
+		addr, _, err := nettest.GeneratePort(cfg.RPC.ListenAddress)
+		if err != nil {
+			return cfg, err
+		}
+		cfg.RPC.ListenAddress = addr
+	}
+
+	if cfg.Ingest != nil && cfg.Ingest.M3Msg.Server.ListenAddress != "" {
+		addr, _, err := nettest.GeneratePort(cfg.Ingest.M3Msg.Server.ListenAddress)
+		if err != nil {
+			return cfg, err
+		}
+		cfg.Ingest.M3Msg.Server.ListenAddress = addr
+	}
+
+	if cfg.Carbon != nil && cfg.Carbon.Ingester != nil {
+		addr, _, err := nettest.GeneratePort(cfg.Carbon.Ingester.ListenAddressOrDefault())
+		if err != nil {
+			return cfg, err
+		}
+		cfg.Carbon.Ingester.ListenAddress = addr
 	}
 
 	return cfg, nil
@@ -312,7 +581,7 @@ func updateCoordinatorFilepaths(cfg config.Configuration) (config.Configuration,
 		ec := cluster.Client.EnvironmentConfig
 		if ec != nil {
 			for _, svc := range ec.Services {
-				if svc != nil && svc.Service != nil && svc.Service.CacheDir == "*" {
+				if svc != nil && svc.Service != nil {
 					dir, err := ioutil.TempDir("", "m3kv-*")
 					if err != nil {
 						return cfg, tmpDirs, err
@@ -325,12 +594,15 @@ func updateCoordinatorFilepaths(cfg config.Configuration) (config.Configuration,
 		}
 	}
 
-	return cfg, tmpDirs, nil
-}
+	if cfg.ClusterManagement.Etcd != nil {
+		dir, err := ioutil.TempDir("", "m3kv-*")
+		if err != nil {
+			return cfg, tmpDirs, err
+		}
 
-func retry(op func() error) error {
-	bo := backoff.NewExponentialBackOff()
-	bo.MaxInterval = retryMaxInterval
-	bo.MaxElapsedTime = retryMaxTime
-	return backoff.Retry(op, bo)
+		tmpDirs = append(tmpDirs, dir)
+		cfg.ClusterManagement.Etcd.CacheDir = dir
+	}
+
+	return cfg, tmpDirs, nil
 }

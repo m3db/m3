@@ -40,27 +40,27 @@ var (
 
 func TestIsHealthyRequestError(t *testing.T) {
 	errRequest := errors.New("request error")
-	c := newAggregatorClient(nil).(*client)
+	c := NewAggregatorClient(nil).(*client)
 	c.doRequestFn = func(*http.Request) (*http.Response, error) { return nil, errRequest }
 	require.Equal(t, errRequest, c.IsHealthy(testInstanceID))
 }
 
 func TestIsHealthyResponseStatusNotOK(t *testing.T) {
-	c := newAggregatorClient(nil).(*client)
+	c := NewAggregatorClient(nil).(*client)
 	response := generateTestResponse(t, http.StatusServiceUnavailable, nil)
 	c.doRequestFn = func(*http.Request) (*http.Response, error) { return response, nil }
 	require.Error(t, c.IsHealthy(testInstanceID))
 }
 
 func TestIsHealthyResponseUnmarshalError(t *testing.T) {
-	c := newAggregatorClient(nil).(*client)
+	c := NewAggregatorClient(nil).(*client)
 	response := generateTestResponse(t, http.StatusOK, 0)
 	c.doRequestFn = func(*http.Request) (*http.Response, error) { return response, nil }
 	require.Error(t, c.IsHealthy(testInstanceID))
 }
 
 func TestIsHealthyResponseWithErrorMessage(t *testing.T) {
-	c := newAggregatorClient(nil).(*client)
+	c := NewAggregatorClient(nil).(*client)
 	payload := httpserver.NewResponse()
 	payload.Error = "some error occurred"
 	response := generateTestResponse(t, http.StatusOK, payload)
@@ -69,7 +69,7 @@ func TestIsHealthyResponseWithErrorMessage(t *testing.T) {
 }
 
 func TestIsHealthySuccess(t *testing.T) {
-	c := newAggregatorClient(nil).(*client)
+	c := NewAggregatorClient(nil).(*client)
 	payload := httpserver.NewResponse()
 	response := generateTestResponse(t, http.StatusOK, payload)
 	c.doRequestFn = func(*http.Request) (*http.Response, error) { return response, nil }
@@ -78,14 +78,14 @@ func TestIsHealthySuccess(t *testing.T) {
 
 func TestStatusRequestError(t *testing.T) {
 	errRequest := errors.New("request error")
-	c := newAggregatorClient(nil).(*client)
+	c := NewAggregatorClient(nil).(*client)
 	c.doRequestFn = func(*http.Request) (*http.Response, error) { return nil, errRequest }
 	_, err := c.Status(testInstanceID)
 	require.Equal(t, errRequest, err)
 }
 
 func TestStatusResponseStatusNotOK(t *testing.T) {
-	c := newAggregatorClient(nil).(*client)
+	c := NewAggregatorClient(nil).(*client)
 	response := generateTestResponse(t, http.StatusServiceUnavailable, nil)
 	c.doRequestFn = func(*http.Request) (*http.Response, error) { return response, nil }
 	_, err := c.Status(testInstanceID)
@@ -93,7 +93,7 @@ func TestStatusResponseStatusNotOK(t *testing.T) {
 }
 
 func TestStatusResponseUnmarshalError(t *testing.T) {
-	c := newAggregatorClient(nil).(*client)
+	c := NewAggregatorClient(nil).(*client)
 	response := generateTestResponse(t, http.StatusOK, 0)
 	c.doRequestFn = func(*http.Request) (*http.Response, error) { return response, nil }
 	_, err := c.Status(testInstanceID)
@@ -101,7 +101,7 @@ func TestStatusResponseUnmarshalError(t *testing.T) {
 }
 
 func TestStatusResponseWithErrorMessage(t *testing.T) {
-	c := newAggregatorClient(nil).(*client)
+	c := NewAggregatorClient(nil).(*client)
 	payload := httpserver.NewStatusResponse()
 	payload.Error = "some error occurred"
 	response := generateTestResponse(t, http.StatusOK, payload)
@@ -111,7 +111,7 @@ func TestStatusResponseWithErrorMessage(t *testing.T) {
 }
 
 func TestStatusSuccess(t *testing.T) {
-	c := newAggregatorClient(nil).(*client)
+	c := NewAggregatorClient(nil).(*client)
 	expected := aggregator.RuntimeStatus{
 		FlushStatus: aggregator.FlushStatus{
 			ElectionState: aggregator.LeaderState,
@@ -129,27 +129,27 @@ func TestStatusSuccess(t *testing.T) {
 
 func TestResignRequestError(t *testing.T) {
 	errRequest := errors.New("request error")
-	c := newAggregatorClient(nil).(*client)
+	c := NewAggregatorClient(nil).(*client)
 	c.doRequestFn = func(*http.Request) (*http.Response, error) { return nil, errRequest }
 	require.Equal(t, errRequest, c.Resign(testInstanceID))
 }
 
 func TestResignResponseStatusNotOK(t *testing.T) {
-	c := newAggregatorClient(nil).(*client)
+	c := NewAggregatorClient(nil).(*client)
 	response := generateTestResponse(t, http.StatusServiceUnavailable, nil)
 	c.doRequestFn = func(*http.Request) (*http.Response, error) { return response, nil }
 	require.Error(t, c.Resign(testInstanceID))
 }
 
 func TestResignResponseUnmarshalError(t *testing.T) {
-	c := newAggregatorClient(nil).(*client)
+	c := NewAggregatorClient(nil).(*client)
 	response := generateTestResponse(t, http.StatusOK, 0)
 	c.doRequestFn = func(*http.Request) (*http.Response, error) { return response, nil }
 	require.Error(t, c.Resign(testInstanceID))
 }
 
 func TestResignResponseWithErrorMessage(t *testing.T) {
-	c := newAggregatorClient(nil).(*client)
+	c := NewAggregatorClient(nil).(*client)
 	payload := httpserver.NewResponse()
 	payload.Error = "some error occurred"
 	response := generateTestResponse(t, http.StatusOK, payload)
@@ -158,7 +158,7 @@ func TestResignResponseWithErrorMessage(t *testing.T) {
 }
 
 func TestResignSuccess(t *testing.T) {
-	c := newAggregatorClient(nil).(*client)
+	c := NewAggregatorClient(nil).(*client)
 	payload := httpserver.NewResponse()
 	response := generateTestResponse(t, http.StatusOK, payload)
 	c.doRequestFn = func(*http.Request) (*http.Response, error) { return response, nil }

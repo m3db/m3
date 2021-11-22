@@ -486,17 +486,20 @@ func (as *activeRuleSet) matchRollupTarget(
 
 	defer sortedTagIter.Close()
 
-	// Iterate through each tag, looking to match it with corresponding filter tags on the rule
-	for hasMoreTags := sortedTagIter.Next(); hasMoreTags; hasMoreTags = sortedTagIter.Next() {
-		tagName, tagVal := sortedTagIter.Current()
-		// nolint:gosimple
-		isNameTag := bytes.Compare(tagName, nameTagName) == 0
-		if isNameTag {
-			nameTagValue = tagVal
-		}
+	switch rollupOp.Type {
+	case mpipeline.GroupByRollupType:
+		// Iterate through each tag, looking to match it with corresponding filter tags on the rule
+		//
+		// For include rules, every rule has to have a corresponding match. This means we return
+		// early whenever there's a missing match and increment matchRuleIdx whenever there is a match.
+		for hasMoreTags := sortedTagIter.Next(); hasMoreTags; hasMoreTags = sortedTagIter.Next() {
+			tagName, tagVal := sortedTagIter.Current()
+			// nolint:gosimple
+			isNameTag := bytes.Compare(tagName, nameTagName) == 0
+			if isNameTag {
+				nameTagValue = tagVal
+			}
 
-		switch rollupOp.Type {
-		case mpipeline.GroupByRollupType:
 			// If we've matched all tags, no need to process.
 			// We don't break out of the for loop, because we may still need to find the name tag.
 			if matchTagIdx >= len(rollupTags) {
@@ -517,9 +520,22 @@ func (as *activeRuleSet) matchRollupTarget(
 			if res > 0 {
 				return nil, false
 			}
-		case mpipeline.ExcludeByRollupType:
+		}
+	case mpipeline.ExcludeByRollupType:
+		// Iterate through each tag, looking to match it with corresponding filter tags on the rule.
+		//
+		// For exclude rules, this means merging with the tag rule list and incrementing the
+		// matchTagIdx whenever the current tag rule is lexigraphically greater than the rule tag,
+		// since we need to be careful in the case where there is no matching input tag for some rule.
+		for hasMoreTags := sortedTagIter.Next(); hasMoreTags; {
+			tagName, tagVal := sortedTagIter.Current()
+			// nolint:gosimple
+			isNameTag := bytes.Compare(tagName, nameTagName) == 0
 			if isNameTag {
+				nameTagValue = tagVal
+
 				// Don't copy name tag since we'll add that using the new rollup ID fn.
+				hasMoreTags = sortedTagIter.Next()
 				continue
 			}
 
@@ -528,19 +544,27 @@ func (as *activeRuleSet) matchRollupTarget(
 				if opts.generateRollupID {
 					tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
 				}
+				hasMoreTags = sortedTagIter.Next()
 				continue
 			}
 
 			res := bytes.Compare(tagName, rollupTags[matchTagIdx])
-			if res == 0 {
-				// Skip excluded tag.
+			if res > 0 {
+				// Current tag is greater than the current exclude rule,
+				// so we know the current exclude rule has no match and
+				// we should move on to the next one.
 				matchTagIdx++
 				continue
 			}
 
-			if opts.generateRollupID {
-				tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
+			if res != 0 {
+				// Only include tags that don't match the exclude tag
+				if opts.generateRollupID {
+					tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
+				}
 			}
+
+			hasMoreTags = sortedTagIter.Next()
 		}
 	}
 

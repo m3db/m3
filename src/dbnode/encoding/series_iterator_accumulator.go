@@ -61,12 +61,15 @@ func NewSeriesIteratorAccumulator(
 		nsID = iter.Namespace().String()
 	}
 	it := &seriesIteratorAccumulator{
-		// NB: clone id and nsID so that they will be accessbile after underlying
+		// NB: clone id and nsID so that they will be accessible after underlying
 		// iterators are closed.
 		id:              ident.StringID(iter.ID().String()),
 		nsID:            ident.StringID(nsID),
 		seriesIterators: make([]SeriesIterator, 0, 2),
+		firstNext:       true,
 	}
+
+	it.iters.reset()
 
 	if opts.RetainTags {
 		it.tagIterator = iter.Tags().Duplicate()
@@ -164,6 +167,10 @@ func (it *seriesIteratorAccumulator) Err() error {
 	return nil
 }
 
+func (it *seriesIteratorAccumulator) FirstAnnotation() ts.Annotation {
+	return it.iters.firstAnnotation()
+}
+
 func (it *seriesIteratorAccumulator) Close() {
 	if it.isClosed() {
 		return
@@ -182,6 +189,7 @@ func (it *seriesIteratorAccumulator) Close() {
 		it.tagIterator = nil
 	}
 	it.iters.reset()
+	it.firstNext = true
 }
 
 func (it *seriesIteratorAccumulator) Replicas() ([]MultiReaderIterator, error) {

@@ -162,7 +162,7 @@ type Options interface {
 	// for proto encoding iteration.
 	SetIStreamReaderSizeProto(value int) Options
 
-	// SetIStreamReaderSizeProto returns the IStream bufio reader size
+	// IStreamReaderSizeProto returns the IStream bufio reader size
 	// for proto encoding iteration.
 	IStreamReaderSizeProto() int
 
@@ -210,7 +210,7 @@ type MultiReaderIterator interface {
 	Reset(readers []xio.SegmentReader, start xtime.UnixNano,
 		blockSize time.Duration, schema namespace.SchemaDescr)
 
-	// Reset resets the iterator to read from a slice of slice readers
+	// ResetSliceOfSlices resets the iterator to read from a slice of slice readers
 	// with a new schema (for schema aware iterators).
 	ResetSliceOfSlices(
 		readers xio.ReaderSliceOfSlicesIterator,
@@ -252,6 +252,11 @@ type SeriesIterator interface {
 
 	// End returns the end time filter specified for the iterator.
 	End() xtime.UnixNano
+
+	// FirstAnnotation returns the value of the first annotation (disregarding the filter)
+	// on the underlying iterators. Only use after the first call to Next() has returned true.
+	// Consumers must make a copy of the returned slice as it will be invalidated by Reset.
+	FirstAnnotation() ts.Annotation
 
 	// Reset resets the iterator to read from a set of iterators from different
 	// replicas, one  must note that this can be an array with nil entries if

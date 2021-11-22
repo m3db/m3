@@ -56,6 +56,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -849,47 +850,28 @@ type databaseBootstrapManager interface {
 	Bootstrap() (BootstrapResult, error)
 
 	// BootstrapEnqueue performs bootstrapping asynchronously for all namespaces and shards owned.
-	BootstrapEnqueue() *BootstrapAsyncResult
+	BootstrapEnqueue(opts BootstrapEnqueueOptions)
 
 	// Report reports runtime information.
 	Report()
+}
+
+// BootstrapCompleteFn is a callback for when bootstrap is complete when using
+// BootstrapEnqueue method.
+type BootstrapCompleteFn func(BootstrapResult)
+
+// BootstrapEnqueueOptions is options to pass to BootstrapEnqueue when
+// enqueuing a bootstrap.
+type BootstrapEnqueueOptions struct {
+	// OnCompleteFn is an optional function to pass to execute once
+	// the set of queued bootstraps are complete.
+	OnCompleteFn BootstrapCompleteFn
 }
 
 // BootstrapResult is a bootstrap result.
 type BootstrapResult struct {
 	ErrorsBootstrap      []error
 	AlreadyBootstrapping bool
-}
-
-// BootstrapAsyncResult is a bootstrap async result.
-type BootstrapAsyncResult struct {
-	bootstrapStarted   *sync.WaitGroup
-	bootstrapCompleted *sync.WaitGroup
-	bootstrapResult    BootstrapResult
-}
-
-func newBootstrapAsyncResult() *BootstrapAsyncResult {
-	var (
-		wgStarted   sync.WaitGroup
-		wgCompleted sync.WaitGroup
-	)
-	wgStarted.Add(1)
-	wgCompleted.Add(1)
-	return &BootstrapAsyncResult{
-		bootstrapStarted:   &wgStarted,
-		bootstrapCompleted: &wgCompleted,
-	}
-}
-
-// Result will wait for bootstrap to complete and return BootstrapResult.
-func (b *BootstrapAsyncResult) Result() BootstrapResult {
-	b.bootstrapCompleted.Wait()
-	return b.bootstrapResult
-}
-
-// WaitForStart waits until bootstrap has been started.
-func (b *BootstrapAsyncResult) WaitForStart() {
-	b.bootstrapStarted.Wait()
 }
 
 // databaseFlushManager manages flushing in-memory data to persistent storage.
@@ -1044,8 +1026,8 @@ type databaseMediator interface {
 	// Bootstrap bootstraps the database with file operations performed at the end.
 	Bootstrap() (BootstrapResult, error)
 
-	// BootstrapEnqueue bootstraps the database asynchronously with file operations performed at the end.
-	BootstrapEnqueue() *BootstrapAsyncResult
+	// BootstrapEnqueue performs bootstrapping asynchronously for all namespaces and shards owned.
+	BootstrapEnqueue(opts BootstrapEnqueueOptions)
 
 	// DisableFileOpsAndWait disables file operations.
 	DisableFileOpsAndWait()
@@ -1065,10 +1047,6 @@ type databaseMediator interface {
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
 	LastSuccessfulSnapshotStartTime() (xtime.UnixNano, bool)
-
-	// EnqueueMutuallyExclusiveFn enqueues function to be executed mutually exclusively,
-	// when file operations are idle.
-	EnqueueMutuallyExclusiveFn(fn func()) error
 }
 
 // ColdFlushNsOpts are options for OnColdFlush.ColdFlushNamespace.
@@ -1426,6 +1404,12 @@ type Options interface {
 
 	// SetLimitsOptions sets the limits options.
 	SetLimitsOptions(value limits.Options) Options
+
+	// CoreFn gets the function for determining the current core.
+	CoreFn() xsync.CoreFn
+
+	// SetCoreFn sets the function for determining the current core.
+	SetCoreFn(value xsync.CoreFn) Options
 }
 
 // MemoryTracker tracks memory.

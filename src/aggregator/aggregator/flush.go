@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // flushingMetricList periodically flushes metrics stored in the list for a given shard.
@@ -63,6 +64,9 @@ type flushRequest struct {
 
 	// If nonzero, data between [now - bufferAfterCutoff, now) are buffered.
 	BufferAfterCutoff time.Duration
+
+	// Jitter is the jitter for the flush request.
+	Jitter time.Duration
 }
 
 type flushType int
@@ -71,6 +75,18 @@ const (
 	consumeType flushType = iota
 	discardType
 )
+
+// String provides the string representation for the flush type.
+func (f flushType) String() string {
+	switch f {
+	case consumeType:
+		return "consume"
+	case discardType:
+		return "discard"
+	default:
+		return "unknown"
+	}
+}
 
 // A flushLocalMetricFn flushes an aggregated metric datapoint locally by either
 // consuming or discarding it. Processing of the datapoint is completed once it is
@@ -96,6 +112,7 @@ type flushForwardedMetricFn func(
 	value float64,
 	prevValue float64,
 	annotation []byte,
+	resendEnabled bool,
 )
 
 // An onForwardingElemFlushedFn is a callback function that should be called
@@ -103,4 +120,5 @@ type flushForwardedMetricFn func(
 type onForwardingElemFlushedFn func(
 	onDoneFn onForwardedAggregationDoneFn,
 	aggregationKey aggregationKey,
+	expiredTimes []xtime.UnixNano,
 )

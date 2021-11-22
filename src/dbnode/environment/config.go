@@ -194,6 +194,7 @@ func (c ConfigureResults) SyncCluster() (ConfigureResult, error) {
 
 // ConfigurationParameters are options used to create new ConfigureResults
 type ConfigurationParameters struct {
+	InterruptedCh          <-chan struct{}
 	InstrumentOpts         instrument.Options
 	HashingSeed            uint32
 	HostID                 string
@@ -237,7 +238,7 @@ func (c *Configuration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // Validate validates the configuration.
 func (c *Configuration) Validate() error {
 	if (c.Services == nil && c.Statics == nil) ||
-		(c.Services != nil && c.Statics != nil) {
+		(len(c.Services) > 0 && len(c.Statics) > 0) {
 		return errInvalidConfig
 	}
 
@@ -313,7 +314,9 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 		topoOpts := topology.NewDynamicOptions().
 			SetConfigServiceClient(configSvcClient).
 			SetServiceID(serviceID).
-			SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
+			SetQueryOptions(services.NewQueryOptions().
+				SetIncludeUnhealthy(true).
+				SetInterruptedCh(cfgParams.InterruptedCh)).
 			SetInstrumentOptions(cfgParams.InstrumentOpts).
 			SetHashGen(sharding.NewHashGenWithSeed(cfgParams.HashingSeed))
 		topoInit := topology.NewDynamicInitializer(topoOpts)

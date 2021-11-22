@@ -27,6 +27,7 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -164,4 +165,85 @@ func TestEntryTryMarkIndexGarbageCollectedAfterSeriesClose(t *testing.T) {
 		// Make sure doesn't panic.
 		require.False(t, entry.TryMarkIndexGarbageCollected())
 	})
+}
+
+func TestEntryIndexedRange(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := DefaultTestOptions()
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	shard := testDatabaseShard(t, opts)
+	defer func() {
+		require.NoError(t, shard.Close())
+	}()
+
+	entry := NewEntry(NewEntryOptions{
+		Shard:  shard,
+		Series: newMockSeries(ctrl),
+	})
+
+	assertRange := func(expectedMin, expectedMax xtime.UnixNano) {
+		min, max := entry.IndexedRange()
+		assert.Equal(t, expectedMin, min)
+		assert.Equal(t, expectedMax, max)
+	}
+
+	assertRange(0, 0)
+
+	entry.OnIndexPrepare(2)
+	assertRange(0, 0)
+
+	entry.OnIndexSuccess(2)
+	assertRange(2, 2)
+
+	entry.OnIndexSuccess(5)
+	assertRange(2, 5)
+
+	entry.OnIndexSuccess(1)
+	assertRange(1, 5)
+
+	entry.OnIndexSuccess(3)
+	assertRange(1, 5)
+}
+
+func TestReconciledOnIndexSeries(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := DefaultTestOptions()
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	shard := testDatabaseShard(t, opts)
+	defer func() {
+		require.NoError(t, shard.Close())
+	}()
+
+	// Create entry with index 0 that's not inserted
+	series := newMockSeries(ctrl)
+	entry := NewEntry(NewEntryOptions{
+		Index:  0,
+		Shard:  shard,
+		Series: series,
+	})
+
+	// Create entry with index 1 that gets inserted into the lookup map
+	_ = addMockSeries(ctrl, shard, series.ID(), ident.Tags{}, 1)
+
+	// Validate we perform the reconciliation.
+	e, closer, reconciled := entry.ReconciledOnIndexSeries()
+	require.True(t, reconciled)
+	require.Equal(t, uint64(1), e.(*Entry).Index)
+	closer.Close()
+
+	// Set the entry's insert time emulating being inserted into the shard.
+	// Ensure no reconciliation.
+	entry.SetInsertTime(time.Now())
+	e, closer, reconciled = entry.ReconciledOnIndexSeries()
+	require.False(t, reconciled)
+	require.Equal(t, uint64(0), e.(*Entry).Index)
+	closer.Close()
 }

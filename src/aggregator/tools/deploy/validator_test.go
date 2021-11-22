@@ -36,7 +36,7 @@ func TestValidatorForFollowerStatusError(t *testing.T) {
 	defer ctrl.Finish()
 
 	errStatus := errors.New("status error")
-	client := NewMockaggregatorClient(ctrl)
+	client := NewMockAggregatorClient(ctrl)
 	client.EXPECT().Status(gomock.Any()).Return(aggregator.RuntimeStatus{}, errStatus).AnyTimes()
 
 	workers := sync.NewWorkerPool(2)
@@ -50,7 +50,7 @@ func TestValidatorForFollowerNotFollowerState(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	client := NewMockaggregatorClient(ctrl)
+	client := NewMockAggregatorClient(ctrl)
 	client.EXPECT().
 		Status(gomock.Any()).
 		Return(aggregator.RuntimeStatus{
@@ -71,7 +71,7 @@ func TestValidatorForFollowerSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	client := NewMockaggregatorClient(ctrl)
+	client := NewMockAggregatorClient(ctrl)
 	client.EXPECT().
 		Status(gomock.Any()).
 		Return(aggregator.RuntimeStatus{
@@ -93,7 +93,7 @@ func TestValidatorForLeaderStatusError(t *testing.T) {
 	defer ctrl.Finish()
 
 	errStatus := errors.New("status error")
-	client := NewMockaggregatorClient(ctrl)
+	client := NewMockAggregatorClient(ctrl)
 	client.EXPECT().
 		Status(gomock.Any()).
 		Return(aggregator.RuntimeStatus{}, errStatus).
@@ -110,7 +110,7 @@ func TestValidatorForLeaderNotLeaderState(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	client := NewMockaggregatorClient(ctrl)
+	client := NewMockAggregatorClient(ctrl)
 	client.EXPECT().
 		Status(gomock.Any()).
 		Return(aggregator.RuntimeStatus{
@@ -135,7 +135,7 @@ func TestValidatorForLeaderNoLeaderFound(t *testing.T) {
 		LeaderID: "instance2",
 	}
 	instance := instanceMetadata{PlacementInstanceID: "instance1"}
-	client := NewMockaggregatorClient(ctrl)
+	client := NewMockAggregatorClient(ctrl)
 	client.EXPECT().
 		Status(gomock.Any()).
 		Return(aggregator.RuntimeStatus{
@@ -164,7 +164,7 @@ func TestValidatorForLeaderFollowerCannotLead(t *testing.T) {
 		},
 	}
 	instance := instanceMetadata{PlacementInstanceID: "instance1"}
-	client := NewMockaggregatorClient(ctrl)
+	client := NewMockAggregatorClient(ctrl)
 	client.EXPECT().
 		Status(gomock.Any()).
 		Return(aggregator.RuntimeStatus{
@@ -197,7 +197,7 @@ func TestValidatorForLeaderFollowerSuccess(t *testing.T) {
 		PlacementInstanceID: "instance1",
 		APIEndpoint:         "instance1:1234/api",
 	}
-	client := NewMockaggregatorClient(ctrl)
+	client := NewMockAggregatorClient(ctrl)
 	client.EXPECT().
 		Status(gomock.Any()).
 		DoAndReturn(func(instance string) (aggregator.RuntimeStatus, error) {

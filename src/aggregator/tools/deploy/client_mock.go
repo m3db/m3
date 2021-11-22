@@ -32,31 +32,31 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
-// MockaggregatorClient is a mock of aggregatorClient interface.
-type MockaggregatorClient struct {
+// MockAggregatorClient is a mock of AggregatorClient interface.
+type MockAggregatorClient struct {
 	ctrl     *gomock.Controller
-	recorder *MockaggregatorClientMockRecorder
+	recorder *MockAggregatorClientMockRecorder
 }
 
-// MockaggregatorClientMockRecorder is the mock recorder for MockaggregatorClient.
-type MockaggregatorClientMockRecorder struct {
-	mock *MockaggregatorClient
+// MockAggregatorClientMockRecorder is the mock recorder for MockAggregatorClient.
+type MockAggregatorClientMockRecorder struct {
+	mock *MockAggregatorClient
 }
 
-// NewMockaggregatorClient creates a new mock instance.
-func NewMockaggregatorClient(ctrl *gomock.Controller) *MockaggregatorClient {
-	mock := &MockaggregatorClient{ctrl: ctrl}
-	mock.recorder = &MockaggregatorClientMockRecorder{mock}
+// NewMockAggregatorClient creates a new mock instance.
+func NewMockAggregatorClient(ctrl *gomock.Controller) *MockAggregatorClient {
+	mock := &MockAggregatorClient{ctrl: ctrl}
+	mock.recorder = &MockAggregatorClientMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockaggregatorClient) EXPECT() *MockaggregatorClientMockRecorder {
+func (m *MockAggregatorClient) EXPECT() *MockAggregatorClientMockRecorder {
 	return m.recorder
 }
 
 // IsHealthy mocks base method.
-func (m *MockaggregatorClient) IsHealthy(instance string) error {
+func (m *MockAggregatorClient) IsHealthy(instance string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsHealthy", instance)
 	ret0, _ := ret[0].(error)
@@ -64,13 +64,13 @@ func (m *MockaggregatorClient) IsHealthy(instance string) error {
 }
 
 // IsHealthy indicates an expected call of IsHealthy.
-func (mr *MockaggregatorClientMockRecorder) IsHealthy(instance interface{}) *gomock.Call {
+func (mr *MockAggregatorClientMockRecorder) IsHealthy(instance interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsHealthy", reflect.TypeOf((*MockaggregatorClient)(nil).IsHealthy), instance)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsHealthy", reflect.TypeOf((*MockAggregatorClient)(nil).IsHealthy), instance)
 }
 
 // Resign mocks base method.
-func (m *MockaggregatorClient) Resign(instance string) error {
+func (m *MockAggregatorClient) Resign(instance string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Resign", instance)
 	ret0, _ := ret[0].(error)
@@ -78,13 +78,13 @@ func (m *MockaggregatorClient) Resign(instance string) error {
 }
 
 // Resign indicates an expected call of Resign.
-func (mr *MockaggregatorClientMockRecorder) Resign(instance interface{}) *gomock.Call {
+func (mr *MockAggregatorClientMockRecorder) Resign(instance interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resign", reflect.TypeOf((*MockaggregatorClient)(nil).Resign), instance)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resign", reflect.TypeOf((*MockAggregatorClient)(nil).Resign), instance)
 }
 
 // Status mocks base method.
-func (m *MockaggregatorClient) Status(instance string) (aggregator.RuntimeStatus, error) {
+func (m *MockAggregatorClient) Status(instance string) (aggregator.RuntimeStatus, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Status", instance)
 	ret0, _ := ret[0].(aggregator.RuntimeStatus)
@@ -93,7 +93,7 @@ func (m *MockaggregatorClient) Status(instance string) (aggregator.RuntimeStatus
 }
 
 // Status indicates an expected call of Status.
-func (mr *MockaggregatorClientMockRecorder) Status(instance interface{}) *gomock.Call {
+func (mr *MockAggregatorClientMockRecorder) Status(instance interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockaggregatorClient)(nil).Status), instance)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockAggregatorClient)(nil).Status), instance)
 }

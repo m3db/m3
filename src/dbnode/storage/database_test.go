@@ -425,6 +425,47 @@ func TestDatabaseAssignShardSet(t *testing.T) {
 	require.True(t, d.lastReceivedNewShards.After(t1))
 
 	wg.Wait()
+	assertFileOpsEnabled(t, d)
+}
+
+func TestDatabaseAssignShardSetEnqueueBootstrapWhenMediatorClosed(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	mockMediator := NewMockdatabaseMediator(ctrl)
+	mockMediator.EXPECT().IsOpen().Return(false)
+	mockMediator.EXPECT().BootstrapEnqueue(BootstrapEnqueueOptions{})
+	d.mediator = mockMediator
+	d.bootstraps = 1
+
+	var ns []*MockdatabaseNamespace
+	ns = append(ns,
+		dbAddNewMockNamespace(ctrl, d, "testns1"),
+		dbAddNewMockNamespace(ctrl, d, "testns2"))
+
+	shards := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+		sharding.NewShards([]uint32{2}, shard.Initializing)...)
+	shardSet, err := sharding.NewShardSet(shards, nil)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	wg.Add(len(ns))
+	for _, n := range ns {
+		n.EXPECT().AssignShardSet(shardSet).Do(func(_ sharding.ShardSet) {
+			wg.Done()
+		})
+	}
+
+	t1 := d.lastReceivedNewShards
+	d.AssignShardSet(shardSet)
+	require.True(t, d.lastReceivedNewShards.After(t1))
+
+	wg.Wait()
 }
 
 func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
@@ -436,34 +477,10 @@ func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
 		close(mapCh)
 	}()
 
-	// Set a mock mediator to be certain that bootstrap is not called when
-	// no new shards are assigned.
-	mediator := NewMockdatabaseMediator(ctrl)
-	mediator.EXPECT().IsOpen().Return(true)
-	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).DoAndReturn(func(fn func()) error {
-		fn()
-		return nil
-	})
-	d.mediator = mediator
-
-	var ns []*MockdatabaseNamespace
-	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns1"))
-	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns2"))
-
-	var wg sync.WaitGroup
-	wg.Add(len(ns))
-	for _, n := range ns {
-		n.EXPECT().AssignShardSet(d.shardSet).Do(func(_ sharding.ShardSet) {
-			wg.Done()
-		})
-	}
-
 	t1 := d.lastReceivedNewShards
 	d.AssignShardSet(d.shardSet)
 	// Ensure that lastReceivedNewShards is not updated if no new shards are assigned.
 	require.True(t, d.lastReceivedNewShards.Equal(t1))
-
-	wg.Wait()
 }
 
 func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
@@ -478,11 +495,9 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 
 	mediator := NewMockdatabaseMediator(ctrl)
-	mediator.EXPECT().IsOpen().Return(true)
-	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).DoAndReturn(func(fn func()) error {
-		fn()
-		return nil
-	})
+	mediator.EXPECT().IsOpen().Return(true).AnyTimes()
+	mediator.EXPECT().DisableFileOpsAndWait().AnyTimes()
+	mediator.EXPECT().EnableFileOps().AnyTimes()
 	mediator.EXPECT().Bootstrap().DoAndReturn(func() (BootstrapResult, error) {
 		return BootstrapResult{}, nil
 	})
@@ -499,41 +514,15 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	mediator.EXPECT().BootstrapEnqueue().DoAndReturn(func() *BootstrapAsyncResult {
-		asyncResult := newBootstrapAsyncResult()
-		asyncResult.bootstrapStarted = &wg
-		wg.Done()
-		return asyncResult
-	})
+	mediator.EXPECT().
+		BootstrapEnqueue(gomock.Any()).
+		Do(func(_ BootstrapEnqueueOptions) {
+			wg.Done()
+		})
 
 	d.AssignShardSet(shardSet)
 
 	wg.Wait()
-}
-
-func TestDatabaseAssignShardSetShouldPanic(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
-	defer func() {
-		close(mapCh)
-	}()
-
-	mediator := NewMockdatabaseMediator(ctrl)
-	mediator.EXPECT().IsOpen().Return(true)
-	mediator.EXPECT().EnqueueMutuallyExclusiveFn(gomock.Any()).Return(errors.New("unknown error"))
-	d.mediator = mediator
-
-	shards := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
-		sharding.NewShards([]uint32{2}, shard.Initializing)...)
-	shardSet, err := sharding.NewShardSet(shards, nil)
-	require.NoError(t, err)
-
-	defer instrument.SetShouldPanicEnvironmentVariable(true)()
-	require.Panics(t, func() {
-		d.AssignShardSet(shardSet)
-	})
 }
 
 func TestDatabaseRemoveNamespace(t *testing.T) {
@@ -599,15 +588,7 @@ func TestDatabaseAddNamespace(t *testing.T) {
 	nses := d.Namespaces()
 	require.Len(t, nses, 2)
 
-	// construct new namespace Map
-	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
-	require.NoError(t, err)
-	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
-	require.NoError(t, err)
-	md3, err := namespace.NewMetadata(ident.StringID("and1"), defaultTestNs1Opts)
-	require.NoError(t, err)
-	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2, md3})
-	require.NoError(t, err)
+	md1, md2, _, nsMap := addNamespace(t, "and1")
 
 	// update the database watch with new Map
 	mapCh <- nsMap
@@ -639,6 +620,173 @@ func TestDatabaseAddNamespace(t *testing.T) {
 	ns3, ok := d.Namespace(ident.StringID("and1"))
 	require.True(t, ok)
 	require.Equal(t, md1.Options(), ns3.Options())
+	assertFileOpsEnabled(t, d)
+}
+
+type testNamespaceHooks struct {
+	sync.Mutex
+	adds int
+}
+
+func (th *testNamespaceHooks) addCount() int {
+	th.Lock()
+	defer th.Unlock()
+	return th.adds
+}
+
+func (th *testNamespaceHooks) OnCreatedNamespace(Namespace, GetNamespaceFn) error {
+	th.Lock()
+	defer th.Unlock()
+	th.adds++
+	return nil
+}
+
+func TestDatabaseAddNamespaceBootstrapEnqueue(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	require.NoError(t, d.Open())
+	defer func() {
+		close(mapCh)
+		require.NoError(t, d.Close())
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	// retrieve the update channel to track propatation
+	updateCh := d.opts.NamespaceInitializer().(*mockNsInitializer).updateCh
+
+	nsHooks := &testNamespaceHooks{}
+	d.opts = d.opts.SetNamespaceHooks(nsHooks)
+	d.bootstraps++
+
+	// check initial namespaces
+	nses := d.Namespaces()
+	require.Len(t, nses, 2)
+
+	_, _, md3, nsMap := addNamespace(t, "nsNew")
+
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	<-updateCh
+	<-updateCh
+
+	// Because ns update will be enqueued and performed later, we need to wait for more time in theory.
+	// Usually this update should complete in a few seconds.
+	require.True(t, xclock.WaitUntil(func() bool {
+		return nsHooks.addCount() == 1
+	}, 1*time.Minute))
+	require.True(t, xclock.WaitUntil(func() bool {
+		return len(d.Namespaces()) == 3
+	}, 2*time.Second))
+
+	// ensure the expected namespaces exist
+	nses = d.Namespaces()
+	require.Len(t, nses, 3)
+	ns3, ok := d.Namespace(ident.StringID("nsNew"))
+	require.True(t, ok)
+	require.Equal(t, md3.Options(), ns3.Options())
+	assertFileOpsEnabled(t, d)
+}
+
+type errorNamespaceHooks struct{}
+
+func (th *errorNamespaceHooks) OnCreatedNamespace(Namespace, GetNamespaceFn) error {
+	return errors.New("failed to create namespace")
+}
+
+func TestDatabaseAddNamespaceErrorAfterWaitForFileOps(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	require.NoError(t, d.Open())
+	defer func() {
+		close(mapCh)
+		require.NoError(t, d.Close())
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	nsHooks := &errorNamespaceHooks{}
+	d.opts = d.opts.SetNamespaceHooks(nsHooks)
+
+	_, _, _, nsMap := addNamespace(t, "testns3")
+	d.bootstraps = 1
+
+	require.Error(t, d.UpdateOwnedNamespaces(nsMap))
+	assertFileOpsEnabled(t, d)
+}
+
+func TestDatabaseAddNamespaceBootstrapEnqueueMediatorClosed(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	require.NoError(t, d.Open())
+	mediator := d.mediator
+	defer func() {
+		close(mapCh)
+		d.mediator = mediator
+		require.NoError(t, d.Close())
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	// retrieve the update channel to track propatation
+	updateCh := d.opts.NamespaceInitializer().(*mockNsInitializer).updateCh
+
+	nsHooks := &testNamespaceHooks{}
+	d.opts = d.opts.SetNamespaceHooks(nsHooks)
+	mockMediator := NewMockdatabaseMediator(ctrl)
+	mockMediator.EXPECT().IsOpen().Return(false).AnyTimes()
+	mockMediator.EXPECT().BootstrapEnqueue(BootstrapEnqueueOptions{})
+	d.mediator = mockMediator
+
+	// check initial namespaces
+	nses := d.Namespaces()
+	require.Len(t, nses, 2)
+
+	_, _, md3, nsMap := addNamespace(t, "testns3")
+	d.bootstraps = 1
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	<-updateCh
+	<-updateCh
+
+	// Because ns update will be enqueued and performed later, we need to wait for more time in theory.
+	// Usually this update should complete in a few seconds.
+	require.True(t, xclock.WaitUntil(func() bool {
+		return nsHooks.addCount() == 1
+	}, time.Minute))
+	require.True(t, xclock.WaitUntil(func() bool {
+		return len(d.Namespaces()) == 3
+	}, 2*time.Second))
+
+	// ensure the expected namespaces exist
+	nses = d.Namespaces()
+	require.Len(t, nses, 3)
+	ns3, ok := d.Namespace(ident.StringID("testns3"))
+	require.True(t, ok)
+	require.Equal(t, md3.Options(), ns3.Options())
+}
+
+func addNamespace(
+	t *testing.T,
+	ns string,
+) (namespace.Metadata, namespace.Metadata, namespace.Metadata, namespace.Map) {
+	// construct new namespace Map
+	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
+	require.NoError(t, err)
+	md3, err := namespace.NewMetadata(ident.StringID(ns), defaultTestNs1Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2, md3})
+	require.NoError(t, err)
+	return md1, md2, md3, nsMap
 }
 
 func TestDatabaseUpdateNamespace(t *testing.T) {
@@ -1358,10 +1506,10 @@ func TestDatabaseIsBootstrapped(t *testing.T) {
 		close(mapCh)
 	}()
 
-	mediator := NewMockdatabaseMediator(ctrl)
-	mediator.EXPECT().IsBootstrapped().Return(true)
-	mediator.EXPECT().IsBootstrapped().Return(false)
-	d.mediator = mediator
+	md := NewMockdatabaseMediator(ctrl)
+	md.EXPECT().IsBootstrapped().Return(true)
+	md.EXPECT().IsBootstrapped().Return(false)
+	d.mediator = md
 
 	assert.True(t, d.IsBootstrapped())
 	assert.False(t, d.IsBootstrapped())
@@ -1551,4 +1699,125 @@ func TestNewAggregateTilesOptions(t *testing.T) {
 	_, err = NewAggregateTilesOptions(start, end, time.Minute, targetNs, process,
 		true, true, map[string]annotation.Payload{}, insOpts)
 	assert.NoError(t, err)
+}
+
+func TestShardsDelta(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewBackground()
+	defer ctx.Close()
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	shards := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+		sharding.NewShards([]uint32{2}, shard.Initializing)...)
+	shardSet, err := sharding.NewShardSet(shards, nil)
+	require.NoError(t, err)
+
+	d.shardSet = shardSet
+
+	t.Run("unchanged", func(t *testing.T) {
+		incoming := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+			sharding.NewShards([]uint32{2}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incoming, nil)
+		require.NoError(t, err)
+
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.False(t, added)
+		require.False(t, removed)
+		require.False(t, updated)
+	})
+
+	t.Run("added-updated-deleted", func(t *testing.T) {
+		incomingAddedRemovedUpdated := append(sharding.NewShards([]uint32{1, 2}, shard.Available),
+			sharding.NewShards([]uint32{3}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incomingAddedRemovedUpdated, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.True(t, added)
+		require.True(t, removed)
+		require.True(t, updated)
+	})
+
+	t.Run("added", func(t *testing.T) {
+		incomingAdded := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+			sharding.NewShards([]uint32{2, 3}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incomingAdded, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.True(t, added)
+		require.False(t, removed)
+		require.False(t, updated)
+	})
+
+	t.Run("updated", func(t *testing.T) {
+		incomingUpdated := sharding.NewShards([]uint32{0, 1, 2}, shard.Available)
+		shardSet, err = sharding.NewShardSet(incomingUpdated, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.False(t, added)
+		require.False(t, removed)
+		require.True(t, updated)
+	})
+
+	t.Run("removed", func(t *testing.T) {
+		incomingRemoved := sharding.NewShards([]uint32{0, 1}, shard.Available)
+		shardSet, err = sharding.NewShardSet(incomingRemoved, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.False(t, added)
+		require.True(t, removed)
+		require.False(t, updated)
+	})
+
+	t.Run("added-updated", func(t *testing.T) {
+		incomingAddedUpdated := append(sharding.NewShards([]uint32{0, 1, 2}, shard.Available),
+			sharding.NewShards([]uint32{3}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incomingAddedUpdated, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.True(t, added)
+		require.False(t, removed)
+		require.True(t, updated)
+	})
+
+	t.Run("added-removed", func(t *testing.T) {
+		incomingAddedRemoved := append(sharding.NewShards([]uint32{1}, shard.Available),
+			sharding.NewShards([]uint32{3}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incomingAddedRemoved, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.True(t, added)
+		require.True(t, removed)
+		require.False(t, updated)
+	})
+
+	t.Run("updated-removed", func(t *testing.T) {
+		incomingUpdatedRemoved := append(sharding.NewShards([]uint32{0}, shard.Available),
+			sharding.NewShards([]uint32{1}, shard.Initializing)...)
+		shardSet, err = sharding.NewShardSet(incomingUpdatedRemoved, nil)
+		require.NoError(t, err)
+		added, removed, updated := d.shardsDeltaWithLock(shardSet)
+		require.False(t, added)
+		require.True(t, removed)
+		require.True(t, updated)
+	})
+}
+
+func assertFileOpsEnabled(t *testing.T, d *db) {
+	mediator := d.mediator.(*mediator)
+	coldFlushManager := mediator.databaseColdFlushManager.(*coldFlushManager)
+	fileSystemManager := mediator.databaseFileSystemManager.(*fileSystemManager)
+
+	coldFlushManager.RLock()
+	require.True(t, coldFlushManager.enabled)
+	coldFlushManager.RUnlock()
+
+	fileSystemManager.RLock()
+	require.True(t, fileSystemManager.enabled)
+	fileSystemManager.RUnlock()
 }

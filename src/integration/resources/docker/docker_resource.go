@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -33,10 +34,11 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/integration/resources"
-	"github.com/m3db/m3/src/integration/resources/common"
 )
 
-type dockerResource struct {
+// Resource is an object that provides a handle
+// to a service being spun up via docker.
+type Resource struct {
 	closed bool
 
 	logger *zap.Logger
@@ -45,16 +47,17 @@ type dockerResource struct {
 	pool     *dockertest.Pool
 }
 
-func newDockerResource(
+// NewDockerResource creates a new DockerResource.
+func NewDockerResource(
 	pool *dockertest.Pool,
-	resourceOpts dockerResourceOptions,
-) (*dockerResource, error) {
+	resourceOpts ResourceOptions,
+) (*Resource, error) {
 	var (
-		source        = resourceOpts.source
-		image         = resourceOpts.image
-		containerName = resourceOpts.containerName
-		iOpts         = resourceOpts.iOpts
-		portList      = resourceOpts.portList
+		source        = resourceOpts.Source
+		image         = resourceOpts.Image
+		containerName = resourceOpts.ContainerName
+		iOpts         = resourceOpts.InstrumentOpts
+		portList      = resourceOpts.PortList
 
 		logger = iOpts.Logger().With(
 			zap.String("source", source),
@@ -65,9 +68,17 @@ func newDockerResource(
 	opts := exposePorts(newOptions(containerName), portList)
 
 	hostConfigOpts := func(c *dc.HostConfig) {
+		c.AutoRemove = true
 		c.NetworkMode = networkName
-		mounts := make([]dc.HostMount, 0, len(resourceOpts.mounts))
-		for _, m := range resourceOpts.mounts {
+		// Allow the docker container to call services on the host machine.
+		// Docker for OS X and Windows support the host.docker.internal hostname
+		// natively, but Docker for Linux requires us to register host.docker.internal
+		// as an extra host before the hostname works.
+		if runtime.GOOS == "linux" {
+			c.ExtraHosts = []string{"host.docker.internal:172.17.0.1"}
+		}
+		mounts := make([]dc.HostMount, 0, len(resourceOpts.TmpfsMounts))
+		for _, m := range resourceOpts.TmpfsMounts {
 			mounts = append(mounts, dc.HostMount{
 				Target: m,
 				Type:   string(mount.TypeTmpfs),
@@ -79,7 +90,7 @@ func newDockerResource(
 
 	var resource *dockertest.Resource
 	var err error
-	if image.name == "" {
+	if image.Name == "" {
 		logger.Info("connecting to existing container", zap.String("container", containerName))
 		var ok bool
 		resource, ok = pool.ContainerByName(containerName)
@@ -89,7 +100,8 @@ func newDockerResource(
 		}
 	} else {
 		opts = useImage(opts, image)
-		imageWithTag := fmt.Sprintf("%v:%v", image.name, image.tag)
+		opts.Mounts = resourceOpts.Mounts
+		imageWithTag := fmt.Sprintf("%v:%v", image.Name, image.Tag)
 		logger.Info("running container with options",
 			zap.String("image", imageWithTag), zap.Any("options", opts))
 		resource, err = pool.RunWithOptions(opts, hostConfigOpts)
@@ -100,32 +112,35 @@ func newDockerResource(
 		return nil, err
 	}
 
-	return &dockerResource{
+	return &Resource{
 		logger:   logger,
 		resource: resource,
 		pool:     pool,
 	}, nil
 }
 
-func (c *dockerResource) getPort(bindPort int) (int, error) {
+// GetPort retrieves the port for accessing this resource.
+func (c *Resource) GetPort(bindPort int) (int, error) {
 	port := c.resource.GetPort(fmt.Sprintf("%d/tcp", bindPort))
 	return strconv.Atoi(port)
 }
 
-func (c *dockerResource) getURL(port int, path string) string {
+// GetURL retrieves the URL for accessing this resource.
+func (c *Resource) GetURL(port int, path string) string {
 	tcpPort := fmt.Sprintf("%d/tcp", port)
 	return fmt.Sprintf("http://%s:%s/%s",
 		c.resource.GetBoundIP(tcpPort), c.resource.GetPort(tcpPort), path)
 }
 
-func (c *dockerResource) exec(commands ...string) (string, error) {
+// Exec runs commands within a docker container.
+func (c *Resource) Exec(commands ...string) (string, error) {
 	if c.closed {
 		return "", errClosed
 	}
 
 	// NB: this is prefixed with a `/` that should be trimmed off.
 	name := strings.TrimLeft(c.resource.Container.Name, "/")
-	logger := c.logger.With(common.ZapMethod("exec"))
+	logger := c.logger.With(resources.ZapMethod("exec"))
 	client := c.pool.Client
 	exec, err := client.CreateExec(dc.CreateExecOptions{
 		AttachStdout: true,
@@ -167,7 +182,9 @@ func (c *dockerResource) exec(commands ...string) (string, error) {
 	return output, nil
 }
 
-func (c *dockerResource) goalStateExec(
+// GoalStateExec runs commands within a container until
+// a specified goal state is met.
+func (c *Resource) GoalStateExec(
 	verifier resources.GoalStateVerifier,
 	commands ...string,
 ) error {
@@ -175,9 +192,9 @@ func (c *dockerResource) goalStateExec(
 		return errClosed
 	}
 
-	logger := c.logger.With(common.ZapMethod("goalStateExec"))
+	logger := c.logger.With(resources.ZapMethod("GoalStateExec"))
 	return c.pool.Retry(func() error {
-		err := verifier(c.exec(commands...))
+		err := verifier(c.Exec(commands...))
 		if err != nil {
 			logger.Error("rerunning goal state verification", zap.Error(err))
 			return err
@@ -188,7 +205,8 @@ func (c *dockerResource) goalStateExec(
 	})
 }
 
-func (c *dockerResource) close() error {
+// Close closes and cleans up the resource.
+func (c *Resource) Close() error {
 	if c.closed {
 		c.logger.Error("closing closed resource", zap.Error(errClosed))
 		return errClosed
@@ -197,4 +215,9 @@ func (c *dockerResource) close() error {
 	c.closed = true
 	c.logger.Info("closing resource")
 	return c.pool.Purge(c.resource)
+}
+
+// Closed returns true if the resource has been closed.
+func (c *Resource) Closed() bool {
+	return c.closed
 }
