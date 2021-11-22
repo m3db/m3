@@ -171,15 +171,6 @@ type Options interface {
 
 	// Metrics returns the encoding metrics.
 	Metrics() Metrics
-
-	// SetValueDecreaseTolerance sets relative tolerance against decoded time series value decrease.
-	SetValueDecreaseTolerance(value float64) Options
-
-	// SetValueDecreaseToleranceUntil sets the timestamp (exclusive) until which the tolerance applies.
-	SetValueDecreaseToleranceUntil(value xtime.UnixNano) Options
-
-	// ValueDecreaseTolerance returns relative tolerance against decoded time series value decrease.
-	ValueDecreaseTolerance() (float64, xtime.UnixNano)
 }
 
 // Iterator is the generic interface for iterating over encoded data.

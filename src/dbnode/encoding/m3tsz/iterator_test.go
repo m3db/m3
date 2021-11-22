@@ -28,10 +28,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -410,95 +408,5 @@ func TestReaderIteratorDecodingRegression(t *testing.T) {
 		it.Current()
 	}
 
-	require.NoError(t, it.Err())
-}
-
-func TestReaderIteratorDecodingDecreaseTolerance(t *testing.T) {
-	now := xtime.Now().Truncate(time.Hour)
-	tests := []struct {
-		name      string
-		given     []float64
-		tolerance float64
-		until     xtime.UnixNano
-		want      []float64
-	}{
-		{
-			name:      "no tolerance",
-			given:     []float64{187.80131100000006, 187.801311, 187.80131100000006, 187.801311, 200, 199.99},
-			tolerance: 0,
-			until:     0,
-			want:      []float64{187.80131100000006, 187.801311, 187.80131100000006, 187.801311, 200, 199.99},
-		},
-		{
-			name:      "low tolerance",
-			given:     []float64{187.80131100000006, 187.801311, 187.80131100000006, 187.801311, 200, 199.99},
-			tolerance: 0.00000001,
-			until:     now.Add(time.Hour),
-			want:      []float64{187.80131100000006, 187.80131100000006, 187.80131100000006, 187.80131100000006, 200, 199.99},
-		},
-		{
-			name:      "high tolerance",
-			given:     []float64{187.80131100000006, 187.801311, 187.80131100000006, 187.801311, 200, 199.99},
-			tolerance: 0.0001,
-			until:     now.Add(time.Hour),
-			want:      []float64{187.80131100000006, 187.80131100000006, 187.80131100000006, 187.80131100000006, 200, 200},
-		},
-		{
-			name:      "tolerance expired",
-			given:     []float64{200, 199.99, 200, 199.99, 200, 199.99},
-			tolerance: 0.0001,
-			until:     now,
-			want:      []float64{200, 199.99, 200, 199.99, 200, 199.99},
-		},
-		{
-			name:      "tolerance expires in the middle",
-			given:     []float64{200, 199.99, 200, 199.99, 200, 199.99},
-			tolerance: 0.0001,
-			until:     now.Add(3 * time.Minute),
-			want:      []float64{200, 200, 200, 199.99, 200, 199.99},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			testReaderIteratorDecodingDecreaseTolerance(t, now, tt.given, tt.want, tt.tolerance, tt.until)
-		})
-	}
-}
-
-func testReaderIteratorDecodingDecreaseTolerance(
-	t *testing.T,
-	now xtime.UnixNano,
-	input []float64,
-	expectedOutput []float64,
-	decreaseTolerance float64,
-	toleranceUntil xtime.UnixNano,
-) {
-	ctx := context.NewBackground()
-	defer ctx.Close()
-
-	enc := NewEncoder(testStartTime, nil, true, nil)
-	for _, v := range input {
-		dp := ts.Datapoint{TimestampNanos: now, Value: v}
-		err := enc.Encode(dp, xtime.Second, nil)
-		require.NoError(t, err)
-		now = now.Add(time.Minute)
-	}
-
-	stream, ok := enc.Stream(ctx)
-	require.True(t, ok)
-
-	opts := encoding.NewOptions().
-		SetValueDecreaseTolerance(decreaseTolerance).
-		SetValueDecreaseToleranceUntil(toleranceUntil)
-	dec := NewDecoder(true, opts)
-	it := dec.Decode(stream)
-	defer it.Close()
-
-	for i, expected := range expectedOutput {
-		require.True(t, it.Next())
-		dp, _, _ := it.Current()
-		assert.Equal(t, expected, dp.Value, "datapoint #%d", i)
-	}
 	require.NoError(t, it.Err())
 }
