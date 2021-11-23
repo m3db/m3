@@ -22,6 +22,7 @@ package consumer
 
 import (
 	"net"
+	"sort"
 	"sync"
 	"testing"
 
@@ -35,12 +36,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestServerWithMessageFn(t *testing.T) {
+func TestServerWithSingletonMessageProcessor(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	var (
 		data []string
 		wg   sync.WaitGroup
+		mu   sync.Mutex
 	)
 
 	ctrl := gomock.NewController(t)
@@ -49,11 +51,13 @@ func TestServerWithMessageFn(t *testing.T) {
 	p := NewMockMessageProcessor(ctrl)
 	p.EXPECT().Process(gomock.Any()).Do(
 		func(m Message) {
+			mu.Lock()
 			data = append(data, string(m.Bytes()))
+			mu.Unlock()
 			m.Ack()
 			wg.Done()
 		},
-	).Times(2)
+	).Times(3)
 	// Set a large ack buffer size to make sure the background go routine
 	// can flush it.
 	opts := testOptions().SetAckBufferSize(100)
@@ -61,32 +65,43 @@ func TestServerWithMessageFn(t *testing.T) {
 	require.NoError(t, err)
 
 	s := server.NewServer("a", NewMessageHandler(SingletonMessageProcessor(p), opts), server.NewOptions())
-	s.Serve(l)
+	defer s.Close()
+	require.NoError(t, s.Serve(l))
 
-	conn, err := net.Dial("tcp", l.Addr().String())
+	conn1, err := net.Dial("tcp", l.Addr().String())
+	require.NoError(t, err)
+	conn2, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
 
-	wg.Add(1)
-	err = produce(conn, &testMsg1)
+	wg.Add(3)
+	err = produce(conn1, &testMsg1)
 	require.NoError(t, err)
-	wg.Add(1)
-	err = produce(conn, &testMsg2)
+	err = produce(conn1, &testMsg2)
+	require.NoError(t, err)
+	err = produce(conn2, &testMsg2)
 	require.NoError(t, err)
 
 	wg.Wait()
-	require.Equal(t, string(testMsg1.Value), data[0])
+	sort.Strings(data)
+	require.Equal(t, string(testMsg2.Value), data[0])
 	require.Equal(t, string(testMsg2.Value), data[1])
+	require.Equal(t, string(testMsg1.Value), data[2])
 
 	var ack msgpb.Ack
-	testDecoder := proto.NewDecoder(conn, opts.DecoderOptions(), 10)
+	testDecoder := proto.NewDecoder(conn1, opts.DecoderOptions(), 10)
 	err = testDecoder.Decode(&ack)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(ack.Metadata))
+	testDecoder = proto.NewDecoder(conn2, opts.DecoderOptions(), 10)
+	err = testDecoder.Decode(&ack)
+	require.NoError(t, err)
+	require.Equal(t, 3, len(ack.Metadata))
+	sort.Slice(ack.Metadata, func(i, j int) bool {
+		return ack.Metadata[i].Id < ack.Metadata[j].Id
+	})
 	require.Equal(t, testMsg1.Metadata, ack.Metadata[0])
 	require.Equal(t, testMsg2.Metadata, ack.Metadata[1])
-
+	require.Equal(t, testMsg2.Metadata, ack.Metadata[2])
 	p.EXPECT().Close()
-	s.Close()
 }
 
 func TestServerMessageDifferentConnections(t *testing.T) {
@@ -126,7 +141,8 @@ func TestServerMessageDifferentConnections(t *testing.T) {
 		return mp2
 	}
 
-	s := server.NewServer("a", NewMessageHandler(newMessageProcessor, opts), server.NewOptions())
+	s := server.NewServer("a",
+		NewMessageHandler(NewMessageProcessorFactory(newMessageProcessor), opts), server.NewOptions())
 	require.NoError(t, err)
 	require.NoError(t, s.Serve(l))
 

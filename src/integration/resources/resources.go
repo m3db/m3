@@ -89,18 +89,46 @@ func SetupCluster(
 	}
 
 	var (
-		aggDatabase = admin.DatabaseCreateRequest{
+		unaggDatabase = admin.DatabaseCreateRequest{
 			Type:              "cluster",
-			NamespaceName:     AggName,
+			NamespaceName:     UnaggName,
 			RetentionTime:     retention,
 			NumShards:         numShards,
 			ReplicationFactor: replicationFactor,
 			Hosts:             hosts,
 		}
 
-		unaggDatabase = admin.DatabaseCreateRequest{
-			NamespaceName: UnaggName,
-			RetentionTime: retention,
+		aggNamespace = admin.NamespaceAddRequest{
+			Name: AggName,
+			Options: &namespace.NamespaceOptions{
+				BootstrapEnabled:  true,
+				FlushEnabled:      true,
+				WritesToCommitLog: true,
+				CleanupEnabled:    true,
+				SnapshotEnabled:   true,
+				IndexOptions: &namespace.IndexOptions{
+					Enabled:        true,
+					BlockSizeNanos: int64(30 * time.Minute),
+				},
+				RetentionOptions: &namespace.RetentionOptions{
+					RetentionPeriodNanos:                     int64(6 * time.Hour),
+					BlockSizeNanos:                           int64(30 * time.Minute),
+					BufferFutureNanos:                        int64(2 * time.Minute),
+					BufferPastNanos:                          int64(10 * time.Minute),
+					BlockDataExpiry:                          true,
+					BlockDataExpiryAfterNotAccessPeriodNanos: int64(time.Minute * 5),
+				},
+				AggregationOptions: &namespace.AggregationOptions{
+					Aggregations: []*namespace.Aggregation{
+						{
+							Aggregated: true,
+							Attributes: &namespace.AggregatedAttributes{
+								ResolutionNanos: int64(15 * time.Second),
+							},
+						},
+					},
+				},
+			},
 		}
 
 		coldWriteNamespace = admin.NamespaceAddRequest{
@@ -131,8 +159,8 @@ func SetupCluster(
 		return err
 	}
 
-	logger.Info("creating database", zap.Any("request", aggDatabase))
-	if _, err := coordinator.CreateDatabase(aggDatabase); err != nil {
+	logger.Info("creating database", zap.Any("request", unaggDatabase))
+	if _, err := coordinator.CreateDatabase(unaggDatabase); err != nil {
 		return err
 	}
 
@@ -141,18 +169,18 @@ func SetupCluster(
 		return err
 	}
 
-	logger.Info("waiting for namespace", zap.String("name", AggName))
-	if err := coordinator.WaitForNamespace(AggName); err != nil {
-		return err
-	}
-
-	logger.Info("creating namespace", zap.Any("request", unaggDatabase))
-	if _, err := coordinator.CreateDatabase(unaggDatabase); err != nil {
-		return err
-	}
-
 	logger.Info("waiting for namespace", zap.String("name", UnaggName))
 	if err := coordinator.WaitForNamespace(UnaggName); err != nil {
+		return err
+	}
+
+	logger.Info("creating namespace", zap.Any("request", aggNamespace))
+	if _, err := coordinator.AddNamespace(aggNamespace); err != nil {
+		return err
+	}
+
+	logger.Info("waiting for namespace", zap.String("name", AggName))
+	if err := coordinator.WaitForNamespace(AggName); err != nil {
 		return err
 	}
 
@@ -258,6 +286,9 @@ func setupPlacement(
 			NumShards:         opts.NumShards,
 			ReplicationFactor: opts.RF,
 			Instances:         instances,
+			OptionOverride: &placementpb.Options{
+				SkipPortMirroring: &protobuftypes.BoolValue{Value: true},
+			},
 		},
 	)
 	if err != nil {

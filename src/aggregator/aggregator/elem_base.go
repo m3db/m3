@@ -204,6 +204,8 @@ type consumeState struct {
 	// the start aligned timestamp of the previous aggregation. used to lookup the consumedValues of the previous
 	// aggregation for binary transformations.
 	prevStartTime xtime.UnixNano
+	// the lastUpdatedAt time copied from the lockedAgg.
+	lastUpdatedAt xtime.UnixNano
 	// the dirty bit copied from the lockedAgg.
 	dirty bool
 	// the resendEnabled bit copied from the lockedAgg

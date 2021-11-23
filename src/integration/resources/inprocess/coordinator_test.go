@@ -89,7 +89,7 @@ func TestCoordinatorAPIs(t *testing.T) {
 func testMetadataAPIs(t *testing.T, coordinator resources.Coordinator) {
 	err := coordinator.WriteProm("cpu", map[string]string{"pod": "foo-1234"}, []prompb.Sample{
 		{Value: 1, Timestamp: storage.TimeToPromTimestamp(xtime.Now())},
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	names, err := coordinator.LabelNames(resources.LabelNamesRequest{}, nil)
