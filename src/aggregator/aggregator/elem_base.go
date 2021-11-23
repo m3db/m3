@@ -64,10 +64,11 @@ const (
 )
 
 var (
-	nan                          = math.NaN()
-	errElemClosed                = errors.New("element is closed")
-	errAggregationClosed         = errors.New("aggregation is closed")
-	errDuplicateForwardingSource = errors.New("duplicate forwarding source")
+	nan                                   = math.NaN()
+	errElemClosed                         = errors.New("element is closed")
+	errAggregationClosed                  = errors.New("aggregation is closed")
+	errClosedBeforeResendEnabledMigration = errors.New("aggregation closed before resendEnabled migration")
+	errDuplicateForwardingSource          = errors.New("duplicate forwarding source")
 )
 
 // isEarlierThanFn determines whether the timestamps of the metrics in a given
@@ -81,7 +82,6 @@ type timestampNanosFn func(windowStartNanos int64, resolution time.Duration) int
 type createAggregationOptions struct {
 	// initSourceSet determines whether to initialize the source set.
 	initSourceSet bool
-	resendEnabled bool
 }
 
 // IDPrefixSuffixType configs if the id should be added with prefix or suffix
@@ -204,9 +204,11 @@ type consumeState struct {
 	// the start aligned timestamp of the previous aggregation. used to lookup the consumedValues of the previous
 	// aggregation for binary transformations.
 	prevStartTime xtime.UnixNano
+	// the lastUpdatedAt time copied from the lockedAgg.
+	lastUpdatedAt xtime.UnixNano
 	// the dirty bit copied from the lockedAgg.
 	dirty bool
-	// copied from the timedAggregation
+	// the resendEnabled bit copied from the lockedAgg
 	resendEnabled bool
 }
 
@@ -221,6 +223,10 @@ type flushState struct {
 	emittedValues []float64
 	// true if this aggregation has ever been flushed.
 	flushed bool
+	// true if the aggregation was flushed with resendEnabled. this is copied from the lockedAggregation at the time
+	// of flush. this value can change on a lockedAggregation while it's still open, so this only represents the state
+	// at the time of the last flush.
+	latestResendEnabled bool
 }
 
 var isDirty = func(state consumeState) bool {
@@ -236,7 +242,6 @@ func (f *flushState) close() {
 type elemMetrics struct {
 	scope         tally.Scope
 	updatedValues tally.Counter
-	retriedValues tally.Counter
 	flush         map[flushKey]flushMetrics
 	mtx           sync.RWMutex
 }
@@ -364,7 +369,6 @@ func NewElemOptions(aggregatorOpts Options) ElemOptions {
 		aggregationOpts: raggregation.NewOptions(aggregatorOpts.InstrumentOptions()),
 		elemMetrics: &elemMetrics{
 			updatedValues: scope.Counter("updated-values"),
-			retriedValues: scope.Counter("retried-values"),
 			scope:         scope,
 			flush:         make(map[flushKey]flushMetrics),
 		},

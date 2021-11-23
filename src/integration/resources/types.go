@@ -33,6 +33,7 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/x/errors"
@@ -60,16 +61,25 @@ type Coordinator interface {
 	ApplyKVUpdate(update string) error
 	// WriteCarbon writes a carbon metric datapoint at a given time.
 	WriteCarbon(port int, metric string, v float64, t time.Time) error
-	// WriteProm writes a prometheus metric.
-	WriteProm(name string, tags map[string]string, samples []prompb.Sample) error
+	// WriteProm writes a prometheus metric. Takes tags/labels as a map for convenience.
+	WriteProm(name string, tags map[string]string, samples []prompb.Sample, headers Headers) error
+	// WritePromWithLabels writes a prometheus metric. Allows you to provide the labels for
+	// the write directly instead of conveniently converting them from a map.
+	WritePromWithLabels(name string, labels []prompb.Label, samples []prompb.Sample, headers Headers) error
 	// RunQuery runs the given query with a given verification function.
 	RunQuery(verifier ResponseVerifier, query string, headers Headers) error
 	// InstantQuery runs an instant query with provided headers
 	InstantQuery(req QueryRequest, headers Headers) (model.Vector, error)
+	// InstantQueryWithEngine runs an instant query with provided headers and the specified
+	// query engine.
+	InstantQueryWithEngine(req QueryRequest, engine options.QueryEngine, headers Headers) (model.Vector, error)
 	// RangeQuery runs a range query with provided headers
 	RangeQuery(req RangeQueryRequest, headers Headers) (model.Matrix, error)
 	// GraphiteQuery retrieves graphite raw data.
 	GraphiteQuery(GraphiteQueryRequest) ([]Datapoint, error)
+	// RangeQueryWithEngine runs a range query with provided headers and the specified
+	// query engine.
+	RangeQueryWithEngine(req RangeQueryRequest, engine options.QueryEngine, headers Headers) (model.Matrix, error)
 	// LabelNames return matching label names based on the request.
 	LabelNames(req LabelNamesRequest, headers Headers) (model.LabelNames, error)
 	// LabelValues returns matching label values based on the request.

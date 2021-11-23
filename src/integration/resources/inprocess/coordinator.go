@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/integration/resources"
 	nettest "github.com/m3db/m3/src/integration/resources/net"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/server"
@@ -409,9 +410,25 @@ func (c *Coordinator) WriteCarbon(port int, metric string, v float64, t time.Tim
 	return c.client.WriteCarbon(fmt.Sprintf("0.0.0.0:%d", port), metric, v, t)
 }
 
-// WriteProm writes a prometheus metric.
-func (c *Coordinator) WriteProm(name string, tags map[string]string, samples []prompb.Sample) error {
-	return c.client.WriteProm(name, tags, samples)
+// WriteProm writes a prometheus metric. Takes tags/labels as a map for convenience.
+func (c *Coordinator) WriteProm(
+	name string,
+	tags map[string]string,
+	samples []prompb.Sample,
+	headers resources.Headers,
+) error {
+	return c.client.WriteProm(name, tags, samples, headers)
+}
+
+// WritePromWithLabels writes a prometheus metric. Allows you to provide the labels for
+// the write directly instead of conveniently converting them from a map.
+func (c *Coordinator) WritePromWithLabels(
+	name string,
+	labels []prompb.Label,
+	samples []prompb.Sample,
+	headers resources.Headers,
+) error {
+	return c.client.WritePromWithLabels(name, labels, samples, headers)
 }
 
 // RunQuery runs the given query with a given verification function.
@@ -431,6 +448,16 @@ func (c *Coordinator) InstantQuery(
 	return c.client.InstantQuery(req, headers)
 }
 
+// InstantQueryWithEngine runs an instant query with provided headers and the specified
+// query engine.
+func (c *Coordinator) InstantQueryWithEngine(
+	req resources.QueryRequest,
+	engine options.QueryEngine,
+	headers resources.Headers,
+) (model.Vector, error) {
+	return c.client.InstantQueryWithEngine(req, engine, headers)
+}
+
 // RangeQuery runs a range query with provided headers
 func (c *Coordinator) RangeQuery(
 	req resources.RangeQueryRequest,
@@ -442,6 +469,16 @@ func (c *Coordinator) RangeQuery(
 // GraphiteQuery retrieves graphite raw data.
 func (c *Coordinator) GraphiteQuery(req resources.GraphiteQueryRequest) ([]resources.Datapoint, error) {
 	return c.client.GraphiteQuery(req)
+}
+
+// RangeQueryWithEngine runs a range query with provided headers and the specified
+// query engine.
+func (c *Coordinator) RangeQueryWithEngine(
+	req resources.RangeQueryRequest,
+	engine options.QueryEngine,
+	headers resources.Headers,
+) (model.Matrix, error) {
+	return c.client.RangeQueryWithEngine(req, engine, headers)
 }
 
 // LabelNames return matching label names based on the request.

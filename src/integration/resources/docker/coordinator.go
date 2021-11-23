@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/m3db/m3/src/integration/resources"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 )
@@ -205,12 +206,30 @@ func (c *coordinator) WriteCarbon(
 	return c.client.WriteCarbon(url, metric, v, t)
 }
 
-func (c *coordinator) WriteProm(name string, tags map[string]string, samples []prompb.Sample) error {
+func (c *coordinator) WriteProm(
+	name string,
+	tags map[string]string,
+	samples []prompb.Sample,
+	headers resources.Headers,
+) error {
 	if c.resource.closed {
 		return errClosed
 	}
 
-	return c.client.WriteProm(name, tags, samples)
+	return c.client.WriteProm(name, tags, samples, headers)
+}
+
+func (c *coordinator) WritePromWithLabels(
+	name string,
+	labels []prompb.Label,
+	samples []prompb.Sample,
+	headers resources.Headers,
+) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	return c.client.WritePromWithLabels(name, labels, samples, headers)
 }
 
 func (c *coordinator) ApplyKVUpdate(update string) error {
@@ -243,6 +262,19 @@ func (c *coordinator) InstantQuery(
 	return c.client.InstantQuery(req, headers)
 }
 
+// InstantQueryWithEngine runs an instant query with provided headers and the specified
+// query engine.
+func (c *coordinator) InstantQueryWithEngine(
+	req resources.QueryRequest,
+	engine options.QueryEngine,
+	headers resources.Headers,
+) (model.Vector, error) {
+	if c.resource.closed {
+		return nil, errClosed
+	}
+	return c.client.InstantQueryWithEngine(req, engine, headers)
+}
+
 // RangeQuery runs a range query with provided headers
 func (c *coordinator) RangeQuery(
 	req resources.RangeQueryRequest,
@@ -257,6 +289,19 @@ func (c *coordinator) RangeQuery(
 // GraphiteQuery retrieves graphite raw data.
 func (c *coordinator) GraphiteQuery(req resources.GraphiteQueryRequest) ([]resources.Datapoint, error) {
 	return c.client.GraphiteQuery(req)
+}
+
+// RangeQueryWithEngine runs a range query with provided headers and the specified
+// query engine.
+func (c *coordinator) RangeQueryWithEngine(
+	req resources.RangeQueryRequest,
+	engine options.QueryEngine,
+	headers resources.Headers,
+) (model.Matrix, error) {
+	if c.resource.closed {
+		return nil, errClosed
+	}
+	return c.client.RangeQueryWithEngine(req, engine, headers)
 }
 
 // LabelNames return matching label names based on the request.

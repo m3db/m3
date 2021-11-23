@@ -33,11 +33,13 @@ import (
 	aggcfg "github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	dbcfg "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/discovery"
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/integration/resources"
 	nettest "github.com/m3db/m3/src/integration/resources/net"
+	"github.com/m3db/m3/src/query/storage/m3"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/hostid"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -248,7 +250,17 @@ func GenerateClusterSpecification(
 
 	coordConfig := configs.Coordinator
 	// TODO(nate): refactor to support having envconfig if no DB.
-	coordConfig.Clusters[0].Client.EnvironmentConfig = &envConfig
+	if len(coordConfig.Clusters) > 0 {
+		coordConfig.Clusters[0].Client.EnvironmentConfig = &envConfig
+	} else {
+		coordConfig.Clusters = m3.ClustersStaticConfiguration{
+			{
+				Client: client.Configuration{
+					EnvironmentConfig: &envConfig,
+				},
+			},
+		}
+	}
 
 	var aggCfgs []aggcfg.Configuration
 	if opts.Aggregator != nil {
