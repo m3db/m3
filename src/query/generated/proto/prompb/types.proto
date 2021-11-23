@@ -66,4 +66,5 @@ enum M3Type {
 enum Source {
   PROMETHEUS = 0;
   GRAPHITE = 1;
+  OPEN_METRICS = 2;
 }
