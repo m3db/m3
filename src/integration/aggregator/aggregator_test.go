@@ -36,17 +36,7 @@ func TestAggregator(t *testing.T) {
 	m3, closer := testSetup(t)
 	defer closer()
 
-	t.Run("test_aggregated_graphite_metric", func(t *testing.T) {
-		TestAggregatedGraphiteMetric(t, m3)
-	})
-
-	t.Run("test_rollup_rule", func(t *testing.T) {
-		TestRollupRule(t, m3)
-	})
-
-	t.Run("test_metric_type_survives_aggregation", func(t *testing.T) {
-		TestMetricTypeSurvivesAggregation(t, m3)
-	})
+	RunTest(t, m3)
 }
 
 func testSetup(t *testing.T) (resources.M3Resources, func()) {

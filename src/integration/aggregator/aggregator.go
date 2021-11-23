@@ -94,8 +94,23 @@ var (
 	errQueryResult = errors.New("wrong query result")
 )
 
-// TestAggregatedGraphiteMetric tests the write and read of aggregated graphtie metrics.
-func TestAggregatedGraphiteMetric(t *testing.T, m3 resources.M3Resources) {
+// RunTest contains the logic for running the aggregator test.
+func RunTest(t *testing.T, m3 resources.M3Resources) {
+	t.Run("test_aggregated_graphite_metric", func(t *testing.T) {
+		testAggregatedGraphiteMetric(t, m3)
+	})
+
+	t.Run("test_rollup_rule", func(t *testing.T) {
+		testRollupRule(t, m3)
+	})
+
+	t.Run("test_metric_type_survives_aggregation", func(t *testing.T) {
+		testMetricTypeSurvivesAggregation(t, m3)
+	})
+}
+
+// testAggregatedGraphiteMetric tests the write and read of aggregated graphtie metrics.
+func testAggregatedGraphiteMetric(t *testing.T, m3 resources.M3Resources) {
 	var (
 		carbonName         = "foo.bar.baz"
 		carbonTarget       = "foo.bar.*"
@@ -105,6 +120,10 @@ func TestAggregatedGraphiteMetric(t *testing.T, m3 resources.M3Resources) {
 	)
 
 	doneCh := make(chan struct{})
+	defer func() {
+		doneCh <- struct{}{}
+		close(doneCh)
+	}()
 	go func() {
 		for {
 			select {
@@ -119,11 +138,11 @@ func TestAggregatedGraphiteMetric(t *testing.T, m3 resources.M3Resources) {
 	}()
 
 	require.NoError(t, resources.Retry(func() error {
-		return verifyGraphiteQuery(m3, doneCh, carbonTarget, expectedCarbonMean)
+		return verifyGraphiteQuery(m3, carbonTarget, expectedCarbonMean)
 	}))
 }
 
-func verifyGraphiteQuery(m3 resources.M3Resources, doneCh chan struct{}, target string, expected float64) error {
+func verifyGraphiteQuery(m3 resources.M3Resources, target string, expected float64) error {
 	datapoints, err := m3.Coordinator().GraphiteQuery(resources.GraphiteQueryRequest{
 		Target: target,
 		From:   time.Now().Add(-1000 * time.Second),
@@ -139,7 +158,6 @@ func verifyGraphiteQuery(m3 resources.M3Resources, doneCh chan struct{}, target 
 	if v := *nonNullDPs[0].Value; v != expected {
 		return fmt.Errorf("wrong datapoint result: expected=%f, actual=%f", expected, v)
 	}
-	doneCh <- struct{}{}
 	return nil
 }
 
@@ -153,8 +171,8 @@ func filterNull(datapoints []resources.Datapoint) []resources.Datapoint {
 	return nonNull
 }
 
-// TestRollupRule tests metrics aggregated with a rollup rule.
-func TestRollupRule(t *testing.T, m3 resources.M3Resources) {
+// testRollupRule tests metrics aggregated with a rollup rule.
+func testRollupRule(t *testing.T, m3 resources.M3Resources) {
 	var (
 		numDatapoints = 5
 		resolutionSec = 10
@@ -210,7 +228,7 @@ func TestRollupRule(t *testing.T, m3 resources.M3Resources) {
 	require.NoError(t, resources.Retry(func() error {
 		return verifyPromQuery(
 			m3,
-			"http_requests_by_status_code{endpoint=\"/foo/bar\"}",
+			`http_requests_by_status_code{endpoint="/foo/bar"}`,
 			float64(valRate1),
 		)
 	}))
@@ -218,7 +236,7 @@ func TestRollupRule(t *testing.T, m3 resources.M3Resources) {
 	require.NoError(t, resources.Retry(func() error {
 		return verifyPromQuery(
 			m3,
-			"http_requests_by_status_code{endpoint=\"/foo/baz\"}",
+			`http_requests_by_status_code{endpoint="/foo/baz"}`,
 			float64(valRate2),
 		)
 	}))
@@ -256,9 +274,9 @@ func verifyPromQuery(
 	return nil
 }
 
-// TestMetricTypeSurvivesAggregation verifies that the metric type information
+// testMetricTypeSurvivesAggregation verifies that the metric type information
 // is stored in db after the aggregation.
-func TestMetricTypeSurvivesAggregation(t *testing.T, m3 resources.M3Resources) {
+func testMetricTypeSurvivesAggregation(t *testing.T, m3 resources.M3Resources) {
 	nowTime := time.Now()
 	value := 42
 	metricName := "metric_type_test"
@@ -281,7 +299,7 @@ func TestMetricTypeSurvivesAggregation(t *testing.T, m3 resources.M3Resources) {
 	require.NoError(t, resources.Retry(func() error {
 		res, err := node.Fetch(&rpc.FetchRequest{
 			NameSpace:  "aggregated",
-			ID:         "{__name__=\"metric_type_test\",label0=\"label0\",label1=\"label1\",label2=\"label2\"}",
+			ID:         `{__name__="metric_type_test",label0="label0",label1="label1",label2="label2"}`,
 			RangeStart: nowTime.Add(-1 * time.Hour).Unix(),
 			RangeEnd:   nowTime.Add(time.Hour).Unix(),
 		})
