@@ -113,6 +113,7 @@ type lockedAggregation struct {
 	// resendEnabled is allowed to change while an aggregation is open, so it must be behind the lock.
 	resendEnabled bool
 	closed        bool
+	lastUpdatedAt xtime.UnixNano
 }
 
 type timedAggregation struct {
@@ -208,6 +209,7 @@ func (e *GenericElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion,
 	}
 	lockedAgg.aggregation.AddUnion(timestamp, mu)
 	lockedAgg.dirty = true
+	lockedAgg.lastUpdatedAt = xtime.Now()
 	lockedAgg.resendEnabled = resendEnabled
 	lockedAgg.mtx.Unlock()
 	return nil
@@ -227,6 +229,7 @@ func (e *GenericElem) AddValue(timestamp time.Time, value float64, annotation []
 	}
 	lockedAgg.aggregation.Add(timestamp, value, annotation)
 	lockedAgg.dirty = true
+	lockedAgg.lastUpdatedAt = xtime.Now()
 	lockedAgg.mtx.Unlock()
 	return nil
 }
@@ -278,6 +281,7 @@ func (e *GenericElem) AddUnique(
 		}
 	}
 	lockedAgg.dirty = true
+	lockedAgg.lastUpdatedAt = xtime.Now()
 	lockedAgg.resendEnabled = metadata.ResendEnabled
 	lockedAgg.mtx.Unlock()
 	return nil
@@ -541,6 +545,7 @@ func (e *GenericElem) appendConsumeStateWithLock(
 	// copy the lockedAgg data while holding the lock.
 	agg.lockedAgg.mtx.Lock()
 	cState.dirty = agg.lockedAgg.dirty
+	cState.lastUpdatedAt = agg.lockedAgg.lastUpdatedAt
 	cState.resendEnabled = agg.lockedAgg.resendEnabled
 	for _, aggType := range e.aggTypes {
 		cState.values = append(cState.values, agg.lockedAgg.aggregation.ValueOf(aggType))
@@ -791,6 +796,8 @@ func (e *GenericElem) processValue(
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
 		timestamp        = xtime.UnixNano(timestampNanosFn(int64(cState.startAt), resolution))
 		prevTimestamp    = xtime.UnixNano(timestampNanosFn(int64(cState.prevStartTime), resolution))
+		// expectedProcessingTime should be the next resolution window after the aggregation was updated.
+		expectedProcessingTime = cState.lastUpdatedAt.Truncate(resolution).Add(resolution)
 	)
 	fState := e.flushState[cState.startAt]
 	if cState.dirty && fState.flushed && !cState.resendEnabled {
@@ -908,16 +915,15 @@ func (e *GenericElem) processValue(
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey,
 				int64(timestamp), value, prevValue, cState.annotation, cState.resendEnabled)
 		}
-		// only record lag for the initial flush (not resends)
-		if !fState.flushed {
-			// add latenessAllowed and jitter to the timestamp of the aggregation, since those should not be
-			// counted towards the processing lag.
-			// forward lag = current time - (agg timestamp + lateness allowed + jitter)
-			flushMetrics.forwardLag(forwardKey{fwdType: fwdType, jitter: false}).
-				RecordDuration(time.Since(timestamp.ToTime().Add(latenessAllowed + jitter)))
-			flushMetrics.forwardLag(forwardKey{fwdType: fwdType, jitter: true}).
-				RecordDuration(time.Since(timestamp.ToTime().Add(latenessAllowed)))
-		}
+		// add latenessAllowed and jitter to the timestamp of the aggregation, since those should not be
+		// counted towards the processing lag.
+		// forward lag = current time - (agg timestamp + lateness allowed + jitter)
+		// use expectedProcessingTime instead of the aggregation timestamp since the aggregation timestamp could be
+		// in the past for updated aggregations (resendEnabled).
+		flushMetrics.forwardLag(forwardKey{fwdType: fwdType, jitter: false}).
+			RecordDuration(xtime.Since(expectedProcessingTime.Add(latenessAllowed + jitter)))
+		flushMetrics.forwardLag(forwardKey{fwdType: fwdType, jitter: true}).
+			RecordDuration(xtime.Since(expectedProcessingTime.Add(latenessAllowed)))
 	}
 	fState.flushed = true
 	e.flushState[cState.startAt] = fState
