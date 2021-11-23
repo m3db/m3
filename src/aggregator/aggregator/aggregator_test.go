@@ -27,6 +27,8 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3/src/aggregator/client"
@@ -1046,14 +1048,16 @@ func TestAggregatorAddUntimedMetrics(t *testing.T) {
 	m := newAggregatorAddUntimedMetrics(s, instrument.TimerOptions{StandardSampleRate: 0.001})
 	m.ReportSuccess()
 	m.SuccessLatencyStopwatch().Stop()
+	log := zap.NewNop()
 	for _, state := range []ElectionState{LeaderState, FollowerState} {
-		m.ReportError(errInvalidMetricType, state)
-		m.ReportError(errShardNotOwned, state)
-		m.ReportError(errAggregatorShardNotWriteable, state)
-		m.ReportError(errWriteNewMetricRateLimitExceeded, state)
-		m.ReportError(errWriteValueRateLimitExceeded, state)
-		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, errors.New("errorrr")), state)
-		m.ReportError(errors.New("foo"), state)
+		m.ReportError(errInvalidMetricType, state, log)
+		m.ReportError(errShardNotOwned, state, log)
+		m.ReportError(errAggregatorShardNotWriteable, state, log)
+		m.ReportError(errWriteNewMetricRateLimitExceeded, state, log)
+		m.ReportError(errWriteValueRateLimitExceeded, state, log)
+		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, errors.New("errorrr")), state, log)
+		m.ReportError(errAggregationClosed, state, log)
+		m.ReportError(errors.New("foo"), state, log)
 	}
 
 	snapshot := s.Snapshot()
@@ -1074,6 +1078,8 @@ func TestAggregatorAddUntimedMetrics(t *testing.T) {
 		"testScope.errors+reason=new-metric-rate-limit-exceeded,role=non-leader",
 		"testScope.errors+reason=arrived-too-late,role=leader",
 		"testScope.errors+reason=arrived-too-late,role=non-leader",
+		"testScope.errors+reason=aggregation-closed,role=leader",
+		"testScope.errors+reason=aggregation-closed,role=non-leader",
 		"testScope.errors+reason=not-categorized,role=leader",
 		"testScope.errors+reason=not-categorized,role=non-leader",
 	}
@@ -1103,15 +1109,17 @@ func TestAggregatorAddTimedMetrics(t *testing.T) {
 	m := newAggregatorAddTimedMetrics(s, instrument.TimerOptions{})
 	m.ReportSuccess()
 	m.SuccessLatencyStopwatch().Stop()
+	log := zap.NewNop()
 	for _, state := range []ElectionState{LeaderState, FollowerState} {
-		m.ReportError(errShardNotOwned, state)
-		m.ReportError(errAggregatorShardNotWriteable, state)
-		m.ReportError(errWriteNewMetricRateLimitExceeded, state)
-		m.ReportError(errWriteValueRateLimitExceeded, state)
-		m.ReportError(errTooFarInTheFuture, state)
-		m.ReportError(errTooFarInThePast, state)
-		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, errors.New("errorrr")), state)
-		m.ReportError(errors.New("foo"), state)
+		m.ReportError(errShardNotOwned, state, log)
+		m.ReportError(errAggregatorShardNotWriteable, state, log)
+		m.ReportError(errWriteNewMetricRateLimitExceeded, state, log)
+		m.ReportError(errWriteValueRateLimitExceeded, state, log)
+		m.ReportError(errTooFarInTheFuture, state, log)
+		m.ReportError(errTooFarInThePast, state, log)
+		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, errors.New("errorrr")), state, log)
+		m.ReportError(errAggregationClosed, state, log)
+		m.ReportError(errors.New("foo"), state, log)
 	}
 
 	snapshot := s.Snapshot()
@@ -1134,6 +1142,8 @@ func TestAggregatorAddTimedMetrics(t *testing.T) {
 		"testScope.errors+reason=too-far-in-the-past,role=non-leader",
 		"testScope.errors+reason=arrived-too-late,role=leader",
 		"testScope.errors+reason=arrived-too-late,role=non-leader",
+		"testScope.errors+reason=aggregation-closed,role=leader",
+		"testScope.errors+reason=aggregation-closed,role=non-leader",
 		"testScope.errors+reason=not-categorized,role=leader",
 		"testScope.errors+reason=not-categorized,role=non-leader",
 	}
@@ -1164,13 +1174,15 @@ func TestAggregatorAddPassthroughMetrics(t *testing.T) {
 	m.ReportSuccess()
 	m.SuccessLatencyStopwatch().Stop()
 	m.ReportFollowerNoop()
+	log := zap.NewNop()
 	for _, state := range []ElectionState{LeaderState, FollowerState} {
-		m.ReportError(errShardNotOwned, state)
-		m.ReportError(errAggregatorShardNotWriteable, state)
-		m.ReportError(errWriteNewMetricRateLimitExceeded, state)
-		m.ReportError(errWriteValueRateLimitExceeded, state)
-		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, errors.New("errorrr")), state)
-		m.ReportError(errors.New("foo"), state)
+		m.ReportError(errShardNotOwned, state, log)
+		m.ReportError(errAggregatorShardNotWriteable, state, log)
+		m.ReportError(errWriteNewMetricRateLimitExceeded, state, log)
+		m.ReportError(errWriteValueRateLimitExceeded, state, log)
+		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, errors.New("errorrr")), state, log)
+		m.ReportError(errAggregationClosed, state, log)
+		m.ReportError(errors.New("foo"), state, log)
 	}
 
 	snapshot := s.Snapshot()
@@ -1190,6 +1202,8 @@ func TestAggregatorAddPassthroughMetrics(t *testing.T) {
 		"testScope.errors+reason=new-metric-rate-limit-exceeded,role=non-leader",
 		"testScope.errors+reason=arrived-too-late,role=leader",
 		"testScope.errors+reason=arrived-too-late,role=non-leader",
+		"testScope.errors+reason=aggregation-closed,role=leader",
+		"testScope.errors+reason=aggregation-closed,role=non-leader",
 		"testScope.errors+reason=not-categorized,role=leader",
 		"testScope.errors+reason=not-categorized,role=non-leader",
 	}
@@ -1224,13 +1238,15 @@ func TestAggregatorAddForwardedMetrics(t *testing.T) {
 	m.SuccessLatencyStopwatch().Stop()
 	m.ReportForwardingLatency(time.Second, 1, 100*time.Millisecond)
 	m.ReportForwardingLatency(time.Second, 2, 100*time.Millisecond)
+	log := zap.NewNop()
 	for _, state := range []ElectionState{LeaderState, FollowerState} {
-		m.ReportError(errShardNotOwned, state)
-		m.ReportError(errAggregatorShardNotWriteable, state)
-		m.ReportError(errWriteNewMetricRateLimitExceeded, state)
-		m.ReportError(errWriteValueRateLimitExceeded, state)
-		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, errors.New("errorrr")), state)
-		m.ReportError(errors.New("foo"), state)
+		m.ReportError(errShardNotOwned, state, log)
+		m.ReportError(errAggregatorShardNotWriteable, state, log)
+		m.ReportError(errWriteNewMetricRateLimitExceeded, state, log)
+		m.ReportError(errWriteValueRateLimitExceeded, state, log)
+		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, errors.New("errorrr")), state, log)
+		m.ReportError(errAggregationClosed, state, log)
+		m.ReportError(errors.New("foo"), state, log)
 	}
 
 	var (
@@ -1254,6 +1270,8 @@ func TestAggregatorAddForwardedMetrics(t *testing.T) {
 		"testScope.errors+reason=new-metric-rate-limit-exceeded,role=non-leader",
 		"testScope.errors+reason=arrived-too-late,role=leader",
 		"testScope.errors+reason=arrived-too-late,role=non-leader",
+		"testScope.errors+reason=aggregation-closed,role=leader",
+		"testScope.errors+reason=aggregation-closed,role=non-leader",
 		"testScope.errors+reason=not-categorized,role=leader",
 		"testScope.errors+reason=not-categorized,role=non-leader",
 	}
