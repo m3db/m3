@@ -166,7 +166,7 @@ func (s *seeker) Open(
 	)
 
 	if volumeIndex == 0 {
-		isLegacy, err = isFirstVolumeLegacy(shardDir, blockStart, checkpointFileSuffix)
+		isLegacy, err = isFirstVolumeLegacy(shardDir, blockStart, CheckpointFileSuffix)
 		if err != nil {
 			return err
 		}
@@ -174,10 +174,10 @@ func (s *seeker) Open(
 
 	// Open necessary files
 	if err := openFiles(os.Open, map[string]**os.File{
-		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix, isLegacy):        &infoFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, InfoFileSuffix, isLegacy):        &infoFd,
 		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix, isLegacy):       &s.indexFd,
 		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix, isLegacy):        &s.dataFd,
-		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix, isLegacy):      &digestFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, DigestFileSuffix, isLegacy):      &digestFd,
 		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, isLegacy): &bloomFilterFd,
 		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, summariesFileSuffix, isLegacy):   &summariesFd,
 	}); err != nil {

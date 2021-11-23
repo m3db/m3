@@ -1,5 +1,44 @@
 # Changelog
 
+# 1.4.1
+
+## Bug Fixes
+- **M3Coordinator**: Do not Close singleton MessageProcessors when closing connections. This fixes a panic introduced that affects M3Coordinator -> M3Aggregator communication. ([#3934](https://github.com/m3db/m3/pull/3934))
+
+# 1.4.0
+
+## Features
+- **M3Query**: Add write endpoint support for M3-Map-Tags-JSON header in InfluxDB path ([#3816](https://github.com/m3db/m3/pull/3816))
+- **M3Query**: Add support for `last_over_time` in M3Query engine ([#3884](https://github.com/m3db/m3/pull/3884))
+- **M3Aggregator**: Add p75/p25 as aggregation options ([#3867](https://github.com/m3db/m3/pull/3867))
+
+## Bug Fixes
+- **M3DB**: Fix M3TSZ to be deterministic when encoding high precision values ([#3872](https://github.com/m3db/m3/pull/3872))
+- **M3DB**: Gracefully handle reads including documents with stale index state ([#3905](https://github.com/m3db/m3/pull/3905))
+
+## Performance
+- **M3Aggregator**: Rework close and remove `persitFlushTimesEvery` semantics in leader flushing in favour of always persisting shard flush times on a successful flush for optimized graceful failovers ([#3890](https://github.com/m3db/m3/pull/3890))
+- **M3DB**: Optimize `filesetFiles` function during bootstrapping for namespaces with long retentions to prevent CPU spikes ([#3900](https://github.com/m3db/m3/pull/3900))
+- **M3DB**: Avoid loading blocks in memory for namespaces with snapshots disabled during bootstrapping to reduce memory usage ([#3919](https://github.com/m3db/m3/pull/3919))
+
+# 1.3.0
+
+## Features
+
+- **M3Coordinator**: Add support for Prometheus Remote Write storage backend for sending aggregated and unaggregated metrics ([#3742](https://github.com/m3db/m3/pull/3742), [#3768](https://github.com/m3db/m3/pull/3768), [#3783](https://github.com/m3db/m3/pull/3783), [#3791](https://github.com/m3db/m3/pull/3791), [#3814](https://github.com/m3db/m3/pull/3814), [#3777](https://github.com/m3db/m3/pull/3777))
+- **M3Coordinator**: Add support for InfluxDB write endpoint GZip compression, setting timestamp precision and allowing an empty request body ([#3373](https://github.com/m3db/m3/pull/3373))
+- **M3DB**: Add SYSCTL_VM_MAX_MAP_COUNT env var for sysctl-setter sidecar allowing for custom VM max map count ([#3689](https://github.com/m3db/m3/pull/3689))
+
+## Bug Fixes
+
+- **M3DB**: Fix writes briefly degrading when creating a new namespace due to coarse lock acquisition ([#3765](https://github.com/m3db/m3/pull/3765))
+- **M3DB**: Fix compiled regexp DFA cache eviction on full bug that can lead to slow memory leak with large number of unique regexps ([#3806](https://github.com/m3db/m3/pull/3806))
+
+## Performance
+
+- **M3Coordinator**: Update default M3Msg retry initial backoff from 1s to 5s to reduces timeout and retries in large clusters ([#3820](https://github.com/m3db/m3/pull/3820))
+- **M3DB**: Fix performance of reverse index queries that cover huge time ranges ([#3813](https://github.com/m3db/m3/pull/3813))
+
 # 1.2.0
 
 ## Features

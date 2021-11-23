@@ -30,19 +30,28 @@ import (
 	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/query/storage"
+	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewCoordinator(t *testing.T) {
+	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, dbnode.Close())
+	}()
+
 	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
 	require.NoError(t, err)
 	require.NoError(t, coord.Close())
-}
 
-func TestCreateAnotherCoordinatorInProcess(t *testing.T) {
-	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
+	// Restart and shut down again to test restarting.
+	coord, err = NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
 	require.NoError(t, err)
 	require.NoError(t, coord.Close())
 }
@@ -50,34 +59,67 @@ func TestCreateAnotherCoordinatorInProcess(t *testing.T) {
 func TestNewEmbeddedCoordinator(t *testing.T) {
 	dbnode, err := NewDBNodeFromYAML(embeddedCoordConfig, DBNodeOptions{})
 	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, dbnode.Close())
+	}()
 
-	d, ok := dbnode.(*dbNode)
+	d, ok := dbnode.(*DBNode)
 	require.True(t, ok)
 	require.True(t, d.started)
 
 	_, err = NewEmbeddedCoordinator(d)
 	require.NoError(t, err)
-
-	require.NoError(t, dbnode.Close())
 }
 
 func TestNewEmbeddedCoordinatorNotStarted(t *testing.T) {
-	var dbnode dbNode
+	var dbnode DBNode
 	_, err := NewEmbeddedCoordinator(&dbnode)
 	require.Error(t, err)
 }
 
-// TODO(nate): add more tests exercising other endpoints once dbnode impl is landed
+func TestCoordinatorAPIs(t *testing.T) {
+	_, coord, closer := setupNodeAndCoordinator(t)
+	defer closer()
 
-func TestM3msgTopicFunctions(t *testing.T) {
-	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
+	testM3msgTopicFunctions(t, coord)
+	testAggPlacementFunctions(t, coord)
+	testMetadataAPIs(t, coord)
+}
+
+func testMetadataAPIs(t *testing.T, coordinator resources.Coordinator) {
+	err := coordinator.WriteProm("cpu", map[string]string{"pod": "foo-1234"}, []prompb.Sample{
+		{Value: 1, Timestamp: storage.TimeToPromTimestamp(xtime.Now())},
+	}, nil)
 	require.NoError(t, err)
 
-	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
+	names, err := coordinator.LabelNames(resources.LabelNamesRequest{}, nil)
 	require.NoError(t, err)
+	require.Equal(t, model.LabelNames{
+		"__name__",
+		"pod",
+	}, names)
 
-	require.NoError(t, coord.WaitForNamespace(""))
+	values, err := coordinator.LabelValues(resources.LabelValuesRequest{
+		LabelName: "__name__",
+	}, nil)
+	require.NoError(t, err)
+	require.Equal(t, model.LabelValues{"cpu"}, values)
 
+	series, err := coordinator.Series(resources.SeriesRequest{
+		MetadataRequest: resources.MetadataRequest{
+			Match: "cpu",
+		},
+	}, nil)
+	require.NoError(t, err)
+	require.Equal(t, []model.Metric{
+		{
+			"__name__": "cpu",
+			"pod":      "foo-1234",
+		},
+	}, series)
+}
+
+func testM3msgTopicFunctions(t *testing.T, coord resources.Coordinator) {
 	// init an m3msg topic
 	m3msgTopicOpts := resources.M3msgTopicOptions{
 		Zone:      "embedded",
@@ -130,9 +172,6 @@ func TestM3msgTopicFunctions(t *testing.T) {
 	getResp, err := coord.GetM3msgTopic(m3msgTopicOpts)
 	require.NoError(t, err)
 	validateEqualTopicResp(t, expectedAddResp, getResp)
-
-	assert.NoError(t, coord.Close())
-	assert.NoError(t, dbnode.Close())
 }
 
 func validateEqualTopicResp(t *testing.T, expected, actual admin.TopicGetResponse) {
@@ -145,15 +184,7 @@ func validateEqualTopicResp(t *testing.T, expected, actual admin.TopicGetRespons
 	require.Equal(t, t1, t2)
 }
 
-func TestAggPlacementFunctions(t *testing.T) {
-	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
-	require.NoError(t, err)
-
-	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
-	require.NoError(t, err)
-
-	require.NoError(t, coord.WaitForNamespace(""))
-
+func testAggPlacementFunctions(t *testing.T, coord resources.Coordinator) {
 	placementOpts := resources.PlacementRequestOptions{
 		Service: resources.ServiceTypeM3Aggregator,
 		Env:     "default_env",
@@ -231,9 +262,6 @@ func TestAggPlacementFunctions(t *testing.T) {
 	}
 	_, err = coord.GetPlacement(wrongPlacementOpts)
 	require.NotNil(t, err)
-
-	assert.NoError(t, coord.Close())
-	assert.NoError(t, dbnode.Close())
 }
 
 func validateEqualAggPlacement(t *testing.T, expected, actual *placementpb.Placement) {
@@ -256,7 +284,6 @@ clusters:
           env: default_env
           zone: embedded
           service: m3db
-          cacheDir: "*"
           etcdClusters:
             - zone: embedded
               endpoints:
@@ -276,14 +303,10 @@ coordinator:
             env: default_env
             zone: embedded
             service: m3db
-            cacheDir: "*"
             etcdClusters:
               - zone: embedded
                 endpoints:
                   - 127.0.0.1:2379
 
-db:
-  filesystem:
-    filePathPrefix: "*"
-  writeNewSeriesAsync: false
+db: {}
 `

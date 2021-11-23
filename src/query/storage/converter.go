@@ -43,6 +43,8 @@ var (
 
 	// The suffix of count metric name in Prometheus histogram/summary metric families.
 	promDefaultCountSuffix = []byte("_count")
+	// The suffix of sum metric name in Prometheus histogram/summary metric families.
+	promDefaultSumSuffix = []byte("_sum")
 )
 
 // PromLabelsToM3Tags converts Prometheus labels to M3 tags
@@ -82,7 +84,8 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 	)
 
 	switch series.Source {
-	case prompb.Source_PROMETHEUS:
+	// TODO(linasm): implement internal support for OPEN_METRICS
+	case prompb.Source_PROMETHEUS, prompb.Source_OPEN_METRICS:
 		sourceType = ts.SourceTypePrometheus
 	case prompb.Source_GRAPHITE:
 		sourceType = ts.SourceTypeGraphite
@@ -113,7 +116,9 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 
 	case prompb.MetricType_SUMMARY:
 		promMetricType = ts.PromMetricTypeSummary
-		handleValueResets = true
+		name := metricNameFromLabels(series.Labels)
+		handleValueResets = bytes.HasSuffix(name, promDefaultCountSuffix) ||
+			bytes.HasSuffix(name, promDefaultSumSuffix)
 
 	case prompb.MetricType_INFO:
 		promMetricType = ts.PromMetricTypeInfo

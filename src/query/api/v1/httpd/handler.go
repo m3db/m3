@@ -24,7 +24,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof" // needed for pprof handler registration
+
+	// needed for pprof handler registration
+	_ "net/http/pprof"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -47,6 +49,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
 	"github.com/m3db/m3/src/query/api/v1/middleware"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	xdebug "github.com/m3db/m3/src/x/debug"
@@ -145,12 +148,12 @@ func (h *Handler) RegisterRoutes() error {
 		))
 
 	promqlQueryHandler, err := prom.NewReadHandler(nativeSourceOpts,
-		prom.WithEngine(h.options.PrometheusEngine()))
+		prom.WithEngine(h.options.PrometheusEngineFn()))
 	if err != nil {
 		return err
 	}
 	promqlInstantQueryHandler, err := prom.NewReadHandler(nativeSourceOpts,
-		prom.WithInstantEngine(h.options.PrometheusEngine()))
+		prom.WithInstantEngine(h.options.PrometheusEngineFn()))
 	if err != nil {
 		return err
 	}
@@ -323,7 +326,7 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Series match endpoints.
 	if err := h.registry.Register(queryhttp.RegisterOptions{
-		Path:               remote.PromSeriesMatchURL,
+		Path:               route.SeriesMatchURL,
 		Handler:            remote.NewPromSeriesMatchHandler(h.options),
 		Methods:            remote.PromSeriesMatchHTTPMethods,
 		MiddlewareOverride: native.WithQueryParams,
@@ -492,7 +495,9 @@ func (h *Handler) RegisterRoutes() error {
 			PrometheusRangeRewrite: middleware.PrometheusRangeRewriteOptions{
 				FetchOptionsBuilder:  h.options.FetchOptionsBuilder(),
 				ResolutionMultiplier: h.middlewareConfig.Prometheus.ResolutionMultiplier,
+				DefaultLookback:      h.options.DefaultLookback(),
 				Storage:              h.options.Storage(),
+				PrometheusEngineFn:   h.options.PrometheusEngineFn(),
 			},
 		}
 		override := h.registry.MiddlewareOpts(route)

@@ -31,12 +31,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/golang/mock/gomock"
+	"github.com/prometheus/prometheus/promql"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+	"google.golang.org/grpc"
+
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
-	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	m3msgproto "github.com/m3db/m3/src/msg/protocol/proto"
@@ -51,13 +58,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 )
 
 var configYAML = `
@@ -237,18 +237,37 @@ tagOptions:
 
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
-	req, err := http.NewRequestWithContext(
-		context.TODO(),
-		http.MethodPost,
-		fmt.Sprintf("http://%s%s", addr, remote.PromWriteURL),
-		promReqBody,
-	)
-	require.NoError(t, err)
+	requestURL := fmt.Sprintf("http://%s%s", addr, remote.PromWriteURL)
+	newRequest := func() *http.Request {
+		req, err := http.NewRequestWithContext(
+			context.TODO(),
+			http.MethodPost,
+			requestURL,
+			promReqBody,
+		)
+		require.NoError(t, err)
+		return req
+	}
 
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
-	assert.NotNil(t, externalFakePromServer.GetLastWriteRequest())
+	t.Run("write request", func(t *testing.T) {
+		defer externalFakePromServer.Reset()
+		resp, err := http.DefaultClient.Do(newRequest())
+		require.NoError(t, err)
+
+		assert.NotNil(t, externalFakePromServer.GetLastWriteRequest())
+		require.NoError(t, resp.Body.Close())
+	})
+
+	t.Run("bad request propagates", func(t *testing.T) {
+		defer externalFakePromServer.Reset()
+		externalFakePromServer.SetError("badRequest", http.StatusBadRequest)
+
+		resp, err := http.DefaultClient.Do(newRequest())
+		require.NoError(t, err)
+
+		assert.Equal(t, 400, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
+	})
 }
 
 func TestGRPCBackend(t *testing.T) {
@@ -462,6 +481,53 @@ func testIngest(t *testing.T, cfg config.Configuration, ctrl *gomock.Controller)
 
 }
 
+func TestCreateEnginesWithResolutionBasedLookbacks(t *testing.T) {
+	var (
+		defaultLookback      = 10 * time.Minute
+		resolutionMultiplier = 2
+		clusters             = m3.ClustersStaticConfiguration{
+			{
+				Namespaces: []m3.ClusterStaticNamespaceConfiguration{
+					{Resolution: 5 * time.Minute},
+					{Resolution: 10 * time.Minute},
+				},
+			},
+			{
+				Namespaces: []m3.ClusterStaticNamespaceConfiguration{
+					{Resolution: 5 * time.Minute},
+					{Resolution: 15 * time.Minute},
+				},
+			},
+		}
+		newEngineFn = func(lookback time.Duration) (*promql.Engine, error) {
+			return promql.NewEngine(promql.EngineOpts{}), nil
+		}
+
+		expecteds = []time.Duration{defaultLookback, 20 * time.Minute, 30 * time.Minute}
+	)
+	defaultEngine, err := newEngineFn(defaultLookback)
+	require.NoError(t, err)
+
+	enginesByLookback, err := createEnginesWithResolutionBasedLookbacks(
+		defaultLookback,
+		defaultEngine,
+		clusters,
+		resolutionMultiplier,
+		newEngineFn,
+	)
+	require.NoError(t, err)
+
+	engine, ok := enginesByLookback[defaultLookback]
+	require.True(t, ok)
+	assert.Equal(t, defaultEngine, engine)
+
+	for _, expected := range expecteds {
+		engine, ok = enginesByLookback[expected]
+		require.True(t, ok)
+		assert.NotNil(t, engine)
+	}
+}
+
 type closeFn func()
 
 func newTestFile(t *testing.T, fileName, contents string) (*os.File, closeFn) {
@@ -519,14 +585,15 @@ func runServer(t *testing.T, opts runServerOpts) (string, closeFn) {
 		doneCh          = make(chan struct{})
 		listenerCh      = make(chan net.Listener, 1)
 		clusterClient   = clusterclient.NewMockClient(opts.ctrl)
-		clusterClientCh = make(chan clusterclient.Client, 1)
+		clusterClientCh chan clusterclient.Client
 	)
 
-	store := mem.NewStore()
-	_, err := store.Set("/namespaces", &rulepb.Namespaces{})
-	require.NoError(t, err)
-	clusterClient.EXPECT().KV().Return(store, nil).MaxTimes(1)
-	clusterClientCh <- clusterClient
+	if len(opts.cfg.Clusters) > 0 || opts.cfg.ClusterManagement.Etcd != nil {
+		clusterClientCh = make(chan clusterclient.Client, 1)
+		store := mem.NewStore()
+		clusterClient.EXPECT().KV().Return(store, nil).MaxTimes(2)
+		clusterClientCh <- clusterClient
+	}
 
 	go func() {
 		r := Run(RunOptions{

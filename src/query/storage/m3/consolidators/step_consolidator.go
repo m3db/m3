@@ -45,7 +45,6 @@ func removeStale(
 // slice of time across a list of series, and consolidates when a
 // valid step has been reached.
 type StepLookbackConsolidator struct {
-	lookbackDuration time.Duration
 	stepSize         time.Duration
 	earliestLookback xtime.UnixNano
 	datapoints       []ts.Datapoint
@@ -67,7 +66,6 @@ func NewStepLookbackConsolidator(
 	datapoints := make([]ts.Datapoint, 0, initLength)
 	buffer := make([]float64, BufferSteps)
 	return &StepLookbackConsolidator{
-		lookbackDuration: lookbackDuration,
 		stepSize:         stepSize,
 		earliestLookback: startTime.Add(-1 * lookbackDuration),
 		datapoints:       datapoints,

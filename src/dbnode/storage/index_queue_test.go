@@ -36,6 +36,8 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/resource"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -52,7 +54,13 @@ func testNamespaceIndexOptions() index.Options {
 
 func newTestNamespaceIndex(t *testing.T, ctrl *gomock.Controller) (NamespaceIndex, *MocknamespaceIndexInsertQueue) {
 	q := NewMocknamespaceIndexInsertQueue(ctrl)
-	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+	newFn := func(
+		fn nsIndexInsertBatchFn,
+		md namespace.Metadata,
+		nowFn clock.NowFn,
+		coreFn xsync.CoreFn,
+		s tally.Scope,
+	) namespaceIndexInsertQueue {
 		return q
 	}
 	q.EXPECT().Start().Return(nil)
@@ -70,7 +78,13 @@ func TestNamespaceIndexHappyPath(t *testing.T) {
 	defer ctrl.Finish()
 
 	q := NewMocknamespaceIndexInsertQueue(ctrl)
-	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+	newFn := func(
+		fn nsIndexInsertBatchFn,
+		md namespace.Metadata,
+		nowFn clock.NowFn,
+		coreFn xsync.CoreFn,
+		s tally.Scope,
+	) namespaceIndexInsertQueue {
 		return q
 	}
 	q.EXPECT().Start().Return(nil)
@@ -92,7 +106,13 @@ func TestNamespaceIndexStartErr(t *testing.T) {
 	defer ctrl.Finish()
 
 	q := NewMocknamespaceIndexInsertQueue(ctrl)
-	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+	newFn := func(
+		fn nsIndexInsertBatchFn,
+		md namespace.Metadata,
+		nowFn clock.NowFn,
+		coreFn xsync.CoreFn,
+		s tally.Scope,
+	) namespaceIndexInsertQueue {
 		return q
 	}
 	q.EXPECT().Start().Return(fmt.Errorf("random err"))
@@ -110,7 +130,13 @@ func TestNamespaceIndexStopErr(t *testing.T) {
 	defer ctrl.Finish()
 
 	q := NewMocknamespaceIndexInsertQueue(ctrl)
-	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+	newFn := func(
+		fn nsIndexInsertBatchFn,
+		md namespace.Metadata,
+		nowFn clock.NowFn,
+		coreFn xsync.CoreFn,
+		s tally.Scope,
+	) namespaceIndexInsertQueue {
 		return q
 	}
 	q.EXPECT().Start().Return(nil)
@@ -297,9 +323,10 @@ func setupIndex(t *testing.T,
 		fn nsIndexInsertBatchFn,
 		md namespace.Metadata,
 		nowFn clock.NowFn,
+		coreFn xsync.CoreFn,
 		s tally.Scope,
 	) namespaceIndexInsertQueue {
-		q := newNamespaceIndexInsertQueue(fn, md, nowFn, s)
+		q := newNamespaceIndexInsertQueue(fn, md, nowFn, coreFn, s)
 		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
 		return q
 	}
@@ -327,6 +354,10 @@ func setupIndex(t *testing.T,
 	lifecycleFns.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
 
 	if !expectAggregateQuery {
+		lifecycleFns.EXPECT().ReconciledOnIndexSeries().Return(
+			lifecycleFns, resource.SimpleCloserFn(func() {}), false,
+		)
+		lifecycleFns.EXPECT().IndexedRange().Return(ts, ts)
 		lifecycleFns.EXPECT().IndexedForBlockStart(ts).Return(true)
 	}
 

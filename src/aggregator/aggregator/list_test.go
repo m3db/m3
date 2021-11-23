@@ -51,7 +51,7 @@ func TestBaseMetricListPushBackElemWithDefaultPipeline(t *testing.T) {
 
 	l, err := newBaseMetricList(testShard, time.Second, nil, nil, nil, testOptions(ctrl))
 	require.NoError(t, err)
-	elem, err := NewCounterElem(ElemData{}, l.opts)
+	elem, err := NewCounterElem(ElemData{}, NewElemOptions(l.opts))
 	require.NoError(t, err)
 
 	// Push a counter to the list.
@@ -77,7 +77,7 @@ func TestBaseMetricListPushBackElemWithForwardingPipeline(t *testing.T) {
 
 	l, err := newBaseMetricList(testShard, time.Second, nil, nil, nil, testOptions(ctrl))
 	require.NoError(t, err)
-	elem, err := NewCounterElem(testCounterElemData, l.opts)
+	elem, err := NewCounterElem(testCounterElemData, NewElemOptions(l.opts))
 	require.NoError(t, err)
 
 	// Push a counter to the list.
@@ -124,7 +124,7 @@ func TestBaseMetricListFlushWithRequests(t *testing.T) {
 	opts := testOptions(ctrl).SetClockOptions(clock.NewOptions().SetNowFn(nowFn))
 	l, err := newBaseMetricList(testShard, time.Second, targetNanosFn, isEarlierThanFn, timestampNanosFn, opts)
 	require.NoError(t, err)
-	l.flushBeforeFn = func(beforeNanos int64, flushType flushType) {
+	l.flushBeforeFn = func(beforeNanos int64, jitter time.Duration, flushType flushType) {
 		results = append(results, flushBeforeResult{
 			beforeNanos: beforeNanos,
 			flushType:   flushType,
@@ -237,7 +237,7 @@ func TestBaseMetricListFlushBeforeStale(t *testing.T) {
 	l, err := newBaseMetricList(testShard, 0, targetNanosFn, isEarlierThanFn, timestampNanosFn, opts)
 	require.NoError(t, err)
 	l.lastFlushedNanos = 1234
-	l.flushBefore(1000, discardType)
+	l.flushBefore(1000, 0, discardType)
 	require.Equal(t, int64(1234), l.LastFlushedNanos())
 }
 
@@ -330,28 +330,28 @@ func TestStandardMetricListFlushConsumingAndCollectingLocalMetrics(t *testing.T)
 			elem: MustNewCounterElem(ElemData{
 				ID:            testCounterID,
 				StoragePolicy: testStoragePolicy,
-			}, opts),
+			}, NewElemOptions(opts)),
 			metric: testCounter,
 		},
 		{
 			elem: MustNewTimerElem(ElemData{
 				ID:            testBatchTimerID,
 				StoragePolicy: testStoragePolicy,
-			}, opts),
+			}, NewElemOptions(opts)),
 			metric: testBatchTimer,
 		},
 		{
 			elem: MustNewGaugeElem(ElemData{
 				ID:            testGaugeID,
 				StoragePolicy: testStoragePolicy,
-			}, opts),
+			}, NewElemOptions(opts)),
 			metric: testGauge,
 		},
 	}
 
 	for _, ep := range elemPairs {
-		require.NoError(t, ep.elem.AddUnion(nowTs, ep.metric))
-		require.NoError(t, ep.elem.AddUnion(nowTs.Add(l.resolution), ep.metric))
+		require.NoError(t, ep.elem.AddUnion(nowTs, ep.metric, false))
+		require.NoError(t, ep.elem.AddUnion(nowTs.Add(l.resolution), ep.metric, false))
 		_, err := l.PushBack(ep.elem)
 		require.NoError(t, err)
 	}
@@ -594,7 +594,7 @@ func TestTimedMetricListFlushConsumingAndCollectingTimedMetrics(t *testing.T) {
 				ID:                 []byte("testTimedCounter"),
 				StoragePolicy:      testStoragePolicy,
 				IDPrefixSuffixType: NoPrefixNoSuffix,
-			}, opts),
+			}, NewElemOptions(opts)),
 			metric: aggregated.Metric{
 				Type:      metric.CounterType,
 				ID:        []byte("testTimedCounter"),
@@ -607,7 +607,7 @@ func TestTimedMetricListFlushConsumingAndCollectingTimedMetrics(t *testing.T) {
 				ID:                 []byte("testTimedGauge"),
 				StoragePolicy:      testStoragePolicy,
 				IDPrefixSuffixType: NoPrefixNoSuffix,
-			}, opts),
+			}, NewElemOptions(opts)),
 			metric: aggregated.Metric{
 				Type:      metric.GaugeType,
 				ID:        []byte("testTimedGauge"),
@@ -888,7 +888,7 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 				StoragePolicy:      testStoragePolicy,
 				Pipeline:           pipeline,
 				IDPrefixSuffixType: NoPrefixNoSuffix,
-			}, opts),
+			}, NewElemOptions(opts)),
 			metric: aggregated.ForwardedMetric{
 				Type:      metric.CounterType,
 				ID:        []byte("testForwardedCounter"),
@@ -902,7 +902,7 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 				StoragePolicy:      testStoragePolicy,
 				Pipeline:           pipeline,
 				IDPrefixSuffixType: NoPrefixNoSuffix,
-			}, opts),
+			}, NewElemOptions(opts)),
 			metric: aggregated.ForwardedMetric{
 				Type:      metric.GaugeType,
 				ID:        []byte("testForwardedGauge"),
@@ -1086,7 +1086,7 @@ func TestForwardedMetricListLastStepLocalFlush(t *testing.T) {
 			elem: MustNewCounterElem(ElemData{
 				ID:            []byte("testForwardedCounter"),
 				StoragePolicy: testStoragePolicy,
-			}, opts),
+			}, NewElemOptions(opts)),
 			expectedPrefix: opts.FullCounterPrefix(),
 			metric: aggregated.ForwardedMetric{
 				Type:      metric.CounterType,
@@ -1099,7 +1099,7 @@ func TestForwardedMetricListLastStepLocalFlush(t *testing.T) {
 			elem: MustNewGaugeElem(ElemData{
 				ID:            []byte("testForwardedGauge"),
 				StoragePolicy: testStoragePolicy,
-			}, opts),
+			}, NewElemOptions(opts)),
 			expectedPrefix: opts.FullGaugePrefix(),
 			metric: aggregated.ForwardedMetric{
 				Type:      metric.GaugeType,

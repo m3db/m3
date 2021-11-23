@@ -96,5 +96,6 @@ message PlacementSnapshots {
 
 message Options {
   google.protobuf.BoolValue is_sharded = 1;
+  google.protobuf.BoolValue skip_port_mirroring = 2;
   // TODO: cover all the fields in src/cluster/placement/config.go
 }

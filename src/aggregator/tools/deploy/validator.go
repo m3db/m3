@@ -45,11 +45,11 @@ type validatorFactory interface {
 }
 
 type factory struct {
-	client  aggregatorClient
+	client  AggregatorClient
 	workers xsync.WorkerPool
 }
 
-func newValidatorFactory(client aggregatorClient, workers xsync.WorkerPool) validatorFactory {
+func newValidatorFactory(client AggregatorClient, workers xsync.WorkerPool) validatorFactory {
 	return factory{client: client, workers: workers}
 }
 

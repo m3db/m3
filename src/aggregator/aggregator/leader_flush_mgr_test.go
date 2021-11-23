@@ -27,6 +27,7 @@ import (
 
 	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
 	"github.com/m3db/m3/src/cluster/shard"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/google/go-cmp/cmp"
@@ -226,7 +227,7 @@ var (
 )
 
 func TestLeaderFlushManagerInit(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	now := time.Unix(1234, 0)
@@ -236,13 +237,13 @@ func TestLeaderFlushManagerInit(t *testing.T) {
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn
 
-	mgr.Init(testFlushBuckets(ctrl))
+	mgr.Init(testFlushBuckets(ctrl, false))
 
 	validateFlushMetadataHeap(t, expectedFlushTimes0, mgr.flushTimes)
 }
 
 func TestLeaderFlushManagerOnFlusherAdded(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	now := time.Unix(1234, 0)
@@ -252,7 +253,7 @@ func TestLeaderFlushManagerOnFlusherAdded(t *testing.T) {
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn
 
-	buckets := testFlushBuckets(ctrl)
+	buckets := testFlushBuckets(ctrl, false)
 	mgr.Init(buckets)
 
 	validateFlushMetadataHeap(t, expectedFlushTimes0, mgr.flushTimes)
@@ -285,38 +286,8 @@ func TestLeaderFlushManagerOnFlusherAdded(t *testing.T) {
 	validateFlushMetadataHeap(t, expectedFlushTimes, mgr.flushTimes)
 }
 
-func TestLeaderFlushManagerPrepareNoFlushNoPersist(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		storeAsyncCount int
-		now             = time.Unix(1234, 0)
-		nowFn           = func() time.Time { return now }
-		doneCh          = make(chan struct{})
-	)
-
-	placementManager := NewMockPlacementManager(ctrl)
-	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil)
-
-	opts := NewFlushManagerOptions().SetJitterEnabled(false)
-	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
-	mgr.nowFn = nowFn
-	mgr.placementManager = placementManager
-
-	buckets := testFlushBuckets(ctrl)
-	mgr.Init(buckets)
-
-	now = time.Unix(59, 100000000)
-	mgr.lastPersistAtNanos = now.UnixNano()
-	flushTask, dur := mgr.Prepare(buckets)
-	require.Nil(t, flushTask)
-	require.Equal(t, 900*time.Millisecond, dur)
-	require.Equal(t, 0, storeAsyncCount)
-}
-
-func TestLeaderFlushManagerPrepareNoFlushWithPersistOnce(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -329,138 +300,23 @@ func TestLeaderFlushManagerPrepareNoFlushWithPersistOnce(t *testing.T) {
 
 	flushTimesManager := NewMockFlushTimesManager(ctrl)
 	flushTimesManager.EXPECT().
-		StoreAsync(gomock.Any()).
+		StoreSync(gomock.Any()).
 		DoAndReturn(func(value *schema.ShardSetFlushTimes) error {
 			storeAsyncCount++
 			stored = value
 			return nil
 		})
-
-	placementManager := NewMockPlacementManager(ctrl)
-	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil)
-
-	opts := NewFlushManagerOptions().
-		SetJitterEnabled(false).
-		SetFlushTimesPersistEvery(time.Second)
-	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
-	mgr.nowFn = nowFn
-	mgr.flushedSincePersist = true
-	mgr.flushTimesManager = flushTimesManager
-	mgr.placementManager = placementManager
-
-	buckets := testFlushBuckets(ctrl)
-	mgr.Init(buckets)
-
-	now = time.Unix(10, 0)
-	mgr.lastPersistAtNanos = now.Add(-2 * time.Second).UnixNano()
-	flushTask, dur := mgr.Prepare(buckets)
-	require.Nil(t, flushTask)
-	require.Equal(t, time.Second, dur)
-	require.False(t, mgr.flushedSincePersist)
-	require.Equal(t, 1, storeAsyncCount)
-	validateShardSetFlushTimes(t, testFlushTimes, stored)
-}
-
-func TestLeaderFlushManagerPrepareNoFlushWithPersistTwice(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		storeAsyncCount int
-		stored          *schema.ShardSetFlushTimes
-		now             = time.Unix(1234, 0)
-		nowFn           = func() time.Time { return now }
-		doneCh          = make(chan struct{})
-	)
-
-	flushTimesManager := NewMockFlushTimesManager(ctrl)
-	flushTimesManager.EXPECT().
-		StoreAsync(gomock.Any()).
-		DoAndReturn(func(value *schema.ShardSetFlushTimes) error {
-			storeAsyncCount++
-			stored = value
-			return nil
-		}).
-		Times(2)
-
 	placementManager := NewMockPlacementManager(ctrl)
 	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil).Times(2)
 
-	opts := NewFlushManagerOptions().
-		SetJitterEnabled(false).
-		SetFlushTimesPersistEvery(time.Second)
+	opts := NewFlushManagerOptions().SetJitterEnabled(false)
+
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn
-	mgr.lastPersistAtNanos = now.Add(-2 * time.Second).UnixNano()
-	mgr.flushedSincePersist = true
 	mgr.flushTimesManager = flushTimesManager
 	mgr.placementManager = placementManager
 
-	// Persist for the first time.
-	buckets := testFlushBuckets(ctrl)
-	mgr.Init(buckets)
-
-	now = time.Unix(10, 0)
-	mgr.lastPersistAtNanos = now.Add(-2 * time.Second).UnixNano()
-	flushTask, dur := mgr.Prepare(buckets)
-	require.Nil(t, flushTask)
-	require.Equal(t, time.Second, dur)
-	require.False(t, mgr.flushedSincePersist)
-	require.Equal(t, 1, storeAsyncCount)
-	validateShardSetFlushTimes(t, testFlushTimes, stored)
-
-	// Reset state in preparation for the second persistence.
-	now = time.Unix(1234, 0)
-
-	// Persist for the second time.
-	buckets2 := testFlushBuckets2(ctrl)
-	mgr.Init(buckets2)
-
-	now = time.Unix(10, 0)
-	mgr.flushedSincePersist = true
-	mgr.lastPersistAtNanos = now.Add(-2 * time.Second).UnixNano()
-	flushTask, dur = mgr.Prepare(buckets2)
-	require.Nil(t, flushTask)
-	require.Equal(t, time.Second, dur)
-	require.False(t, mgr.flushedSincePersist)
-	require.Equal(t, 2, storeAsyncCount)
-	validateShardSetFlushTimes(t, testFlushTimes2, stored)
-}
-
-func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		storeAsyncCount int
-		stored          *schema.ShardSetFlushTimes
-		now             = time.Unix(1234, 0)
-		nowFn           = func() time.Time { return now }
-		doneCh          = make(chan struct{})
-	)
-
-	flushTimesManager := NewMockFlushTimesManager(ctrl)
-	flushTimesManager.EXPECT().
-		StoreAsync(gomock.Any()).
-		DoAndReturn(func(value *schema.ShardSetFlushTimes) error {
-			storeAsyncCount++
-			stored = value
-			return nil
-		})
-	placementManager := NewMockPlacementManager(ctrl)
-	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil)
-
-	opts := NewFlushManagerOptions().
-		SetJitterEnabled(false).
-		SetFlushTimesPersistEvery(time.Second)
-	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
-	mgr.nowFn = nowFn
-	mgr.lastPersistAtNanos = now.UnixNano()
-	mgr.flushedSincePersist = true
-	mgr.flushTimesManager = flushTimesManager
-	mgr.placementManager = placementManager
-
-	buckets := testFlushBuckets(ctrl)
+	buckets := testFlushBuckets(ctrl, true)
 	mgr.Init(buckets)
 	now = now.Add(2 * time.Second)
 	flushTask, dur := mgr.Prepare(buckets)
@@ -468,8 +324,8 @@ func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
 	// Validate flush times persisted match expectation.
 	require.NotNil(t, flushTask)
 	require.Equal(t, time.Duration(0), dur)
-	require.False(t, mgr.flushedSincePersist)
 	task := flushTask.(*leaderFlushTask)
+	task.Run()
 	require.Equal(t, buckets[2].flushers, task.flushers)
 	require.Equal(t, 1, storeAsyncCount)
 	validateShardSetFlushTimes(t, testFlushTimes, stored)
@@ -478,7 +334,7 @@ func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
 }
 
 func TestLeaderFlushManagerPrepareWithRedirectedShard(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
@@ -496,26 +352,25 @@ func TestLeaderFlushManagerPrepareWithRedirectedShard(t *testing.T) {
 
 	flushTimesManager := NewMockFlushTimesManager(ctrl)
 	flushTimesManager.EXPECT().
-		StoreAsync(gomock.Any()).
+		StoreSync(gomock.Any()).
 		DoAndReturn(func(value *schema.ShardSetFlushTimes) error {
 			storeAsyncCount++
 			stored = value
 			return nil
 		})
 	placementManager := NewMockPlacementManager(ctrl)
-	placementManager.EXPECT().Shards().Return(shard.NewShards([]shard.Shard{redirectedShard}), nil)
+	placementManager.EXPECT().Shards().
+		Return(shard.NewShards([]shard.Shard{redirectedShard}), nil).
+		AnyTimes()
 
-	opts := NewFlushManagerOptions().
-		SetJitterEnabled(false).
-		SetFlushTimesPersistEvery(time.Second)
+	opts := NewFlushManagerOptions().SetJitterEnabled(false)
+
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn
-	mgr.lastPersistAtNanos = now.UnixNano()
-	mgr.flushedSincePersist = true
 	mgr.flushTimesManager = flushTimesManager
 	mgr.placementManager = placementManager
 
-	buckets := testFlushBuckets(ctrl)
+	buckets := testFlushBuckets(ctrl, true)
 	mgr.Init(buckets)
 	now = now.Add(2 * time.Second)
 	flushTask, dur := mgr.Prepare(buckets)
@@ -523,8 +378,8 @@ func TestLeaderFlushManagerPrepareWithRedirectedShard(t *testing.T) {
 	// Validate flush times persisted match expectation.
 	require.NotNil(t, flushTask)
 	require.Equal(t, time.Duration(0), dur)
-	require.False(t, mgr.flushedSincePersist)
 	task := flushTask.(*leaderFlushTask)
+	task.Run()
 	require.Equal(t, buckets[2].flushers, task.flushers)
 	require.Equal(t, 1, storeAsyncCount)
 	validateShardSetFlushTimes(t, testFlushTimesWithRedirected, stored)
@@ -533,7 +388,7 @@ func TestLeaderFlushManagerPrepareWithRedirectedShard(t *testing.T) {
 }
 
 func TestLeaderFlushManagerOnBucketAdded(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	now := time.Unix(1234, 0)
@@ -543,7 +398,7 @@ func TestLeaderFlushManagerOnBucketAdded(t *testing.T) {
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.nowFn = nowFn
 
-	buckets := testFlushBuckets(ctrl)
+	buckets := testFlushBuckets(ctrl, false)
 	mgr.OnBucketAdded(0, buckets[0])
 	expectedFlushTimes := []flushMetadata{
 		{timeNanos: 1234250000000, bucketIdx: 0},
@@ -573,7 +428,7 @@ func TestCloneFlushTimesByShard(t *testing.T) {
 }
 
 func TestLeaderFlushTaskRunShardsError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var flushRequest *flushRequest
@@ -596,7 +451,7 @@ func TestLeaderFlushTaskRunShardsError(t *testing.T) {
 }
 
 func TestLeaderFlushTaskRunShardNotFound(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var request *flushRequest
@@ -613,13 +468,15 @@ func TestLeaderFlushTaskRunShardNotFound(t *testing.T) {
 	placementManager := NewMockPlacementManager(ctrl)
 	placementManager.EXPECT().Shards().Return(shard.NewShards(nil), nil)
 
+	persisted := 0
 	opts := NewFlushManagerOptions()
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.placementManager = placementManager
 	flushTask := &leaderFlushTask{
-		mgr:      mgr,
-		duration: tally.NoopScope.Timer("foo"),
-		flushers: flushers,
+		mgr:            mgr,
+		duration:       tally.NoopScope.Timer("foo"),
+		flushers:       flushers,
+		persistFlushFn: func() { persisted++ },
 	}
 	flushTask.Run()
 
@@ -629,10 +486,11 @@ func TestLeaderFlushTaskRunShardNotFound(t *testing.T) {
 		BufferAfterCutoff: mgr.maxBufferSize,
 	}
 	require.Equal(t, expected, *request)
+	require.Equal(t, 1, persisted)
 }
 
 func TestLeaderFlushTaskRunWithFlushes(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	requests := make([]flushRequest, 2)
@@ -662,13 +520,15 @@ func TestLeaderFlushTaskRunWithFlushes(t *testing.T) {
 		Shards().
 		Return(shard.NewShards(shards), nil)
 
+	persisted := 0
 	opts := NewFlushManagerOptions().SetJitterEnabled(false)
 	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
 	mgr.placementManager = placementManager
 	flushTask := &leaderFlushTask{
-		mgr:      mgr,
-		duration: tally.NoopScope.Timer("foo"),
-		flushers: flushers,
+		mgr:            mgr,
+		duration:       tally.NoopScope.Timer("foo"),
+		flushers:       flushers,
+		persistFlushFn: func() { persisted++ },
 	}
 	flushTask.Run()
 
@@ -685,6 +545,7 @@ func TestLeaderFlushTaskRunWithFlushes(t *testing.T) {
 		},
 	}
 	require.Equal(t, expected, requests)
+	require.Equal(t, 1, persisted)
 }
 
 func validateShardSetFlushTimes(t *testing.T, expected, actual *schema.ShardSetFlushTimes) {
@@ -733,7 +594,7 @@ func validateFlushMetadataHeap(t *testing.T, expected []flushMetadata, actual fl
 	require.Equal(t, expected, res)
 }
 
-func testFlushBuckets(ctrl *gomock.Controller) []*flushBucket {
+func testFlushBuckets(ctrl *gomock.Controller, shouldPersist bool) []*flushBucket {
 	standardFlusher1 := NewMockflushingMetricList(ctrl)
 	standardFlusher1.EXPECT().Shard().Return(uint32(0)).AnyTimes()
 	standardFlusher1.EXPECT().FlushInterval().Return(time.Second).AnyTimes()
@@ -779,111 +640,93 @@ func testFlushBuckets(ctrl *gomock.Controller) []*flushBucket {
 	forwardedFlusher4.EXPECT().FlushInterval().Return(time.Minute).AnyTimes()
 	forwardedFlusher4.EXPECT().LastFlushedNanos().Return(int64(3600000000000)).AnyTimes()
 
+	if shouldPersist {
+		standardFlusher1.EXPECT().Flush(gomock.Any()).AnyTimes()
+		standardFlusher2.EXPECT().Flush(gomock.Any()).AnyTimes()
+		standardFlusher3.EXPECT().Flush(gomock.Any()).AnyTimes()
+		standardFlusher4.EXPECT().Flush(gomock.Any()).AnyTimes()
+
+		timedFlusher1.EXPECT().Flush(gomock.Any()).AnyTimes()
+
+		forwardedFlusher1.EXPECT().Flush(gomock.Any()).AnyTimes()
+		forwardedFlusher2.EXPECT().Flush(gomock.Any()).AnyTimes()
+		forwardedFlusher3.EXPECT().Flush(gomock.Any()).AnyTimes()
+		forwardedFlusher4.EXPECT().Flush(gomock.Any()).AnyTimes()
+	}
+
+	var (
+		scope            = tally.NewTestScope("", nil)
+		flushLag         = scope.Histogram("flush-lag", nil)
+		durationTimer    = scope.Timer("timer")
+		followerFlushLag = scope.Histogram("follower-flush-lag", tally.DefaultBuckets)
+	)
+
 	return []*flushBucket{
 		// Standard flushing metric lists.
 		{
-			bucketID: standardMetricListID{resolution: time.Second}.toMetricListID(),
-			interval: time.Second,
-			offset:   250 * time.Millisecond,
-			flushers: []flushingMetricList{standardFlusher1, standardFlusher2},
+			bucketID:         standardMetricListID{resolution: time.Second}.toMetricListID(),
+			interval:         time.Second,
+			offset:           250 * time.Millisecond,
+			flushers:         []flushingMetricList{standardFlusher1, standardFlusher2},
+			duration:         durationTimer,
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 		{
-			bucketID: standardMetricListID{resolution: time.Minute}.toMetricListID(),
-			interval: time.Minute,
-			offset:   12 * time.Second,
-			flushers: []flushingMetricList{standardFlusher3},
+			bucketID:         standardMetricListID{resolution: time.Minute}.toMetricListID(),
+			interval:         time.Minute,
+			offset:           12 * time.Second,
+			flushers:         []flushingMetricList{standardFlusher3},
+			duration:         durationTimer,
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 		{
-			bucketID: standardMetricListID{resolution: time.Hour}.toMetricListID(),
-			interval: time.Hour,
-			offset:   time.Minute,
-			flushers: []flushingMetricList{standardFlusher4},
+			bucketID:         standardMetricListID{resolution: time.Hour}.toMetricListID(),
+			interval:         time.Hour,
+			offset:           time.Minute,
+			flushers:         []flushingMetricList{standardFlusher4},
+			duration:         durationTimer,
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 		// Timed flushing metric lists.
 		{
-			bucketID: timedMetricListID{resolution: time.Minute}.toMetricListID(),
-			interval: time.Minute,
-			offset:   250 * time.Millisecond,
-			flushers: []flushingMetricList{timedFlusher1},
+			bucketID:         timedMetricListID{resolution: time.Minute}.toMetricListID(),
+			interval:         time.Minute,
+			offset:           250 * time.Millisecond,
+			flushers:         []flushingMetricList{timedFlusher1},
+			duration:         durationTimer,
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 		// Forwarded flushing metric lists.
 		{
-			bucketID: forwardedMetricListID{resolution: time.Second, numForwardedTimes: 1}.toMetricListID(),
-			interval: time.Second,
-			offset:   100 * time.Millisecond,
-			flushers: []flushingMetricList{forwardedFlusher1, forwardedFlusher2},
+			bucketID:         forwardedMetricListID{resolution: time.Second, numForwardedTimes: 1}.toMetricListID(),
+			interval:         time.Second,
+			offset:           100 * time.Millisecond,
+			flushers:         []flushingMetricList{forwardedFlusher1, forwardedFlusher2},
+			duration:         durationTimer,
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 		{
-			bucketID: forwardedMetricListID{resolution: time.Minute, numForwardedTimes: 2}.toMetricListID(),
-			interval: time.Minute,
-			offset:   time.Second,
-			flushers: []flushingMetricList{forwardedFlusher3},
+			bucketID:         forwardedMetricListID{resolution: time.Minute, numForwardedTimes: 2}.toMetricListID(),
+			interval:         time.Minute,
+			offset:           time.Second,
+			flushers:         []flushingMetricList{forwardedFlusher3},
+			duration:         durationTimer,
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 		{
-			bucketID: forwardedMetricListID{resolution: time.Minute, numForwardedTimes: 3}.toMetricListID(),
-			interval: time.Minute,
-			offset:   0,
-			flushers: []flushingMetricList{forwardedFlusher4},
-		},
-	}
-}
-
-func testFlushBuckets2(ctrl *gomock.Controller) []*flushBucket {
-	standardFlusher1 := NewMockflushingMetricList(ctrl)
-	standardFlusher1.EXPECT().Shard().Return(uint32(0)).AnyTimes()
-	standardFlusher1.EXPECT().FlushInterval().Return(time.Second).AnyTimes()
-	standardFlusher1.EXPECT().LastFlushedNanos().Return(int64(3669000000000)).AnyTimes()
-
-	standardFlusher2 := NewMockflushingMetricList(ctrl)
-	standardFlusher2.EXPECT().Shard().Return(uint32(3)).AnyTimes()
-	standardFlusher2.EXPECT().FlushInterval().Return(time.Hour).AnyTimes()
-	standardFlusher2.EXPECT().LastFlushedNanos().Return(int64(7200000000000)).AnyTimes()
-
-	timedFlusher1 := NewMockflushingMetricList(ctrl)
-	timedFlusher1.EXPECT().Shard().Return(uint32(0)).AnyTimes()
-	timedFlusher1.EXPECT().FlushInterval().Return(time.Second).AnyTimes()
-	timedFlusher1.EXPECT().LastFlushedNanos().Return(int64(3600000000000)).AnyTimes()
-
-	forwardedFlusher1 := NewMockflushingMetricList(ctrl)
-	forwardedFlusher1.EXPECT().Shard().Return(uint32(0)).AnyTimes()
-	forwardedFlusher1.EXPECT().FlushInterval().Return(time.Second).AnyTimes()
-	forwardedFlusher1.EXPECT().LastFlushedNanos().Return(int64(3681000000000)).AnyTimes()
-
-	forwardedFlusher2 := NewMockflushingMetricList(ctrl)
-	forwardedFlusher2.EXPECT().Shard().Return(uint32(4)).AnyTimes()
-	forwardedFlusher2.EXPECT().FlushInterval().Return(time.Minute).AnyTimes()
-	forwardedFlusher2.EXPECT().LastFlushedNanos().Return(int64(3658000000000)).AnyTimes()
-
-	return []*flushBucket{
-		{
-			bucketID: standardMetricListID{resolution: time.Second}.toMetricListID(),
-			interval: time.Second,
-			offset:   250 * time.Millisecond,
-			flushers: []flushingMetricList{standardFlusher1},
-		},
-		{
-			bucketID: standardMetricListID{resolution: time.Hour}.toMetricListID(),
-			interval: time.Hour,
-			offset:   time.Minute,
-			flushers: []flushingMetricList{standardFlusher2},
-		},
-		{
-			bucketID: timedMetricListID{resolution: time.Second}.toMetricListID(),
-			interval: time.Second,
-			offset:   250 * time.Millisecond,
-			flushers: []flushingMetricList{timedFlusher1},
-		},
-		{
-			bucketID: forwardedMetricListID{resolution: time.Second, numForwardedTimes: 1}.toMetricListID(),
-			interval: time.Second,
-			offset:   100 * time.Millisecond,
-			flushers: []flushingMetricList{forwardedFlusher1},
-		},
-		{
-			bucketID: forwardedMetricListID{resolution: time.Minute, numForwardedTimes: 2}.toMetricListID(),
-			interval: time.Minute,
-			offset:   time.Second,
-			flushers: []flushingMetricList{forwardedFlusher2},
+			bucketID:         forwardedMetricListID{resolution: time.Minute, numForwardedTimes: 3}.toMetricListID(),
+			interval:         time.Minute,
+			offset:           0,
+			flushers:         []flushingMetricList{forwardedFlusher4},
+			duration:         durationTimer,
+			flushLag:         flushLag,
+			followerFlushLag: followerFlushLag,
 		},
 	}
 }

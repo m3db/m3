@@ -1,0 +1,17 @@
+global:
+  scrape_interval: 15s
+  external_labels:
+    monitor: 'self-scraping-monitor'
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:9090']
+  - job_name: 'm3 coordinator'
+    static_configs:
+      - targets: ['host.docker.internal:3030']
+
+# 7201 is a port exposed by M3 Coordinator.
+remote_write:
+  - url: http://host.docker.internal:7201/api/v1/prom/remote/write
+    remote_timeout: 30s

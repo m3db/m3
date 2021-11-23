@@ -30,10 +30,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	kitlogzap "github.com/go-kit/kit/log/zap"
+	"github.com/opentracing/opentracing-go"
+	"github.com/pkg/errors"
+	extprom "github.com/prometheus/client_golang/prometheus"
+	prometheuspromql "github.com/prometheus/prometheus/promql"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+
 	"github.com/m3db/m3/src/aggregator/server"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/kv"
+	memcluster "github.com/m3db/m3/src/cluster/mem"
 	handleroptions3 "github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
@@ -42,6 +56,7 @@ import (
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/httpd"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -52,6 +67,7 @@ import (
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/pools"
+	"github.com/m3db/m3/src/query/promqlengine"
 	tsdbremote "github.com/m3db/m3/src/query/remote"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/fanout"
@@ -70,19 +86,6 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xserver "github.com/m3db/m3/src/x/server"
 	xsync "github.com/m3db/m3/src/x/sync"
-
-	"github.com/go-kit/kit/log"
-	kitlogzap "github.com/go-kit/kit/log/zap"
-	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
-	extprom "github.com/prometheus/client_golang/prometheus"
-	prometheuspromql "github.com/prometheus/prometheus/promql"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 )
 
 const (
@@ -378,6 +381,8 @@ func Run(runOpts RunOptions) RunResult {
 	}
 	cfg.LookbackDuration = &lookbackDuration
 
+	promConvertOptions := cfg.Query.Prometheus.ConvertOptionsOrDefault()
+
 	readWorkerPool, writeWorkerPool, err := pools.BuildWorkerPools(
 		instrumentOptions,
 		cfg.ReadWorkerPool,
@@ -388,17 +393,19 @@ func Run(runOpts RunOptions) RunResult {
 	}
 
 	var (
+		encodingOpts    = encoding.NewOptions()
 		m3dbClusters    m3.Clusters
 		m3dbPoolWrapper *pools.PoolWrapper
 	)
 
-	tsdbOpts := m3.NewOptions().
+	tsdbOpts := m3.NewOptions(encodingOpts).
 		SetTagOptions(tagOptions).
 		SetLookbackDuration(lookbackDuration).
 		SetConsolidationFunc(consolidators.TakeLast).
 		SetReadWorkerPool(readWorkerPool).
 		SetWriteWorkerPool(writeWorkerPool).
-		SetSeriesConsolidationMatchOptions(matchOptions)
+		SetSeriesConsolidationMatchOptions(matchOptions).
+		SetPromConvertOptions(promConvertOptions)
 
 	if runOpts.ApplyCustomTSDBOptions != nil {
 		tsdbOpts, err = runOpts.ApplyCustomTSDBOptions(tsdbOpts, instrumentOptions)
@@ -423,7 +430,7 @@ func Run(runOpts RunOptions) RunResult {
 		// For grpc backend, we need to setup only the grpc client and a storage
 		// accompanying that client.
 		poolWrapper := pools.NewPoolsWrapper(
-			pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
+			pools.BuildIteratorPools(encodingOpts, pools.BuildIteratorPoolsOptions{}))
 		remoteOpts := config.RemoteOptionsFromConfig(cfg.RPC)
 		remotes, enabled, err := remoteClient(poolWrapper, remoteOpts,
 			tsdbOpts, instrumentOptions)
@@ -463,9 +470,9 @@ func Run(runOpts RunOptions) RunResult {
 	case "", config.M3DBStorageType:
 		// For m3db backend, we need to make connections to the m3db cluster
 		// which generates a session and use the storage with the session.
-		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBConfig, clusterNamespacesWatcher,
-			runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions(),
-		)
+		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBConfig,
+			clusterNamespacesWatcher, runOpts.DBClient, encodingOpts,
+			instrumentOptions, tsdbOpts.CustomAdminOptions())
 		if err != nil {
 			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
@@ -637,18 +644,33 @@ func Run(runOpts RunOptions) RunResult {
 		}
 	}
 
-	prometheusEngine, err := newPromQLEngine(cfg, prometheusEngineRegistry,
-		instrumentOptions)
+	defaultPrometheusEngine, err := newPromQLEngine(lookbackDuration, cfg, prometheusEngineRegistry, instrumentOptions)
 	if err != nil {
 		logger.Fatal("unable to create PromQL engine", zap.Error(err))
 	}
+	prometheusEngineFn := func(lookbackDuration time.Duration) (*prometheuspromql.Engine, error) {
+		// NB: use nil metric registry to avoid duplicate metric registration when creating multiple engines
+		return newPromQLEngine(lookbackDuration, cfg, nil, instrumentOptions)
+	}
+
+	enginesByLookback, err := createEnginesWithResolutionBasedLookbacks(
+		lookbackDuration,
+		defaultPrometheusEngine,
+		runOpts.Config.Clusters,
+		cfg.Middleware.Prometheus.ResolutionMultiplier,
+		prometheusEngineFn,
+	)
+	if err != nil {
+		logger.Fatal("failed creating PromgQL engines with resolution based lookback durations", zap.Error(err))
+	}
+	engineCache := promqlengine.NewCache(enginesByLookback, prometheusEngineFn)
 
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
-		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
+		tagOptions, engine, engineCache.Get, m3dbClusters, clusterClient, cfg,
 		runOpts.DBConfig, fetchOptsBuilder, graphiteFindFetchOptsBuilder, graphiteRenderFetchOptsBuilder,
 		queryCtxOpts, instrumentOptions, cpuProfileDuration, []string{handleroptions3.M3DBServiceName},
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
-		graphiteStorageOpts, tsdbOpts, httpd.NewGraphiteRenderRouter(), httpd.NewGraphiteFindRouter())
+		graphiteStorageOpts, tsdbOpts, httpd.NewGraphiteRenderRouter(), httpd.NewGraphiteFindRouter(), lookbackDuration)
 	if err != nil {
 		logger.Fatal("unable to set up handler options", zap.Error(err))
 	}
@@ -827,6 +849,12 @@ func newDownsamplerAsync(
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to create cluster management etcd client")
 		}
+	} else if cfg.RemoteAggregator == nil {
+		// NB(antanas): M3 Coordinator with in process aggregator can run with in memory cluster client.
+		instrumentOptions.Logger().Info("no etcd config and no remote aggregator - will run with in memory cluster client")
+		clusterClient = memcluster.New(kv.NewOverrideOptions())
+	} else {
+		return nil, nil, fmt.Errorf("no configured cluster management config, must set this config for remote aggregator")
 	}
 
 	newDownsamplerFn := func() (downsample.Downsampler, error) {
@@ -866,7 +894,7 @@ func newDownsamplerAsync(
 
 func newDownsampler(
 	cfg downsample.Configuration,
-	clusterManagementClient clusterclient.Client,
+	clusterClient clusterclient.Client,
 	storage storage.Appender,
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	tagOptions models.TagOptions,
@@ -880,22 +908,17 @@ func newDownsampler(
 	instrumentOpts = instrumentOpts.SetMetricsScope(
 		instrumentOpts.MetricsScope().SubScope("downsampler"))
 
-	if clusterManagementClient == nil {
-		return nil, fmt.Errorf("no configured cluster management config, " +
-			"must set this config for downsampler")
-	}
-
 	var kvStore kv.Store
 	var err error
 
 	if applyCustomRuleStore == nil {
-		kvStore, err = clusterManagementClient.KV()
+		kvStore, err = clusterClient.KV()
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to create KV store from the "+
 				"cluster management config client")
 		}
 	} else {
-		kvStore, err = applyCustomRuleStore(clusterManagementClient, instrumentOpts)
+		kvStore, err = applyCustomRuleStore(clusterClient, instrumentOpts)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to apply custom rule store")
 		}
@@ -918,7 +941,7 @@ func newDownsampler(
 
 	downsampler, err := cfg.NewDownsampler(downsample.DownsamplerOptions{
 		Storage:                    storage,
-		ClusterClient:              clusterManagementClient,
+		ClusterClient:              clusterClient,
 		RulesKVStore:               kvStore,
 		ClusterNamespacesWatcher:   clusterNamespacesWatcher,
 		ClockOptions:               clockOpts,
@@ -944,6 +967,7 @@ func initClusters(
 	dbCfg *dbconfig.DBConfiguration,
 	clusterNamespacesWatcher m3.ClusterNamespacesWatcher,
 	dbClientCh <-chan client.Client,
+	encodingOpts encoding.Options,
 	instrumentOpts instrument.Options,
 	customAdminOptions []client.CustomAdminOption,
 ) (m3.Clusters, *pools.PoolWrapper, error) {
@@ -967,6 +991,7 @@ func initClusters(
 		opts := m3.ClustersStaticConfigurationOptions{
 			AsyncSessions:      true,
 			CustomAdminOptions: customAdminOptions,
+			EncodingOptions:    encodingOpts,
 		}
 		if staticNamespaceConfig {
 			clusters, err = cfg.Clusters.NewStaticClusters(instrumentOpts, opts, clusterNamespacesWatcher)
@@ -979,7 +1004,7 @@ func initClusters(
 		}
 
 		poolWrapper = pools.NewPoolsWrapper(
-			pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
+			pools.BuildIteratorPools(encodingOpts, pools.BuildIteratorPoolsOptions{}))
 	} else {
 		localCfg := cfg.Local
 		if localCfg == nil {
@@ -1026,6 +1051,7 @@ func initClusters(
 		cfgOptions := m3.ClustersStaticConfigurationOptions{
 			ProvidedSession:    session,
 			CustomAdminOptions: customAdminOptions,
+			EncodingOptions:    encodingOpts,
 		}
 
 		if staticNamespaceConfig {
@@ -1331,15 +1357,16 @@ func newDownsamplerAndWriter(
 }
 
 func newPromQLEngine(
+	lookbackDelta time.Duration,
 	cfg config.Configuration,
-	registry *extprom.Registry,
+	registry extprom.Registerer,
 	instrumentOpts instrument.Options,
 ) (*prometheuspromql.Engine, error) {
-	lookbackDelta, err := cfg.LookbackDurationOrDefault()
-	if err != nil {
-		return nil, err
+	if lookbackDelta < 0 {
+		return nil, errors.New("lookbackDelta cannot be negative")
 	}
 
+	instrumentOpts.Logger().Debug("creating new PromQL engine", zap.Duration("lookbackDelta", lookbackDelta))
 	var (
 		kitLogger = kitlogzap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
 		opts      = prometheuspromql.EngineOpts{
@@ -1354,6 +1381,34 @@ func newPromQLEngine(
 		}
 	)
 	return prometheuspromql.NewEngine(opts), nil
+}
+
+func createEnginesWithResolutionBasedLookbacks(
+	defaultLookback time.Duration,
+	defaultEngine *prometheuspromql.Engine,
+	clusters m3.ClustersStaticConfiguration,
+	resolutionMultiplier int,
+	prometheusEngineFn func(time.Duration) (*prometheuspromql.Engine, error),
+) (map[time.Duration]*prometheuspromql.Engine, error) {
+	enginesByLookback := make(map[time.Duration]*prometheuspromql.Engine)
+	enginesByLookback[defaultLookback] = defaultEngine
+	if resolutionMultiplier > 0 {
+		for _, cluster := range clusters {
+			for _, ns := range cluster.Namespaces {
+				if res := ns.Resolution; res > 0 {
+					resolutionBasedLookback := res * time.Duration(resolutionMultiplier)
+					if _, ok := enginesByLookback[resolutionBasedLookback]; !ok {
+						eng, err := prometheusEngineFn(resolutionBasedLookback)
+						if err != nil {
+							return nil, err
+						}
+						enginesByLookback[resolutionBasedLookback] = eng
+					}
+				}
+			}
+		}
+	}
+	return enginesByLookback, nil
 }
 
 func durationMilliseconds(d time.Duration) int64 {

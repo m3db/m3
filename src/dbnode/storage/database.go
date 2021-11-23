@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
@@ -97,8 +98,9 @@ type increasingIndex interface {
 
 type db struct {
 	sync.RWMutex
-	opts  Options
-	nowFn clock.NowFn
+	assignShardSetMutex sync.Mutex
+	opts                Options
+	nowFn               clock.NowFn
 
 	nsWatch                namespace.NamespaceWatch
 	namespaces             *databaseNamespacesMap
@@ -292,20 +294,14 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 		}
 	}
 
+	// NB: Can hold lock since all long-running tasks are enqueued to run
+	// async while holding the lock.
 	d.Lock()
 	defer d.Unlock()
 
 	removes, adds, updates := d.namespaceDeltaWithLock(newNamespaces)
 	if err := d.logNamespaceUpdate(removes, adds, updates); err != nil {
-		enrichedErr := fmt.Errorf("unable to log namespace updates: %v", err)
-		d.log.Error(enrichedErr.Error())
-		return enrichedErr
-	}
-
-	// add any namespaces marked for addition
-	if err := d.addNamespacesWithLock(adds); err != nil {
-		enrichedErr := fmt.Errorf("unable to add namespaces: %v", err)
-		d.log.Error(enrichedErr.Error())
+		d.log.Error("unable to log namespace updates", zap.Error(err))
 		return err
 	}
 
@@ -317,12 +313,66 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 			"restart the process if you want changes to take effect")
 	}
 
-	// enqueue bootstraps if new namespaces
 	if len(adds) > 0 {
-		d.queueBootstrapWithLock()
-	}
+		if d.bootstraps == 0 || !d.mediatorIsOpenWithLock() {
+			// If no bootstraps yet or mediator is not open we can just
+			// add the namespaces and optionally enqueue bootstrap (which is
+			// async) since no file operations can be in place since
+			// no bootstrap and/or mediator is not open.
+			if err := d.addNamespacesWithLock(adds); err != nil {
+				d.log.Error("unable to add namespaces", zap.Error(err))
+				return err
+			}
 
+			if d.bootstraps > 0 {
+				// If already bootstrapped before, enqueue another
+				// bootstrap (asynchronously, ok to trigger holding lock).
+				d.enqueueBootstrapAsync()
+			}
+
+			return nil
+		}
+
+		// NB: mediator is opened, we need to disable fileOps and wait for all the background processes to complete
+		// so that we could update namespaces safely. Otherwise, there is a high chance in getting
+		// invariant violation panic because cold/warm flush will receive new namespaces
+		// in the middle of their operations.
+		d.Unlock() // Don't hold the lock while we wait for file ops.
+		d.disableFileOpsAndWait()
+		d.Lock() // Reacquire lock after waiting.
+
+		// Add any namespaces marked for addition.
+		if err := d.addNamespacesWithLock(adds); err != nil {
+			d.log.Error("unable to add namespaces", zap.Error(err))
+			d.enableFileOps()
+			return err
+		}
+
+		// Enqueue bootstrap and enable file ops when bootstrap is completed.
+		d.enqueueBootstrapAsyncWithLock(d.enableFileOps)
+	}
 	return nil
+}
+
+func (d *db) mediatorIsOpenWithLock() bool {
+	if d.mediator == nil {
+		return false
+	}
+	return d.mediator.IsOpen()
+}
+
+func (d *db) disableFileOpsAndWait() {
+	if mediator := d.mediator; mediator != nil && mediator.IsOpen() {
+		d.log.Info("waiting for file ops to be disabled")
+		mediator.DisableFileOpsAndWait()
+	}
+}
+
+func (d *db) enableFileOps() {
+	if mediator := d.mediator; mediator != nil && mediator.IsOpen() {
+		d.log.Info("enabling file ops")
+		mediator.EnableFileOps()
+	}
 }
 
 func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []namespace.Metadata, []namespace.Metadata) {
@@ -454,54 +504,105 @@ func (d *db) Options() Options {
 }
 
 func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
-	d.Lock()
-	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
-	if receivedNewShards {
-		d.lastReceivedNewShards = d.nowFn()
-	}
-	d.Unlock()
-
-	if !d.mediator.IsOpen() {
-		d.assignShardSet(shardSet)
-		return
-	}
-
-	if err := d.mediator.EnqueueMutuallyExclusiveFn(func() {
-		d.assignShardSet(shardSet)
-	}); err != nil {
-		// should not happen.
-		instrument.EmitAndLogInvariantViolation(d.opts.InstrumentOptions(),
-			func(l *zap.Logger) {
-				l.Error("failed to enqueue assignShardSet fn",
-					zap.Error(err),
-					zap.Uint32s("shards", shardSet.AllIDs()))
-			})
-	}
-}
-
-func (d *db) assignShardSet(shardSet sharding.ShardSet) {
+	// NB: Use assignShardSetMutex to protect from competing calls.
+	d.assignShardSetMutex.Lock()
+	asyncUnlock := false
+	defer func() {
+		if !asyncUnlock {
+			// Unlock only if asyncUnlock is not set. Otherwise, we will unlock asynchronously.
+			d.assignShardSetMutex.Unlock()
+		}
+	}()
+	// NB: Can hold lock since all long running tasks are enqueued to run
+	// async while holding the lock.
 	d.Lock()
 	defer d.Unlock()
 
+	added, removed, updated := d.shardsDeltaWithLock(shardSet)
+
+	if !added && !removed && !updated {
+		d.log.Info("received identical shardSet, skipping shard assignment")
+		return
+	}
+
+	if added {
+		d.lastReceivedNewShards = d.nowFn()
+	}
+
+	if d.bootstraps == 0 || !d.mediatorIsOpenWithLock() {
+		// If not bootstrapped before or mediator is not open then can just
+		// immediately assign shards.
+		d.assignShardsWithLock(shardSet)
+		if d.bootstraps > 0 {
+			// If already bootstrapped before, enqueue another
+			// bootstrap (asynchronously, ok to trigger holding lock).
+			d.enqueueBootstrapAsync()
+		}
+		return
+	}
+
+	if added {
+		// Wait outside of holding lock to disable file operations.
+		d.Unlock()
+		d.disableFileOpsAndWait()
+		d.Lock()
+	}
+
+	d.assignShardsWithLock(shardSet)
+
+	if added {
+		asyncUnlock = true
+		d.enqueueBootstrapAsyncWithLock(func() {
+			d.enableFileOps()
+			d.assignShardSetMutex.Unlock()
+		})
+	}
+}
+
+func (d *db) assignShardsWithLock(shardSet sharding.ShardSet) {
 	d.log.Info("assigning shards", zap.Uint32s("shards", shardSet.AllIDs()))
-
-	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
 	d.shardSet = shardSet
-
 	for _, elem := range d.namespaces.Iter() {
 		ns := elem.Value()
 		ns.AssignShardSet(shardSet)
 	}
+}
 
-	if receivedNewShards {
-		// Only trigger a bootstrap if the node received new shards otherwise
-		// the nodes will perform lots of small bootstraps (that accomplish nothing)
-		// during topology changes as other nodes mark their shards as available.
-		//
-		// These small bootstraps can significantly delay topology changes as they prevent
-		// the nodes from marking themselves as bootstrapped and durable, for example.
-		d.queueBootstrapWithLock()
+func (d *db) shardsDeltaWithLock(incoming sharding.ShardSet) (bool, bool, bool) {
+	var (
+		existing       = d.shardSet
+		existingShards = existing.All()
+		incomingShards = incoming.All()
+		existingSet    = make(map[uint32]shard.Shard, len(existingShards))
+		incomingSet    = make(map[uint32]shard.Shard, len(incomingShards))
+		added          bool
+		removed        bool
+		updated        bool
+	)
+
+	for _, shard := range existingShards {
+		existingSet[shard.ID()] = shard
 	}
+
+	for _, shard := range incomingShards {
+		incomingSet[shard.ID()] = shard
+		existingShard, ok := existingSet[shard.ID()]
+		if !ok {
+			added = true
+		} else if !existingShard.Equals(shard) {
+			updated = true
+		}
+	}
+
+	for shardID := range existingSet {
+		_, ok := incomingSet[shardID]
+		if !ok {
+			removed = true
+			break
+		}
+	}
+
+	return added, removed, updated
 }
 
 func (d *db) hasReceivedNewShardsWithLock(incoming sharding.ShardSet) bool {
@@ -533,7 +634,12 @@ func (d *db) ShardSet() sharding.ShardSet {
 	return shardSet
 }
 
-func (d *db) queueBootstrapWithLock() {
+func (d *db) enqueueBootstrapAsync() {
+	d.log.Info("enqueuing bootstrap")
+	d.mediator.BootstrapEnqueue(BootstrapEnqueueOptions{})
+}
+
+func (d *db) enqueueBootstrapAsyncWithLock(onCompleteFn func()) {
 	// Only perform a bootstrap if at least one bootstrap has already occurred. This enables
 	// the ability to open the clustered database and assign shardsets to the non-clustered
 	// database when it receives an initial topology (as well as topology changes) without
@@ -542,11 +648,16 @@ func (d *db) queueBootstrapWithLock() {
 	// the non-clustered database bootstrapped by assigning it shardsets which will trigger new
 	// bootstraps since d.bootstraps > 0 will be true.
 	if d.bootstraps > 0 {
-		bootstrapAsyncResult := d.mediator.BootstrapEnqueue()
-		// NB(linasn): We need to wait for the bootstrap to start and set it's state to Bootstrapping in order
-		// to safely run fileOps in mediator later.
-		bootstrapAsyncResult.WaitForStart()
+		d.log.Info("enqueuing bootstrap with onComplete function")
+		d.mediator.BootstrapEnqueue(BootstrapEnqueueOptions{
+			OnCompleteFn: func(_ BootstrapResult) {
+				onCompleteFn()
+			},
+		})
+		return
 	}
+
+	onCompleteFn()
 }
 
 func (d *db) Namespace(id ident.ID) (Namespace, bool) {

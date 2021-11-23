@@ -261,7 +261,7 @@ func NewFunctionExpr(
 
 	case temporal.AvgType, temporal.CountType, temporal.MinType,
 		temporal.MaxType, temporal.SumType, temporal.StdDevType,
-		temporal.StdVarType:
+		temporal.StdVarType, temporal.LastType:
 		p, err = temporal.NewAggOp(argValues, name)
 		return p, true, err
 

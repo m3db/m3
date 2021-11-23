@@ -21,17 +21,15 @@
 package remote
 
 import (
+	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/query/errors"
+	queryerrors "github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/checked"
@@ -40,19 +38,8 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-func initializeVars() {
-	opts = checked.NewBytesOptions().SetFinalizer(
-		checked.BytesFinalizerFn(func(b checked.Bytes) {
-			b.Reset(nil)
-		}))
-
-	iterAlloc = m3tsz.DefaultReaderIteratorAllocFn(encoding.NewOptions())
-}
-
 var (
-	opts       checked.BytesOptions
-	iterAlloc  func(r xio.Reader64, d namespace.SchemaDescr) encoding.ReaderIterator
-	initialize sync.Once
+	errDecodeNoIteratorPools = errors.New("no iterator pools for decoding")
 )
 
 func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.M3Segment, error) {
@@ -132,7 +119,7 @@ func buildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]b
 		}
 	}
 
-	return nil, errors.ErrCannotEncodeCompressedTags
+	return nil, queryerrors.ErrCannotEncodeCompressedTags
 }
 
 // CompressedSeriesFromSeriesIterator builds compressed rpc series from a SeriesIterator
@@ -230,27 +217,16 @@ func encodeToCompressedSeries(
 
 func segmentBytesFromCompressedSegment(
 	segHead, segTail []byte,
-	opts checked.BytesOptions,
 	checkedBytesWrapperPool xpool.CheckedBytesWrapperPool,
 ) (checked.Bytes, checked.Bytes) {
-	var head, tail checked.Bytes
-	if checkedBytesWrapperPool != nil {
-		head = checkedBytesWrapperPool.Get(segHead)
-		tail = checkedBytesWrapperPool.Get(segTail)
-	} else {
-		head = checked.NewBytes(segHead, opts)
-		tail = checked.NewBytes(segTail, opts)
-	}
-
-	return head, tail
+	return checkedBytesWrapperPool.Get(segHead), checkedBytesWrapperPool.Get(segTail)
 }
 
 func blockReaderFromCompressedSegment(
 	seg *rpc.M3Segment,
-	opts checked.BytesOptions,
 	checkedBytesWrapperPool xpool.CheckedBytesWrapperPool,
 ) xio.BlockReader {
-	head, tail := segmentBytesFromCompressedSegment(seg.GetHead(), seg.GetTail(), opts, checkedBytesWrapperPool)
+	head, tail := segmentBytesFromCompressedSegment(seg.GetHead(), seg.GetTail(), checkedBytesWrapperPool)
 	segment := ts.NewSegment(head, tail, seg.GetChecksum(), ts.FinalizeNone)
 	segmentReader := xio.NewSegmentReader(segment)
 
@@ -266,7 +242,7 @@ func tagIteratorFromCompressedTagsWithDecoder(
 	iterPools encoding.IteratorPools,
 ) (ident.TagIterator, error) {
 	if iterPools == nil || iterPools.CheckedBytesWrapper() == nil || iterPools.TagDecoder() == nil {
-		return nil, errors.ErrCannotDecodeCompressedTags
+		return nil, queryerrors.ErrCannotDecodeCompressedTags
 	}
 
 	checkedBytes := iterPools.CheckedBytesWrapper().Get(compressedTags)
@@ -288,10 +264,6 @@ func tagIteratorFromSeries(
 		)
 	}
 
-	if iteratorPools == nil {
-		return ident.NewTagsIterator(ident.NewTags()), nil
-	}
-
 	return iteratorPools.TagDecoder().Get().Duplicate(), nil
 }
 
@@ -305,12 +277,12 @@ func blockReadersFromCompressedSegments(
 		blockReadersPerSegment := make([]xio.BlockReader, 0, len(segments))
 		mergedSegment := segment.GetMerged()
 		if mergedSegment != nil {
-			reader := blockReaderFromCompressedSegment(mergedSegment, opts, checkedBytesWrapperPool)
+			reader := blockReaderFromCompressedSegment(mergedSegment, checkedBytesWrapperPool)
 			blockReadersPerSegment = append(blockReadersPerSegment, reader)
 		} else {
 			unmerged := segment.GetUnmerged()
 			for _, seg := range unmerged {
-				reader := blockReaderFromCompressedSegment(seg, opts, checkedBytesWrapperPool)
+				reader := blockReaderFromCompressedSegment(seg, checkedBytesWrapperPool)
 				blockReadersPerSegment = append(blockReadersPerSegment, reader)
 			}
 		}
@@ -331,8 +303,6 @@ func seriesIteratorFromCompressedSeries(
 	meta *rpc.SeriesMetadata,
 	iteratorPools encoding.IteratorPools,
 ) (encoding.SeriesIterator, error) {
-	initialize.Do(initializeVars)
-
 	// NB: Attempt to decompress compressed tags first as this is the only scenario
 	// that is expected to fail.
 	tagIter, err := tagIteratorFromSeries(timeSeries, iteratorPools)
@@ -340,62 +310,33 @@ func seriesIteratorFromCompressedSeries(
 		return nil, err
 	}
 
-	var (
-		multiReaderPool encoding.MultiReaderIteratorPool
-		seriesIterPool  encoding.SeriesIteratorPool
-
-		checkedBytesWrapperPool xpool.CheckedBytesWrapperPool
-		idPool                  ident.Pool
-
-		allReplicaIterators []encoding.MultiReaderIterator
-	)
-
 	replicas := timeSeries.GetReplicas()
-	// Set up iterator pools if available
-	if iteratorPools != nil {
-		multiReaderPool = iteratorPools.MultiReaderIterator()
-		seriesIterPool = iteratorPools.SeriesIterator()
-		checkedBytesWrapperPool = iteratorPools.CheckedBytesWrapper()
-		idPool = iteratorPools.ID()
 
-		allReplicaIterators = iteratorPools.MultiReaderIteratorArray().Get(len(replicas))
-	} else {
-		allReplicaIterators = make([]encoding.MultiReaderIterator, 0, len(replicas))
-	}
+	multiReaderPool := iteratorPools.MultiReaderIterator()
+	seriesIterPool := iteratorPools.SeriesIterator()
+	checkedBytesWrapperPool := iteratorPools.CheckedBytesWrapper()
+	idPool := iteratorPools.ID()
+
+	allReplicaIterators := iteratorPools.MultiReaderIteratorArray().Get(len(replicas))
 
 	for _, replica := range replicas {
 		blockReaders := blockReadersFromCompressedSegments(replica.GetSegments(), checkedBytesWrapperPool)
 
 		// TODO arnikola investigate pooling these?
 		sliceOfSlicesIterator := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(blockReaders)
-		perReplicaIterator := encoding.NewMultiReaderIterator(iterAlloc, multiReaderPool)
+		perReplicaIterator := multiReaderPool.Get()
 		perReplicaIterator.ResetSliceOfSlices(sliceOfSlicesIterator, nil)
 
 		allReplicaIterators = append(allReplicaIterators, perReplicaIterator)
 	}
 
-	var (
-		idString = string(meta.GetId())
-		id, ns   ident.ID
-	)
-	if idPool != nil {
-		id = idPool.StringID(idString)
-	} else {
-		id = ident.StringID(idString)
-	}
-
+	id := idPool.BinaryID(checkedBytesWrapperPool.Get(meta.GetId()))
 	start := xtime.UnixNano(meta.GetStartTime())
 	end := xtime.UnixNano(meta.GetEndTime())
 
-	var seriesIter encoding.SeriesIterator
-	if seriesIterPool != nil {
-		seriesIter = seriesIterPool.Get()
-	} else {
-		seriesIter = encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{}, nil)
-	}
+	seriesIter := seriesIterPool.Get()
 	seriesIter.Reset(encoding.SeriesIteratorOptions{
 		ID:             id,
-		Namespace:      ns,
 		Tags:           tagIter,
 		StartInclusive: start,
 		EndExclusive:   end,
@@ -411,20 +352,18 @@ func DecodeCompressedFetchResponse(
 	fetchResult *rpc.FetchResponse,
 	iteratorPools encoding.IteratorPools,
 ) (encoding.SeriesIterators, error) {
-	rpcSeries := fetchResult.GetSeries()
+	if iteratorPools == nil {
+		return nil, errDecodeNoIteratorPools
+	}
+
 	var (
-		pooledIterators encoding.MutableSeriesIterators
-		seriesIterators []encoding.SeriesIterator
-		numSeries       = len(rpcSeries)
+		seriesIteratorPool = iteratorPools.MutableSeriesIterators()
+		rpcSeries          = fetchResult.GetSeries()
+		numSeries          = len(rpcSeries)
 	)
 
-	if iteratorPools != nil {
-		seriesIteratorPool := iteratorPools.MutableSeriesIterators()
-		pooledIterators = seriesIteratorPool.Get(numSeries)
-		pooledIterators.Reset(numSeries)
-	} else {
-		seriesIterators = make([]encoding.SeriesIterator, numSeries)
-	}
+	iters := seriesIteratorPool.Get(numSeries)
+	iters.Reset(numSeries)
 
 	for i, series := range rpcSeries {
 		compressed := series.GetCompressed()
@@ -441,19 +380,8 @@ func DecodeCompressedFetchResponse(
 			return nil, err
 		}
 
-		if pooledIterators != nil {
-			pooledIterators.SetAt(i, iter)
-		} else {
-			seriesIterators[i] = iter
-		}
+		iters.SetAt(i, iter)
 	}
 
-	if pooledIterators != nil {
-		return pooledIterators, nil
-	}
-
-	return encoding.NewSeriesIterators(
-		seriesIterators,
-		nil,
-	), nil
+	return iters, nil
 }

@@ -27,6 +27,7 @@ package doc
 import (
 	"reflect"
 
+	"github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -334,6 +335,21 @@ func (mr *MockOnIndexSeriesMockRecorder) IndexedForBlockStart(blockStart interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexedForBlockStart", reflect.TypeOf((*MockOnIndexSeries)(nil).IndexedForBlockStart), blockStart)
 }
 
+// IndexedRange mocks base method.
+func (m *MockOnIndexSeries) IndexedRange() (time.UnixNano, time.UnixNano) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexedRange")
+	ret0, _ := ret[0].(time.UnixNano)
+	ret1, _ := ret[1].(time.UnixNano)
+	return ret0, ret1
+}
+
+// IndexedRange indicates an expected call of IndexedRange.
+func (mr *MockOnIndexSeriesMockRecorder) IndexedRange() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexedRange", reflect.TypeOf((*MockOnIndexSeries)(nil).IndexedRange))
+}
+
 // NeedsIndexGarbageCollected mocks base method.
 func (m *MockOnIndexSeries) NeedsIndexGarbageCollected() bool {
 	m.ctrl.T.Helper()
@@ -396,6 +412,22 @@ func (m *MockOnIndexSeries) OnIndexSuccess(blockStart time.UnixNano) {
 func (mr *MockOnIndexSeriesMockRecorder) OnIndexSuccess(blockStart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexSuccess", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexSuccess), blockStart)
+}
+
+// ReconciledOnIndexSeries mocks base method.
+func (m *MockOnIndexSeries) ReconciledOnIndexSeries() (OnIndexSeries, resource.SimpleCloser, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReconciledOnIndexSeries")
+	ret0, _ := ret[0].(OnIndexSeries)
+	ret1, _ := ret[1].(resource.SimpleCloser)
+	ret2, _ := ret[2].(bool)
+	return ret0, ret1, ret2
+}
+
+// ReconciledOnIndexSeries indicates an expected call of ReconciledOnIndexSeries.
+func (mr *MockOnIndexSeriesMockRecorder) ReconciledOnIndexSeries() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReconciledOnIndexSeries", reflect.TypeOf((*MockOnIndexSeries)(nil).ReconciledOnIndexSeries))
 }
 
 // TryMarkIndexGarbageCollected mocks base method.

@@ -23,60 +23,35 @@ package consumer
 import (
 	"io"
 	"net"
+	"time"
 
 	"github.com/m3db/m3/src/x/server"
 
 	"go.uber.org/zap"
 )
 
-type consumerHandler struct {
+type messageHandler struct {
 	opts      Options
 	mPool     *messagePool
-	consumeFn ConsumeFn
+	mpFactory MessageProcessorFactory
 	m         metrics
 }
 
-// NewConsumerHandler creates a new server handler with consumerFn.
-func NewConsumerHandler(consumeFn ConsumeFn, opts Options) server.Handler {
+// NewMessageHandler creates a new server handler with messageFn.
+func NewMessageHandler(mpFactory MessageProcessorFactory, opts Options) server.Handler {
 	mPool := newMessagePool(opts.MessagePoolOptions())
 	mPool.Init()
-	return &consumerHandler{
-		consumeFn: consumeFn,
+	return &messageHandler{
+		mpFactory: mpFactory,
 		opts:      opts,
 		mPool:     mPool,
 		m:         newConsumerMetrics(opts.InstrumentOptions().MetricsScope()),
 	}
 }
 
-func (h *consumerHandler) Handle(conn net.Conn) {
-	c := newConsumer(conn, h.mPool, h.opts, h.m)
-	c.Init()
-	h.consumeFn(c)
-}
-
-func (h *consumerHandler) Close() {}
-
-type messageHandler struct {
-	opts  Options
-	mPool *messagePool
-	mp    MessageProcessor
-	m     metrics
-}
-
-// NewMessageHandler creates a new server handler with messageFn.
-func NewMessageHandler(mp MessageProcessor, opts Options) server.Handler {
-	mPool := newMessagePool(opts.MessagePoolOptions())
-	mPool.Init()
-	return &messageHandler{
-		mp:    mp,
-		opts:  opts,
-		mPool: mPool,
-		m:     newConsumerMetrics(opts.InstrumentOptions().MetricsScope()),
-	}
-}
-
 func (h *messageHandler) Handle(conn net.Conn) {
-	c := newConsumer(conn, h.mPool, h.opts, h.m)
+	mp := h.mpFactory.Create()
+	c := newConsumer(conn, h.mPool, h.opts, h.m, mp)
 	c.Init()
 	var (
 		msgErr error
@@ -87,12 +62,17 @@ func (h *messageHandler) Handle(conn net.Conn) {
 		if msgErr != nil {
 			break
 		}
-		h.mp.Process(msg)
+		start := time.Now()
+		c.process(msg)
+		h.m.handleLatency.RecordDuration(time.Since(start))
 	}
 	if msgErr != nil && msgErr != io.EOF {
 		h.opts.InstrumentOptions().Logger().With(zap.Error(msgErr)).Error("could not read message from consumer")
 	}
+	mp.Close()
 	c.Close()
 }
 
-func (h *messageHandler) Close() { h.mp.Close() }
+func (h *messageHandler) Close() {
+	h.mpFactory.Close()
+}

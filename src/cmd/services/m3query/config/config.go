@@ -22,6 +22,7 @@ package config
 
 import (
 	"errors"
+	"math"
 	"time"
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
@@ -42,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/opentracing"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // BackendStorageType is an enum for different backends.
@@ -351,6 +353,41 @@ type ConsolidationConfiguration struct {
 type PrometheusQueryConfiguration struct {
 	// MaxSamplesPerQuery is the limit on fetched samples per query.
 	MaxSamplesPerQuery *int `yaml:"maxSamplesPerQuery"`
+
+	// Convert configures Prometheus time series conversions.
+	Convert *PrometheusConvertConfiguration `yaml:"convert"`
+}
+
+// ConvertOptionsOrDefault creates storage.PromConvertOptions based on the given configuration.
+func (c PrometheusQueryConfiguration) ConvertOptionsOrDefault() storage.PromConvertOptions {
+	opts := storage.NewPromConvertOptions()
+	if v := c.Convert; v != nil {
+		opts = opts.SetValueDecreaseTolerance(v.ValueDecreaseTolerance)
+
+		// Default to max time so that it's always applicable if value
+		// decrease tolerance is non-zero.
+		toleranceUntil := xtime.UnixNano(math.MaxInt64)
+		if value := v.ValueDecreaseToleranceUntil; value != nil {
+			toleranceUntil = xtime.ToUnixNano(*value)
+		}
+		opts = opts.SetValueDecreaseToleranceUntil(toleranceUntil)
+	}
+
+	return opts
+}
+
+// PrometheusConvertConfiguration configures Prometheus time series conversions.
+type PrometheusConvertConfiguration struct {
+	// ValueDecreaseTolerance allows for setting a specific amount of tolerance
+	// to avoid returning a decrease if it's below a certain tolerance.
+	// This is useful for applications that have precision issues emitting
+	// monotonic increasing data and will accidentally make it seem like the
+	// counter value decreases when it hasn't changed.
+	ValueDecreaseTolerance float64 `yaml:"valueDecreaseTolerance"`
+
+	// ValueDecreaseToleranceUntil allows for setting a time threshold on
+	// which to apply the conditional value decrease threshold.
+	ValueDecreaseToleranceUntil *time.Time `yaml:"valueDecreaseToleranceUntil"`
 }
 
 // MaxSamplesPerQueryOrDefault returns the max samples per query or default.

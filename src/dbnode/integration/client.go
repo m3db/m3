@@ -121,6 +121,15 @@ func (client *TestTChannelClient) TChannelClientWriteBatch(
 	return client.node.WriteBatchRaw(ctx, batchReq)
 }
 
+// TChannelClientWriteTaggedBatchRaw fulfills a wwrite tagged batch raw request
+// using a tchannel client.
+func (client *TestTChannelClient) TChannelClientWriteTaggedBatchRaw(
+	timeout time.Duration, req *rpc.WriteTaggedBatchRawRequest,
+) error {
+	ctx, _ := thrift.NewContext(timeout)
+	return client.node.WriteTaggedBatchRaw(ctx, req)
+}
+
 // TChannelClientFetch fulfills a fetch request using a tchannel client.
 func (client *TestTChannelClient) TChannelClientFetch(
 	timeout time.Duration, req *rpc.FetchRequest,

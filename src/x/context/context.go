@@ -345,15 +345,29 @@ func (c *ctx) DistanceFromRootContext() uint16 {
 	return distanceFromRootContext
 }
 
+func (c *ctx) CheckedAndNotSampled() bool {
+	c.RLock()
+	checkedAndNotSampled := c.checkedAndNotSampled
+	c.RUnlock()
+
+	return checkedAndNotSampled
+}
+
+func (c *ctx) setCheckedAndNotSampled(b bool) {
+	c.Lock()
+	c.checkedAndNotSampled = b
+	c.Unlock()
+}
+
 func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, bool) {
-	if c.checkedAndNotSampled || c.DistanceFromRootContext() >= maxDistanceFromRootContext {
+	if c.CheckedAndNotSampled() || c.DistanceFromRootContext() >= maxDistanceFromRootContext {
 		return c, noopTracer.StartSpan(name), false
 	}
 	goCtx := c.GoContext()
 
 	childGoCtx, span, sampled := StartSampledTraceSpan(goCtx, name)
 	if !sampled {
-		c.checkedAndNotSampled = true
+		c.setCheckedAndNotSampled(true)
 		return c, noopTracer.StartSpan(name), false
 	}
 

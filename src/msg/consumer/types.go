@@ -38,6 +38,9 @@ type Message interface {
 
 	// ShardID returns shard ID of the Message.
 	ShardID() uint64
+
+	// SentAtNanos returns when the producer sent the Message.
+	SentAtNanos() uint64
 }
 
 // Consumer receives messages from a connection.
@@ -128,6 +131,70 @@ type MessageProcessor interface {
 	Process(m Message)
 	Close()
 }
+
+// MessageProcessorFactory creates MessageProcessors.
+type MessageProcessorFactory interface {
+	// Create returns a MessageProcessor.
+	Create() MessageProcessor
+	// Close the factory.
+	Close()
+}
+
+// SingletonMessageProcessor returns a MessageProcessorFactory that shares the same MessageProcessor for all users. The
+// MessageProcessor is closed when the factory is closed.
+func SingletonMessageProcessor(mp MessageProcessor) MessageProcessorFactory {
+	return &singletonMessageProcessorFactory{mp: mp, noClose: &noCloseMessageProcessor{mp: mp}}
+}
+
+type singletonMessageProcessorFactory struct {
+	mp      MessageProcessor
+	noClose MessageProcessor
+}
+
+func (s singletonMessageProcessorFactory) Create() MessageProcessor {
+	return s.noClose
+}
+
+func (s singletonMessageProcessorFactory) Close() {
+	s.mp.Close()
+}
+
+type noCloseMessageProcessor struct {
+	mp MessageProcessor
+}
+
+func (n noCloseMessageProcessor) Process(m Message) {
+	n.mp.Process(m)
+}
+
+func (n noCloseMessageProcessor) Close() {}
+
+// NewMessageProcessorFactory returns a MessageProcessorFactory that creates a new MessageProcessor for every call to
+// Create.
+func NewMessageProcessorFactory(fn func() MessageProcessor) MessageProcessorFactory {
+	return &messageProcessorFactory{fn: fn}
+}
+
+type messageProcessorFactory struct {
+	fn func() MessageProcessor
+}
+
+func (m messageProcessorFactory) Create() MessageProcessor {
+	return m.fn()
+}
+
+func (m messageProcessorFactory) Close() {}
+
+// NewNoOpMessageProcessor creates a new MessageProcessor that does nothing.
+func NewNoOpMessageProcessor() MessageProcessor {
+	return &noOpMessageProcessor{}
+}
+
+type noOpMessageProcessor struct{}
+
+func (n noOpMessageProcessor) Process(Message) {}
+
+func (n noOpMessageProcessor) Close() {}
 
 // ConsumeFn processes the consumer. This is useful when user want to reuse
 // resource across messages received on the same consumer or have finer level

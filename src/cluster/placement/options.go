@@ -76,6 +76,7 @@ type options struct {
 	dryrun              bool
 	isSharded           bool
 	isMirrored          bool
+	skipPortMirroring   bool
 	isStaged            bool
 	compress            bool
 	instanceSelector    InstanceSelector
@@ -150,6 +151,15 @@ func (o options) IsMirrored() bool {
 
 func (o options) SetIsMirrored(v bool) Options {
 	o.isMirrored = v
+	return o
+}
+
+func (o options) SkipPortMirroring() bool {
+	return o.skipPortMirroring
+}
+
+func (o options) SetSkipPortMirroring(v bool) Options {
+	o.skipPortMirroring = v
 	return o
 }
 

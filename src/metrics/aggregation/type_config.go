@@ -39,13 +39,13 @@ type TypesConfiguration struct {
 	DefaultGaugeAggregationTypes *Types `yaml:"defaultGaugeAggregationTypes"`
 
 	// CounterTransformFnType configures the type string transformation function for counters.
-	CounterTransformFnType *transformFnType `yaml:"counterTransformFnType"`
+	CounterTransformFnType *TransformFnType `yaml:"counterTransformFnType"`
 
 	// TimerTransformFnType configures the type string transformation function for timers.
-	TimerTransformFnType *transformFnType `yaml:"timerTransformFnType"`
+	TimerTransformFnType *TransformFnType `yaml:"timerTransformFnType"`
 
 	// GaugeTransformFnType configures the type string transformation function for gauges.
-	GaugeTransformFnType *transformFnType `yaml:"gaugeTransformFnType"`
+	GaugeTransformFnType *TransformFnType `yaml:"gaugeTransformFnType"`
 
 	// Pool of aggregation types.
 	AggregationTypesPool pool.ObjectPoolConfiguration `yaml:"aggregationTypesPool"`
@@ -110,21 +110,28 @@ func (c TypesConfiguration) NewOptions(instrumentOpts instrument.Options) (Types
 	return opts, nil
 }
 
-type transformFnType string
+// TransformFnType specifies the type of the aggregation
+// transform function.
+type TransformFnType string
 
 var (
-	noopTransformType   transformFnType = "noop"
-	emptyTransformType  transformFnType = "empty"
-	suffixTransformType transformFnType = "suffix"
+	// NoopTransformType is the type for noop transform function.
+	NoopTransformType TransformFnType = "noop"
+	// EmptyTransformType is the type for an empty transform function.
+	EmptyTransformType TransformFnType = "empty"
+	// SuffixTransformType is the type for suffix transform function.
+	SuffixTransformType TransformFnType = "suffix"
 
-	validTypes = []transformFnType{
-		noopTransformType,
-		emptyTransformType,
-		suffixTransformType,
+	validTypes = []TransformFnType{
+		NoopTransformType,
+		EmptyTransformType,
+		SuffixTransformType,
 	}
 )
 
-func (t *transformFnType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+// UnmarshalYAML uses the unmarshal function provided as an argument to set
+// the current TransformFnType.
+func (t *TransformFnType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
@@ -142,13 +149,14 @@ func (t *transformFnType) UnmarshalYAML(unmarshal func(interface{}) error) error
 	return fmt.Errorf("invalid transform type %s, valid types are: %v", str, validStrings)
 }
 
-func (t transformFnType) TransformFn() (TypeStringTransformFn, error) {
+// TransformFn returns the transform function.
+func (t TransformFnType) TransformFn() (TypeStringTransformFn, error) {
 	switch t {
-	case noopTransformType:
+	case NoopTransformType:
 		return NoOpTransform, nil
-	case emptyTransformType:
+	case EmptyTransformType:
 		return EmptyTransform, nil
-	case suffixTransformType:
+	case SuffixTransformType:
 		return SuffixTransform, nil
 	default:
 		return nil, fmt.Errorf("invalid type string transform function type: %s", string(t))

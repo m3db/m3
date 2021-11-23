@@ -54,6 +54,9 @@ func TestOptions(t *testing.T) {
 	require.Equal(t, time.Second, opts.SetCloseCheckInterval(time.Second).CloseCheckInterval())
 
 	require.Nil(t, opts.SetInstrumentOptions(nil).InstrumentOptions())
+
+	require.NotNil(t, opts.MessageRetryOptions())
+	require.Equal(t, defaultWriterRetryInitialBackoff, opts.MessageRetryOptions().InitialBackoff())
 }
 
 func TestConnectionOptions(t *testing.T) {

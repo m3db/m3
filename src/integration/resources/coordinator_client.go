@@ -18,18 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package common contains shared logic between docker and in-process M3
-// implementations.
-package common
+package resources
 
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
@@ -42,8 +42,11 @@ import (
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/placementhandler"
-	"github.com/m3db/m3/src/integration/resources"
+	"github.com/m3db/m3/src/query/api/v1/handler/graphite"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/x/headers"
@@ -112,14 +115,14 @@ func (c *CoordinatorClient) GetNamespace() (admin.NamespaceGetResponse, error) {
 }
 
 // GetPlacement gets placements.
-func (c *CoordinatorClient) GetPlacement(opts resources.PlacementRequestOptions) (admin.PlacementGetResponse, error) {
+func (c *CoordinatorClient) GetPlacement(opts PlacementRequestOptions) (admin.PlacementGetResponse, error) {
 	var handlerurl string
 	switch opts.Service {
-	case resources.ServiceTypeM3DB:
+	case ServiceTypeM3DB:
 		handlerurl = placementhandler.M3DBGetURL
-	case resources.ServiceTypeM3Aggregator:
+	case ServiceTypeM3Aggregator:
 		handlerurl = placementhandler.M3AggGetURL
-	case resources.ServiceTypeM3Coordinator:
+	case ServiceTypeM3Coordinator:
 		handlerurl = placementhandler.M3CoordinatorGetURL
 	default:
 		return admin.PlacementGetResponse{}, errUnknownServiceType
@@ -144,16 +147,16 @@ func (c *CoordinatorClient) GetPlacement(opts resources.PlacementRequestOptions)
 
 // InitPlacement initializes placements.
 func (c *CoordinatorClient) InitPlacement(
-	opts resources.PlacementRequestOptions,
+	opts PlacementRequestOptions,
 	initRequest admin.PlacementInitRequest,
 ) (admin.PlacementGetResponse, error) {
 	var handlerurl string
 	switch opts.Service {
-	case resources.ServiceTypeM3DB:
+	case ServiceTypeM3DB:
 		handlerurl = placementhandler.M3DBInitURL
-	case resources.ServiceTypeM3Aggregator:
+	case ServiceTypeM3Aggregator:
 		handlerurl = placementhandler.M3AggInitURL
-	case resources.ServiceTypeM3Coordinator:
+	case ServiceTypeM3Coordinator:
 		handlerurl = placementhandler.M3CoordinatorInitURL
 	default:
 		return admin.PlacementGetResponse{}, errUnknownServiceType
@@ -176,6 +179,44 @@ func (c *CoordinatorClient) InitPlacement(
 	return response, nil
 }
 
+// DeleteAllPlacements deletes all placements for the specified service.
+func (c *CoordinatorClient) DeleteAllPlacements(opts PlacementRequestOptions) error {
+	var handlerurl string
+	switch opts.Service {
+	case ServiceTypeM3DB:
+		handlerurl = placementhandler.M3DBDeleteAllURL
+	case ServiceTypeM3Aggregator:
+		handlerurl = placementhandler.M3AggDeleteAllURL
+	case ServiceTypeM3Coordinator:
+		handlerurl = placementhandler.M3CoordinatorDeleteAllURL
+	default:
+		return errUnknownServiceType
+	}
+	url := c.makeURL(handlerurl)
+	logger := c.logger.With(
+		ZapMethod("deleteAllPlacements"), zap.String("url", url))
+
+	resp, err := c.makeRequest(
+		logger, url, placementhandler.DeleteAllHTTPMethod, nil, placementOptsToMap(opts),
+	)
+	if err != nil {
+		logger.Error("failed to delete all placements", zap.Error(err))
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		logger.Error("status code not 2xx",
+			zap.Int("status code", resp.StatusCode),
+			zap.String("status", resp.Status))
+		return fmt.Errorf("status code %d", resp.StatusCode)
+	}
+
+	logger.Info("placements deleted")
+
+	return nil
+}
+
 // WaitForNamespace blocks until the given namespace is enabled.
 // NB: if the name string is empty, this will instead
 // check for a successful response.
@@ -193,17 +234,10 @@ func (c *CoordinatorClient) WaitForNamespace(name string) error {
 		}
 
 		nss := ns.GetRegistry().GetNamespaces()
-		namespace, found := nss[name]
+		_, found := nss[name]
 		if !found {
 			err := fmt.Errorf("no namespace with name %s", name)
 			logger.Error("could not get namespace", zap.Error(err))
-			return err
-		}
-
-		enabled := namespace.GetIndexOptions().GetEnabled()
-		if !enabled {
-			err := fmt.Errorf("namespace %s not enabled", name)
-			logger.Error("namespace not enabled", zap.Error(err))
 			return err
 		}
 
@@ -218,7 +252,7 @@ func (c *CoordinatorClient) WaitForInstances(
 ) error {
 	logger := c.logger.With(ZapMethod("waitForPlacement"))
 	return c.retryFunc(func() error {
-		placement, err := c.GetPlacement(resources.PlacementRequestOptions{Service: resources.ServiceTypeM3DB})
+		placement, err := c.GetPlacement(PlacementRequestOptions{Service: ServiceTypeM3DB})
 		if err != nil {
 			logger.Error("retrying get placement", zap.Error(err))
 			return err
@@ -250,7 +284,7 @@ func (c *CoordinatorClient) WaitForInstances(
 func (c *CoordinatorClient) WaitForShardsReady() error {
 	logger := c.logger.With(ZapMethod("waitForShards"))
 	return c.retryFunc(func() error {
-		placement, err := c.GetPlacement(resources.PlacementRequestOptions{Service: resources.ServiceTypeM3DB})
+		placement, err := c.GetPlacement(PlacementRequestOptions{Service: ServiceTypeM3DB})
 		if err != nil {
 			logger.Error("retrying get placement", zap.Error(err))
 			return err
@@ -265,6 +299,47 @@ func (c *CoordinatorClient) WaitForShardsReady() error {
 				}
 			}
 		}
+		return nil
+	})
+}
+
+// WaitForClusterReady waits until the cluster is ready to receive reads and writes.
+func (c *CoordinatorClient) WaitForClusterReady() error {
+	var (
+		url    = c.makeURL("ready")
+		logger = c.logger.With(ZapMethod("waitForClusterReady"), zap.String("url", url))
+	)
+	return c.retryFunc(func() error {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+		if err != nil {
+			logger.Error("failed to create request", zap.Error(err))
+			return err
+		}
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			logger.Error("failed checking cluster readiness", zap.Error(err))
+			return err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			err = errors.New("non-200 status code received")
+
+			body, rerr := ioutil.ReadAll(resp.Body)
+			if rerr != nil {
+				logger.Warn("failed parse response body", zap.Error(rerr))
+				body = []byte("")
+			}
+
+			logger.Error("failed to check cluster readiness", zap.Error(err),
+				zap.String("responseBody", string(body)),
+			)
+			return err
+		}
+
+		logger.Info("cluster ready to receive reads and writes")
+
 		return nil
 	})
 }
@@ -382,7 +457,7 @@ func (c *CoordinatorClient) DeleteNamespace(namespaceID string) error {
 //nolint:dupl
 // InitM3msgTopic initializes an m3msg topic
 func (c *CoordinatorClient) InitM3msgTopic(
-	topicOpts resources.M3msgTopicOptions,
+	topicOpts M3msgTopicOptions,
 	initRequest admin.TopicInitRequest,
 ) (admin.TopicGetResponse, error) {
 	url := c.makeURL(topic.InitURL)
@@ -410,7 +485,7 @@ func (c *CoordinatorClient) InitM3msgTopic(
 
 // GetM3msgTopic fetches an m3msg topic
 func (c *CoordinatorClient) GetM3msgTopic(
-	topicOpts resources.M3msgTopicOptions,
+	topicOpts M3msgTopicOptions,
 ) (admin.TopicGetResponse, error) {
 	url := c.makeURL(topic.GetURL)
 	logger := c.logger.With(
@@ -436,7 +511,7 @@ func (c *CoordinatorClient) GetM3msgTopic(
 //nolint:dupl
 // AddM3msgTopicConsumer adds a consumer service to an m3msg topic
 func (c *CoordinatorClient) AddM3msgTopicConsumer(
-	topicOpts resources.M3msgTopicOptions,
+	topicOpts M3msgTopicOptions,
 	addRequest admin.TopicAddRequest,
 ) (admin.TopicGetResponse, error) {
 	url := c.makeURL(topic.AddURL)
@@ -462,14 +537,14 @@ func (c *CoordinatorClient) AddM3msgTopicConsumer(
 	return response, nil
 }
 
-func placementOptsToMap(opts resources.PlacementRequestOptions) map[string]string {
+func placementOptsToMap(opts PlacementRequestOptions) map[string]string {
 	return map[string]string{
 		headers.HeaderClusterEnvironmentName: opts.Env,
 		headers.HeaderClusterZoneName:        opts.Zone,
 	}
 }
 
-func m3msgTopicOptionsToMap(opts resources.M3msgTopicOptions) map[string]string {
+func m3msgTopicOptionsToMap(opts M3msgTopicOptions) map[string]string {
 	return map[string]string{
 		headers.HeaderClusterEnvironmentName: opts.Env,
 		headers.HeaderClusterZoneName:        opts.Zone,
@@ -509,19 +584,39 @@ func (c *CoordinatorClient) WriteCarbon(
 	return con.Close()
 }
 
-// WriteProm writes a prometheus metric.
-func (c *CoordinatorClient) WriteProm(name string, tags map[string]string, samples []prompb.Sample) error {
-	var (
-		url       = c.makeURL("api/v1/prom/remote/write")
-		reqLabels = []prompb.Label{{Name: []byte(model.MetricNameLabel), Value: []byte(name)}}
-	)
+// WriteProm writes a prometheus metric. Takes tags/labels as a map for convenience.
+func (c *CoordinatorClient) WriteProm(
+	name string,
+	tags map[string]string,
+	samples []prompb.Sample,
+	headers Headers,
+) error {
+	labels := make([]prompb.Label, 0, len(tags))
 
 	for tag, value := range tags {
-		reqLabels = append(reqLabels, prompb.Label{
+		labels = append(labels, prompb.Label{
 			Name:  []byte(tag),
 			Value: []byte(value),
 		})
 	}
+
+	return c.WritePromWithLabels(name, labels, samples, headers)
+}
+
+// WritePromWithLabels writes a prometheus metric. Allows you to provide the labels for the write
+// directly instead of conveniently converting them from a map.
+func (c *CoordinatorClient) WritePromWithLabels(
+	name string,
+	labels []prompb.Label,
+	samples []prompb.Sample,
+	headers Headers,
+) error {
+	var (
+		url       = c.makeURL("api/v1/prom/remote/write")
+		reqLabels = []prompb.Label{{Name: []byte(model.MetricNameLabel), Value: []byte(name)}}
+	)
+	reqLabels = append(reqLabels, labels...)
+
 	writeRequest := prompb.WriteRequest{
 		Timeseries: []prompb.TimeSeries{
 			{
@@ -532,7 +627,7 @@ func (c *CoordinatorClient) WriteProm(name string, tags map[string]string, sampl
 	}
 
 	logger := c.logger.With(
-		ZapMethod("createDatabase"), zap.String("url", url),
+		ZapMethod("writeProm"), zap.String("url", url),
 		zap.String("request", writeRequest.String()))
 
 	body, err := proto.Marshal(&writeRequest)
@@ -546,6 +641,11 @@ func (c *CoordinatorClient) WriteProm(name string, tags map[string]string, sampl
 	if err != nil {
 		logger.Error("failed constructing request", zap.Error(err))
 		return err
+	}
+	for key, vals := range headers {
+		for _, val := range vals {
+			req.Header.Add(key, val)
+		}
 	}
 	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeProtobuf)
 
@@ -631,7 +731,7 @@ func (c *CoordinatorClient) ApplyKVUpdate(update string) error {
 }
 
 func (c *CoordinatorClient) query(
-	verifier resources.ResponseVerifier, query string, headers map[string][]string,
+	verifier ResponseVerifier, query string, headers map[string][]string,
 ) error {
 	url := c.makeURL(query)
 	logger := c.logger.With(
@@ -658,9 +758,251 @@ func (c *CoordinatorClient) query(
 	return verifier(resp.StatusCode, resp.Header, string(b), err)
 }
 
+// InstantQuery runs an instant query with provided headers
+func (c *CoordinatorClient) InstantQuery(req QueryRequest, headers Headers) (model.Vector, error) {
+	return c.instantQuery(req, route.QueryURL, headers)
+}
+
+// InstantQueryWithEngine runs an instant query with provided headers and the specified
+// query engine.
+func (c *CoordinatorClient) InstantQueryWithEngine(
+	req QueryRequest,
+	engine options.QueryEngine,
+	headers Headers,
+) (model.Vector, error) {
+	if engine == options.M3QueryEngine {
+		return c.instantQuery(req, native.M3QueryReadInstantURL, headers)
+	} else if engine == options.PrometheusEngine {
+		return c.instantQuery(req, native.PrometheusReadInstantURL, headers)
+	}
+	return nil, fmt.Errorf("unknown query engine: %s", engine)
+}
+
+func (c *CoordinatorClient) instantQuery(
+	req QueryRequest,
+	queryRoute string,
+	headers Headers,
+) (model.Vector, error) {
+	queryStr := fmt.Sprintf("%s?query=%s", queryRoute, req.Query)
+	if req.Time != nil {
+		queryStr = fmt.Sprintf("%s&time=%d", queryStr, req.Time.Unix())
+	}
+
+	resp, err := c.runQuery(queryStr, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsedResp jsonInstantQueryResponse
+	if err := json.Unmarshal([]byte(resp), &parsedResp); err != nil {
+		return nil, err
+	}
+
+	return parsedResp.Data.Result, nil
+}
+
+type jsonInstantQueryResponse struct {
+	Status string
+	Data   vectorResult
+}
+
+type vectorResult struct {
+	ResultType model.ValueType
+	Result     model.Vector
+}
+
+// RangeQuery runs a range query with provided headers
+func (c *CoordinatorClient) RangeQuery(
+	req RangeQueryRequest,
+	headers Headers,
+) (model.Matrix, error) {
+	return c.rangeQuery(req, route.QueryRangeURL, headers)
+}
+
+// RangeQueryWithEngine runs a range query with provided headers and the specified
+// query engine.
+func (c *CoordinatorClient) RangeQueryWithEngine(
+	req RangeQueryRequest,
+	engine options.QueryEngine,
+	headers Headers,
+) (model.Matrix, error) {
+	if engine == options.M3QueryEngine {
+		return c.rangeQuery(req, native.M3QueryReadURL, headers)
+	} else if engine == options.PrometheusEngine {
+		return c.rangeQuery(req, native.PrometheusReadURL, headers)
+	}
+	return nil, fmt.Errorf("unknown query engine: %s", engine)
+}
+
+func (c *CoordinatorClient) rangeQuery(
+	req RangeQueryRequest,
+	queryRoute string,
+	headers Headers,
+) (model.Matrix, error) {
+	if req.Step == 0 {
+		req.Step = 15 * time.Second // default step is 15 seconds.
+	}
+	queryStr := fmt.Sprintf(
+		"%s?query=%s&start=%d&end=%d&step=%f",
+		queryRoute, req.Query,
+		req.Start.Unix(),
+		req.End.Unix(),
+		req.Step.Seconds(),
+	)
+
+	resp, err := c.runQuery(queryStr, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsedResp jsonRangeQueryResponse
+	if err := json.Unmarshal([]byte(resp), &parsedResp); err != nil {
+		return nil, err
+	}
+
+	return parsedResp.Data.Result, nil
+}
+
+// LabelNames return matching label names based on the request.
+func (c *CoordinatorClient) LabelNames(
+	req LabelNamesRequest,
+	headers Headers,
+) (model.LabelNames, error) {
+	urlPathAndQuery := fmt.Sprintf("%s?%s", route.LabelNamesURL, req.String())
+	resp, err := c.runQuery(urlPathAndQuery, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsedResp labelResponse
+	if err := json.Unmarshal([]byte(resp), &parsedResp); err != nil {
+		return nil, err
+	}
+
+	labelNames := make(model.LabelNames, 0, len(parsedResp.Data))
+	for _, label := range parsedResp.Data {
+		labelNames = append(labelNames, model.LabelName(label))
+	}
+
+	return labelNames, nil
+}
+
+// LabelValues return matching label values based on the request.
+func (c *CoordinatorClient) LabelValues(
+	req LabelValuesRequest,
+	headers Headers,
+) (model.LabelValues, error) {
+	urlPathAndQuery := fmt.Sprintf("%s?%s",
+		path.Join(route.Prefix, "label", req.LabelName, "values"),
+		req.String())
+	resp, err := c.runQuery(urlPathAndQuery, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsedResp labelResponse
+	if err := json.Unmarshal([]byte(resp), &parsedResp); err != nil {
+		return nil, err
+	}
+
+	labelValues := make(model.LabelValues, 0, len(parsedResp.Data))
+	for _, label := range parsedResp.Data {
+		labelValues = append(labelValues, model.LabelValue(label))
+	}
+
+	return labelValues, nil
+}
+
+// Series returns matching series based on the request.
+func (c *CoordinatorClient) Series(
+	req SeriesRequest,
+	headers Headers,
+) ([]model.Metric, error) {
+	urlPathAndQuery := fmt.Sprintf("%s?%s", route.SeriesMatchURL, req.String())
+	resp, err := c.runQuery(urlPathAndQuery, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsedResp seriesResponse
+	if err := json.Unmarshal([]byte(resp), &parsedResp); err != nil {
+		return nil, err
+	}
+
+	series := make([]model.Metric, 0, len(parsedResp.Data))
+	for _, labels := range parsedResp.Data {
+		labelSet := make(model.LabelSet)
+		for name, val := range labels {
+			labelSet[model.LabelName(name)] = model.LabelValue(val)
+		}
+		series = append(series, model.Metric(labelSet))
+	}
+
+	return series, nil
+}
+
+type jsonRangeQueryResponse struct {
+	Status string
+	Data   matrixResult
+}
+
+type matrixResult struct {
+	ResultType model.ValueType
+	Result     model.Matrix
+}
+
+type labelResponse struct {
+	Status string
+	Data   []string
+}
+
+type seriesResponse struct {
+	Status string
+	Data   []map[string]string
+}
+
+func (c *CoordinatorClient) runQuery(
+	query string, headers map[string][]string,
+) (string, error) {
+	url := c.makeURL(query)
+	logger := c.logger.With(
+		ZapMethod("query"), zap.String("url", url), zap.Any("headers", headers))
+	logger.Info("running")
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	if headers != nil {
+		req.Header = headers
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		logger.Error("failed get", zap.Error(err))
+		return "", err
+	}
+
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+
+	if status := resp.StatusCode; status != http.StatusOK {
+		return "", fmt.Errorf("query response status not OK, received %v. error=%v",
+			status, string(b))
+	}
+
+	if contentType, ok := resp.Header["Content-Type"]; !ok {
+		return "", fmt.Errorf("missing Content-Type header")
+	} else if len(contentType) != 1 || contentType[0] != "application/json" { //nolint:goconst
+		return "", fmt.Errorf("expected json content type, got %v", contentType)
+	}
+
+	return string(b), err
+}
+
 // RunQuery runs the given query with a given verification function.
 func (c *CoordinatorClient) RunQuery(
-	verifier resources.ResponseVerifier, query string, headers map[string][]string,
+	verifier ResponseVerifier, query string, headers map[string][]string,
 ) error {
 	logger := c.logger.With(ZapMethod("runQuery"),
 		zap.String("query", query))
@@ -708,3 +1050,80 @@ func toResponse(
 
 	return nil
 }
+
+// GraphiteQuery retrieves graphite raw data.
+func (c *CoordinatorClient) GraphiteQuery(
+	graphiteReq GraphiteQueryRequest,
+) ([]Datapoint, error) {
+	if graphiteReq.From.IsZero() {
+		graphiteReq.From = time.Now().Add(-24 * time.Hour)
+	}
+	if graphiteReq.Until.IsZero() {
+		graphiteReq.Until = time.Now()
+	}
+
+	queryStr := fmt.Sprintf(
+		"%s?target=%s&from=%d&until=%d",
+		graphite.ReadURL, graphiteReq.Target,
+		graphiteReq.From.Unix(),
+		graphiteReq.Until.Unix(),
+	)
+
+	url := c.makeURL(queryStr)
+	logger := c.logger.With(
+		ZapMethod("graphiteQuery"), zap.String("url", url))
+	logger.Info("running")
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		logger.Error("failed get", zap.Error(err))
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if status := resp.StatusCode; status != http.StatusOK {
+		return nil, fmt.Errorf("query response status not OK, received %v %s", status, resp.Status)
+	}
+
+	var parsedResp jsonGraphiteQueryResponse
+	if err := json.Unmarshal(b, &parsedResp); err != nil {
+		return nil, err
+	}
+
+	if len(parsedResp) == 0 {
+		return nil, nil
+	}
+
+	results := make([]Datapoint, 0, len(parsedResp[0].Datapoints))
+	for _, dp := range parsedResp[0].Datapoints {
+		if len(dp) != 2 {
+			return nil, fmt.Errorf("failed to parse response: %s", string(b))
+		}
+
+		results = append(results, Datapoint{
+			Value:     dp[0],
+			Timestamp: int64(*dp[1]),
+		})
+	}
+
+	return results, nil
+}
+
+type jsonGraphiteQueryResponse []series
+
+type series struct {
+	Target     string
+	Datapoints []tuple
+	StepSizeMs int
+}
+
+type tuple []*float64

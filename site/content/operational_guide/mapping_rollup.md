@@ -78,6 +78,8 @@ both the `1m:48h` and `30s:24h` namespaces.
 Rollup rules are used to rollup metrics and aggregate in different ways by 
 arbitrary dimensions before they are stored. 
 
+### Aggregating counters example
+
 Here's an example of creating a new monotonic counter called 
 `http_request_rollup_no_pod_bucket` from a set of histogram metrics originally 
 called `http_request_bucket`:
@@ -140,6 +142,8 @@ downsample:
           retention: 720h
 ```
 
+### Storage policies and rollup rules
+
 **Note:** In order to store rolled up metrics in an `unaggregated` namespace, the namespace's `aggregationOptions` must have a matching `aggregation`. For example, if in the above rule, the `720h` namespace under `storagePolicies` 
 is `unaggregated`, the `aggregationOptions` for that namespace should resemble the following:
 
@@ -158,4 +162,65 @@ is `unaggregated`, the `aggregationOptions` for that namespace should resemble t
     }
   ]
 }
+```
+
+### Aggregating gauges example
+
+The following is an example of a sensible set of aggregations across an
+example metric which represents a job queue length. The aggregations provide
+the sum, average, max and min across all instances for the job queue length with
+different aggregate metric names.
+
+```yaml
+downsample:
+  rules:
+    rollupRules:
+      - name: "job queue length sum across pods pod"
+        filter: "__name__:job_queue_length k8s_pod:*"
+        transforms:
+        - aggregate:
+            type: "Last"
+        - rollup:
+            metricName: "job_queue_length:sum"
+            excludeBy: ["k8s_pod"]
+            aggregations: ["Sum"]
+        storagePolicies:
+        - resolution: 30s
+          retention: 720h
+      - name: "job queue length average across pods pod"
+        filter: "__name__:job_queue_length k8s_pod:*"
+        transforms:
+        - aggregate:
+            type: "Last"
+        - rollup:
+            metricName: "job_queue_length:avg"
+            excludeBy: ["k8s_pod"]
+            aggregations: ["Mean"]
+        storagePolicies:
+        - resolution: 30s
+          retention: 720h
+      - name: "job queue length max across pods pod"
+        filter: "__name__:job_queue_length k8s_pod:*"
+        transforms:
+        - aggregate:
+            type: "Last"
+        - rollup:
+            metricName: "job_queue_length:max"
+            excludeBy: ["k8s_pod"]
+            aggregations: ["Max"]
+        storagePolicies:
+        - resolution: 30s
+          retention: 720h
+      - name: "job queue length min across pods pod"
+        filter: "__name__:job_queue_length k8s_pod:*"
+        transforms:
+        - aggregate:
+            type: "Last"
+        - rollup:
+            metricName: "job_queue_length:min"
+            excludeBy: ["k8s_pod"]
+            aggregations: ["Min"]
+        storagePolicies:
+        - resolution: 30s
+          retention: 720h
 ```

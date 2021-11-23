@@ -24,7 +24,6 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
 	promstorage "github.com/prometheus/prometheus/storage"
 
@@ -35,35 +34,33 @@ import (
 
 // opts defines options for PromQL handler.
 type opts struct {
-	promQLEngine *promql.Engine
-	instant      bool
-	queryable    promstorage.Queryable
-	newQueryFn   NewQueryFn
+	instant    bool
+	queryable  promstorage.Queryable
+	newQueryFn NewQueryFn
 }
 
 // Option is a Prometheus handler option.
 type Option func(*opts) error
 
 // WithEngine sets the PromQL engine.
-func WithEngine(promQLEngine *promql.Engine) Option {
-	return withEngine(promQLEngine, false)
+func WithEngine(promQLEngineFn options.PromQLEngineFn) Option {
+	return withEngine(promQLEngineFn, false)
 }
 
 // WithInstantEngine sets the PromQL instant engine.
-func WithInstantEngine(promQLEngine *promql.Engine) Option {
-	return withEngine(promQLEngine, true)
+func WithInstantEngine(promQLEngineFn options.PromQLEngineFn) Option {
+	return withEngine(promQLEngineFn, true)
 }
 
-func withEngine(promQLEngine *promql.Engine, instant bool) Option {
+func withEngine(promQLEngineFn options.PromQLEngineFn, instant bool) Option {
 	return func(o *opts) error {
-		if promQLEngine == nil {
-			return errors.New("invalid engine")
+		if promQLEngineFn == nil {
+			return errors.New("invalid engine fn")
 		}
 		o.instant = instant
-		o.promQLEngine = promQLEngine
-		o.newQueryFn = newRangeQueryFn(promQLEngine, o.queryable)
+		o.newQueryFn = newRangeQueryFn(promQLEngineFn, o.queryable)
 		if instant {
-			o.newQueryFn = newInstantQueryFn(promQLEngine, o.queryable)
+			o.newQueryFn = newInstantQueryFn(promQLEngineFn, o.queryable)
 		}
 		return nil
 	}
@@ -76,10 +73,9 @@ func newDefaultOptions(hOpts options.HandlerOptions) opts {
 			InstrumentOptions: hOpts.InstrumentOpts(),
 		})
 	return opts{
-		promQLEngine: hOpts.PrometheusEngine(),
-		queryable:    queryable,
-		instant:      false,
-		newQueryFn:   newRangeQueryFn(hOpts.PrometheusEngine(), queryable),
+		queryable:  queryable,
+		instant:    false,
+		newQueryFn: newRangeQueryFn(hOpts.PrometheusEngineFn(), queryable),
 	}
 }
 

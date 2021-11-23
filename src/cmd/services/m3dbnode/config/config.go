@@ -33,6 +33,7 @@ import (
 	"go.etcd.io/etcd/embed"
 	"go.etcd.io/etcd/pkg/transport"
 	"go.etcd.io/etcd/pkg/types"
+	"gopkg.in/yaml.v2"
 
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -50,8 +51,10 @@ import (
 const (
 	defaultEtcdDirSuffix  = "etcd"
 	defaultEtcdListenHost = "http://0.0.0.0"
-	defaultEtcdClientPort = 2379
-	defaultEtcdServerPort = 2380
+	// DefaultEtcdClientPort is the default port for etcd client.
+	DefaultEtcdClientPort = 2379
+	// DefaultEtcdServerPort is the default port for etcd server.
+	DefaultEtcdServerPort = 2380
 )
 
 var (
@@ -123,6 +126,19 @@ func (c *Configuration) Components() int {
 	}
 
 	return numComponents
+}
+
+// DeepCopy returns a deep copy of the current configuration object.
+func (c *Configuration) DeepCopy() (Configuration, error) {
+	rawCfg, err := yaml.Marshal(c)
+	if err != nil {
+		return Configuration{}, err
+	}
+	var dupe Configuration
+	if err := yaml.Unmarshal(rawCfg, &dupe); err != nil {
+		return Configuration{}, err
+	}
+	return dupe, nil
 }
 
 // DBConfiguration is the configuration for a DB node.
@@ -704,13 +720,13 @@ func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 	}
 	newKVCfg.Dir = dir
 
-	LPUrls, err := convertToURLsWithDefault(kvCfg.ListenPeerUrls, newURL(defaultEtcdListenHost, defaultEtcdServerPort))
+	LPUrls, err := convertToURLsWithDefault(kvCfg.ListenPeerUrls, newURL(defaultEtcdListenHost, DefaultEtcdServerPort))
 	if err != nil {
 		return nil, err
 	}
 	newKVCfg.LPUrls = LPUrls
 
-	LCUrls, err := convertToURLsWithDefault(kvCfg.ListenClientUrls, newURL(defaultEtcdListenHost, defaultEtcdClientPort))
+	LCUrls, err := convertToURLsWithDefault(kvCfg.ListenClientUrls, newURL(defaultEtcdListenHost, DefaultEtcdClientPort))
 	if err != nil {
 		return nil, err
 	}
@@ -725,13 +741,13 @@ func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 		newKVCfg.ClusterState = host.ClusterState
 	}
 
-	APUrls, err := convertToURLsWithDefault(kvCfg.InitialAdvertisePeerUrls, newURL(endpoint, defaultEtcdServerPort))
+	APUrls, err := convertToURLsWithDefault(kvCfg.InitialAdvertisePeerUrls, newURL(endpoint, DefaultEtcdServerPort))
 	if err != nil {
 		return nil, err
 	}
 	newKVCfg.APUrls = APUrls
 
-	ACUrls, err := convertToURLsWithDefault(kvCfg.AdvertiseClientUrls, newURL(endpoint, defaultEtcdClientPort))
+	ACUrls, err := convertToURLsWithDefault(kvCfg.AdvertiseClientUrls, newURL(endpoint, DefaultEtcdClientPort))
 	if err != nil {
 		return nil, err
 	}
@@ -822,7 +838,7 @@ func InitialClusterEndpoints(initialCluster []environment.SeedNode) ([]string, e
 			return nil, errors.New("invalid initialCluster format")
 		}
 
-		endpoints = append(endpoints, newURL(endpoint[:colonIdx], defaultEtcdClientPort))
+		endpoints = append(endpoints, newURL(endpoint[:colonIdx], DefaultEtcdClientPort))
 	}
 
 	return endpoints, nil

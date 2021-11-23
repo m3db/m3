@@ -30,6 +30,7 @@ import (
 type RollupTarget struct {
 	Pipeline        pipeline.Pipeline      `json:"pipeline" validate:"required"`
 	StoragePolicies policy.StoragePolicies `json:"storagePolicies" validate:"required"`
+	ResendEnabled   bool                   `json:"resendEnabled"`
 }
 
 // Equal determines whether two rollup targets are equal.
@@ -40,7 +41,8 @@ func (t *RollupTarget) Equal(other *RollupTarget) bool {
 	if t == nil || other == nil {
 		return false
 	}
-	return t.Pipeline.Equal(other.Pipeline) && t.StoragePolicies.Equal(other.StoragePolicies)
+	return t.Pipeline.Equal(other.Pipeline) && t.StoragePolicies.Equal(other.StoragePolicies) &&
+		t.ResendEnabled == other.ResendEnabled
 }
 
 // RollupRule is rollup rule model.
