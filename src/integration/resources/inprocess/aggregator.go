@@ -257,6 +257,12 @@ func (a *Aggregator) Close() error {
 	return nil
 }
 
+// Configuration returns a copy of the configuration used to
+// start this aggregator.
+func (a *Aggregator) Configuration() config.Configuration {
+	return a.cfg
+}
+
 func updateAggregatorConfig(
 	cfg config.Configuration,
 	opts AggregatorOptions,

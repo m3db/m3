@@ -1,6 +1,6 @@
-// +build dtest
+// +build cluster_integration
 //
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2020  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,10 +20,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package integration
+package legacy
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/integration/resources"
+	"github.com/m3db/m3/src/integration/resources/inprocess"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -99,7 +101,7 @@ func hasFileVerifier(filter string) resources.GoalStateVerifier {
 }
 
 func TestColdWritesSimple(t *testing.T) {
-	node := singleDBNodeDockerResources.Nodes()[0]
+	node := m3.Nodes()[0]
 	warmDp := dp{t: ago(20), v: 12.3456789}
 	req := writeReq(resources.ColdWriteNsName, "foo", warmDp)
 	require.NoError(t, node.WritePoint(req))
@@ -116,19 +118,26 @@ func TestColdWritesSimple(t *testing.T) {
 	require.NoError(t, err)
 	verifyFetch(t, fetch, coldDp, warmDp)
 
+	dbnode := m3.Nodes()[0].(*inprocess.DBNode)
+	cfg := dbnode.Configuration()
+
 	err = node.GoalStateExec(hasFileVerifier(".*1-checkpoint.db"),
 		"find",
-		"/var/lib/m3db/data/coldWritesRepairAndNoIndex",
+		fmt.Sprintf("%s/data/coldWritesRepairAndNoIndex", *cfg.DB.Filesystem.FilePathPrefix),
 		"-name",
 		"*1-checkpoint.db")
 
 	assert.NoError(t, err)
 
-	err = node.Restart()
-	require.NoError(t, err)
+	// TODO(nate): Restarts of inprocess DB nodes currently not working properly.
+	// As such, comment out restart. Re-enable once restarts supported.
+	/*
+		err = node.Restart()
+		require.NoError(t, err)
 
-	err = node.WaitForBootstrap()
-	require.NoError(t, err)
+		err = node.WaitForBootstrap()
+		require.NoError(t, err)
+	*/
 
 	fetch, err = node.Fetch(fetchReq(resources.ColdWriteNsName, "foo"))
 	require.NoError(t, err)
