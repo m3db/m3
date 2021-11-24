@@ -1,4 +1,58 @@
 # Change the default theme to be use when building the site with Hugo
+[module]
+  [[module.imports]]
+    path = "github.com/chronosphereio/victor"
+    
+  [[module.mounts]]
+    source = "content"
+    target = "content/docs"
+
+  [[module.mounts]]
+    source = "static"
+    target = "static"
+
+  [[module.mounts]]
+    source = "layouts"
+    target = "layouts"
+
+  [[module.mounts]]
+    source = "data"
+    target = "data"
+
+  [[module.mounts]]
+    source = "assets"
+    target = "assets"
+
+  [[module.mounts]]
+    source = "i18n"
+    target = "i18n"
+
+  [[module.mounts]]
+    source = "archetypes"
+    target = "archetypes"
+    
+  [[module.imports]]
+    path = "versions"
+
+  [[module.imports.mounts]]
+    source = "content/v0.15.17"
+    target = "content/docs/v0.15.17"
+
+  [[module.imports.mounts]]
+    source = "content/v1.0"
+    target = "content/docs/v1.0"
+
+  [[module.imports.mounts]]
+    source = "content/v1.1"
+    target = "content/docs/v1.1"
+
+  [[module.imports.mounts]]
+    source = "content/v1.2"
+    target = "content/docs/v1.2"
+
+  [[module.imports.mounts]]
+    source = "content/v1.3"
+    target = "content/docs/v1.3"
 
 ignoreFiles = [ "\\.ttf$", "\\.woff$", "\\.woff2$", "\\.eot$" ]
 
@@ -96,20 +150,23 @@ offlineSearch = false
 
 # TODO: Can all the below be consolidated?
   [[params.versions]]
-    version = "1.3"
+    version = "latest"
     url = "/docs"
   [[params.versions]]
-    version = "1.2"
-    url = "/v1.2/docs"
+    version = "v1.3"
+    url = "/docs/v1.3"
   [[params.versions]]
-    version = "1.1"
-    url = "/v1.1/docs"
+    version = "v1.2"
+    url = "/docs/v1.2"
   [[params.versions]]
-    version = "1.0"
-    url = "/v1.0/docs"
+    version = "v1.1"
+    url = "/docs/v1.1"
   [[params.versions]]
-    version = "0.15.17"
-    url = "/v0.15.17/docs"
+    version = "v1.0"
+    url = "/docs/v1.0"
+  [[params.versions]]
+    version = "v0.15.17"
+    url = "/docs/v0.15.17"
 
 # TODO: Do not like doing this really
 [markup]
