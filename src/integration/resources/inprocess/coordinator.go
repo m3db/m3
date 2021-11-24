@@ -61,7 +61,7 @@ type Coordinator struct {
 	logger   *zap.Logger
 	tmpDirs  []string
 	embedded bool
-	startFn  StartFn
+	startFn  CoordinatorStartFn
 
 	interruptCh chan<- error
 	shutdownCh  <-chan struct{}
@@ -73,7 +73,7 @@ type CoordinatorOptions struct {
 	// if set to true. If false, configuration is used as-is re: ports.
 	GeneratePorts bool
 	// StartFn is a custom function that can be used to start the Coordinator.
-	StartFn StartFn
+	StartFn CoordinatorStartFn
 	// Logger is the logger to use for the coordinator. If not provided,
 	// a default one will be created.
 	Logger *zap.Logger
@@ -209,7 +209,7 @@ func NewEmbeddedCoordinator(d *DBNode) (resources.Coordinator, error) {
 
 func (c *Coordinator) start() {
 	if c.startFn != nil {
-		c.interruptCh, c.shutdownCh = c.startFn()
+		c.interruptCh, c.shutdownCh = c.startFn(&c.cfg)
 		return
 	}
 
