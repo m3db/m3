@@ -320,7 +320,7 @@ func TestPromTimeSeriesToSeriesAttributesPromMetricsTypeFromPrometheus(t *testin
 		{prompb.MetricType_SUMMARY, "sum"}:      {metricType: ts.PromMetricTypeSummary, handleValueResets: true},
 	}
 
-	for proto, expected := range mapping {
+	for proto, expected := range mapping { // nolint: dupl
 		var (
 			name     = fmt.Sprintf("Prometheus type: %s, name suffix: '%s'", proto.metricType, proto.nameSuffix)
 			proto    = proto
@@ -402,7 +402,7 @@ func TestPromTimeSeriesToSeriesAttributesMetricsTypeFromOpenMetrics(t *testing.T
 		{prompb.MetricType_SUMMARY, "created"}: {metricType: ts.PromMetricTypeSummary},
 	}
 
-	for proto, expected := range mapping {
+	for proto, expected := range mapping { // nolint: dupl
 		var (
 			name     = fmt.Sprintf("Open Metrics type: %s, name suffix: '%s'", proto.metricType, proto.nameSuffix)
 			proto    = proto
