@@ -171,7 +171,7 @@ func seriesAttributesForOpenMetricsSource(series prompb.TimeSeries) (ts.SeriesAt
 		handleValueResets bool
 	)
 
-	// nolint: lll https://github.com/OpenObservability/OpenMetrics/blob/2bd6413e040513afa1bfb8f56dd12db8262e18d9/specification/OpenMetrics.md
+	// https://github.com/OpenObservability/OpenMetrics/blob/2bd6413e040/specification/OpenMetrics.md
 	switch series.Type {
 	case prompb.MetricType_UNKNOWN:
 		promMetricType = ts.PromMetricTypeUnknown
