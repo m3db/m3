@@ -1994,11 +1994,12 @@ func TestEntryMaybeExpireWithExpiry(t *testing.T) {
 	}
 
 	// Try expiring this entry and assert it's not expired.
-	require.False(t, e.TryExpire(*now))
+	require.False(t, e.TryExpire(*now, unknownMetricCategory))
 
 	// Try expiring the entry with time in the future and
 	// assert it's expired.
-	require.True(t, e.TryExpire(now.Add(e.opts.EntryTTL()).Add(time.Second)))
+	require.True(t, e.TryExpire(now.Add(e.opts.EntryTTL()).Add(time.Second),
+		unknownMetricCategory))
 
 	// Assert elements have been tombstoned
 	require.Equal(t, 0, len(e.aggregations))
@@ -2323,9 +2324,11 @@ func aggregationKeys(pipelines []metadata.PipelineMetadata) []aggregationKey {
 	return aggregationKeys[:curr]
 }
 
-type testPreProcessFn func(e *Entry, now *time.Time)
-type testElemValidateFn func(t *testing.T, elem *list.Element, alignedStart time.Time)
-type testPostProcessFn func(t *testing.T)
+type (
+	testPreProcessFn   func(e *Entry, now *time.Time)
+	testElemValidateFn func(t *testing.T, elem *list.Element, alignedStart time.Time)
+	testPostProcessFn  func(t *testing.T)
+)
 
 type testEntryData struct {
 	mu unaggregated.MetricUnion
