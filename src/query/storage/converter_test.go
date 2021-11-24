@@ -289,7 +289,7 @@ func TestPromTimeSeriesToSeriesAttributesSource(t *testing.T) {
 
 	attrs, err = PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Source: prompb.Source_OPEN_METRICS})
 	require.NoError(t, err)
-	assert.Equal(t, ts.SourceTypePrometheus, attrs.Source)
+	assert.Equal(t, ts.SourceTypeOpenMetrics, attrs.Source)
 
 	attrs, err = PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Source: prompb.Source_GRAPHITE})
 	require.NoError(t, err)
@@ -299,17 +299,7 @@ func TestPromTimeSeriesToSeriesAttributesSource(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestPromTimeSeriesToSeriesAttributesPromMetricsType(t *testing.T) {
-	type prompbMetricTypeWithNameSuffix struct {
-		metricType prompb.MetricType
-		nameSuffix string
-	}
-
-	type promMetricTypeWithBool struct {
-		metricType        ts.PromMetricType
-		handleValueResets bool
-	}
-
+func TestPromTimeSeriesToSeriesAttributesPromMetricsTypeFromPrometheus(t *testing.T) {
 	mapping := map[prompbMetricTypeWithNameSuffix]promMetricTypeWithBool{
 		{metricType: prompb.MetricType_UNKNOWN}:  {metricType: ts.PromMetricTypeUnknown},
 		{metricType: prompb.MetricType_COUNTER}:  {metricType: ts.PromMetricTypeCounter, handleValueResets: true},
@@ -331,17 +321,35 @@ func TestPromTimeSeriesToSeriesAttributesPromMetricsType(t *testing.T) {
 	}
 
 	for proto, expected := range mapping {
-		var labels []prompb.Label
-		if proto.nameSuffix != "" {
-			labels = append(labels, prompb.Label{Name: promDefaultName, Value: []byte("foo_" + proto.nameSuffix)})
-		}
-		attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Type: proto.metricType, Labels: labels})
-		require.NoError(t, err)
-		assert.Equal(t, expected.metricType, attrs.PromType)
-		assert.Equal(t, expected.handleValueResets, attrs.HandleValueResets)
+		var (
+			name     = fmt.Sprintf("Prometheus type: %s, name suffix: '%s'", proto.metricType, proto.nameSuffix)
+			proto    = proto
+			expected = expected
+		)
+
+		t.Run(name, func(t *testing.T) {
+			var labels []prompb.Label
+			if proto.nameSuffix != "" {
+				labels = append(labels, prompb.Label{Name: promDefaultName, Value: []byte("foo_" + proto.nameSuffix)})
+			}
+
+			attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
+				Source: prompb.Source_PROMETHEUS,
+				Type:   proto.metricType,
+				Labels: labels,
+			})
+
+			require.NoError(t, err)
+			assert.Equal(t, expected.metricType, attrs.PromType)
+			assert.Equal(t, expected.handleValueResets, attrs.HandleValueResets)
+			assert.Equal(t, ts.SourceTypePrometheus, attrs.Source)
+		})
 	}
 
-	_, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Type: -1})
+	_, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
+		Source: prompb.Source_PROMETHEUS,
+		Type:   -1,
+	})
 	require.Error(t, err)
 }
 
@@ -353,28 +361,106 @@ func TestPromTimeSeriesToSeriesAttributesM3Type(t *testing.T) {
 	}
 
 	for proto, expected := range mapping {
-		attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{M3Type: proto})
+		attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
+			Source: prompb.Source_PROMETHEUS,
+			M3Type: proto,
+		})
 		require.NoError(t, err)
 		assert.Equal(t, expected, attrs.M3Type)
+		assert.Equal(t, ts.SourceTypePrometheus, attrs.Source)
 	}
 
-	_, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{M3Type: -1})
+	_, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
+		Source: prompb.Source_PROMETHEUS,
+		M3Type: -1,
+	})
 	require.Error(t, err)
 }
 
-func TestPromTimeSeriesToSeriesAttributesPromMetricsTypeFromGraphite(t *testing.T) {
-	mapping := map[prompb.M3Type]ts.PromMetricType{
-		prompb.M3Type_M3_GAUGE:   ts.PromMetricTypeGauge,
-		prompb.M3Type_M3_COUNTER: ts.PromMetricTypeCounter,
-		prompb.M3Type_M3_TIMER:   ts.PromMetricTypeUnknown,
+func TestPromTimeSeriesToSeriesAttributesMetricsTypeFromOpenMetrics(t *testing.T) {
+	mapping := map[prompbMetricTypeWithNameSuffix]promMetricTypeWithBool{
+		{metricType: prompb.MetricType_UNKNOWN}: {metricType: ts.PromMetricTypeUnknown},
+
+		{prompb.MetricType_COUNTER, "total"}:   {metricType: ts.PromMetricTypeCounter, handleValueResets: true},
+		{prompb.MetricType_COUNTER, "created"}: {metricType: ts.PromMetricTypeCounter},
+
+		{metricType: prompb.MetricType_GAUGE}:    {metricType: ts.PromMetricTypeGauge},
+		{metricType: prompb.MetricType_INFO}:     {metricType: ts.PromMetricTypeInfo},
+		{metricType: prompb.MetricType_STATESET}: {metricType: ts.PromMetricTypeStateSet},
+
+		{prompb.MetricType_HISTOGRAM, "bucket"}:  {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
+		{prompb.MetricType_HISTOGRAM, "count"}:   {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
+		{prompb.MetricType_HISTOGRAM, "sum"}:     {metricType: ts.PromMetricTypeHistogram, handleValueResets: true},
+		{prompb.MetricType_HISTOGRAM, "created"}: {metricType: ts.PromMetricTypeHistogram},
+
+		{prompb.MetricType_GAUGE_HISTOGRAM, "bucket"}: {metricType: ts.PromMetricTypeGaugeHistogram},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "gcount"}: {metricType: ts.PromMetricTypeGaugeHistogram, handleValueResets: true},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "gsum"}:   {metricType: ts.PromMetricTypeGaugeHistogram},
+
+		{prompb.MetricType_SUMMARY, "count"}:   {metricType: ts.PromMetricTypeSummary, handleValueResets: true},
+		{prompb.MetricType_SUMMARY, "sum"}:     {metricType: ts.PromMetricTypeSummary, handleValueResets: true},
+		{prompb.MetricType_SUMMARY, "created"}: {metricType: ts.PromMetricTypeSummary},
 	}
 
 	for proto, expected := range mapping {
-		attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{M3Type: proto, Source: prompb.Source_GRAPHITE})
+		var (
+			name     = fmt.Sprintf("Open Metrics type: %s, name suffix: '%s'", proto.metricType, proto.nameSuffix)
+			proto    = proto
+			expected = expected
+		)
+
+		t.Run(name, func(t *testing.T) {
+			var labels []prompb.Label
+			if proto.nameSuffix != "" {
+				labels = append(labels, prompb.Label{Name: promDefaultName, Value: []byte("foo_" + proto.nameSuffix)})
+			}
+
+			attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
+				Source: prompb.Source_OPEN_METRICS,
+				Type:   proto.metricType,
+				Labels: labels,
+			})
+
+			require.NoError(t, err)
+			assert.Equal(t, expected.metricType, attrs.PromType)
+			assert.Equal(t, expected.handleValueResets, attrs.HandleValueResets)
+			assert.Equal(t, ts.SourceTypeOpenMetrics, attrs.Source)
+		})
+	}
+
+	_, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
+		Source: prompb.Source_OPEN_METRICS,
+		Type:   -1,
+	})
+	require.Error(t, err)
+}
+
+func TestPromTimeSeriesToSeriesAttributesMetricsTypeFromGraphite(t *testing.T) {
+	mapping := map[prompb.M3Type]struct {
+		m3Type   ts.M3MetricType
+		promType ts.PromMetricType
+	}{
+		prompb.M3Type_M3_GAUGE:   {ts.M3MetricTypeGauge, ts.PromMetricTypeGauge},
+		prompb.M3Type_M3_COUNTER: {ts.M3MetricTypeCounter, ts.PromMetricTypeCounter},
+		prompb.M3Type_M3_TIMER:   {ts.M3MetricTypeTimer, ts.PromMetricTypeUnknown},
+	}
+
+	for proto, expected := range mapping {
+		attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
+			Source: prompb.Source_GRAPHITE,
+			M3Type: proto,
+		})
 		require.NoError(t, err)
-		assert.Equal(t, expected, attrs.PromType)
+		assert.Equal(t, expected.promType, attrs.PromType, "PromType")
+		assert.Equal(t, expected.m3Type, attrs.M3Type, "M3Type")
 		assert.False(t, attrs.HandleValueResets)
 	}
+
+	_, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
+		Source: prompb.Source_GRAPHITE,
+		M3Type: -1,
+	})
+	require.Error(t, err)
 }
 
 func TestSeriesAttributesToAnnotationPayload(t *testing.T) {
@@ -420,4 +506,14 @@ func TestPromTimestampToTime(t *testing.T) {
 
 	require.Equal(t, xNowMillis, promTimestampToUnixNanos(timestampMs))
 	require.Equal(t, nowMillis, PromTimestampToTime(timestampMs))
+}
+
+type prompbMetricTypeWithNameSuffix struct {
+	metricType prompb.MetricType
+	nameSuffix string
+}
+
+type promMetricTypeWithBool struct {
+	metricType        ts.PromMetricType
+	handleValueResets bool
 }
