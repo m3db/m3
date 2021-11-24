@@ -657,8 +657,10 @@ type metricKey struct {
 	storagePolicy policy.StoragePolicy
 }
 
-type valuesByTime map[int64]interface{}
-type datapointsByID map[metricKey]valuesByTime
+type (
+	valuesByTime   map[int64]interface{}
+	datapointsByID map[metricKey]valuesByTime
+)
 
 type aggregationKey struct {
 	aggregationID maggregation.ID
@@ -880,9 +882,11 @@ type testData struct {
 
 type testDataset []testData
 
-type counterValueGenFn func(intervalIdx, idIdx int) int64
-type timerValueGenFn func(intervalIdx, idIdx int) []float64
-type gaugeValueGenFn func(intervalIdx, idIdx int) float64
+type (
+	counterValueGenFn func(intervalIdx, idIdx int) int64
+	timerValueGenFn   func(intervalIdx, idIdx int) []float64
+	gaugeValueGenFn   func(intervalIdx, idIdx int) float64
+)
 
 func defaultCounterValueGenFn(intervalIdx, _ int) int64 {
 	testCounterVal := int64(123)

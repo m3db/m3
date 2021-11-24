@@ -36,17 +36,17 @@ import (
 var (
 	testAggregationValues = []float64{1.2, 5, 789, 4.0}
 	testAggregationUnions = []unaggregated.MetricUnion{
-		unaggregated.MetricUnion{
+		{
 			Type:       metric.CounterType,
 			ID:         testCounterID,
 			CounterVal: 1234,
 		},
-		unaggregated.MetricUnion{
+		{
 			Type:          metric.TimerType,
 			ID:            testBatchTimerID,
 			BatchTimerVal: []float64{1.0, 3.5, 2.2, 6.5, 4.8},
 		},
-		unaggregated.MetricUnion{
+		{
 			Type:     metric.GaugeType,
 			ID:       testGaugeID,
 			GaugeVal: 123.456,
