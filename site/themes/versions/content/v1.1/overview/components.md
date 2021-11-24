@@ -13,8 +13,8 @@ M3DB is a distributed time series database that provides scalable storage and a 
 
 ## M3 Query
 
-{{< fileinclude "docs/includes/m3query_intro.md" >}}
+{{< fileinclude file="m3query_intro.md" >}}
 
 ## M3 Aggregator
 
-{{< fileinclude "docs/includes/m3aggregator_intro.md" >}}
+{{< fileinclude file="m3aggregator_intro.md" >}}

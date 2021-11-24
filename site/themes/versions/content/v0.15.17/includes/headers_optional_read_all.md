@@ -8,4 +8,4 @@ issued regardless of if they include the label or not in a query and also strip 
 M3-Restrict-By-Tags-JSON: '{"match":[{"name":"globaltag","type":"EQUAL","value":"somevalue"}],"strip":["globaltag"]}'
 ```
 
-{{% fileinclude "docs/includes/headers_optional_read_limits.md" %}}
+{{% fileinclude "headers_optional_read_limits.md" %}}

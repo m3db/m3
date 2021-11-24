@@ -10,7 +10,7 @@ This guide shows you the steps involved in creating an M3 cluster using M3 binar
 This guide assumes you have read the [quickstart](/docs/quickstart/binaries), and builds upon the concepts in that guide.
 {{% /notice %}}
 
-{{< fileinclude "docs/includes/cluster-architecture.md" >}}
+{{< fileinclude file="cluster-architecture.md" >}}
 
 ## Download and Install a Binary
 
@@ -211,7 +211,7 @@ curl -X POST {{% apiendpoint %}}database/create -d '{
 
 If you need to setup multiple namespaces, you can run the command above multiple times with different namespace configurations.
 
-{{< fileinclude "docs/includes/cluster-common-steps.md" >}}
+{{< fileinclude file="cluster-common-steps.md" >}}
 
 <!-- ## Next Steps
 

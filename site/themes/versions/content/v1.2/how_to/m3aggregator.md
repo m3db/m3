@@ -3,7 +3,7 @@ title: Aggregate Metrics with M3 Aggregator
 weight: 5
 ---
 
-{{< fileinclude "docs/includes/m3aggregator_intro.md" >}}
+{{< fileinclude file="m3aggregator_intro.md" >}}
 
 ## Configuration
 

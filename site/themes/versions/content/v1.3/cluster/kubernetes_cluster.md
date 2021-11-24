@@ -14,7 +14,7 @@ This guide assumes you have read the [quickstart](/docs/quickstart/docker), and 
 We recommend you use [our Kubernetes operator](/docs/operator/operator) to deploy M3 to a cluster. It is a more streamlined setup that uses [custom resource definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) to automatically handle operations such as managing cluster placements.
 {{% /notice %}}
 
-{{< fileinclude "docs/includes/cluster-architecture.md" >}}
+{{< fileinclude file="cluster-architecture.md" >}}
 
 ## Prerequisites
 
@@ -279,4 +279,4 @@ curl {{% apiendpoint %}}services/m3db/placement | jq .
 [Read more about the bootstrapping process](/docs/operational_guide/bootstrapping_crash_recovery/).
 {{% /notice %}}
 
-{{< fileinclude "docs/includes/cluster-common-steps.md" >}}
+{{< fileinclude file="cluster-common-steps.md" >}}

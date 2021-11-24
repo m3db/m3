@@ -14,7 +14,7 @@ This guide assumes you have read the [quickstart](/v1.0/docs/quickstart/docker),
 We recommend you use [our Kubernetes operator](/v1.0/docs/operator/operator) to deploy M3 to a cluster. It is a more streamlined setup that uses [custom resource definitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) to automatically handle operations such as managing cluster placements.
 {{% /notice %}}
 
-{{< fileinclude "docs/includes/cluster-architecture.md" >}}
+{{< fileinclude file="cluster-architecture.md" >}}
 
 ## Prerequisites
 
@@ -353,4 +353,4 @@ Add `?debug=1` to the request to convert nano units in the output into standard 
 {{% /tab %}}
 {{< /tabs >}}
 
-{{< fileinclude "docs/includes/cluster-common-steps.md" >}}
+{{< fileinclude file="cluster-common-steps.md" >}}

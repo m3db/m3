@@ -3,7 +3,7 @@ title: Query Data with M3 Query
 weight: 4
 ---
 
-{{< fileinclude "docs/includes/m3query_intro.md" >}}
+{{< fileinclude file="m3query_intro.md" >}}
 
 ## Prerequisites
 
@@ -33,7 +33,7 @@ M3 Query has pre-built binaries available for Linux and macOS. [Download the lat
 {{% /tab %}}
 {{% tab name="Self-built binary" %}}
 
-{{< fileinclude "docs/includes/build_prerequisites.md" >}}
+{{< fileinclude file="build_prerequisites.md" >}}
 
 Build and run the binary:
 

@@ -16,7 +16,7 @@ M3 has pre-built binaries available for Linux and macOS. [Download the latest re
 
 ## Build From Source
 
-{{< fileinclude "docs/includes/build_prerequisites.md" >}}
+{{< fileinclude file="build_prerequisites.md" >}}
 
 ### Build Source
 
@@ -88,4 +88,4 @@ The file groups configuration into `coordinator` or `db` sections that represent
 You can find more information on configuring M3DB in the [operational guides section](/docs/operational_guide).
 {{% /notice %}}
 
-{{< fileinclude "docs/includes/quickstart-common-steps.md" >}}
+{{< fileinclude file="quickstart-common-steps.md" >}}

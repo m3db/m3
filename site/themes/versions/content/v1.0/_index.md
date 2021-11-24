@@ -1,6 +1,7 @@
 ---
 title: M3 Documentation
 weight: 1
+hidden: true
 ---
 
 

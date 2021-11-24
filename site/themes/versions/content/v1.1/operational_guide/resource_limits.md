@@ -232,4 +232,4 @@ limits:
 The following headers can also be used to override configured limits on a per request basis (to allow for different limits dependent on caller):
 
 
-{{% fileinclude "docs/includes/headers_optional_read_limits.md" %}}
+{{% fileinclude "headers_optional_read_limits.md" %}}

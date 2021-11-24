@@ -70,4 +70,4 @@ The file groups configuration into `coordinator` or `db` sections that represent
 You can find more information on configuring M3DB in the [operational guides section](/v1.0/docs/operational_guide/).
 {{% /notice %}}
 
-{{< fileinclude "docs/includes/quickstart-common-steps.md" >}}
+{{< fileinclude file="quickstart-common-steps.md" >}}

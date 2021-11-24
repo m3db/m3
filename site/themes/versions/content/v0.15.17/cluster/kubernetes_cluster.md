@@ -84,4 +84,4 @@ kubectl delete m3dbcluster simple-cluster
 
 By default, the operator uses [finalizers](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#finalizers) to delete the placement and namespaces associated with a cluster before the custom resources. If you do not want this behavior, set `keepEtcdDataOnDelete` to `true` in the cluster configuration.
 
-{{< fileinclude "docs/includes/cluster-common-steps.md" >}}
+{{< fileinclude file="cluster-common-steps.md" >}}

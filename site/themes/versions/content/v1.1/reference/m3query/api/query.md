@@ -37,9 +37,9 @@ Query using PromQL and returns JSON datapoints compatible with the Prometheus Gr
 
 #### Optional
 
-{{% fileinclude "docs/includes/headers_optional_read_write_all.md" %}}
+{{% fileinclude "headers_optional_read_write_all.md" %}}
 
-{{% fileinclude "docs/includes/headers_optional_read_all.md" %}}
+{{% fileinclude "headers_optional_read_all.md" %}}
 
 ### Data Params
 

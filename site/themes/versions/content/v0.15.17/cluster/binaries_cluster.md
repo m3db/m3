@@ -266,7 +266,7 @@ We recommend a replication factor of **3**, with each replica spread across fail
 
 Read the [placement configuration guide](/v0.15.17/docs/operational_guide/placement_configuration) to determine the appropriate number of shards to specify.
 
-{{< fileinclude "docs/includes/cluster-common-steps.md" >}}
+{{< fileinclude file="cluster-common-steps.md" >}}
 
 <!-- ## Next Steps
 
