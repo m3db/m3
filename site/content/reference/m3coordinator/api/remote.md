@@ -25,9 +25,9 @@ None.
 
 #### Optional
 
-{{% fileinclude "docs/includes/headers_optional_read_write_all.md" %}}
+{{% fileinclude "headers_optional_read_write_all.md" %}}
 
-{{% fileinclude "docs/includes/headers_optional_write_all.md" %}}
+{{% fileinclude "headers_optional_write_all.md" %}}
 
 ### Data Params
 
@@ -97,9 +97,9 @@ None.
 
 #### Optional
 
-{{% fileinclude "docs/includes/headers_optional_read_write_all.md" %}}
+{{% fileinclude "headers_optional_read_write_all.md" %}}
 
-{{% fileinclude "docs/includes/headers_optional_read_all.md" %}}
+{{% fileinclude "headers_optional_read_all.md" %}}
 
 ### Data Params
 

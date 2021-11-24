@@ -46,7 +46,7 @@ To use this, simply run the following on either the M3DB debug listen port or th
 
 You may need to include the following headers:
 
-{{% fileinclude "docs/includes/headers_placement_namespace.md" %}}
+{{% fileinclude "headers_placement_namespace.md" %}}
 
     curl -H "Cluster-Environment-Name: [set if not default]" <m3db_or_m3coordinator_ip>:<port>/debug/dump > <tmp_zip_file.zip>
 

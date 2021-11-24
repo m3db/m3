@@ -13,7 +13,7 @@ The operations below include sample cURLs, but you can always review the API doc
 
 Additionally, the following headers can be used in the namespace operations: 
 
-{{% fileinclude "docs/includes/headers_placement_namespace.md" %}}
+{{% fileinclude "headers_placement_namespace.md" %}}
 
 ### Adding a Namespace
 

@@ -1,0 +1,20 @@
+{{- $name := string (.Get "file") -}}
+{{ $splitPath := (split $.Page.File.Path "/") }}
+{{$length := len $splitPath}}
+
+{{ $basePath := (printf "%s" (index $splitPath 0))}}
+{{if eq $length 4}}
+{{ $basePath = (printf "%s/%s" (index $splitPath 0) (index $splitPath 1))}}
+{{end}}
+
+{{- $versionPath := path.Join $basePath "/includes" -}}
+
+{{ $path := path.Join $versionPath $name }}
+
+{{ $headless := .Site.GetPage $versionPath }}
+{{ $reusablePages := $headless.Resources.Match $name }}
+
+{{- range $reusablePages -}}
+{{ .Content }}
+
+{{- end -}}

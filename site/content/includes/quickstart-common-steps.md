@@ -279,12 +279,12 @@ You can write metrics using one of two endpoints:
 {{< tabs name="prom_http_write" >}}
 {{< tab name="Prometheus" >}}
 
-{{< fileinclude "quickstart-prometheus-steps.md" >}}
+{{< fileinclude file="quickstart-prometheus-steps.md" >}}
 
 {{< /tab >}}
 {{< tab name="HTTP API" >}}
 
-{{< fileinclude "quickstart-http-steps.md" >}}
+{{< fileinclude file="quickstart-http-steps.md" >}}
 
 {{< /tab >}}
 {{< /tabs >}}
