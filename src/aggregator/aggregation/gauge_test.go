@@ -80,9 +80,20 @@ func TestGauge_UpdatePrevious(t *testing.T) {
 	require.Equal(t, 3.0, g.ValueOf(aggregation.Count))
 	require.Equal(t, 2.6666666666666665, g.ValueOf(aggregation.Mean))
 	require.Equal(t, 26.0, g.ValueOf(aggregation.SumSq))
-	// min/max do not change.
-	require.Equal(t, 3.0, g.ValueOf(aggregation.Max))
+	// max updated.
+	require.Equal(t, 4.0, g.ValueOf(aggregation.Max))
+	// min does not change.
 	require.Equal(t, 1.0, g.ValueOf(aggregation.Min))
+
+	g.UpdatePrevious(time.Now(), 0.0, 3.0)
+	require.Equal(t, 0.0, g.Last())
+	require.Equal(t, 0.0, g.ValueOf(aggregation.Last))
+	require.Equal(t, 3.0, g.ValueOf(aggregation.Count))
+	require.Equal(t, 5.0/3.0, g.ValueOf(aggregation.Mean))
+	require.Equal(t, 17.0, g.ValueOf(aggregation.SumSq))
+	require.Equal(t, 4.0, g.ValueOf(aggregation.Max))
+	// min updated.
+	require.Equal(t, 0.0, g.ValueOf(aggregation.Min))
 }
 
 func TestGaugeReturnsLastNonEmptyAnnotation(t *testing.T) {
