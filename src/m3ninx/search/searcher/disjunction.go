@@ -54,7 +54,9 @@ func (s *disjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 		if pl == nil {
 			pl = curr.CloneAsMutable()
 		} else {
-			pl.UnionInPlace(curr)
+			if err = pl.UnionInPlace(curr); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return pl, nil

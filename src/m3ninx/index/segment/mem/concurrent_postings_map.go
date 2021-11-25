@@ -111,7 +111,7 @@ func (m *concurrentPostingsMap) GetRegex(re *regexp.Regexp) (postings.List, bool
 			if pl == nil {
 				pl = mapEntry.Value().CloneAsMutable()
 			} else {
-				pl.UnionInPlace(mapEntry.Value())
+				_ = pl.UnionInPlace(mapEntry.Value())
 			}
 		}
 	}
