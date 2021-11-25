@@ -109,16 +109,13 @@ func (m *concurrentPostingsMap) GetRegex(re *regexp.Regexp) (postings.List, bool
 		// TODO: Evaluate if performing a prefix match would speed up the common case.
 		if re.Match(mapEntry.Key()) {
 			if pl == nil {
-				pl = mapEntry.Value().Clone()
+				pl = mapEntry.Value().CloneAsMutable()
 			} else {
-				pl.Union(mapEntry.Value())
+				pl.UnionInPlace(mapEntry.Value())
 			}
 		}
 	}
 	m.RUnlock()
 
-	if pl == nil {
-		return nil, false
-	}
-	return pl, true
+	return pl, pl != nil
 }
