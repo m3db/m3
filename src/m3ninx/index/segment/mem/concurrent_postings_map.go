@@ -108,6 +108,7 @@ func (m *concurrentPostingsMap) GetRegex(re *regexp.Regexp) (postings.List, bool
 		// evaluating this predicate.
 		// TODO: Evaluate if performing a prefix match would speed up the common case.
 		if re.Match(mapEntry.Key()) {
+			// TODO: Sort the posting lists so that we take the union in order of decreasing size.
 			if pl == nil {
 				pl = mapEntry.Value().CloneAsMutable()
 			} else {
