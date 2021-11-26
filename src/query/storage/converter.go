@@ -102,7 +102,6 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 
 func seriesAttributesForPrometheusSource(series prompb.TimeSeries) (ts.SeriesAttributes, error) {
 	var (
-		m3MetricType      ts.M3MetricType
 		promMetricType    ts.PromMetricType
 		handleValueResets bool
 	)
@@ -144,18 +143,9 @@ func seriesAttributesForPrometheusSource(series prompb.TimeSeries) (ts.SeriesAtt
 		return ts.SeriesAttributes{}, fmt.Errorf("invalid metric type for Prometheus: %s", series.Type)
 	}
 
-	switch series.M3Type {
-	case prompb.M3Type_M3_COUNTER:
-		m3MetricType = ts.M3MetricTypeCounter
-
-	case prompb.M3Type_M3_GAUGE:
-		m3MetricType = ts.M3MetricTypeGauge
-
-	case prompb.M3Type_M3_TIMER:
-		m3MetricType = ts.M3MetricTypeTimer
-
-	default:
-		return ts.SeriesAttributes{}, fmt.Errorf("invalid M3 metric type: %s", series.M3Type)
+	m3MetricType, err := convertM3Type(series.M3Type)
+	if err != nil {
+		return ts.SeriesAttributes{}, err
 	}
 
 	return ts.SeriesAttributes{
@@ -211,33 +201,31 @@ func seriesAttributesForOpenMetricsSource(series prompb.TimeSeries) (ts.SeriesAt
 		return ts.SeriesAttributes{}, fmt.Errorf("invalid metric type for Open Metrics: %s", series.Type)
 	}
 
+	m3MetricType, err := convertM3Type(series.M3Type)
+	if err != nil {
+		return ts.SeriesAttributes{}, err
+	}
+
 	return ts.SeriesAttributes{
 		Source:            ts.SourceTypeOpenMetrics,
 		PromType:          promMetricType,
+		M3Type:            m3MetricType,
 		HandleValueResets: handleValueResets,
 	}, nil
 }
 
 func seriesAttributesForGraphiteSource(series prompb.TimeSeries) (ts.SeriesAttributes, error) {
-	var (
-		m3MetricType   ts.M3MetricType
-		promMetricType ts.PromMetricType
-	)
+	m3MetricType, err := convertM3Type(series.M3Type)
+	if err != nil {
+		return ts.SeriesAttributes{}, err
+	}
 
+	var promMetricType ts.PromMetricType
 	switch series.M3Type {
 	case prompb.M3Type_M3_COUNTER:
-		m3MetricType = ts.M3MetricTypeCounter
 		promMetricType = ts.PromMetricTypeCounter
-
 	case prompb.M3Type_M3_GAUGE:
-		m3MetricType = ts.M3MetricTypeGauge
 		promMetricType = ts.PromMetricTypeGauge
-
-	case prompb.M3Type_M3_TIMER:
-		m3MetricType = ts.M3MetricTypeTimer
-
-	default:
-		return ts.SeriesAttributes{}, fmt.Errorf("invalid M3 metric type for graphite: %s", series.M3Type)
 	}
 
 	return ts.SeriesAttributes{
@@ -246,6 +234,22 @@ func seriesAttributesForGraphiteSource(series prompb.TimeSeries) (ts.SeriesAttri
 		PromType:          promMetricType,
 		HandleValueResets: false,
 	}, nil
+}
+
+func convertM3Type(m3Type prompb.M3Type) (ts.M3MetricType, error) {
+	switch m3Type {
+	case prompb.M3Type_M3_GAUGE:
+		return ts.M3MetricTypeGauge, nil
+
+	case prompb.M3Type_M3_COUNTER:
+		return ts.M3MetricTypeCounter, nil
+
+	case prompb.M3Type_M3_TIMER:
+		return ts.M3MetricTypeTimer, nil
+
+	default:
+		return 0, fmt.Errorf("invalid M3 metric type: %s", m3Type)
+	}
 }
 
 // SeriesAttributesToAnnotationPayload converts ts.SeriesAttributes into an annotation.Payload.

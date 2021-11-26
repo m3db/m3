@@ -313,7 +313,7 @@ func TestPromTimeSeriesToSeriesAttributesPromMetricsTypeFromPrometheus(t *testin
 
 		{prompb.MetricType_GAUGE_HISTOGRAM, "bucket"}: {metricType: ts.PromMetricTypeGaugeHistogram},
 		{prompb.MetricType_GAUGE_HISTOGRAM, "count"}:  {metricType: ts.PromMetricTypeGaugeHistogram, handleValueResets: true},
-		{prompb.MetricType_GAUGE_HISTOGRAM, "gcount"}:  {metricType: ts.PromMetricTypeGaugeHistogram, handleValueResets: true},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "gcount"}: {metricType: ts.PromMetricTypeGaugeHistogram, handleValueResets: true},
 		{prompb.MetricType_GAUGE_HISTOGRAM, "sum"}:    {metricType: ts.PromMetricTypeGaugeHistogram},
 
 		{metricType: prompb.MetricType_SUMMARY}: {metricType: ts.PromMetricTypeSummary},
@@ -354,7 +354,15 @@ func TestPromTimeSeriesToSeriesAttributesPromMetricsTypeFromPrometheus(t *testin
 	require.Error(t, err)
 }
 
-func TestPromTimeSeriesToSeriesAttributesM3Type(t *testing.T) {
+func TestPromTimeSeriesToSeriesAttributesM3TypeFromPrometheus(t *testing.T) {
+	testPromTimeSeriesToSeriesAttributesM3Type(t, prompb.Source_PROMETHEUS)
+}
+
+func TestPromTimeSeriesToSeriesAttributesM3TypeFromOpenMetrics(t *testing.T) {
+	testPromTimeSeriesToSeriesAttributesM3Type(t, prompb.Source_OPEN_METRICS)
+}
+
+func testPromTimeSeriesToSeriesAttributesM3Type(t *testing.T, source prompb.Source) {
 	mapping := map[prompb.M3Type]ts.M3MetricType{
 		prompb.M3Type_M3_GAUGE:   ts.M3MetricTypeGauge,
 		prompb.M3Type_M3_COUNTER: ts.M3MetricTypeCounter,
@@ -363,16 +371,15 @@ func TestPromTimeSeriesToSeriesAttributesM3Type(t *testing.T) {
 
 	for proto, expected := range mapping {
 		attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
-			Source: prompb.Source_PROMETHEUS,
+			Source: source,
 			M3Type: proto,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, expected, attrs.M3Type)
-		assert.Equal(t, ts.SourceTypePrometheus, attrs.Source)
 	}
 
 	_, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{
-		Source: prompb.Source_PROMETHEUS,
+		Source: source,
 		M3Type: -1,
 	})
 	require.Error(t, err)
