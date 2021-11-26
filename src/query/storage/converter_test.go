@@ -313,6 +313,7 @@ func TestPromTimeSeriesToSeriesAttributesPromMetricsTypeFromPrometheus(t *testin
 
 		{prompb.MetricType_GAUGE_HISTOGRAM, "bucket"}: {metricType: ts.PromMetricTypeGaugeHistogram},
 		{prompb.MetricType_GAUGE_HISTOGRAM, "count"}:  {metricType: ts.PromMetricTypeGaugeHistogram, handleValueResets: true},
+		{prompb.MetricType_GAUGE_HISTOGRAM, "gcount"}:  {metricType: ts.PromMetricTypeGaugeHistogram, handleValueResets: true},
 		{prompb.MetricType_GAUGE_HISTOGRAM, "sum"}:    {metricType: ts.PromMetricTypeGaugeHistogram},
 
 		{metricType: prompb.MetricType_SUMMARY}: {metricType: ts.PromMetricTypeSummary},

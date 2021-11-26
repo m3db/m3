@@ -125,7 +125,8 @@ func seriesAttributesForPrometheusSource(series prompb.TimeSeries) (ts.SeriesAtt
 	case prompb.MetricType_GAUGE_HISTOGRAM:
 		promMetricType = ts.PromMetricTypeGaugeHistogram
 		name := metricNameFromLabels(series.Labels)
-		handleValueResets = bytes.HasSuffix(name, promCountSuffix)
+		handleValueResets = bytes.HasSuffix(name, promCountSuffix) ||
+			bytes.HasSuffix(name, openMetricsGaugeCountSuffix)
 
 	case prompb.MetricType_SUMMARY:
 		promMetricType = ts.PromMetricTypeSummary
