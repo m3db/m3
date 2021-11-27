@@ -105,6 +105,9 @@ type WriteOptions struct {
 
 type downsamplerAndWriterMetrics struct {
 	dropped tally.Counter
+
+	writtenBySource  map[ts.SourceType]tally.Counter
+	writtenByUnknown tally.Counter
 }
 
 // downsamplerAndWriter encapsulates the logic for writing data to the downsampler,
@@ -125,12 +128,28 @@ func NewDownsamplerAndWriter(
 	instrumentOpts instrument.Options,
 ) DownsamplerAndWriter {
 	scope := instrumentOpts.MetricsScope().SubScope("downsampler")
+
+	sourceTags := map[ts.SourceType]string{
+		ts.SourceTypePrometheus:  "prometheus",
+		ts.SourceTypeGraphite:    "graphite",
+		ts.SourceTypeOpenMetrics: "open-metrics",
+	}
+	writtenBySource := make(map[ts.SourceType]tally.Counter)
+	writtenName := "metrics_written"
+	for source, tag := range sourceTags {
+		c := scope.Tagged(map[string]string{"source": tag}).Counter(writtenName)
+		writtenBySource[source] = c
+	}
+	writtenByUnknown := scope.Tagged(map[string]string{"source": "unknown"}).Counter(writtenName)
+
 	return &downsamplerAndWriter{
 		store:       store,
 		downsampler: downsampler,
 		workerPool:  workerPool,
 		metrics: downsamplerAndWriterMetrics{
-			dropped: scope.Counter("metrics_dropped"),
+			dropped:          scope.Counter("metrics_dropped"),
+			writtenBySource:  writtenBySource,
+			writtenByUnknown: writtenByUnknown,
 		},
 	}
 }
@@ -406,6 +425,13 @@ func (d *downsamplerAndWriter) WriteBatch(
 				d.metrics.dropped.Inc(1)
 				continue
 			}
+
+			written, ok := d.metrics.writtenBySource[value.Attributes.Source]
+			if !ok {
+				written = d.metrics.writtenByUnknown
+			}
+			written.Inc(1)
+
 			for _, p := range storagePolicies {
 				p := p // Capture for lambda.
 				wg.Add(1)
