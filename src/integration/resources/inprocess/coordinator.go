@@ -505,6 +505,12 @@ func (c *Coordinator) Series(
 	return c.client.Series(req, headers)
 }
 
+// Configuration returns a copy of the configuration used to
+// start this coordinator.
+func (c *Coordinator) Configuration() config.Configuration {
+	return c.cfg
+}
+
 func updateCoordinatorConfig(
 	cfg config.Configuration,
 	opts CoordinatorOptions,
