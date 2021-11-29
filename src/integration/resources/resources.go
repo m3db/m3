@@ -123,7 +123,7 @@ func SetupCluster(
 						{
 							Aggregated: true,
 							Attributes: &namespace.AggregatedAttributes{
-								ResolutionNanos: int64(15 * time.Second),
+								ResolutionNanos: int64(5 * time.Second),
 							},
 						},
 					},

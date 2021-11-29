@@ -251,7 +251,7 @@ func testPrometheusRemoteWriteRetrictMetricsType(
 		},
 	}, resources.Headers{
 		headers.MetricsTypeHeader:          []string{"aggregated"},
-		headers.MetricsStoragePolicyHeader: []string{"15s:6h"},
+		headers.MetricsStoragePolicyHeader: []string{"5s:6h"},
 	})
 	require.NoError(t, err)
 }
@@ -828,7 +828,7 @@ func testQueryRestrictMetricsType(
 		},
 		resources.Headers{
 			headers.MetricsTypeHeader:          []string{"aggregated"},
-			headers.MetricsStoragePolicyHeader: []string{"15s:6h"},
+			headers.MetricsStoragePolicyHeader: []string{"5s:6h"},
 		},
 		func(res model.Vector) error {
 			if len(res) == 0 {
@@ -853,7 +853,7 @@ func testQueryRestrictMetricsType(
 		},
 		resources.Headers{
 			headers.MetricsTypeHeader:          []string{"aggregated"},
-			headers.MetricsStoragePolicyHeader: []string{"15s:6h"},
+			headers.MetricsStoragePolicyHeader: []string{"5s:6h"},
 		},
 		func(res model.Matrix) error {
 			if len(res) == 0 {

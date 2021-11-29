@@ -52,17 +52,8 @@ carbon:
         aggregation:
           type: mean
         policies:
-          - resolution: 10s
+          - resolution: 5s
             retention: 6h
-clusters:
-  - namespaces:
-      - namespace: default
-        type: unaggregated
-        retention: 48h
-      - namespace: aggregated
-        type: aggregated
-        resolution: 10s
-        retention: 6h
 downsample:
   rules:
     rollupRules:
@@ -76,7 +67,7 @@ downsample:
               groupBy: ["app", "status_code", "endpoint"]
               aggregations: ["Sum"]
         storagePolicies:
-          - resolution: 10s
+          - resolution: 5s
             retention: 6h
 storeMetricsType: true
 `
@@ -256,7 +247,7 @@ func verifyPromQuery(
 		},
 		map[string][]string{
 			"M3-Metrics-Type":   {"aggregated"},
-			"M3-Storage-Policy": {"10s:6h"},
+			"M3-Storage-Policy": {"5s:6h"},
 		},
 	)
 	if err != nil {
