@@ -274,11 +274,7 @@ func validateEqualAggPlacement(t *testing.T, expected, actual *placementpb.Place
 
 const defaultCoordConfig = `
 clusters:
-  - namespaces:
-      - namespace: default
-        type: unaggregated
-        retention: 1h
-    client:
+  - client:
       config:
         service:
           env: default_env
@@ -293,11 +289,7 @@ clusters:
 const embeddedCoordConfig = `
 coordinator:
   clusters:
-    - namespaces:
-        - namespace: default
-          type: unaggregated
-          retention: 1h
-      client:
+    - client:
         config:
           service:
             env: default_env

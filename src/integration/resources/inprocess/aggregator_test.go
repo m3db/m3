@@ -291,7 +291,7 @@ func testAggMetrics(t *testing.T, coord resources.Coordinator) {
 		return coord.WriteProm("cpu", map[string]string{"host": "host1"}, samples, nil)
 	}))
 
-	queryHeaders := resources.Headers{"M3-Metrics-Type": {"aggregated"}, "M3-Storage-Policy": {"10s:6h"}}
+	queryHeaders := resources.Headers{"M3-Metrics-Type": {"aggregated"}, "M3-Storage-Policy": {"5s:6h"}}
 
 	// Instant Query
 	require.NoError(t, resources.Retry(func() error {
@@ -339,15 +339,7 @@ const defaultAggregatorConfig = `{}`
 
 const aggregatorCoordConfig = `
 clusters:
-  - namespaces:
-      - namespace: default
-        type: unaggregated
-        retention: 1h
-      - namespace: aggregated
-        type: aggregated
-        resolution: 10s
-        retention: 6h
-    client:
+  - client:
       config:
         service:
           env: default_env
@@ -364,7 +356,7 @@ downsample:
         filter: "host:*"
         aggregations: ["Sum"]
         storagePolicies:
-          - resolution: 10s
+          - resolution: 5s
             retention: 6h
 ingest:
   ingester:
