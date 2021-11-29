@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/producer"
@@ -35,9 +36,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	errWriterClosed = errors.New("writer is closed")
-)
+var errWriterClosed = errors.New("writer is closed")
 
 type writerMetrics struct {
 	topicUpdateSuccess  tally.Counter
@@ -133,7 +132,7 @@ func (w *writer) Init() error {
 		return t, nil
 	}
 	vOptions := watch.NewOptions().
-		SetInitWatchTimeout(w.opts.TopicWatchInitTimeout()).
+		SetInitWatchTimeout(20 * time.Second).
 		SetInstrumentOptions(w.opts.InstrumentOptions()).
 		SetNewUpdatableFn(newUpdatableFn).
 		SetGetUpdateFn(getUpdateFn).

@@ -199,12 +199,28 @@ func NewClusterFromSpecification(
 		nodes = append(nodes, node)
 	}
 
-	coord, err = NewCoordinator(
-		specs.Configs.Coordinator,
-		CoordinatorOptions{GeneratePorts: opts.Coordinator.GeneratePorts},
-	)
-	if err != nil {
-		return nil, err
+	if len(specs.Configs.Aggregators) > 0 {
+		aggregators := cluster.Aggregators()
+		if len(aggregators) == 0 {
+			return errors.New("no aggregators have been initiazted")
+		}
+
+		if err := setupPlacement(coordinator, aggregators, *opts.Aggregator); err != nil {
+			return err
+		}
+
+		aggInstanceInfo, err := aggregators[0].HostDetails()
+		if err != nil {
+			return err
+		}
+
+		if err := setupM3msgTopics(coordinator, *aggInstanceInfo, opts); err != nil {
+			return err
+		}
+
+		if err := aggregators.WaitForHealthy(); err != nil {
+			return err
+		}
 	}
 
 	for _, aggCfg := range specs.Configs.Aggregators {
@@ -218,6 +234,16 @@ func NewClusterFromSpecification(
 			return nil, err
 		}
 		aggs = append(aggs, agg)
+
+		agg.Start()
+	}
+
+	coord, err = NewCoordinator(
+		specs.Configs.Coordinator,
+		CoordinatorOptions{GeneratePorts: opts.Coordinator.GeneratePorts},
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	m3 := NewM3Resources(ResourceOptions{

@@ -49,10 +49,10 @@ func testSetup(t *testing.T) (resources.M3Resources, func()) {
 		resources.ClusterOptions{
 			DBNode: resources.NewDBNodeClusterOptions(),
 			Aggregator: &resources.AggregatorClusterOptions{
-				RF:                 2,
+				RF:                 1,
 				NumShards:          4,
-				NumInstances:       2,
-				NumIsolationGroups: 2,
+				NumInstances:       1,
+				NumIsolationGroups: 1,
 			},
 		},
 	)

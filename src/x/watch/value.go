@@ -123,9 +123,12 @@ func (v *value) Watch() error {
 		interruptedCh = make(chan struct{})
 	}
 
+	fmt.Printf("current time: %+v\n", time.Now())
+
 	select {
 	case <-v.updatable.C():
 	case <-time.After(v.opts.InitWatchTimeout()):
+		fmt.Printf("timeout time: %+v, initWatchTimeout: %v\n", time.Now(), v.opts.InitWatchTimeout())
 		return InitValueError{
 			innerError: errInitWatchTimeout,
 			key:        v.opts.Key(),

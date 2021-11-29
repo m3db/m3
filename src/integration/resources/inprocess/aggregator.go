@@ -107,6 +107,7 @@ func NewAggregator(cfg config.Configuration, opts AggregatorOptions) (resources.
 		loggingCfg.Fields = make(map[string]interface{})
 	}
 	loggingCfg.Fields["component"] = fmt.Sprintf("m3aggregator:%s", hostID)
+	cfg.Logging = &loggingCfg
 
 	if opts.Logger == nil {
 		var err error

@@ -440,7 +440,7 @@ type debugLogMatchOptions struct {
 }
 
 func (a *metricsAppender) debugLogMatch(str string, opts debugLogMatchOptions) {
-	if !a.debugLogging {
+	if true {
 		return
 	}
 	fields := []zapcore.Field{

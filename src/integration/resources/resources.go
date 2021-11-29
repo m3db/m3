@@ -228,10 +228,6 @@ func SetupCluster(
 			return err
 		}
 
-		for _, agg := range aggregators {
-			agg.Start()
-		}
-
 		if err := aggregators.WaitForHealthy(); err != nil {
 			return err
 		}
