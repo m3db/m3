@@ -1,0 +1,5 @@
+steps:
+  - label: "Test Step"
+    command: "echo hello world"
+    agents:
+      queue: init
