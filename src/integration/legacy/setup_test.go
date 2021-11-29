@@ -31,6 +31,7 @@ import (
 
 var m3 resources.M3Resources
 
+//nolint:forbidigo
 func TestMain(m *testing.M) {
 	configs, err := inprocess.NewClusterConfigsFromYAML(dbCfg, coordCfg, "")
 	if err != nil {
