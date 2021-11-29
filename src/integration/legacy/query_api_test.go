@@ -1,6 +1,6 @@
-// +build dtest
+// +build cluster_integration
 //
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2020  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,7 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package integration
+package legacy
 
 import (
 	"encoding/json"
@@ -70,7 +70,7 @@ func TestInvalidRangeQueryReturns400(t *testing.T) {
 }
 
 func testInvalidQueryReturns400(t *testing.T, tests []urlTest) {
-	coord := singleDBNodeDockerResources.Coordinator()
+	coord := m3.Coordinator()
 
 	for _, tt := range tests {
 		tt := tt
