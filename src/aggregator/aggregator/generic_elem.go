@@ -683,7 +683,7 @@ func (e *GenericElem) find(alignedStartNanos xtime.UnixNano) (timedAggregation, 
 		return timedAgg, nil
 	}
 	e.RUnlock()
-	return timedAggregation{}, nil		
+	return timedAggregation{}, nil
 }
 
 // findOrCreate finds the aggregation for a given time, or creates one
