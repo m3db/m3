@@ -61,6 +61,9 @@ const (
 	// compute first-order derivatives. This applies to the most common usecases
 	// without imposing significant bookkeeping overhead.
 	maxSupportedTransformationDerivativeOrder = 1
+	listTypeLabel                             = "list-type"
+	resolutionLabel                           = "resolution"
+	flushTypeLabel                            = "flush-type"
 )
 
 var (
@@ -185,8 +188,9 @@ type elemBase struct {
 
 	// Mutable states.
 	cachedSourceSets []map[uint32]*bitset.BitSet // nolint: structcheck
-	// a cache of the flush metrics that don't require grabbing a lock to access.
+	// a cache of the metrics that don't require grabbing a lock to access.
 	flushMetricsCache     map[flushKey]flushMetrics
+	writeMetricsCache     map[metricListType]writeMetrics
 	tombstoned            bool
 	closed                bool
 	useDefaultAggregation bool // really immutable, but packed w/ the rest of bools
@@ -240,10 +244,10 @@ func (f *flushState) close() {
 }
 
 type elemMetrics struct {
-	scope         tally.Scope
-	updatedValues tally.Counter
-	flush         map[flushKey]flushMetrics
-	mtx           sync.RWMutex
+	scope tally.Scope
+	write map[metricListType]writeMetrics
+	flush map[flushKey]flushMetrics
+	mtx   sync.RWMutex
 }
 
 // flushMetrics are the metrics produced by a flush task processing the metric element.
@@ -256,6 +260,11 @@ type flushMetrics struct {
 	valuesExpired tally.Counter
 	// the difference between actual and expected processing for a value.
 	forwardLags map[forwardKey]tally.Histogram
+}
+
+type writeMetrics struct {
+	writes        tally.Counter
+	updatedValues tally.Counter
 }
 
 func newFlushMetrics(scope tally.Scope) flushMetrics {
@@ -294,6 +303,13 @@ func newFlushMetrics(scope tally.Scope) flushMetrics {
 	return m
 }
 
+func newWriteMetrics(scope tally.Scope) writeMetrics {
+	return writeMetrics{
+		updatedValues: scope.Counter("updated-values"),
+		writes:        scope.Counter("writes"),
+	}
+}
+
 func (f flushMetrics) forwardLag(key forwardKey) tally.Histogram {
 	return f.forwardLags[key]
 }
@@ -328,9 +344,9 @@ func (f forwardKey) toTags() map[string]string {
 
 func (f flushKey) toTags() map[string]string {
 	return map[string]string{
-		"resolution": f.resolution.String(),
-		"list-type":  f.listType.String(),
-		"flush-type": f.flushType.String(),
+		resolutionLabel: f.resolution.String(),
+		listTypeLabel:   f.listType.String(),
+		flushTypeLabel:  f.flushType.String(),
 	}
 }
 
@@ -354,6 +370,25 @@ func (e *elemMetrics) flushMetrics(key flushKey) flushMetrics {
 	return m
 }
 
+func (e *elemMetrics) writeMetrics(key metricListType) writeMetrics {
+	e.mtx.RLock()
+	m, ok := e.write[key]
+	if ok {
+		e.mtx.RUnlock()
+		return m
+	}
+	e.mtx.RUnlock()
+	e.mtx.Lock()
+	m, ok = e.write[key]
+	if ok {
+		e.mtx.Unlock()
+		return m
+	}
+	e.write[key] = newWriteMetrics(e.scope.Tagged(map[string]string{listTypeLabel: key.String()}))
+	e.mtx.Unlock()
+	return m
+}
+
 // ElemOptions are the parameters for constructing a new elemBase.
 type ElemOptions struct {
 	aggregatorOpts  Options
@@ -368,9 +403,9 @@ func NewElemOptions(aggregatorOpts Options) ElemOptions {
 		aggregatorOpts:  aggregatorOpts,
 		aggregationOpts: raggregation.NewOptions(aggregatorOpts.InstrumentOptions()),
 		elemMetrics: &elemMetrics{
-			updatedValues: scope.Counter("updated-values"),
-			scope:         scope,
-			flush:         make(map[flushKey]flushMetrics),
+			scope: scope,
+			write: make(map[metricListType]writeMetrics),
+			flush: make(map[flushKey]flushMetrics),
 		},
 	}
 }
@@ -397,6 +432,16 @@ func (e *elemBase) flushMetrics(resolution time.Duration, flushType flushType) f
 		// if not cached locally, get from the singleton map that requires locking.
 		m = e.metrics.flushMetrics(key)
 		e.flushMetricsCache[key] = m
+	}
+	return m
+}
+
+func (e *elemBase) writeMetrics() writeMetrics {
+	m, ok := e.writeMetricsCache[e.listType]
+	if !ok {
+		// if not cached locally, get from the singleton map that requires locking.
+		m = e.metrics.writeMetrics(e.listType)
+		e.writeMetricsCache[e.listType] = m
 	}
 	return m
 }
