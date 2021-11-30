@@ -287,7 +287,7 @@ func (entry *Entry) TryMarkIndexGarbageCollected() bool {
 	}
 
 	// Mark as GCed from index so the entry can be safely cleaned up elsewhere.
-	entry.IndexGarbageCollected.Store(true)
+	e.IndexGarbageCollected.Store(true)
 
 	return true
 }
