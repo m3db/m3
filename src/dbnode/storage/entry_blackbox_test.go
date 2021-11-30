@@ -247,3 +247,55 @@ func TestReconciledOnIndexSeries(t *testing.T) {
 	require.Equal(t, uint64(0), e.(*Entry).Index)
 	closer.Close()
 }
+
+func TestEntryTryMarkIndexGarbageCollected(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := DefaultTestOptions()
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	shard := testDatabaseShard(t, opts)
+	defer func() {
+		require.NoError(t, shard.Close())
+	}()
+
+	// Create entry with index 0 that's not inserted
+	s := series.NewMockDatabaseSeries(ctrl)
+	s.EXPECT().ID().Return(id).AnyTimes()
+	s.EXPECT().Close().Return()
+
+	uncommittedEntry := NewEntry(NewEntryOptions{
+		Index:  0,
+		Shard:  shard,
+		Series: s,
+	})
+	committedEntry := NewEntry(NewEntryOptions{
+		Index:  1,
+		Shard:  shard,
+		Series: s,
+	})
+	shard.Lock()
+	shard.insertNewShardEntryWithLock(committedEntry)
+	shard.Unlock()
+
+	// Not eligible if not empty.
+	s.EXPECT().IsEmpty().Return(false)
+	collected := uncommittedEntry.TryMarkIndexGarbageCollected()
+	require.False(t, collected)
+
+	// Not eligible if held.
+	s.EXPECT().IsEmpty().Return(true).AnyTimes()
+	committedEntry.IncrementReaderWriterCount()
+	collected = uncommittedEntry.TryMarkIndexGarbageCollected()
+	require.False(t, collected)
+
+	committedEntry.DecrementReaderWriterCount()
+	collected = uncommittedEntry.TryMarkIndexGarbageCollected()
+	require.True(t, collected)
+
+	// Entry in the shard is the one marked for GC (not the one necessarily used for the call above).
+	require.True(t, committedEntry.IndexGarbageCollected.Load())
+	require.False(t, uncommittedEntry.IndexGarbageCollected.Load())
+}
