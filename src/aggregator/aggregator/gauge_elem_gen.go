@@ -206,7 +206,7 @@ func (e *GaugeElem) AddUnique(
 	versionsSeen.Set(version)
 
 	if metric.Version > 0 {
-		e.metrics.updatedValues.Inc(1)
+		e.writeMetrics.updatedValues.Inc(1)
 		for i := range metric.Values {
 			if err := lockedAgg.aggregation.UpdateVal(timestamp, metric.Values[i], metric.PrevValues[i]); err != nil {
 				return err
@@ -630,6 +630,7 @@ func (e *GaugeElem) findOrCreate(
 	alignedStartNanos int64,
 	createOpts createAggregationOptions,
 ) (*lockedGaugeAggregation, error) {
+	e.writeMetrics.writes.Inc(1)
 	alignedStart := xtime.UnixNano(alignedStartNanos)
 	found, err := e.find(alignedStart)
 	if err != nil {
