@@ -188,9 +188,9 @@ type elemBase struct {
 
 	// Mutable states.
 	cachedSourceSets []map[uint32]*bitset.BitSet // nolint: structcheck
-	// a cache of the metrics that don't require grabbing a lock to access.
+	// a cache of the flush metrics that don't require grabbing a lock to access.
 	flushMetricsCache     map[flushKey]flushMetrics
-	writeMetricsCache     map[metricListType]writeMetrics
+	writeMetrics          writeMetrics
 	tombstoned            bool
 	closed                bool
 	useDefaultAggregation bool // really immutable, but packed w/ the rest of bools
@@ -384,7 +384,8 @@ func (e *elemMetrics) writeMetrics(key metricListType) writeMetrics {
 		e.mtx.Unlock()
 		return m
 	}
-	e.write[key] = newWriteMetrics(e.scope.Tagged(map[string]string{listTypeLabel: key.String()}))
+	m = newWriteMetrics(e.scope.Tagged(map[string]string{listTypeLabel: key.String()}))
+	e.write[key] = m
 	e.mtx.Unlock()
 	return m
 }
@@ -436,16 +437,6 @@ func (e *elemBase) flushMetrics(resolution time.Duration, flushType flushType) f
 	return m
 }
 
-func (e *elemBase) writeMetrics() writeMetrics {
-	m, ok := e.writeMetricsCache[e.listType]
-	if !ok {
-		// if not cached locally, get from the singleton map that requires locking.
-		m = e.metrics.writeMetrics(e.listType)
-		e.writeMetricsCache[e.listType] = m
-	}
-	return m
-}
-
 // resetSetData resets the element base and sets data.
 func (e *elemBase) resetSetData(data ElemData, useDefaultAggregation bool) error {
 	parsed, err := newParsedPipeline(data.Pipeline)
@@ -465,6 +456,7 @@ func (e *elemBase) resetSetData(data ElemData, useDefaultAggregation bool) error
 	e.closed = false
 	e.idPrefixSuffixType = data.IDPrefixSuffixType
 	e.listType = data.ListType
+	e.writeMetrics = e.metrics.writeMetrics(e.listType)
 	return nil
 }
 

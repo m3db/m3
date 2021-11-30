@@ -206,7 +206,7 @@ func (e *CounterElem) AddUnique(
 	versionsSeen.Set(version)
 
 	if metric.Version > 0 {
-		e.metrics.writeMetrics(e.listType).updatedValues.Inc(1)
+		e.writeMetrics.updatedValues.Inc(1)
 		for i := range metric.Values {
 			if err := lockedAgg.aggregation.UpdateVal(timestamp, metric.Values[i], metric.PrevValues[i]); err != nil {
 				return err
@@ -630,7 +630,7 @@ func (e *CounterElem) findOrCreate(
 	alignedStartNanos int64,
 	createOpts createAggregationOptions,
 ) (*lockedCounterAggregation, error) {
-	e.metrics.writeMetrics(e.listType).writes.Inc(1)
+	e.writeMetrics.writes.Inc(1)
 	alignedStart := xtime.UnixNano(alignedStartNanos)
 	found, err := e.find(alignedStart)
 	if err != nil {

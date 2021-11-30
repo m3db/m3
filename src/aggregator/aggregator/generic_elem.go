@@ -269,7 +269,7 @@ func (e *GenericElem) AddUnique(
 	versionsSeen.Set(version)
 
 	if metric.Version > 0 {
-		e.metrics.writeMetrics(e.listType).updatedValues.Inc(1)
+		e.writeMetrics.updatedValues.Inc(1)
 		for i := range metric.Values {
 			if err := lockedAgg.aggregation.UpdateVal(timestamp, metric.Values[i], metric.PrevValues[i]); err != nil {
 				return err
@@ -683,7 +683,7 @@ func (e *GenericElem) find(alignedStartNanos xtime.UnixNano) (timedAggregation, 
 		return timedAgg, nil
 	}
 	e.RUnlock()
-	return timedAggregation{}, nil
+	return timedAggregation{}, nil		
 }
 
 // findOrCreate finds the aggregation for a given time, or creates one
@@ -693,7 +693,7 @@ func (e *GenericElem) findOrCreate(
 	alignedStartNanos int64,
 	createOpts createAggregationOptions,
 ) (*lockedAggregation, error) {
-	e.metrics.writeMetrics(e.listType).writes.Inc(1)
+	e.writeMetrics.writes.Inc(1)
 	alignedStart := xtime.UnixNano(alignedStartNanos)
 	found, err := e.find(alignedStart)
 	if err != nil {
