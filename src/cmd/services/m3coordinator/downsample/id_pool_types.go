@@ -146,11 +146,11 @@ func (p *rollupIDProvider) reset(
 	// mergeTags is small so it's fine to do n^2 instead of a more complicated O(n) merge scan.
 	for j := range p.mergeTags {
 		// update the name tag as well.
-		if bytes.Compare(p.mergeTags[j].Name, p.nameTagBytes) == 0 {
+		if bytes.Equal(p.mergeTags[j].Name, p.nameTagBytes) {
 			p.mergeTags[j].Value = newName
 		}
 		for i := range p.tagPairs {
-			if bytes.Compare(p.tagPairs[i].Name, p.mergeTags[j].Name) == 0 {
+			if bytes.Equal(p.tagPairs[i].Name, p.mergeTags[j].Name) {
 				dups++
 			}
 		}
@@ -170,24 +170,25 @@ func (p *rollupIDProvider) Next() bool {
 		// at the end of both sets
 		return false
 	}
-	if p.index == len(p.tagPairs) {
+	switch {
+	case p.index == len(p.tagPairs):
 		// only merged tags left
 		p.curr = p.mergeTags[p.mergeTagsIdx]
 		p.mergeTagsIdx++
-	} else if p.mergeTagsIdx == len(p.mergeTags) {
+	case p.mergeTagsIdx == len(p.mergeTags):
 		// only provided tags left
 		p.curr = p.tagPairs[p.index]
 		p.index++
-	} else if bytes.Compare(p.tagPairs[p.index].Name, p.mergeTags[p.mergeTagsIdx].Name) == 0 {
+	case bytes.Equal(p.tagPairs[p.index].Name, p.mergeTags[p.mergeTagsIdx].Name):
 		// a merge tag exists in the provided tag, advance both to prevent duplicates.
 		p.curr = p.tagPairs[p.index]
 		p.index++
 		p.mergeTagsIdx++
-	} else if bytes.Compare(p.tagPairs[p.index].Name, p.mergeTags[p.mergeTagsIdx].Name) < 0 {
+	case bytes.Compare(p.tagPairs[p.index].Name, p.mergeTags[p.mergeTagsIdx].Name) < 0:
 		// the next provided tag is less
 		p.curr = p.tagPairs[p.index]
 		p.index++
-	} else {
+	default:
 		// the next merge tag is less
 		p.curr = p.mergeTags[p.mergeTagsIdx]
 		p.mergeTagsIdx++
