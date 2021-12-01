@@ -63,9 +63,6 @@ type Coordinator interface {
 	WriteCarbon(port int, metric string, v float64, t time.Time) error
 	// WriteProm writes a prometheus metric. Takes tags/labels as a map for convenience.
 	WriteProm(name string, tags map[string]string, samples []prompb.Sample, headers Headers) error
-	// WritePromWithLabels writes a prometheus metric. Allows you to provide the labels for
-	// the write directly instead of conveniently converting them from a map.
-	WritePromWithLabels(name string, labels []prompb.Label, samples []prompb.Sample, headers Headers) error
 	// WritePromWithRequest executes a prometheus write request. Allows you to
 	// provide the request directly which is useful for batch metric requests.
 	WritePromWithRequest(writeRequest prompb.WriteRequest, headers Headers) error

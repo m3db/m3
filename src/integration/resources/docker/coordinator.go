@@ -219,19 +219,6 @@ func (c *coordinator) WriteProm(
 	return c.client.WriteProm(name, tags, samples, headers)
 }
 
-func (c *coordinator) WritePromWithLabels(
-	name string,
-	labels []prompb.Label,
-	samples []prompb.Sample,
-	headers resources.Headers,
-) error {
-	if c.resource.closed {
-		return errClosed
-	}
-
-	return c.client.WritePromWithLabels(name, labels, samples, headers)
-}
-
 func (c *coordinator) WritePromWithRequest(
 	writeRequest prompb.WriteRequest,
 	headers resources.Headers,

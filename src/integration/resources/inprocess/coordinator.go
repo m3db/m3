@@ -420,17 +420,6 @@ func (c *Coordinator) WriteProm(
 	return c.client.WriteProm(name, tags, samples, headers)
 }
 
-// WritePromWithLabels writes a prometheus metric. Allows you to provide the labels for
-// the write directly instead of conveniently converting them from a map.
-func (c *Coordinator) WritePromWithLabels(
-	name string,
-	labels []prompb.Label,
-	samples []prompb.Sample,
-	headers resources.Headers,
-) error {
-	return c.client.WritePromWithLabels(name, labels, samples, headers)
-}
-
 func (c *Coordinator) WritePromWithRequest(writeRequest prompb.WriteRequest, headers resources.Headers) error {
 	return c.client.WritePromWithRequest(writeRequest, headers)
 }
