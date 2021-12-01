@@ -232,6 +232,17 @@ func (c *coordinator) WritePromWithLabels(
 	return c.client.WritePromWithLabels(name, labels, samples, headers)
 }
 
+func (c *coordinator) WritePromWithRequest(
+	writeRequest prompb.WriteRequest,
+	headers resources.Headers,
+) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	return c.client.WritePromWithRequest(writeRequest, headers)
+}
+
 func (c *coordinator) ApplyKVUpdate(update string) error {
 	if c.resource.closed {
 		return errClosed

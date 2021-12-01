@@ -611,10 +611,7 @@ func (c *CoordinatorClient) WritePromWithLabels(
 	samples []prompb.Sample,
 	headers Headers,
 ) error {
-	var (
-		url       = c.makeURL("api/v1/prom/remote/write")
-		reqLabels = []prompb.Label{{Name: []byte(model.MetricNameLabel), Value: []byte(name)}}
-	)
+	reqLabels := []prompb.Label{{Name: []byte(model.MetricNameLabel), Value: []byte(name)}}
 	reqLabels = append(reqLabels, labels...)
 
 	writeRequest := prompb.WriteRequest{
@@ -625,6 +622,12 @@ func (c *CoordinatorClient) WritePromWithLabels(
 			},
 		},
 	}
+
+	return c.WritePromWithRequest(writeRequest, headers)
+}
+
+func (c *CoordinatorClient) WritePromWithRequest(writeRequest prompb.WriteRequest, headers Headers) error {
+	url := c.makeURL("api/v1/prom/remote/write")
 
 	logger := c.logger.With(
 		ZapMethod("writeProm"), zap.String("url", url),

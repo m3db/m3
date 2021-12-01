@@ -431,6 +431,10 @@ func (c *Coordinator) WritePromWithLabels(
 	return c.client.WritePromWithLabels(name, labels, samples, headers)
 }
 
+func (c *Coordinator) WritePromWithRequest(writeRequest prompb.WriteRequest, headers resources.Headers) error {
+	return c.client.WritePromWithRequest(writeRequest, headers)
+}
+
 // RunQuery runs the given query with a given verification function.
 func (c *Coordinator) RunQuery(
 	verifier resources.ResponseVerifier,

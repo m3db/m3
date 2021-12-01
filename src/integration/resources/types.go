@@ -66,6 +66,9 @@ type Coordinator interface {
 	// WritePromWithLabels writes a prometheus metric. Allows you to provide the labels for
 	// the write directly instead of conveniently converting them from a map.
 	WritePromWithLabels(name string, labels []prompb.Label, samples []prompb.Sample, headers Headers) error
+	// WritePromWithRequest executes a prometheus write request. Allows you to
+	// provide the request directly which is useful for batch metric requests.
+	WritePromWithRequest(writeRequest prompb.WriteRequest, headers Headers) error
 	// RunQuery runs the given query with a given verification function.
 	RunQuery(verifier ResponseVerifier, query string, headers Headers) error
 	// InstantQuery runs an instant query with provided headers
