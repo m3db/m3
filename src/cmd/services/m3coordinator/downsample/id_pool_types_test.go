@@ -316,6 +316,13 @@ func TestRollupIdProvider(t *testing.T) {
 			for p.Next() {
 				require.Equal(t, curIdx, p.CurrentIndex())
 				curIdx++
+				require.Equal(t, p.Len()-curIdx, p.Remaining())
+			}
+			p.Rewind()
+			curIdx = 0
+			for p.Next() {
+				require.Equal(t, curIdx, p.CurrentIndex())
+				curIdx++
 			}
 			rollupID, err := p.provide([]byte(tc.metricName), tc.tags)
 			require.NoError(t, err)

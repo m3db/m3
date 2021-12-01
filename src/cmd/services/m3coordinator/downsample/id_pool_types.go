@@ -137,22 +137,21 @@ func (p *rollupIDProvider) reset(
 	newName []byte,
 	tagPairs []id.TagPair,
 ) {
-	p.index = 0
-	p.mergeTagsIdx = 0
 	p.newName = newName
 	p.tagPairs = tagPairs
-	p.currIdx = -1
+	p.Rewind()
 
 	var dups int
 	// precompute the length of the "combined" slice for the Len() method.
 	// mergeTags is small so it's fine to do n^2 instead of a more complicated O(n) merge scan.
-	for i := range p.tagPairs {
-		for j := range p.mergeTags {
+	for j := range p.mergeTags {
+		// update the name tag as well.
+		if bytes.Compare(p.mergeTags[j].Name, p.nameTagBytes) == 0 {
+			p.mergeTags[j].Value = newName
+		}
+		for i := range p.tagPairs {
 			if bytes.Compare(p.tagPairs[i].Name, p.mergeTags[j].Name) == 0 {
 				dups++
-			}
-			if bytes.Compare(p.mergeTags[j].Name, p.nameTagBytes) == 0 {
-				p.mergeTags[j].Value = newName
 			}
 		}
 	}
@@ -221,7 +220,7 @@ func (p *rollupIDProvider) Len() int {
 }
 
 func (p *rollupIDProvider) Remaining() int {
-	return p.Len() - p.index - 1
+	return p.Len() - p.CurrentIndex() - 1
 }
 
 func (p *rollupIDProvider) Duplicate() ident.TagIterator {
@@ -231,7 +230,9 @@ func (p *rollupIDProvider) Duplicate() ident.TagIterator {
 }
 
 func (p *rollupIDProvider) Rewind() {
-	p.index = -1
+	p.index = 0
+	p.mergeTagsIdx = 0
+	p.currIdx = -1
 }
 
 type rollupIDProviderPool struct {
