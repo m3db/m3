@@ -117,7 +117,9 @@ type OnIndexSeries interface {
 
 	// TryMarkIndexGarbageCollected checks if the entry is eligible to be garbage collected
 	// from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
-	TryMarkIndexGarbageCollected() bool
+	// Second return value indicates if the current entry had to be reconciled against the
+	// one actually held in the shard.
+	TryMarkIndexGarbageCollected() (bool, bool)
 
 	// NeedsIndexGarbageCollected returns if the entry is eligible to be garbage collected
 	// from the index.

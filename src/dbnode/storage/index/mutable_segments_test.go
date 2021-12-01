@@ -124,7 +124,7 @@ func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.
 					onIndexSeries.EXPECT().
 						TryMarkIndexGarbageCollected().
 						// Every other is "empty".
-						Return(inserted%2 == 0).
+						Return(inserted%2 == 0, false).
 						AnyTimes()
 					onIndexSeries.EXPECT().
 						NeedsIndexGarbageCollected().

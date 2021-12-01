@@ -163,7 +163,9 @@ func TestEntryTryMarkIndexGarbageCollectedAfterSeriesClose(t *testing.T) {
 	series.EXPECT().IsEmpty().Return(false).AnyTimes()
 	require.NotPanics(t, func() {
 		// Make sure doesn't panic.
-		require.False(t, entry.TryMarkIndexGarbageCollected())
+		marked, reconciled := entry.TryMarkIndexGarbageCollected()
+		require.False(t, marked)
+		require.False(t, reconciled)
 	})
 }
 
@@ -282,18 +284,21 @@ func TestEntryTryMarkIndexGarbageCollected(t *testing.T) {
 
 	// Not eligible if not empty.
 	s.EXPECT().IsEmpty().Return(false)
-	collected := uncommittedEntry.TryMarkIndexGarbageCollected()
+	collected, reconciled := uncommittedEntry.TryMarkIndexGarbageCollected()
 	require.False(t, collected)
+	require.False(t, reconciled)
 
 	// Not eligible if held.
 	s.EXPECT().IsEmpty().Return(true).AnyTimes()
 	committedEntry.IncrementReaderWriterCount()
-	collected = uncommittedEntry.TryMarkIndexGarbageCollected()
+	collected, reconciled = uncommittedEntry.TryMarkIndexGarbageCollected()
 	require.False(t, collected)
+	require.False(t, reconciled)
 
 	committedEntry.DecrementReaderWriterCount()
-	collected = uncommittedEntry.TryMarkIndexGarbageCollected()
+	collected, reconciled = uncommittedEntry.TryMarkIndexGarbageCollected()
 	require.True(t, collected)
+	require.True(t, reconciled)
 
 	// Entry in the shard is the one marked for GC (not the one necessarily used for the call above).
 	require.True(t, committedEntry.IndexGarbageCollected.Load())

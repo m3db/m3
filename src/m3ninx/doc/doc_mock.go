@@ -431,11 +431,12 @@ func (mr *MockOnIndexSeriesMockRecorder) ReconciledOnIndexSeries() *gomock.Call 
 }
 
 // TryMarkIndexGarbageCollected mocks base method.
-func (m *MockOnIndexSeries) TryMarkIndexGarbageCollected() bool {
+func (m *MockOnIndexSeries) TryMarkIndexGarbageCollected() (bool, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TryMarkIndexGarbageCollected")
 	ret0, _ := ret[0].(bool)
-	return ret0
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
 }
 
 // TryMarkIndexGarbageCollected indicates an expected call of TryMarkIndexGarbageCollected.

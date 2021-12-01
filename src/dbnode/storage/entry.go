@@ -264,32 +264,37 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 
 // TryMarkIndexGarbageCollected checks if the entry is eligible to be garbage collected
 // from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
-func (entry *Entry) TryMarkIndexGarbageCollected() bool {
+// Second return value indicates if the current entry had to be reconciled against the
+// one actually held in the shard.
+func (entry *Entry) TryMarkIndexGarbageCollected() (bool, bool) {
 	// Since series insertions + index insertions are done separately async, it is possible for
 	// a series to be in the index but not have data written yet, and so any series not in the
 	// lookup yet we cannot yet consider empty.
 	e, _, err := entry.Shard.TryRetrieveSeriesAndIncrementReaderWriterCount(entry.ID)
 	if err != nil || e == nil {
-		return false
+		return false, false
 	}
 	defer e.DecrementReaderWriterCount()
 
 	// Consider non-empty if the entry is still being held since this could indicate
 	// another thread holding a new series prior to writing to it.
 	if e.ReaderWriterCount() > 1 {
-		return false
+		return false, false
 	}
 
 	// Series must be empty to be GCed. This happens when the data and index are flushed to disk and
 	// so the series no longer has in-mem data.
 	if !e.Series.IsEmpty() {
-		return false
+		return false, false
 	}
 
 	// Mark as GCed from index so the entry can be safely cleaned up elsewhere.
 	e.IndexGarbageCollected.Store(true)
 
-	return true
+	// Was reconciled if the entry retrieved from the shard differs from the current.
+	reconciled := e != entry
+
+	return true, reconciled
 }
 
 // NeedsIndexGarbageCollected checks if the entry is eligible to be garbage collected
