@@ -29,12 +29,14 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/pborman/getopt"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -49,19 +51,28 @@ const (
 	flushType    = "flush"
 
 	allShards = -1
+
+	annotationFilterNoFiltering = "no-filtering"
+	annotationFilterNoInitial   = "no-initial-annotation"
+	annotationFilterRewritten   = "annotation-rewritten"
 )
 
 func main() {
 	var (
-		optPathPrefix  = getopt.StringLong("path-prefix", 'p', "", "Path prefix [e.g. /var/lib/m3db]")
-		fileSetTypeArg = getopt.StringLong("fileset-type", 't', flushType, fmt.Sprintf("%s|%s", flushType, snapshotType))
-		optNamespace   = getopt.StringLong("namespace", 'n', "default", "Namespace [e.g. metrics]")
+		optPathPrefix  = getopt.StringLong("path-prefix", 'p', "/var/lib/m3db", "Path prefix [e.g. /var/lib/m3db]", "string")
+		fileSetTypeArg = getopt.StringLong("fileset-type", 't', flushType, "Fileset type", fmt.Sprintf("%s|%s", flushType, snapshotType))
+		optNamespace   = getopt.StringLong("namespace", 'n', "default", "Namespace [e.g. metrics]", "string")
 		optShard       = getopt.IntLong("shard", 's', allShards,
-			fmt.Sprintf("Shard number, or %v for all shards in the directory", allShards))
-		optBlockstart = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
-		volume        = getopt.Int64Long("volume", 'v', 0, "Volume number")
+			fmt.Sprintf("Shard number, or %v for all shards in the directory", allShards), "int")
+		optBlockstart = getopt.Int64Long("block-start", 'b', 0, "Block Start Time", "nsec")
+		volume        = getopt.Int64Long("volume", 'v', 0, "Volume number", "int")
 
-		annotationRewrittenFilter = getopt.BoolLong("annotation-rewritten", 'R', "Filters metrics with annotation rewrites")
+		optIdFilter                 = getopt.StringLong("id-filter", 'f', "", "Filters series that contain given string in their IDs", "string")
+		annotationFilterDescription = fmt.Sprintf("Filters series by their annotations. Default: %s", annotationFilterNoInitial)
+		annotationFilterValue       = fmt.Sprintf("%s|%s|%s", annotationFilterNoFiltering, annotationFilterNoInitial, annotationFilterRewritten)
+		optAnnotationFilter         = getopt.StringLong("annotation-filter", 'a', annotationFilterNoInitial, annotationFilterDescription, annotationFilterValue)
+
+		optPrintAnnotations = getopt.BoolLong("print-annotations", 'P', "Prints annotations")
 	)
 	getopt.Parse()
 
@@ -137,14 +148,37 @@ func main() {
 				log.Fatalf("err reading metadata: %v", err)
 			}
 
+			if *optIdFilter != "" && !strings.Contains(entry.ID.String(), *optIdFilter) {
+				continue
+			}
+
 			noInitialAnnotation, annotationRewritten, err := checkAnnotations(entry.Data, encodingOpts)
 			if err != nil {
 				log.Fatalf("failed checking annotations: %v", err)
 			}
 
-			if (!*annotationRewrittenFilter && noInitialAnnotation) || (*annotationRewrittenFilter && annotationRewritten) {
-				metricsMap[entry.ID.String()] = struct{}{}
+			matchesAnnotationFilter := false
+			switch *optAnnotationFilter {
+			case annotationFilterNoFiltering:
+				matchesAnnotationFilter = true
+			case annotationFilterNoInitial:
+				matchesAnnotationFilter = noInitialAnnotation
+			case annotationFilterRewritten:
+				matchesAnnotationFilter = annotationRewritten
 			}
+			if !matchesAnnotationFilter {
+				continue
+			}
+
+			if *optPrintAnnotations {
+				fmt.Println(entry.ID.String())
+				if err := printAnnotations(entry.Data, encodingOpts); err != nil {
+					log.Fatal("failed to print annotations: %v", err)
+				}
+				fmt.Println()
+			}
+
+			metricsMap[entry.ID.String()] = struct{}{}
 		}
 
 		if err := reader.Close(); err != nil {
@@ -193,6 +227,38 @@ func checkAnnotations(data []byte, encodingOpts encoding.Options) (bool, bool, e
 	}
 
 	return noInitialAnnotation, annotationRewritten, nil
+}
+
+func printAnnotations(data []byte, encodingOpts encoding.Options) error {
+	iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
+	defer iter.Close()
+
+	payload := &annotation.Payload{}
+	idx := 0
+	hasAnnotation := false
+	for iter.Next() {
+		_, _, annotationBytes := iter.Current()
+
+		if annotationBytes != nil {
+			hasAnnotation = true
+			payload.Reset()
+			err := payload.Unmarshal(annotationBytes)
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal annotation: %w", err)
+			}
+			fmt.Printf("  idx=%-4d { %v}\n", idx, payload)
+		}
+
+		idx++
+	}
+	if !hasAnnotation {
+		fmt.Println("  NO ANNOTATIONS")
+	}
+	if err := iter.Err(); err != nil {
+		return fmt.Errorf("unable to iterate original data: %w", err)
+	}
+
+	return nil
 }
 
 func getShards(pathPrefix string, fileSetType persist.FileSetType, namespace string) ([]uint32, error) {
