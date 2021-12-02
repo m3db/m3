@@ -8,10 +8,9 @@ By default, this tools output the list of series IDs that have no annotation wit
 ```
 $ make annotation_checker
 $ ./bin/annotation_checker
-Usage: annotation_checker [-P] [-a no-filtering|no-initial-annotation|annotation-rewritten] [-b nsec] [-f string] [-n string] [-p string] [-s int] [-t flush|snapshot] [-v int] [parameters ...]
- -a, --annotation-filter=no-filtering|no-initial-annotation|annotation-rewritten
-                   Filters series by their annotations. Default:
-                   no-initial-annotation
+Usage: annotation_checker [-P] [-a none|no-initial|rewritten] [-b nsec] [-f string] [-n string] [-p string] [-s int] [-t flush|snapshot] [-v int] [parameters ...]
+ -a, --annotation-filter=none|no-initial|rewritten
+                   Filters series by their annotations. Default: no-initial
  -b, --block-start=nsec
                    Block Start Time
  -f, --id-filter=string

@@ -52,9 +52,9 @@ const (
 
 	allShards = -1
 
-	annotationFilterNoFiltering = "no-filtering"
-	annotationFilterNoInitial   = "no-initial-annotation"
-	annotationFilterRewritten   = "annotation-rewritten"
+	annotationFilterNoFiltering = "none"
+	annotationFilterNoInitial   = "no-initial"
+	annotationFilterRewritten   = "rewritten"
 )
 
 func main() {
@@ -165,6 +165,8 @@ func main() {
 				matchesAnnotationFilter = noInitialAnnotation
 			case annotationFilterRewritten:
 				matchesAnnotationFilter = annotationRewritten
+			default:
+				log.Fatalf("unexpected value for annotation filter '%v'", *optAnnotationFilter)
 			}
 			if !matchesAnnotationFilter {
 				continue
@@ -242,8 +244,8 @@ func printAnnotations(data []byte, encodingOpts encoding.Options) error {
 		if annotationBytes != nil {
 			hasAnnotation = true
 			payload.Reset()
-			err := payload.Unmarshal(annotationBytes)
-			if err != nil {
+
+			if err := payload.Unmarshal(annotationBytes); err != nil {
 				return fmt.Errorf("failed to unmarshal annotation: %w", err)
 			}
 			fmt.Printf("  idx=%-4d { %v}\n", idx, payload)
