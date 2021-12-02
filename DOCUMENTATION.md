@@ -79,23 +79,16 @@ There are a couple of different ways to build the documentation depending what y
 
 ## Creating a New Documentation Version
 
-M3 releases versions with some slight changes to documentation for each one which users can access from the drop down menu under the right hand navigation.
+M3 releases versions with some slight changes to documentation for each one which users can access from the drop down menu under the left hand navigation.
 
-Archiving a version of the documentation is a slightly complex process as Hugo doesn't natively support versioning.
+Archiving a version of the documentation is a slightly complex process as Hugo doesn't natively support versioning and the documentation uses Hugo modules to accomplish this.
 
-1.  Add the new version and path to _site/config/production/config.toml_ in the format:
+1. Add the new version to the _config/production/config.toml_ file in the `[[module.imports.mounts]]` section.
 
     ```toml
-    [[params.versions]]
-      version = "{versionNumber}"
-      url = "/v{versionNumber}/docs"
+    [[module.imports.mounts]]
+    source = "content/v{VERSION_NUMBER}"
+    target = "content/docs/v{VERSION_NUMBER}"
     ```
-2.  Add the `/v{versionNumber}` path before each `{{ .RelPermalink}}` in the two anchor tags in _site/layouts/partials/navbar.html_
-3.  Make sure the Victor theme is at least version 0.2.11
-4.  Create and tag the commits with the name "docs/v{versionNumber}"
-5.  Switch to a new branch that will add the new version to the master branch
-6.  Add the new version to _site/config/production/config.toml_
-7.  Also add the new version to _site/config/production/config.toml_ in every pre-existing docs version tag
-8.  Switch back to the branch from step 5
-9.  Test everything locally with `make site-build`
-10. Push the new tag to the remote repository
+
+2. Archive the current latest version of the documentation (which now becomes the new version) to the https://github.com/m3db/docs-archive repository, into a sub-folder of _content_ that matches the new version.
