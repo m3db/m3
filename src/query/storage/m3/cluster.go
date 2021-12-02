@@ -144,6 +144,9 @@ func (o ClusterNamespaceOptions) DownsampleOptions() (
 // a cluster namespace.
 type ClusterNamespaceDownsampleOptions struct {
 	All bool
+	// DataLatency specifies the duration after which the ingested
+	// data becomes available in this namespace.
+	DataLatency time.Duration
 }
 
 // ClusterNamespaces is a slice of ClusterNamespace instances.

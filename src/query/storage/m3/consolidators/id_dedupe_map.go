@@ -110,7 +110,8 @@ func (m *idDedupeMap) doUpdate(
 	existing multiResultSeries,
 	tags models.Tags,
 	iter encoding.SeriesIterator,
-	attrs storagemetadata.Attributes) error {
+	attrs storagemetadata.Attributes,
+) error {
 	var existsBetter bool
 	switch m.fanout {
 	case NamespaceCoversAllQueryRange:
