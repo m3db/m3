@@ -65,6 +65,13 @@ steps:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
     <<: *common
+  - label: "M3 Cluster Integration Test Harness Tests"
+    command: make clean test-ci-test-harness
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+        workdir: /go/src/github.com/m3db/m3
+    <<: *common
   - name: "Prometheus compatibility (:docker:)"
     command: make clean install-vendor-m3 docker-compatibility-test
     parallelism: 1

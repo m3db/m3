@@ -59,6 +59,10 @@ func (i *inprocessM3Resources) Cleanup() error {
 		err = err.Add(d.Close())
 	}
 
+	for _, a := range i.aggregators {
+		err = err.Add(a.Close())
+	}
+
 	return err.FinalError()
 }
 
