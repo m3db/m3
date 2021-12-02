@@ -76,9 +76,6 @@ func TestNewClusterWithAgg(t *testing.T) {
 }
 
 func TestNewClusterWithMultiAggs(t *testing.T) {
-	t.Skip("disabled as check for leader does not succeed when run as part " +
-		"of the test suite. succeeds when run individually")
-
 	configs, err := NewClusterConfigsFromYAML(clusterDBNodeConfig, aggregatorCoordConfig, defaultAggregatorConfig)
 	require.NoError(t, err)
 
