@@ -420,6 +420,8 @@ func (c *Coordinator) WriteProm(
 	return c.client.WriteProm(name, tags, samples, headers)
 }
 
+// WritePromWithRequest executes a prometheus write request. Allows you to
+// provide the request directly which is useful for batch metric requests.
 func (c *Coordinator) WritePromWithRequest(writeRequest prompb.WriteRequest, headers resources.Headers) error {
 	return c.client.WritePromWithRequest(writeRequest, headers)
 }
