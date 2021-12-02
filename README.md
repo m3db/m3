@@ -1,4 +1,4 @@
-# M3
+# M3 - foo
 
 [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![FOSSA Status][fossa-img]][fossa]
 
