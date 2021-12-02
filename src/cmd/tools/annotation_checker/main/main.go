@@ -59,18 +59,24 @@ const (
 
 func main() {
 	var (
-		optPathPrefix  = getopt.StringLong("path-prefix", 'p', "/var/lib/m3db", "Path prefix [e.g. /var/lib/m3db]", "string")
-		fileSetTypeArg = getopt.StringLong("fileset-type", 't', flushType, "Fileset type", fmt.Sprintf("%s|%s", flushType, snapshotType))
-		optNamespace   = getopt.StringLong("namespace", 'n', "default", "Namespace [e.g. metrics]", "string")
-		optShard       = getopt.IntLong("shard", 's', allShards,
+		optPathPrefix = getopt.StringLong("path-prefix", 'p', "/var/lib/m3db",
+			"Path prefix [e.g. /var/lib/m3db]", "string")
+		fileSetTypeArg = getopt.StringLong("fileset-type", 't', flushType, "Fileset type",
+			fmt.Sprintf("%s|%s", flushType, snapshotType))
+		optNamespace = getopt.StringLong("namespace", 'n', "default", "Namespace [e.g. metrics]", "string")
+		optShard     = getopt.IntLong("shard", 's', allShards,
 			fmt.Sprintf("Shard number, or %v for all shards in the directory", allShards), "int")
 		optBlockstart = getopt.Int64Long("block-start", 'b', 0, "Block Start Time", "nsec")
 		volume        = getopt.Int64Long("volume", 'v', 0, "Volume number", "int")
 
-		optIdFilter                 = getopt.StringLong("id-filter", 'f', "", "Filters series that contain given string in their IDs", "string")
-		annotationFilterDescription = fmt.Sprintf("Filters series by their annotations. Default: %s", annotationFilterNoInitial)
-		annotationFilterValue       = fmt.Sprintf("%s|%s|%s", annotationFilterNoFiltering, annotationFilterNoInitial, annotationFilterRewritten)
-		optAnnotationFilter         = getopt.StringLong("annotation-filter", 'a', annotationFilterNoInitial, annotationFilterDescription, annotationFilterValue)
+		optIDFilter = getopt.StringLong("id-filter", 'f', "",
+			"Filters series that contain given string in their IDs", "string")
+		annotationFilterDescription = fmt.Sprintf("Filters series by their annotations. Default: %s",
+			annotationFilterNoInitial)
+		annotationFilterValue = fmt.Sprintf("%s|%s|%s",
+			annotationFilterNoFiltering, annotationFilterNoInitial, annotationFilterRewritten)
+		optAnnotationFilter = getopt.StringLong("annotation-filter", 'a', annotationFilterNoInitial,
+			annotationFilterDescription, annotationFilterValue)
 
 		optPrintAnnotations = getopt.BoolLong("print-annotations", 'P', "Prints annotations")
 	)
@@ -148,7 +154,7 @@ func main() {
 				log.Fatalf("err reading metadata: %v", err)
 			}
 
-			if *optIdFilter != "" && !strings.Contains(entry.ID.String(), *optIdFilter) {
+			if *optIDFilter != "" && !strings.Contains(entry.ID.String(), *optIDFilter) {
 				continue
 			}
 
@@ -173,11 +179,11 @@ func main() {
 			}
 
 			if *optPrintAnnotations {
-				fmt.Println(entry.ID.String())
+				fmt.Println(entry.ID.String()) // nolint: forbidigo
 				if err := printAnnotations(entry.Data, encodingOpts); err != nil {
 					log.Fatal("failed to print annotations: %v", err)
 				}
-				fmt.Println()
+				fmt.Println() // nolint: forbidigo
 			}
 
 			metricsMap[entry.ID.String()] = struct{}{}
@@ -248,13 +254,13 @@ func printAnnotations(data []byte, encodingOpts encoding.Options) error {
 			if err := payload.Unmarshal(annotationBytes); err != nil {
 				return fmt.Errorf("failed to unmarshal annotation: %w", err)
 			}
-			fmt.Printf("  idx=%-4d { %v}\n", idx, payload)
+			fmt.Printf("  idx=%-4d { %v}\n", idx, payload) // nolint: forbidigo
 		}
 
 		idx++
 	}
 	if !hasAnnotation {
-		fmt.Println("  NO ANNOTATIONS")
+		fmt.Println("  NO ANNOTATIONS") // nolint: forbidigo
 	}
 	if err := iter.Err(); err != nil {
 		return fmt.Errorf("unable to iterate original data: %w", err)
