@@ -32,7 +32,7 @@
     target = "archetypes"
     
   [[module.imports]]
-    path = "versions"
+    path = "github.com/m3db/docs-archive"
 
   [[module.imports.mounts]]
     source = "content/v0.15.17"

@@ -1,3 +1,0 @@
-global:
-  external_labels:
-    monitor: 'prom-storage'

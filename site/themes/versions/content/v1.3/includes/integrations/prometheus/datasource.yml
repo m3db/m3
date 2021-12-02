@@ -1,5 +1,0 @@
-datasources:
-  - name: Prometheus
-    type: prometheus
-    access: proxy
-    url: http://host.docker.internal:9090
