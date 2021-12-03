@@ -732,6 +732,7 @@ func (n *dbNamespace) Write(
 		value, unit, annotation, opts)
 	if err == nil && len(annotation) == 0 {
 		n.metrics.writesWithoutAnnotation.Inc(1)
+		n.log.Warn("write without annotation", zap.Stringer("seriesID", id))
 	}
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return seriesWrite, err
@@ -772,6 +773,7 @@ func (n *dbNamespace) WriteTagged(
 		value, unit, annotation, opts)
 	if err == nil && len(annotation) == 0 {
 		n.metrics.writesWithoutAnnotation.Inc(1)
+		n.log.Warn("write without annotation", zap.Stringer("seriesID", id))
 	}
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return seriesWrite, err
