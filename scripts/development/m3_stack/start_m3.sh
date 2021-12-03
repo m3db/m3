@@ -30,7 +30,6 @@ fi
 M3DBNODE_DEV_IMG=$(docker images m3dbnode:dev | fgrep -iv repository | wc -l | xargs)
 M3COORDINATOR_DEV_IMG=$(docker images m3coordinator:dev | fgrep -iv repository | wc -l | xargs)
 M3AGGREGATOR_DEV_IMG=$(docker images m3aggregator:dev | fgrep -iv repository | wc -l | xargs)
-M3COLLECTOR_DEV_IMG=$(docker images m3collector:dev | fgrep -iv repository | wc -l | xargs)
 
 if [[ "$M3DBNODE_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3DBNODE" == true ]]; then
     prepare_build_cmd "make m3dbnode-linux-amd64"
@@ -156,16 +155,6 @@ if [[ "$USE_AGGREGATOR" = true ]]; then
     if [[ "$USE_AGGREGATOR_HA" == true ]]; then
         # Bring up the second replica
         docker-compose -f docker-compose.yml up $DOCKER_ARGS m3aggregator02
-    fi
-
-    if [[ "$M3COLLECTOR_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3COLLECTOR" == true ]]; then
-        prepare_build_cmd "make m3collector-linux-amd64"
-        echo "Building m3collector binary first"
-        bash -c "$build_cmd"
-
-        docker-compose -f docker-compose.yml up --build $DOCKER_ARGS m3collector01
-    else
-        docker-compose -f docker-compose.yml up $DOCKER_ARGS m3collector01
     fi
 else
     echo "Not running aggregator pipeline"
@@ -357,10 +346,6 @@ if [[ "$USE_AGGREGATOR" = true ]]; then
     fi
 
     docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
-
-    # May not necessarily flush
-    echo "Sending unaggregated metric to m3collector"
-    curl http://localhost:7206/api/v1/json/report -X POST -d '{"metrics":[{"type":"gauge","value":42,"tags":{"__name__":"foo_metric","foo":"bar"}}]}'
 fi
 
 echo "Starting Prometheus"
