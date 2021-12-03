@@ -60,6 +60,8 @@ const (
 	// Keep this value large enough to catch issues like the ingester
 	// not copying the name.
 	numLinesInTestPacket = 10000
+
+	graphiteSource = ts.SourceTypeGraphite
 )
 
 var (
@@ -214,13 +216,14 @@ func TestIngesterHandleConn(t *testing.T) {
 		idx   = 0
 	)
 	mockDownsamplerAndWriter.EXPECT().
-		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any()).DoAndReturn(func(
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any(), graphiteSource).DoAndReturn(func(
 		_ context.Context,
 		tags models.Tags,
 		dp ts.Datapoints,
 		unit xtime.Unit,
 		annotation []byte,
 		overrides ingest.WriteOptions,
+		_ ts.SourceType,
 	) interface{} {
 		lock.Lock()
 		// Clone tags because they (and their underlying bytes) are pooled.
@@ -343,7 +346,7 @@ func TestIngesterHonorsMatchers(t *testing.T) {
 				found = []testMetric{}
 			)
 			mockDownsamplerAndWriter.EXPECT().
-				Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any()).
+				Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any(), graphiteSource).
 				DoAndReturn(func(
 					_ context.Context,
 					tags models.Tags,
@@ -351,6 +354,7 @@ func TestIngesterHonorsMatchers(t *testing.T) {
 					unit xtime.Unit,
 					annotation []byte,
 					writeOpts ingest.WriteOptions,
+					_ ts.SourceType,
 				) interface{} {
 					lock.Lock()
 					// Clone tags because they (and their underlying bytes) are pooled.
@@ -530,13 +534,14 @@ func newMockDownsamplerAndWriter(
 		idx     = 0
 	)
 	mockDownsamplerAndWriter.EXPECT().
-		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any()).DoAndReturn(func(
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any(), graphiteSource).DoAndReturn(func(
 		_ context.Context,
 		tags models.Tags,
 		dp ts.Datapoints,
 		unit xtime.Unit,
 		annotation []byte,
 		writeOpts ingest.WriteOptions,
+		_ ts.SourceType,
 	) interface{} {
 		lock.Lock()
 		// Clone tags because they (and their underlying bytes) are pooled.
