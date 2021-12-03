@@ -215,6 +215,8 @@ func resolveClusterNamespacesForQueryLogicalPlan(
 		}
 
 		if result[0].endNarrowing > 0 {
+			// completeAggregated namespace will not have the most recent data available, will
+			// have to query unaggregated namespace for it and then stitch the responses together.
 			unaggregatedNarrowed := resolved(unaggregated.clusterNamespace)
 			unaggregatedNarrowed.startNarrowing = result[0].endNarrowing
 
@@ -271,6 +273,15 @@ func resolveClusterNamespacesForQueryLogicalPlan(
 			result[0] = resolved(unaggregated.clusterNamespace)
 			completedAttrs = unaggregated.clusterNamespace.Options().Attributes()
 		}
+	}
+
+	if result[0].endNarrowing > 0 {
+		// completeAggregated namespace will not have the most recent data available, will
+		// have to query unaggregated namespace for it and then stitch the responses together.
+		unaggregatedNarrowed := resolved(unaggregated.clusterNamespace)
+		unaggregatedNarrowed.startNarrowing = result[0].endNarrowing
+
+		result = append(result, unaggregatedNarrowed)
 	}
 
 	// Take any partially aggregated namespaces with longer retention or
@@ -357,7 +368,8 @@ func aggregatedNamespaces(
 		resolvedNs := resolved(namespace)
 
 		var dataLatency time.Duration
-		if strings.HasPrefix(resolvedNs.NamespaceID().String(), "downsampled") {
+		downsampled := strings.HasPrefix(resolvedNs.NamespaceID().String(), "downsampled")
+		if downsampled {
 			// FIXME: make this configurable
 			dataLatency = 12 * time.Hour
 		}
@@ -382,7 +394,7 @@ func aggregatedNamespaces(
 			continue
 		}
 
-		if downsampleOpts.All {
+		if downsampleOpts.All || downsampled /*FIXME: make this configurable*/ {
 			// This namespace has a complete set of metrics. Ensure that it passes
 			// the filter if it was a forced addition, otherwise it may be too short
 			// to cover the entire range and should be considered a partial result.

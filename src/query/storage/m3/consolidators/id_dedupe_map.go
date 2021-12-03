@@ -23,6 +23,7 @@ package consolidators
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
@@ -69,6 +70,12 @@ func (m *idDedupeMap) update(
 	attrs storagemetadata.Attributes,
 ) (bool, error) {
 	id := iter.ID().String()
+
+	if nsID := iter.Namespace().String(); strings.HasPrefix(nsID, "downsampled") {
+		//FIXME
+		id = id + "-" + nsID
+	}
+
 	existing, exists := m.series[id]
 	if !exists {
 		return false, nil
@@ -85,6 +92,11 @@ func (m *idDedupeMap) add(
 	attrs storagemetadata.Attributes,
 ) error {
 	id := iter.ID().String()
+
+	if nsID := iter.Namespace().String(); strings.HasPrefix(nsID, "downsampled") {
+		//FIXME
+		id = id + "-" + nsID
+	}
 
 	tags, err := FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
 	if err != nil {
