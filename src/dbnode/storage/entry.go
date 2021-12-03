@@ -288,7 +288,9 @@ func (entry *Entry) TryMarkIndexGarbageCollected() (bool, bool) {
 		return false, false
 	}
 
-	// Mark as GCed from index so the entry can be safely cleaned up elsewhere.
+	// Mark as GCed from index so the entry can be safely cleaned up in the shard.
+	// The reference to this entry from the index is removed by the code path that
+	// marks this GCed bool.
 	e.IndexGarbageCollected.Store(true)
 
 	// Was reconciled if the entry retrieved from the shard differs from the current.
