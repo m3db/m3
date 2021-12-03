@@ -28,10 +28,6 @@ coverage:
         target: auto
         threshold: 5%
         flags: aggregator
-      collector:
-        target: auto
-        threshold: 5%
-        flags: collector
       query:
         target: auto
         threshold: 5%
@@ -56,10 +52,6 @@ coverage:
       default: off
 
   flags:
-    collector:
-      paths:
-        - src/collector/
-        - src/cmd/services/m3collector/
     aggregator:
       paths:
         - src/aggregator/

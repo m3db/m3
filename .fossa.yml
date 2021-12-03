@@ -30,12 +30,6 @@ analyze:
     path: src/cmd/services/m3aggregator/main
     options:
       allow-unresolved: true
-  - name: github.com/m3db/m3/src/cmd/services/m3collector/main
-    type: go
-    target: github.com/m3db/m3/src/cmd/services/m3collector/main
-    path: src/cmd/services/m3collector/main
-    options:
-      allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/services/m3coordinator/main
     type: go
     target: github.com/m3db/m3/src/cmd/services/m3coordinator/main
