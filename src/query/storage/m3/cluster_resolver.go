@@ -47,9 +47,14 @@ type unaggregatedNamespaceDetails struct {
 }
 
 type resolvedNamespace struct {
-	clusterNamespace ClusterNamespace
-	startNarrowing   xtime.UnixNano
-	endNarrowing     xtime.UnixNano
+	ClusterNamespace
+
+	startNarrowing xtime.UnixNano
+	endNarrowing   xtime.UnixNano
+}
+
+func resolved(ns ClusterNamespace) resolvedNamespace {
+	return resolvedNamespace{ClusterNamespace: ns}
 }
 
 // resolveUnaggregatedNamespaceForQuery determines if the unaggregated namespace
@@ -119,7 +124,7 @@ func resolveClusterNamespacesForQuery(
 		// Small enough that we can do n^2 here instead of creating a map,
 		// usually less than 4 namespaces resolved.
 		for _, existing := range filtered {
-			if ns.clusterNamespace.NamespaceID().Equal(existing.clusterNamespace.NamespaceID()) {
+			if ns.NamespaceID().Equal(existing.NamespaceID()) {
 				keep = false
 				break
 			}
@@ -165,14 +170,14 @@ func resolveClusterNamespacesForQueryLogicalPlan(
 	unaggregated := resolveUnaggregatedNamespaceForQuery(now, start, ns, opts)
 	if unaggregated.satisfies == fullySatisfiesRange {
 		return consolidators.NamespaceCoversAllQueryRange,
-			[]resolvedNamespace{{clusterNamespace: unaggregated.clusterNamespace}},
+			[]resolvedNamespace{resolved(unaggregated.clusterNamespace)},
 			nil
 	}
 
 	if opts.FanoutAggregated == storage.FanoutForceDisable {
 		if unaggregated.satisfies == partiallySatisfiesRange {
 			return consolidators.NamespaceCoversPartialQueryRange,
-				[]resolvedNamespace{{clusterNamespace: unaggregated.clusterNamespace}}, nil
+				[]resolvedNamespace{resolved(unaggregated.clusterNamespace)}, nil
 		}
 
 		return consolidators.NamespaceInvalid, nil, errUnaggregatedAndAggregatedDisabled
@@ -199,21 +204,20 @@ func resolveClusterNamespacesForQueryLogicalPlan(
 		sort.Stable(resolvedNamespacesByResolutionAsc(r.completeAggregated))
 		// Take most granular complete aggregated namespace.
 		result := r.completeAggregated[:1]
-		completedAttrs := result[0].clusterNamespace.Options().Attributes()
+		completedAttrs := result[0].Options().Attributes()
 		// Also include any finer grain partially aggregated namespaces that
 		// may contain a matching metric.
 		for _, n := range r.partialAggregated {
-			if n.clusterNamespace.Options().Attributes().Resolution < completedAttrs.Resolution {
+			if n.Options().Attributes().Resolution < completedAttrs.Resolution {
 				// More granular resolution.
 				result = append(result, n)
 			}
 		}
 
 		if result[0].endNarrowing > 0 {
-			unaggregatedNarrowed := resolvedNamespace{
-				clusterNamespace: unaggregated.clusterNamespace,
-				startNarrowing:   result[0].endNarrowing,
-			}
+			unaggregatedNarrowed := resolved(unaggregated.clusterNamespace)
+			unaggregatedNarrowed.startNarrowing = result[0].endNarrowing
+
 			result = append(result, unaggregatedNarrowed)
 		}
 
@@ -234,13 +238,13 @@ func resolveClusterNamespacesForQueryLogicalPlan(
 		// If unaggregated namespace can partially satisfy this range, add it as a
 		// fanout contender.
 		if unaggregated.satisfies == partiallySatisfiesRange {
-			result = append(result, resolvedNamespace{clusterNamespace: unaggregated.clusterNamespace})
+			result = append(result, resolved(unaggregated.clusterNamespace))
 		}
 
 		// If any namespace currently in contention does not cover the entire query
 		// range, set query fanout type to namespaceCoversPartialQueryRange.
 		for _, n := range result {
-			if !coversRangeFilter(n.clusterNamespace) {
+			if !coversRangeFilter(n) {
 				return consolidators.NamespaceCoversPartialQueryRange, result, nil
 			}
 		}
@@ -257,14 +261,14 @@ func resolveClusterNamespacesForQueryLogicalPlan(
 	// Take longest retention complete aggregated namespace or the unaggregated
 	// cluster if that is longer than the longest aggregated namespace.
 	result := r.completeAggregated[:1]
-	completedAttrs := result[0].clusterNamespace.Options().Attributes()
+	completedAttrs := result[0].Options().Attributes()
 	if unaggregated.satisfies == partiallySatisfiesRange {
 		unaggregatedAttrs := unaggregated.clusterNamespace.Options().Attributes()
 		if completedAttrs.Retention <= unaggregatedAttrs.Retention {
 			// If the longest aggregated cluster for some reason has lower retention
 			// than the unaggregated cluster then we prefer the unaggregated cluster
 			// as it has a complete data set and is always the most granular.
-			result[0] = resolvedNamespace{clusterNamespace: unaggregated.clusterNamespace}
+			result[0] = resolved(unaggregated.clusterNamespace)
 			completedAttrs = unaggregated.clusterNamespace.Options().Attributes()
 		}
 	}
@@ -273,7 +277,7 @@ func resolveClusterNamespacesForQueryLogicalPlan(
 	// same retention with more granular resolution that may contain
 	// a matching metric.
 	for _, n := range r.partialAggregated {
-		attrs := n.clusterNamespace.Options().Attributes()
+		attrs := n.Options().Attributes()
 		if attrs.Retention > completedAttrs.Retention {
 			// Higher retention.
 			result = append(result, n)
@@ -350,10 +354,10 @@ func aggregatedNamespaces(
 			continue
 		}
 
-		resolvedNs := resolvedNamespace{clusterNamespace: namespace}
+		resolvedNs := resolved(namespace)
 
 		var dataLatency time.Duration
-		if strings.HasPrefix(namespace.NamespaceID().String(), "downsampled") {
+		if strings.HasPrefix(resolvedNs.NamespaceID().String(), "downsampled") {
 			// FIXME: make this configurable
 			dataLatency = 12 * time.Hour
 		}
@@ -416,11 +420,11 @@ func resolveClusterNamespacesForQueryWithTypeRestrictQueryOptions(
 
 		if coversRangeFilter(namespace) {
 			return consolidators.NamespaceCoversAllQueryRange,
-				[]resolvedNamespace{{clusterNamespace: namespace}}, nil
+				[]resolvedNamespace{resolved(namespace)}, nil
 		}
 
 		return consolidators.NamespaceCoversPartialQueryRange,
-			[]resolvedNamespace{{clusterNamespace: namespace}}, nil
+			[]resolvedNamespace{resolved(namespace)}, nil
 	}
 
 	switch restrict.MetricsType {
@@ -498,8 +502,7 @@ type resolvedNamespacesByResolutionAsc []resolvedNamespace
 func (a resolvedNamespacesByResolutionAsc) Len() int      { return len(a) }
 func (a resolvedNamespacesByResolutionAsc) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a resolvedNamespacesByResolutionAsc) Less(i, j int) bool {
-	return a[i].clusterNamespace.Options().Attributes().Resolution <
-		a[j].clusterNamespace.Options().Attributes().Resolution
+	return a[i].Options().Attributes().Resolution < a[j].Options().Attributes().Resolution
 }
 
 type resolvedNamespacesByRetentionAsc []resolvedNamespace
@@ -507,6 +510,5 @@ type resolvedNamespacesByRetentionAsc []resolvedNamespace
 func (a resolvedNamespacesByRetentionAsc) Len() int      { return len(a) }
 func (a resolvedNamespacesByRetentionAsc) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a resolvedNamespacesByRetentionAsc) Less(i, j int) bool {
-	return a[i].clusterNamespace.Options().Attributes().Retention <
-		a[j].clusterNamespace.Options().Attributes().Retention
+	return a[i].Options().Attributes().Retention < a[j].Options().Attributes().Retention
 }

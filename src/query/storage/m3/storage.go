@@ -113,7 +113,7 @@ func (s *m3storage) QueryStorageMetadataAttributes(
 
 	results := make([]storagemetadata.Attributes, 0, len(namespaces))
 	for _, ns := range namespaces {
-		results = append(results, ns.clusterNamespace.Options().Attributes())
+		results = append(results, ns.Options().Attributes())
 	}
 	return results, nil
 }
@@ -369,7 +369,6 @@ func (s *m3storage) fetchCompressed(
 				continue
 			}
 
-			ns := n.clusterNamespace
 			debugLog.Write(
 				zap.String("query", query.Raw),
 				zap.String("m3query", m3query.String()),
@@ -378,10 +377,10 @@ func (s *m3storage) fetchCompressed(
 				zap.Time("end", queryEnd.ToTime()),
 				zap.Time("endNarrowing", n.endNarrowing.ToTime()),
 				zap.String("fanoutType", fanout.String()),
-				zap.String("namespace", ns.NamespaceID().String()),
-				zap.String("type", ns.Options().Attributes().MetricsType.String()),
-				zap.String("retention", ns.Options().Attributes().Retention.String()),
-				zap.String("resolution", ns.Options().Attributes().Resolution.String()),
+				zap.String("namespace", n.NamespaceID().String()),
+				zap.String("type", n.Options().Attributes().MetricsType.String()),
+				zap.String("retention", n.Options().Attributes().Retention.String()),
+				zap.String("resolution", n.Options().Attributes().Resolution.String()),
 				zap.Bool("remote", options.Remote))
 		}
 	}
@@ -391,7 +390,7 @@ func (s *m3storage) fetchCompressed(
 		return nil, index.Query{}, errNoNamespacesConfigured
 	}
 
-	pools, err := namespaces[0].clusterNamespace.Session().IteratorPools()
+	pools, err := namespaces[0].Session().IteratorPools()
 	if err != nil {
 		return nil, index.Query{}, fmt.Errorf("unable to retrieve iterator pools: %v", err)
 	}
@@ -407,8 +406,7 @@ func (s *m3storage) fetchCompressed(
 	}
 	result := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts, limitOpts)
 	for _, namespace := range namespaces {
-		narrowedQueryOpts := narrowQueryOpts(queryOptions, namespace)
-		namespace := namespace.clusterNamespace // Capture var
+		namespace := namespace // Capture var
 
 		wg.Add(1)
 		go func() {
@@ -419,6 +417,7 @@ func (s *m3storage) fetchCompressed(
 
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
+			narrowedQueryOpts := narrowQueryOpts(queryOptions, namespace)
 			iters, metadata, err := session.FetchTagged(ctx, namespaceID, m3query, narrowedQueryOpts)
 			if err == nil && sampled {
 				span.LogFields(
@@ -553,7 +552,7 @@ func (s *m3storage) CompleteTags(
 
 	// NB(r): Since we don't use a single index we fan out to each
 	// cluster that can completely fulfill this range and then prefer the
-	// highest resolution (most fine grained) results.
+	// highest resolution (most fine-grained) results.
 	// This needs to be optimized, however this is a start.
 	_, namespaces, err := resolveClusterNamespacesForQuery(xtime.ToUnixNano(s.nowFn()),
 		queryStart,
@@ -579,8 +578,7 @@ func (s *m3storage) CompleteTags(
 
 	wg.Add(len(namespaces))
 	for _, namespace := range namespaces {
-		narrowedAggOpts := narrowAggOpts(aggOpts, namespace)
-		namespace := namespace.clusterNamespace // Capture var
+		namespace := namespace // Capture var
 		go func() {
 			_, span, sampled := xcontext.StartSampledTraceSpan(ctx, tracepoint.CompleteTagsAggregate)
 			defer func() {
@@ -590,6 +588,7 @@ func (s *m3storage) CompleteTags(
 
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
+			narrowedAggOpts := narrowAggOpts(aggOpts, namespace)
 			aggTagIter, metadata, err := session.Aggregate(ctx, namespaceID, m3query, narrowedAggOpts)
 			if err != nil {
 				multiErr.add(err)
@@ -723,8 +722,7 @@ func (s *m3storage) SearchCompressed(
 
 	wg.Add(len(namespaces))
 	for _, namespace := range namespaces {
-		narrowedM3Opts := narrowQueryOpts(m3opts, namespace)
-		namespace := namespace.clusterNamespace // Capture var
+		namespace := namespace // Capture var
 		go func() {
 			_, span, sampled := xcontext.StartSampledTraceSpan(ctx,
 				tracepoint.SearchCompressedFetchTaggedIDs)
@@ -732,6 +730,7 @@ func (s *m3storage) SearchCompressed(
 
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
+			narrowedM3Opts := narrowQueryOpts(m3opts, namespace)
 			iter, metadata, err := session.FetchTaggedIDs(ctx, namespaceID, m3query, narrowedM3Opts)
 			if err == nil && sampled {
 				span.LogFields(
