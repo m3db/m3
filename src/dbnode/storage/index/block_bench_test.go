@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/uber-go/tally"
 
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/profile"
@@ -128,10 +129,10 @@ func (m mockOnIndexSeries) DecrementReaderWriterCount() {}
 func (m mockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(_ xtime.UnixNano) bool {
 	return false
 }
-func (m mockOnIndexSeries) IndexedForBlockStart(_ xtime.UnixNano) bool { return false }
-func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool                { return false }
-func (m mockOnIndexSeries) TryMarkIndexGarbageCollected() (bool, bool) { return false, false }
-func (m mockOnIndexSeries) NeedsIndexGarbageCollected() bool           { return false }
+func (m mockOnIndexSeries) IndexedForBlockStart(_ xtime.UnixNano) bool           { return false }
+func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool                          { return false }
+func (m mockOnIndexSeries) TryMarkIndexGarbageCollected(_, _ tally.Counter) bool { return false }
+func (m mockOnIndexSeries) NeedsIndexGarbageCollected() bool                     { return false }
 func (m mockOnIndexSeries) IndexedRange() (xtime.UnixNano, xtime.UnixNano) {
 	return 0, 0
 }

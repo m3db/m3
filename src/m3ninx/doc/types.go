@@ -23,6 +23,7 @@ package doc
 import (
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/uber-go/tally"
 )
 
 // MetadataIterator provides an iterator over a collection of document metadata. It is NOT
@@ -117,9 +118,7 @@ type OnIndexSeries interface {
 
 	// TryMarkIndexGarbageCollected checks if the entry is eligible to be garbage collected
 	// from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
-	// Second return value indicates if the current entry had to be reconciled against the
-	// one actually held in the shard.
-	TryMarkIndexGarbageCollected() (bool, bool)
+	TryMarkIndexGarbageCollected(reconciled, unreconciled tally.Counter) bool
 
 	// NeedsIndexGarbageCollected returns if the entry is eligible to be garbage collected
 	// from the index.

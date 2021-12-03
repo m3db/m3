@@ -29,6 +29,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/ident"
@@ -163,9 +164,7 @@ func TestEntryTryMarkIndexGarbageCollectedAfterSeriesClose(t *testing.T) {
 	series.EXPECT().IsEmpty().Return(false).AnyTimes()
 	require.NotPanics(t, func() {
 		// Make sure doesn't panic.
-		marked, reconciled := entry.TryMarkIndexGarbageCollected()
-		require.False(t, marked)
-		require.False(t, reconciled)
+		require.False(t, entry.TryMarkIndexGarbageCollected(nil, nil))
 	})
 }
 
@@ -282,23 +281,27 @@ func TestEntryTryMarkIndexGarbageCollected(t *testing.T) {
 	shard.insertNewShardEntryWithLock(committedEntry)
 	shard.Unlock()
 
+	scope := tally.NewTestScope("test", nil)
+	reconciled := scope.Counter("reconciled")
+	unreconciled := scope.Counter("unreconciled")
+
 	// Not eligible if not empty.
 	s.EXPECT().IsEmpty().Return(false)
-	collected, reconciled := uncommittedEntry.TryMarkIndexGarbageCollected()
+	collected := uncommittedEntry.TryMarkIndexGarbageCollected(reconciled, unreconciled)
 	require.False(t, collected)
-	require.False(t, reconciled)
 
 	// Not eligible if held.
 	s.EXPECT().IsEmpty().Return(true).AnyTimes()
 	committedEntry.IncrementReaderWriterCount()
-	collected, reconciled = uncommittedEntry.TryMarkIndexGarbageCollected()
+	collected = uncommittedEntry.TryMarkIndexGarbageCollected(reconciled, unreconciled)
 	require.False(t, collected)
-	require.False(t, reconciled)
 
 	committedEntry.DecrementReaderWriterCount()
-	collected, reconciled = uncommittedEntry.TryMarkIndexGarbageCollected()
+	collected = uncommittedEntry.TryMarkIndexGarbageCollected(reconciled, unreconciled)
 	require.True(t, collected)
-	require.True(t, reconciled)
+
+	require.Equal(t, scope.Snapshot().Counters()["test.reconciled+"].Value(), int64(1))
+	require.Equal(t, scope.Snapshot().Counters()["test.unreconciled+"].Value(), int64(0))
 
 	// Entry in the shard is the one marked for GC (not the one necessarily used for the call above).
 	require.True(t, committedEntry.IndexGarbageCollected.Load())

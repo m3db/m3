@@ -238,16 +238,10 @@ func (m *mutableSegments) seriesActive(d doc.Metadata) bool {
 		return true
 	}
 
-	marked, reconciled := d.OnIndexSeries.TryMarkIndexGarbageCollected()
-	if marked {
-		if reconciled {
-			m.metrics.reconciledEntryGC.Inc(1)
-		} else {
-			m.metrics.unreconciledEntryGC.Inc(1)
-		}
-	}
-
-	return !marked
+	return !d.OnIndexSeries.TryMarkIndexGarbageCollected(
+		m.metrics.reconciledEntryGC,
+		m.metrics.unreconciledEntryGC,
+	)
 }
 
 func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats, error) {

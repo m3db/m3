@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/uber-go/tally"
 )
 
 // MockMetadataIterator is a mock of MetadataIterator interface.
@@ -431,16 +432,15 @@ func (mr *MockOnIndexSeriesMockRecorder) ReconciledOnIndexSeries() *gomock.Call 
 }
 
 // TryMarkIndexGarbageCollected mocks base method.
-func (m *MockOnIndexSeries) TryMarkIndexGarbageCollected() (bool, bool) {
+func (m *MockOnIndexSeries) TryMarkIndexGarbageCollected(reconciled, unreconciled tally.Counter) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TryMarkIndexGarbageCollected")
+	ret := m.ctrl.Call(m, "TryMarkIndexGarbageCollected", reconciled, unreconciled)
 	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
+	return ret0
 }
 
 // TryMarkIndexGarbageCollected indicates an expected call of TryMarkIndexGarbageCollected.
-func (mr *MockOnIndexSeriesMockRecorder) TryMarkIndexGarbageCollected() *gomock.Call {
+func (mr *MockOnIndexSeriesMockRecorder) TryMarkIndexGarbageCollected(reconciled, unreconciled interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryMarkIndexGarbageCollected", reflect.TypeOf((*MockOnIndexSeries)(nil).TryMarkIndexGarbageCollected))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryMarkIndexGarbageCollected", reflect.TypeOf((*MockOnIndexSeries)(nil).TryMarkIndexGarbageCollected), reconciled, unreconciled)
 }
