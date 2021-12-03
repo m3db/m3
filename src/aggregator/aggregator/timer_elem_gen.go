@@ -248,6 +248,12 @@ func (e *TimerElem) expireValuesWithLock(
 		// close the agg to prevent any more writes.
 		dirty := false
 		currAgg.lockedAgg.mtx.Lock()
+		if currAgg.lockedAgg.resendEnabled != e.flushState[currAgg.startAt].latestResendEnabled {
+			// the aggregation migrated to resendEnabled after the flusher read the resendEnabled state.
+			// keep the aggregation for now and try to expire on the next flush.
+			currAgg.lockedAgg.mtx.Unlock()
+			break
+		}
 		currAgg.lockedAgg.closed = true
 		dirty = currAgg.lockedAgg.dirty
 		currAgg.lockedAgg.mtx.Unlock()

@@ -2909,7 +2909,8 @@ func TestExpireValues(t *testing.T) {
 
 			// Add test values.
 			for _, v := range test.values {
-				_, err := e.findOrCreate(int64(v), createAggregationOptions{})
+				a, err := e.findOrCreate(int64(v), createAggregationOptions{})
+				a.resendEnabled = test.resendEnabled
 				// need to manually seed the flush state since we don't call Consume(), which takes care of setting
 				// the flush state for expireValuesWithLock to use.
 				e.flushState[v] = flushState{latestResendEnabled: test.resendEnabled}

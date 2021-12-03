@@ -591,7 +591,12 @@ func (c *CoordinatorClient) WriteProm(
 	samples []prompb.Sample,
 	headers Headers,
 ) error {
-	labels := make([]prompb.Label, 0, len(tags))
+	labels := make([]prompb.Label, 0, len(tags)+1)
+
+	labels = append(labels, prompb.Label{
+		Name:  []byte(model.MetricNameLabel),
+		Value: []byte(name),
+	})
 
 	for tag, value := range tags {
 		labels = append(labels, prompb.Label{
@@ -600,31 +605,22 @@ func (c *CoordinatorClient) WriteProm(
 		})
 	}
 
-	return c.WritePromWithLabels(name, labels, samples, headers)
-}
-
-// WritePromWithLabels writes a prometheus metric. Allows you to provide the labels for the write
-// directly instead of conveniently converting them from a map.
-func (c *CoordinatorClient) WritePromWithLabels(
-	name string,
-	labels []prompb.Label,
-	samples []prompb.Sample,
-	headers Headers,
-) error {
-	var (
-		url       = c.makeURL("api/v1/prom/remote/write")
-		reqLabels = []prompb.Label{{Name: []byte(model.MetricNameLabel), Value: []byte(name)}}
-	)
-	reqLabels = append(reqLabels, labels...)
-
 	writeRequest := prompb.WriteRequest{
 		Timeseries: []prompb.TimeSeries{
 			{
-				Labels:  reqLabels,
+				Labels:  labels,
 				Samples: samples,
 			},
 		},
 	}
+
+	return c.WritePromWithRequest(writeRequest, headers)
+}
+
+// WritePromWithRequest executes a prometheus write request. Allows you to
+// provide the request directly which is useful for batch metric requests.
+func (c *CoordinatorClient) WritePromWithRequest(writeRequest prompb.WriteRequest, headers Headers) error {
+	url := c.makeURL("api/v1/prom/remote/write")
 
 	logger := c.logger.With(
 		ZapMethod("writeProm"), zap.String("url", url),
