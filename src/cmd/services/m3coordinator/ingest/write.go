@@ -111,13 +111,21 @@ type WriteOptions struct {
 }
 
 type downsamplerAndWriterMetrics struct {
-	dropped bySource
-	written bySource
+	dropped metricsBySource
+	written metricsBySource
 }
 
-type bySource struct {
+type metricsBySource struct {
 	bySource  map[ts.SourceType]tally.Counter
 	byUnknown tally.Counter
+}
+
+func (m metricsBySource) report(source ts.SourceType) {
+	counter, ok := m.bySource[source]
+	if !ok {
+		counter = m.byUnknown
+	}
+	counter.Inc(1)
 }
 
 // downsamplerAndWriter encapsulates the logic for writing data to the downsampler,
@@ -150,8 +158,8 @@ func NewDownsamplerAndWriter(
 	}
 }
 
-func newMetricsBySource(scope tally.Scope, name string) bySource {
-	metrics := bySource{
+func newMetricsBySource(scope tally.Scope, name string) metricsBySource {
+	metrics := metricsBySource{
 		bySource:  make(map[ts.SourceType]tally.Counter, len(sourceTags)),
 		byUnknown: scope.Tagged(map[string]string{"source": "unknown"}).Counter(name),
 	}
@@ -186,7 +194,7 @@ func (d *downsamplerAndWriter) Write(
 	}
 
 	if dropUnaggregated {
-		reportBySource(d.metrics.dropped, source)
+		d.metrics.dropped.report(source)
 	} else if d.shouldWrite(overrides) {
 		err := d.writeToStorage(ctx, tags, datapoints, unit, annotation, overrides, source)
 		if err != nil {
@@ -329,7 +337,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 	overrides WriteOptions,
 	source ts.SourceType,
 ) error {
-	reportBySource(d.metrics.written, source)
+	d.metrics.written.report(source)
 
 	storagePolicies, ok := d.writeOverrideStoragePolicies(overrides)
 	if !ok {
@@ -434,11 +442,11 @@ func (d *downsamplerAndWriter) WriteBatch(
 		for iter.Next() {
 			value := iter.Current()
 			if value.Metadata.DropUnaggregated {
-				reportBySource(d.metrics.dropped, value.Attributes.Source)
+				d.metrics.dropped.report(value.Attributes.Source)
 				continue
 			}
 
-			reportBySource(d.metrics.written, value.Attributes.Source)
+			d.metrics.written.report(value.Attributes.Source)
 
 			for _, p := range storagePolicies {
 				p := p // Capture for lambda.
@@ -578,14 +586,6 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 
 func (d *downsamplerAndWriter) Storage() storage.Storage {
 	return d.store
-}
-
-func reportBySource(metrics bySource, source ts.SourceType) {
-	counter, ok := metrics.bySource[source]
-	if !ok {
-		counter = metrics.byUnknown
-	}
-	counter.Inc(1)
 }
 
 func storageAttributesFromPolicy(
