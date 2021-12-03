@@ -23,7 +23,6 @@ package m3
 import (
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -43,7 +42,6 @@ const (
 type unaggregatedNamespaceDetails struct {
 	satisfies        unaggregatedNamespaceType
 	clusterNamespace ClusterNamespace
-	retention        time.Duration
 }
 
 // resolveUnaggregatedNamespaceForQuery determines if the unaggregated namespace
@@ -57,20 +55,19 @@ func resolveUnaggregatedNamespaceForQuery(
 		return unaggregatedNamespaceDetails{satisfies: disabled}
 	}
 
-	retention := unaggregated.Options().Attributes().Retention
-	unaggregatedStart := now.Add(-1 * retention)
-	if unaggregatedStart.Before(start) || unaggregatedStart.Equal(start) {
-		return unaggregatedNamespaceDetails{
-			clusterNamespace: unaggregated,
-			retention:        retention,
-			satisfies:        fullySatisfiesRange,
-		}
+	var (
+		retention         = unaggregated.Options().Attributes().Retention
+		unaggregatedStart = now.Add(-1 * retention)
+	)
+
+	satisfies := fullySatisfiesRange
+	if unaggregatedStart.After(start) {
+		satisfies = partiallySatisfiesRange
 	}
 
 	return unaggregatedNamespaceDetails{
 		clusterNamespace: unaggregated,
-		retention:        retention,
-		satisfies:        partiallySatisfiesRange,
+		satisfies:        satisfies,
 	}
 }
 
@@ -246,7 +243,8 @@ func resolveClusterNamespacesForQueryLogicalPlan(
 	result := r.completeAggregated[:1]
 	completedAttrs := result[0].Options().Attributes()
 	if unaggregated.satisfies == partiallySatisfiesRange {
-		if completedAttrs.Retention <= unaggregated.retention {
+		unaggregatedAttrs := unaggregated.clusterNamespace.Options().Attributes()
+		if completedAttrs.Retention <= unaggregatedAttrs.Retention {
 			// If the longest aggregated cluster for some reason has lower retention
 			// than the unaggregated cluster then we prefer the unaggregated cluster
 			// as it has a complete data set and is always the most granular.
