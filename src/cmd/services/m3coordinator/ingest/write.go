@@ -43,6 +43,12 @@ var (
 	unaggregatedStoragePolicies = []policy.StoragePolicy{
 		unaggregatedStoragePolicy,
 	}
+
+	sourceTags = map[ts.SourceType]string{
+		ts.SourceTypePrometheus:  "prometheus",
+		ts.SourceTypeGraphite:    "graphite",
+		ts.SourceTypeOpenMetrics: "open-metrics",
+	}
 )
 
 // IterValue is the value returned by the iterator.
@@ -105,10 +111,21 @@ type WriteOptions struct {
 }
 
 type downsamplerAndWriterMetrics struct {
-	dropped tally.Counter
+	dropped metricsBySource
+	written metricsBySource
+}
 
-	writtenBySource  map[ts.SourceType]tally.Counter
-	writtenByUnknown tally.Counter
+type metricsBySource struct {
+	bySource  map[ts.SourceType]tally.Counter
+	byUnknown tally.Counter
+}
+
+func (m metricsBySource) report(source ts.SourceType) {
+	counter, ok := m.bySource[source]
+	if !ok {
+		counter = m.byUnknown
+	}
+	counter.Inc(1)
 }
 
 // downsamplerAndWriter encapsulates the logic for writing data to the downsampler,
@@ -130,29 +147,28 @@ func NewDownsamplerAndWriter(
 ) DownsamplerAndWriter {
 	scope := instrumentOpts.MetricsScope().SubScope("downsampler")
 
-	sourceTags := map[ts.SourceType]string{
-		ts.SourceTypePrometheus:  "prometheus",
-		ts.SourceTypeGraphite:    "graphite",
-		ts.SourceTypeOpenMetrics: "open-metrics",
-	}
-	writtenBySource := make(map[ts.SourceType]tally.Counter)
-	writtenName := "metrics_written"
-	for source, tag := range sourceTags {
-		c := scope.Tagged(map[string]string{"source": tag}).Counter(writtenName)
-		writtenBySource[source] = c
-	}
-	writtenByUnknown := scope.Tagged(map[string]string{"source": "unknown"}).Counter(writtenName)
-
 	return &downsamplerAndWriter{
 		store:       store,
 		downsampler: downsampler,
 		workerPool:  workerPool,
 		metrics: downsamplerAndWriterMetrics{
-			dropped:          scope.Counter("metrics_dropped"),
-			writtenBySource:  writtenBySource,
-			writtenByUnknown: writtenByUnknown,
+			dropped: newMetricsBySource(scope, "metrics_dropped"),
+			written: newMetricsBySource(scope, "metrics_written"),
 		},
 	}
+}
+
+func newMetricsBySource(scope tally.Scope, name string) metricsBySource {
+	metrics := metricsBySource{
+		bySource:  make(map[ts.SourceType]tally.Counter, len(sourceTags)),
+		byUnknown: scope.Tagged(map[string]string{"source": "unknown"}).Counter(name),
+	}
+
+	for source, tag := range sourceTags {
+		metrics.bySource[source] = scope.Tagged(map[string]string{"source": tag}).Counter(name)
+	}
+
+	return metrics
 }
 
 func (d *downsamplerAndWriter) Write(
@@ -178,7 +194,7 @@ func (d *downsamplerAndWriter) Write(
 	}
 
 	if dropUnaggregated {
-		d.metrics.dropped.Inc(1)
+		d.metrics.dropped.report(source)
 	} else if d.shouldWrite(overrides) {
 		err := d.writeToStorage(ctx, tags, datapoints, unit, annotation, overrides, source)
 		if err != nil {
@@ -321,7 +337,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 	overrides WriteOptions,
 	source ts.SourceType,
 ) error {
-	d.reportWrittenBySource(source)
+	d.metrics.written.report(source)
 
 	storagePolicies, ok := d.writeOverrideStoragePolicies(overrides)
 	if !ok {
@@ -426,11 +442,11 @@ func (d *downsamplerAndWriter) WriteBatch(
 		for iter.Next() {
 			value := iter.Current()
 			if value.Metadata.DropUnaggregated {
-				d.metrics.dropped.Inc(1)
+				d.metrics.dropped.report(value.Attributes.Source)
 				continue
 			}
 
-			d.reportWrittenBySource(value.Attributes.Source)
+			d.metrics.written.report(value.Attributes.Source)
 
 			for _, p := range storagePolicies {
 				p := p // Capture for lambda.
@@ -570,14 +586,6 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 
 func (d *downsamplerAndWriter) Storage() storage.Storage {
 	return d.store
-}
-
-func (d *downsamplerAndWriter) reportWrittenBySource(source ts.SourceType) {
-	written, ok := d.metrics.writtenBySource[source]
-	if !ok {
-		written = d.metrics.writtenByUnknown
-	}
-	written.Inc(1)
 }
 
 func storageAttributesFromPolicy(
