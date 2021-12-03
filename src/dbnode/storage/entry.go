@@ -25,6 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/uber-go/tally"
 	xatomic "go.uber.org/atomic"
 
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -38,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/uber-go/tally"
 )
 
 // IndexWriter accepts index inserts.

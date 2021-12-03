@@ -32,11 +32,11 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/uber-go/tally"
 
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/profile"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func BenchmarkBlockWrite(b *testing.B) {

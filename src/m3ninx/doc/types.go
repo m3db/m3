@@ -21,9 +21,10 @@
 package doc
 
 import (
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/uber-go/tally"
 )
 
 // MetadataIterator provides an iterator over a collection of document metadata. It is NOT
