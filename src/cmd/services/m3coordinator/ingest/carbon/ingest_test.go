@@ -216,33 +216,34 @@ func TestIngesterHandleConn(t *testing.T) {
 		idx   = 0
 	)
 	mockDownsamplerAndWriter.EXPECT().
-		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any(), graphiteSource).DoAndReturn(func(
-		_ context.Context,
-		tags models.Tags,
-		dp ts.Datapoints,
-		unit xtime.Unit,
-		annotation []byte,
-		overrides ingest.WriteOptions,
-		_ ts.SourceType,
-	) interface{} {
-		lock.Lock()
-		// Clone tags because they (and their underlying bytes) are pooled.
-		found = append(found, testMetric{
-			tags:      tags.Clone(),
-			timestamp: int(dp[0].Timestamp.Seconds()),
-			value:     dp[0].Value,
-		})
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any(), graphiteSource).
+		DoAndReturn(func(
+			_ context.Context,
+			tags models.Tags,
+			dp ts.Datapoints,
+			unit xtime.Unit,
+			annotation []byte,
+			overrides ingest.WriteOptions,
+			_ ts.SourceType,
+		) interface{} {
+			lock.Lock()
+			// Clone tags because they (and their underlying bytes) are pooled.
+			found = append(found, testMetric{
+				tags:      tags.Clone(),
+				timestamp: int(dp[0].Timestamp.Seconds()),
+				value:     dp[0].Value,
+			})
 
-		// Make 1 in 10 writes fail to test those paths.
-		returnErr := idx%10 == 0
-		idx++
-		lock.Unlock()
+			// Make 1 in 10 writes fail to test those paths.
+			returnErr := idx%10 == 0
+			idx++
+			lock.Unlock()
 
-		if returnErr {
-			return errors.New("some_error")
-		}
-		return nil
-	}).AnyTimes()
+			if returnErr {
+				return errors.New("some_error")
+			}
+			return nil
+		}).AnyTimes()
 
 	session := client.NewMockSession(ctrl)
 	watcher := newTestWatcher(t, session, m3.AggregatedClusterNamespaceDefinition{
@@ -534,35 +535,36 @@ func newMockDownsamplerAndWriter(
 		idx     = 0
 	)
 	mockDownsamplerAndWriter.EXPECT().
-		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any(), graphiteSource).DoAndReturn(func(
-		_ context.Context,
-		tags models.Tags,
-		dp ts.Datapoints,
-		unit xtime.Unit,
-		annotation []byte,
-		writeOpts ingest.WriteOptions,
-		_ ts.SourceType,
-	) interface{} {
-		lock.Lock()
-		// Clone tags because they (and their underlying bytes) are pooled.
-		*found = append(*found, testMetric{
-			tags:      tags.Clone(),
-			timestamp: int(dp[0].Timestamp.Seconds()),
-			value:     dp[0].Value,
-		})
+		Write(gomock.Any(), gomock.Any(), gomock.Any(), xtime.Second, gomock.Any(), gomock.Any(), graphiteSource).
+		DoAndReturn(func(
+			_ context.Context,
+			tags models.Tags,
+			dp ts.Datapoints,
+			unit xtime.Unit,
+			annotation []byte,
+			writeOpts ingest.WriteOptions,
+			_ ts.SourceType,
+		) interface{} {
+			lock.Lock()
+			// Clone tags because they (and their underlying bytes) are pooled.
+			*found = append(*found, testMetric{
+				tags:      tags.Clone(),
+				timestamp: int(dp[0].Timestamp.Seconds()),
+				value:     dp[0].Value,
+			})
 
-		// Make 1 in 10 writes fail to test those paths.
-		returnErr := idx%10 == 0
-		idx++
-		lock.Unlock()
+			// Make 1 in 10 writes fail to test those paths.
+			returnErr := idx%10 == 0
+			idx++
+			lock.Unlock()
 
-		expectations(writeOpts.DownsampleMappingRules)
+			expectations(writeOpts.DownsampleMappingRules)
 
-		if returnErr {
-			return errors.New("some_error")
-		}
-		return nil
-	}).AnyTimes()
+			if returnErr {
+				return errors.New("some_error")
+			}
+			return nil
+		}).AnyTimes()
 
 	return mockDownsamplerAndWriter, found
 }
