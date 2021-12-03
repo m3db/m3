@@ -75,6 +75,7 @@ type DownsamplerAndWriter interface {
 		unit xtime.Unit,
 		annotation []byte,
 		overrides WriteOptions,
+		source ts.SourceType,
 	) error
 
 	WriteBatch(
@@ -161,6 +162,7 @@ func (d *downsamplerAndWriter) Write(
 	unit xtime.Unit,
 	annotation []byte,
 	overrides WriteOptions,
+	source ts.SourceType,
 ) error {
 	var (
 		multiErr         = xerrors.NewMultiError()
@@ -169,7 +171,7 @@ func (d *downsamplerAndWriter) Write(
 
 	if d.shouldDownsample(overrides) {
 		var err error
-		dropUnaggregated, err = d.writeToDownsampler(tags, datapoints, unit, annotation, overrides)
+		dropUnaggregated, err = d.writeToDownsampler(tags, datapoints, annotation, overrides)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -178,7 +180,7 @@ func (d *downsamplerAndWriter) Write(
 	if dropUnaggregated {
 		d.metrics.dropped.Inc(1)
 	} else if d.shouldWrite(overrides) {
-		err := d.writeToStorage(ctx, tags, datapoints, unit, annotation, overrides)
+		err := d.writeToStorage(ctx, tags, datapoints, unit, annotation, overrides, source)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -244,7 +246,6 @@ func (d *downsamplerAndWriter) downsampleOverrideRules(
 func (d *downsamplerAndWriter) writeToDownsampler(
 	tags models.Tags,
 	datapoints ts.Datapoints,
-	unit xtime.Unit,
 	annotation []byte,
 	overrides WriteOptions,
 ) (bool, error) {
@@ -318,7 +319,10 @@ func (d *downsamplerAndWriter) writeToStorage(
 	unit xtime.Unit,
 	annotation []byte,
 	overrides WriteOptions,
+	source ts.SourceType,
 ) error {
+	d.reportWrittenBySource(source)
+
 	storagePolicies, ok := d.writeOverrideStoragePolicies(overrides)
 	if !ok {
 		// NB(r): Allocate the write query at the top
@@ -426,11 +430,7 @@ func (d *downsamplerAndWriter) WriteBatch(
 				continue
 			}
 
-			written, ok := d.metrics.writtenBySource[value.Attributes.Source]
-			if !ok {
-				written = d.metrics.writtenByUnknown
-			}
-			written.Inc(1)
+			d.reportWrittenBySource(value.Attributes.Source)
 
 			for _, p := range storagePolicies {
 				p := p // Capture for lambda.
@@ -570,6 +570,14 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 
 func (d *downsamplerAndWriter) Storage() storage.Storage {
 	return d.store
+}
+
+func (d *downsamplerAndWriter) reportWrittenBySource(source ts.SourceType) {
+	written, ok := d.metrics.writtenBySource[source]
+	if !ok {
+		written = d.metrics.writtenByUnknown
+	}
+	written.Inc(1)
 }
 
 func storageAttributesFromPolicy(
