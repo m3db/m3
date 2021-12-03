@@ -49,6 +49,8 @@ var (
 	// Created by init().
 	testWorkerPool xsync.PooledWorkerPool
 
+	source = ts.SourceTypePrometheus
+
 	testTags1 = models.NewTags(3, nil).AddTags(
 		[]models.Tag{
 			{
@@ -225,7 +227,7 @@ func TestDownsampleAndWrite(t *testing.T) {
 	expectDefaultStorageWrites(session, testDatapoints1, testAnnotation1)
 
 	err := downAndWrite.Write(
-		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, defaultOverride)
+		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, defaultOverride, source)
 	require.NoError(t, err)
 }
 
@@ -237,7 +239,7 @@ func TestDownsampleAndWriteWithBadTags(t *testing.T) {
 		testDownsamplerAndWriterOptions{})
 
 	err := downAndWrite.Write(
-		context.Background(), testBadTags, testDatapoints1, xtime.Second, testAnnotation1, defaultOverride)
+		context.Background(), testBadTags, testDatapoints1, xtime.Second, testAnnotation1, defaultOverride, source)
 	require.Error(t, err)
 
 	// Make sure we get a validation error for downsample code path
@@ -268,7 +270,7 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndNoMappingRules(t *testing.T
 	expectDefaultStorageWrites(session, testDatapoints1, testAnnotation1)
 
 	err := downAndWrite.Write(context.Background(),
-		testTags1, testDatapoints1, xtime.Second, testAnnotation1, overrides)
+		testTags1, testDatapoints1, xtime.Second, testAnnotation1, overrides, source)
 	require.NoError(t, err)
 }
 
@@ -306,7 +308,7 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndMappingRules(t *testing.T) 
 	expectDefaultStorageWrites(session, testDatapoints1, testAnnotation1)
 
 	err := downAndWrite.Write(
-		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, overrides)
+		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, overrides, source)
 	require.NoError(t, err)
 }
 
@@ -361,7 +363,7 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndDropMappingRules(t *testing
 	mockMetricsAppender.EXPECT().Finalize()
 
 	err := downAndWrite.Write(
-		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, overrides)
+		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, overrides, source)
 	require.NoError(t, err)
 }
 
@@ -382,7 +384,7 @@ func TestDownsampleAndWriteWithWriteOverridesAndNoStoragePolicies(t *testing.T) 
 	expectDefaultDownsampling(ctrl, testDatapoints1, downsampler, zeroDownsamplerAppenderOpts)
 
 	err := downAndWrite.Write(
-		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, overrides)
+		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, overrides, source)
 	require.NoError(t, err)
 }
 
@@ -429,7 +431,7 @@ func TestDownsampleAndWriteWithWriteOverridesAndStoragePolicies(t *testing.T) {
 	}
 
 	err := downAndWrite.Write(
-		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, overrides)
+		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, overrides, source)
 	require.NoError(t, err)
 }
 
@@ -443,7 +445,7 @@ func TestDownsampleAndWriteNoDownsampler(t *testing.T) {
 	expectDefaultStorageWrites(session, testDatapoints1, testAnnotation1)
 
 	err := downAndWrite.Write(
-		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, defaultOverride)
+		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, defaultOverride, source)
 	require.NoError(t, err)
 }
 
