@@ -49,6 +49,7 @@ type Source interface {
 }
 
 // Cache caches the rule matching result associated with metrics.
+// It is safe to share a Cache among goroutines.
 type Cache interface {
 	// ForwardMatch returns the rule matching result associated with a metric id
 	// between [fromNanos, toNanos).

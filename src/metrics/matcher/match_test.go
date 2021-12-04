@@ -59,7 +59,8 @@ func TestMatcherCreateWatchError(t *testing.T) {
 		SetNamespacesKey(testNamespacesKey).
 		SetKVStore(kvStore)
 
-	_, err := NewMatcher(newMemCache(), opts)
+	matcher := NewMatcher(opts.SetCache(newMemCache()))
+	err := matcher.Open()
 	require.Error(t, err)
 	_, ok := err.(watch.CreateWatchError)
 	require.True(t, ok)
@@ -72,7 +73,8 @@ func TestMatcherInitializeValueError(t *testing.T) {
 		SetNamespacesKey(testNamespacesKey).
 		SetKVStore(memStore)
 
-	matcher, err := NewMatcher(newMemCache(), opts)
+	matcher := NewMatcher(opts.SetCache(newMemCache()))
+	err := matcher.Open()
 	require.NoError(t, err)
 	require.NotNil(t, matcher)
 }
@@ -86,7 +88,9 @@ func TestMatcherMatchDoesNotExist(t *testing.T) {
 	matcher, testScope := testMatcher(t, testMatcherOptions{
 		cache: newMemCache(),
 	})
-	require.Equal(t, rules.EmptyMatchResult, matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano()))
+	res, err := matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano())
+	require.NoError(t, err)
+	require.Equal(t, rules.EmptyMatchResult, res)
 
 	requireLatencyMetrics(t, "cached-matcher", testScope)
 }
@@ -108,7 +112,9 @@ func TestMatcherMatchExists(t *testing.T) {
 	})
 	c := cache.(*memCache)
 	c.namespaces[ns] = memRes
-	require.Equal(t, res, matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano()))
+	actualRes, err := matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano())
+	require.NoError(t, err)
+	require.Equal(t, res, actualRes)
 }
 
 func TestMatcherMatchExistsNoCache(t *testing.T) {
@@ -210,7 +216,8 @@ func TestMatcherMatchExistsNoCache(t *testing.T) {
 	expected := rules.NewMatchResult(1, math.MaxInt64,
 		forExistingID, forNewRollupIDs, keepOriginal)
 
-	result := matcher.ForwardMatch(metric, now.UnixNano(), now.UnixNano())
+	result, err := matcher.ForwardMatch(metric, now.UnixNano(), now.UnixNano())
+	require.NoError(t, err)
 
 	require.Equal(t, expected, result)
 
@@ -246,7 +253,8 @@ func testMatcher(t *testing.T, opts testMatcherOptions) (Matcher, tally.TestScop
 				SetRuleSetKeyFn(defaultRuleSetKeyFn).
 				SetRuleSetOptions(rules.NewOptions().
 					SetTagsFilterOptions(opts.tagFilterOptions)).
-				SetMatchRangePast(0)
+				SetMatchRangePast(0).
+				SetCache(opts.cache)
 		proto = &rulepb.Namespaces{
 			Namespaces: []*rulepb.Namespace{
 				{
@@ -269,8 +277,8 @@ func testMatcher(t *testing.T, opts testMatcherOptions) (Matcher, tally.TestScop
 		fn(t, store)
 	}
 
-	m, err := NewMatcher(opts.cache, matcherOpts)
-	require.NoError(t, err)
+	m := NewMatcher(matcherOpts)
+	require.NoError(t, m.Open())
 	return m, scope
 }
 

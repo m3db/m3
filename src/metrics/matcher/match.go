@@ -21,6 +21,7 @@
 package matcher
 
 import (
+	"errors"
 	"time"
 
 	"github.com/uber-go/tally"
@@ -30,11 +31,17 @@ import (
 	"github.com/m3db/m3/src/metrics/rules"
 )
 
+var errNotOpened = errors.New("matcher not opened")
+
 // Matcher matches rules against metric IDs.
+// A Matcher is not thread safe and should not be shared across goroutines.
 type Matcher interface {
+	// Open the matcher. Must be called before any match calls.
+	Open() error
+
 	// ForwardMatch matches rules against metric ID for time range [fromNanos, toNanos)
 	// and returns the match result.
-	ForwardMatch(id id.ID, fromNanos, toNanos int64) rules.MatchResult
+	ForwardMatch(id id.ID, fromNanos, toNanos int64) (rules.MatchResult, error)
 
 	// Close closes the matcher.
 	Close() error
@@ -45,6 +52,7 @@ type matcher struct {
 	namespaces        Namespaces
 	cache             cache.Cache
 	metrics           matcherMetrics
+	opened            bool
 }
 
 type namespaceResolver struct {
@@ -60,8 +68,19 @@ func (r namespaceResolver) Resolve(id id.ID) []byte {
 	return ns
 }
 
-// NewMatcher creates a new rule matcher, optionally with a cache.
-func NewMatcher(cache cache.Cache, opts Options) (Matcher, error) {
+// NewMatcherFn creates a new Matcher
+type NewMatcherFn func() Matcher
+
+// NewMatcherFnForOptions creates a function that creates Matchers with the provided Options.
+func NewMatcherFnForOptions(opts Options) NewMatcherFn {
+	return func() Matcher {
+		return NewMatcher(opts)
+	}
+}
+
+// NewMatcher creates a new rule matcher.
+// The Matcher must be Opened before using.
+func NewMatcher(opts Options) Matcher {
 	nsResolver := namespaceResolver{
 		namespaceTag:     opts.NamespaceTag(),
 		defaultNamespace: opts.DefaultNamespace(),
@@ -72,6 +91,7 @@ func NewMatcher(cache cache.Cache, opts Options) (Matcher, error) {
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("namespaces"))
 	namespacesOpts := opts.SetInstrumentOptions(iOpts)
 
+	cache := opts.Cache()
 	if cache != nil {
 		namespacesOpts = namespacesOpts.
 			SetOnNamespaceAddedFn(func(namespace []byte, ruleSet RuleSet) {
@@ -86,16 +106,12 @@ func NewMatcher(cache cache.Cache, opts Options) (Matcher, error) {
 	}
 
 	namespaces := NewNamespaces(opts.NamespacesKey(), namespacesOpts)
-	if err := namespaces.Open(); err != nil {
-		return nil, err
-	}
-
 	if cache == nil {
 		return &noCacheMatcher{
 			namespaceResolver: nsResolver,
 			namespaces:        namespaces,
 			metrics:           newMatcherMetrics(scope.SubScope("matcher")),
-		}, nil
+		}
 	}
 
 	return &matcher{
@@ -103,16 +119,29 @@ func NewMatcher(cache cache.Cache, opts Options) (Matcher, error) {
 		namespaces:        namespaces,
 		cache:             cache,
 		metrics:           newMatcherMetrics(scope.SubScope("cached-matcher")),
-	}, nil
+	}
+}
+
+func (m *matcher) Open() error {
+	if m.opened {
+		return nil
+	}
+	if err := m.namespaces.Open(); err != nil {
+		return err
+	}
+	m.opened = true
+	return nil
 }
 
 func (m *matcher) ForwardMatch(
 	id id.ID,
-	fromNanos, toNanos int64,
-) rules.MatchResult {
+	fromNanos, toNanos int64) (rules.MatchResult, error) {
+	if !m.opened {
+		return rules.MatchResult{}, errNotOpened
+	}
 	sw := m.metrics.matchLatency.Start()
 	defer sw.Stop()
-	return m.cache.ForwardMatch(m.namespaceResolver.Resolve(id), id.Bytes(), fromNanos, toNanos)
+	return m.cache.ForwardMatch(m.namespaceResolver.Resolve(id), id.Bytes(), fromNanos, toNanos), nil
 }
 
 func (m *matcher) Close() error {
@@ -121,6 +150,7 @@ func (m *matcher) Close() error {
 }
 
 type noCacheMatcher struct {
+	opened            bool
 	namespaces        Namespaces
 	namespaceResolver namespaceResolver
 	metrics           matcherMetrics
@@ -142,13 +172,26 @@ func newMatcherMetrics(scope tally.Scope) matcherMetrics {
 	}
 }
 
+func (m *noCacheMatcher) Open() error {
+	if m.opened {
+		return nil
+	}
+	if err := m.namespaces.Open(); err != nil {
+		return err
+	}
+	m.opened = true
+	return nil
+}
+
 func (m *noCacheMatcher) ForwardMatch(
 	id id.ID,
-	fromNanos, toNanos int64,
-) rules.MatchResult {
+	fromNanos, toNanos int64) (rules.MatchResult, error) {
+	if !m.opened {
+		return rules.MatchResult{}, errNotOpened
+	}
 	sw := m.metrics.matchLatency.Start()
 	defer sw.Stop()
-	return m.namespaces.ForwardMatch(m.namespaceResolver.Resolve(id), id.Bytes(), fromNanos, toNanos)
+	return m.namespaces.ForwardMatch(m.namespaceResolver.Resolve(id), id.Bytes(), fromNanos, toNanos), nil
 }
 
 func (m *noCacheMatcher) Close() error {

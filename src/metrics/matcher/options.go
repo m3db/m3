@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/metrics/matcher/cache"
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
@@ -147,6 +148,12 @@ type Options interface {
 
 	// SetInterruptedCh sets the interrupted channel.
 	SetInterruptedCh(value <-chan struct{}) Options
+
+	// Cache for match results. If nil, no cache is used.
+	Cache() cache.Cache
+
+	// SetCache sets Cache.
+	SetCache(value cache.Cache) Options
 }
 
 type options struct {
@@ -165,6 +172,7 @@ type options struct {
 	onRuleSetUpdatedFn          OnRuleSetUpdatedFn
 	requireNamespaceWatchOnInit bool
 	interruptedCh               <-chan struct{}
+	cache                       cache.Cache
 }
 
 // NewOptions creates a new set of options.
@@ -180,6 +188,12 @@ func NewOptions() Options {
 		namespaceTag:     defaultNamespaceTag,
 		defaultNamespace: defaultDefaultNamespace,
 		matchRangePast:   defaultMatchRangePast,
+		// disable the cache by default.
+		// This is due to discovering that there is a lot of contention
+		// used by the cache and the fact that most coordinators are used
+		// in a stateless manner with a central deployment which in turn
+		// leads to an extremely low cache hit ratio anyway.
+		cache: nil,
 	}
 }
 
@@ -332,6 +346,16 @@ func (o *options) SetInterruptedCh(ch <-chan struct{}) Options {
 
 func (o *options) InterruptedCh() <-chan struct{} {
 	return o.interruptedCh
+}
+
+func (o *options) Cache() cache.Cache {
+	return o.cache
+}
+
+func (o *options) SetCache(value cache.Cache) Options {
+	opts := *o
+	opts.cache = value
+	return &opts
 }
 
 func defaultRuleSetKeyFn(namespace []byte) string {

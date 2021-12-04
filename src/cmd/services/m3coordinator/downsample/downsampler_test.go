@@ -23,6 +23,7 @@ package downsample
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -483,14 +484,19 @@ func TestDownsamplerAggregationWithRulesStore(t *testing.T) {
 
 	// Wait for mapping rule to appear
 	logger.Info("waiting for mapping rules to propagate")
-	matcher := testDownsampler.matcher
+	matcher, err := testDownsampler.newMatcher()
+	require.NoError(t, err)
+	defer func() {
+		_ = matcher.Close()
+	}()
 	testMatchID := newTestID(t, map[string]string{
 		"__name__": "foo",
 		"app":      "test123",
 	})
 	for {
 		now := time.Now().UnixNano()
-		res := matcher.ForwardMatch(testMatchID, now, now+1)
+		res, err := matcher.ForwardMatch(testMatchID, now, now+1)
+		require.NoError(t, err)
 		results := res.ForExistingIDAt(now)
 		if !results.IsDefault() {
 			break
@@ -3457,7 +3463,6 @@ type testDownsampler struct {
 	opts           DownsamplerOptions
 	testOpts       testDownsamplerOptions
 	downsampler    Downsampler
-	matcher        matcher.Matcher
 	storage        mock.Storage
 	rulesStore     rules.Store
 	instrumentOpts instrument.Options
@@ -3497,6 +3502,23 @@ type testDownsamplerOptionsExpect struct {
 
 type testDownsamplerOptionsExpectAllowFilter struct {
 	attributes []storagemetadata.Attributes
+}
+
+// newMatcher returns a new Matcher instance that is already open. the caler must Close it.
+func (t testDownsampler) newMatcher() (matcher.Matcher, error) {
+	a, err := t.downsampler.NewMetricsAppender()
+	if err != nil {
+		return nil, err
+	}
+	ma, ok := a.(*metricsAppender)
+	if !ok {
+		return nil, errors.New("not a metricsAppender")
+	}
+	m := ma.matcher
+	if err := m.Open(); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampler {
@@ -3611,7 +3633,6 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 		opts:           downcast.opts,
 		testOpts:       opts,
 		downsampler:    instance,
-		matcher:        downcast.agg.matcher,
 		storage:        storage,
 		rulesStore:     rulesStore,
 		instrumentOpts: instrumentOpts,

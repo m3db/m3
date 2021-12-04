@@ -55,21 +55,25 @@ type metricsAppenderPool struct {
 	pool pool.ObjectPool
 }
 
-func newMetricsAppenderPool(opts pool.ObjectPoolOptions) *metricsAppenderPool {
+func newMetricsAppenderPool(opts pool.ObjectPoolOptions, newMatcher matcher.NewMatcherFn) *metricsAppenderPool {
 	p := &metricsAppenderPool{
 		pool: pool.NewObjectPool(opts),
 	}
 	p.pool.Init(func() interface{} {
-		return newMetricsAppender(p)
+		return newMetricsAppender(p, newMatcher())
 	})
 	return p
 }
 
-func (p *metricsAppenderPool) Get() *metricsAppender {
+func (p *metricsAppenderPool) Get() (*metricsAppender, error) {
 	appender := p.pool.Get().(*metricsAppender)
+	// Init is idempotent and safe to call many times. Only does something on the first call.
+	if err := appender.Init(); err != nil {
+		return nil, err
+	}
 	// NB: reset appender.
 	appender.NextMetric()
-	return appender
+	return appender, nil
 }
 
 func (p *metricsAppenderPool) Put(v *metricsAppender) {
@@ -87,6 +91,7 @@ type metricsAppender struct {
 
 	pool *metricsAppenderPool
 
+	matcher                      matcher.Matcher
 	multiSamplesAppender         *multiSamplesAppender
 	curr                         metadata.StagedMetadata
 	defaultStagedMetadatasCopies []metadata.StagedMetadatas
@@ -106,22 +111,30 @@ type metricsAppenderOptions struct {
 	clientRemote client.Client
 
 	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
-	matcher                      matcher.Matcher
+	newMatcherFn                 matcher.NewMatcherFn
 	tagEncoderPool               serialize.TagEncoderPool
 	metricTagsIteratorPool       serialize.MetricTagsIteratorPool
 	untimedRollups               bool
 
-	clockOpts    clock.Options
-	debugLogging bool
-	logger       *zap.Logger
-	metrics      metricsAppenderMetrics
+	clockOpts           clock.Options
+	debugLogging        bool
+	logger              *zap.Logger
+	metrics             metricsAppenderMetrics
+	metricsAppenderPool *metricsAppenderPool
 }
 
-func newMetricsAppender(pool *metricsAppenderPool) *metricsAppender {
+func newMetricsAppender(pool *metricsAppenderPool, matcher matcher.Matcher) *metricsAppender {
+	// TODO: do not use any shared state in the metrics appender
 	return &metricsAppender{
 		pool:                 pool,
 		multiSamplesAppender: newMultiSamplesAppender(),
+		matcher:              matcher,
 	}
+}
+
+// Init the appender. It is safe to call this method multiple times and the appender is only intialized once.
+func (a *metricsAppender) Init() error {
+	return a.matcher.Open()
 }
 
 // reset is called when pulled from the pool.
@@ -210,7 +223,10 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	nowNanos := now.UnixNano()
 	fromNanos := nowNanos
 	toNanos := nowNanos + 1
-	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
+	matchResult, err := a.matcher.ForwardMatch(id, fromNanos, toNanos)
+	if err != nil {
+		return SamplesAppenderResult{}, err
+	}
 	id.Close()
 
 	// Filter out augmented metrics tags we added for matching.

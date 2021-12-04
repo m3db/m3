@@ -81,13 +81,6 @@ const (
 	defaultOpenTimeout             = 10 * time.Second
 	defaultBufferFutureTimedMetric = time.Minute
 	defaultVerboseErrors           = true
-	// defaultMatcherCacheCapacity sets the default matcher cache
-	// capacity to zero so that the cache is turned off.
-	// This is due to discovering that there is a lot of contention
-	// used by the cache and the fact that most coordinators are used
-	// in a stateless manner with a central deployment which in turn
-	// leads to an extremely low cache hit ratio anyway.
-	defaultMatcherCacheCapacity = 0
 )
 
 var (
@@ -235,7 +228,7 @@ type agg struct {
 	clientRemote client.Client
 
 	clockOpts      clock.Options
-	matcher        matcher.Matcher
+	newMatcherFn   matcher.NewMatcherFn
 	pools          aggPools
 	untimedRollups bool
 }
@@ -729,6 +722,14 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetNamespaceTag([]byte(namespaceTag)).
 		SetRequireNamespaceWatchOnInit(cfg.Matcher.RequireNamespaceWatchOnInit).
 		SetInterruptedCh(o.InterruptedCh)
+	if v := cfg.Matcher.Cache.Capacity; v != nil {
+		matcherScope := instrumentOpts.MetricsScope().SubScope("matcher-cache")
+		cacheOpts := cache.NewOptions().
+			SetCapacity(*v).
+			SetClockOptions(clockOpts).
+			SetInstrumentOptions(instrumentOpts.SetMetricsScope(matcherScope))
+		matcherOpts = matcherOpts.SetCache(cache.NewCache(cacheOpts))
+	}
 
 	// NB(r): If rules are being explicitly set in config then we are
 	// going to use an in memory KV store for rules and explicitly set them up.
@@ -799,11 +800,6 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		matcherOpts = matcherOpts.SetKVStore(kvTxnMemStore)
 	}
 
-	matcherCacheCapacity := defaultMatcherCacheCapacity
-	if v := cfg.Matcher.Cache.Capacity; v != nil {
-		matcherCacheCapacity = *v
-	}
-
 	kvStore, err := o.ClusterClient.KV()
 	if err != nil {
 		return agg{}, err
@@ -816,11 +812,6 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		if err := initStoreNamespaces(kvStore, matcherOpts.NamespacesKey()); err != nil {
 			return agg{}, err
 		}
-	}
-
-	matcher, err := o.newAggregatorMatcher(matcherOpts, matcherCacheCapacity)
-	if err != nil {
-		return agg{}, err
 	}
 
 	if remoteAgg := cfg.RemoteAggregator; remoteAgg != nil {
@@ -845,7 +836,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 
 		return agg{
 			clientRemote:   client,
-			matcher:        matcher,
+			newMatcherFn:   matcher.NewMatcherFnForOptions(matcherOpts),
 			pools:          pools,
 			untimedRollups: cfg.UntimedRollups,
 		}, nil
@@ -991,7 +982,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 
 	return agg{
 		aggregator:     aggregatorInstance,
-		matcher:        matcher,
+		newMatcherFn:   matcher.NewMatcherFnForOptions(matcherOpts),
 		pools:          pools,
 		untimedRollups: cfg.UntimedRollups,
 	}, nil
@@ -1009,7 +1000,6 @@ type aggPools struct {
 	tagEncoderPool         serialize.TagEncoderPool
 	tagDecoderPool         serialize.TagDecoderPool
 	metricTagsIteratorPool serialize.MetricTagsIteratorPool
-	metricsAppenderPool    *metricsAppenderPool
 }
 
 func (o DownsamplerOptions) newAggregatorPools() aggPools {
@@ -1025,13 +1015,10 @@ func (o DownsamplerOptions) newAggregatorPools() aggPools {
 		o.TagDecoderPoolOptions)
 	metricTagsIteratorPool.Init()
 
-	metricsAppenderPool := newMetricsAppenderPool(o.MetricsAppenderPoolOptions)
-
 	return aggPools{
 		tagEncoderPool:         tagEncoderPool,
 		tagDecoderPool:         tagDecoderPool,
 		metricTagsIteratorPool: metricTagsIteratorPool,
-		metricsAppenderPool:    metricsAppenderPool,
 	}
 }
 
@@ -1093,25 +1080,6 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 	return rules.NewOptions().
 		SetTagsFilterOptions(tagsFilterOpts).
 		SetNewRollupIDFn(newRollupIDFn)
-}
-
-func (o DownsamplerOptions) newAggregatorMatcher(
-	opts matcher.Options,
-	capacity int,
-) (matcher.Matcher, error) {
-	var matcherCache cache.Cache
-	if capacity > 0 {
-		scope := opts.InstrumentOptions().MetricsScope().SubScope("matcher-cache")
-		instrumentOpts := opts.InstrumentOptions().
-			SetMetricsScope(scope)
-		cacheOpts := cache.NewOptions().
-			SetCapacity(capacity).
-			SetClockOptions(opts.ClockOptions()).
-			SetInstrumentOptions(instrumentOpts)
-		matcherCache = cache.NewCache(cacheOpts)
-	}
-
-	return matcher.NewMatcher(matcherCache, opts)
 }
 
 func (o DownsamplerOptions) newAggregatorPlacementManager(

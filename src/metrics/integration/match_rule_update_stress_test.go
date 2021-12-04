@@ -76,8 +76,8 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 	cache := stressTestCache()
 	iterPool := stressTestSortedTagIteratorPool()
 	opts := stressTestMatcherOptions(store, iterPool)
-	matcher, err := matcher.NewMatcher(cache, opts)
-	require.NoError(t, err)
+	matcher := matcher.NewMatcher(opts.SetCache(cache))
+	require.NoError(t, matcher.Open())
 
 	inputs := []struct {
 		idFn      func(int) id.ID
@@ -224,7 +224,8 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 			defer wg.Done()
 
 			for i := 0; i < matchIter; i++ {
-				res := matcher.ForwardMatch(input.idFn(i), input.fromNanos, input.toNanos)
+				res, err := matcher.ForwardMatch(input.idFn(i), input.fromNanos, input.toNanos)
+				require.NoError(t, err)
 				results = append(results, res)
 				expected = append(expected, input.expected)
 			}

@@ -75,8 +75,7 @@ func (cfg *Configuration) NewMatcher(
 	if err != nil {
 		return nil, err
 	}
-
-	return NewMatcher(cache, opts)
+	return NewMatcher(opts.SetCache(cache)), nil
 }
 
 // NewOptions creates a Options.
