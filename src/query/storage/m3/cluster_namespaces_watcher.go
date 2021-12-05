@@ -48,9 +48,14 @@ func (n *clusterNamespacesWatcher) Get() ClusterNamespaces {
 	return value.(ClusterNamespaces)
 }
 
+// RegisterListener registers the provided listener and returns a closer to clean up the watch.
+// If the watcher is already closed, nothing is registered.
 func (n *clusterNamespacesWatcher) RegisterListener(
 	listener ClusterNamespacesListener,
 ) xresource.SimpleCloser {
+	if n.watchable.IsClosed() {
+		return xresource.SimpleCloserFn(func() {})
+	}
 	_, watch, _ := n.watchable.Watch()
 
 	namespaces := watch.Get()
