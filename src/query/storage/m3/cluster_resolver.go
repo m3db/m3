@@ -214,7 +214,7 @@ func resolveClusterNamespacesForQueryLogicalPlan(
 			}
 		}
 
-		if result[0].endNarrowing > 0 {
+		if !result[0].endNarrowing.IsZero() {
 			// completeAggregated namespace will not have the most recent data available, will
 			// have to query unaggregated namespace for it and then stitch the responses together.
 			unaggregatedNarrowed := resolved(unaggregated.clusterNamespace)
@@ -275,7 +275,7 @@ func resolveClusterNamespacesForQueryLogicalPlan(
 		}
 	}
 
-	if result[0].endNarrowing > 0 {
+	if !result[0].endNarrowing.IsZero() {
 		// completeAggregated namespace will not have the most recent data available, will
 		// have to query unaggregated namespace for it and then stitch the responses together.
 		unaggregatedNarrowed := resolved(unaggregated.clusterNamespace)
