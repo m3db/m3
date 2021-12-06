@@ -1,0 +1,38 @@
+version: "3.5"
+services:
+  dbnode01:
+    expose:
+      - "9000-9004"
+      - "2379-2380"
+    ports:
+      - "0.0.0.0:9000-9004:9000-9004"
+      - "0.0.0.0:2379-2380:2379-2380"
+    networks:
+      - backend
+    image: "m3dbnode_integration:${REVISION}"
+    volumes:
+      - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
+  coordinator01:
+    expose:
+      - "7201"
+      - "7203"
+    ports:
+      - "0.0.0.0:7201:7201"
+      - "0.0.0.0:7203:7203"
+    networks:
+      - backend
+    image: "m3coordinator_integration:${REVISION}"
+    volumes:
+      - "./:/etc/m3coordinator/"
+  prometheus01:
+    expose:
+      - "9090"
+    ports:
+      - "0.0.0.0:9090:9090"
+    networks:
+      - backend
+    image: prom/prometheus:latest
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+networks:
+  backend:
