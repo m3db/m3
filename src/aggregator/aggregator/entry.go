@@ -1204,8 +1204,9 @@ func (e *Entry) applyValueRateLimit(numValues int64, m rateLimitEntryMetrics) er
 
 func (e *Entry) setLastAccessed(category metricCategory) {
 	now := e.nowFn().UnixNano()
-	e.metrics.durationBetweenWrites[category].RecordDuration(time.Duration(now - e.lastAccessNanos.Load()))
-	e.lastAccessNanos.Store(now)
+	prev := e.lastAccessNanos.Swap(now)
+	e.metrics.durationBetweenWrites[category].RecordDuration(time.Duration(now - prev))
+
 }
 
 type aggregationValue struct {
