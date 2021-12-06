@@ -1206,7 +1206,6 @@ func (e *Entry) setLastAccessed(category metricCategory) {
 	now := e.nowFn().UnixNano()
 	prev := e.lastAccessNanos.Swap(now)
 	e.metrics.durationBetweenWrites[category].RecordDuration(time.Duration(now - prev))
-
 }
 
 type aggregationValue struct {
