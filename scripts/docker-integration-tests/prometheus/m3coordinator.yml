@@ -1,0 +1,27 @@
+limits:
+  perQuery:
+    maxFetchedSeries: 100
+
+clusters:
+  - client:
+      config:
+        service:
+          env: default_env
+          zone: embedded
+          service: m3db
+          cacheDir: /var/lib/m3kv
+          etcdClusters:
+            - zone: embedded
+              endpoints:
+                - dbnode01:2379
+
+query:
+  restrictTags:
+    match:
+      - name: restricted_metrics_type
+        type: NOTEQUAL
+        value: hidden
+    strip:
+    - restricted_metrics_type
+
+lookbackDuration: 10m

@@ -1,0 +1,16 @@
+limits:
+  perQuery:
+    maxFetchedSeries: 100
+
+clusters:
+  - client:
+      config:
+        service:
+          env: default_env
+          zone: embedded
+          service: m3db
+          cacheDir: /var/lib/m3kv
+          etcdClusters:
+            - zone: embedded
+              endpoints:
+                - cluster_b_dbnode01:2379

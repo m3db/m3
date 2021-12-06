@@ -65,15 +65,6 @@ steps:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
     <<: *common
-  - label: "M3 Cluster Integration Tests"
-    command: make clean test-ci-cluster-integration
-    env:
-      CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.16.x
-    plugins:
-      gopath-checkout#v1.0.1:
-        import: github.com/m3db/m3
-    <<: *common
   - label: "M3 Cluster Integration Test Harness Tests"
     command: make clean test-ci-test-harness
     plugins:

@@ -1,0 +1,44 @@
+db:
+  hostID:
+    resolver: environment
+    envVarName: M3DB_HOST_ID
+
+  discovery:
+    config:
+      service:
+        env: default_env
+        zone: embedded
+        service: m3db
+        cacheDir: /var/lib/m3kv
+        etcdClusters:
+          - zone: embedded
+            endpoints:
+              - cluster_b_dbnode01:2379
+      seedNodes:
+        initialCluster:
+          - hostID: cluster_b_m3db_local_1
+            endpoint: http://cluster_b_dbnode01:2380
+
+  # Enable repairs (within cluster b).
+  repair:
+    enabled: true
+    throttle: 1ms
+    checkInterval: 1ms
+
+  # Enable replication (from cluster a).
+  replication:
+    clusters:
+      - name: "cluster-a"
+        repairEnabled: true
+        client:
+          config:
+            service:
+              env: default_env
+              zone: embedded
+              service: m3db
+              cacheDir: /var/lib/m3kv
+              etcdClusters:
+                - zone: embedded
+                  endpoints:
+                    - cluster_a_dbnode01:2379
+
