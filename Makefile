@@ -50,7 +50,6 @@ SERVICES :=     \
 	m3coordinator \
 	m3aggregator  \
 	m3query       \
-	m3collector   \
 	m3em_agent    \
 	m3comparator  \
 	r2ctl         \
@@ -61,7 +60,6 @@ SUBDIRS :=    \
 	msg         \
 	metrics     \
 	cmd         \
-	collector   \
 	dbnode      \
 	query       \
 	m3em        \

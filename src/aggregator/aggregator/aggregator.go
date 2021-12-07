@@ -825,6 +825,8 @@ type aggregatorAddUntimedErrorMetrics struct {
 	aggregatorAddMetricErrorMetrics
 
 	invalidMetricTypes tally.Counter
+	tooFarInTheFuture  tally.Counter
+	tooFarInThePast    tally.Counter
 }
 
 func newAggregatorAddUntimedErrorMetrics(
@@ -834,6 +836,12 @@ func newAggregatorAddUntimedErrorMetrics(
 		aggregatorAddMetricErrorMetrics: newAggregatorAddMetricErrorMetrics(scope),
 		invalidMetricTypes: scope.Tagged(map[string]string{
 			"reason": "invalid-metric-types",
+		}).Counter("errors"),
+		tooFarInTheFuture: scope.Tagged(map[string]string{
+			"reason": "too-far-in-the-future",
+		}).Counter("errors"),
+		tooFarInThePast: scope.Tagged(map[string]string{
+			"reason": "too-far-in-the-past",
 		}).Counter("errors"),
 	}
 }
@@ -863,11 +871,16 @@ func (m *aggregatorAddUntimedMetrics) ReportError(err error, role ElectionState,
 		errors = &m.leaderErrors
 	}
 
-	if err == errInvalidMetricType {
+	switch {
+	case xerrors.Is(err, errInvalidMetricType):
 		errors.invalidMetricTypes.Inc(1)
-		return
+	case xerrors.Is(err, errTooFarInTheFuture):
+		errors.tooFarInTheFuture.Inc(1)
+	case xerrors.Is(err, errTooFarInThePast):
+		errors.tooFarInThePast.Inc(1)
+	default:
+		errors.aggregatorAddMetricErrorMetrics.ReportError(err, log)
 	}
-	errors.aggregatorAddMetricErrorMetrics.ReportError(err, log)
 }
 
 type aggregatorAddTimedErrorMetrics struct {
