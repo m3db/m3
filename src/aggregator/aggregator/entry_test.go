@@ -2050,12 +2050,11 @@ func TestEntryMaybeExpireWithExpiry(t *testing.T) {
 	}
 
 	// Try expiring this entry and assert it's not expired.
-	require.False(t, e.TryExpire(*now, unknownMetricCategory))
+	require.False(t, e.TryExpire(*now))
 
 	// Try expiring the entry with time in the future and
 	// assert it's expired.
-	require.True(t, e.TryExpire(now.Add(e.opts.EntryTTL()).Add(time.Second),
-		unknownMetricCategory))
+	require.True(t, e.TryExpire(now.Add(e.opts.EntryTTL()).Add(time.Second)))
 
 	// Assert elements have been tombstoned
 	require.Equal(t, 0, len(e.aggregations))

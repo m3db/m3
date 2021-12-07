@@ -1056,6 +1056,8 @@ func TestAggregatorAddUntimedMetrics(t *testing.T) {
 		m.ReportError(errWriteNewMetricRateLimitExceeded, state, log)
 		m.ReportError(errWriteValueRateLimitExceeded, state, log)
 		m.ReportError(xerrors.NewRenamedError(errArrivedTooLate, errors.New("errorrr")), state, log)
+		m.ReportError(errTooFarInTheFuture, state, log)
+		m.ReportError(errTooFarInThePast, state, log)
 		m.ReportError(errAggregationClosed, state, log)
 		m.ReportError(errors.New("foo"), state, log)
 	}
@@ -1076,6 +1078,10 @@ func TestAggregatorAddUntimedMetrics(t *testing.T) {
 		"testScope.errors+reason=value-rate-limit-exceeded,role=non-leader",
 		"testScope.errors+reason=new-metric-rate-limit-exceeded,role=leader",
 		"testScope.errors+reason=new-metric-rate-limit-exceeded,role=non-leader",
+		"testScope.errors+reason=too-far-in-the-future,role=leader",
+		"testScope.errors+reason=too-far-in-the-future,role=non-leader",
+		"testScope.errors+reason=too-far-in-the-past,role=leader",
+		"testScope.errors+reason=too-far-in-the-past,role=non-leader",
 		"testScope.errors+reason=arrived-too-late,role=leader",
 		"testScope.errors+reason=arrived-too-late,role=non-leader",
 		"testScope.errors+reason=aggregation-closed,role=leader",
