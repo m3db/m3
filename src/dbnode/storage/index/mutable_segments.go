@@ -126,6 +126,8 @@ type mutableSegmentsMetrics struct {
 	activeBlockGarbageCollectReconstructCachedSearchCacheMiss   tally.Counter
 	activeBlockGarbageCollectReconstructCachedSearchExecSuccess tally.Counter
 	activeBlockGarbageCollectReconstructCachedSearchExecError   tally.Counter
+	reconciledEntryGC                                           tally.Counter
+	unreconciledEntryGC                                         tally.Counter
 }
 
 func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
@@ -172,6 +174,8 @@ func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 		activeBlockGarbageCollectReconstructCachedSearchExecError: backgroundScope.Tagged(map[string]string{
 			"result_type": "error",
 		}).Counter("gc-reconstruct-cached-search-exec-result"),
+		reconciledEntryGC:   s.Counter("reconciled-entry-gc"),
+		unreconciledEntryGC: s.Counter("unreconciled-entry-gc"),
 	}
 }
 
@@ -234,7 +238,10 @@ func (m *mutableSegments) seriesActive(d doc.Metadata) bool {
 		return true
 	}
 
-	return !d.OnIndexSeries.TryMarkIndexGarbageCollected()
+	return !d.OnIndexSeries.TryMarkIndexGarbageCollected(
+		m.metrics.reconciledEntryGC,
+		m.metrics.unreconciledEntryGC,
+	)
 }
 
 func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats, error) {
