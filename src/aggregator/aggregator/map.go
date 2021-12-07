@@ -430,7 +430,7 @@ func (m *metricMap) purgeExpired(
 	m.Lock()
 	for i := range entries {
 		key := entries[i].key
-		if entries[i].entry.TryExpire(now, key.metricCategory) {
+		if entries[i].entry.TryExpire(now) {
 			switch key.metricCategory {
 			case untimedMetric:
 				numStandardExpired++

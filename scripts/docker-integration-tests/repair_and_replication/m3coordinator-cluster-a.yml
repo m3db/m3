@@ -1,0 +1,31 @@
+listenAddress: 0.0.0.0:7201
+
+logging:
+  level: info
+
+metrics:
+  scope:
+    prefix: "coordinator"
+  prometheus:
+    handlerPath: /metrics
+    listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3/issues/682 is resolved
+  sanitization: prometheus
+  samplingRate: 1.0
+  extended: none
+
+limits:
+  perQuery:
+    maxFetchedSeries: 100
+
+clusters:
+  - client:
+      config:
+        service:
+          env: default_env
+          zone: embedded
+          service: m3db
+          cacheDir: /var/lib/m3kv
+          etcdClusters:
+            - zone: embedded
+              endpoints:
+                - cluster_a_dbnode01:2379
