@@ -56,7 +56,6 @@ func TestActiveRuleSetCutoverTimesWithMappingRules(t *testing.T) {
 		nil,
 		testTagsFilterOptions(),
 		mockNewID,
-		nil,
 	)
 	expectedCutovers := []int64{5000, 8000, 10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 100000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -69,7 +68,6 @@ func TestActiveRuleSetCutoverTimesWithRollupRules(t *testing.T) {
 		testRollupRules(t),
 		testTagsFilterOptions(),
 		mockNewID,
-		nil,
 	)
 	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 90000, 100000, 120000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -82,7 +80,6 @@ func TestActiveRuleSetCutoverTimesWithMappingRulesAndRollupRules(t *testing.T) {
 		testRollupRules(t),
 		testTagsFilterOptions(),
 		mockNewID,
-		nil,
 	)
 	expectedCutovers := []int64{5000, 8000, 10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 90000, 100000, 120000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -553,7 +550,6 @@ func TestActiveRuleSetForwardMatchWithMappingRules(t *testing.T) {
 		nil,
 		testTagsFilterOptions(),
 		mockNewID,
-		nil,
 	)
 	for i, input := range inputs {
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
@@ -581,7 +577,6 @@ func TestActiveRuleSetForwardMatchWithAnyKeepOriginal(t *testing.T) {
 		testKeepOriginalRollupRules(t),
 		testTagsFilterOptions(),
 		mockNewID,
-		nil,
 	)
 
 	for i, input := range inputs {
@@ -1439,7 +1434,6 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 		testRollupRules(t),
 		testTagsFilterOptions(),
 		mockNewID,
-		nil,
 	)
 
 	for i, input := range inputs {
@@ -2679,7 +2673,6 @@ func TestActiveRuleSetForwardMatchWithMappingRulesAndRollupRules(t *testing.T) {
 		testRollupRules(t),
 		testTagsFilterOptions(),
 		mockNewID,
-		nil,
 	)
 	for i, input := range inputs {
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
@@ -2763,7 +2756,6 @@ func TestMatchedKeepOriginal(t *testing.T) {
 			rollups,
 			testTagsFilterOptions(),
 			mockNewID,
-			func([]byte, []byte) bool { return true },
 		)
 	)
 
