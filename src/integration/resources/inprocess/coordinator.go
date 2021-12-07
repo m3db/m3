@@ -420,15 +420,10 @@ func (c *Coordinator) WriteProm(
 	return c.client.WriteProm(name, tags, samples, headers)
 }
 
-// WritePromWithLabels writes a prometheus metric. Allows you to provide the labels for
-// the write directly instead of conveniently converting them from a map.
-func (c *Coordinator) WritePromWithLabels(
-	name string,
-	labels []prompb.Label,
-	samples []prompb.Sample,
-	headers resources.Headers,
-) error {
-	return c.client.WritePromWithLabels(name, labels, samples, headers)
+// WritePromWithRequest executes a prometheus write request. Allows you to
+// provide the request directly which is useful for batch metric requests.
+func (c *Coordinator) WritePromWithRequest(writeRequest prompb.WriteRequest, headers resources.Headers) error {
+	return c.client.WritePromWithRequest(writeRequest, headers)
 }
 
 // RunQuery runs the given query with a given verification function.
@@ -503,6 +498,12 @@ func (c *Coordinator) Series(
 	headers resources.Headers,
 ) ([]model.Metric, error) {
 	return c.client.Series(req, headers)
+}
+
+// Configuration returns a copy of the configuration used to
+// start this coordinator.
+func (c *Coordinator) Configuration() config.Configuration {
+	return c.cfg
 }
 
 func updateCoordinatorConfig(

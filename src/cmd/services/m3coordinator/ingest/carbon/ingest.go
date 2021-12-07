@@ -397,8 +397,7 @@ func (i *ingester) write(
 
 			// Break because we only want to apply one rule per metric based on which
 			// ever one matches first.
-			err := i.writeWithOptions(ctx, resources, timestamp, value,
-				downsampleAndStoragePolicies)
+			err := i.writeWithOptions(ctx, resources, timestamp, value, downsampleAndStoragePolicies)
 			if err != nil {
 				return false
 			}
@@ -432,7 +431,7 @@ func (i *ingester) writeWithOptions(
 	}
 
 	err = i.downsamplerAndWriter.Write(ctx, tags, resources.datapoints,
-		xtime.Second, nil, opts)
+		xtime.Second, nil, opts, ts.SourceTypeGraphite)
 	if err != nil {
 		i.logger.Error("err writing carbon metric",
 			zap.String("name", string(resources.name)), zap.Error(err))

@@ -356,6 +356,12 @@ func (d *DBNode) Close() error {
 	return nil
 }
 
+// Configuration returns a copy of the configuration used to
+// start this dbnode.
+func (d *DBNode) Configuration() config.Configuration {
+	return d.cfg
+}
+
 func updateDBNodeConfig(
 	cfg config.Configuration,
 	opts DBNodeOptions,

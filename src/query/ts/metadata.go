@@ -74,6 +74,9 @@ const (
 
 	// SourceTypeGraphite is the graphite source type.
 	SourceTypeGraphite
+
+	// SourceTypeOpenMetrics is the Open Metrics source type.
+	SourceTypeOpenMetrics
 )
 
 // SeriesAttributes has attributes about the time series.

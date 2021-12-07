@@ -43,6 +43,12 @@ var (
 	unaggregatedStoragePolicies = []policy.StoragePolicy{
 		unaggregatedStoragePolicy,
 	}
+
+	sourceTags = map[ts.SourceType]string{
+		ts.SourceTypePrometheus:  "prometheus",
+		ts.SourceTypeGraphite:    "graphite",
+		ts.SourceTypeOpenMetrics: "open-metrics",
+	}
 )
 
 // IterValue is the value returned by the iterator.
@@ -75,6 +81,7 @@ type DownsamplerAndWriter interface {
 		unit xtime.Unit,
 		annotation []byte,
 		overrides WriteOptions,
+		source ts.SourceType,
 	) error
 
 	WriteBatch(
@@ -104,7 +111,21 @@ type WriteOptions struct {
 }
 
 type downsamplerAndWriterMetrics struct {
-	dropped tally.Counter
+	dropped metricsBySource
+	written metricsBySource
+}
+
+type metricsBySource struct {
+	bySource  map[ts.SourceType]tally.Counter
+	byUnknown tally.Counter
+}
+
+func (m metricsBySource) report(source ts.SourceType) {
+	counter, ok := m.bySource[source]
+	if !ok {
+		counter = m.byUnknown
+	}
+	counter.Inc(1)
 }
 
 // downsamplerAndWriter encapsulates the logic for writing data to the downsampler,
@@ -125,14 +146,29 @@ func NewDownsamplerAndWriter(
 	instrumentOpts instrument.Options,
 ) DownsamplerAndWriter {
 	scope := instrumentOpts.MetricsScope().SubScope("downsampler")
+
 	return &downsamplerAndWriter{
 		store:       store,
 		downsampler: downsampler,
 		workerPool:  workerPool,
 		metrics: downsamplerAndWriterMetrics{
-			dropped: scope.Counter("metrics_dropped"),
+			dropped: newMetricsBySource(scope, "metrics_dropped"),
+			written: newMetricsBySource(scope, "metrics_written"),
 		},
 	}
+}
+
+func newMetricsBySource(scope tally.Scope, name string) metricsBySource {
+	metrics := metricsBySource{
+		bySource:  make(map[ts.SourceType]tally.Counter, len(sourceTags)),
+		byUnknown: scope.Tagged(map[string]string{"source": "unknown"}).Counter(name),
+	}
+
+	for source, tag := range sourceTags {
+		metrics.bySource[source] = scope.Tagged(map[string]string{"source": tag}).Counter(name)
+	}
+
+	return metrics
 }
 
 func (d *downsamplerAndWriter) Write(
@@ -142,6 +178,7 @@ func (d *downsamplerAndWriter) Write(
 	unit xtime.Unit,
 	annotation []byte,
 	overrides WriteOptions,
+	source ts.SourceType,
 ) error {
 	var (
 		multiErr         = xerrors.NewMultiError()
@@ -150,16 +187,16 @@ func (d *downsamplerAndWriter) Write(
 
 	if d.shouldDownsample(overrides) {
 		var err error
-		dropUnaggregated, err = d.writeToDownsampler(tags, datapoints, unit, annotation, overrides)
+		dropUnaggregated, err = d.writeToDownsampler(tags, datapoints, annotation, overrides)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
 
 	if dropUnaggregated {
-		d.metrics.dropped.Inc(1)
+		d.metrics.dropped.report(source)
 	} else if d.shouldWrite(overrides) {
-		err := d.writeToStorage(ctx, tags, datapoints, unit, annotation, overrides)
+		err := d.writeToStorage(ctx, tags, datapoints, unit, annotation, overrides, source)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -225,7 +262,6 @@ func (d *downsamplerAndWriter) downsampleOverrideRules(
 func (d *downsamplerAndWriter) writeToDownsampler(
 	tags models.Tags,
 	datapoints ts.Datapoints,
-	unit xtime.Unit,
 	annotation []byte,
 	overrides WriteOptions,
 ) (bool, error) {
@@ -299,7 +335,10 @@ func (d *downsamplerAndWriter) writeToStorage(
 	unit xtime.Unit,
 	annotation []byte,
 	overrides WriteOptions,
+	source ts.SourceType,
 ) error {
+	d.metrics.written.report(source)
+
 	storagePolicies, ok := d.writeOverrideStoragePolicies(overrides)
 	if !ok {
 		// NB(r): Allocate the write query at the top
@@ -403,9 +442,12 @@ func (d *downsamplerAndWriter) WriteBatch(
 		for iter.Next() {
 			value := iter.Current()
 			if value.Metadata.DropUnaggregated {
-				d.metrics.dropped.Inc(1)
+				d.metrics.dropped.report(value.Attributes.Source)
 				continue
 			}
+
+			d.metrics.written.report(value.Attributes.Source)
+
 			for _, p := range storagePolicies {
 				p := p // Capture for lambda.
 				wg.Add(1)

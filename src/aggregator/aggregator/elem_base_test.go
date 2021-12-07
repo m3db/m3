@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/transformation"
+	"github.com/m3db/m3/src/x/clock"
 
 	"github.com/stretchr/testify/require"
 )
@@ -44,7 +45,7 @@ func mustNewOp(t require.TestingT, ttype transformation.Type) transformation.Op 
 }
 
 func TestElemBaseID(t *testing.T) {
-	e := &elemBase{}
+	e := newTestElemBase()
 	require.NoError(t, e.resetSetData(testCounterElemData, false))
 	require.Equal(t, testCounterID, e.ID())
 }
@@ -86,7 +87,7 @@ func TestElemBaseResetSetData(t *testing.T) {
 			},
 		}),
 	}
-	e := &elemBase{}
+	e := newTestElemBase()
 	elemData := testCounterElemData
 	elemData.AggTypes = testAggregationTypesExpensive
 	elemData.NumForwardedTimes = 3
@@ -112,7 +113,7 @@ func TestElemBaseResetSetDataNoRollup(t *testing.T) {
 			Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 		},
 	})
-	e := &elemBase{}
+	e := newTestElemBase()
 	elemData := testCounterElemData
 	elemData.Pipeline = pipelineNoRollup
 	err := e.resetSetData(elemData, false)
@@ -126,7 +127,7 @@ func TestElemBaseForwardedIDWithDefaultPipeline(t *testing.T) {
 }
 
 func TestElemBaseForwardedIDWithCustomPipeline(t *testing.T) {
-	e := &elemBase{}
+	e := newTestElemBase()
 	require.NoError(t, e.resetSetData(testCounterElemData, false))
 	fid, ok := e.ForwardedID()
 	require.True(t, ok)
@@ -139,8 +140,12 @@ func TestElemBaseForwardedAggregationKeyWithDefaultPipeline(t *testing.T) {
 	require.False(t, ok)
 }
 
+func newTestElemBase() elemBase {
+	return newElemBase(NewElemOptions(NewOptions(clock.NewOptions())))
+}
+
 func TestElemBaseForwardedAggregationKeyWithCustomPipeline(t *testing.T) {
-	e := &elemBase{}
+	e := newTestElemBase()
 	elemData := testCounterElemData
 	elemData.NumForwardedTimes = 3
 	require.NoError(t, e.resetSetData(elemData, false))
@@ -164,7 +169,7 @@ func TestElemBaseForwardedAggregationKeyWithCustomPipeline(t *testing.T) {
 }
 
 func TestElemBaseMarkAsTombStoned(t *testing.T) {
-	e := &elemBase{}
+	e := newTestElemBase()
 	require.False(t, e.tombstoned)
 
 	// Marking a closed element tombstoned has no impact.

@@ -50,7 +50,6 @@ SERVICES :=     \
 	m3coordinator \
 	m3aggregator  \
 	m3query       \
-	m3collector   \
 	m3em_agent    \
 	m3comparator  \
 	r2ctl         \
@@ -61,7 +60,6 @@ SUBDIRS :=    \
 	msg         \
 	metrics     \
 	cmd         \
-	collector   \
 	dbnode      \
 	query       \
 	m3em        \
@@ -272,6 +270,11 @@ test-ci-big-unit: test-big-base
 test-ci-integration:
 	INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) TEST_AGGREGATOR_CLIENT_TYPE=$(aggregator_client) make test-base-ci-integration
 	$(process_coverfile) $(coverfile)
+
+.PHONY: test-ci-test-harness
+test-ci-test-harness:
+	@echo "--- test-ci-test-harness"
+	go test -count=1 -p 1 -tags=test_harness ./src/integration/resources/...
 
 define SUBDIR_RULES
 
