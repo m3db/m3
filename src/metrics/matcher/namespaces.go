@@ -27,9 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/util/runtime"
-	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
-	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -57,17 +55,6 @@ type Namespaces interface {
 	// ForwardMatch forward matches the matching policies for a given id in a given namespace
 	// between [fromNanos, toNanos).
 	ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult
-
-	// ReverseMatch reverse matches the matching policies for a given id in a given namespace
-	// between [fromNanos, toNanos), taking into account the metric type and aggregation type for the given id.
-	ReverseMatch(
-		namespace, id []byte,
-		fromNanos, toNanos int64,
-		mt metric.Type,
-		at aggregation.Type,
-		isMultiAggregationTypesAllowed bool,
-		aggTypesOpts aggregation.TypesOptions,
-	) rules.MatchResult
 
 	// Close closes the namespaces.
 	Close()
@@ -196,21 +183,6 @@ func (n *namespaces) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64
 		return rules.EmptyMatchResult
 	}
 	return ruleSet.ForwardMatch(id, fromNanos, toNanos)
-}
-
-func (n *namespaces) ReverseMatch(
-	namespace, id []byte,
-	fromNanos, toNanos int64,
-	mt metric.Type,
-	at aggregation.Type,
-	isMultiAggregationTypesAllowed bool,
-	aggTypesOpts aggregation.TypesOptions,
-) rules.MatchResult {
-	ruleSet, exists := n.ruleSet(namespace)
-	if !exists {
-		return rules.EmptyMatchResult
-	}
-	return ruleSet.ReverseMatch(id, fromNanos, toNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
 }
 
 func (n *namespaces) ruleSet(namespace []byte) (RuleSet, bool) {
