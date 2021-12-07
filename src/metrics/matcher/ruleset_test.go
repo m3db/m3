@@ -81,29 +81,6 @@ func TestRuleSetForwardMatchWithMatcher(t *testing.T) {
 	require.Equal(t, toNanos, mockMatcher.toNanos)
 }
 
-func TestRuleSetReverseMatchWithMatcher(t *testing.T) {
-	_, _, rs := testRuleSet()
-	mockMatcher := &mockMatcher{res: rules.EmptyMatchResult}
-	rs.matcher = mockMatcher
-
-	var (
-		now                            = rs.nowFn()
-		fromNanos                      = now.Add(-time.Second).UnixNano()
-		toNanos                        = now.Add(time.Second).UnixNano()
-		isMultiAggregationTypesAllowed = true
-		aggTypesOpts                   = aggregation.NewTypesOptions()
-	)
-
-	require.Equal(t, mockMatcher.res, rs.ReverseMatch([]byte("foo"), fromNanos, toNanos, metric.CounterType, aggregation.Sum, isMultiAggregationTypesAllowed, aggTypesOpts))
-	require.Equal(t, []byte("foo"), mockMatcher.id)
-	require.Equal(t, fromNanos, mockMatcher.fromNanos)
-	require.Equal(t, toNanos, mockMatcher.toNanos)
-	require.Equal(t, metric.CounterType, mockMatcher.metricType)
-	require.Equal(t, aggregation.Sum, mockMatcher.aggregationType)
-	require.Equal(t, isMultiAggregationTypesAllowed, mockMatcher.isMultiAggregationTypesAllowed)
-	require.Equal(t, aggTypesOpts, mockMatcher.aggTypesOpts)
-}
-
 func TestToRuleSetNilValue(t *testing.T) {
 	_, _, rs := testRuleSet()
 	_, err := rs.toRuleSet(nil)
@@ -238,24 +215,6 @@ func (mm *mockMatcher) ForwardMatch(
 	mm.id = id
 	mm.fromNanos = fromNanos
 	mm.toNanos = toNanos
-	return mm.res
-}
-
-func (mm *mockMatcher) ReverseMatch(
-	id []byte,
-	fromNanos, toNanos int64,
-	mt metric.Type,
-	at aggregation.Type,
-	isMultiAggregationTypesAllowed bool,
-	aggTypesOpts aggregation.TypesOptions,
-) rules.MatchResult {
-	mm.id = id
-	mm.fromNanos = fromNanos
-	mm.toNanos = toNanos
-	mm.metricType = mt
-	mm.aggregationType = at
-	mm.isMultiAggregationTypesAllowed = isMultiAggregationTypesAllowed
-	mm.aggTypesOpts = aggTypesOpts
 	return mm.res
 }
 

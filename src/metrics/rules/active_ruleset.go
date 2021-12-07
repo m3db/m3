@@ -40,17 +40,6 @@ import (
 type Matcher interface {
 	// ForwardMatch matches the applicable policies for a metric id between [fromNanos, toNanos).
 	ForwardMatch(id []byte, fromNanos, toNanos int64) MatchResult
-
-	// ReverseMatch reverse matches the applicable policies for a metric id between [fromNanos, toNanos),
-	// with aware of the metric type and aggregation type for the given id.
-	ReverseMatch(
-		id []byte,
-		fromNanos, toNanos int64,
-		mt metric.Type,
-		at aggregation.Type,
-		isMultiAggregationTypesAllowed bool,
-		aggTypesOpts aggregation.TypesOptions,
-	) MatchResult
 }
 
 type activeRuleSet struct {
@@ -150,75 +139,6 @@ func (as *activeRuleSet) ForwardMatch(
 		forNewRollupIDs,
 		keepOriginal,
 	)
-}
-
-func (as *activeRuleSet) ReverseMatch(
-	id []byte,
-	fromNanos, toNanos int64,
-	mt metric.Type,
-	at aggregation.Type,
-	isMultiAggregationTypesAllowed bool,
-	aggTypesOpts aggregation.TypesOptions,
-) MatchResult {
-	var (
-		nextIdx          = as.nextCutoverIdx(fromNanos)
-		nextCutoverNanos = as.cutoverNanosAt(nextIdx)
-		forExistingID    metadata.StagedMetadatas
-		isRollupID       bool
-		keepOriginal     bool
-	)
-
-	// Determine whether the ID is a rollup metric ID.
-	name, tags, err := as.tagsFilterOpts.NameAndTagsFn(id)
-	if err == nil {
-		isRollupID = as.isRollupIDFn(name, tags)
-	}
-
-	currResult, found := as.reverseMappingsFor(
-		id,
-		name,
-		tags,
-		isRollupID,
-		fromNanos,
-		mt,
-		at,
-		isMultiAggregationTypesAllowed,
-		aggTypesOpts,
-	)
-	if found {
-		forExistingID = mergeResultsForExistingID(forExistingID, currResult.metadata, fromNanos)
-		if currResult.keepOriginal {
-			keepOriginal = true
-		}
-	}
-
-	for nextIdx < len(as.cutoverTimesAsc) && nextCutoverNanos < toNanos {
-		nextResult, found := as.reverseMappingsFor(
-			id,
-			name,
-			tags,
-			isRollupID,
-			nextCutoverNanos,
-			mt,
-			at,
-			isMultiAggregationTypesAllowed,
-			aggTypesOpts,
-		)
-		if found {
-			forExistingID = mergeResultsForExistingID(
-				forExistingID,
-				nextResult.metadata,
-				nextCutoverNanos,
-			)
-			if nextResult.keepOriginal {
-				keepOriginal = true
-			}
-		}
-
-		nextIdx++
-		nextCutoverNanos = as.cutoverNanosAt(nextIdx)
-	}
-	return NewMatchResult(as.version, nextCutoverNanos, forExistingID, nil, keepOriginal)
 }
 
 // NB(xichen): can further consolidate pipelines with the same aggregation ID
