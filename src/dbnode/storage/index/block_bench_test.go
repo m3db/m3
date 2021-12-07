@@ -36,6 +36,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/profile"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func BenchmarkBlockWrite(b *testing.B) {
@@ -128,10 +129,10 @@ func (m mockOnIndexSeries) DecrementReaderWriterCount() {}
 func (m mockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(_ xtime.UnixNano) bool {
 	return false
 }
-func (m mockOnIndexSeries) IndexedForBlockStart(_ xtime.UnixNano) bool { return false }
-func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool                { return false }
-func (m mockOnIndexSeries) TryMarkIndexGarbageCollected() bool         { return false }
-func (m mockOnIndexSeries) NeedsIndexGarbageCollected() bool           { return false }
+func (m mockOnIndexSeries) IndexedForBlockStart(_ xtime.UnixNano) bool           { return false }
+func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool                          { return false }
+func (m mockOnIndexSeries) TryMarkIndexGarbageCollected(_, _ tally.Counter) bool { return false }
+func (m mockOnIndexSeries) NeedsIndexGarbageCollected() bool                     { return false }
 func (m mockOnIndexSeries) IndexedRange() (xtime.UnixNano, xtime.UnixNano) {
 	return 0, 0
 }
