@@ -138,7 +138,7 @@ func (d *dynamicCluster) initNamespaceWatch(etcdClusterID int, cfg DynamicCluste
 		return err
 	}
 
-	// Set method to invoke upon receiving updates and start watching.
+	// Set method to invoke upon receiving updates and Start watching.
 	updater := func(namespaces namespace.Map) error {
 		d.updateNamespaces(etcdClusterID, cfg, namespaces)
 		return nil

@@ -23,7 +23,6 @@ package consolidators
 import (
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
@@ -68,14 +67,9 @@ func (m *idDedupeMap) len() int {
 func (m *idDedupeMap) update(
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
+	narrowing Narrowing,
 ) (bool, error) {
 	id := iter.ID().String()
-
-	if nsID := iter.Namespace().String(); strings.HasPrefix(nsID, "downsampled") {
-		//FIXME
-		id = id + "-" + nsID
-	}
-
 	existing, exists := m.series[id]
 	if !exists {
 		return false, nil
@@ -84,20 +78,15 @@ func (m *idDedupeMap) update(
 	if err != nil {
 		return false, err
 	}
-	return true, m.doUpdate(id, existing, tags, iter, attrs)
+	return true, m.doUpdate(id, existing, tags, iter, attrs, narrowing)
 }
 
 func (m *idDedupeMap) add(
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
+	narrowing Narrowing,
 ) error {
 	id := iter.ID().String()
-
-	if nsID := iter.Namespace().String(); strings.HasPrefix(nsID, "downsampled") {
-		//FIXME
-		id = id + "-" + nsID
-	}
-
 	tags, err := FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
 	if err != nil {
 		return err
@@ -108,13 +97,14 @@ func (m *idDedupeMap) add(
 	if !exists {
 		// Does not exist, new addition
 		m.series[id] = multiResultSeries{
-			attrs: attrs,
-			iter:  iter,
-			tags:  tags,
+			attrs:     attrs,
+			iter:      iter,
+			tags:      tags,
+			narrowing: narrowing,
 		}
 		return nil
 	}
-	return m.doUpdate(id, existing, tags, iter, attrs)
+	return m.doUpdate(id, existing, tags, iter, attrs, narrowing)
 }
 
 func (m *idDedupeMap) doUpdate(
@@ -123,7 +113,13 @@ func (m *idDedupeMap) doUpdate(
 	tags models.Tags,
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
+	narrowing Narrowing,
 ) error {
+	if stitched, ok := stitch(existing, tags, iter, attrs, narrowing); ok {
+		m.series[id] = stitched
+		return nil
+	}
+
 	var existsBetter bool
 	switch m.fanout {
 	case NamespaceCoversAllQueryRange:
@@ -147,10 +143,37 @@ func (m *idDedupeMap) doUpdate(
 
 	// Override
 	m.series[id] = multiResultSeries{
-		attrs: attrs,
-		iter:  iter,
-		tags:  tags,
+		attrs:     attrs,
+		iter:      iter,
+		tags:      tags,
+		narrowing: narrowing,
 	}
 
 	return nil
+}
+
+func stitch(
+	existing multiResultSeries,
+	tags models.Tags,
+	iter encoding.SeriesIterator,
+	attrs storagemetadata.Attributes,
+	narrowing Narrowing,
+) (multiResultSeries, bool) {
+	// Stitching based on matching start/end.
+	if !narrowing.Start.IsZero() && narrowing.Start.Equal(existing.narrowing.End) {
+		return multiResultSeries{
+			attrs:     existing.attrs,
+			iter:      newConcatIterator(existing.iter, iter),
+			tags:      existing.tags,
+			narrowing: Narrowing{Start: existing.narrowing.Start, End: narrowing.End},
+		}, true
+	} else if !narrowing.End.IsZero() && narrowing.End.Equal(existing.narrowing.Start) {
+		return multiResultSeries{
+			attrs:     attrs,
+			iter:      newConcatIterator(iter, existing.iter),
+			tags:      tags,
+			narrowing: Narrowing{Start: narrowing.Start, End: existing.narrowing.End},
+		}, true
+	}
+	return multiResultSeries{}, false
 }

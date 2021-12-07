@@ -63,6 +63,7 @@ func (m *tagDedupeMap) list() []multiResultSeries {
 func (m *tagDedupeMap) update(
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
+	narrowing Narrowing,
 ) (bool, error) {
 	tags, err := FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
 	if err != nil {
@@ -72,12 +73,13 @@ func (m *tagDedupeMap) update(
 	if !exists {
 		return false, nil
 	}
-	return true, m.doUpdate(existing, tags, iter, attrs)
+	return true, m.doUpdate(existing, tags, iter, attrs, narrowing)
 }
 
 func (m *tagDedupeMap) add(
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
+	narrowing Narrowing,
 ) error {
 	tags, err := FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
 	if err != nil {
@@ -88,20 +90,28 @@ func (m *tagDedupeMap) add(
 	existing, exists := m.mapWrapper.get(tags)
 	if !exists {
 		m.mapWrapper.set(tags, multiResultSeries{
-			iter:  iter,
-			attrs: attrs,
-			tags:  tags,
+			iter:      iter,
+			attrs:     attrs,
+			tags:      tags,
+			narrowing: narrowing,
 		})
 		return nil
 	}
-	return m.doUpdate(existing, tags, iter, attrs)
+	return m.doUpdate(existing, tags, iter, attrs, narrowing)
 }
 
 func (m *tagDedupeMap) doUpdate(
 	existing multiResultSeries,
 	tags models.Tags,
 	iter encoding.SeriesIterator,
-	attrs storagemetadata.Attributes) error {
+	attrs storagemetadata.Attributes,
+	narrowing Narrowing,
+) error {
+	if stitched, ok := stitch(existing, tags, iter, attrs, narrowing); ok {
+		m.mapWrapper.set(tags, stitched)
+		return nil
+	}
+
 	var existsBetter bool
 	var existsEqual bool
 	switch m.fanout {

@@ -44,7 +44,7 @@ const (
 
 // blockReplica contains the replicas for a single m3db block.
 type seriesBlock struct {
-	// internal start time for the block.
+	// internal Start time for the block.
 	blockStart xtime.UnixNano
 	// time at which the first point in the block will appear.
 	readStart xtime.UnixNano
@@ -212,7 +212,7 @@ func blockReplicasFromSeriesIterator(
 		}
 	}
 
-	// sort series blocks by start time
+	// sort series blocks by Start time
 	sort.Sort(blocks)
 	return blocks, nil
 }

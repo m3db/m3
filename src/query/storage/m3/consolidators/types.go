@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // MatchOptions are multi fetch matching options.
@@ -73,12 +74,18 @@ func (t QueryFanoutType) String() string {
 	}
 }
 
+// Narrowing allows to restrict query time range based on namespace configuration.
+type Narrowing struct {
+	Start, End xtime.UnixNano
+}
+
 // MultiFetchResults is a deduping accumalator for series iterators
 // that allows merging using a given strategy.
 type MultiFetchResults struct {
 	SeriesIterators encoding.SeriesIterators
 	Metadata        block.ResultMetadata
 	Attrs           storagemetadata.Attributes
+	Narrowing       Narrowing
 	Err             error
 }
 

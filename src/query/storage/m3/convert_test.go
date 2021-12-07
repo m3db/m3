@@ -233,32 +233,32 @@ func TestPadSeriesBlocks(t *testing.T) {
 			start.Add(61 * time.Minute),
 			start.Add(121 * time.Minute),
 		},
-		// step 0: start + 1  , start + 37
-		// step 1: start + 73 , start + 109
-		// step 2: start + 145
-		// step 3: start + 181, start + 217
-		// step 4: start + 253, ...
+		// step 0: Start + 1  , Start + 37
+		// step 1: Start + 73 , Start + 109
+		// step 2: Start + 145
+		// step 3: Start + 181, Start + 217
+		// step 4: Start + 253, ...
 		{
 			start.Add(blockSize * 3),
 			time.Minute * 36,
 			start.Add(181 * time.Minute),
 			start.Add(253 * time.Minute),
 		},
-		// step 0: start + 1  , start + 38
-		// step 1: start + 75 , start + 112
-		// step 2: start + 149
-		// step 3: start + 186
+		// step 0: Start + 1  , Start + 38
+		// step 1: Start + 75 , Start + 112
+		// step 2: Start + 149
+		// step 3: Start + 186
 		{
 			start.Add(blockSize * 2),
 			time.Minute * 37,
 			start.Add(149 * time.Minute),
 			start.Add(186 * time.Minute),
 		},
-		// step 0: start + 1  , start + 12 , start + 23,
-		//         start + 34 , start + 45 , start + 56
-		// step 1: start + 67 , start + 78 , start + 89
-		//         start + 100, start + 111
-		// step 2: start + 122 ...
+		// step 0: Start + 1  , Start + 12 , Start + 23,
+		//         Start + 34 , Start + 45 , Start + 56
+		// step 1: Start + 67 , Start + 78 , Start + 89
+		//         Start + 100, Start + 111
+		// step 2: Start + 122 ...
 		{
 			start.Add(blockSize * 1),
 			time.Minute * 11,
