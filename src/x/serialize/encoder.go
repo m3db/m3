@@ -81,6 +81,10 @@ type encoder struct {
 	pool TagEncoderPool
 }
 
+func NewTagEncoder(opts TagEncoderOptions) TagEncoder {
+	return newTagEncoder(defaultNewCheckedBytesFn, opts, nil)
+}
+
 func newTagEncoder(
 	newFn newCheckedBytesFn,
 	opts TagEncoderOptions,

@@ -56,6 +56,9 @@ type Namespaces interface {
 	// between [fromNanos, toNanos).
 	ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult
 
+	// Reset the Namespaces for a new request.
+	Reset() error
+
 	// Close closes the namespaces.
 	Close()
 }
@@ -88,7 +91,7 @@ func newNamespacesMetrics(scope tally.Scope) namespacesMetrics {
 
 // namespaces contains the list of namespace users have defined rules for.
 type namespaces struct {
-	sync.RWMutex
+	sync.Mutex
 	runtime.Value
 
 	key                  string
@@ -101,8 +104,8 @@ type namespaces struct {
 	onNamespaceAddedFn   OnNamespaceAddedFn
 	onNamespaceRemovedFn OnNamespaceRemovedFn
 
-	proto                       *rulepb.Namespaces
 	rules                       *namespaceRuleSetsMap
+	nextNamespaces              *rules.Namespaces
 	metrics                     namespacesMetrics
 	requireNamespaceWatchOnInit bool
 }
@@ -120,7 +123,6 @@ func NewNamespaces(key string, opts Options) Namespaces {
 		matchRangePast:              opts.MatchRangePast(),
 		onNamespaceAddedFn:          opts.OnNamespaceAddedFn(),
 		onNamespaceRemovedFn:        opts.OnNamespaceRemovedFn(),
-		proto:                       &rulepb.Namespaces{},
 		rules:                       newNamespaceRuleSetsMap(namespaceRuleSetsMapOptions{}),
 		metrics:                     newNamespacesMetrics(instrumentOpts.MetricsScope()),
 		requireNamespaceWatchOnInit: opts.RequireNamespaceWatchOnInit(),
@@ -129,7 +131,7 @@ func NewNamespaces(key string, opts Options) Namespaces {
 		SetInstrumentOptions(instrumentOpts).
 		SetInitWatchTimeout(opts.InitWatchTimeout()).
 		SetKVStore(n.store).
-		SetUnmarshalFn(n.toNamespaces).
+		SetUnmarshalFn(toNamespaces).
 		SetProcessFn(n.process).
 		SetInterruptedCh(opts.InterruptedCh())
 	n.Value = runtime.NewValue(key, valueOpts)
@@ -168,9 +170,7 @@ func (n *namespaces) Open() error {
 }
 
 func (n *namespaces) Version(namespace []byte) int {
-	n.RLock()
 	ruleSet, exists := n.rules.Get(namespace)
-	n.RUnlock()
 	if !exists {
 		return kv.UninitializedVersion
 	}
@@ -186,9 +186,7 @@ func (n *namespaces) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64
 }
 
 func (n *namespaces) ruleSet(namespace []byte) (RuleSet, bool) {
-	n.RLock()
 	ruleSet, exists := n.rules.Get(namespace)
-	n.RUnlock()
 	if !exists {
 		n.metrics.notExists.Inc(1)
 	}
@@ -196,67 +194,66 @@ func (n *namespaces) ruleSet(namespace []byte) (RuleSet, bool) {
 }
 
 func (n *namespaces) Close() {
-	// NB(xichen): we stop watching the value outside lock because otherwise we might
-	// be holding the namespace lock while attempting to acquire the value lock, and
-	// the updating goroutine might be holding the value lock and attempting to
-	// acquire the namespace lock, causing a deadlock.
 	n.Value.Unwatch()
-
-	n.RLock()
 	for _, entry := range n.rules.Iter() {
 		rs := entry.Value()
 		rs.Unwatch()
 	}
-	n.RUnlock()
 }
 
-func (n *namespaces) toNamespaces(value kv.Value) (interface{}, error) {
-	n.Lock()
-	defer n.Unlock()
-
+func toNamespaces(value kv.Value) (interface{}, error) {
 	if value == nil {
 		return emptyNamespaces, errNilValue
 	}
-	n.proto.Reset()
-	if err := value.Unmarshal(n.proto); err != nil {
+	var proto rulepb.Namespaces
+	if err := value.Unmarshal(&proto); err != nil {
 		return emptyNamespaces, err
 	}
-	return rules.NewNamespaces(value.Version(), n.proto)
+	return rules.NewNamespaces(value.Version(), &proto)
 }
 
+// process the latest dynamic set of namespaces from the watch.
+// this acquires the exclusive lock to update nextNamespaces.
 func (n *namespaces) process(value interface{}) error {
-	var (
-		nss        = value.(rules.Namespaces)
-		version    = nss.Version()
-		namespaces = nss.Namespaces()
-		incoming   = newRuleNamespacesMap(ruleNamespacesMapOptions{
-			InitialSize: len(namespaces),
-		})
-	)
-	for _, ns := range namespaces {
-		incoming.Set(ns.Name(), rulesNamespace(ns))
-	}
-
+	var ok bool
 	n.Lock()
-	defer n.Unlock()
+	n.nextNamespaces, ok = value.(*rules.Namespaces)
+	n.Unlock()
+	if !ok {
+		return errors.New("expected rules.Namespaces")
+	}
+	return nil
+}
 
+// Reset the namespaces so it can be used by another write request.
+// this acquires the exclusive lock to update nextNamespaces.
+func (n *namespaces) Reset() error {
+	n.Lock()
+	nextNamespaces := n.nextNamespaces
+	n.Unlock()
+	// no update since the last call, nothing to do.
+	if nextNamespaces == nil {
+		return nil
+	}
 	var (
 		watchWg  sync.WaitGroup
 		multiErr xerrors.MultiError
 		errLock  sync.Mutex
+		newNs    = make(map[string]rules.Namespace)
+		version = nextNamespaces.Version()
 	)
 
-	for _, entry := range incoming.Iter() {
-		namespace, elem := entry.Key(), rules.Namespace(entry.Value())
+	for _, elem := range nextNamespaces.Namespaces() {
+		newNs[string(elem.Name())] = elem
 		nsName, snapshots := elem.Name(), elem.Snapshots()
-		ruleSet, exists := n.rules.Get(namespace)
+		ruleSet, exists := n.rules.Get(elem.Name())
 		if !exists {
 			instrumentOpts := n.opts.InstrumentOptions()
 			ruleSetScope := instrumentOpts.MetricsScope().SubScope("ruleset")
 			ruleSetOpts := n.opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(ruleSetScope))
 			ruleSetKey := n.ruleSetKeyFn(elem.Name())
 			ruleSet = newRuleSet(nsName, ruleSetKey, ruleSetOpts)
-			n.rules.Set(namespace, ruleSet)
+			n.rules.Set(elem.Name(), ruleSet)
 			n.metrics.added.Inc(1)
 		}
 
@@ -316,7 +313,7 @@ func (n *namespaces) process(value interface{}) error {
 
 	for _, entry := range n.rules.Iter() {
 		namespace, ruleSet := entry.Key(), entry.Value()
-		_, exists := incoming.Get(namespace)
+		_, exists := newNs[string(entry.Key())]
 		if exists {
 			continue
 		}
@@ -331,6 +328,6 @@ func (n *namespaces) process(value interface{}) error {
 			n.metrics.unwatched.Inc(1)
 		}
 	}
-
+	n.nextNamespaces = nil
 	return nil
 }

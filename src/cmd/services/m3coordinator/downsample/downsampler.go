@@ -140,14 +140,16 @@ func defaultMetricsAppenderOptions(opts DownsamplerOptions, agg agg) metricsAppe
 		agg:                    agg.aggregator,
 		clientRemote:           agg.clientRemote,
 		clockOpts:              agg.clockOpts,
-		tagEncoderPool:         agg.pools.tagEncoderPool,
 		newMatcherFn:           agg.newMatcherFn,
-		metricTagsIteratorPool: agg.pools.metricTagsIteratorPool,
 		debugLogging:           debugLogging,
 		logger:                 logger,
 		untimedRollups:         agg.untimedRollups,
 		metrics:                metrics,
-		metricsAppenderPool:    newMetricsAppenderPool(opts.MetricsAppenderPoolOptions, agg.newMatcherFn),
+		metricsAppenderPool:    newMetricsAppenderPool(
+			opts.MetricsAppenderPoolOptions,
+			agg.newMatcherFn,
+			agg.newTagEncoderFn,
+			agg.newMetricTagIteratorFn),
 	}
 }
 
@@ -160,7 +162,9 @@ func (d *downsampler) NewMetricsAppender() (MetricsAppender, error) {
 	newMetricsAppenderOpts := d.metricsAppenderOpts
 	d.RUnlock()
 
-	metricsAppender.reset(newMetricsAppenderOpts)
+	if err := metricsAppender.reset(newMetricsAppenderOpts); err != nil {
+		return nil, err
+	}
 
 	return metricsAppender, nil
 }

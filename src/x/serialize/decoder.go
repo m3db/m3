@@ -52,6 +52,10 @@ type decoder struct {
 	pool TagDecoderPool
 }
 
+func NewTagDecoder(opts TagDecoderOptions) TagDecoder {
+	return newTagDecoder(opts, nil)
+}
+
 func newTagDecoder(opts TagDecoderOptions, pool TagDecoderPool) TagDecoder {
 	tagName := opts.CheckedBytesWrapperPool().Get(nil)
 	tagValue := opts.CheckedBytesWrapperPool().Get(nil)

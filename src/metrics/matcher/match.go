@@ -36,12 +36,16 @@ var errNotOpened = errors.New("matcher not opened")
 // Matcher matches rules against metric IDs.
 // A Matcher is not thread safe and should not be shared across goroutines.
 type Matcher interface {
-	// Open the matcher. Must be called before any match calls.
+	// Open the matcher.
+	// Must be called before any match calls.
 	Open() error
 
 	// ForwardMatch matches rules against metric ID for time range [fromNanos, toNanos)
 	// and returns the match result.
 	ForwardMatch(id id.ID, fromNanos, toNanos int64) (rules.MatchResult, error)
+
+	// Reset the Matcher for a new request.
+	Reset() error
 
 	// Close closes the matcher.
 	Close() error
@@ -144,6 +148,10 @@ func (m *matcher) ForwardMatch(
 	return m.cache.ForwardMatch(m.namespaceResolver.Resolve(id), id.Bytes(), fromNanos, toNanos), nil
 }
 
+func (m *matcher) Reset() error {
+	return m.namespaces.Reset()
+}
+
 func (m *matcher) Close() error {
 	m.namespaces.Close()
 	return m.cache.Close()
@@ -192,6 +200,10 @@ func (m *noCacheMatcher) ForwardMatch(
 	sw := m.metrics.matchLatency.Start()
 	defer sw.Stop()
 	return m.namespaces.ForwardMatch(m.namespaceResolver.Resolve(id), id.Bytes(), fromNanos, toNanos), nil
+}
+
+func (m *noCacheMatcher) Reset() error {
+	return m.namespaces.Reset()
 }
 
 func (m *noCacheMatcher) Close() error {

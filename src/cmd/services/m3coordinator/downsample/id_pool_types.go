@@ -47,9 +47,8 @@ var (
 
 func isRollupID(
 	sortedTagPairs []byte,
-	iteratorPool serialize.MetricTagsIteratorPool,
+	iter serialize.MetricTagsIterator,
 ) bool {
-	iter := iteratorPool.Get()
 	iter.Reset(sortedTagPairs)
 
 	tagValue, ok := iter.TagValue(rollupTagName)

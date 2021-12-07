@@ -138,19 +138,17 @@ func TestNamespacesOpenWithInterrupt(t *testing.T) {
 }
 
 func TestToNamespacesNilValue(t *testing.T) {
-	_, _, nss, _ := testNamespaces()
-	_, err := nss.toNamespaces(nil)
+	_, err := toNamespaces(nil)
 	require.Equal(t, errNilValue, err)
 }
 
 func TestToNamespacesUnmarshalError(t *testing.T) {
-	_, _, nss, _ := testNamespaces()
-	_, err := nss.toNamespaces(&mockValue{})
+	_, err := toNamespaces(&mockValue{})
 	require.Error(t, err)
 }
 
 func TestToNamespacesSuccess(t *testing.T) {
-	store, _, nss, _ := testNamespaces()
+	store, _, _, _ := testNamespaces()
 	proto := &rulepb.Namespaces{
 		Namespaces: []*rulepb.Namespace{
 			{
@@ -168,7 +166,7 @@ func TestToNamespacesSuccess(t *testing.T) {
 	require.NoError(t, err)
 	v, err := store.Get(testNamespacesKey)
 	require.NoError(t, err)
-	res, err := nss.toNamespaces(v)
+	res, err := toNamespaces(v)
 	require.NoError(t, err)
 	actual := res.(rules.Namespaces)
 	require.Equal(t, 1, actual.Version())

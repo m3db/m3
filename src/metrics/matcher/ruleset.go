@@ -69,7 +69,7 @@ func newRuleSetMetrics(scope tally.Scope, opts instrument.TimerOptions) ruleSetM
 
 // ruleSet contains the list of rules for a namespace.
 type ruleSet struct {
-	sync.RWMutex
+	sync.Mutex
 	runtime.Value
 
 	namespace          []byte
@@ -81,10 +81,10 @@ type ruleSet struct {
 	ruleSetOpts        rules.Options
 	onRuleSetUpdatedFn OnRuleSetUpdatedFn
 
-	proto        *rulepb.RuleSet
 	version      int
 	cutoverNanos int64
 	tombstoned   bool
+	nextRuleSet  rules.RuleSet
 	matcher      rules.Matcher
 	metrics      ruleSetMetrics
 }
@@ -104,7 +104,6 @@ func newRuleSet(
 		matchRangePast:     opts.MatchRangePast(),
 		ruleSetOpts:        opts.RuleSetOptions(),
 		onRuleSetUpdatedFn: opts.OnRuleSetUpdatedFn(),
-		proto:              &rulepb.RuleSet{},
 		version:            kv.UninitializedVersion,
 		metrics: newRuleSetMetrics(instrumentOpts.MetricsScope(),
 			instrumentOpts.TimerOptions()),
@@ -120,70 +119,59 @@ func newRuleSet(
 }
 
 func (r *ruleSet) Namespace() []byte {
-	r.RLock()
-	namespace := r.namespace
-	r.RUnlock()
-	return namespace
+	return r.namespace
 }
 
 func (r *ruleSet) Version() int {
-	r.RLock()
-	version := r.version
-	r.RUnlock()
-	return version
+	return r.version
 }
 
 func (r *ruleSet) CutoverNanos() int64 {
-	r.RLock()
-	cutoverNanos := r.cutoverNanos
-	r.RUnlock()
-	return cutoverNanos
+	return r.cutoverNanos
 }
 
 func (r *ruleSet) Tombstoned() bool {
-	r.RLock()
-	tombstoned := r.tombstoned
-	r.RUnlock()
-	return tombstoned
+	return r.tombstoned
 }
 
 func (r *ruleSet) ForwardMatch(id []byte, fromNanos, toNanos int64) rules.MatchResult {
 	callStart := r.nowFn()
-	r.RLock()
 	if r.matcher == nil {
-		r.RUnlock()
 		r.metrics.nilMatcher.Inc(1)
 		return rules.EmptyMatchResult
 	}
 	res := r.matcher.ForwardMatch(id, fromNanos, toNanos)
-	r.RUnlock()
 	r.metrics.match.ReportSuccess(r.nowFn().Sub(callStart))
 	return res
 }
 
 func (r *ruleSet) toRuleSet(value kv.Value) (interface{}, error) {
-	r.Lock()
-	defer r.Unlock()
-
 	if value == nil {
 		return nil, errNilValue
 	}
-	r.proto.Reset()
-	if err := value.Unmarshal(r.proto); err != nil {
+	var proto rulepb.RuleSet
+	if err := value.Unmarshal(&proto); err != nil {
 		return nil, err
 	}
-	return rules.NewRuleSetFromProto(value.Version(), r.proto, r.ruleSetOpts)
+	return rules.NewRuleSetFromProto(value.Version(), &proto, r.ruleSetOpts)
 }
 
 // process processes an ruleset update.
 func (r *ruleSet) process(value interface{}) error {
 	r.Lock()
-	ruleSet := value.(rules.RuleSet)
+	r.nextRuleSet = value.(rules.RuleSet)
+	r.Unlock()
+	return nil
+}
+
+func (r *ruleSet) reset() {
+	r.Lock()
+	ruleSet := r.nextRuleSet
+	r.Unlock()
 	r.version = ruleSet.Version()
 	r.cutoverNanos = ruleSet.CutoverNanos()
 	r.tombstoned = ruleSet.Tombstoned()
 	r.matcher = ruleSet.ActiveSet(r.nowFn().Add(-r.matchRangePast).UnixNano())
-	r.Unlock()
 
 	// NB: calling the update callback outside the ruleset lock to avoid circular
 	// lock dependency causing a deadlock.
@@ -191,5 +179,4 @@ func (r *ruleSet) process(value interface{}) error {
 		r.onRuleSetUpdatedFn(r.namespace, r)
 	}
 	r.metrics.updated.Inc(1)
-	return nil
 }

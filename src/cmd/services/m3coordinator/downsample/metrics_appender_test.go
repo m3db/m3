@@ -161,13 +161,13 @@ func TestSamplesAppenderPoolResetsTagSimple(t *testing.T) {
 	appender, err := appenderPool.Get()
 	require.NoError(t, err)
 	appender.AddTag([]byte("foo"), []byte("bar"))
-	assert.Equal(t, 1, len(appender.originalTags.names))
-	assert.Equal(t, 1, len(appender.originalTags.values))
+	assert.Equal(t, 1, len(appender.tags.names))
+	assert.Equal(t, 1, len(appender.tags.values))
 	appender.Finalize()
 
 	// NB: getting a new appender from the pool yields a clean appender.
 	appender, err = appenderPool.Get()
 	require.NoError(t, err)
-	assert.Nil(t, appender.originalTags)
+	assert.Nil(t, appender.tags)
 	appender.Finalize()
 }

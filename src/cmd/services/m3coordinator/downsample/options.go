@@ -227,10 +227,12 @@ type agg struct {
 	aggregator   aggregator.Aggregator
 	clientRemote client.Client
 
-	clockOpts      clock.Options
-	newMatcherFn   matcher.NewMatcherFn
-	pools          aggPools
-	untimedRollups bool
+	clockOpts              clock.Options
+	newMatcherFn           matcher.NewMatcherFn
+	newTagEncoderFn        serialize.NewTagEncoderFn
+	newMetricTagIteratorFn serialize.NewMetricTagsIteratorFn
+	pools                  aggPools
+	untimedRollups         bool
 }
 
 // Configuration configurates a downsampler.
@@ -711,13 +713,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		namespaceTag = cfg.Matcher.NamespaceTag
 	}
 
-	pools := o.newAggregatorPools()
-	ruleSetOpts := o.newAggregatorRulesOptions(pools)
-
 	matcherOpts := matcher.NewOptions().
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
-		SetRuleSetOptions(ruleSetOpts).
+		SetRuleSetOptions(o.newAggregatorRulesOptions()).
 		SetKVStore(o.RulesKVStore).
 		SetNamespaceTag([]byte(namespaceTag)).
 		SetRequireNamespaceWatchOnInit(cfg.Matcher.RequireNamespaceWatchOnInit).
@@ -814,6 +813,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}
 	}
 
+	pools := o.newAggregatorPools()
 	if remoteAgg := cfg.RemoteAggregator; remoteAgg != nil {
 		// If downsampling setup to use a remote aggregator instead of local
 		// aggregator, set that up instead.
@@ -1022,18 +1022,13 @@ func (o DownsamplerOptions) newAggregatorPools() aggPools {
 	}
 }
 
-func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Options {
+func (o DownsamplerOptions) newAggregatorRulesOptions() rules.Options {
 	nameTag := defaultMetricNameTagName
 	if o.NameTag != "" {
 		nameTag = []byte(o.NameTag)
 	}
 
-	sortedTagIteratorFn := func(tagPairs []byte) id.SortedTagIterator {
-		it := pools.metricTagsIteratorPool.Get()
-		it.Reset(tagPairs)
-		return it
-	}
-
+	tagIter := serialize.NewMetricTagsIterator(serialize.NewTagDecoder(o.TagDecoderOptions), nil)
 	tagsFilterOpts := filters.TagsFilterOptions{
 		NameTagKey: nameTag,
 		NameAndTagsFn: func(id []byte) ([]byte, []byte, error) {
@@ -1045,13 +1040,14 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 			tags := id
 			return name, tags, nil
 		},
-		SortedTagIteratorFn: sortedTagIteratorFn,
+		SortedTagIteratorFn: func(tagPairs []byte) id.SortedTagIterator {
+			tagIter.Reset(tagPairs)
+			return tagIter
+		},
 	}
 
-	newRollupIDProviderPool := newRollupIDProviderPool(pools.tagEncoderPool,
-		o.TagEncoderPoolOptions, ident.BytesID(nameTag))
-	newRollupIDProviderPool.Init()
-
+	rollupIDProvider := newRollupIDProvider(
+		serialize.NewTagEncoder(o.TagEncoderOptions), nil, ident.BytesID(nameTag))
 	newRollupIDFn := func(newName []byte, tagPairs []id.TagPair) []byte {
 		// First filter out any tags that have a prefix that
 		// are not included in output metric IDs (such as metric
@@ -1068,7 +1064,7 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 		}
 
 		// Create the rollup using filtered tag pairs.
-		rollupIDProvider := newRollupIDProviderPool.Get()
+		// N.B - provide resets the rollupIDProvider
 		id, err := rollupIDProvider.provide(newName, filtered)
 		if err != nil {
 			panic(err) // Encoding should never fail
