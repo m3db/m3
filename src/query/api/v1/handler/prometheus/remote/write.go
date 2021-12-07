@@ -518,6 +518,12 @@ func (h *PromWriteHandler) write(
 	r *prompb.WriteRequest,
 	opts ingest.WriteOptions,
 ) ingest.BatchError {
+	for _, ts := range r.Timeseries {
+		if ts.Type == prompb.MetricType_UNKNOWN {
+			h.instrumentOpts.Logger().Warn("write without annotation",
+				zap.String("seriesID", string(storage.PromLabelsToM3Tags(ts.Labels, h.tagOptions).ID())))
+		}
+	}
 	iter, err := newPromTSIter(r.Timeseries, h.tagOptions, h.storeMetricsType)
 	if err != nil {
 		var errs xerrors.MultiError
