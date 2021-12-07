@@ -1061,6 +1061,9 @@ func (s *dbShard) SeriesRefResolver(
 			skipRateLimit: true,
 			// do not release entry ref during async write, because entry ref will be released when
 			// ReleaseRef() is called on bootstrap.SeriesRefResolver.
+			// TODO: the issue is this + the above IncrementReaderWriterCount - because the series resolver
+			// will resolve a new entry, which also increments. And so when we close the resolver it
+			// decrements once but then nothing decrements for the above increment.
 			releaseEntryRef: false,
 		},
 	})

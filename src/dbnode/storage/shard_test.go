@@ -2027,6 +2027,10 @@ func TestSeriesRefResolver(t *testing.T) {
 	resolverEntry, err := shard.SeriesRefResolver(seriesID, iter)
 	require.NoError(t, err)
 	require.IsType(t, &Entry{}, resolverEntry)
+
+	entry := resolverEntry.(*Entry)
+	require.Equal(t, int32(3), entry.ReaderWriterCount())
+
 	refEntry, err := resolverEntry.SeriesRef()
 	require.NoError(t, err)
 	require.Equal(t, seriesRef, refEntry)
@@ -2038,8 +2042,10 @@ func TestSeriesRefResolver(t *testing.T) {
 
 	err = resolver.ReleaseRef()
 	require.NoError(t, err)
+	require.Equal(t, int32(2), entry.ReaderWriterCount())
 	err = resolverEntry.ReleaseRef()
 	require.NoError(t, err)
+	require.Equal(t, int32(1), entry.ReaderWriterCount())
 }
 
 func getMockReader(
