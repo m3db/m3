@@ -28,15 +28,15 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 )
 
-// retrieveWritableSeriesFn represents the function to retrieve series entry.
-type retrieveWritableSeriesFn func(id ident.ID) (*Entry, error)
+// retrieveWritableSeriesAndIncrementReaderWriterCountFn represents the function to retrieve series entry.
+type retrieveWritableSeriesAndIncrementReaderWriterCountFn func(id ident.ID) (*Entry, error)
 
 type seriesResolver struct {
 	sync.RWMutex
 
-	wg                       *sync.WaitGroup
-	copiedID                 ident.ID
-	retrieveWritableSeriesFn retrieveWritableSeriesFn
+	wg                                                    *sync.WaitGroup
+	copiedID                                              ident.ID
+	retrieveWritableSeriesAndIncrementReaderWriterCountFn retrieveWritableSeriesAndIncrementReaderWriterCountFn
 
 	resolved    bool
 	resolvedErr error
@@ -47,12 +47,12 @@ type seriesResolver struct {
 func NewSeriesResolver(
 	wg *sync.WaitGroup,
 	copiedID ident.ID,
-	retrieveWritableSeriesFn retrieveWritableSeriesFn,
+	retrieveWritableSeriesAndIncrementReaderWriterCountFn retrieveWritableSeriesAndIncrementReaderWriterCountFn,
 ) bootstrap.SeriesRefResolver {
 	return &seriesResolver{
-		wg:                       wg,
-		copiedID:                 copiedID,
-		retrieveWritableSeriesFn: retrieveWritableSeriesFn,
+		wg:       wg,
+		copiedID: copiedID,
+		retrieveWritableSeriesAndIncrementReaderWriterCountFn: retrieveWritableSeriesAndIncrementReaderWriterCountFn,
 	}
 }
 
@@ -75,7 +75,7 @@ func (r *seriesResolver) resolve() error {
 
 	r.wg.Wait()
 	id := r.copiedID
-	entry, err := r.retrieveWritableSeriesFn(id)
+	entry, err := r.retrieveWritableSeriesAndIncrementReaderWriterCountFn(id)
 	r.resolved = true
 	// Retrieve the inserted entry
 	if err != nil {

@@ -1037,7 +1037,7 @@ func (s *dbShard) SeriesRefResolver(
 	tags ident.TagIterator,
 ) (bootstrap.SeriesRefResolver, error) {
 	// Try retrieve existing series.
-	entry, err := s.retrieveWritableSeries(id)
+	entry, err := s.retrieveWritableSeriesAndIncrementReaderWriterCount(id)
 	if err != nil {
 		return nil, err
 	}
@@ -1073,7 +1073,7 @@ func (s *dbShard) SeriesRefResolver(
 		wg,
 		// ID was already copied in newShardEntry so we can set it here safely.
 		entry.Series.ID(),
-		s.retrieveWritableSeries), nil
+		s.retrieveWritableSeriesAndIncrementReaderWriterCount), nil
 }
 
 func (s *dbShard) ReadEncoded(
@@ -1143,7 +1143,7 @@ func (s *dbShard) lookupEntryWithLock(id ident.ID) (*Entry, error) {
 
 func (s *dbShard) writableSeries(id ident.ID, tagResolver convert.TagMetadataResolver) (*Entry, error) {
 	for {
-		entry, err := s.retrieveWritableSeries(id)
+		entry, err := s.retrieveWritableSeriesAndIncrementReaderWriterCount(id)
 		if entry != nil {
 			return entry, nil
 		}
@@ -1192,7 +1192,7 @@ func (s *dbShard) TryRetrieveSeriesAndIncrementReaderWriterCount(id ident.ID) (
 	return nil, opts, nil
 }
 
-func (s *dbShard) retrieveWritableSeries(id ident.ID) (*Entry, error) {
+func (s *dbShard) retrieveWritableSeriesAndIncrementReaderWriterCount(id ident.ID) (*Entry, error) {
 	entry, _, err := s.TryRetrieveSeriesAndIncrementReaderWriterCount(id)
 	return entry, err
 }
