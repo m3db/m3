@@ -135,7 +135,7 @@ func (q *nsIndexInsertQueue) insertLoop() {
 	}()
 
 	var lastInsert time.Time
-	batch := q.newBatch(newBatchOptions{})
+	batch := q.newBatch(newBatchOptions{instrumented: true})
 	for range q.notifyInsert {
 		// Check if inserting too fast
 		elapsedSinceLastInsert := q.nowFn().Sub(lastInsert)
