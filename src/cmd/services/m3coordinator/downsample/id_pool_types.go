@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 
+	coordmodel "github.com/m3db/m3/src/cmd/services/m3coordinator/model"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -35,8 +36,8 @@ import (
 
 var (
 	defaultMetricNameTagName = []byte(model.MetricNameLabel)
-	rollupTagName            = []byte("__rollup__")
-	rollupTagValue           = []byte("true")
+	rollupTagName            = []byte(coordmodel.RollupTagName)
+	rollupTagValue           = []byte(coordmodel.RollupTagValue)
 	rollupTag                = ident.Tag{
 		Name:  ident.BytesID(rollupTagName),
 		Value: ident.BytesID(rollupTagValue),
