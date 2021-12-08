@@ -51,6 +51,9 @@ type RuleSet interface {
 
 	// Tombstoned returns whether the ruleset is tombstoned.
 	Tombstoned() bool
+
+	// Reset the RuleSet so it can be used for a new request.
+	Reset()
 }
 
 type ruleSetMetrics struct {
@@ -164,7 +167,7 @@ func (r *ruleSet) process(value interface{}) error {
 	return nil
 }
 
-func (r *ruleSet) reset() {
+func (r *ruleSet) Reset() {
 	r.Lock()
 	ruleSet := r.nextRuleSet
 	r.Unlock()

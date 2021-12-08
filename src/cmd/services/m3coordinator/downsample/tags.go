@@ -82,7 +82,7 @@ func (t *tags) filterPrefix(prefix []byte) bool {
 		}
 	}
 	// Reset the iterator index.
-	t.reset()
+	t.idx = -1
 	return modified
 }
 
@@ -96,8 +96,13 @@ func (t *tags) countPrefix(prefix []byte) int {
 	return count
 }
 
+// reset the tags to be used by a new metric.
 func (t *tags) reset() {
 	t.idx = -1
+	t.names = t.names[:0]
+	t.values = t.values[:0]
+	t.reusableTagName.ZeroOut()
+	t.reusableTagValue.ZeroOut()
 }
 
 func (t *tags) Len() int {

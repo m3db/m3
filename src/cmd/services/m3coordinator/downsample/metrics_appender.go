@@ -104,6 +104,7 @@ type metricsAppender struct {
 	defaultStagedMetadatasCopies []metadata.StagedMetadatas
 	mappingRuleStoragePolicies   []policy.StoragePolicy
 	originalTags                 *tags
+	copiedTags                   *tags
 }
 
 type metricsAppenderOptions struct {
@@ -154,6 +155,7 @@ func newMetricsAppender(pool *metricsAppenderPool, opts metricsAppenderOptions) 
 		tagEncoder:             serialize.NewTagEncoder(opts.tagEncoderOpts),
 		metricTagsIterator:     serialize.NewMetricTagsIterator(serialize.NewTagDecoder(opts.tagDecoderOpts), nil),
 		originalTags:           newTags(),
+		copiedTags:             newTags(),
 	}
 }
 
@@ -504,24 +506,25 @@ func (a *metricsAppender) Finalize() {
 func (a *metricsAppender) addSamplesAppenders(stagedMetadata metadata.StagedMetadata) error {
 	var (
 		pipelines []metadata.PipelineMetadata
-		newTags   = newTags()
 	)
 
 	for _, pipeline := range stagedMetadata.Pipelines {
 		// For pipeline which have tags to augment we generate and send
 		// separate IDs. Other pipelines return the same.
+		tags := newTags()
 		pipeline := pipeline
 		if len(pipeline.Tags) == 0 && len(pipeline.GraphitePrefix) == 0 {
 			pipelines = append(pipelines, pipeline)
 			continue
 		}
 
-		a.processTags(newTags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
+		a.copiedTags.reset()
+		a.processTags(tags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
 
 		sm := stagedMetadata
 		sm.Pipelines = []metadata.PipelineMetadata{pipeline}
 
-		appender, err := a.newSamplesAppender(newTags, sm)
+		appender, err := a.newSamplesAppender(tags, sm)
 		if err != nil {
 			return err
 		}
@@ -563,10 +566,13 @@ func (a *metricsAppender) newSamplesAppender(
 	if err != nil {
 		return samplesAppender{}, err
 	}
+	// TODO: need a cache of these
+	var id []byte
+	id = append(id, data.Bytes()...)
 	return samplesAppender{
 		agg:             a.agg,
 		clientRemote:    a.clientRemote,
-		unownedID:       data.Bytes(),
+		unownedID:       id,
 		stagedMetadatas: []metadata.StagedMetadata{sm},
 
 		processedCountNonRollup: a.metrics.processedCountNonRollup,

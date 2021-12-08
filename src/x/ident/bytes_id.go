@@ -81,6 +81,10 @@ func (i *ReusableBytesID) Reset(bytes []byte) {
 	i.bytes = bytes
 }
 
+func (i *ReusableBytesID) ZeroOut() {
+	i.bytes = i.bytes[:0]
+}
+
 // Bytes implements ID.
 func (i *ReusableBytesID) Bytes() []byte {
 	return i.bytes

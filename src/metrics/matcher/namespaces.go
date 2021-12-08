@@ -236,18 +236,21 @@ func (n *namespaces) Reset() error {
 	n.Unlock()
 	// no update since the last call, nothing to do.
 	if !hasNext {
+		for _, r := range n.rules.Iter() {
+			r.Value().Reset()
+		}
 		return nil
 	}
 	var (
 		watchWg  sync.WaitGroup
 		multiErr xerrors.MultiError
-		errLock  sync.Mutex
-		newNs    = make(map[string]rules.Namespace)
-		version  = nextNamespaces.Version()
+		errLock sync.Mutex
+		nextMap = make(map[string]rules.Namespace)
+		version = nextNamespaces.Version()
 	)
 
 	for _, elem := range nextNamespaces.Namespaces() {
-		newNs[string(elem.Name())] = elem
+		nextMap[string(elem.Name())] = elem
 		nsName, snapshots := elem.Name(), elem.Snapshots()
 		ruleSet, exists := n.rules.Get(elem.Name())
 		if !exists {
@@ -316,8 +319,9 @@ func (n *namespaces) Reset() error {
 
 	for _, entry := range n.rules.Iter() {
 		namespace, ruleSet := entry.Key(), entry.Value()
-		_, exists := newNs[string(entry.Key())]
+		_, exists := nextMap[string(entry.Key())]
 		if exists {
+			entry.Value().Reset()
 			continue
 		}
 		// Process the namespaces not in the incoming update.
