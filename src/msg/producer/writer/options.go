@@ -290,11 +290,11 @@ type Options interface {
 	// SetMessagePoolOptions sets the options of pool for messages.
 	SetMessagePoolOptions(value pool.ObjectPoolOptions) Options
 
-	// MessageRetryOptions returns the retry options for message retry.
-	MessageRetryOptions() retry.Options
+	// MessageRetryNanosFn returns the MessageRetryNanosFn.
+	MessageRetryNanosFn() MessageRetryNanosFn
 
-	// SetMessageRetryOptions sets the retry options for message retry.
-	SetMessageRetryOptions(value retry.Options) Options
+	// SetMessageRetryNanosFn sets the MessageRetryNanosFn.
+	SetMessageRetryNanosFn(value MessageRetryNanosFn) Options
 
 	// MessageQueueNewWritesScanInterval returns the interval between scanning
 	// message queue for new writes.
@@ -375,6 +375,7 @@ type Options interface {
 }
 
 type writerOptions struct {
+	messageRetryNanosFn               MessageRetryNanosFn
 	topicName                         string
 	topicService                      topic.Service
 	topicWatchInitTimeout             time.Duration
@@ -489,13 +490,13 @@ func (opts *writerOptions) SetMessagePoolOptions(value pool.ObjectPoolOptions) O
 	return &o
 }
 
-func (opts *writerOptions) MessageRetryOptions() retry.Options {
-	return opts.messageRetryOpts
+func (opts *writerOptions) MessageRetryNanosFn() MessageRetryNanosFn {
+	return opts.messageRetryNanosFn
 }
 
-func (opts *writerOptions) SetMessageRetryOptions(value retry.Options) Options {
+func (opts *writerOptions) SetMessageRetryNanosFn(value MessageRetryNanosFn) Options {
 	o := *opts
-	o.messageRetryOpts = value
+	o.messageRetryNanosFn = value
 	return &o
 }
 
