@@ -45,7 +45,10 @@ func NewConjunctionSearcher(searchers, negations search.Searchers) (search.Searc
 }
 
 func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
-	var pl postings.MutableList
+	var (
+		pl           postings.List
+		plNeedsClone = true
+	)
 	for _, sr := range s.searchers {
 		curr, err := sr.Search(r)
 		if err != nil {
@@ -54,14 +57,16 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 
 		// TODO: Sort the iterators so that we take the intersection in order of increasing size.
 		if pl == nil {
-			pl = curr.Clone()
+			pl = curr
 		} else {
-			if err := pl.Intersect(curr); err != nil {
+			pl, err = pl.Intersect(curr)
+			if err != nil {
 				return nil, err
 			}
+			plNeedsClone = false
 		}
 
-		// We can break early if the interescted postings list is ever empty.
+		// We can break early if the intersected postings list is ever empty.
 		if pl.IsEmpty() {
 			break
 		}
@@ -74,14 +79,21 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 		}
 
 		// TODO: Sort the iterators so that we take the set differences in order of decreasing size.
-		if err := pl.Difference(curr); err != nil {
+		pl, err = pl.Difference(curr)
+		if err != nil {
 			return nil, err
 		}
+		plNeedsClone = false
 
-		// We can break early if the interescted postings list is ever empty.
+		// We can break early if the resulting postings list is ever empty.
 		if pl.IsEmpty() {
 			break
 		}
+	}
+
+	if pl != nil && plNeedsClone {
+		// There was no new instance created indirectly (by Intersect/Difference), so need to clone.
+		pl = pl.CloneAsMutable()
 	}
 
 	return pl, nil
