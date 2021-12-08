@@ -87,6 +87,9 @@ func (r *seriesResolver) resolve() error {
 		r.resolvedErr = fmt.Errorf("could not resolve: %s", id)
 		return r.resolvedErr
 	}
+	// NB: we always retrieve already incremented entry during the resolver creation, so we must decrement
+	// rw count to avoid entry leaks.
+	entry.DecrementReaderWriterCount()
 	r.entry = entry
 	return nil
 }
