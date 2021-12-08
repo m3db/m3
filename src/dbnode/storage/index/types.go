@@ -577,17 +577,24 @@ type WriteBatch struct {
 }
 
 type WriteMetrics struct {
-	isNil          tally.Counter
-	needsReconcile tally.Counter
-	noReconcile    tally.Counter
+	isNil              tally.Counter
+	needsReconcile     tally.Counter
+	noReconcile        tally.Counter
+	isNilDone          tally.Counter
+	needsReconcileDone tally.Counter
+	noReconcileDone    tally.Counter
 }
 
 func NewMetrics(sc tally.Scope) *WriteMetrics {
 	scope := sc.SubScope("storage_index_reconcile_metrics")
 	return &WriteMetrics{
-		isNil:          scope.Tagged(map[string]string{"status": "nil"}).Counter("count"),
-		needsReconcile: scope.Tagged(map[string]string{"status": "needs_reconcile"}).Counter("count"),
-		noReconcile:    scope.Tagged(map[string]string{"status": "no_reconcile"}).Counter("count"),
+		isNil:          scope.Tagged(map[string]string{"done": "false", "status": "nil"}).Counter("count"),
+		needsReconcile: scope.Tagged(map[string]string{"done": "false", "status": "needs_reconcile"}).Counter("count"),
+		noReconcile:    scope.Tagged(map[string]string{"done": "false", "status": "no_reconcile"}).Counter("count"),
+
+		isNilDone:          scope.Tagged(map[string]string{"done": "true", "status": "nil"}).Counter("count"),
+		needsReconcileDone: scope.Tagged(map[string]string{"done": "true", "status": "needs_reconcile"}).Counter("count"),
+		noReconcileDone:    scope.Tagged(map[string]string{"done": "true", "status": "no_reconcile"}).Counter("count"),
 	}
 }
 
@@ -820,19 +827,33 @@ func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
 
 // MarkEntrySuccess marks an entry as success.
 func (b *WriteBatch) MarkEntrySuccess(idx int) {
+	isDone := b.entries[idx].result.Done
 	if b.entries[idx].OnIndexSeries != nil {
 		_, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
 		closer.Close()
+
 		if reconciled {
-			b.metrics.needsReconcile.Inc(1)
+			if isDone {
+				b.metrics.needsReconcileDone.Inc(1)
+			} else {
+				b.metrics.needsReconcile.Inc(1)
+			}
 		} else {
-			b.metrics.noReconcile.Inc(1)
+			if isDone {
+				b.metrics.noReconcileDone.Inc(1)
+			} else {
+				b.metrics.noReconcile.Inc(1)
+			}
 		}
 	} else {
-		b.metrics.isNil.Inc(1)
+		if isDone {
+			b.metrics.isNilDone.Inc(1)
+		} else {
+			b.metrics.isNil.Inc(1)
+		}
 	}
 
-	if !b.entries[idx].result.Done {
+	if !isDone {
 		blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
 
 		// Should this be reconciling?
