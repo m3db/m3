@@ -73,11 +73,8 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 	updateStore(t, store, stressTestRuleSetKey, ruleSet)
 
 	// Create matcher.
-	cache := stressTestCache()
 	iterPool := stressTestSortedTagIteratorPool()
 	opts := stressTestMatcherOptions(store, iterPool)
-	matcher := matcher.NewMatcher(opts.SetCache(cache))
-	require.NoError(t, matcher.Open())
 
 	inputs := []struct {
 		idFn      func(int) id.ID
@@ -223,7 +220,10 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
+			matcher := matcher.NewMatcher(opts)
+			require.NoError(t, matcher.Open())
 			for i := 0; i < matchIter; i++ {
+				require.NoError(t, matcher.Reset())
 				res, err := matcher.ForwardMatch(input.idFn(i), input.fromNanos, input.toNanos)
 				require.NoError(t, err)
 				results = append(results, res)
@@ -287,7 +287,9 @@ func validateMatchResult(
 		cmpopts.EquateEmpty(),
 	}
 
-	require.True(t, cmp.Equal(expected, actual, testMatchResultCmpOpts...))
+	if !cmp.Equal(expected, actual, testMatchResultCmpOpts...) {
+		require.Fail(t, cmp.Diff(expected, actual, testMatchResultCmpOpts...))
+	}
 }
 
 func updateStore(
@@ -303,10 +305,10 @@ func updateStore(
 func stressTestNamespaces() *rulepb.Namespaces {
 	return &rulepb.Namespaces{
 		Namespaces: []*rulepb.Namespace{
-			&rulepb.Namespace{
+			{
 				Name: stressTestNamespaceName,
 				Snapshots: []*rulepb.NamespaceSnapshot{
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 1,
 						Tombstoned:        false,
 					},
@@ -318,16 +320,16 @@ func stressTestNamespaces() *rulepb.Namespaces {
 
 func stressTestMappingRulesConfig() []*rulepb.MappingRule {
 	return []*rulepb.MappingRule{
-		&rulepb.MappingRule{
+		{
 			Uuid: "mappingRule1",
 			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
+				{
 					Name:         "mappingRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 1000,
 					Filter:       "mtagName1:mtagValue1",
 					StoragePolicies: []*policypb.StoragePolicy{
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: int64(10 * time.Second),
 								Precision:  int64(time.Second),
@@ -345,17 +347,17 @@ func stressTestMappingRulesConfig() []*rulepb.MappingRule {
 
 func stressTestRollupRulesConfig() []*rulepb.RollupRule {
 	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
+		{
 			Uuid: "rollupRule1",
 			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 500,
 					Filter:       "rtagName1:rtagValue1",
 					KeepOriginal: true,
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -368,7 +370,7 @@ func stressTestRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
@@ -426,7 +428,7 @@ func stressTestMatcherOptions(
 	}
 	ruleSetOpts := rules.NewOptions().
 		SetTagsFilterOptions(tagsFilterOpts).
-		SetRollupIDer(m3.NewRollupID)
+		SetRollupIDer(m3.NewRollupIDer())
 	return matcher.NewOptions().
 		SetKVStore(store).
 		SetNamespacesKey(stressTestNamespacesKey).

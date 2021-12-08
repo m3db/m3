@@ -222,9 +222,9 @@ type agg struct {
 	aggregator   aggregator.Aggregator
 	clientRemote client.Client
 
-	clockOpts              clock.Options
-	matcherOpts            matcher.Options
-	untimedRollups         bool
+	clockOpts      clock.Options
+	matcherOpts    matcher.Options
+	untimedRollups bool
 }
 
 // Configuration configurates a downsampler.
@@ -675,8 +675,8 @@ func (cfg Configuration) NewDownsampler(
 	}
 
 	return newDownsampler(downsamplerOptions{
-		opts:         opts,
-		agg:          agg,
+		opts: opts,
+		agg:  agg,
 	})
 }
 

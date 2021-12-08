@@ -52,6 +52,7 @@ type decoder struct {
 	pool TagDecoderPool
 }
 
+// NewTagDecoder creates a new TagDecoder without a pool.
 func NewTagDecoder(opts TagDecoderOptions) TagDecoder {
 	return newTagDecoder(opts, nil)
 }

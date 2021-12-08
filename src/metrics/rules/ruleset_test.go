@@ -61,7 +61,6 @@ var (
 		cmp.AllowUnexported(rollupRuleSnapshot{}),
 		cmpopts.IgnoreTypes(
 			activeRuleSet{}.tagsFilterOpts,
-			activeRuleSet{}.rollupIDer,
 		),
 		cmpopts.IgnoreInterfaces(struct{ filters.Filter }{}),
 		cmpopts.IgnoreInterfaces(struct{ aggregation.TypesOptions }{}),
@@ -74,7 +73,6 @@ var (
 		cmp.AllowUnexported(rollupRuleSnapshot{}),
 		cmpopts.IgnoreTypes(
 			ruleSet{}.tagsFilterOpts,
-			ruleSet{}.rollupIDer,
 		),
 		cmpopts.IgnoreInterfaces(struct{ filters.Filter }{}),
 		cmpopts.IgnoreInterfaces(struct{ aggregation.TypesOptions }{}),
@@ -2205,9 +2203,9 @@ func testTagsFilterOptions() filters.TagsFilterOptions {
 
 type mockIDer struct{}
 
-func (m mockIDer) ID(name []byte, tags []id.TagPair) []byte {
+func (m mockIDer) ID(name []byte, tags []id.TagPair) ([]byte, error) {
 	if len(tags) == 0 {
-		return name
+		return name, nil
 	}
 	var buf bytes.Buffer
 	buf.Write(name)
@@ -2222,13 +2220,13 @@ func (m mockIDer) ID(name []byte, tags []id.TagPair) []byte {
 			}
 		}
 	}
-	return buf.Bytes()
+	return buf.Bytes(), nil
 }
 
 func testRuleSetOptions() Options {
 	return NewOptions().
 		SetTagsFilterOptions(testTagsFilterOptions()).
-		SetRollupIDer(mockNewID)
+		SetRollupIDer(&mockIDer{})
 }
 
 func b(v string) []byte       { return []byte(v) }

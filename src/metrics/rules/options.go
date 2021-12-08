@@ -37,12 +37,12 @@ type Options interface {
 	SetRollupIDer(value id.IDer) Options
 
 	// NewRollupIDFn returns the new rollup id function.
-	RollupIDer () id.IDer
+	RollupIDer() id.IDer
 }
 
 type options struct {
 	tagsFilterOpts filters.TagsFilterOptions
-	rollupIDer  id.IDer
+	rollupIDer     id.IDer
 }
 
 // NewOptions creates a new set of options.

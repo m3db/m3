@@ -81,6 +81,7 @@ type encoder struct {
 	pool TagEncoderPool
 }
 
+// NewTagEncoder creates a new TagEncoder without a pool.
 func NewTagEncoder(opts TagEncoderOptions) TagEncoder {
 	return newTagEncoder(defaultNewCheckedBytesFn, opts, nil)
 }

@@ -60,6 +60,8 @@ func TestNamespacesWatchAndClose(t *testing.T) {
 	_, err := store.SetIfNotExists(testNamespacesKey, proto)
 	require.NoError(t, err)
 	require.NoError(t, nss.Watch())
+	require.Equal(t, 0, nss.rules.Len())
+	require.NoError(t, nss.Reset())
 	require.Equal(t, 1, nss.rules.Len())
 	nss.Close()
 }
@@ -121,9 +123,10 @@ func TestNamespacesWatchRulesetHardErr(t *testing.T) {
 	_, err := store.SetIfNotExists(testNamespacesKey, proto)
 	require.NoError(t, err)
 
+	require.NoError(t, nss.Open())
 	// This should also hard error with RequireNamespaceWatchOnInit enabled,
 	// because the underlying ruleset does not exist
-	require.Error(t, nss.Open())
+	require.Error(t, nss.Reset())
 }
 
 func TestNamespacesOpenWithInterrupt(t *testing.T) {
@@ -257,6 +260,8 @@ func TestNamespacesProcess(t *testing.T) {
 	nssValue, err := rules.NewNamespaces(5, update)
 	require.NoError(t, err)
 	require.NoError(t, nss.process(nssValue))
+	require.Equal(t, 4, nss.rules.Len())
+	require.NoError(t, nss.Reset())
 	require.Equal(t, 5, nss.rules.Len())
 	require.Equal(t, 5, len(c.namespaces))
 

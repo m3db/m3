@@ -54,9 +54,16 @@ var (
 	}
 )
 
-// NewRollupID generates a new rollup id given the new metric name
+type rollupIDer struct{}
+
+// NewRollupIDer creates a new IDer for rollups.
+func NewRollupIDer() id.IDer {
+	return &rollupIDer{}
+}
+
+// ID generates a new rollup id given the new metric name
 // and a list of tag pairs. Note that tagPairs are mutated in place.
-func NewRollupID(name []byte, tagPairs []id.TagPair) []byte {
+func (r *rollupIDer) ID(name []byte, tagPairs []id.TagPair) ([]byte, error) {
 	var buf bytes.Buffer
 
 	// Adding rollup tag pair to the list of tag pairs.
@@ -75,7 +82,7 @@ func NewRollupID(name []byte, tagPairs []id.TagPair) []byte {
 		}
 	}
 
-	return buf.Bytes()
+	return buf.Bytes(), nil
 }
 
 // IsRollupID determines whether an id is a rollup id.

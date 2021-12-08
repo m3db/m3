@@ -499,11 +499,11 @@ func (as *activeRuleSet) matchRollupTarget(
 	}
 
 	newName := rollupOp.NewName(nameTagValue)
-	rollupId, err := as.rollupIDer.ID(newName, tagPairs)
+	rollupID, err := as.rollupIDer.ID(newName, tagPairs)
 	if err != nil {
 		return nil, false, err
 	}
-	return rollupId, true, nil
+	return rollupID, true, nil
 }
 
 func (as *activeRuleSet) applyIDToPipeline(

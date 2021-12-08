@@ -81,6 +81,7 @@ func (i *ReusableBytesID) Reset(bytes []byte) {
 	i.bytes = bytes
 }
 
+// ZeroOut resets the bytes slice to have a zero length.
 func (i *ReusableBytesID) ZeroOut() {
 	i.bytes = i.bytes[:0]
 }

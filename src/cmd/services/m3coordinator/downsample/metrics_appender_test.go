@@ -50,21 +50,24 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 	count := 3
 
 	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
-	appenderPool := newMetricsAppenderPool(metricsAppenderOptions{}, poolOpts)
+	appenderPool := newMetricsAppenderPool(defaultMetricsAppenderOptions(DownsamplerOptions{}, agg{}), poolOpts)
 
-	tagEncoderPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
-		poolOpts)
-	tagEncoderPool.Init()
+	/*	tagEncoderPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
+				poolOpts)
+			tagEncoderPool.Init()
 
+		tagDecoderPool := serialize.NewTagDecoderPool(
+			serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{
+				CheckBytesWrapperPoolSize: &size,
+			}), poolOpts)
+		tagDecoderPool.Init()
+
+		metricTagsIteratorPool := serialize.NewMetricTagsIteratorPool(tagDecoderPool, poolOpts)
+		metricTagsIteratorPool.Init()*/
 	size := 1
-	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{
-			CheckBytesWrapperPoolSize: &size,
-		}), poolOpts)
-	tagDecoderPool.Init()
-
-	metricTagsIteratorPool := serialize.NewMetricTagsIteratorPool(tagDecoderPool, poolOpts)
-	metricTagsIteratorPool.Init()
+	decoder := serialize.NewTagDecoder(serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{
+		CheckBytesWrapperPoolSize: &size,
+	}))
 
 	for i := 0; i < count; i++ {
 		m := matcher.NewMockMatcher(ctrl)
@@ -73,7 +76,6 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 				// NB: ensure tags are cleared correctly between runs.
 				bs := encodedID.Bytes()
 
-				decoder := tagDecoderPool.Get()
 				decoder.Reset(checked.NewBytes(bs, nil))
 
 				var id string
@@ -103,15 +105,15 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 		appender, err := appenderPool.Get()
 		require.NoError(t, err)
 		agg := aggregator.NewMockAggregator(ctrl)
-		//appender.reset(metricsAppenderOptions{
-		//	agg:                    agg,
-		//	metrics: metricsAppenderMetrics{
-		//		processedCountNonRollup: tally.NoopScope.Counter("test-counter-non-rollup"),
-		//		processedCountRollup:    tally.NoopScope.Counter("test-counter-rollup"),
-		//		operationsCount:         tally.NoopScope.Counter("test-counter-operations"),
-		//	},
-		//})
-		appender.reset(nil)
+		/*		appender.reset(metricsAppenderOptions{
+				agg:                    agg,
+				metrics: metricsAppenderMetrics{
+					processedCountNonRollup: tally.NoopScope.Counter("test-counter-non-rollup"),
+					processedCountRollup:    tally.NoopScope.Counter("test-counter-rollup"),
+					operationsCount:         tally.NoopScope.Counter("test-counter-operations"),
+				},
+			})*/
+		require.NoError(t, appender.reset(nil))
 		name := []byte(fmt.Sprint("foo", i))
 		value := []byte(fmt.Sprint("bar", i))
 		appender.AddTag(name, value)
@@ -145,7 +147,6 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 }
 
 func TestSamplesAppenderPoolResetsTagSimple(t *testing.T) {
-	t.Skip()
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -155,13 +156,13 @@ func TestSamplesAppenderPoolResetsTagSimple(t *testing.T) {
 	appender, err := appenderPool.Get()
 	require.NoError(t, err)
 	appender.AddTag([]byte("foo"), []byte("bar"))
-	assert.Equal(t, 1, len(appender.originalTags.names))
-	assert.Equal(t, 1, len(appender.originalTags.values))
+	assert.Equal(t, 1, len(appender.commonTags.names))
+	assert.Equal(t, 1, len(appender.commonTags.values))
 	appender.Finalize()
 
 	// NB: getting a new appender from the pool yields a clean appender.
 	appender, err = appenderPool.Get()
 	require.NoError(t, err)
-	assert.Nil(t, appender.originalTags)
+	assert.Nil(t, appender.commonTags)
 	appender.Finalize()
 }

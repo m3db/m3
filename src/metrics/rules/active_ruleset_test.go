@@ -55,7 +55,7 @@ func TestActiveRuleSetCutoverTimesWithMappingRules(t *testing.T) {
 		testMappingRules(t),
 		nil,
 		testTagsFilterOptions(),
-		mockNewID,
+		&mockIDer{},
 	)
 	expectedCutovers := []int64{5000, 8000, 10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 100000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -67,7 +67,7 @@ func TestActiveRuleSetCutoverTimesWithRollupRules(t *testing.T) {
 		nil,
 		testRollupRules(t),
 		testTagsFilterOptions(),
-		mockNewID,
+		&mockIDer{},
 	)
 	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 90000, 100000, 120000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -79,7 +79,7 @@ func TestActiveRuleSetCutoverTimesWithMappingRulesAndRollupRules(t *testing.T) {
 		testMappingRules(t),
 		testRollupRules(t),
 		testTagsFilterOptions(),
-		mockNewID,
+		&mockIDer{},
 	)
 	expectedCutovers := []int64{5000, 8000, 10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 90000, 100000, 120000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -549,7 +549,7 @@ func TestActiveRuleSetForwardMatchWithMappingRules(t *testing.T) {
 		testMappingRules(t),
 		nil,
 		testTagsFilterOptions(),
-		mockNewID,
+		&mockIDer{},
 	)
 	for i, input := range inputs {
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
@@ -576,7 +576,7 @@ func TestActiveRuleSetForwardMatchWithAnyKeepOriginal(t *testing.T) {
 		nil,
 		testKeepOriginalRollupRules(t),
 		testTagsFilterOptions(),
-		mockNewID,
+		&mockIDer{},
 	)
 
 	for i, input := range inputs {
@@ -1433,7 +1433,7 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 		nil,
 		testRollupRules(t),
 		testTagsFilterOptions(),
-		mockNewID,
+		&mockIDer{},
 	)
 
 	for i, input := range inputs {
@@ -2672,7 +2672,7 @@ func TestActiveRuleSetForwardMatchWithMappingRulesAndRollupRules(t *testing.T) {
 		testMappingRules(t),
 		testRollupRules(t),
 		testTagsFilterOptions(),
-		mockNewID,
+		&mockIDer{},
 	)
 	for i, input := range inputs {
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
@@ -2755,7 +2755,7 @@ func TestMatchedKeepOriginal(t *testing.T) {
 			nil,
 			rollups,
 			testTagsFilterOptions(),
-			mockNewID,
+			&mockIDer{},
 		)
 	)
 

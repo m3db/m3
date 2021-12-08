@@ -171,6 +171,9 @@ func (r *ruleSet) Reset() {
 	r.Lock()
 	ruleSet := r.nextRuleSet
 	r.Unlock()
+	if ruleSet == nil {
+		return
+	}
 	r.version = ruleSet.Version()
 	r.cutoverNanos = ruleSet.CutoverNanos()
 	r.tombstoned = ruleSet.Tombstoned()

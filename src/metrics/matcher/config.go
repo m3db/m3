@@ -115,7 +115,7 @@ func (cfg *Configuration) NewOptions(
 
 	ruleSetOpts := rules.NewOptions().
 		SetTagsFilterOptions(tagsFilterOptions).
-		SetRollupIDer(id.IDerFunc(m3.NewRollupID))
+		SetRollupIDer(m3.NewRollupIDer())
 
 	// Configure ruleset key function.
 	ruleSetKeyFn := func(namespace []byte) string {

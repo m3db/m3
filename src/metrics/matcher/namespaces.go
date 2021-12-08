@@ -244,9 +244,9 @@ func (n *namespaces) Reset() error {
 	var (
 		watchWg  sync.WaitGroup
 		multiErr xerrors.MultiError
-		errLock sync.Mutex
-		nextMap = make(map[string]rules.Namespace)
-		version = nextNamespaces.Version()
+		errLock  sync.Mutex
+		nextMap  = make(map[string]rules.Namespace)
+		version  = nextNamespaces.Version()
 	)
 
 	for _, elem := range nextNamespaces.Namespaces() {

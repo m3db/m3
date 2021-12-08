@@ -39,7 +39,9 @@ func TestNewRollupID(t *testing.T) {
 		}
 	)
 	expected := []byte("m3+foo+m3_rollup=true,tagName0=tagValue0,tagName1=tagValue1,tagName2=tagValue2")
-	require.Equal(t, expected, NewRollupID(name, tagPairs))
+	id, err := NewRollupIDer().ID(name, tagPairs)
+	require.NoError(t, err)
+	require.Equal(t, expected, id)
 }
 
 func TestIsRollupIDNilIterator(t *testing.T) {

@@ -72,7 +72,7 @@ func (mr *MockTagEncoderMockRecorder) Data() *gomock.Call {
 }
 
 // Encode mocks base method.
-func (m *MockTagEncoder) Encode(arg0 ident.TagIterator) error {
+func (m *MockTagEncoder) Encode(arg0 ident.TagEncodingIterator) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Encode", arg0)
 	ret0, _ := ret[0].(error)

@@ -103,8 +103,10 @@ type metricsAppender struct {
 	curr                         metadata.StagedMetadata
 	defaultStagedMetadatasCopies []metadata.StagedMetadatas
 	mappingRuleStoragePolicies   []policy.StoragePolicy
-	originalTags                 *tags
-	copiedTags                   *tags
+	// the tags common to all samplesAppenders added.
+	commonTags *tags
+	// a []byte cache for copying the sampleAppender ids from the decoder.
+	samplesAppenderIDs [][]byte
 }
 
 type metricsAppenderOptions struct {
@@ -129,7 +131,7 @@ func newMetricsAppender(pool *metricsAppenderPool, opts metricsAppenderOptions) 
 		NameTagKey: nameTag,
 		NameAndTagsFn: func(id []byte) ([]byte, []byte, error) {
 			name, err := resolveEncodedTagsNameTag(id, nameTag)
-			if err != nil && err != errNoMetricNameTag {
+			if err != nil && !errors.Is(err, errNoMetricNameTag) {
 				return nil, nil, err
 			}
 			// ID is always the encoded tags for IDs in the downsampler
@@ -154,8 +156,7 @@ func newMetricsAppender(pool *metricsAppenderPool, opts metricsAppenderOptions) 
 		matcher:                matcher.NewMatcher(opts.matcherOpts.SetRuleSetOptions(rulesOpts)),
 		tagEncoder:             serialize.NewTagEncoder(opts.tagEncoderOpts),
 		metricTagsIterator:     serialize.NewMetricTagsIterator(serialize.NewTagDecoder(opts.tagDecoderOpts), nil),
-		originalTags:           newTags(),
-		copiedTags:             newTags(),
+		commonTags:             newTags(),
 	}
 }
 
@@ -186,15 +187,16 @@ func (a *metricsAppender) reset(defaultStagedMetadatasProtos []metricpb.StagedMe
 		slice := a.defaultStagedMetadatasCopies[:capRequired]
 		a.defaultStagedMetadatasCopies = slice
 	}
+	a.samplesAppenderIDs = a.samplesAppenderIDs[:0]
 	return nil
 }
 
 func (a *metricsAppender) AddTag(name, value []byte) {
-	a.originalTags.append(name, value)
+	a.commonTags.append(name, value)
 }
 
 func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAppenderResult, error) {
-	if a.originalTags.Len() == 0 {
+	if a.commonTags.Len() == 0 {
 		return SamplesAppenderResult{}, errNoTags
 	}
 
@@ -203,36 +205,36 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	// filter match and then stripped off before we actually send to the aggregator.
 	switch opts.SeriesAttributes.M3Type {
 	case ts.M3MetricTypeCounter:
-		a.originalTags.append(metric.M3TypeTag, metric.M3CounterValue)
+		a.commonTags.append(metric.M3TypeTag, metric.M3CounterValue)
 	case ts.M3MetricTypeGauge:
-		a.originalTags.append(metric.M3TypeTag, metric.M3GaugeValue)
+		a.commonTags.append(metric.M3TypeTag, metric.M3GaugeValue)
 	case ts.M3MetricTypeTimer:
-		a.originalTags.append(metric.M3TypeTag, metric.M3TimerValue)
+		a.commonTags.append(metric.M3TypeTag, metric.M3TimerValue)
 	}
 	switch opts.SeriesAttributes.PromType {
 	case ts.PromMetricTypeUnknown:
-		a.originalTags.append(metric.M3PromTypeTag, metric.PromUnknownValue)
+		a.commonTags.append(metric.M3PromTypeTag, metric.PromUnknownValue)
 	case ts.PromMetricTypeCounter:
-		a.originalTags.append(metric.M3PromTypeTag, metric.PromCounterValue)
+		a.commonTags.append(metric.M3PromTypeTag, metric.PromCounterValue)
 	case ts.PromMetricTypeGauge:
-		a.originalTags.append(metric.M3PromTypeTag, metric.PromGaugeValue)
+		a.commonTags.append(metric.M3PromTypeTag, metric.PromGaugeValue)
 	case ts.PromMetricTypeHistogram:
-		a.originalTags.append(metric.M3PromTypeTag, metric.PromHistogramValue)
+		a.commonTags.append(metric.M3PromTypeTag, metric.PromHistogramValue)
 	case ts.PromMetricTypeGaugeHistogram:
-		a.originalTags.append(metric.M3PromTypeTag, metric.PromGaugeHistogramValue)
+		a.commonTags.append(metric.M3PromTypeTag, metric.PromGaugeHistogramValue)
 	case ts.PromMetricTypeSummary:
-		a.originalTags.append(metric.M3PromTypeTag, metric.PromSummaryValue)
+		a.commonTags.append(metric.M3PromTypeTag, metric.PromSummaryValue)
 	case ts.PromMetricTypeInfo:
-		a.originalTags.append(metric.M3PromTypeTag, metric.PromInfoValue)
+		a.commonTags.append(metric.M3PromTypeTag, metric.PromInfoValue)
 	case ts.PromMetricTypeStateSet:
-		a.originalTags.append(metric.M3PromTypeTag, metric.PromStateSetValue)
+		a.commonTags.append(metric.M3PromTypeTag, metric.PromStateSetValue)
 	}
 
 	// Sort tags
-	sort.Sort(a.originalTags)
+	sort.Sort(a.commonTags)
 
 	// Encode tags and compute a temporary (unowned) ID
-	data, err := a.encodeTags(a.originalTags)
+	data, err := a.encodeTags(a.commonTags)
 	if err != nil {
 		return SamplesAppenderResult{}, err
 	}
@@ -251,7 +253,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 
 	// Filter out augmented metrics tags we added for matching.
 	for _, filter := range defaultFilterOutTagPrefixes {
-		a.originalTags.filterPrefix(filter)
+		a.commonTags.filterPrefix(filter)
 	}
 
 	// Reuse a slice to keep the current staged metadatas we will apply.
@@ -480,7 +482,7 @@ func (a *metricsAppender) debugLogMatch(str string, opts debugLogMatchOptions) {
 		return
 	}
 	fields := []zapcore.Field{
-		zap.String("tags", a.originalTags.String()),
+		zap.String("tags", a.commonTags.String()),
 	}
 	if v := opts.RollupID; v != nil {
 		fields = append(fields, zap.ByteString("rollupID", v))
@@ -495,7 +497,7 @@ func (a *metricsAppender) debugLogMatch(str string, opts debugLogMatchOptions) {
 }
 
 func (a *metricsAppender) NextMetric() {
-	a.originalTags.reset()
+	a.commonTags.reset()
 }
 
 func (a *metricsAppender) Finalize() {
@@ -505,26 +507,26 @@ func (a *metricsAppender) Finalize() {
 
 func (a *metricsAppender) addSamplesAppenders(stagedMetadata metadata.StagedMetadata) error {
 	var (
-		pipelines []metadata.PipelineMetadata
+		pipelines    []metadata.PipelineMetadata
+		appenderTags = newTags()
 	)
 
 	for _, pipeline := range stagedMetadata.Pipelines {
 		// For pipeline which have tags to augment we generate and send
 		// separate IDs. Other pipelines return the same.
-		tags := newTags()
 		pipeline := pipeline
 		if len(pipeline.Tags) == 0 && len(pipeline.GraphitePrefix) == 0 {
 			pipelines = append(pipelines, pipeline)
 			continue
 		}
 
-		a.copiedTags.reset()
-		a.processTags(tags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
+		appenderTags.reset()
+		a.processTags(appenderTags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
 
 		sm := stagedMetadata
 		sm.Pipelines = []metadata.PipelineMetadata{pipeline}
 
-		appender, err := a.newSamplesAppender(tags, sm)
+		appender, err := a.newSamplesAppender(appenderTags, sm)
 		if err != nil {
 			return err
 		}
@@ -538,7 +540,7 @@ func (a *metricsAppender) addSamplesAppenders(stagedMetadata metadata.StagedMeta
 	sm := stagedMetadata
 	sm.Pipelines = pipelines
 
-	appender, err := a.newSamplesAppender(a.originalTags, sm)
+	appender, err := a.newSamplesAppender(a.commonTags, sm)
 	if err != nil {
 		return err
 	}
@@ -566,13 +568,21 @@ func (a *metricsAppender) newSamplesAppender(
 	if err != nil {
 		return samplesAppender{}, err
 	}
-	// TODO: need a cache of these
-	var id []byte
-	id = append(id, data.Bytes()...)
+	// N.B - need to copy the bytes from the encoder because it will be reused for additional samplesAppenders in this
+	// request.
+	var appenderID []byte
+	if cap(a.samplesAppenderIDs) == len(a.samplesAppenderIDs) {
+		appenderID = append(appenderID, data.Bytes()...)
+		a.samplesAppenderIDs = append(a.samplesAppenderIDs, appenderID)
+	} else {
+		a.samplesAppenderIDs = a.samplesAppenderIDs[0 : len(a.samplesAppenderIDs)+1]
+		appenderID = a.samplesAppenderIDs[len(a.samplesAppenderIDs)-1][:0]
+		appenderID = append(appenderID, data.Bytes()...)
+	}
 	return samplesAppender{
 		agg:             a.agg,
 		clientRemote:    a.clientRemote,
-		unownedID:       id,
+		unownedID:       appenderID,
 		stagedMetadatas: []metadata.StagedMetadata{sm},
 
 		processedCountNonRollup: a.metrics.processedCountNonRollup,
@@ -595,13 +605,13 @@ func (a *metricsAppender) processTags(
 
 	// Make a copy of the tags to augment.
 	prefixes := len(graphitePrefix)
-	for i := range a.originalTags.names {
+	for i := range a.commonTags.names {
 		// If we applied prefixes then we need to parse and modify the original
 		// tags. Check if the original tag was graphite type, if so add the
 		// number of prefixes to the tag index and update.
 		var (
-			name  = a.originalTags.names[i]
-			value = a.originalTags.values[i]
+			name  = a.commonTags.names[i]
+			value = a.commonTags.values[i]
 		)
 		if prefixes > 0 {
 			// If the tag seen is a graphite tag then offset it based on number

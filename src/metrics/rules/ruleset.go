@@ -142,8 +142,8 @@ type ruleSet struct {
 	cutoverNanos       int64
 	mappingRules       []*mappingRule
 	rollupRules        []*rollupRule
-	tagsFilterOpts filters.TagsFilterOptions
-	rollupIDer     metricid.IDer
+	tagsFilterOpts     filters.TagsFilterOptions
+	rollupIDer         metricid.IDer
 }
 
 // NewRuleSetFromProto creates a new RuleSet from a proto object.

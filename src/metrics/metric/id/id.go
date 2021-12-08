@@ -43,20 +43,6 @@ type IDer interface {
 	ID(name []byte, tags []TagPair) ([]byte, error)
 }
 
-type iderFunc struct {
-	f newIdFn
-}
-
-type newIdFn func(name []byte, tags []TagPair) []byte
-
-func (i iderFunc) ID(name []byte, tags []TagPair) ([]byte, error) {
-	return i.f(name, tags), nil
-}
-
-func IDerFunc(f newIdFn) IDer {
-	return iderFunc{f: f}
-}
-
 // RawID is the raw metric id.
 type RawID []byte
 

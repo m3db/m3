@@ -52,8 +52,6 @@ type TagEncoder interface {
 	Finalize()
 }
 
-type NewTagEncoderFn func() TagEncoder
-
 // TagEncoderPool pools TagEncoders.
 type TagEncoderPool interface {
 	// Init initializes the pool.
@@ -142,8 +140,6 @@ type MetricTagsIterator interface {
 	id.SortedTagIterator
 	NumTags() int
 }
-
-type NewMetricTagsIteratorFn func() MetricTagsIterator
 
 // MetricTagsIteratorPool pools MetricTagsIterator.
 type MetricTagsIteratorPool interface {
