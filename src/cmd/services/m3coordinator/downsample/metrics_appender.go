@@ -120,6 +120,7 @@ type metricsAppenderOptions struct {
 	logger         *zap.Logger
 	metrics        metricsAppenderMetrics
 	matcherOpts    matcher.Options
+	newMatcherFn   matcher.NewMatcherFn
 	tagEncoderOpts serialize.TagEncoderOptions
 	tagDecoderOpts serialize.TagDecoderOptions
 }
@@ -153,7 +154,7 @@ func newMetricsAppender(pool *metricsAppenderPool, opts metricsAppenderOptions) 
 		metricsAppenderOptions: opts,
 		pool:                   pool,
 		multiSamplesAppender:   newMultiSamplesAppender(),
-		matcher:                matcher.NewMatcher(opts.matcherOpts.SetRuleSetOptions(rulesOpts)),
+		matcher:                opts.newMatcherFn(opts.matcherOpts.SetRuleSetOptions(rulesOpts)),
 		tagEncoder:             serialize.NewTagEncoder(opts.tagEncoderOpts),
 		metricTagsIterator:     serialize.NewMetricTagsIterator(serialize.NewTagDecoder(opts.tagDecoderOpts), nil),
 		commonTags:             newTags(),

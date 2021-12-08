@@ -129,6 +129,7 @@ func TestRuleSetProcessNamespaceNotRegistered(t *testing.T) {
 	for _, input := range inputs {
 		err := rs.process(input)
 		require.NoError(t, err)
+		rs.Reset()
 	}
 
 	require.Equal(t, 5, rs.Version())
@@ -157,6 +158,7 @@ func TestRuleSetProcessStaleUpdate(t *testing.T) {
 	for _, input := range inputs {
 		err := rs.process(input)
 		require.NoError(t, err)
+		rs.Reset()
 	}
 
 	require.Equal(t, 5, rs.Version())
@@ -186,6 +188,7 @@ func TestRuleSetProcessSuccess(t *testing.T) {
 	for _, input := range inputs {
 		err := rs.process(input)
 		require.NoError(t, err)
+		rs.Reset()
 	}
 
 	require.Equal(t, 5, rs.Version())
@@ -248,5 +251,6 @@ func testRuleSet() (kv.Store, cache.Cache, *ruleSet) {
 		SetRuleSetKeyFn(func(ns []byte) string { return fmt.Sprintf("/rules/%s", ns) }).
 		SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) { cache.Refresh(namespace, ruleSet) }).
 		SetMatchRangePast(0)
-	return store, cache, newRuleSet(testNamespace, testNamespacesKey, opts).(*ruleSet)
+	rs := newRuleSet(testNamespace, testNamespacesKey, opts).(*ruleSet)
+	return store, cache, rs
 }

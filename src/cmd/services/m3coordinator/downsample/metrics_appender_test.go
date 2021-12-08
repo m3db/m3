@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/metadata"
@@ -43,36 +45,36 @@ import (
 )
 
 func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
-	t.Skip()
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	count := 3
-
-	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
-	appenderPool := newMetricsAppenderPool(defaultMetricsAppenderOptions(DownsamplerOptions{}, agg{}), poolOpts)
-
-	/*	tagEncoderPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
-				poolOpts)
-			tagEncoderPool.Init()
-
-		tagDecoderPool := serialize.NewTagDecoderPool(
-			serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{
-				CheckBytesWrapperPoolSize: &size,
-			}), poolOpts)
-		tagDecoderPool.Init()
-
-		metricTagsIteratorPool := serialize.NewMetricTagsIteratorPool(tagDecoderPool, poolOpts)
-		metricTagsIteratorPool.Init()*/
+	m := matcher.NewMockMatcher(ctrl)
+	agg := aggregator.NewMockAggregator(ctrl)
 	size := 1
-	decoder := serialize.NewTagDecoder(serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{
+	decoderOpts := serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{
 		CheckBytesWrapperPoolSize: &size,
-	}))
-
-	for i := 0; i < count; i++ {
-		m := matcher.NewMockMatcher(ctrl)
+	})
+	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
+	appenderPool := newMetricsAppenderPool(metricsAppenderOptions{
+		agg: agg,
+		newMatcherFn: func(opts matcher.Options) matcher.Matcher {
+			return m
+		},
+		matcherOpts:    matcher.NewOptions(),
+		tagEncoderOpts: serialize.NewTagEncoderOptions(),
+		tagDecoderOpts: decoderOpts,
+		metrics: metricsAppenderMetrics{
+			processedCountNonRollup: tally.NoopScope.Counter("test-counter-non-rollup"),
+			processedCountRollup:    tally.NoopScope.Counter("test-counter-rollup"),
+			operationsCount:         tally.NoopScope.Counter("test-counter-operations"),
+		},
+	}, poolOpts)
+	decoder := serialize.NewTagDecoder(decoderOpts)
+	for i := 0; i < 3; i++ {
+		m.EXPECT().Open()
+		m.EXPECT().Reset()
 		m.EXPECT().ForwardMatch(gomock.Any(), gomock.Any(), gomock.Any()).
-			DoAndReturn(func(encodedID id.ID, _, _ int64) rules.MatchResult {
+			DoAndReturn(func(encodedID id.ID, _, _ int64) (rules.MatchResult, error) {
 				// NB: ensure tags are cleared correctly between runs.
 				bs := encodedID.Bytes()
 
@@ -99,20 +101,12 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 						},
 					},
 					true,
-				)
+				), nil
 			})
 
 		appender, err := appenderPool.Get()
 		require.NoError(t, err)
-		agg := aggregator.NewMockAggregator(ctrl)
-		/*		appender.reset(metricsAppenderOptions{
-				agg:                    agg,
-				metrics: metricsAppenderMetrics{
-					processedCountNonRollup: tally.NoopScope.Counter("test-counter-non-rollup"),
-					processedCountRollup:    tally.NoopScope.Counter("test-counter-rollup"),
-					operationsCount:         tally.NoopScope.Counter("test-counter-operations"),
-				},
-			})*/
+
 		require.NoError(t, appender.reset(nil))
 		name := []byte(fmt.Sprint("foo", i))
 		value := []byte(fmt.Sprint("bar", i))
@@ -150,9 +144,21 @@ func TestSamplesAppenderPoolResetsTagSimple(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
+	m := matcher.NewMockMatcher(ctrl)
+	size := 1
 	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
-	appenderPool := newMetricsAppenderPool(metricsAppenderOptions{}, poolOpts)
+	appenderPool := newMetricsAppenderPool(metricsAppenderOptions{
+		matcherOpts: matcher.NewOptions(),
+		newMatcherFn: func(opts matcher.Options) matcher.Matcher {
+			return m
+		},
+		tagEncoderOpts: serialize.NewTagEncoderOptions(),
+		tagDecoderOpts: serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{
+			CheckBytesWrapperPoolSize: &size,
+		}),
+	}, poolOpts)
 
+	m.EXPECT().Open()
 	appender, err := appenderPool.Get()
 	require.NoError(t, err)
 	appender.AddTag([]byte("foo"), []byte("bar"))
@@ -160,9 +166,12 @@ func TestSamplesAppenderPoolResetsTagSimple(t *testing.T) {
 	assert.Equal(t, 1, len(appender.commonTags.values))
 	appender.Finalize()
 
+	m.EXPECT().Open()
+	m.EXPECT().Reset()
 	// NB: getting a new appender from the pool yields a clean appender.
 	appender, err = appenderPool.Get()
 	require.NoError(t, err)
-	assert.Nil(t, appender.commonTags)
+	require.NoError(t, appender.reset(nil))
+	assert.Equal(t, 0, appender.commonTags.Len())
 	appender.Finalize()
 }

@@ -73,14 +73,7 @@ func (r namespaceResolver) Resolve(id id.ID) []byte {
 }
 
 // NewMatcherFn creates a new Matcher
-type NewMatcherFn func() Matcher
-
-// NewMatcherFnForOptions creates a function that creates Matchers with the provided Options.
-func NewMatcherFnForOptions(opts Options) NewMatcherFn {
-	return func() Matcher {
-		return NewMatcher(opts)
-	}
-}
+type NewMatcherFn func(opts Options) Matcher
 
 // NewMatcher creates a new rule matcher.
 // The Matcher must be Opened before using.

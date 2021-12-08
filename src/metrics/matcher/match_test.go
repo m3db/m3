@@ -279,6 +279,7 @@ func testMatcher(t *testing.T, opts testMatcherOptions) (Matcher, tally.TestScop
 
 	m := NewMatcher(matcherOpts)
 	require.NoError(t, m.Open())
+	require.NoError(t, m.Reset())
 	return m, scope
 }
 

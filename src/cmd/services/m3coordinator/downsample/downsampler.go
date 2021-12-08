@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
+	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
@@ -147,6 +148,7 @@ func defaultMetricsAppenderOptions(opts DownsamplerOptions, agg agg) metricsAppe
 		logger:         logger,
 		untimedRollups: agg.untimedRollups,
 		metrics:        metrics,
+		newMatcherFn:   matcher.NewMatcher,
 		matcherOpts:    agg.matcherOpts,
 		tagEncoderOpts: opts.TagEncoderOptions,
 		tagDecoderOpts: opts.TagDecoderOptions,
