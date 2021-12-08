@@ -47,7 +47,7 @@ type activeRuleSet struct {
 	rollupRules     []*rollupRule
 	cutoverTimesAsc []int64
 	tagsFilterOpts  filters.TagsFilterOptions
-	newRollupIDFn   metricid.NewIDFn
+	rollupIDer      metricid.IDer
 }
 
 func newActiveRuleSet(
@@ -55,7 +55,7 @@ func newActiveRuleSet(
 	mappingRules []*mappingRule,
 	rollupRules []*rollupRule,
 	tagsFilterOpts filters.TagsFilterOptions,
-	newRollupIDFn metricid.NewIDFn) *activeRuleSet {
+	rollupIDer metricid.IDer) *activeRuleSet {
 	uniqueCutoverTimes := make(map[int64]struct{})
 	for _, mappingRule := range mappingRules {
 		for _, snapshot := range mappingRule.snapshots {
@@ -80,7 +80,7 @@ func newActiveRuleSet(
 		rollupRules:     rollupRules,
 		cutoverTimesAsc: cutoverTimesAsc,
 		tagsFilterOpts:  tagsFilterOpts,
-		newRollupIDFn:   newRollupIDFn,
+		rollupIDer:      rollupIDer,
 	}
 }
 
@@ -320,13 +320,17 @@ func (as *activeRuleSet) toRollupResults(
 		case mpipeline.RollupOpType:
 			tagPairs = tagPairs[:0]
 			var matched bool
-			rollupID, matched = as.matchRollupTarget(
+			rollupID, matched, err = as.matchRollupTarget(
 				sortedTagPairBytes,
 				firstOp.Rollup,
 				tagPairs,
 				tags[idx],
 				matchRollupTargetOptions{generateRollupID: true},
 			)
+			if err != nil {
+				multiErr = multiErr.Add(err)
+				continue
+			}
 			if !matched {
 				// The incoming metric ID did not match the rollup target.
 				continue
@@ -384,11 +388,11 @@ func (as *activeRuleSet) matchRollupTarget(
 	tagPairs []metricid.TagPair, // buffer for reuse to generate rollup ID across calls
 	tags []models.Tag,
 	opts matchRollupTargetOptions,
-) ([]byte, bool) {
+) ([]byte, bool, error) {
 	if rollupOp.Type == mpipeline.ExcludeByRollupType && !opts.generateRollupID {
 		// Exclude by tag always matches, if not generating rollup ID
 		// then immediately return.
-		return nil, true
+		return nil, true, nil
 	}
 
 	var (
@@ -433,7 +437,7 @@ func (as *activeRuleSet) matchRollupTarget(
 
 			// If one of the target tags is not found in the ID, this is considered  a non-match so return immediately.
 			if res > 0 {
-				return nil, false
+				return nil, false, nil
 			}
 		}
 	case mpipeline.ExcludeByRollupType:
@@ -484,7 +488,7 @@ func (as *activeRuleSet) matchRollupTarget(
 	}
 
 	if !opts.generateRollupID {
-		return nil, true
+		return nil, true, nil
 	}
 
 	for _, tag := range tags {
@@ -495,7 +499,11 @@ func (as *activeRuleSet) matchRollupTarget(
 	}
 
 	newName := rollupOp.NewName(nameTagValue)
-	return as.newRollupIDFn(newName, tagPairs), true
+	rollupId, err := as.rollupIDer.ID(newName, tagPairs)
+	if err != nil {
+		return nil, false, err
+	}
+	return rollupId, true, nil
 }
 
 func (as *activeRuleSet) applyIDToPipeline(
@@ -517,13 +525,16 @@ func (as *activeRuleSet) applyIDToPipeline(
 		case mpipeline.RollupOpType:
 			rollupOp := pipelineOp.Rollup
 			var matched bool
-			rollupID, matched := as.matchRollupTarget(
+			rollupID, matched, err := as.matchRollupTarget(
 				sortedTagPairBytes,
 				rollupOp,
 				tagPairs,
 				tags,
 				matchRollupTargetOptions{generateRollupID: true},
 			)
+			if err != nil {
+				return applied.Pipeline{}, err
+			}
 			if !matched {
 				err := fmt.Errorf("existing tag pairs %s do not contain all rollup tags %s", sortedTagPairBytes, rollupOp.Tags)
 				return applied.Pipeline{}, err

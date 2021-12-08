@@ -40,7 +40,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
@@ -51,9 +50,7 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 	count := 3
 
 	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
-	appenderPool := newMetricsAppenderPool(poolOpts, func() matcher.Matcher {
-		return matcher.NewMockMatcher(ctrl)
-	})
+	appenderPool := newMetricsAppenderPool(metricsAppenderOptions{}, poolOpts)
 
 	tagEncoderPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
 		poolOpts)
@@ -106,16 +103,15 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 		appender, err := appenderPool.Get()
 		require.NoError(t, err)
 		agg := aggregator.NewMockAggregator(ctrl)
-		appender.reset(metricsAppenderOptions{
-			tagEncoderPool:         tagEncoderPool,
-			metricTagsIteratorPool: metricTagsIteratorPool,
-			agg:                    agg,
-			metrics: metricsAppenderMetrics{
-				processedCountNonRollup: tally.NoopScope.Counter("test-counter-non-rollup"),
-				processedCountRollup:    tally.NoopScope.Counter("test-counter-rollup"),
-				operationsCount:         tally.NoopScope.Counter("test-counter-operations"),
-			},
-		})
+		//appender.reset(metricsAppenderOptions{
+		//	agg:                    agg,
+		//	metrics: metricsAppenderMetrics{
+		//		processedCountNonRollup: tally.NoopScope.Counter("test-counter-non-rollup"),
+		//		processedCountRollup:    tally.NoopScope.Counter("test-counter-rollup"),
+		//		operationsCount:         tally.NoopScope.Counter("test-counter-operations"),
+		//	},
+		//})
+		appender.reset(nil)
 		name := []byte(fmt.Sprint("foo", i))
 		value := []byte(fmt.Sprint("bar", i))
 		appender.AddTag(name, value)
@@ -154,20 +150,18 @@ func TestSamplesAppenderPoolResetsTagSimple(t *testing.T) {
 	defer ctrl.Finish()
 
 	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
-	appenderPool := newMetricsAppenderPool(poolOpts, func() matcher.Matcher {
-		return nil
-	})
+	appenderPool := newMetricsAppenderPool(metricsAppenderOptions{}, poolOpts)
 
 	appender, err := appenderPool.Get()
 	require.NoError(t, err)
 	appender.AddTag([]byte("foo"), []byte("bar"))
-	assert.Equal(t, 1, len(appender.tags.names))
-	assert.Equal(t, 1, len(appender.tags.values))
+	assert.Equal(t, 1, len(appender.originalTags.names))
+	assert.Equal(t, 1, len(appender.originalTags.values))
 	appender.Finalize()
 
 	// NB: getting a new appender from the pool yields a clean appender.
 	appender, err = appenderPool.Get()
 	require.NoError(t, err)
-	assert.Nil(t, appender.tags)
+	assert.Nil(t, appender.originalTags)
 	appender.Finalize()
 }

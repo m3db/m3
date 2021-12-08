@@ -105,7 +105,8 @@ type namespaces struct {
 	onNamespaceRemovedFn OnNamespaceRemovedFn
 
 	rules                       *namespaceRuleSetsMap
-	nextNamespaces              *rules.Namespaces
+	hasNext                     bool
+	nextNamespaces              rules.Namespaces
 	metrics                     namespacesMetrics
 	requireNamespaceWatchOnInit bool
 }
@@ -215,13 +216,14 @@ func toNamespaces(value kv.Value) (interface{}, error) {
 // process the latest dynamic set of namespaces from the watch.
 // this acquires the exclusive lock to update nextNamespaces.
 func (n *namespaces) process(value interface{}) error {
-	var ok bool
 	n.Lock()
-	n.nextNamespaces, ok = value.(*rules.Namespaces)
-	n.Unlock()
+	defer n.Unlock()
+	var ok bool
+	n.nextNamespaces, ok = value.(rules.Namespaces)
 	if !ok {
 		return errors.New("expected rules.Namespaces")
 	}
+	n.hasNext = true
 	return nil
 }
 
@@ -229,10 +231,11 @@ func (n *namespaces) process(value interface{}) error {
 // this acquires the exclusive lock to update nextNamespaces.
 func (n *namespaces) Reset() error {
 	n.Lock()
+	hasNext := n.hasNext
 	nextNamespaces := n.nextNamespaces
 	n.Unlock()
 	// no update since the last call, nothing to do.
-	if nextNamespaces == nil {
+	if !hasNext {
 		return nil
 	}
 	var (
@@ -240,7 +243,7 @@ func (n *namespaces) Reset() error {
 		multiErr xerrors.MultiError
 		errLock  sync.Mutex
 		newNs    = make(map[string]rules.Namespace)
-		version = nextNamespaces.Version()
+		version  = nextNamespaces.Version()
 	)
 
 	for _, elem := range nextNamespaces.Namespaces() {
@@ -328,6 +331,6 @@ func (n *namespaces) Reset() error {
 			n.metrics.unwatched.Inc(1)
 		}
 	}
-	n.nextNamespaces = nil
+	n.hasNext = false
 	return nil
 }

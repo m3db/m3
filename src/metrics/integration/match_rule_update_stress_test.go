@@ -426,7 +426,7 @@ func stressTestMatcherOptions(
 	}
 	ruleSetOpts := rules.NewOptions().
 		SetTagsFilterOptions(tagsFilterOpts).
-		SetNewRollupIDFn(m3.NewRollupID)
+		SetRollupIDer(m3.NewRollupID)
 	return matcher.NewOptions().
 		SetKVStore(store).
 		SetNamespacesKey(stressTestNamespacesKey).

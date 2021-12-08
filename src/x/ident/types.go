@@ -195,19 +195,31 @@ type Iterator interface {
 	Duplicate() Iterator
 }
 
-// TagIterator represents an iterator over `Tag` instances. It is not thread-safe.
-type TagIterator interface {
+// TagEncodingIterator represents an iterator over `Tag` instances that is necessary to encode tags.
+// It is not thread-safe.
+type TagEncodingIterator interface {
 	// Next returns a bool indicating the presence of the next Tag instance.
 	Next() bool
 
 	// Current returns the current Tag instance.
 	Current() Tag
 
-	// CurrentIndex returns the current index at.
-	CurrentIndex() int
+	// Remaining returns the number of elements remaining to be iterated over.
+	Remaining() int
+
+	// Rewind resets the tag iterator to the initial position.
+	Rewind()
 
 	// Err returns any errors encountered during iteration.
 	Err() error
+}
+
+// TagIterator represents an iterator over `Tag` instances. It is not thread-safe.
+type TagIterator interface {
+	TagEncodingIterator
+
+	// CurrentIndex returns the current index at.
+	CurrentIndex() int
 
 	// Close releases any resources held by the iterator.
 	Close()
@@ -215,14 +227,8 @@ type TagIterator interface {
 	// Len returns the number of elements.
 	Len() int
 
-	// Remaining returns the number of elements remaining to be iterated over.
-	Remaining() int
-
 	// Duplicate returns an independent duplicate of the iterator.
 	Duplicate() TagIterator
-
-	// Rewind resets the tag iterator to the initial position.
-	Rewind()
 }
 
 // TagsIterator represents a TagIterator that can be reset with a Tags

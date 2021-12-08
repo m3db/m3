@@ -34,15 +34,15 @@ type Options interface {
 	TagsFilterOptions() filters.TagsFilterOptions
 
 	// SetNewRollupIDFn sets the new rollup id function.
-	SetNewRollupIDFn(value id.NewIDFn) Options
+	SetRollupIDer(value id.IDer) Options
 
 	// NewRollupIDFn returns the new rollup id function.
-	NewRollupIDFn() id.NewIDFn
+	RollupIDer () id.IDer
 }
 
 type options struct {
 	tagsFilterOpts filters.TagsFilterOptions
-	newRollupIDFn  id.NewIDFn
+	rollupIDer  id.IDer
 }
 
 // NewOptions creates a new set of options.
@@ -60,12 +60,12 @@ func (o *options) TagsFilterOptions() filters.TagsFilterOptions {
 	return o.tagsFilterOpts
 }
 
-func (o *options) SetNewRollupIDFn(value id.NewIDFn) Options {
+func (o *options) SetRollupIDer(value id.IDer) Options {
 	opts := *o
-	opts.newRollupIDFn = value
+	opts.rollupIDer = value
 	return &opts
 }
 
-func (o *options) NewRollupIDFn() id.NewIDFn {
-	return o.newRollupIDFn
+func (o *options) RollupIDer() id.IDer {
+	return o.rollupIDer
 }

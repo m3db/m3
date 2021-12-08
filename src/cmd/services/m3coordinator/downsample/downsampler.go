@@ -96,8 +96,10 @@ type downsampler struct {
 	agg  agg
 
 	sync.RWMutex
-	metricsAppenderOpts metricsAppenderOptions
-	enabled             bool
+	metricsAppenderPool *metricsAppenderPool
+	// TODO: is this nil to start?
+	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
+	enabled                      bool
 }
 
 type downsamplerOptions struct {
@@ -110,10 +112,11 @@ func newDownsampler(opts downsamplerOptions) (*downsampler, error) {
 		return nil, err
 	}
 
+	appenderOpts := defaultMetricsAppenderOptions(opts.opts, opts.agg)
 	downsampler := &downsampler{
 		opts:                opts.opts,
 		agg:                 opts.agg,
-		metricsAppenderOpts: defaultMetricsAppenderOptions(opts.opts, opts.agg),
+		metricsAppenderPool: newMetricsAppenderPool(appenderOpts, opts.opts.MetricsAppenderPoolOptions),
 	}
 
 	// No need to retain watch as NamespaceWatcher.Close() will handle closing any watches
@@ -137,32 +140,29 @@ func defaultMetricsAppenderOptions(opts DownsamplerOptions, agg agg) metricsAppe
 	}
 
 	return metricsAppenderOptions{
-		agg:                    agg.aggregator,
-		clientRemote:           agg.clientRemote,
-		clockOpts:              agg.clockOpts,
-		newMatcherFn:           agg.newMatcherFn,
-		debugLogging:           debugLogging,
-		logger:                 logger,
-		untimedRollups:         agg.untimedRollups,
-		metrics:                metrics,
-		metricsAppenderPool:    newMetricsAppenderPool(
-			opts.MetricsAppenderPoolOptions,
-			agg.newMatcherFn,
-			agg.newTagEncoderFn,
-			agg.newMetricTagIteratorFn),
+		agg:            agg.aggregator,
+		clientRemote:   agg.clientRemote,
+		clockOpts:      agg.clockOpts,
+		debugLogging:   debugLogging,
+		logger:         logger,
+		untimedRollups: agg.untimedRollups,
+		metrics:        metrics,
+		matcherOpts:    agg.matcherOpts,
+		tagEncoderOpts: opts.TagEncoderOptions,
+		tagDecoderOpts: opts.TagDecoderOptions,
 	}
 }
 
 func (d *downsampler) NewMetricsAppender() (MetricsAppender, error) {
-	metricsAppender, err := d.metricsAppenderOpts.metricsAppenderPool.Get()
+	metricsAppender, err := d.metricsAppenderPool.Get()
 	if err != nil {
 		return nil, err
 	}
 	d.RLock()
-	newMetricsAppenderOpts := d.metricsAppenderOpts
+	defaultStagedMetadatasProtos := d.defaultStagedMetadatasProtos
 	d.RUnlock()
 
-	if err := metricsAppender.reset(newMetricsAppenderOpts); err != nil {
+	if err := metricsAppender.reset(defaultStagedMetadatasProtos); err != nil {
 		return nil, err
 	}
 
@@ -219,7 +219,7 @@ func (d *downsampler) OnUpdate(namespaces m3.ClusterNamespaces) {
 	}
 
 	d.Lock()
-	d.metricsAppenderOpts.defaultStagedMetadatasProtos = defaultStagedMetadatasProtos
+	d.defaultStagedMetadatasProtos = defaultStagedMetadatasProtos
 	// Can only downsample when aggregated namespaces are available.
 	d.enabled = hasAggregatedNamespaces
 	d.Unlock()

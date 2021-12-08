@@ -50,7 +50,7 @@ func (f *FakeTagEncoder) Decode() []id.TagPair {
 }
 
 // Encode the tags. The original tags can be retrieved with Decode for testing.
-func (f *FakeTagEncoder) Encode(tags ident.TagIterator) error {
+func (f *FakeTagEncoder) Encode(tags ident.TagEncodingIterator) error {
 	if len(f.data) > 0 {
 		return errors.New("must call Reset if reusing the fake encoder")
 	}

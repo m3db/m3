@@ -57,6 +57,7 @@ func NewTagDecoder(opts TagDecoderOptions) TagDecoder {
 }
 
 func newTagDecoder(opts TagDecoderOptions, pool TagDecoderPool) TagDecoder {
+	// TODO: add an impl that doesn't use a pool
 	tagName := opts.CheckedBytesWrapperPool().Get(nil)
 	tagValue := opts.CheckedBytesWrapperPool().Get(nil)
 	tag := ident.Tag{

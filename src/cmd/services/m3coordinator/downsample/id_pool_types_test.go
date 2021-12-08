@@ -309,7 +309,7 @@ func TestRollupIdProvider(t *testing.T) {
 				tc.nameTag = nameTag
 			}
 			encoder := &serialize.FakeTagEncoder{}
-			p := newRollupIDProvider(encoder, nil, ident.BytesID(tc.nameTag))
+			p := newRollupIDProvider(encoder, ident.BytesID(tc.nameTag))
 			p.reset([]byte(tc.metricName), tc.tags)
 			require.Equal(t, len(tc.expectedTags), p.Len())
 			curIdx := 0

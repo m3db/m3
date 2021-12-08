@@ -102,7 +102,7 @@ func newTagEncoder(
 	return e
 }
 
-func (e *encoder) Encode(tags ident.TagIterator) error {
+func (e *encoder) Encode(tags ident.TagEncodingIterator) error {
 	if e.checkedBytes.NumRef() > 0 {
 		return errTagEncoderInUse
 	}

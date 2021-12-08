@@ -37,6 +37,26 @@ type NameAndTagsFn func(id []byte) (name []byte, tags []byte, err error)
 // NewIDFn creates a new metric ID based on the metric name and metric tag pairs.
 type NewIDFn func(name []byte, tags []TagPair) []byte
 
+// IDer creates metric ids.
+type IDer interface {
+	// ID creates a new metric ID based on the metric name and metric tag pairs.
+	ID(name []byte, tags []TagPair) ([]byte, error)
+}
+
+type iderFunc struct {
+	f newIdFn
+}
+
+type newIdFn func(name []byte, tags []TagPair) []byte
+
+func (i iderFunc) ID(name []byte, tags []TagPair) ([]byte, error) {
+	return i.f(name, tags), nil
+}
+
+func IDerFunc(f newIdFn) IDer {
+	return iderFunc{f: f}
+}
+
 // RawID is the raw metric id.
 type RawID []byte
 

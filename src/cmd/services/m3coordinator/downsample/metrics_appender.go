@@ -31,16 +31,20 @@ import (
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 
@@ -57,15 +61,14 @@ type metricsAppenderPool struct {
 }
 
 func newMetricsAppenderPool(
-	opts pool.ObjectPoolOptions,
-	newMatcher matcher.NewMatcherFn,
-	newTagEncoder serialize.NewTagEncoderFn,
-	newMetricTagIterator serialize.NewMetricTagsIteratorFn) *metricsAppenderPool {
+	opts metricsAppenderOptions,
+	poolOpts pool.ObjectPoolOptions,
+) *metricsAppenderPool {
 	p := &metricsAppenderPool{
-		pool: pool.NewObjectPool(opts),
+		pool: pool.NewObjectPool(poolOpts),
 	}
 	p.pool.Init(func() interface{} {
-		return newMetricsAppender(p, newMatcher(), newTagEncoder(), newMetricTagIterator())
+		return newMetricsAppender(p, opts)
 	})
 	return p
 }
@@ -91,49 +94,66 @@ type metricsAppenderMetrics struct {
 
 type metricsAppender struct {
 	metricsAppenderOptions
-
-	pool *metricsAppenderPool
-
+	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
+	pool                         *metricsAppenderPool
 	matcher                      matcher.Matcher
+	tagEncoder                   serialize.TagEncoder
+	metricTagsIterator           serialize.MetricTagsIterator
 	multiSamplesAppender         *multiSamplesAppender
 	curr                         metadata.StagedMetadata
 	defaultStagedMetadatasCopies []metadata.StagedMetadatas
 	mappingRuleStoragePolicies   []policy.StoragePolicy
-
-	tagEncoder         serialize.TagEncoder
-	metricTagsIterator serialize.MetricTagsIterator
-	originalTags       tags
+	originalTags                 *tags
 }
 
-// metricsAppenderOptions will have one of agg or clientRemote set.
 type metricsAppenderOptions struct {
+	// one of agg or clientRemote set.
 	agg          aggregator.Aggregator
 	clientRemote client.Client
 
-	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
-	newMatcherFn                 matcher.NewMatcherFn
-	newTagEncoderFn              serialize.NewTagEncoderFn
-	newMetricTagsIterFn          serialize.NewMetricTagsIteratorFn
-	untimedRollups               bool
-
-	clockOpts           clock.Options
-	debugLogging        bool
-	logger              *zap.Logger
-	metrics             metricsAppenderMetrics
-	metricsAppenderPool *metricsAppenderPool
+	untimedRollups bool
+	clockOpts      clock.Options
+	debugLogging   bool
+	logger         *zap.Logger
+	metrics        metricsAppenderMetrics
+	matcherOpts    matcher.Options
+	tagEncoderOpts serialize.TagEncoderOptions
+	tagDecoderOpts serialize.TagDecoderOptions
 }
 
-func newMetricsAppender(pool *metricsAppenderPool,
-	matcher matcher.Matcher,
-	tagEncoder serialize.TagEncoder,
-	metricTagsIterator serialize.MetricTagsIterator) *metricsAppender {
-	// TODO: do not use any shared state in the metrics appender
+func newMetricsAppender(pool *metricsAppenderPool, opts metricsAppenderOptions) *metricsAppender {
+	nameTag := defaultMetricNameTagName
+	rulesTagIter := serialize.NewMetricTagsIterator(serialize.NewTagDecoder(opts.tagDecoderOpts), nil)
+	tagsFilterOpts := filters.TagsFilterOptions{
+		NameTagKey: nameTag,
+		NameAndTagsFn: func(id []byte) ([]byte, []byte, error) {
+			name, err := resolveEncodedTagsNameTag(id, nameTag)
+			if err != nil && err != errNoMetricNameTag {
+				return nil, nil, err
+			}
+			// ID is always the encoded tags for IDs in the downsampler
+			tags := id
+			return name, tags, nil
+		},
+		SortedTagIteratorFn: func(tagPairs []byte) id.SortedTagIterator {
+			rulesTagIter.Reset(tagPairs)
+			return rulesTagIter
+		},
+	}
+	rollupIDProvider := newRollupIDProvider(
+		serialize.NewTagEncoder(opts.tagEncoderOpts),
+		ident.BytesID(nameTag))
+	rulesOpts := rules.NewOptions().
+		SetTagsFilterOptions(tagsFilterOpts).
+		SetRollupIDer(rollupIDProvider)
 	return &metricsAppender{
-		pool:                 pool,
-		multiSamplesAppender: newMultiSamplesAppender(),
-		matcher:              matcher,
-		tagEncoder:           tagEncoder,
-		metricTagsIterator:   metricTagsIterator,
+		metricsAppenderOptions: opts,
+		pool:                   pool,
+		multiSamplesAppender:   newMultiSamplesAppender(),
+		matcher:                matcher.NewMatcher(opts.matcherOpts.SetRuleSetOptions(rulesOpts)),
+		tagEncoder:             serialize.NewTagEncoder(opts.tagEncoderOpts),
+		metricTagsIterator:     serialize.NewMetricTagsIterator(serialize.NewTagDecoder(opts.tagDecoderOpts), nil),
+		originalTags:           newTags(),
 	}
 }
 
@@ -143,8 +163,8 @@ func (a *metricsAppender) Init() error {
 }
 
 // reset is called when pulled from the pool.
-func (a *metricsAppender) reset(opts metricsAppenderOptions) error {
-	a.metricsAppenderOptions = opts
+func (a *metricsAppender) reset(defaultStagedMetadatasProtos []metricpb.StagedMetadatas) error {
+	a.defaultStagedMetadatasProtos = defaultStagedMetadatasProtos
 
 	if err := a.matcher.Reset(); err != nil {
 		return err
@@ -154,7 +174,7 @@ func (a *metricsAppender) reset(opts metricsAppenderOptions) error {
 	a.NextMetric()
 
 	// Make sure a.defaultStagedMetadatasCopies is right length.
-	capRequired := len(opts.defaultStagedMetadatasProtos)
+	capRequired := len(defaultStagedMetadatasProtos)
 	if cap(a.defaultStagedMetadatasCopies) < capRequired {
 		// Too short, reallocate.
 		slice := make([]metadata.StagedMetadatas, capRequired)
@@ -207,7 +227,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	}
 
 	// Sort tags
-	sort.Sort(&a.originalTags)
+	sort.Sort(a.originalTags)
 
 	// Encode tags and compute a temporary (unowned) ID
 	data, err := a.encodeTags(a.originalTags)
@@ -479,13 +499,12 @@ func (a *metricsAppender) NextMetric() {
 func (a *metricsAppender) Finalize() {
 	// Return to pool.
 	a.pool.Put(a)
-	// TODO: need to Close the tag encoder and metric tag iterator and matcher
 }
 
 func (a *metricsAppender) addSamplesAppenders(stagedMetadata metadata.StagedMetadata) error {
 	var (
 		pipelines []metadata.PipelineMetadata
-		newTags   tags
+		newTags   = newTags()
 	)
 
 	for _, pipeline := range stagedMetadata.Pipelines {
@@ -497,7 +516,7 @@ func (a *metricsAppender) addSamplesAppenders(stagedMetadata metadata.StagedMeta
 			continue
 		}
 
-		newTags = a.processTags(newTags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
+		a.processTags(newTags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
 
 		sm := stagedMetadata
 		sm.Pipelines = []metadata.PipelineMetadata{pipeline}
@@ -524,9 +543,9 @@ func (a *metricsAppender) addSamplesAppenders(stagedMetadata metadata.StagedMeta
 	return nil
 }
 
-func (a *metricsAppender) encodeTags(tags tags) (checked.Bytes, error) {
+func (a *metricsAppender) encodeTags(tags *tags) (checked.Bytes, error) {
 	a.tagEncoder.Reset()
-	if err := a.tagEncoder.Encode(&tags); err != nil {
+	if err := a.tagEncoder.Encode(tags); err != nil {
 		return nil, err
 	}
 	data, ok := a.tagEncoder.Data()
@@ -537,7 +556,7 @@ func (a *metricsAppender) encodeTags(tags tags) (checked.Bytes, error) {
 }
 
 func (a *metricsAppender) newSamplesAppender(
-	tags tags,
+	tags *tags,
 	sm metadata.StagedMetadata,
 ) (samplesAppender, error) {
 	data, err := a.encodeTags(tags)
@@ -557,11 +576,11 @@ func (a *metricsAppender) newSamplesAppender(
 }
 
 func (a *metricsAppender) processTags(
-	tags tags,
+	tags *tags,
 	graphitePrefix [][]byte,
 	t []models.Tag,
 	id aggregation.ID,
-) tags {
+) {
 	// Create the prefix tags if any.
 	for i, path := range graphitePrefix {
 		// Add the graphite prefix as the initial graphite tags.
@@ -624,7 +643,6 @@ func (a *metricsAppender) processTags(
 			tags.append(metric.PromQuantileName, value)
 		}
 	}
-	return tags
 }
 
 func stagedMetadatasLogField(sm metadata.StagedMetadatas) zapcore.Field {

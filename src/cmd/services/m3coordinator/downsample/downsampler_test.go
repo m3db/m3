@@ -2903,7 +2903,7 @@ func originalStagedMetadata(t *testing.T, testDownsampler testDownsampler) []met
 	ds, ok := testDownsampler.downsampler.(*downsampler)
 	require.True(t, ok)
 
-	origStagedMetadata := ds.metricsAppenderOpts.defaultStagedMetadatasProtos
+	origStagedMetadata := ds.defaultStagedMetadatasProtos
 	return origStagedMetadata
 }
 
@@ -2915,7 +2915,7 @@ func waitForStagedMetadataUpdate(t *testing.T, testDownsampler testDownsampler, 
 		ds.RLock()
 		defer ds.RUnlock()
 
-		return !assert.ObjectsAreEqual(origStagedMetadata, ds.metricsAppenderOpts.defaultStagedMetadatasProtos)
+		return !assert.ObjectsAreEqual(origStagedMetadata, ds.defaultStagedMetadatasProtos)
 	}, time.Second))
 }
 

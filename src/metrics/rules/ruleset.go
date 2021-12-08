@@ -142,8 +142,8 @@ type ruleSet struct {
 	cutoverNanos       int64
 	mappingRules       []*mappingRule
 	rollupRules        []*rollupRule
-	tagsFilterOpts     filters.TagsFilterOptions
-	newRollupIDFn      metricid.NewIDFn
+	tagsFilterOpts filters.TagsFilterOptions
+	rollupIDer     metricid.IDer
 }
 
 // NewRuleSetFromProto creates a new RuleSet from a proto object.
@@ -180,7 +180,7 @@ func NewRuleSetFromProto(version int, rs *rulepb.RuleSet, opts Options) (RuleSet
 		mappingRules:       mappingRules,
 		rollupRules:        rollupRules,
 		tagsFilterOpts:     tagsFilterOpts,
-		newRollupIDFn:      opts.NewRollupIDFn(),
+		rollupIDer:         opts.RollupIDer(),
 	}, nil
 }
 
@@ -222,7 +222,7 @@ func (rs *ruleSet) ActiveSet(timeNanos int64) Matcher {
 		mappingRules,
 		rollupRules,
 		rs.tagsFilterOpts,
-		rs.newRollupIDFn,
+		rs.rollupIDer,
 	)
 }
 
@@ -333,7 +333,7 @@ func (rs *ruleSet) Clone() MutableRuleSet {
 		mappingRules:       mappingRules,
 		rollupRules:        rollupRules,
 		tagsFilterOpts:     rs.tagsFilterOpts,
-		newRollupIDFn:      rs.newRollupIDFn,
+		rollupIDer:         rs.rollupIDer,
 	}
 }
 

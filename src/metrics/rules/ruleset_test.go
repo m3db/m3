@@ -61,7 +61,7 @@ var (
 		cmp.AllowUnexported(rollupRuleSnapshot{}),
 		cmpopts.IgnoreTypes(
 			activeRuleSet{}.tagsFilterOpts,
-			activeRuleSet{}.newRollupIDFn,
+			activeRuleSet{}.rollupIDer,
 		),
 		cmpopts.IgnoreInterfaces(struct{ filters.Filter }{}),
 		cmpopts.IgnoreInterfaces(struct{ aggregation.TypesOptions }{}),
@@ -74,7 +74,7 @@ var (
 		cmp.AllowUnexported(rollupRuleSnapshot{}),
 		cmpopts.IgnoreTypes(
 			ruleSet{}.tagsFilterOpts,
-			ruleSet{}.newRollupIDFn,
+			ruleSet{}.rollupIDer,
 		),
 		cmpopts.IgnoreInterfaces(struct{ filters.Filter }{}),
 		cmpopts.IgnoreInterfaces(struct{ aggregation.TypesOptions }{}),
@@ -198,7 +198,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 			input.expectedMappingRules,
 			input.expectedRollupRules,
 			rs.tagsFilterOpts,
-			rs.newRollupIDFn,
+			rs.rollupIDer,
 		)
 		require.True(t, cmp.Equal(expected, as, testActiveRuleSetCmpOpts...))
 	}
@@ -2203,7 +2203,9 @@ func testTagsFilterOptions() filters.TagsFilterOptions {
 	}
 }
 
-func mockNewID(name []byte, tags []id.TagPair) []byte {
+type mockIDer struct{}
+
+func (m mockIDer) ID(name []byte, tags []id.TagPair) []byte {
 	if len(tags) == 0 {
 		return name
 	}
@@ -2226,7 +2228,7 @@ func mockNewID(name []byte, tags []id.TagPair) []byte {
 func testRuleSetOptions() Options {
 	return NewOptions().
 		SetTagsFilterOptions(testTagsFilterOptions()).
-		SetNewRollupIDFn(mockNewID)
+		SetRollupIDer(mockNewID)
 }
 
 func b(v string) []byte       { return []byte(v) }

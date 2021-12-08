@@ -21,7 +21,6 @@
 package downsample
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"runtime"
@@ -38,7 +37,6 @@ import (
 	placementstorage "github.com/m3db/m3/src/cluster/placement/storage"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/metrics/aggregation"
-	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
@@ -48,7 +46,6 @@ import (
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
-	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/policy"
@@ -61,7 +58,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
@@ -113,7 +109,6 @@ type DownsamplerOptions struct {
 	ClusterClient              clusterclient.Client
 	RulesKVStore               kv.Store
 	ClusterNamespacesWatcher   m3.ClusterNamespacesWatcher
-	NameTag                    string
 	ClockOptions               clock.Options
 	InstrumentOptions          instrument.Options
 	TagEncoderOptions          serialize.TagEncoderOptions
@@ -228,10 +223,7 @@ type agg struct {
 	clientRemote client.Client
 
 	clockOpts              clock.Options
-	newMatcherFn           matcher.NewMatcherFn
-	newTagEncoderFn        serialize.NewTagEncoderFn
-	newMetricTagIteratorFn serialize.NewMetricTagsIteratorFn
-	pools                  aggPools
+	matcherOpts            matcher.Options
 	untimedRollups         bool
 }
 
@@ -683,8 +675,8 @@ func (cfg Configuration) NewDownsampler(
 	}
 
 	return newDownsampler(downsamplerOptions{
-		opts: opts,
-		agg:  agg,
+		opts:         opts,
+		agg:          agg,
 	})
 }
 
@@ -716,7 +708,6 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	matcherOpts := matcher.NewOptions().
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
-		SetRuleSetOptions(o.newAggregatorRulesOptions()).
 		SetKVStore(o.RulesKVStore).
 		SetNamespaceTag([]byte(namespaceTag)).
 		SetRequireNamespaceWatchOnInit(cfg.Matcher.RequireNamespaceWatchOnInit).
@@ -813,7 +804,6 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}
 	}
 
-	pools := o.newAggregatorPools()
 	if remoteAgg := cfg.RemoteAggregator; remoteAgg != nil {
 		// If downsampling setup to use a remote aggregator instead of local
 		// aggregator, set that up instead.
@@ -836,8 +826,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 
 		return agg{
 			clientRemote:   client,
-			newMatcherFn:   matcher.NewMatcherFnForOptions(matcherOpts),
-			pools:          pools,
+			matcherOpts:    matcherOpts,
 			untimedRollups: cfg.UntimedRollups,
 		}, nil
 	}
@@ -868,9 +857,15 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		return agg{}, err
 	}
 
+	tagDecoderPool := serialize.NewTagDecoderPool(o.TagDecoderOptions,
+		o.TagDecoderPoolOptions)
+	tagDecoderPool.Init()
+	metricTagsIteratorPool := serialize.NewMetricTagsIteratorPool(tagDecoderPool,
+		o.TagDecoderPoolOptions)
+	metricTagsIteratorPool.Init()
 	flushManager, flushHandler := o.newAggregatorFlushManagerAndHandler(
 		placementManager, flushTimesManager, electionManager, o.ClockOptions, instrumentOpts,
-		storageFlushConcurrency, pools)
+		storageFlushConcurrency, metricTagsIteratorPool)
 
 	bufferPastLimits := defaultBufferPastLimits
 	if numLimitsCfg := len(cfg.BufferPastLimits); numLimitsCfg > 0 {
@@ -982,8 +977,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 
 	return agg{
 		aggregator:     aggregatorInstance,
-		newMatcherFn:   matcher.NewMatcherFnForOptions(matcherOpts),
-		pools:          pools,
+		matcherOpts:    matcherOpts,
 		untimedRollups: cfg.UntimedRollups,
 	}, nil
 }
@@ -994,88 +988,6 @@ func initStoreNamespaces(store kv.Store, nsKey string) error {
 		return nil
 	}
 	return err
-}
-
-type aggPools struct {
-	tagEncoderPool         serialize.TagEncoderPool
-	tagDecoderPool         serialize.TagDecoderPool
-	metricTagsIteratorPool serialize.MetricTagsIteratorPool
-}
-
-func (o DownsamplerOptions) newAggregatorPools() aggPools {
-	tagEncoderPool := serialize.NewTagEncoderPool(o.TagEncoderOptions,
-		o.TagEncoderPoolOptions)
-	tagEncoderPool.Init()
-
-	tagDecoderPool := serialize.NewTagDecoderPool(o.TagDecoderOptions,
-		o.TagDecoderPoolOptions)
-	tagDecoderPool.Init()
-
-	metricTagsIteratorPool := serialize.NewMetricTagsIteratorPool(tagDecoderPool,
-		o.TagDecoderPoolOptions)
-	metricTagsIteratorPool.Init()
-
-	return aggPools{
-		tagEncoderPool:         tagEncoderPool,
-		tagDecoderPool:         tagDecoderPool,
-		metricTagsIteratorPool: metricTagsIteratorPool,
-	}
-}
-
-func (o DownsamplerOptions) newAggregatorRulesOptions() rules.Options {
-	nameTag := defaultMetricNameTagName
-	if o.NameTag != "" {
-		nameTag = []byte(o.NameTag)
-	}
-
-	tagIter := serialize.NewMetricTagsIterator(serialize.NewTagDecoder(o.TagDecoderOptions), nil)
-	tagsFilterOpts := filters.TagsFilterOptions{
-		NameTagKey: nameTag,
-		NameAndTagsFn: func(id []byte) ([]byte, []byte, error) {
-			name, err := resolveEncodedTagsNameTag(id, nameTag)
-			if err != nil && err != errNoMetricNameTag {
-				return nil, nil, err
-			}
-			// ID is always the encoded tags for IDs in the downsampler
-			tags := id
-			return name, tags, nil
-		},
-		SortedTagIteratorFn: func(tagPairs []byte) id.SortedTagIterator {
-			tagIter.Reset(tagPairs)
-			return tagIter
-		},
-	}
-
-	rollupIDProvider := newRollupIDProvider(
-		serialize.NewTagEncoder(o.TagEncoderOptions), nil, ident.BytesID(nameTag))
-	newRollupIDFn := func(newName []byte, tagPairs []id.TagPair) []byte {
-		// First filter out any tags that have a prefix that
-		// are not included in output metric IDs (such as metric
-		// type tags that are just used for filtering like __m3_type__).
-		filtered := tagPairs[:0]
-	TagPairsFilterLoop:
-		for i := range tagPairs {
-			for _, filter := range defaultFilterOutTagPrefixes {
-				if bytes.HasPrefix(tagPairs[i].Name, filter) {
-					continue TagPairsFilterLoop
-				}
-			}
-			filtered = append(filtered, tagPairs[i])
-		}
-
-		// Create the rollup using filtered tag pairs.
-		// N.B - provide resets the rollupIDProvider
-		id, err := rollupIDProvider.provide(newName, filtered)
-		if err != nil {
-			panic(err) // Encoding should never fail
-		}
-		rollupIDProvider.finalize()
-		return id
-	}
-
-	return rules.NewOptions().
-		SetTagsFilterOptions(tagsFilterOpts).
-		SetNewRollupIDFn(newRollupIDFn)
 }
 
 func (o DownsamplerOptions) newAggregatorPlacementManager(
@@ -1144,7 +1056,7 @@ func (o DownsamplerOptions) newAggregatorFlushManagerAndHandler(
 	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 	storageFlushConcurrency int,
-	pools aggPools,
+	metricTagsIteratorPool serialize.MetricTagsIteratorPool,
 ) (aggregator.FlushManager, handler.Handler) {
 	flushManagerOpts := aggregator.NewFlushManagerOptions().
 		SetClockOptions(clockOpts).
@@ -1156,7 +1068,7 @@ func (o DownsamplerOptions) newAggregatorFlushManagerAndHandler(
 
 	flushWorkers := xsync.NewWorkerPool(storageFlushConcurrency)
 	flushWorkers.Init()
-	handler := newDownsamplerFlushHandler(o.Storage, pools.metricTagsIteratorPool,
+	handler := newDownsamplerFlushHandler(o.Storage, metricTagsIteratorPool,
 		flushWorkers, o.TagOptions, instrumentOpts)
 
 	return flushManager, handler

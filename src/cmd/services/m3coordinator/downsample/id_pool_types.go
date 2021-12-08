@@ -27,7 +27,6 @@ import (
 
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 
 	"github.com/prometheus/common/model"
@@ -37,26 +36,8 @@ var (
 	defaultMetricNameTagName = []byte(model.MetricNameLabel)
 	rollupTagName            = []byte("__rollup__")
 	rollupTagValue           = []byte("true")
-	rollupTag                = ident.Tag{
-		Name:  ident.BytesID(rollupTagName),
-		Value: ident.BytesID(rollupTagValue),
-	}
-
-	errNoMetricNameTag = errors.New("no metric name tag found")
+	errNoMetricNameTag       = errors.New("no metric name tag found")
 )
-
-func isRollupID(
-	sortedTagPairs []byte,
-	iter serialize.MetricTagsIterator,
-) bool {
-	iter.Reset(sortedTagPairs)
-
-	tagValue, ok := iter.TagValue(rollupTagName)
-	isRollupID := ok && bytes.Equal(tagValue, rollupTagValue)
-	iter.Close()
-
-	return isRollupID
-}
 
 // rollupIDProvider is a constructor for rollup IDs, it can be pooled to avoid
 // requiring allocation every time we need to construct a rollup ID.
@@ -73,7 +54,6 @@ type rollupIDProvider struct {
 	currIdx      int
 
 	tagEncoder   serialize.TagEncoder
-	pool         *rollupIDProviderPool
 	nameTag      ident.ID
 	nameTagBytes []byte
 	tagNameID    *ident.ReusableBytesID
@@ -81,11 +61,7 @@ type rollupIDProvider struct {
 	mergeTags    []id.TagPair
 }
 
-func newRollupIDProvider(
-	tagEncoder serialize.TagEncoder,
-	pool *rollupIDProviderPool,
-	nameTag ident.ID,
-) *rollupIDProvider {
+func newRollupIDProvider(tagEncoder serialize.TagEncoder, nameTag ident.ID) *rollupIDProvider {
 	nameTagBytes := nameTag.Bytes()
 	nameTagBeforeRollupTag := bytes.Compare(nameTagBytes, rollupTagName) < 0
 	mergeTags := []id.TagPair{
@@ -103,13 +79,33 @@ func newRollupIDProvider(
 	}
 	return &rollupIDProvider{
 		tagEncoder:   tagEncoder,
-		pool:         pool,
 		nameTag:      nameTag,
 		nameTagBytes: nameTagBytes,
 		tagNameID:    ident.NewReusableBytesID(),
 		tagValueID:   ident.NewReusableBytesID(),
 		mergeTags:    mergeTags,
 	}
+}
+
+// ID generates the rollup ID for the tags.
+func (p *rollupIDProvider) ID(newName []byte, tagPairs []id.TagPair) ([]byte, error) {
+	// First filter out any tags that have a prefix that
+	// are not included in output metric IDs (such as metric
+	// type tags that are just used for filtering like __m3_type__).
+	filtered := tagPairs[:0]
+TagPairsFilterLoop:
+	for i := range tagPairs {
+		for _, filter := range defaultFilterOutTagPrefixes {
+			if bytes.HasPrefix(tagPairs[i].Name, filter) {
+				continue TagPairsFilterLoop
+			}
+		}
+		filtered = append(filtered, tagPairs[i])
+	}
+
+	// Create the rollup using filtered tag pairs.
+	// N.B - provide resets the rollupIDProvider
+	return p.provide(newName, filtered)
 }
 
 func (p *rollupIDProvider) provide(
@@ -155,12 +151,6 @@ func (p *rollupIDProvider) reset(
 		}
 	}
 	p.len = len(p.tagPairs) + len(p.mergeTags) - dups
-}
-
-func (p *rollupIDProvider) finalize() {
-	if p.pool != nil {
-		p.pool.Put(p)
-	}
 }
 
 // Next takes the smallest element across both sets of tags, removing any duplicates between the lists.
@@ -224,7 +214,7 @@ func (p *rollupIDProvider) Remaining() int {
 }
 
 func (p *rollupIDProvider) Duplicate() ident.TagIterator {
-	duplicate := p.pool.Get()
+	duplicate := newRollupIDProvider(p.tagEncoder, p.nameTag)
 	duplicate.reset(p.newName, p.tagPairs)
 	return duplicate
 }
@@ -233,38 +223,6 @@ func (p *rollupIDProvider) Rewind() {
 	p.index = 0
 	p.mergeTagsIdx = 0
 	p.currIdx = -1
-}
-
-type rollupIDProviderPool struct {
-	tagEncoderPool serialize.TagEncoderPool
-	pool           pool.ObjectPool
-	nameTag        ident.ID
-}
-
-func newRollupIDProviderPool(
-	tagEncoderPool serialize.TagEncoderPool,
-	opts pool.ObjectPoolOptions,
-	nameTag ident.ID,
-) *rollupIDProviderPool {
-	return &rollupIDProviderPool{
-		tagEncoderPool: tagEncoderPool,
-		pool:           pool.NewObjectPool(opts),
-		nameTag:        nameTag,
-	}
-}
-
-func (p *rollupIDProviderPool) Init() {
-	p.pool.Init(func() interface{} {
-		return newRollupIDProvider(p.tagEncoderPool.Get(), p, p.nameTag)
-	})
-}
-
-func (p *rollupIDProviderPool) Get() *rollupIDProvider {
-	return p.pool.Get().(*rollupIDProvider)
-}
-
-func (p *rollupIDProviderPool) Put(v *rollupIDProvider) {
-	p.pool.Put(v)
 }
 
 func resolveEncodedTagsNameTag(

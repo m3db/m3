@@ -37,7 +37,7 @@ const (
 type TagEncoder interface {
 	// Encode encodes the provided iterator into its internal byte stream.
 	// NB: leaves the original iterator un-modified.
-	Encode(ident.TagIterator) error
+	Encode(iterator ident.TagEncodingIterator) error
 
 	// Data returns the encoded bytes.
 	// NB: The bytes returned as still owned by the TagEncoder. i.e. They are
