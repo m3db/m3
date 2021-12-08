@@ -383,7 +383,6 @@ type writerOptions struct {
 	placementOpts                     placement.Options
 	placementWatchInitTimeout         time.Duration
 	messagePoolOptions                pool.ObjectPoolOptions
-	messageRetryOpts                  retry.Options
 	messageQueueNewWritesScanInterval time.Duration
 	messageQueueFullScanInterval      time.Duration
 	messageQueueScanBatchSize         int
@@ -406,7 +405,7 @@ func NewOptions() Options {
 		topicWatchInitTimeout:             defaultTopicWatchInitTimeout,
 		placementOpts:                     placement.NewOptions(),
 		placementWatchInitTimeout:         defaultPlacementWatchInitTimeout,
-		messageRetryOpts:                  messageRetryOpts,
+		messageRetryNanosFn:               NextRetryNanosFn(messageRetryOpts),
 		messageQueueNewWritesScanInterval: defaultMessageQueueNewWritesScanInterval,
 		messageQueueFullScanInterval:      defaultMessageQueueFullScanInterval,
 		messageQueueScanBatchSize:         defaultMessageQueueScanBatchSize,
