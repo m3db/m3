@@ -592,6 +592,9 @@ func NewMetrics(sc tally.Scope) *WriteMetrics {
 	}
 
 	for _, found := range []bool{true, false} {
+		m.isNil[found] = map[string]tally.Counter{}
+		m.needsReconcile[found] = map[string]tally.Counter{}
+		m.noReconcile[found] = map[string]tally.Counter{}
 		for _, method := range []string{"MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize", "MarkEntrySuccess"} {
 			m.isNil[found][method] = scope.Tagged(map[string]string{"done": fmt.Sprint(found), "method": method, "status": "nil"}).Counter("count")
 			m.needsReconcile[found][method] = scope.Tagged(map[string]string{"done": fmt.Sprint(found), "method": method, "status": "needs_reconcile"}).Counter("count")
