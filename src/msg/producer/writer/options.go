@@ -375,13 +375,13 @@ type Options interface {
 }
 
 type writerOptions struct {
-	messageRetryNanosFn               MessageRetryNanosFn
 	topicName                         string
 	topicService                      topic.Service
 	topicWatchInitTimeout             time.Duration
 	services                          services.Services
 	placementOpts                     placement.Options
 	placementWatchInitTimeout         time.Duration
+	messageRetryNanosFn               MessageRetryNanosFn
 	messagePoolOptions                pool.ObjectPoolOptions
 	messageQueueNewWritesScanInterval time.Duration
 	messageQueueFullScanInterval      time.Duration
