@@ -577,25 +577,29 @@ type WriteBatch struct {
 }
 
 type WriteMetrics struct {
-	isNil              tally.Counter
-	needsReconcile     tally.Counter
-	noReconcile        tally.Counter
-	isNilDone          tally.Counter
-	needsReconcileDone tally.Counter
-	noReconcileDone    tally.Counter
+	isNil          map[bool]map[string]tally.Counter
+	needsReconcile map[bool]map[string]tally.Counter
+	noReconcile    map[bool]map[string]tally.Counter
 }
 
 func NewMetrics(sc tally.Scope) *WriteMetrics {
 	scope := sc.SubScope("storage_index_reconcile_metrics")
-	return &WriteMetrics{
-		isNil:          scope.Tagged(map[string]string{"done": "false", "status": "nil"}).Counter("count"),
-		needsReconcile: scope.Tagged(map[string]string{"done": "false", "status": "needs_reconcile"}).Counter("count"),
-		noReconcile:    scope.Tagged(map[string]string{"done": "false", "status": "no_reconcile"}).Counter("count"),
 
-		isNilDone:          scope.Tagged(map[string]string{"done": "true", "status": "nil"}).Counter("count"),
-		needsReconcileDone: scope.Tagged(map[string]string{"done": "true", "status": "needs_reconcile"}).Counter("count"),
-		noReconcileDone:    scope.Tagged(map[string]string{"done": "true", "status": "no_reconcile"}).Counter("count"),
+	m := &WriteMetrics{
+		isNil:          map[bool]map[string]tally.Counter{},
+		needsReconcile: map[bool]map[string]tally.Counter{},
+		noReconcile:    map[bool]map[string]tally.Counter{},
 	}
+
+	for _, found := range []bool{true, false} {
+		for _, method := range []string{"MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize", "MarkEntrySuccess"} {
+			m.isNil[found][method] = scope.Tagged(map[string]string{"done": fmt.Sprint(found), "method": method, "status": "nil"}).Counter("count")
+			m.needsReconcile[found][method] = scope.Tagged(map[string]string{"done": fmt.Sprint(found), "method": method, "status": "needs_reconcile"}).Counter("count")
+			m.noReconcile[found][method] = scope.Tagged(map[string]string{"done": fmt.Sprint(found), "method": method, "status": "no_reconcile"}).Counter("count")
+		}
+	}
+
+	return m
 }
 
 type writeBatchSortBy uint
@@ -833,24 +837,12 @@ func (b *WriteBatch) MarkEntrySuccess(idx int) {
 		closer.Close()
 
 		if reconciled {
-			if isDone {
-				b.metrics.needsReconcileDone.Inc(1)
-			} else {
-				b.metrics.needsReconcile.Inc(1)
-			}
+			b.metrics.needsReconcile[isDone]["MarkEntrySuccess"].Inc(1)
 		} else {
-			if isDone {
-				b.metrics.noReconcileDone.Inc(1)
-			} else {
-				b.metrics.noReconcile.Inc(1)
-			}
+			b.metrics.noReconcile[isDone]["MarkEntrySuccess"].Inc(1)
 		}
 	} else {
-		if isDone {
-			b.metrics.isNilDone.Inc(1)
-		} else {
-			b.metrics.isNil.Inc(1)
-		}
+		b.metrics.isNil[isDone]["MarkEntrySuccess"].Inc(1)
 	}
 
 	if !isDone {
@@ -868,6 +860,21 @@ func (b *WriteBatch) MarkEntrySuccess(idx int) {
 // MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize marks an entry as success.
 func (b *WriteBatch) MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize() {
 	for idx := range b.entries {
+
+		isDone := b.entries[idx].result.Done
+		if b.entries[idx].OnIndexSeries != nil {
+			_, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
+			closer.Close()
+
+			if reconciled {
+				b.metrics.needsReconcile[isDone]["MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize"].Inc(1)
+			} else {
+				b.metrics.noReconcile[isDone]["MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize"].Inc(1)
+			}
+		} else {
+			b.metrics.isNil[isDone]["MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize"].Inc(1)
+		}
+
 		if !b.entries[idx].result.Done {
 			blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
 			r := b.entries[idx].OnIndexSeries.IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart)
