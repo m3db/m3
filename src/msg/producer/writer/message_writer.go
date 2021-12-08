@@ -27,19 +27,23 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/unsafe"
-
-	"github.com/uber-go/tally"
 )
 
+// MessageRetryNanosFn returns the message backoff time for retry in nanoseconds.
+type MessageRetryNanosFn func(writeTimes int) int64
+
 var (
-	errFailAllConsumers = errors.New("could not write to any consumer")
-	errNoWriters        = errors.New("no writers")
+	errInvalidBackoffDuration = errors.New("invalid backoff duration")
+	errFailAllConsumers       = errors.New("could not write to any consumer")
+	errNoWriters              = errors.New("no writers")
 )
 
 const _recordMessageDelayEvery = 4 // keep it a power of two value to keep modulo fast
@@ -211,7 +215,7 @@ type messageWriterImpl struct {
 	replicatedShardID   uint64
 	mPool               messagePool
 	opts                Options
-	nextRetryAfterNanos func(int) int64
+	nextRetryAfterNanos MessageRetryNanosFn
 	encoder             proto.Encoder
 	numConnections      int
 
@@ -249,7 +253,7 @@ func newMessageWriter(
 		replicatedShardID:   replicatedShardID,
 		mPool:               mPool,
 		opts:                opts,
-		nextRetryAfterNanos: nextRetryNanosFn(opts.MessageRetryOptions()),
+		nextRetryAfterNanos: opts.MessageRetryNanosFn(),
 		encoder:             proto.NewEncoder(opts.EncoderOptions()),
 		numConnections:      opts.ConnectionOptions().NumConnections(),
 		msgID:               0,
@@ -812,7 +816,8 @@ func (m *scanBatchMetrics) recordNonzeroCounter(idx metricIdx, c tally.Counter) 
 	}
 }
 
-func nextRetryNanosFn(retryOpts retry.Options) func(int) int64 {
+// NextRetryNanosFn creates a MessageRetryNanosFn based on the retry options.
+func NextRetryNanosFn(retryOpts retry.Options) func(int) int64 {
 	var (
 		jitter              = retryOpts.Jitter()
 		backoffFactor       = retryOpts.BackoffFactor()
@@ -845,4 +850,23 @@ func nextRetryNanosFn(retryOpts retry.Options) func(int) int64 {
 		}
 		return backoff
 	}
+}
+
+// StaticRetryNanosFn creates a MessageRetryNanosFn based on static config.
+func StaticRetryNanosFn(backoffDurations []time.Duration) (MessageRetryNanosFn, error) {
+	if len(backoffDurations) == 0 {
+		return nil, errInvalidBackoffDuration
+	}
+	backoffInt64s := make([]int64, 0, len(backoffDurations))
+	for _, b := range backoffDurations {
+		backoffInt64s = append(backoffInt64s, int64(b))
+	}
+	return func(writeTimes int) int64 {
+		retry := writeTimes - 1
+		l := len(backoffInt64s)
+		if retry < l {
+			return backoffInt64s[retry]
+		}
+		return backoffInt64s[l-1]
+	}, nil
 }

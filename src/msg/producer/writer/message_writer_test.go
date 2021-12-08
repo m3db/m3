@@ -26,15 +26,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/msg/producer"
-	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/retry"
-	xtest "github.com/m3db/m3/src/x/test"
-
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/msg/producer"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/retry"
+	xtest "github.com/m3db/m3/src/x/test"
 )
 
 func TestMessageWriterRandomIndex(t *testing.T) {
@@ -535,8 +535,8 @@ func TestMessageWriterKeepNewWritesInOrderInFrontOfTheQueue(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testOptions().SetMessageRetryOptions(
-		retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond),
+	opts := testOptions().SetMessageRetryNanosFn(
+		NextRetryNanosFn(retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond)),
 	)
 	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
@@ -579,8 +579,8 @@ func TestMessageWriterRetryIterateBatchFullScan(t *testing.T) {
 	defer ctrl.Finish()
 
 	retryBatchSize := 2
-	opts := testOptions().SetMessageQueueScanBatchSize(retryBatchSize).SetMessageRetryOptions(
-		retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond),
+	opts := testOptions().SetMessageQueueScanBatchSize(retryBatchSize).SetMessageRetryNanosFn(
+		NextRetryNanosFn(retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond)),
 	)
 	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
@@ -644,8 +644,8 @@ func TestMessageWriterRetryIterateBatchFullScanWithMessageTTL(t *testing.T) {
 	defer ctrl.Finish()
 
 	retryBatchSize := 2
-	opts := testOptions().SetMessageQueueScanBatchSize(retryBatchSize).SetMessageRetryOptions(
-		retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond),
+	opts := testOptions().SetMessageQueueScanBatchSize(retryBatchSize).SetMessageRetryNanosFn(
+		NextRetryNanosFn(retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond)),
 	)
 	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
@@ -706,8 +706,8 @@ func TestMessageWriterRetryIterateBatchNotFullScan(t *testing.T) {
 	defer ctrl.Finish()
 
 	retryBatchSize := 100
-	opts := testOptions().SetMessageQueueScanBatchSize(retryBatchSize).SetMessageRetryOptions(
-		retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond),
+	opts := testOptions().SetMessageQueueScanBatchSize(retryBatchSize).SetMessageRetryNanosFn(
+		NextRetryNanosFn(retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond)),
 	)
 	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
@@ -776,9 +776,15 @@ func TestMessageWriterRetryIterateBatchNotFullScan(t *testing.T) {
 
 func TestNextRetryAfterNanos(t *testing.T) {
 	backoffDuration := time.Minute
-	opts := testOptions().SetMessageRetryOptions(
-		retry.NewOptions().SetInitialBackoff(backoffDuration).SetMaxBackoff(2 * backoffDuration).SetJitter(true),
-	)
+	opts := testOptions().
+		SetMessageRetryNanosFn(
+			NextRetryNanosFn(
+				retry.NewOptions().
+					SetInitialBackoff(backoffDuration).
+					SetMaxBackoff(2 * backoffDuration).
+					SetJitter(true),
+			),
+		)
 	w := newMessageWriter(200, nil, opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
 	nowNanos := time.Now().UnixNano()
@@ -796,6 +802,31 @@ func TestNextRetryAfterNanos(t *testing.T) {
 	m.IncWriteTimes()
 	retryAtNanos = w.nextRetryAfterNanos(m.WriteTimes()) + nowNanos
 	require.True(t, retryAtNanos == nowNanos+2*int64(backoffDuration))
+}
+
+func TestStaticRetryAfterNanos(t *testing.T) {
+	fn, err := StaticRetryNanosFn([]time.Duration{time.Minute, 10 * time.Second, 5 * time.Second})
+	require.NoError(t, err)
+
+	opts := testOptions().SetMessageRetryNanosFn(fn)
+	w := newMessageWriter(200, nil, opts, testMessageWriterMetrics()).(*messageWriterImpl)
+
+	m := newMessage()
+	m.IncWriteTimes()
+	retryAtNanos := w.nextRetryAfterNanos(m.WriteTimes())
+	require.Equal(t, int64(time.Minute), retryAtNanos)
+
+	m.IncWriteTimes()
+	retryAtNanos = w.nextRetryAfterNanos(m.WriteTimes())
+	require.Equal(t, int64(10*time.Second), retryAtNanos)
+
+	m.IncWriteTimes()
+	retryAtNanos = w.nextRetryAfterNanos(m.WriteTimes())
+	require.Equal(t, int64(5*time.Second), retryAtNanos)
+
+	m.IncWriteTimes()
+	retryAtNanos = w.nextRetryAfterNanos(m.WriteTimes())
+	require.Equal(t, int64(5*time.Second), retryAtNanos)
 }
 
 func TestExpectedProcessedAt(t *testing.T) {
