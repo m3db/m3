@@ -1260,6 +1260,7 @@ func (s *dbShard) newShardEntry(
 		Index:       uniqueIndex,
 		IndexWriter: s.reverseIndex,
 		NowFn:       s.nowFn,
+		Metrics:     NewEntryMetrics(s.opts.InstrumentOptions().MetricsScope()),
 	}), nil
 }
 

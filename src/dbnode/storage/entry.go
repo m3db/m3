@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -38,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/uber-go/tally"
 )
 
 // IndexWriter accepts index inserts.
@@ -87,6 +89,7 @@ type NewEntryOptions struct {
 	Index       uint64
 	IndexWriter IndexWriter
 	NowFn       clock.NowFn
+	Metrics     *EntryMetrics
 }
 
 // NewEntry returns a new Entry.
@@ -105,7 +108,7 @@ func NewEntry(opts NewEntryOptions) *Entry {
 		indexWriter:              opts.IndexWriter,
 		nowFn:                    nowFn,
 		pendingIndexBatchSizeOne: make([]writes.PendingIndexInsert, 1),
-		reverseIndex:             newEntryIndexState(),
+		reverseIndex:             newEntryIndexState(opts.Metrics),
 	}
 	return entry
 }
@@ -400,6 +403,7 @@ type entryIndexState struct {
 	sync.RWMutex
 	states                   map[xtime.UnixNano]entryIndexBlockState
 	minIndexedT, maxIndexedT xtime.UnixNano
+	m                        *EntryMetrics
 }
 
 // entryIndexBlockState is used to capture the state of indexing for a single shard
@@ -410,13 +414,39 @@ type entryIndexBlockState struct {
 	success bool
 }
 
-func newEntryIndexState() entryIndexState {
+func newEntryIndexState(m *EntryMetrics) entryIndexState {
 	return entryIndexState{
 		states: make(map[xtime.UnixNano]entryIndexBlockState, 4),
+		m:      m,
+	}
+}
+
+type EntryMetrics struct {
+	IndexedRange    tally.Counter
+	SetSuccess      tally.Counter
+	IndexedWithLock tally.Counter
+	UpdateMax       tally.Counter
+	UpdateMin       tally.Counter
+}
+
+func NewEntryMetrics(s tally.Scope) *EntryMetrics {
+	scope := s.SubScope("storage_entry_metrics")
+	m := func(n string) tally.Counter {
+		return scope.Tagged(map[string]string{"entry_event": n}).Counter("count")
+	}
+
+	return &EntryMetrics{
+		IndexedRange:    m("indexed_range"),
+		SetSuccess:      m("set_success"),
+		IndexedWithLock: m("indexed_with_lock"),
+		UpdateMax:       m("update_max"),
+		UpdateMin:       m("update_min"),
 	}
 }
 
 func (s *entryIndexState) indexedRangeWithRLock() (xtime.UnixNano, xtime.UnixNano) {
+	debug.PrintStack()
+	s.m.IndexedRange.Inc(1)
 	return s.minIndexedT, s.maxIndexedT
 }
 
@@ -437,10 +467,12 @@ func (s *entryIndexState) indexedOrAttemptedWithRLock(t xtime.UnixNano) bool {
 }
 
 func (s *entryIndexState) setSuccessWithWLock(t xtime.UnixNano) {
+	s.m.SetSuccess.Inc(1)
 	if s.indexedWithRLock(t) {
 		return
 	}
 
+	s.m.IndexedWithLock.Inc(1)
 	// NB(r): If not inserted state yet that means we need to make an insertion,
 	// this will happen if synchronously indexing and we haven't called
 	// NeedIndexUpdate before we indexed the series.
@@ -449,9 +481,11 @@ func (s *entryIndexState) setSuccessWithWLock(t xtime.UnixNano) {
 	}
 
 	if t > s.maxIndexedT {
+		s.m.UpdateMax.Inc(1)
 		s.maxIndexedT = t
 	}
 	if t < s.minIndexedT || s.minIndexedT == 0 {
+		s.m.UpdateMin.Inc(1)
 		s.minIndexedT = t
 	}
 }
