@@ -21,6 +21,8 @@
 package searcher
 
 import (
+	"sort"
+
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -49,13 +51,26 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 		pl           postings.List
 		plNeedsClone = true
 	)
+
+	listCount := len(s.searchers)
+	if listCount < len(s.negations) {
+		listCount = len(s.negations)
+	}
+	lists := make([]postings.List, 0, listCount)
+
 	for _, sr := range s.searchers {
 		curr, err := sr.Search(r)
 		if err != nil {
 			return nil, err
 		}
+		lists = append(lists, curr)
+	}
 
-		// TODO: Sort the iterators so that we take the intersection in order of increasing size.
+	sort.Slice(lists, func(i, j int) bool {
+		return lists[i].Len() < lists[j].Len()
+	})
+	for _, curr := range lists {
+		var err error
 		if pl == nil {
 			pl = curr
 		} else {
@@ -72,13 +87,20 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 		}
 	}
 
+	lists = lists[:0]
 	for _, sr := range s.negations {
 		curr, err := sr.Search(r)
 		if err != nil {
 			return nil, err
 		}
+		lists = append(lists, curr)
+	}
 
-		// TODO: Sort the iterators so that we take the set differences in order of decreasing size.
+	sort.Slice(lists, func(i, j int) bool {
+		return lists[i].Len() > lists[j].Len()
+	})
+	for _, curr := range lists {
+		var err error
 		pl, err = pl.Difference(curr)
 		if err != nil {
 			return nil, err
