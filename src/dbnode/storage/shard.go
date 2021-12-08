@@ -152,6 +152,8 @@ type dbShard struct {
 	shard                    uint32
 	coldWritesEnabled        bool
 	indexEnabled             bool
+
+	writeBatchMetrics *index.WriteMetrics
 }
 
 // NB(r): dbShardRuntimeOptions does not contain its own
@@ -285,6 +287,8 @@ func newDatabaseShard(
 		logger:               opts.InstrumentOptions().Logger(),
 		metrics:              newDatabaseShardMetrics(shard, scope),
 		tileAggregator:       opts.TileAggregator(),
+
+		writeBatchMetrics: index.NewMetrics(opts.InstrumentOptions().MetricsScope()),
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
 		s.nowFn, opts.CoreFn(), scope, opts.InstrumentOptions().Logger())
@@ -903,6 +907,20 @@ func (s *dbShard) writeAndIndex(
 	shouldReverseIndex bool,
 ) (SeriesWrite, error) {
 	// Prepare write
+	// THIS IS THE PROBLEM. You can generate multiple entries and they have state on them
+	// if you have two concurrent runs they'd both return nil and you'd go to 978 to insertSeriesAsyncBatched
+	// this creates a new entry and inserts it into the queue.
+	// now 2 shard entries. When we insert it into the series store, index insert
+	// happens after that; pendingIndexInsert (not too relevant)m btut it takes in the created entry
+	// now we have a race since one of those entires gets attached to the document
+	// one will get orphaned when we insert it into the shard.
+	// Only one of the entries is put into the storage map where we keep entries in shard
+	// TryRetrieveSeriesAndIncrementReaderWriterCount is the lookup map.
+	// problem occurs ehn entry in the map is different from the document in the index.
+
+	// Writes update the entry from the map
+	// The thing in the actual index document hasn't been indexed since it's a different one.
+
 	entry, opts, err := s.TryRetrieveSeriesAndIncrementReaderWriterCount(id)
 	if err != nil {
 		return SeriesWrite{}, err
@@ -1510,6 +1528,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	indexBatch := index.NewWriteBatch(index.WriteBatchOptions{
 		InitialCapacity: numPendingIndexing,
 		IndexBlockSize:  indexBlockSize,
+		WriteMetrics:    s.writeBatchMetrics,
 	})
 	for i := range inserts {
 		var (

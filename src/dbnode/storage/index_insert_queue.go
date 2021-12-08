@@ -284,6 +284,8 @@ type nsIndexInsertBatch struct {
 	insertsByCPUCore    []*nsIndexInsertsByCPUCore
 	allInserts          *index.WriteBatch
 	allInsertsLastReset time.Time
+
+	writeBatchMetrics *index.WriteMetrics
 }
 
 type nsIndexInsertsByCPUCore struct {
@@ -326,6 +328,8 @@ func newNsIndexInsertBatch(
 	b := &nsIndexInsertBatch{
 		namespace: namespace,
 		nowFn:     nowFn,
+
+		writeBatchMetrics: index.NewMetrics(scope.SubScope("ns_index_insert")),
 	}
 	numCores := xsync.NumCores()
 	for i := 0; i < numCores; i++ {
@@ -341,6 +345,7 @@ func newNsIndexInsertBatch(
 func (b *nsIndexInsertBatch) allocateAllInserts() {
 	b.allInserts = index.NewWriteBatch(index.WriteBatchOptions{
 		IndexBlockSize: b.namespace.Options().IndexOptions().BlockSize(),
+		WriteMetrics:   b.writeBatchMetrics,
 	})
 	b.allInsertsLastReset = b.nowFn()
 }

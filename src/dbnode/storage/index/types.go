@@ -41,15 +41,14 @@ import (
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/uber-go/tally"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 )
 
-var (
-	// ReservedFieldNameID is the field name used to index the ID in the
-	// m3ninx subsytem.
-	ReservedFieldNameID = doc.IDReservedFieldName
-)
+// ReservedFieldNameID is the field name used to index the ID in the
+// m3ninx subsytem.
+var ReservedFieldNameID = doc.IDReservedFieldName
 
 // InsertMode specifies whether inserts are synchronous or asynchronous.
 type InsertMode byte
@@ -573,6 +572,23 @@ type WriteBatch struct {
 
 	entries []WriteBatchEntry
 	docs    []doc.Metadata
+
+	metrics *WriteMetrics
+}
+
+type WriteMetrics struct {
+	isNil          tally.Counter
+	needsReconcile tally.Counter
+	noReconcile    tally.Counter
+}
+
+func NewMetrics(sc tally.Scope) *WriteMetrics {
+	scope := sc.SubScope("storage_index_reconcile_metrics")
+	return &WriteMetrics{
+		isNil:          scope.Tagged(map[string]string{"status": "nil"}).Counter("count"),
+		needsReconcile: scope.Tagged(map[string]string{"status": "needs_reconcile"}).Counter("count"),
+		noReconcile:    scope.Tagged(map[string]string{"status": "no_reconcile"}).Counter("count"),
+	}
 }
 
 type writeBatchSortBy uint
@@ -586,6 +602,7 @@ const (
 type WriteBatchOptions struct {
 	InitialCapacity int
 	IndexBlockSize  time.Duration
+	WriteMetrics    *WriteMetrics
 }
 
 // NewWriteBatch creates a new write batch.
@@ -594,6 +611,7 @@ func NewWriteBatch(opts WriteBatchOptions) *WriteBatch {
 		opts:    opts,
 		entries: make([]WriteBatchEntry, 0, opts.InitialCapacity),
 		docs:    make([]doc.Metadata, 0, opts.InitialCapacity),
+		metrics: opts.WriteMetrics,
 	}
 }
 
@@ -802,10 +820,25 @@ func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
 
 // MarkEntrySuccess marks an entry as success.
 func (b *WriteBatch) MarkEntrySuccess(idx int) {
+	if b.entries[idx].OnIndexSeries != nil {
+		_, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
+		closer.Close()
+		if reconciled {
+			b.metrics.needsReconcile.Inc(1)
+		} else {
+			b.metrics.noReconcile.Inc(1)
+		}
+	} else {
+		b.metrics.isNil.Inc(1)
+	}
+
 	if !b.entries[idx].result.Done {
 		blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
+
+		// Should this be reconciling?
 		b.entries[idx].OnIndexSeries.OnIndexSuccess(blockStart)
 		b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
+
 		b.entries[idx].result.Done = true
 		b.entries[idx].result.Err = nil
 	}

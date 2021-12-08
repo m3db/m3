@@ -158,6 +158,8 @@ func (entry *Entry) IndexedRange() (xtime.UnixNano, xtime.UnixNano) {
 // returns a cleanup function to run once finished using the reconciled entry and
 // a boolean value indicating whether the result came from reconciliation or not.
 func (entry *Entry) ReconciledOnIndexSeries() (doc.OnIndexSeries, resource.SimpleCloser, bool) {
+	// This is called from the index block reconciliation lookup
+	// Reconcilde is when it's split, unreconciled is when we're ok.
 	if entry.insertTime.Load() > 0 {
 		return entry, resource.SimpleCloserFn(func() {}), false
 	}
