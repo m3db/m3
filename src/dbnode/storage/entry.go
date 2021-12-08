@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -479,7 +478,7 @@ func (s *entryIndexState) setSuccessWithWLock(t xtime.UnixNano) {
 		success: true,
 	}
 
-	debug.PrintStack()
+	// debug.PrintStack()
 	if t > s.maxIndexedT {
 		s.m.UpdateMax.Inc(1)
 		s.maxIndexedT = t
