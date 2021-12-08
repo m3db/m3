@@ -445,7 +445,6 @@ func NewEntryMetrics(s tally.Scope) *EntryMetrics {
 }
 
 func (s *entryIndexState) indexedRangeWithRLock() (xtime.UnixNano, xtime.UnixNano) {
-	debug.PrintStack()
 	s.m.IndexedRange.Inc(1)
 	return s.minIndexedT, s.maxIndexedT
 }
@@ -480,6 +479,7 @@ func (s *entryIndexState) setSuccessWithWLock(t xtime.UnixNano) {
 		success: true,
 	}
 
+	debug.PrintStack()
 	if t > s.maxIndexedT {
 		s.m.UpdateMax.Inc(1)
 		s.maxIndexedT = t
