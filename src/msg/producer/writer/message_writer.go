@@ -865,8 +865,8 @@ func StaticRetryNanosFn(backoffDurations []time.Duration) (MessageRetryNanosFn, 
 		retry := writeTimes - 1
 		l := len(backoffInt64s)
 		if retry < l {
-			return int64(backoffInt64s[retry])
+			return backoffInt64s[retry]
 		}
-		return int64(backoffInt64s[l-1])
+		return backoffInt64s[l-1]
 	}, nil
 }

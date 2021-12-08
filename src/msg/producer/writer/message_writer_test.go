@@ -776,9 +776,15 @@ func TestMessageWriterRetryIterateBatchNotFullScan(t *testing.T) {
 
 func TestNextRetryAfterNanos(t *testing.T) {
 	backoffDuration := time.Minute
-	opts := testOptions().SetMessageRetryNanosFn(
-		NextRetryNanosFn(retry.NewOptions().SetInitialBackoff(backoffDuration).SetMaxBackoff(2 * backoffDuration).SetJitter(true)),
-	)
+	opts := testOptions().
+		SetMessageRetryNanosFn(
+			NextRetryNanosFn(
+				retry.NewOptions().
+					SetInitialBackoff(backoffDuration).
+					SetMaxBackoff(2 * backoffDuration).
+					SetJitter(true),
+			),
+		)
 	w := newMessageWriter(200, nil, opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
 	nowNanos := time.Now().UnixNano()

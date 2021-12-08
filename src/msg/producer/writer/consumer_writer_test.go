@@ -393,7 +393,13 @@ func testOptions() Options {
 		SetMessagePoolOptions(pool.NewObjectPoolOptions().SetSize(1)).
 		SetMessageQueueNewWritesScanInterval(100 * time.Millisecond).
 		SetMessageQueueFullScanInterval(200 * time.Millisecond).
-		SetMessageRetryNanosFn(NextRetryNanosFn(retry.NewOptions().SetInitialBackoff(100 * time.Millisecond).SetMaxBackoff(500 * time.Millisecond))).
+		SetMessageRetryNanosFn(
+			NextRetryNanosFn(
+				retry.NewOptions().
+					SetInitialBackoff(100 * time.Millisecond).
+					SetMaxBackoff(500 * time.Millisecond),
+			),
+		).
 		SetAckErrorRetryOptions(retry.NewOptions().SetInitialBackoff(200 * time.Millisecond).SetMaxBackoff(time.Second)).
 		SetConnectionOptions(testConnectionOptions())
 }
