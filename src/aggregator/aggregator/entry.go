@@ -176,11 +176,12 @@ func newForwardedEntryMetrics(scope tally.Scope) forwardedEntryMetrics {
 }
 
 type entryMetrics struct {
-	resendEnabled tally.Counter
-	retriedValues tally.Counter
-	untimed       untimedEntryMetrics
-	timed         timedEntryMetrics
-	forwarded     forwardedEntryMetrics
+	resendEnabled         tally.Counter
+	retriedValues         tally.Counter
+	untimed               untimedEntryMetrics
+	timed                 timedEntryMetrics
+	forwarded             forwardedEntryMetrics
+	durationBetweenWrites map[metricCategory]tally.Histogram
 }
 
 // NewEntryMetrics creates new entry metrics.
@@ -190,12 +191,31 @@ func NewEntryMetrics(scope tally.Scope) *entryMetrics {
 	untimedEntryScope := scope.Tagged(map[string]string{"entry-type": "untimed"})
 	timedEntryScope := scope.Tagged(map[string]string{"entry-type": "timed"})
 	forwardedEntryScope := scope.Tagged(map[string]string{"entry-type": "forwarded"})
+	// NB: add a histogram tracking the duration between writes to help tune entry TTL.
+	writeDurations := make(map[metricCategory]tally.Histogram, len(validMetricCategories))
+	for _, category := range validMetricCategories {
+		writeDurations[category] = scope.
+			Tagged(map[string]string{"metric-category": category.String()}).
+			Histogram("duration-between-writes", tally.DurationBuckets{
+				time.Minute,
+				time.Minute * 2,
+				time.Minute * 5,
+				time.Minute * 10,
+				time.Minute * 15,
+				time.Minute * 20,
+				time.Minute * 30,
+				time.Minute * 40,
+				time.Minute * 50,
+				time.Minute * 60,
+			})
+	}
 	return &entryMetrics{
-		resendEnabled: scope.Counter("resend-enabled"),
-		retriedValues: scope.Counter("retried-values"),
-		untimed:       newUntimedEntryMetrics(untimedEntryScope),
-		timed:         newTimedEntryMetrics(timedEntryScope),
-		forwarded:     newForwardedEntryMetrics(forwardedEntryScope),
+		resendEnabled:         scope.Counter("resend-enabled"),
+		retriedValues:         scope.Counter("retried-values"),
+		untimed:               newUntimedEntryMetrics(untimedEntryScope),
+		timed:                 newTimedEntryMetrics(timedEntryScope),
+		forwarded:             newForwardedEntryMetrics(forwardedEntryScope),
+		durationBetweenWrites: writeDurations,
 	}
 }
 
@@ -231,7 +251,12 @@ func NewEntry(lists *metricLists, runtimeOpts runtime.Options, opts Options) *En
 }
 
 // NewEntryWithMetrics creates a new entry.
-func NewEntryWithMetrics(lists *metricLists, metrics *entryMetrics, runtimeOpts runtime.Options, opts Options) *Entry {
+func NewEntryWithMetrics(
+	lists *metricLists,
+	metrics *entryMetrics,
+	runtimeOpts runtime.Options,
+	opts Options,
+) *Entry {
 	e := &Entry{
 		timeLock:     opts.TimeLock(),
 		aggregations: make(aggregationValues, 0, initialAggregationCapacity),
@@ -426,7 +451,7 @@ func (e *Entry) addUntimed(
 	// must have all completed. This is used to ensure we never write metrics
 	// for times that have already been flushed.
 	currTime := e.nowFn()
-	e.lastAccessNanos.Store(currTime.UnixNano())
+	e.setLastAccessed(unknownMetricCategory)
 
 	e.mtx.RLock()
 	if e.closed {
@@ -773,7 +798,7 @@ func (e *Entry) addTimed(
 	// must have all completed. This is used to ensure we never write metrics
 	// for times that have already been flushed.
 	currTime := e.nowFn()
-	e.lastAccessNanos.Store(currTime.UnixNano())
+	e.setLastAccessed(timedMetric)
 
 	e.mtx.RLock()
 	if e.closed {
@@ -1012,7 +1037,7 @@ func (e *Entry) addForwarded(
 	// for times that have already been flushed.
 	currTime := e.nowFn()
 	currTimeNanos := currTime.UnixNano()
-	e.lastAccessNanos.Store(currTimeNanos)
+	e.setLastAccessed(forwardedMetric)
 
 	e.mtx.RLock()
 	if e.closed {
@@ -1157,7 +1182,8 @@ func (e *Entry) addForwardedWithLock(
 func (e *Entry) shouldExpire(now xtime.UnixNano) bool {
 	// Only expire the entry if there are no active writers
 	// and it has reached its ttl since last accessed.
-	return e.numWriters.Load() == 0 && now.After(xtime.UnixNano(e.lastAccessNanos.Load()).Add(e.opts.EntryTTL()))
+	age := now.Sub(xtime.UnixNano(e.lastAccessNanos.Load()))
+	return e.numWriters.Load() == 0 && age > e.opts.EntryTTL()
 }
 
 func (e *Entry) resetRateLimiterWithLock(runtimeOpts runtime.Options) {
@@ -1174,6 +1200,12 @@ func (e *Entry) applyValueRateLimit(numValues int64, m rateLimitEntryMetrics) er
 	m.valueRateLimitExceeded.Inc(1)
 	m.droppedValues.Inc(numValues)
 	return errWriteValueRateLimitExceeded
+}
+
+func (e *Entry) setLastAccessed(category metricCategory) {
+	now := e.nowFn().UnixNano()
+	prev := e.lastAccessNanos.Swap(now)
+	e.metrics.durationBetweenWrites[category].RecordDuration(time.Duration(now - prev))
 }
 
 type aggregationValue struct {

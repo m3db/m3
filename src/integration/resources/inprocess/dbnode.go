@@ -56,7 +56,7 @@ type DBNode struct {
 	logger  *zap.Logger
 	tmpDirs []string
 	started bool
-	startFn StartFn
+	startFn DBNodeStartFn
 
 	interruptCh chan<- error
 	shutdownCh  <-chan struct{}
@@ -73,7 +73,7 @@ type DBNodeOptions struct {
 	// the config if set to true. If false, configuration is used as-is re: host ID.
 	GenerateHostID bool
 	// StartFn is a custom function that can be used to start the DBNode.
-	StartFn StartFn
+	StartFn DBNodeStartFn
 	// Logger is the logger to use for the dbnode. If not provided,
 	// a default one will be created.
 	Logger *zap.Logger
@@ -170,7 +170,7 @@ func NewDBNode(cfg config.Configuration, opts DBNodeOptions) (resources.Node, er
 
 func (d *DBNode) start() {
 	if d.startFn != nil {
-		d.interruptCh, d.shutdownCh = d.startFn()
+		d.interruptCh, d.shutdownCh = d.startFn(&d.cfg)
 		d.started = true
 		return
 	}
@@ -354,6 +354,12 @@ func (d *DBNode) Close() error {
 	d.started = false
 
 	return nil
+}
+
+// Configuration returns a copy of the configuration used to
+// start this dbnode.
+func (d *DBNode) Configuration() config.Configuration {
+	return d.cfg
 }
 
 func updateDBNodeConfig(

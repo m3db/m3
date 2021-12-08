@@ -267,6 +267,39 @@ func TestRollupIdProvider(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:       "rollup and name already exists",
+			nameTag:    "__name__",
+			metricName: "http_requests",
+			tags: []id.TagPair{
+				{
+					Name:  []byte("__name__"),
+					Value: []byte("http_requests"),
+				},
+				{
+					Name:  []byte("__rollup__"),
+					Value: []byte("true"),
+				},
+				{
+					Name:  []byte("foo"),
+					Value: []byte("fooValue"),
+				},
+			},
+			expectedTags: []id.TagPair{
+				{
+					Name:  []byte("__name__"),
+					Value: []byte("http_requests"),
+				},
+				{
+					Name:  []byte("__rollup__"),
+					Value: []byte("true"),
+				},
+				{
+					Name:  []byte("foo"),
+					Value: []byte("fooValue"),
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -277,6 +310,20 @@ func TestRollupIdProvider(t *testing.T) {
 			}
 			encoder := &serialize.FakeTagEncoder{}
 			p := newRollupIDProvider(encoder, nil, ident.BytesID(tc.nameTag))
+			p.reset([]byte(tc.metricName), tc.tags)
+			require.Equal(t, len(tc.expectedTags), p.Len())
+			curIdx := 0
+			for p.Next() {
+				require.Equal(t, curIdx, p.CurrentIndex())
+				curIdx++
+				require.Equal(t, p.Len()-curIdx, p.Remaining())
+			}
+			p.Rewind()
+			curIdx = 0
+			for p.Next() {
+				require.Equal(t, curIdx, p.CurrentIndex())
+				curIdx++
+			}
 			rollupID, err := p.provide([]byte(tc.metricName), tc.tags)
 			require.NoError(t, err)
 			encoded, _ := encoder.Data()

@@ -139,7 +139,7 @@ func (i *termsIterFromSegments) Next() bool {
 			if termsKeyIter.segment.offset == 0 && termsKeyIter.segment.skips == 0 {
 				// No offset, which means is first segment we are combining from
 				// so can just direct union.
-				if err := i.currPostingsList.Union(list); err != nil {
+				if err := i.currPostingsList.UnionInPlace(list); err != nil {
 					i.err = err
 					return false
 				}

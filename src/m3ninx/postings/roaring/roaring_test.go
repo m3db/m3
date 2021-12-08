@@ -67,7 +67,7 @@ func TestRoaringPostingsListClone(t *testing.T) {
 	require.True(t, d.Contains(1))
 	require.Equal(t, 1, d.Len())
 
-	c := d.Clone()
+	c := d.CloneAsMutable()
 	require.True(t, c.Contains(1))
 	require.Equal(t, 1, c.Len())
 
@@ -85,15 +85,16 @@ func TestRoaringPostingsListIntersect(t *testing.T) {
 	require.True(t, d.Contains(1))
 	require.Equal(t, 1, d.Len())
 
-	c := d.Clone()
+	c := d.CloneAsMutable()
 	require.True(t, c.Contains(1))
 
 	require.NoError(t, d.Insert(2))
 	require.NoError(t, c.Insert(3))
 
-	require.NoError(t, d.Intersect(c))
-	require.True(t, d.Contains(1))
-	require.Equal(t, 1, d.Len())
+	e, err := d.Intersect(c)
+	require.NoError(t, err)
+	require.True(t, e.Contains(1))
+	require.Equal(t, 1, e.Len())
 	require.True(t, c.Contains(1))
 	require.True(t, c.Contains(3))
 	require.Equal(t, 2, c.Len())
@@ -105,19 +106,21 @@ func TestRoaringPostingsListDifference(t *testing.T) {
 	require.True(t, d.Contains(1))
 	require.Equal(t, 1, d.Len())
 
-	c := d.Clone()
+	c := d.CloneAsMutable()
 	require.True(t, c.Contains(1))
 
 	require.NoError(t, d.Insert(2))
 	require.NoError(t, d.Insert(3))
-	require.NoError(t, d.Difference(c))
 
-	require.False(t, d.Contains(1))
+	e, err := d.Difference(c)
+	require.NoError(t, err)
+
+	require.False(t, e.Contains(1))
 	require.True(t, c.Contains(1))
-	require.Equal(t, 2, d.Len())
+	require.Equal(t, 2, e.Len())
 	require.Equal(t, 1, c.Len())
-	require.True(t, d.Contains(3))
-	require.True(t, d.Contains(2))
+	require.True(t, e.Contains(3))
+	require.True(t, e.Contains(2))
 }
 
 func TestRoaringPostingsListUnion(t *testing.T) {
@@ -126,12 +129,12 @@ func TestRoaringPostingsListUnion(t *testing.T) {
 	require.True(t, d.Contains(1))
 	require.Equal(t, 1, d.Len())
 
-	c := d.Clone()
+	c := d.CloneAsMutable()
 	require.True(t, c.Contains(1))
 	require.NoError(t, d.Insert(2))
 	require.NoError(t, c.Insert(3))
 
-	require.NoError(t, d.Union(c))
+	require.NoError(t, d.UnionInPlace(c))
 	require.True(t, d.Contains(1))
 	require.True(t, d.Contains(2))
 	require.True(t, d.Contains(3))

@@ -21,6 +21,8 @@
 package doc
 
 import (
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -117,7 +119,7 @@ type OnIndexSeries interface {
 
 	// TryMarkIndexGarbageCollected checks if the entry is eligible to be garbage collected
 	// from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
-	TryMarkIndexGarbageCollected() bool
+	TryMarkIndexGarbageCollected(reconciled, unreconciled tally.Counter) bool
 
 	// NeedsIndexGarbageCollected returns if the entry is eligible to be garbage collected
 	// from the index.

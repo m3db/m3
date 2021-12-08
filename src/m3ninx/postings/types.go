@@ -61,11 +61,19 @@ type List interface {
 	// Iterator returns an iterator over the IDs in the postings list.
 	Iterator() Iterator
 
-	// Clone returns a copy of the postings list.
-	Clone() MutableList
+	// CloneAsMutable returns a mutable deep copy of the postings list.
+	CloneAsMutable() MutableList
 
 	// Equal returns whether this postings list contains the same posting IDs as other.
 	Equal(other List) bool
+
+	// Intersect returns a new postings list containing only those DocIDs which are
+	// in both this postings list and other.
+	Intersect(other List) (List, error)
+
+	// Difference returns a new postings list containing only those DocIDs which are
+	// in this postings list but not other.
+	Difference(other List) (List, error)
 }
 
 // MutableList is a postings list implementation which also supports mutable operations.
@@ -75,21 +83,13 @@ type MutableList interface {
 	// Insert inserts the given ID into the postings list.
 	Insert(i ID) error
 
-	// Intersect updates this postings list in place to contain only those DocIDs which are
-	// in both this postings list and other.
-	Intersect(other List) error
-
-	// Difference updates this postings list in place to contain only those DocIDs which are
-	// in this postings list but not other.
-	Difference(other List) error
-
-	// Union updates this postings list in place to contain those DocIDs which are in either
+	// UnionInPlace updates this postings list in place to contain those DocIDs which are in either
 	// this postings list or other.
-	Union(other List) error
+	UnionInPlace(other List) error
 
-	// UnionMany updates this postings list in place to contain those DocIDs which are in
+	// UnionManyInPlace updates this postings list in place to contain those DocIDs which are in
 	// either this postings list or multiple others.
-	UnionMany(others []List) error
+	UnionManyInPlace(others []List) error
 
 	// AddIterator adds all IDs contained in the iterator.
 	AddIterator(iter Iterator) error

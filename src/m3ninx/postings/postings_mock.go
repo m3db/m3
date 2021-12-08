@@ -53,18 +53,18 @@ func (m *MockList) EXPECT() *MockListMockRecorder {
 	return m.recorder
 }
 
-// Clone mocks base method.
-func (m *MockList) Clone() MutableList {
+// CloneAsMutable mocks base method.
+func (m *MockList) CloneAsMutable() MutableList {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Clone")
+	ret := m.ctrl.Call(m, "CloneAsMutable")
 	ret0, _ := ret[0].(MutableList)
 	return ret0
 }
 
-// Clone indicates an expected call of Clone.
-func (mr *MockListMockRecorder) Clone() *gomock.Call {
+// CloneAsMutable indicates an expected call of CloneAsMutable.
+func (mr *MockListMockRecorder) CloneAsMutable() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clone", reflect.TypeOf((*MockList)(nil).Clone))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloneAsMutable", reflect.TypeOf((*MockList)(nil).CloneAsMutable))
 }
 
 // Contains mocks base method.
@@ -81,6 +81,21 @@ func (mr *MockListMockRecorder) Contains(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Contains", reflect.TypeOf((*MockList)(nil).Contains), id)
 }
 
+// Difference mocks base method.
+func (m *MockList) Difference(other List) (List, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Difference", other)
+	ret0, _ := ret[0].(List)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Difference indicates an expected call of Difference.
+func (mr *MockListMockRecorder) Difference(other interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Difference", reflect.TypeOf((*MockList)(nil).Difference), other)
+}
+
 // Equal mocks base method.
 func (m *MockList) Equal(other List) bool {
 	m.ctrl.T.Helper()
@@ -93,6 +108,21 @@ func (m *MockList) Equal(other List) bool {
 func (mr *MockListMockRecorder) Equal(other interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockList)(nil).Equal), other)
+}
+
+// Intersect mocks base method.
+func (m *MockList) Intersect(other List) (List, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Intersect", other)
+	ret0, _ := ret[0].(List)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Intersect indicates an expected call of Intersect.
+func (mr *MockListMockRecorder) Intersect(other interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Intersect", reflect.TypeOf((*MockList)(nil).Intersect), other)
 }
 
 // IsEmpty mocks base method.
@@ -203,18 +233,18 @@ func (mr *MockMutableListMockRecorder) AddRange(min, max interface{}) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddRange", reflect.TypeOf((*MockMutableList)(nil).AddRange), min, max)
 }
 
-// Clone mocks base method.
-func (m *MockMutableList) Clone() MutableList {
+// CloneAsMutable mocks base method.
+func (m *MockMutableList) CloneAsMutable() MutableList {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Clone")
+	ret := m.ctrl.Call(m, "CloneAsMutable")
 	ret0, _ := ret[0].(MutableList)
 	return ret0
 }
 
-// Clone indicates an expected call of Clone.
-func (mr *MockMutableListMockRecorder) Clone() *gomock.Call {
+// CloneAsMutable indicates an expected call of CloneAsMutable.
+func (mr *MockMutableListMockRecorder) CloneAsMutable() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clone", reflect.TypeOf((*MockMutableList)(nil).Clone))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloneAsMutable", reflect.TypeOf((*MockMutableList)(nil).CloneAsMutable))
 }
 
 // Contains mocks base method.
@@ -232,11 +262,12 @@ func (mr *MockMutableListMockRecorder) Contains(id interface{}) *gomock.Call {
 }
 
 // Difference mocks base method.
-func (m *MockMutableList) Difference(other List) error {
+func (m *MockMutableList) Difference(other List) (List, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Difference", other)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(List)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Difference indicates an expected call of Difference.
@@ -274,11 +305,12 @@ func (mr *MockMutableListMockRecorder) Insert(i interface{}) *gomock.Call {
 }
 
 // Intersect mocks base method.
-func (m *MockMutableList) Intersect(other List) error {
+func (m *MockMutableList) Intersect(other List) (List, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Intersect", other)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(List)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Intersect indicates an expected call of Intersect.
@@ -370,32 +402,32 @@ func (mr *MockMutableListMockRecorder) Reset() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMutableList)(nil).Reset))
 }
 
-// Union mocks base method.
-func (m *MockMutableList) Union(other List) error {
+// UnionInPlace mocks base method.
+func (m *MockMutableList) UnionInPlace(other List) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Union", other)
+	ret := m.ctrl.Call(m, "UnionInPlace", other)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Union indicates an expected call of Union.
-func (mr *MockMutableListMockRecorder) Union(other interface{}) *gomock.Call {
+// UnionInPlace indicates an expected call of UnionInPlace.
+func (mr *MockMutableListMockRecorder) UnionInPlace(other interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Union", reflect.TypeOf((*MockMutableList)(nil).Union), other)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnionInPlace", reflect.TypeOf((*MockMutableList)(nil).UnionInPlace), other)
 }
 
-// UnionMany mocks base method.
-func (m *MockMutableList) UnionMany(others []List) error {
+// UnionManyInPlace mocks base method.
+func (m *MockMutableList) UnionManyInPlace(others []List) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UnionMany", others)
+	ret := m.ctrl.Call(m, "UnionManyInPlace", others)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UnionMany indicates an expected call of UnionMany.
-func (mr *MockMutableListMockRecorder) UnionMany(others interface{}) *gomock.Call {
+// UnionManyInPlace indicates an expected call of UnionManyInPlace.
+func (mr *MockMutableListMockRecorder) UnionManyInPlace(others interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnionMany", reflect.TypeOf((*MockMutableList)(nil).UnionMany), others)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnionManyInPlace", reflect.TypeOf((*MockMutableList)(nil).UnionManyInPlace), others)
 }
 
 // MockIterator is a mock of Iterator interface.

@@ -20,7 +20,23 @@
 
 package inprocess
 
-// StartFn is a custom function that can be used to start an M3 component.
+import (
+	aggcfg "github.com/m3db/m3/src/cmd/services/m3aggregator/config"
+	dbnodecfg "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
+	coordcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
+)
+
+// DBNodeStartFn is a custom function that can be used to start a DB node.
 // Function must return a channel for interrupting the server and
 // a channel for receiving notifications that the server has shut down.
-type StartFn func() (chan<- error, <-chan struct{})
+type DBNodeStartFn func(cfg *dbnodecfg.Configuration) (chan<- error, <-chan struct{})
+
+// CoordinatorStartFn is a custom function that can be used to start a coordinator.
+// Function must return a channel for interrupting the server and
+// a channel for receiving notifications that the server has shut down.
+type CoordinatorStartFn func(cfg *coordcfg.Configuration) (chan<- error, <-chan struct{})
+
+// AggregatorStartFn is a custom function that can be used to start an aggregator.
+// Function must return a channel for interrupting the server and
+// a channel for receiving notifications that the server has shut down.
+type AggregatorStartFn func(cfg *aggcfg.Configuration) (chan<- error, <-chan struct{})

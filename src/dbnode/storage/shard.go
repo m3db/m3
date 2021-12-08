@@ -2813,6 +2813,7 @@ func (s *dbShard) finishWriting(
 				zap.Uint32("shard", s.ID()),
 				zap.Time("blockStart", blockStart.ToTime()),
 				zap.Int("nextVersion", nextVersion),
+				zap.Error(err),
 			).Error("failed to update open leases after updating flush state cold version")
 		})
 		return err

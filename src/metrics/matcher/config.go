@@ -114,14 +114,9 @@ func (cfg *Configuration) NewOptions(
 		SortedTagIteratorFn: sortedTagIteratorFn,
 	}
 
-	isRollupIDFn := func(name []byte, tags []byte) bool {
-		return m3.IsRollupID(name, tags, sortedTagIteratorPool)
-	}
-
 	ruleSetOpts := rules.NewOptions().
 		SetTagsFilterOptions(tagsFilterOptions).
-		SetNewRollupIDFn(m3.NewRollupID).
-		SetIsRollupIDFn(isRollupIDFn)
+		SetNewRollupIDFn(m3.NewRollupID)
 
 	// Configure ruleset key function.
 	ruleSetKeyFn := func(namespace []byte) string {

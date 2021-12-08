@@ -188,25 +188,37 @@ func testPrometheusRemoteWriteDuplicateLabelReturns400(
 	logger *zap.Logger,
 ) {
 	logger.Info("test write with duplicate labels returns HTTP 400")
-	err := coordinator.WritePromWithLabels("foo_metric", []prompb.Label{
-		{
-			Name:  []byte("dupe_name"),
-			Value: []byte("foo"),
+	writeRequest := prompb.WriteRequest{
+		Timeseries: []prompb.TimeSeries{
+			{
+				Labels: []prompb.Label{
+					{
+						Name:  []byte(model.MetricNameLabel),
+						Value: []byte("foo_metric"),
+					},
+					{
+						Name:  []byte("dupe_name"),
+						Value: []byte("foo"),
+					},
+					{
+						Name:  []byte("non_dupe_name"),
+						Value: []byte("bar"),
+					},
+					{
+						Name:  []byte("dupe_name"),
+						Value: []byte("baz"),
+					},
+				},
+				Samples: []prompb.Sample{
+					{
+						Value:     42,
+						Timestamp: storage.TimeToPromTimestamp(xtime.Now()),
+					},
+				},
+			},
 		},
-		{
-			Name:  []byte("non_dupe_name"),
-			Value: []byte("bar"),
-		},
-		{
-			Name:  []byte("dupe_name"),
-			Value: []byte("baz"),
-		},
-	}, []prompb.Sample{
-		{
-			Value:     42,
-			Timestamp: storage.TimeToPromTimestamp(xtime.Now()),
-		},
-	}, nil)
+	}
+	err := coordinator.WritePromWithRequest(writeRequest, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "400")
 }
@@ -251,7 +263,7 @@ func testPrometheusRemoteWriteRetrictMetricsType(
 		},
 	}, resources.Headers{
 		headers.MetricsTypeHeader:          []string{"aggregated"},
-		headers.MetricsStoragePolicyHeader: []string{"15s:6h"},
+		headers.MetricsStoragePolicyHeader: []string{"5s:6h"},
 	})
 	require.NoError(t, err)
 }
@@ -828,7 +840,7 @@ func testQueryRestrictMetricsType(
 		},
 		resources.Headers{
 			headers.MetricsTypeHeader:          []string{"aggregated"},
-			headers.MetricsStoragePolicyHeader: []string{"15s:6h"},
+			headers.MetricsStoragePolicyHeader: []string{"5s:6h"},
 		},
 		func(res model.Vector) error {
 			if len(res) == 0 {
@@ -853,7 +865,7 @@ func testQueryRestrictMetricsType(
 		},
 		resources.Headers{
 			headers.MetricsTypeHeader:          []string{"aggregated"},
-			headers.MetricsStoragePolicyHeader: []string{"15s:6h"},
+			headers.MetricsStoragePolicyHeader: []string{"5s:6h"},
 		},
 		func(res model.Matrix) error {
 			if len(res) == 0 {

@@ -206,7 +206,7 @@ func (e *TimerElem) AddUnique(
 	versionsSeen.Set(version)
 
 	if metric.Version > 0 {
-		e.metrics.updatedValues.Inc(1)
+		e.writeMetrics.updatedValues.Inc(1)
 		for i := range metric.Values {
 			if err := lockedAgg.aggregation.UpdateVal(timestamp, metric.Values[i], metric.PrevValues[i]); err != nil {
 				return err
@@ -248,6 +248,12 @@ func (e *TimerElem) expireValuesWithLock(
 		// close the agg to prevent any more writes.
 		dirty := false
 		currAgg.lockedAgg.mtx.Lock()
+		if currAgg.lockedAgg.resendEnabled != e.flushState[currAgg.startAt].latestResendEnabled {
+			// the aggregation migrated to resendEnabled after the flusher read the resendEnabled state.
+			// keep the aggregation for now and try to expire on the next flush.
+			currAgg.lockedAgg.mtx.Unlock()
+			break
+		}
 		currAgg.lockedAgg.closed = true
 		dirty = currAgg.lockedAgg.dirty
 		currAgg.lockedAgg.mtx.Unlock()
@@ -362,7 +368,7 @@ func (e *TimerElem) Consume(
 ) bool {
 	resolution := e.sp.Resolution().Window
 	fMetrics := e.flushMetrics(resolution, flushType)
-	fMetrics.valuesProcessed.Inc(1)
+	fMetrics.elemsScanned.Inc(1)
 
 	// reverse engineer the allowed lateness.
 	latenessAllowed := time.Duration(targetNanos - targetNanosFn(targetNanos))
@@ -382,6 +388,7 @@ func (e *TimerElem) Consume(
 
 	// Process the aggregations that are ready for consumption.
 	for _, cState := range e.toConsume {
+		fMetrics.valuesProcessed.Inc(1)
 		e.processValue(cState,
 			timestampNanosFn,
 			flushLocalFn,
@@ -630,6 +637,7 @@ func (e *TimerElem) findOrCreate(
 	alignedStartNanos int64,
 	createOpts createAggregationOptions,
 ) (*lockedTimerAggregation, error) {
+	e.writeMetrics.writes.Inc(1)
 	alignedStart := xtime.UnixNano(alignedStartNanos)
 	found, err := e.find(alignedStart)
 	if err != nil {

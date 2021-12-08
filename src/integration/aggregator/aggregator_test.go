@@ -1,4 +1,6 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// +build cluster_integration
+//
+// Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +20,45 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package integration
+package aggregator
 
 import (
 	"testing"
-	"time"
 
-	"github.com/m3db/m3/src/cluster/kv"
-
-	"github.com/golang/protobuf/proto"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3/src/integration/resources"
+	"github.com/m3db/m3/src/integration/resources/inprocess"
 )
 
-type conditionFn func() bool
+func TestAggregator(t *testing.T) {
+	m3, closer := testSetup(t)
+	defer closer()
 
-func waitUntil(fn conditionFn, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if fn() {
-			return true
-		}
-		time.Sleep(time.Second)
-	}
-	return false
+	RunTest(t, m3)
 }
 
-func updateStore(t *testing.T, store kv.Store, key string, proto proto.Message) {
-	_, err := store.Set(key, proto)
+func testSetup(t *testing.T) (resources.M3Resources, func()) {
+	cfgs, err := inprocess.NewClusterConfigsFromYAML(
+		TestAggregatorDBNodeConfig, TestAggregatorCoordinatorConfig, TestAggregatorAggregatorConfig,
+	)
 	require.NoError(t, err)
+
+	m3, err := inprocess.NewCluster(cfgs,
+		resources.ClusterOptions{
+			DBNode: resources.NewDBNodeClusterOptions(),
+			Aggregator: &resources.AggregatorClusterOptions{
+				RF:                 2,
+				NumShards:          4,
+				NumInstances:       2,
+				NumIsolationGroups: 2,
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	return m3, func() {
+		assert.NoError(t, m3.Cleanup())
+	}
 }

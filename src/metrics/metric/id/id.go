@@ -37,9 +37,6 @@ type NameAndTagsFn func(id []byte) (name []byte, tags []byte, err error)
 // NewIDFn creates a new metric ID based on the metric name and metric tag pairs.
 type NewIDFn func(name []byte, tags []TagPair) []byte
 
-// MatchIDFn determines whether an id is considered "matched" based on certain criteria.
-type MatchIDFn func(name []byte, tags []byte) bool
-
 // RawID is the raw metric id.
 type RawID []byte
 

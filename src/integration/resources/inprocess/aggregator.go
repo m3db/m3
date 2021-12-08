@@ -52,7 +52,7 @@ type Aggregator struct {
 	cfg     config.Configuration
 	logger  *zap.Logger
 	tmpDirs []string
-	startFn StartFn
+	startFn AggregatorStartFn
 
 	started    bool
 	httpClient deploy.AggregatorClient
@@ -66,7 +66,7 @@ type AggregatorOptions struct {
 	// Logger is the logger to use for the in-process aggregator.
 	Logger *zap.Logger
 	// StartFn is a custom function that can be used to start the Aggregator.
-	StartFn StartFn
+	StartFn AggregatorStartFn
 	// Start indicates whether to start the aggregator instance
 	Start bool
 	// GeneratePorts will automatically update the config to use open ports
@@ -179,7 +179,7 @@ func (a *Aggregator) Start() {
 	a.started = true
 
 	if a.startFn != nil {
-		a.interruptCh, a.shutdownCh = a.startFn()
+		a.interruptCh, a.shutdownCh = a.startFn(&a.cfg)
 		return
 	}
 
@@ -255,6 +255,12 @@ func (a *Aggregator) Close() error {
 	}
 
 	return nil
+}
+
+// Configuration returns a copy of the configuration used to
+// start this aggregator.
+func (a *Aggregator) Configuration() config.Configuration {
+	return a.cfg
 }
 
 func updateAggregatorConfig(

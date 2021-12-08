@@ -61,7 +61,7 @@ type Coordinator struct {
 	logger   *zap.Logger
 	tmpDirs  []string
 	embedded bool
-	startFn  StartFn
+	startFn  CoordinatorStartFn
 
 	interruptCh chan<- error
 	shutdownCh  <-chan struct{}
@@ -73,7 +73,7 @@ type CoordinatorOptions struct {
 	// if set to true. If false, configuration is used as-is re: ports.
 	GeneratePorts bool
 	// StartFn is a custom function that can be used to start the Coordinator.
-	StartFn StartFn
+	StartFn CoordinatorStartFn
 	// Logger is the logger to use for the coordinator. If not provided,
 	// a default one will be created.
 	Logger *zap.Logger
@@ -209,7 +209,7 @@ func NewEmbeddedCoordinator(d *DBNode) (resources.Coordinator, error) {
 
 func (c *Coordinator) start() {
 	if c.startFn != nil {
-		c.interruptCh, c.shutdownCh = c.startFn()
+		c.interruptCh, c.shutdownCh = c.startFn(&c.cfg)
 		return
 	}
 
@@ -420,15 +420,10 @@ func (c *Coordinator) WriteProm(
 	return c.client.WriteProm(name, tags, samples, headers)
 }
 
-// WritePromWithLabels writes a prometheus metric. Allows you to provide the labels for
-// the write directly instead of conveniently converting them from a map.
-func (c *Coordinator) WritePromWithLabels(
-	name string,
-	labels []prompb.Label,
-	samples []prompb.Sample,
-	headers resources.Headers,
-) error {
-	return c.client.WritePromWithLabels(name, labels, samples, headers)
+// WritePromWithRequest executes a prometheus write request. Allows you to
+// provide the request directly which is useful for batch metric requests.
+func (c *Coordinator) WritePromWithRequest(writeRequest prompb.WriteRequest, headers resources.Headers) error {
+	return c.client.WritePromWithRequest(writeRequest, headers)
 }
 
 // RunQuery runs the given query with a given verification function.
@@ -503,6 +498,12 @@ func (c *Coordinator) Series(
 	headers resources.Headers,
 ) ([]model.Metric, error) {
 	return c.client.Series(req, headers)
+}
+
+// Configuration returns a copy of the configuration used to
+// start this coordinator.
+func (c *Coordinator) Configuration() config.Configuration {
+	return c.cfg
 }
 
 func updateCoordinatorConfig(

@@ -96,21 +96,6 @@ services:
       # Note: Use ".tmp" suffix is git ignored.
       - "./m3coordinator.yml.tmp:/etc/m3coordinator/m3coordinator.yml"
       - "./schema.proto:/etc/m3coordinator/schema.proto"
-  m3collector01:
-    expose:
-      - "7206"
-      - "7207"
-    ports:
-      - "0.0.0.0:7206:7206"
-      - "0.0.0.0:7207:7207"
-    networks:
-      - backend
-    build:
-      context: ../../../bin
-      dockerfile: ./docker/m3collector/development.Dockerfile
-    image: m3collector:dev
-    volumes:
-      - "./m3collector.yml:/etc/m3collector/m3collector.yml"
   prometheus01:
     expose:
       - "9090"

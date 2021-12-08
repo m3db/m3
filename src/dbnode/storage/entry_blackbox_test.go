@@ -29,6 +29,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/x/ident"
@@ -163,7 +164,7 @@ func TestEntryTryMarkIndexGarbageCollectedAfterSeriesClose(t *testing.T) {
 	series.EXPECT().IsEmpty().Return(false).AnyTimes()
 	require.NotPanics(t, func() {
 		// Make sure doesn't panic.
-		require.False(t, entry.TryMarkIndexGarbageCollected())
+		require.False(t, entry.TryMarkIndexGarbageCollected(nil, nil))
 	})
 }
 
@@ -246,4 +247,63 @@ func TestReconciledOnIndexSeries(t *testing.T) {
 	require.False(t, reconciled)
 	require.Equal(t, uint64(0), e.(*Entry).Index)
 	closer.Close()
+}
+
+func TestEntryTryMarkIndexGarbageCollected(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := DefaultTestOptions()
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	shard := testDatabaseShard(t, opts)
+	defer func() {
+		require.NoError(t, shard.Close())
+	}()
+
+	// Create entry with index 0 that's not inserted
+	s := series.NewMockDatabaseSeries(ctrl)
+	s.EXPECT().ID().Return(id).AnyTimes()
+	s.EXPECT().Close().Return()
+
+	uncommittedEntry := NewEntry(NewEntryOptions{
+		Index:  0,
+		Shard:  shard,
+		Series: s,
+	})
+	committedEntry := NewEntry(NewEntryOptions{
+		Index:  1,
+		Shard:  shard,
+		Series: s,
+	})
+	shard.Lock()
+	shard.insertNewShardEntryWithLock(committedEntry)
+	shard.Unlock()
+
+	scope := tally.NewTestScope("test", nil)
+	reconciled := scope.Counter("reconciled")
+	unreconciled := scope.Counter("unreconciled")
+
+	// Not eligible if not empty.
+	s.EXPECT().IsEmpty().Return(false)
+	collected := uncommittedEntry.TryMarkIndexGarbageCollected(reconciled, unreconciled)
+	require.False(t, collected)
+
+	// Not eligible if held.
+	s.EXPECT().IsEmpty().Return(true).AnyTimes()
+	committedEntry.IncrementReaderWriterCount()
+	collected = uncommittedEntry.TryMarkIndexGarbageCollected(reconciled, unreconciled)
+	require.False(t, collected)
+
+	committedEntry.DecrementReaderWriterCount()
+	collected = uncommittedEntry.TryMarkIndexGarbageCollected(reconciled, unreconciled)
+	require.True(t, collected)
+
+	require.Equal(t, scope.Snapshot().Counters()["test.reconciled+"].Value(), int64(1))
+	require.Equal(t, scope.Snapshot().Counters()["test.unreconciled+"].Value(), int64(0))
+
+	// Entry in the shard is the one marked for GC (not the one necessarily used for the call above).
+	require.True(t, committedEntry.IndexGarbageCollected.Load())
+	require.False(t, uncommittedEntry.IndexGarbageCollected.Load())
 }

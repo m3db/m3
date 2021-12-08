@@ -52,9 +52,11 @@ func (s *disjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 
 		// TODO: Sort the iterators so that we take the union in order of decreasing size.
 		if pl == nil {
-			pl = curr.Clone()
+			pl = curr.CloneAsMutable()
 		} else {
-			pl.Union(curr)
+			if err = pl.UnionInPlace(curr); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return pl, nil
