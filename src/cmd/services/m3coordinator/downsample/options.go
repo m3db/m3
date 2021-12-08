@@ -712,7 +712,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetNamespaceTag([]byte(namespaceTag)).
 		SetRequireNamespaceWatchOnInit(cfg.Matcher.RequireNamespaceWatchOnInit).
 		SetInterruptedCh(o.InterruptedCh)
-	if v := cfg.Matcher.Cache.Capacity; v != nil {
+	if v := cfg.Matcher.Cache.Capacity; v != nil && *v > 0 {
 		matcherScope := instrumentOpts.MetricsScope().SubScope("matcher-cache")
 		cacheOpts := cache.NewOptions().
 			SetCapacity(*v).
