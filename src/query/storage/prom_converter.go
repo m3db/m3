@@ -147,11 +147,7 @@ func toPromSequentially(
 		}
 	}
 
-	return PromResult{
-		PromResult: &prompb.QueryResult{
-			Timeseries: seriesList,
-		},
-	}, nil
+	return NewPromResult(seriesList), nil
 }
 
 func toPromConcurrently(
@@ -213,11 +209,7 @@ func toPromConcurrently(
 		}
 	}
 
-	return PromResult{
-		PromResult: &prompb.QueryResult{
-			Timeseries: filteredList,
-		},
-	}, nil
+	return NewPromResult(filteredList), nil
 }
 
 func seriesIteratorsToPromResult(
@@ -258,7 +250,9 @@ func SeriesIteratorsToPromResult(
 
 	promResult, err := seriesIteratorsToPromResult(ctx, fetchResult,
 		readWorkerPool, tagOptions, maxResolution, promConvertOptions)
-	promResult.Metadata = fetchResult.Metadata
+	// Merge the fetchResult metadata into any metadata that was already
+	// computed for this promResult.
+	promResult.Metadata = promResult.Metadata.CombineMetadata(fetchResult.Metadata)
 
 	return promResult, err
 }

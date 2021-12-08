@@ -204,8 +204,7 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 	}
 
 	fetchOpts := &storage.FetchOptions{}
-	result := storage.PromResult{Metadata: block.ResultMetadata{
-		Exhaustive: true, LocalOnly: true}}
+	result := storage.NewPromResult([]*prompb.TimeSeries{})
 	engine := executor.NewMockEngine(ctrl)
 	engine.EXPECT().
 		ExecuteProm(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -397,20 +396,17 @@ func TestReadWithOptions(t *testing.T) {
 	now := xtime.Now()
 	promNow := storage.TimeToPromTimestamp(now)
 
-	r := storage.PromResult{
-		PromResult: &prompb.QueryResult{
-			Timeseries: []*prompb.TimeSeries{
-				{
-					Samples: []prompb.Sample{{Value: 1, Timestamp: promNow}},
-					Labels: []prompb.Label{
-						{Name: []byte("a"), Value: []byte("b")},
-						{Name: []byte("remove"), Value: []byte("c")},
-					},
+	r := storage.NewPromResult(
+		[]*prompb.TimeSeries{
+			{
+				Samples: []prompb.Sample{{Value: 1, Timestamp: promNow}},
+				Labels: []prompb.Label{
+					{Name: []byte("a"), Value: []byte("b")},
+					{Name: []byte("remove"), Value: []byte("c")},
 				},
 			},
 		},
-		Metadata: block.NewResultMetadata(),
-	}
+	)
 
 	req := &prompb.ReadRequest{
 		Queries: []*prompb.Query{{StartTimestampMs: 10, EndTimestampMs: 100}},
