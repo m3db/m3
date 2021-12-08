@@ -483,6 +483,10 @@ func (as *activeRuleSet) matchRollupTarget(
 		}
 	}
 
+	if sortedTagIter.Err() != nil {
+		panic(sortedTagIter.Err())
+	}
+
 	if !opts.generateRollupID {
 		return nil, true
 	}
