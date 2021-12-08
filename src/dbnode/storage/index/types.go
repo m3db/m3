@@ -577,9 +577,11 @@ type WriteBatch struct {
 }
 
 type WriteMetrics struct {
-	isNil          map[bool]map[string]tally.Counter
-	needsReconcile map[bool]map[string]tally.Counter
-	noReconcile    map[bool]map[string]tally.Counter
+	isNil               map[bool]map[string]tally.Counter
+	needsReconcile      map[bool]map[string]tally.Counter
+	noReconcile         map[bool]map[string]tally.Counter
+	markedSuccess       tally.Counter
+	markedSuccessUpdate tally.Counter
 }
 
 func NewMetrics(sc tally.Scope) *WriteMetrics {
@@ -589,6 +591,9 @@ func NewMetrics(sc tally.Scope) *WriteMetrics {
 		isNil:          map[bool]map[string]tally.Counter{},
 		needsReconcile: map[bool]map[string]tally.Counter{},
 		noReconcile:    map[bool]map[string]tally.Counter{},
+
+		markedSuccess:       scope.Tagged(map[string]string{"mark_netry_status": "called"}).Counter("marked"),
+		markedSuccessUpdate: scope.Tagged(map[string]string{"mark_netry_status": "updated"}).Counter("marked"),
 	}
 
 	for _, found := range []bool{true, false} {
@@ -834,6 +839,8 @@ func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
 
 // MarkEntrySuccess marks an entry as success.
 func (b *WriteBatch) MarkEntrySuccess(idx int) {
+	b.metrics.markedSuccess.Inc(1)
+
 	isDone := b.entries[idx].result.Done
 	if b.entries[idx].OnIndexSeries != nil {
 		_, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
@@ -849,6 +856,7 @@ func (b *WriteBatch) MarkEntrySuccess(idx int) {
 	}
 
 	if !isDone {
+		b.metrics.markedSuccessUpdate.Inc(1)
 		blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
 
 		// Should this be reconciling?
