@@ -144,7 +144,6 @@ type ruleSet struct {
 	rollupRules        []*rollupRule
 	tagsFilterOpts     filters.TagsFilterOptions
 	newRollupIDFn      metricid.NewIDFn
-	isRollupIDFn       metricid.MatchIDFn
 }
 
 // NewRuleSetFromProto creates a new RuleSet from a proto object.
@@ -182,7 +181,6 @@ func NewRuleSetFromProto(version int, rs *rulepb.RuleSet, opts Options) (RuleSet
 		rollupRules:        rollupRules,
 		tagsFilterOpts:     tagsFilterOpts,
 		newRollupIDFn:      opts.NewRollupIDFn(),
-		isRollupIDFn:       opts.IsRollupIDFn(),
 	}, nil
 }
 
@@ -225,7 +223,6 @@ func (rs *ruleSet) ActiveSet(timeNanos int64) Matcher {
 		rollupRules,
 		rs.tagsFilterOpts,
 		rs.newRollupIDFn,
-		rs.isRollupIDFn,
 	)
 }
 
@@ -337,7 +334,6 @@ func (rs *ruleSet) Clone() MutableRuleSet {
 		rollupRules:        rollupRules,
 		tagsFilterOpts:     rs.tagsFilterOpts,
 		newRollupIDFn:      rs.newRollupIDFn,
-		isRollupIDFn:       rs.isRollupIDFn,
 	}
 }
 

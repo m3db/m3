@@ -271,6 +271,11 @@ test-ci-integration:
 	INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) TEST_AGGREGATOR_CLIENT_TYPE=$(aggregator_client) make test-base-ci-integration
 	$(process_coverfile) $(coverfile)
 
+.PHONY: test-ci-cluster-integration
+test-ci-cluster-integration:
+	@echo "--- test-ci-cluster-integration"
+	go test -count=1 -p 1 -tags=cluster_integration ./src/integration/...
+
 .PHONY: test-ci-test-harness
 test-ci-test-harness:
 	@echo "--- test-ci-test-harness"

@@ -62,7 +62,6 @@ var (
 		cmpopts.IgnoreTypes(
 			activeRuleSet{}.tagsFilterOpts,
 			activeRuleSet{}.newRollupIDFn,
-			activeRuleSet{}.isRollupIDFn,
 		),
 		cmpopts.IgnoreInterfaces(struct{ filters.Filter }{}),
 		cmpopts.IgnoreInterfaces(struct{ aggregation.TypesOptions }{}),
@@ -76,7 +75,6 @@ var (
 		cmpopts.IgnoreTypes(
 			ruleSet{}.tagsFilterOpts,
 			ruleSet{}.newRollupIDFn,
-			ruleSet{}.isRollupIDFn,
 		),
 		cmpopts.IgnoreInterfaces(struct{ filters.Filter }{}),
 		cmpopts.IgnoreInterfaces(struct{ aggregation.TypesOptions }{}),
@@ -201,7 +199,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 			input.expectedRollupRules,
 			rs.tagsFilterOpts,
 			rs.newRollupIDFn,
-			rs.isRollupIDFn,
 		)
 		require.True(t, cmp.Equal(expected, as, testActiveRuleSetCmpOpts...))
 	}
