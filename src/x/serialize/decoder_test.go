@@ -49,6 +49,12 @@ func TestEmptyDecode(t *testing.T) {
 	d.Close()
 }
 
+func TestEmptySliceDecode(t *testing.T) {
+	d := newTagDecoder(testDecodeOpts, nil)
+	d.Reset(wrapAsCheckedBytes(nil))
+	require.NoError(t, d.Err())
+}
+
 func TestEmptyTagNameDecode(t *testing.T) {
 	var b []byte
 	b = append(b, headerMagicBytes...)

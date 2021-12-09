@@ -74,6 +74,14 @@ func (d *decoder) Reset(b checked.Bytes) {
 	d.checkedData.IncRef()
 	d.data = d.checkedData.Bytes()
 
+	// the Decoder can be Reset with a nil slice when the client is closing and addding back to a Pool. It will be
+	// called again with real value when pulled from the pool.
+	if len(b.Bytes()) == 0 {
+		d.length = 0
+		d.remaining = 0
+		return
+	}
+
 	header, err := d.decodeUInt16()
 	if err != nil {
 		d.err = err
