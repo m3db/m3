@@ -23,7 +23,6 @@ package policy
 import (
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -192,12 +191,16 @@ func (sp StoragePolicies) Equal(other StoragePolicies) bool {
 	if len(sp) != len(other) {
 		return false
 	}
-	sp1 := sp.Clone()
-	sp2 := other.Clone()
-	sort.Sort(ByResolutionAscRetentionDesc(sp1))
-	sort.Sort(ByResolutionAscRetentionDesc(sp2))
-	for i := 0; i < len(sp1); i++ {
-		if sp1[i] != sp2[i] {
+	// # of StoragePolicies is typically very small, so it's not worth the overhead of cloning/sorting.
+	for i := 0; i < len(sp); i++ {
+		found := false
+		for j := 0; j < len(other); j++ {
+			if sp[i] == other[j] {
+				found = true
+				break
+			}
+		}
+		if !found {
 			return false
 		}
 	}
