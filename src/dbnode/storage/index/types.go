@@ -23,6 +23,7 @@ package index
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -848,21 +849,20 @@ func (b *WriteBatch) MarkEntrySuccess(idx int) {
 
 		if reconciled {
 			indexedStart, indexedEnd := onIndexed.IndexedRange()
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("series: %s, indexedStart: %s indexedEnd: %s, ",
+				onIndexed.StringID(), indexedStart.String(), indexedEnd.String()))
+
 			if !isDone {
 				blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
 				diff := blockStart.Sub(indexedStart)
 
-				fmt.Printf(
-					"series needs reconciliation indexedStart: %s indexedEnd: %s blockStart: %s, diff %s\n",
-					indexedStart.String(), indexedEnd.String(), blockStart.String(), diff.String(),
-				)
+				sb.WriteString(fmt.Sprintf("blockStart: %s, diff: %s", blockStart.String(), diff.String()))
 			} else {
-				fmt.Printf(
-					"series needs reconciliation indexedStart: %s indexedEnd: %s is_done",
-					indexedStart.String(), indexedEnd.String(),
-				)
+				sb.WriteString("isDone: false")
 			}
 
+			fmt.Println(sb.String())
 			b.metrics.needsReconcile[isDone]["MarkEntrySuccess"].Inc(1)
 		} else {
 			b.metrics.noReconcile[isDone]["MarkEntrySuccess"].Inc(1)

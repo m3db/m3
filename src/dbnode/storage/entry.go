@@ -112,6 +112,10 @@ func NewEntry(opts NewEntryOptions) *Entry {
 	return entry
 }
 
+func (entry *Entry) StringID() string {
+	return entry.ID.String()
+}
+
 // ReaderWriterCount returns the current ref count on the Entry.
 func (entry *Entry) ReaderWriterCount() int32 {
 	return atomic.LoadInt32(&entry.curReadWriters)
