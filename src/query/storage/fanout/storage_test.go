@@ -161,6 +161,50 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 	return store
 }
 
+func TestCompleteTags_RestrictOptionsWorks_SingleStore(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	store := storage.NewMockStorage(ctrl)
+
+	meta := block.NewResultMetadata()
+	meta.Exhaustive = false
+	fullResult := &consolidators.CompleteTagsResult{
+		CompleteNameOnly: false,
+		CompletedTags: []consolidators.CompletedTag{
+			{Name: []byte("bar"), Values: xtest.BytesArray("zulu", "quail")},
+			{Name: []byte("foo"), Values: xtest.BytesArray("quail")},
+		},
+
+		Metadata: meta,
+	}
+
+	store.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).Return(fullResult, nil)
+
+	stores := []storage.Storage{store}
+	fanoutStorage := NewStorage(stores, filterFunc(false), filterFunc(false),
+		filterCompleteTagsFunc(true), models.NewTagOptions(),
+		storagem3.NewOptions(encoding.NewOptions()), instrument.NewOptions())
+
+	fetchOptions := storage.NewFetchOptions()
+	fetchOptions.RestrictQueryOptions = &storage.RestrictQueryOptions{
+		RestrictByTag: &storage.RestrictByTag{
+			Strip: xtest.BytesArray("bar"),
+		}}
+
+	completeTagsResult, err := fanoutStorage.CompleteTags(
+		context.TODO(),
+		&storage.CompleteTagsQuery{
+			CompleteNameOnly: true,
+			TagMatchers:      models.Matchers{},
+		},
+		fetchOptions)
+
+	require.NoError(t, err)
+
+	actualTags := completeTagsResult.CompletedTags
+	require.Len(t, actualTags, 1)
+	require.Equal(t, []byte("foo"), actualTags[0].Name)
+}
+
 func TestQueryStorageMetadataAttributes(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	store1, _ := m3.NewStorageAndSession(t, ctrl)

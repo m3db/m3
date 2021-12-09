@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,20 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package convert
+package test
 
-import xtime "github.com/m3db/m3/src/x/time"
-
-// UnitForM3DB converts a time unit into one that is suitable for m3db.
-// The is done in an explicit way for better performance and the logic is
-// ensured though unit test.
-func UnitForM3DB(unit xtime.Unit) xtime.Unit {
-	switch unit {
-	case xtime.Second, xtime.Minute, xtime.Hour, xtime.Day, xtime.Year:
-		return xtime.Second
-	case xtime.Nanosecond, xtime.Millisecond, xtime.Microsecond:
-		return unit
-	default:
-		return xtime.Nanosecond
+func BytesArray(strings ...string) [][]byte {
+	stringBytesArray := make([][]byte, len(strings))
+	for i, v := range strings {
+		stringBytesArray[i] = []byte(v)
 	}
+	return stringBytesArray
 }
