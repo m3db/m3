@@ -63,6 +63,8 @@ type rollupIDProvider struct {
 	mergeTags    []id.TagPair
 }
 
+var _ ident.TagEncodingIterator = &rollupIDProvider{}
+
 func newRollupIDProvider(tagEncoder serialize.TagEncoder, nameTag ident.ID) *rollupIDProvider {
 	nameTagBytes := nameTag.Bytes()
 	nameTagBeforeRollupTag := bytes.Compare(nameTagBytes, rollupTagName) < 0
@@ -106,15 +108,7 @@ TagPairsFilterLoop:
 	}
 
 	// Create the rollup using filtered tag pairs.
-	// N.B - provide resets the rollupIDProvider
-	return p.provide(newName, filtered)
-}
-
-func (p *rollupIDProvider) provide(
-	newName []byte,
-	tagPairs []id.TagPair,
-) ([]byte, error) {
-	p.reset(newName, tagPairs)
+	p.reset(newName, filtered)
 	p.tagEncoder.Reset()
 	if err := p.tagEncoder.Encode(p); err != nil {
 		return nil, err
@@ -213,12 +207,6 @@ func (p *rollupIDProvider) Len() int {
 
 func (p *rollupIDProvider) Remaining() int {
 	return p.Len() - p.CurrentIndex() - 1
-}
-
-func (p *rollupIDProvider) Duplicate() ident.TagIterator {
-	duplicate := newRollupIDProvider(p.tagEncoder, p.nameTag)
-	duplicate.reset(p.newName, p.tagPairs)
-	return duplicate
 }
 
 func (p *rollupIDProvider) Rewind() {

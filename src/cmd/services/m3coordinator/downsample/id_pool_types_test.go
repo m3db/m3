@@ -324,7 +324,7 @@ func TestRollupIdProvider(t *testing.T) {
 				require.Equal(t, curIdx, p.CurrentIndex())
 				curIdx++
 			}
-			rollupID, err := p.provide([]byte(tc.metricName), tc.tags)
+			rollupID, err := p.ID([]byte(tc.metricName), tc.tags)
 			require.NoError(t, err)
 			encoded, _ := encoder.Data()
 			require.Equal(t, rollupID, encoded.Bytes())

@@ -235,6 +235,8 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	sort.Sort(a.commonTags)
 
 	// Encode tags and compute a temporary (unowned) ID
+	// N.B - do not need to take a copy of this ID because it's only used for the scope of the Matcher and the encoder
+	// is not used again until after that.
 	data, err := a.encodeTags(a.commonTags)
 	if err != nil {
 		return SamplesAppenderResult{}, err

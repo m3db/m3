@@ -3504,7 +3504,7 @@ type testDownsamplerOptionsExpectAllowFilter struct {
 	attributes []storagemetadata.Attributes
 }
 
-// newMatcher returns a new Matcher instance that is already open. the caler must Close it.
+// newMatcher returns a new Matcher instance that is already open. the caller must Close it.
 func (t testDownsampler) newMatcher() (matcher.Matcher, error) {
 	a, err := t.downsampler.NewMetricsAppender()
 	if err != nil {

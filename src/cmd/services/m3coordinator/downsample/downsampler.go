@@ -97,8 +97,7 @@ type downsampler struct {
 	agg  agg
 
 	sync.RWMutex
-	metricsAppenderPool *metricsAppenderPool
-	// TODO: is this nil to start?
+	metricsAppenderPool          *metricsAppenderPool
 	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
 	enabled                      bool
 }
