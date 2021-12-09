@@ -103,7 +103,6 @@ func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 			{Name: b("bar")},
 			{Name: b("baz")},
 			{Name: b("foo")},
-			{Name: b("to_strip")},
 		},
 
 		Metadata: meta,
@@ -115,12 +114,7 @@ func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 	}
 
 	fb, err := handleroptions.NewFetchOptionsBuilder(
-		handleroptions.FetchOptionsBuilderOptions{
-			Timeout: 15 * time.Second,
-			RestrictByTag: &storage.RestrictByTag{
-				Strip: toStrip("to_strip"),
-			},
-		})
+		handleroptions.FetchOptionsBuilderOptions{Timeout: 15 * time.Second})
 	require.NoError(t, err)
 	opts := options.EmptyHandlerOptions().
 		SetStorage(store).
@@ -132,15 +126,6 @@ func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 		testListTagsWithMatch(t, now, store, storeResult, method, header, h, false)
 		testListTagsWithMatch(t, now, store, storeResult, method, header, h, true)
 	}
-}
-
-func toStrip(strs ...string) [][]byte {
-	b := make([][]byte, 0, len(strs))
-	for _, s := range strs {
-		b = append(b, []byte(s))
-	}
-
-	return b
 }
 
 func testListTagsWithMatch(

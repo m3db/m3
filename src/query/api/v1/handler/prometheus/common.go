@@ -21,7 +21,6 @@
 package prometheus
 
 import (
-	"bytes"
 	goerrors "errors"
 	"fmt"
 	"io"
@@ -406,7 +405,6 @@ func renderDefaultTagCompletionResultsJSON(
 // series metadata.
 type RenderSeriesMetadataOptions struct {
 	ReturnedSeriesMetadataLimit int
-	Strip                       [][]byte
 }
 
 // RenderSeriesMetadataResult returns results about a series metadata rendering.
@@ -451,9 +449,6 @@ func RenderListTagResultsJSON(
 			limited = true
 			break
 		}
-		if contains(opts.Strip, t.Name) {
-			continue
-		}
 		rendered++
 		jw.WriteBytesString(t.Name)
 	}
@@ -466,15 +461,6 @@ func RenderListTagResultsJSON(
 		TotalResults:           total,
 		LimitedMaxReturnedData: limited,
 	}, jw.Close()
-}
-
-func contains(arr [][]byte, str []byte) bool {
-	for _, s := range arr {
-		if bytes.Equal(s, str) {
-			return true
-		}
-	}
-	return false
 }
 
 // RenderTagCompletionResultsJSON renders tag completion results to json format.
