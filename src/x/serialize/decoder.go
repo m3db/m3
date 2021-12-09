@@ -79,10 +79,9 @@ func (d *decoder) Reset(b checked.Bytes) {
 	d.checkedData = b
 	d.checkedData.IncRef()
 	d.data = d.checkedData.Bytes()
-	if b.Bytes() == nil {
-		d.length = 0
-		d.remaining = 0
-		return
+
+	if d.data == nil {
+		panic(d.data)
 	}
 
 	header, err := d.decodeUInt16()
