@@ -102,8 +102,9 @@ func TestReleaseRef(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
+	entry := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
+	entry.IncrementReaderWriterCount()
 	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
-		entry := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
 		entry.IncrementReaderWriterCount()
 		return entry, nil
 	})
@@ -111,7 +112,6 @@ func TestReleaseRef(t *testing.T) {
 	require.NoError(t, err)
 	require.IsType(t, &Entry{}, seriesRef)
 
-	entry := seriesRef.(*Entry)
 	require.Equal(t, int32(1), entry.ReaderWriterCount())
 	err = sut.ReleaseRef()
 	require.NoError(t, err)
