@@ -16,4 +16,8 @@ enum MetricType {
     SUMMARY         = 5;
     INFO            = 6;
     STATESET        = 7;
+
+    GRAPHITE_COUNTER =  8;
+    GRAPHITE_GAUGE   =  9;
+    GRAPHITE_TIMER   = 10;
 }
