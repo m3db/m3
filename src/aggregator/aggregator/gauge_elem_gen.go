@@ -368,7 +368,7 @@ func (e *GaugeElem) Consume(
 ) bool {
 	resolution := e.sp.Resolution().Window
 	fMetrics := e.flushMetrics(resolution, flushType)
-	fMetrics.valuesProcessed.Inc(1)
+	fMetrics.elemsScanned.Inc(1)
 
 	// reverse engineer the allowed lateness.
 	latenessAllowed := time.Duration(targetNanos - targetNanosFn(targetNanos))
@@ -388,6 +388,7 @@ func (e *GaugeElem) Consume(
 
 	// Process the aggregations that are ready for consumption.
 	for _, cState := range e.toConsume {
+		fMetrics.valuesProcessed.Inc(1)
 		e.processValue(cState,
 			timestampNanosFn,
 			flushLocalFn,

@@ -151,7 +151,7 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 			// No offset, which means is first segment we are combining from
 			// so can just direct union.
 			// Make sure skips is empty otherwise we need to do filtering.
-			if err := i.currFieldPostingsList.Union(pl); err != nil {
+			if err := i.currFieldPostingsList.UnionInPlace(pl); err != nil {
 				i.err = err
 				return false
 			}

@@ -67,16 +67,19 @@ func TestNegationSearcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test the postings list from the first Reader.
-	expected := readerFirstPL.Clone()
-	expected.Difference(searcherFirstPL)
+	var expected postings.List = readerFirstPL
+	expected, err = expected.Difference(searcherFirstPL)
+	require.NoError(t, err)
+
 	pl, err := s.Search(firstReader)
 	require.NoError(t, err)
 	require.True(t, pl.Equal(expected))
 
 	// Test the postings list from the second Reader.
+	expected = readerSecondPL
+	expected, err = expected.Difference(searcherSecondPL)
 	require.NoError(t, err)
-	expected = readerSecondPL.Clone()
-	expected.Difference(searcherSecondPL)
+
 	pl, err = s.Search(secondReader)
 	require.NoError(t, err)
 	require.True(t, pl.Equal(expected))

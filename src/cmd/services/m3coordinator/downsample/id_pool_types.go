@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 
+	coordmodel "github.com/m3db/m3/src/cmd/services/m3coordinator/model"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
@@ -34,9 +35,10 @@ import (
 
 var (
 	defaultMetricNameTagName = []byte(model.MetricNameLabel)
-	rollupTagName            = []byte("__rollup__")
-	rollupTagValue           = []byte("true")
-	errNoMetricNameTag       = errors.New("no metric name tag found")
+	rollupTagName            = []byte(coordmodel.RollupTagName)
+	rollupTagValue           = []byte(coordmodel.RollupTagValue)
+
+	errNoMetricNameTag = errors.New("no metric name tag found")
 )
 
 // rollupIDProvider is a constructor for rollup IDs, it can be pooled to avoid

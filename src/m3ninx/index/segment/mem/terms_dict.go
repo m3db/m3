@@ -101,7 +101,7 @@ func (d *termsDict) FieldsPostingsList() sgmt.FieldsPostingsListIterator {
 				d.currFieldsPostingsLists = append(d.currFieldsPostingsLists, entry.value)
 			}
 		}
-		pl.UnionMany(d.currFieldsPostingsLists)
+		_ = pl.UnionManyInPlace(d.currFieldsPostingsLists)
 		fields = append(fields, uniqueField{
 			field:        field,
 			postingsList: pl,
