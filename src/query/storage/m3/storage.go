@@ -28,9 +28,11 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go/log"
+	"github.com/prometheus/common/model"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	coordmodel "github.com/m3db/m3/src/cmd/services/m3coordinator/model"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
@@ -152,6 +154,34 @@ func (s *m3storage) FetchProm(
 	)
 	if err != nil {
 		return storage.PromResult{}, err
+	}
+
+	for _, series := range fetchResult.PromResult.Timeseries {
+		if series == nil {
+			continue
+		}
+
+		rollup := false
+		metricName := ""
+		for _, label := range series.Labels {
+			// Check for both the rollup tag and the metric name label.
+			name := string(label.Name)
+			value := string(label.Value)
+			switch name {
+			case coordmodel.RollupTagName:
+				if value == coordmodel.RollupTagValue {
+					rollup = true
+				}
+			case model.MetricNameLabel:
+				metricName = value
+			}
+		}
+
+		if rollup {
+			fetchResult.Metadata.ByName(metricName).Aggregated++
+		} else {
+			fetchResult.Metadata.ByName(metricName).Unaggregated++
+		}
 	}
 
 	return fetchResult, nil
@@ -390,6 +420,9 @@ func (s *m3storage) fetchCompressed(
 			}
 
 			blockMeta := block.NewResultMetadata()
+			blockMeta.Namespaces = append(blockMeta.Namespaces, namespaceID.String())
+			blockMeta.FetchedResponses = metadata.Responses
+			blockMeta.FetchedBytesEstimate = metadata.EstimateTotalBytes
 			blockMeta.Exhaustive = metadata.Exhaustive
 			blockMeta.WaitedIndex = metadata.WaitedIndex
 			blockMeta.WaitedSeriesRead = metadata.WaitedSeriesRead
@@ -591,6 +624,9 @@ func (s *m3storage) CompleteTags(
 			}
 
 			blockMeta := block.NewResultMetadata()
+			blockMeta.Namespaces = append(blockMeta.Namespaces, namespaceID.String())
+			blockMeta.FetchedResponses = metadata.Responses
+			blockMeta.FetchedBytesEstimate = metadata.EstimateTotalBytes
 			blockMeta.Exhaustive = metadata.Exhaustive
 			blockMeta.WaitedIndex = metadata.WaitedIndex
 			blockMeta.WaitedSeriesRead = metadata.WaitedSeriesRead
@@ -696,6 +732,9 @@ func (s *m3storage) SearchCompressed(
 			}
 
 			blockMeta := block.NewResultMetadata()
+			blockMeta.Namespaces = append(blockMeta.Namespaces, namespaceID.String())
+			blockMeta.FetchedResponses = metadata.Responses
+			blockMeta.FetchedBytesEstimate = metadata.EstimateTotalBytes
 			blockMeta.Exhaustive = metadata.Exhaustive
 			blockMeta.WaitedIndex = metadata.WaitedIndex
 			blockMeta.WaitedSeriesRead = metadata.WaitedSeriesRead

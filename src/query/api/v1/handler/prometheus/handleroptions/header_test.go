@@ -77,20 +77,92 @@ func TestAddDBResultResponseHeaders(t *testing.T) {
 	assert.Equal(t, 1, len(recorder.Header()))
 	assert.Equal(t, "{\"waitedIndex\":3,\"waitedSeriesRead\":42}",
 		recorder.Header().Get(headers.WaitedHeader))
+}
 
-	recorder = httptest.NewRecorder()
-	meta = block.NewResultMetadata()
+func TestAddDBResultResponseHeadersFetched(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	meta := block.NewResultMetadata()
 	meta.FetchedSeriesCount = 42
+	meta.FetchedMetadataCount = 142
+	meta.FetchedResponses = 99
+	meta.FetchedBytesEstimate = 1072
 	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, nil))
-	assert.Equal(t, 1, len(recorder.Header()))
+	assert.Equal(t, 4, len(recorder.Header()))
+	assert.Equal(t, "99", recorder.Header().Get(headers.FetchedResponsesHeader))
+	assert.Equal(t, "1072", recorder.Header().Get(headers.FetchedBytesEstimateHeader))
 	assert.Equal(t, "42", recorder.Header().Get(headers.FetchedSeriesCount))
+	assert.Equal(t, "142", recorder.Header().Get(headers.FetchedMetadataCount))
+}
+
+func TestAddDBResultResponseHeadersNamespaces(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	meta := block.NewResultMetadata()
+	meta.Namespaces = []string{}
+	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, nil))
+	assert.Equal(t, 0, len(recorder.Header()))
 
 	recorder = httptest.NewRecorder()
 	meta = block.NewResultMetadata()
-	meta.FetchedMetadataCount = 42
+	meta.Namespaces = []string{"default"}
 	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, nil))
 	assert.Equal(t, 1, len(recorder.Header()))
-	assert.Equal(t, "42", recorder.Header().Get(headers.FetchedMetadataCount))
+	assert.Equal(t, "default", recorder.Header().Get(headers.NamespacesHeader))
+
+	recorder = httptest.NewRecorder()
+	meta = block.NewResultMetadata()
+	meta.Namespaces = []string{"default", "myfavoritens"}
+	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, nil))
+	assert.Equal(t, 1, len(recorder.Header()))
+	assert.Equal(t, "default,myfavoritens", recorder.Header().Get(headers.NamespacesHeader))
+}
+
+func TestAddDBResultResponseHeadersMetadataByName(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	meta := block.NewResultMetadata()
+	meta.MetadataByName = map[string]*block.ResultMetricMetadata{
+		"mymetric": {
+			NoSamples:    1,
+			WithSamples:  2,
+			Aggregated:   3,
+			Unaggregated: 4,
+		},
+	}
+	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, nil))
+	assert.Equal(t, 5, len(recorder.Header()))
+	assert.Equal(t, "1", recorder.Header().Get(headers.FetchedSeriesNoSamplesCount))
+	assert.Equal(t, "2", recorder.Header().Get(headers.FetchedSeriesWithSamplesCount))
+	assert.Equal(t, "3", recorder.Header().Get(headers.FetchedAggregatedSeriesCount))
+	assert.Equal(t, "4", recorder.Header().Get(headers.FetchedUnaggregatedSeriesCount))
+	assert.Equal(t,
+		"{\"mymetric\":{\"NoSamples\":1,\"WithSamples\":2,\"Aggregated\":3,\"Unaggregated\":4}}",
+		recorder.Header().Get(headers.MetricStats))
+
+	recorder = httptest.NewRecorder()
+	meta = block.NewResultMetadata()
+	meta.MetadataByName = map[string]*block.ResultMetricMetadata{
+		"metric_a": {
+			NoSamples:    1,
+			WithSamples:  2,
+			Aggregated:   3,
+			Unaggregated: 4,
+		},
+		"metric_b": {
+			NoSamples:    10,
+			WithSamples:  20,
+			Aggregated:   30,
+			Unaggregated: 40,
+		},
+	}
+	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, nil))
+	assert.Equal(t, 5, len(recorder.Header()))
+	assert.Equal(t, "11", recorder.Header().Get(headers.FetchedSeriesNoSamplesCount))
+	assert.Equal(t, "22", recorder.Header().Get(headers.FetchedSeriesWithSamplesCount))
+	assert.Equal(t, "33", recorder.Header().Get(headers.FetchedAggregatedSeriesCount))
+	assert.Equal(t, "44", recorder.Header().Get(headers.FetchedUnaggregatedSeriesCount))
+	assert.Equal(t,
+		"{\"metric_a\":{\"NoSamples\":1,\"WithSamples\":2,\"Aggregated\":3,\"Unaggregated\":4},"+
+			"\"metric_b\":{\"NoSamples\":10,\"WithSamples\":20,\"Aggregated\":30,\"Unaggregated\":40}}",
+		recorder.Header().Get(headers.MetricStats))
 }
 
 func TestAddReturnedLimitResponseHeaders(t *testing.T) {

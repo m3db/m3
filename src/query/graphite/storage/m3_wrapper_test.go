@@ -164,7 +164,8 @@ func buildResult(
 	return block.Result{
 		Blocks: []block.Block{bl},
 		Metadata: block.ResultMetadata{
-			Resolutions: resos,
+			Resolutions:    resos,
+			MetadataByName: make(map[string]*block.ResultMetricMetadata),
 		},
 	}
 }
