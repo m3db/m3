@@ -22,6 +22,7 @@ package prometheus
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -43,10 +44,16 @@ func TestSelectWithMetaInContext(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	var res block.ResultMetadata
+	var resMutex sync.Mutex
+	res := block.NewResultMetadata()
+	resultMetadataReceiveFn := func(m block.ResultMetadata) {
+		resMutex.Lock()
+		defer resMutex.Unlock()
+		res = res.CombineMetadata(m)
+	}
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, FetchOptionsContextKey, storage.NewFetchOptions())
-	ctx = context.WithValue(ctx, BlockResultMetadataKey, &res)
+	ctx = context.WithValue(ctx, BlockResultMetadataFnKey, resultMetadataReceiveFn)
 
 	store := storage.NewMockStorage(ctrl)
 	opts := PrometheusOptions{
@@ -86,35 +93,32 @@ func TestSelectWithMetaInContext(t *testing.T) {
 		Interval:    time.Duration(step),
 	}
 
-	meta := block.NewResultMetadata()
-	meta.AddWarning("warn", "warning")
 	store.EXPECT().FetchProm(ctx, exQuery, gomock.Any()).DoAndReturn(
 		func(_ context.Context, arg1 *storage.FetchQuery, _ *storage.FetchOptions) (storage.PromResult, error) {
-			return storage.PromResult{
-				Metadata: meta,
-				PromResult: &prompb.QueryResult{
-					Timeseries: []*prompb.TimeSeries{
-						{
-							Labels: []prompb.Label{
-								{Name: []byte("foo"), Value: []byte("bar")},
-								{Name: []byte("qux"), Value: []byte("qzz")},
-							},
-							Samples: []prompb.Sample{
-								prompb.Sample{Value: 1, Timestamp: 100},
-							},
+			result := storage.NewPromResult(
+				[]*prompb.TimeSeries{
+					{
+						Labels: []prompb.Label{
+							{Name: []byte("foo"), Value: []byte("bar")},
+							{Name: []byte("qux"), Value: []byte("qzz")},
 						},
-						{
-							Labels: []prompb.Label{
-								{Name: []byte("foo"), Value: []byte("bar")},
-								{Name: []byte("qux"), Value: []byte("qaz")},
-							},
-							Samples: []prompb.Sample{
-								prompb.Sample{Value: 100, Timestamp: 200},
-							},
+						Samples: []prompb.Sample{
+							{Value: 1, Timestamp: 100},
+						},
+					},
+					{
+						Labels: []prompb.Label{
+							{Name: []byte("foo"), Value: []byte("bar")},
+							{Name: []byte("qux"), Value: []byte("qaz")},
+						},
+						Samples: []prompb.Sample{
+							{Value: 100, Timestamp: 200},
 						},
 					},
 				},
-			}, nil
+			)
+			result.Metadata.AddWarning("warn", "warning")
+			return result, nil
 		})
 
 	series := q.Select(true, hints, matchers...)

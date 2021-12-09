@@ -35,8 +35,8 @@ const (
 	// FetchOptionsContextKey is the context key for fetch options.
 	FetchOptionsContextKey ContextKey = "fetch-options"
 
-	// BlockResultMetadataKey is the context key for block meta result.
-	BlockResultMetadataKey ContextKey = "block-meta-result"
+	// BlockResultMetadataFnKey is the context key for a function to receive block metadata results.
+	BlockResultMetadataFnKey ContextKey = "block-meta-result-fn"
 )
 
 // RemoteReadFlags is a set of flags for storage remote read requests.
@@ -52,9 +52,9 @@ func fetchOptions(ctx context.Context) (*storage.FetchOptions, error) {
 	return nil, errors.New("fetch options not available")
 }
 
-func resultMetadata(ctx context.Context) (*block.ResultMetadata, error) {
-	value := ctx.Value(BlockResultMetadataKey)
-	if v, ok := value.(*block.ResultMetadata); ok {
+func resultMetadataReceiveFn(ctx context.Context) (func(m block.ResultMetadata), error) {
+	value := ctx.Value(BlockResultMetadataFnKey)
+	if v, ok := value.(func(m block.ResultMetadata)); ok {
 		return v, nil
 	}
 	return nil, errors.New("block result metadata not available")
