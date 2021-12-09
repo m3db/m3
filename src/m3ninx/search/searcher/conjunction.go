@@ -66,9 +66,7 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 		lists = append(lists, curr)
 	}
 
-	sort.Slice(lists, func(i, j int) bool {
-		return lists[i].Len() < lists[j].Len()
-	})
+	sort.Sort(byLengthAscending(lists))
 	for _, curr := range lists {
 		var err error
 		if pl == nil {
@@ -96,9 +94,7 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 		lists = append(lists, curr)
 	}
 
-	sort.Slice(lists, func(i, j int) bool {
-		return lists[i].Len() > lists[j].Len()
-	})
+	sort.Sort(byLengthDescending(lists))
 	for _, curr := range lists {
 		var err error
 		pl, err = pl.Difference(curr)
@@ -119,4 +115,32 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 	}
 
 	return pl, nil
+}
+
+type byLengthAscending []postings.List
+
+func (l byLengthAscending) Len() int {
+	return len(l)
+}
+
+func (l byLengthAscending) Less(i, j int) bool {
+	return l[i].Len() < l[j].Len()
+}
+
+func (l byLengthAscending) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
+}
+
+type byLengthDescending []postings.List
+
+func (l byLengthDescending) Len() int {
+	return len(l)
+}
+
+func (l byLengthDescending) Less(i, j int) bool {
+	return l[i].Len() > l[j].Len()
+}
+
+func (l byLengthDescending) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
 }
