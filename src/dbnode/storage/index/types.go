@@ -843,10 +843,26 @@ func (b *WriteBatch) MarkEntrySuccess(idx int) {
 
 	isDone := b.entries[idx].result.Done
 	if b.entries[idx].OnIndexSeries != nil {
-		_, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
+		onIndexed, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
 		closer.Close()
 
 		if reconciled {
+			indexedStart, indexedEnd := onIndexed.IndexedRange()
+			if !isDone {
+				blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
+				diff := blockStart.Sub(indexedStart)
+
+				fmt.Printf(
+					"series needs reconciliation indexedStart: %s indexedEnd: %s blockStart: %s, diff %s\n",
+					indexedStart.String(), indexedEnd.String(), blockStart.String(), diff.String(),
+				)
+			} else {
+				fmt.Printf(
+					"series needs reconciliation indexedStart: %s indexedEnd: %s is_done",
+					indexedStart.String(), indexedEnd.String(),
+				)
+			}
+
 			b.metrics.needsReconcile[isDone]["MarkEntrySuccess"].Inc(1)
 		} else {
 			b.metrics.noReconcile[isDone]["MarkEntrySuccess"].Inc(1)
