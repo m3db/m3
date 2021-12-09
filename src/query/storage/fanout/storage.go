@@ -463,10 +463,10 @@ func (s *fanoutStorage) CompleteTags(
 	options *storage.FetchOptions,
 ) (*consolidators.CompleteTagsResult, error) {
 	stores := filterCompleteTagsStores(s.stores, s.completeTagsFilter, *query)
-	// short circuit complete tags
 
 	var completeTagsResult consolidators.CompleteTagsResult
 
+	// short circuit complete tags
 	if len(stores) == 1 {
 		result, err := stores[0].CompleteTags(ctx, query, options)
 		if err != nil {
