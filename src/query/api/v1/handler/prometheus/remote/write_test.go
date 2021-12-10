@@ -376,11 +376,11 @@ func TestPromWriteGraphiteMetricsTypes(t *testing.T) {
 
 	executeWriteRequest(t, opts, promReq)
 
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, false)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER, false)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, false)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, false)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GRAPHITE_TIMER, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GRAPHITE_COUNTER, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GRAPHITE_GAUGE, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GRAPHITE_GAUGE, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GRAPHITE_TIMER, false)
 	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, false)
 
 	require.False(t, capturedIter.Next())
