@@ -294,8 +294,8 @@ func (s *m3storage) FetchCompressedResult(
 		if sampled {
 			span.LogFields(
 				log.String("query", query.Raw),
-				log.String("Start", query.Start.String()),
-				log.String("End", query.End.String()),
+				log.String("start", query.Start.String()),
+				log.String("end", query.End.String()),
 				log.String("interval", query.Interval.String()),
 			)
 		}
@@ -344,7 +344,7 @@ func (s *m3storage) fetchCompressed(
 	// NB(r): Since we don't use a single index we fan out to each
 	// cluster that can completely fulfill this range and then prefer the
 	// highest resolution (most fine grained) results.
-	// This needs to be optimized, however this is a Start.
+	// This needs to be optimized, however this is a start.
 	fanout, namespaces, err := resolveClusterNamespacesForQuery(
 		xtime.ToUnixNano(s.nowFn()),
 		queryStart,
@@ -372,9 +372,9 @@ func (s *m3storage) fetchCompressed(
 			debugLog.Write(
 				zap.String("query", query.Raw),
 				zap.String("m3query", m3query.String()),
-				zap.Time("Start", queryStart.ToTime()),
+				zap.Time("start", queryStart.ToTime()),
 				zap.Time("startNarrowing", n.narrowing.Start.ToTime()),
-				zap.Time("End", queryEnd.ToTime()),
+				zap.Time("end", queryEnd.ToTime()),
 				zap.Time("endNarrowing", n.narrowing.End.ToTime()),
 				zap.String("fanoutType", fanout.String()),
 				zap.String("namespace", n.NamespaceID().String()),
@@ -545,8 +545,8 @@ func (s *m3storage) CompleteTags(
 			zap.Strings("filterNames", filters),
 			zap.String("matchers", query.TagMatchers.String()),
 			zap.String("m3query", m3query.String()),
-			zap.Time("Start", queryStart.ToTime()),
-			zap.Time("End", queryEnd.ToTime()),
+			zap.Time("start", queryStart.ToTime()),
+			zap.Time("end", queryEnd.ToTime()),
 			zap.Bool("remote", options.Remote),
 		)
 	}
@@ -554,7 +554,7 @@ func (s *m3storage) CompleteTags(
 	// NB(r): Since we don't use a single index we fan out to each
 	// cluster that can completely fulfill this range and then prefer the
 	// highest resolution (most fine-grained) results.
-	// This needs to be optimized, however this is a Start.
+	// This needs to be optimized, however this is a start.
 	_, namespaces, err := resolveClusterNamespacesForQuery(xtime.ToUnixNano(s.nowFn()),
 		queryStart,
 		queryEnd,
@@ -698,7 +698,7 @@ func (s *m3storage) SearchCompressed(
 	// NB(r): Since we don't use a single index we fan out to each
 	// cluster that can completely fulfill this range and then prefer the
 	// highest resolution (most fine grained) results.
-	// This needs to be optimized, however this is a Start.
+	// This needs to be optimized, however this is a start.
 	_, namespaces, err := resolveClusterNamespacesForQuery(xtime.ToUnixNano(s.nowFn()),
 		queryStart,
 		queryEnd,
@@ -715,8 +715,8 @@ func (s *m3storage) SearchCompressed(
 	if debugLog != nil {
 		debugLog.Write(zap.String("query", query.Raw),
 			zap.String("m3_query", m3query.String()),
-			zap.Time("Start", queryStart.ToTime()),
-			zap.Time("End", queryEnd.ToTime()),
+			zap.Time("start", queryStart.ToTime()),
+			zap.Time("end", queryEnd.ToTime()),
 			zap.Bool("remote", options.Remote),
 		)
 	}
