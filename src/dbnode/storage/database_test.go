@@ -29,6 +29,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
+	"github.com/golang/mock/gomock"
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/mocktracer"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
@@ -41,6 +49,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -57,15 +66,6 @@ import (
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 	xwatch "github.com/m3db/m3/src/x/watch"
-
-	"github.com/fortytw2/leaktest"
-	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/testdata/prototest"
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/mocktracer"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 var (
@@ -439,7 +439,7 @@ func TestDatabaseAssignShardSetEnqueueBootstrapWhenMediatorClosed(t *testing.T) 
 
 	mockMediator := NewMockdatabaseMediator(ctrl)
 	mockMediator.EXPECT().IsOpen().Return(false)
-	mockMediator.EXPECT().BootstrapEnqueue(BootstrapEnqueueOptions{})
+	mockMediator.EXPECT().BootstrapEnqueue(gomock.Any())
 	d.mediator = mockMediator
 	d.bootstraps = 1
 
@@ -740,7 +740,7 @@ func TestDatabaseAddNamespaceBootstrapEnqueueMediatorClosed(t *testing.T) {
 	d.opts = d.opts.SetNamespaceHooks(nsHooks)
 	mockMediator := NewMockdatabaseMediator(ctrl)
 	mockMediator.EXPECT().IsOpen().Return(false).AnyTimes()
-	mockMediator.EXPECT().BootstrapEnqueue(BootstrapEnqueueOptions{})
+	mockMediator.EXPECT().BootstrapEnqueue(gomock.Any())
 	d.mediator = mockMediator
 
 	// check initial namespaces
