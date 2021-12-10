@@ -208,7 +208,6 @@ func TestMatcherMatchExistsNoCache(t *testing.T) {
 			iter.EXPECT().Current().Return([]byte("fooTag"), []byte("fooValue"))
 			iter.EXPECT().Next().Return(false)
 			iter.EXPECT().Err().Return(nil)
-			iter.EXPECT().Close()
 			return iter
 		},
 	}

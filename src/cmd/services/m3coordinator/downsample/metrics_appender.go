@@ -87,6 +87,7 @@ type metricsAppenderMetrics struct {
 	operationsCount         tally.Counter
 }
 
+// a metricsAppender is not thread safe
 type metricsAppender struct {
 	metricsAppenderOptions
 
@@ -103,6 +104,7 @@ type metricsAppender struct {
 	originalTags *tags
 	cachedTags   []*tags
 	inuseTags    []*tags
+	tagIter      serialize.MetricTagsIterator
 	tagIterFn    id.SortedTagIteratorFn
 	nameTagFn    id.NameAndTagsFn
 }
@@ -115,7 +117,6 @@ type metricsAppenderOptions struct {
 	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
 	matcher                      matcher.Matcher
 	tagEncoderPool               serialize.TagEncoderPool
-	metricTagsIteratorPool       serialize.MetricTagsIteratorPool
 	untimedRollups               bool
 
 	clockOpts    clock.Options
@@ -128,10 +129,13 @@ func newMetricsAppender(
 	pool *metricsAppenderPool,
 	tagIterPool serialize.MetricTagsIteratorPool,
 	nameTag []byte) *metricsAppender {
+	// N.B - this tag iterator is used for the lifetime of this MetricsAppender, so it's not returned to the pool or
+	// closed.
 	tagIter := tagIterPool.Get()
 	return &metricsAppender{
 		pool:                 pool,
 		multiSamplesAppender: newMultiSamplesAppender(),
+		tagIter:              tagIter,
 		tagIterFn: func(tagPairs []byte) id.SortedTagIterator {
 			// Use the same tagIter for all matching computations. It is safe to reuse since a metric appender is
 			// single threaded and it's reset before each computation.
@@ -230,17 +234,18 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	a.multiSamplesAppender.reset()
 	unownedID := data.Bytes()
 	// Match policies and rollups and build samples appender
-	id := a.metricTagsIteratorPool.Get()
-	id.Reset(unownedID)
+	a.tagIter.Reset(unownedID)
 	now := time.Now()
 	nowNanos := now.UnixNano()
 	fromNanos := nowNanos
 	toNanos := nowNanos + 1
-	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos, rules.MatchOptions{
+	// N.B - it's safe the reuse the shared tag iterator because the matcher uses it immediately to resolve the optional
+	// namespace tag to determine the ruleset for the namespace. then the ruleset matcher reuses the tag iterator for
+	// every match computation.
+	matchResult := a.matcher.ForwardMatch(a.tagIter, fromNanos, toNanos, rules.MatchOptions{
 		NameAndTagsFn:       a.nameTagFn,
 		SortedTagIteratorFn: a.tagIterFn,
 	})
-	id.Close()
 
 	// Filter out augmented metrics tags we added for matching.
 	for _, filter := range defaultFilterOutTagPrefixes {

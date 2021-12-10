@@ -42,7 +42,7 @@ func (tp TagPairsByNameAsc) Less(i, j int) bool {
 	return bytes.Compare(tp[i].Name, tp[j].Name) < 0
 }
 
-// SortedTagIteratorFn creates a new sorted tag iterator given id tag pairs.
+// SortedTagIteratorFn returns a sorted tag iterator over the provided id tag pairs.
 type SortedTagIteratorFn func(tagPairs []byte) SortedTagIterator
 
 // SortedTagIterator iterates over a set of tag pairs sorted by tag names.

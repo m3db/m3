@@ -137,16 +137,15 @@ func defaultMetricsAppenderOptions(opts DownsamplerOptions, agg agg) metricsAppe
 	}
 
 	return metricsAppenderOptions{
-		agg:                    agg.aggregator,
-		clientRemote:           agg.clientRemote,
-		clockOpts:              agg.clockOpts,
-		tagEncoderPool:         agg.pools.tagEncoderPool,
-		matcher:                agg.matcher,
-		metricTagsIteratorPool: agg.pools.metricTagsIteratorPool,
-		debugLogging:           debugLogging,
-		logger:                 logger,
-		untimedRollups:         agg.untimedRollups,
-		metrics:                metrics,
+		agg:            agg.aggregator,
+		clientRemote:   agg.clientRemote,
+		clockOpts:      agg.clockOpts,
+		tagEncoderPool: agg.pools.tagEncoderPool,
+		matcher:        agg.matcher,
+		debugLogging:   debugLogging,
+		logger:         logger,
+		untimedRollups: agg.untimedRollups,
+		metrics:        metrics,
 	}
 }
 
