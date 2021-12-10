@@ -290,12 +290,6 @@ type SeriesIteratorStats struct {
 	ApproximateSizeInBytes int
 }
 
-func (s SeriesIteratorStats) Combine(other SeriesIteratorStats) SeriesIteratorStats {
-	return SeriesIteratorStats{
-		ApproximateSizeInBytes: s.ApproximateSizeInBytes + other.ApproximateSizeInBytes,
-	}
-}
-
 // SeriesIteratorConsolidator optionally defines methods to consolidate series iterators.
 type SeriesIteratorConsolidator interface {
 	// ConsolidateReplicas consolidates MultiReaderIterator slices.
