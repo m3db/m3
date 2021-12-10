@@ -844,14 +844,14 @@ func (b *WriteBatch) MarkEntrySuccess(idx int) {
 
 	isDone := b.entries[idx].result.Done
 	if b.entries[idx].OnIndexSeries != nil {
-		onIndexed, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
-		closer.Close()
+		indexedEntry, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
+		defer closer.Close()
 
 		if reconciled {
-			indexedStart, indexedEnd := onIndexed.IndexedRange()
+			indexedStart, indexedEnd := indexedEntry.IndexedRange()
 			var sb strings.Builder
 			sb.WriteString(fmt.Sprintf("series: %s, indexedStart: %s indexedEnd: %s, ",
-				onIndexed.StringID(), indexedStart.String(), indexedEnd.String()))
+				indexedEntry.StringID(), indexedStart.String(), indexedEnd.String()))
 
 			if !isDone {
 				blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
@@ -872,12 +872,14 @@ func (b *WriteBatch) MarkEntrySuccess(idx int) {
 	}
 
 	if !isDone {
+		indexedEntry, closer, _ := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
+		defer closer.Close()
+
 		b.metrics.markedSuccessUpdate.Inc(1)
 		blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
 
-		// Should this be reconciling?
-		b.entries[idx].OnIndexSeries.OnIndexSuccess(blockStart)
-		b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
+		indexedEntry.OnIndexSuccess(blockStart)
+		indexedEntry.OnIndexFinalize(blockStart)
 
 		b.entries[idx].result.Done = true
 		b.entries[idx].result.Err = nil
@@ -904,7 +906,10 @@ func (b *WriteBatch) MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize() {
 
 		if !b.entries[idx].result.Done {
 			blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
-			r := b.entries[idx].OnIndexSeries.IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart)
+
+			indexedEntry, closer, _ := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
+			defer closer.Close()
+			r := indexedEntry.IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart)
 			if r {
 				b.entries[idx].result.Done = true
 				b.entries[idx].result.Err = nil
