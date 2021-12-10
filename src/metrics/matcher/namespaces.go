@@ -54,7 +54,7 @@ type Namespaces interface {
 
 	// ForwardMatch forward matches the matching policies for a given id in a given namespace
 	// between [fromNanos, toNanos).
-	ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult
+	ForwardMatch(namespace, id []byte, fromNanos, toNanos int64, opts rules.MatchOptions) rules.MatchResult
 
 	// Close closes the namespaces.
 	Close()
@@ -177,12 +177,13 @@ func (n *namespaces) Version(namespace []byte) int {
 	return ruleSet.Version()
 }
 
-func (n *namespaces) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult {
+func (n *namespaces) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64,
+	opts rules.MatchOptions) rules.MatchResult {
 	ruleSet, exists := n.ruleSet(namespace)
 	if !exists {
 		return rules.EmptyMatchResult
 	}
-	return ruleSet.ForwardMatch(id, fromNanos, toNanos)
+	return ruleSet.ForwardMatch(id, fromNanos, toNanos, opts)
 }
 
 func (n *namespaces) ruleSet(namespace []byte) (RuleSet, bool) {

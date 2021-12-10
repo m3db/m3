@@ -61,7 +61,7 @@ type mappingRuleSnapshot struct {
 	name               string
 	tombstoned         bool
 	cutoverNanos       int64
-	filter             filters.Filter
+	filter             filters.TagsFilter
 	rawFilter          string
 	aggregationID      aggregation.ID
 	storagePolicies    policy.StoragePolicies
@@ -145,7 +145,7 @@ func newMappingRuleSnapshotFromProto(
 func newMappingRuleSnapshotFromFields(
 	name string,
 	cutoverNanos int64,
-	filter filters.Filter,
+	filter filters.TagsFilter,
 	rawFilter string,
 	aggregationID aggregation.ID,
 	storagePolicies policy.StoragePolicies,
@@ -178,7 +178,7 @@ func newMappingRuleSnapshotFromFieldsInternal(
 	name string,
 	tombstoned bool,
 	cutoverNanos int64,
-	filter filters.Filter,
+	filter filters.TagsFilter,
 	rawFilter string,
 	aggregationID aggregation.ID,
 	storagePolicies policy.StoragePolicies,
@@ -213,17 +213,13 @@ func newMappingRuleSnapshotFromFieldsInternal(
 }
 
 func (mrs *mappingRuleSnapshot) clone() mappingRuleSnapshot {
-	var filter filters.Filter
-	if mrs.filter != nil {
-		filter = mrs.filter.Clone()
-	}
 	tags := make([]models.Tag, len(mrs.tags))
 	copy(tags, mrs.tags)
 	return mappingRuleSnapshot{
 		name:               mrs.name,
 		tombstoned:         mrs.tombstoned,
 		cutoverNanos:       mrs.cutoverNanos,
-		filter:             filter,
+		filter:             mrs.filter,
 		rawFilter:          mrs.rawFilter,
 		aggregationID:      mrs.aggregationID,
 		storagePolicies:    mrs.storagePolicies.Clone(),

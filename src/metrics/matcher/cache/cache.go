@@ -45,14 +45,14 @@ var (
 type Source interface {
 	// ForwardMatch returns the match result for a given id within time range
 	// [fromNanos, toNanos).
-	ForwardMatch(id []byte, fromNanos, toNanos int64) rules.MatchResult
+	ForwardMatch(id []byte, fromNanos, toNanos int64, opts rules.MatchOptions) rules.MatchResult
 }
 
 // Cache caches the rule matching result associated with metrics.
 type Cache interface {
 	// ForwardMatch returns the rule matching result associated with a metric id
 	// between [fromNanos, toNanos).
-	ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult
+	ForwardMatch(namespace, id []byte, fromNanos, toNanos int64, opts rules.MatchOptions) rules.MatchResult
 
 	// Register sets the source for a given namespace.
 	Register(namespace []byte, source Source)
@@ -175,16 +175,17 @@ func NewCache(opts Options) Cache {
 	return c
 }
 
-func (c *cache) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult {
+func (c *cache) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64,
+	opts rules.MatchOptions) rules.MatchResult {
 	c.RLock()
-	res, found := c.tryGetWithLock(namespace, id, fromNanos, toNanos, dontSetIfNotFound)
+	res, found := c.tryGetWithLock(namespace, id, fromNanos, toNanos, dontSetIfNotFound, opts)
 	c.RUnlock()
 	if found {
 		return res
 	}
 
 	c.Lock()
-	res, _ = c.tryGetWithLock(namespace, id, fromNanos, toNanos, setIfNotFound)
+	res, _ = c.tryGetWithLock(namespace, id, fromNanos, toNanos, setIfNotFound, opts)
 	c.Unlock()
 
 	return res
@@ -263,6 +264,7 @@ func (c *cache) tryGetWithLock(
 	namespace, id []byte,
 	fromNanos, toNanos int64,
 	setType setType,
+	matchOpts rules.MatchOptions,
 ) (rules.MatchResult, bool) {
 	res := rules.EmptyMatchResult
 	results, exists := c.namespaces.Get(namespace)
@@ -300,7 +302,7 @@ func (c *cache) tryGetWithLock(
 	}
 	// NB(xichen): the result is either not cached, or cached but invalid, in both
 	// cases we should use the source to compute the result and set it in the cache.
-	return c.setWithLock(namespace, id, fromNanos, toNanos, results, exists), true
+	return c.setWithLock(namespace, id, fromNanos, toNanos, results, exists, matchOpts), true
 }
 
 func (c *cache) setWithLock(
@@ -308,6 +310,7 @@ func (c *cache) setWithLock(
 	fromNanos, toNanos int64,
 	results results,
 	invalidate bool,
+	matchOpts rules.MatchOptions,
 ) rules.MatchResult {
 	// NB(xichen): if a cached result is invalid, it's very likely that we've reached
 	// a new cutover time and the old cached results are now invalid, therefore it's
@@ -315,7 +318,7 @@ func (c *cache) setWithLock(
 	if invalidate {
 		results = c.invalidateWithLock(namespace, id, results)
 	}
-	res := results.source.ForwardMatch(id, fromNanos, toNanos)
+	res := results.source.ForwardMatch(id, fromNanos, toNanos, matchOpts)
 	newElem := newElement(namespace, id, res)
 	newElem.SetPromotionExpiry(c.newPromotionExpiry(c.nowFn()))
 	results.elems.Set(id, newElem)

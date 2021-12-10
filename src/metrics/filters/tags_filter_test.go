@@ -83,7 +83,7 @@ func TestParseTagFilterValueMapErrors(t *testing.T) {
 func TestEmptyTagsFilterMatches(t *testing.T) {
 	f, err := NewTagsFilter(nil, Conjunction, testTagsFilterOptions())
 	require.NoError(t, err)
-	require.True(t, f.Matches([]byte("foo")))
+	require.True(t, f.Matches([]byte("foo"), testTagsMatchOptions()))
 }
 
 func TestTagsFilterMatchesNoNameTag(t *testing.T) {
@@ -101,7 +101,7 @@ func TestTagsFilterMatchesNoNameTag(t *testing.T) {
 	}
 	require.NoError(t, err)
 	for _, input := range inputs {
-		require.Equal(t, input.match, f.Matches([]byte(input.val)))
+		require.Equal(t, input.match, f.Matches([]byte(input.val), testTagsMatchOptions()))
 	}
 
 	f, err = NewTagsFilter(filters, Disjunction, testTagsFilterOptions())
@@ -118,7 +118,8 @@ func TestTagsFilterMatchesNoNameTag(t *testing.T) {
 	}
 	require.NoError(t, err)
 	for _, input := range inputs {
-		require.Equal(t, input.match, f.Matches([]byte(input.val)), "val:", input.val)
+		require.Equal(t, input.match,
+			f.Matches([]byte(input.val), testTagsMatchOptions()), "val:", input.val)
 	}
 }
 
@@ -129,7 +130,7 @@ func TestTagsFilterMatchesWithNameTag(t *testing.T) {
 		"tagName2": FilterValue{Pattern: "tagValue2"},
 	}
 
-	f, err := NewTagsFilter(filters, Conjunction, testTagsFilterOptionsWithNameTag())
+	f, err := NewTagsFilter(filters, Conjunction, testTagsFilterOptions())
 	require.NoError(t, err)
 	inputs := []mockFilterData{
 		{val: "foo+tagName0=tagValue0,tagName1=tagValue1,tagName2=tagValue2", match: true},
@@ -138,10 +139,10 @@ func TestTagsFilterMatchesWithNameTag(t *testing.T) {
 		{val: "foo+tagName1=tagValue2,tagName2=tagValue1", match: false},
 	}
 	for _, input := range inputs {
-		require.Equal(t, input.match, f.Matches([]byte(input.val)))
+		require.Equal(t, input.match, f.Matches([]byte(input.val), testTagsMatchOptionsWithNameTag()))
 	}
 
-	f, err = NewTagsFilter(filters, Disjunction, testTagsFilterOptionsWithNameTag())
+	f, err = NewTagsFilter(filters, Disjunction, testTagsFilterOptions())
 	require.NoError(t, err)
 	inputs = []mockFilterData{
 		{val: "foo+tagName1=tagValue1,tagName2=tagValue2", match: true},
@@ -155,7 +156,7 @@ func TestTagsFilterMatchesWithNameTag(t *testing.T) {
 		{val: "bar+tagName3=tagValue3", match: false},
 	}
 	for _, input := range inputs {
-		require.Equal(t, input.match, f.Matches([]byte(input.val)))
+		require.Equal(t, input.match, f.Matches([]byte(input.val), testTagsMatchOptionsWithNameTag()))
 	}
 }
 
@@ -166,11 +167,13 @@ func TestTagsFilterStringNoNameTag(t *testing.T) {
 	}
 	f, err := NewTagsFilter(filters, Conjunction, testTagsFilterOptions())
 	require.NoError(t, err)
-	require.Equal(t, `tagName1:Equals("tagValue1") && tagName2:Equals("tagValue2")`, f.String())
+	tf := f.(*tagsFilter)
+	require.Equal(t, `tagName1:Equals("tagValue1") && tagName2:Equals("tagValue2")`, tf.String())
 
 	f, err = NewTagsFilter(filters, Disjunction, testTagsFilterOptions())
 	require.NoError(t, err)
-	require.Equal(t, `tagName1:Equals("tagValue1") || tagName2:Equals("tagValue2")`, f.String())
+	tf = f.(*tagsFilter)
+	require.Equal(t, `tagName1:Equals("tagValue1") || tagName2:Equals("tagValue2")`, tf.String())
 }
 
 func TestTagsFilterStringWithNameTag(t *testing.T) {
@@ -179,13 +182,15 @@ func TestTagsFilterStringWithNameTag(t *testing.T) {
 		"tagName1": FilterValue{Pattern: "tagValue1"},
 		"tagName2": FilterValue{Pattern: "tagValue2"},
 	}
-	f, err := NewTagsFilter(filters, Conjunction, testTagsFilterOptionsWithNameTag())
+	f, err := NewTagsFilter(filters, Conjunction, testTagsFilterOptions())
 	require.NoError(t, err)
-	require.Equal(t, `name:Equals("foo") && tagName1:Equals("tagValue1") && tagName2:Equals("tagValue2")`, f.String())
+	tf := f.(*tagsFilter)
+	require.Equal(t, `name:Equals("foo") && tagName1:Equals("tagValue1") && tagName2:Equals("tagValue2")`, tf.String())
 
-	f, err = NewTagsFilter(filters, Disjunction, testTagsFilterOptionsWithNameTag())
+	f, err = NewTagsFilter(filters, Disjunction, testTagsFilterOptions())
 	require.NoError(t, err)
-	require.Equal(t, `name:Equals("foo") || tagName1:Equals("tagValue1") || tagName2:Equals("tagValue2")`, f.String())
+	tf = f.(*tagsFilter)
+	require.Equal(t, `name:Equals("foo") || tagName1:Equals("tagValue1") || tagName2:Equals("tagValue2")`, tf.String())
 }
 
 func TestValidateTagsFilter(t *testing.T) {
@@ -258,17 +263,21 @@ func TestValidateTagsFilterError(t *testing.T) {
 	}
 }
 
-func testTagsFilterOptions() TagsFilterOptions {
-	return TagsFilterOptions{
-		NameTagKey:          []byte("name"),
+func testTagsMatchOptions() TagMatchOptions {
+	return TagMatchOptions{
 		NameAndTagsFn:       func(b []byte) ([]byte, []byte, error) { return nil, b, nil },
 		SortedTagIteratorFn: NewMockSortedTagIterator,
 	}
 }
 
-func testTagsFilterOptionsWithNameTag() TagsFilterOptions {
+func testTagsFilterOptions() TagsFilterOptions {
 	return TagsFilterOptions{
 		NameTagKey: []byte("name"),
+	}
+}
+
+func testTagsMatchOptionsWithNameTag() TagMatchOptions {
+	return TagMatchOptions{
 		NameAndTagsFn: func(b []byte) ([]byte, []byte, error) {
 			idx := bytes.IndexByte(b, '+')
 			if idx == -1 {

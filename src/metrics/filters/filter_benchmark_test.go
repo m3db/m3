@@ -207,9 +207,9 @@ func benchRangeFilterRange(b *testing.B, pattern, val []byte, expectedMatch bool
 	}
 }
 
-func benchTagsFilter(b *testing.B, id []byte, tagsFilter Filter) {
+func benchTagsFilter(b *testing.B, id []byte, tagsFilter TagsFilter) {
 	for n := 0; n < b.N; n++ {
-		tagsFilter.Matches(id)
+		tagsFilter.Matches(id, testTagsMatchOptions())
 	}
 }
 
@@ -248,24 +248,24 @@ type testMapTagsFilter struct {
 func newTestMapTagsFilter(
 	tagFilters TagFilterValueMap,
 	iterFn id.SortedTagIteratorFn,
-) Filter {
+) TagsFilter {
 	filters := make(map[string]Filter, len(tagFilters))
 	for name, value := range tagFilters {
 		filter, _ := NewFilterFromFilterValue(value)
 		filters[name] = filter
 	}
 
-	return newImmutableFilter(&testMapTagsFilter{
+	return &testMapTagsFilter{
 		filters: filters,
 		iterFn:  iterFn,
-	})
+	}
 }
 
 func (f *testMapTagsFilter) String() string {
 	return ""
 }
 
-func (f *testMapTagsFilter) Matches(id []byte) bool {
+func (f *testMapTagsFilter) Matches(id []byte, _ TagMatchOptions) bool {
 	if len(f.filters) == 0 {
 		return true
 	}

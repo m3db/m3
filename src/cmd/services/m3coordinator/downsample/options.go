@@ -27,6 +27,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/client"
@@ -91,6 +93,7 @@ const (
 )
 
 var (
+	defaultMetricNameTagName    = []byte(model.MetricNameLabel)
 	numShards                   = runtime.GOMAXPROCS(0)
 	defaultNamespaceTag         = metric.M3MetricsPrefixString + "_namespace__"
 	defaultFilterOutTagPrefixes = [][]byte{
@@ -132,6 +135,14 @@ type DownsamplerOptions struct {
 	MetricsAppenderPoolOptions pool.ObjectPoolOptions
 	RWOptions                  xio.Options
 	InterruptedCh              <-chan struct{}
+}
+
+// NameTagOrDefault returns the configured name tag or the default if one is not set.
+func (o DownsamplerOptions) NameTagOrDefault() []byte {
+	if o.NameTag == "" {
+		return defaultMetricNameTagName
+	}
+	return []byte(o.NameTag)
 }
 
 // AutoMappingRule is a mapping rule to apply to metrics.
@@ -1025,7 +1036,10 @@ func (o DownsamplerOptions) newAggregatorPools() aggPools {
 		o.TagDecoderPoolOptions)
 	metricTagsIteratorPool.Init()
 
-	metricsAppenderPool := newMetricsAppenderPool(o.MetricsAppenderPoolOptions)
+	metricsAppenderPool := newMetricsAppenderPool(
+		o.MetricsAppenderPoolOptions,
+		metricTagsIteratorPool,
+		o.NameTagOrDefault())
 
 	return aggPools{
 		tagEncoderPool:         tagEncoderPool,
@@ -1036,29 +1050,9 @@ func (o DownsamplerOptions) newAggregatorPools() aggPools {
 }
 
 func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Options {
-	nameTag := defaultMetricNameTagName
-	if o.NameTag != "" {
-		nameTag = []byte(o.NameTag)
-	}
-
-	sortedTagIteratorFn := func(tagPairs []byte) id.SortedTagIterator {
-		it := pools.metricTagsIteratorPool.Get()
-		it.Reset(tagPairs)
-		return it
-	}
-
+	nameTag := o.NameTagOrDefault()
 	tagsFilterOpts := filters.TagsFilterOptions{
 		NameTagKey: nameTag,
-		NameAndTagsFn: func(id []byte) ([]byte, []byte, error) {
-			name, err := resolveEncodedTagsNameTag(id, nameTag)
-			if err != nil && err != errNoMetricNameTag {
-				return nil, nil, err
-			}
-			// ID is always the encoded tags for IDs in the downsampler
-			tags := id
-			return name, tags, nil
-		},
-		SortedTagIteratorFn: sortedTagIteratorFn,
 	}
 
 	newRollupIDProviderPool := newRollupIDProviderPool(pools.tagEncoderPool,

@@ -50,7 +50,6 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 	count := 3
 
 	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
-	appenderPool := newMetricsAppenderPool(poolOpts)
 
 	tagEncoderPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
 		poolOpts)
@@ -66,10 +65,12 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 	metricTagsIteratorPool := serialize.NewMetricTagsIteratorPool(tagDecoderPool, poolOpts)
 	metricTagsIteratorPool.Init()
 
+	appenderPool := newMetricsAppenderPool(poolOpts, metricTagsIteratorPool, defaultMetricNameTagName)
+
 	for i := 0; i < count; i++ {
 		matcher := matcher.NewMockMatcher(ctrl)
-		matcher.EXPECT().ForwardMatch(gomock.Any(), gomock.Any(), gomock.Any()).
-			DoAndReturn(func(encodedID id.ID, _, _ int64) rules.MatchResult {
+		matcher.EXPECT().ForwardMatch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(encodedID id.ID, _, _ int64, _ rules.MatchOptions) rules.MatchResult {
 				// NB: ensure tags are cleared correctly between runs.
 				bs := encodedID.Bytes()
 
@@ -103,10 +104,9 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 		appender := appenderPool.Get()
 		agg := aggregator.NewMockAggregator(ctrl)
 		appender.reset(metricsAppenderOptions{
-			tagEncoderPool:         tagEncoderPool,
-			metricTagsIteratorPool: metricTagsIteratorPool,
-			matcher:                matcher,
-			agg:                    agg,
+			tagEncoderPool: tagEncoderPool,
+			matcher:        matcher,
+			agg:            agg,
 			metrics: metricsAppenderMetrics{
 				processedCountNonRollup: tally.NoopScope.Counter("test-counter-non-rollup"),
 				processedCountRollup:    tally.NoopScope.Counter("test-counter-rollup"),
@@ -150,7 +150,17 @@ func TestSamplesAppenderPoolResetsTagSimple(t *testing.T) {
 	defer ctrl.Finish()
 
 	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
-	appenderPool := newMetricsAppenderPool(poolOpts)
+	size := 1
+	tagDecoderPool := serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{
+			CheckBytesWrapperPoolSize: &size,
+		}), poolOpts)
+	tagDecoderPool.Init()
+
+	metricTagsIteratorPool := serialize.NewMetricTagsIteratorPool(tagDecoderPool, poolOpts)
+	metricTagsIteratorPool.Init()
+
+	appenderPool := newMetricsAppenderPool(poolOpts, metricTagsIteratorPool, defaultMetricNameTagName)
 
 	appender := appenderPool.Get()
 	appender.AddTag([]byte("foo"), []byte("bar"))
