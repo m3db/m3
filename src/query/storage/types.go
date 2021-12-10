@@ -355,16 +355,6 @@ type PromResult struct {
 	Metadata block.ResultMetadata
 }
 
-// NewPromResult returns a new, initialized PromResult
-func NewPromResult(timeseries []*prompb.TimeSeries) PromResult {
-	return PromResult{
-		PromResult: &prompb.QueryResult{
-			Timeseries: timeseries,
-		},
-		Metadata: block.NewResultMetadata(),
-	}
-}
-
 // PromConvertOptions are options controlling the conversion of raw series iterators
 // to a Prometheus-compatible result.
 type PromConvertOptions interface {

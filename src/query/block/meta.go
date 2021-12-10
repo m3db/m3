@@ -58,10 +58,10 @@ type Warnings []Warning
 // ResultMetricMetadata describes metadata on a per metric-name basis.
 type ResultMetricMetadata struct {
 	// NoSamples is the total number of series that were fetched to compute
-	// this result but had no samples and were omitted from the Prometheus result.
+	// this result but had no samples.
 	NoSamples int
 	// WithSamples is the total number of series that were fetched to compute
-	// this result and had samples and were included in the Prometheus result.
+	// this result and had samples.
 	WithSamples int
 	// Aggregated is the total number of aggregated series that were fetched to
 	// compute this result.
@@ -71,7 +71,24 @@ type ResultMetricMetadata struct {
 	Unaggregated int
 }
 
-// Merge takes another ResultMetricMetadata and merges it into this one
+// Equals determines if two result metric metadatas are equal.
+func (m ResultMetricMetadata) Equals(other ResultMetricMetadata) bool {
+	if m.NoSamples != other.NoSamples {
+		return false
+	}
+	if m.WithSamples != other.WithSamples {
+		return false
+	}
+	if m.Aggregated != other.Aggregated {
+		return false
+	}
+	if m.Unaggregated != other.Unaggregated {
+		return false
+	}
+	return true
+}
+
+// Merge takes another ResultMetricMetadata and merges it into this one.
 func (m *ResultMetricMetadata) Merge(other ResultMetricMetadata) {
 	m.NoSamples += other.NoSamples
 	m.WithSamples += other.WithSamples
@@ -125,15 +142,24 @@ type ResultMetadata struct {
 	MetadataByName map[string]*ResultMetricMetadata
 }
 
-// ByName returns the ResultMetricMetadata for a given metric name
-func (m ResultMetadata) ByName(name string) *ResultMetricMetadata {
-	r, ok := m.MetadataByName[name]
+// ByName returns the ResultMetricMetadata for a given metric name.
+func (m ResultMetadata) ByName(nameTag []byte) *ResultMetricMetadata {
+	r, ok := m.MetadataByName[string(nameTag)]
 	if ok {
 		return r
 	}
 
 	r = &ResultMetricMetadata{}
-	m.MetadataByName[name] = r
+	m.MetadataByName[string(nameTag)] = r
+	return r
+}
+
+// MetadataByNameMerged returns the MetadataByName map values merged into one.
+func (m ResultMetadata) MetadataByNameMerged() ResultMetricMetadata {
+	r := ResultMetricMetadata{}
+	for _, m := range m.MetadataByName {
+		r.Merge(*m)
+	}
 	return r
 }
 
@@ -156,7 +182,7 @@ func (m ResultMetadata) TopMetadataByName(max int) map[string]*ResultMetricMetad
 		// Sort in descending order
 		return n > m
 	})
-	top := make(map[string]*ResultMetricMetadata)
+	top := make(map[string]*ResultMetricMetadata, max)
 	for i := 0; i < max; i++ {
 		k := keys[i]
 		top[k] = m.MetadataByName[k]
@@ -257,6 +283,10 @@ func (m ResultMetadata) Equals(n ResultMetadata) bool {
 	}
 
 	if m.FetchedSeriesCount != n.FetchedSeriesCount {
+		return false
+	}
+
+	if !m.MetadataByNameMerged().Equals(n.MetadataByNameMerged()) {
 		return false
 	}
 

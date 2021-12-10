@@ -89,6 +89,8 @@ func verifyExpandPromSeries(
 	require.NotNil(t, ts)
 	require.Equal(t, ex, results.Metadata.Exhaustive)
 	require.Equal(t, 1, len(results.Metadata.Warnings))
+	merged := results.Metadata.MetadataByNameMerged()
+	require.Equal(t, len(ts), merged.WithSamples)
 	require.Equal(t, "foo_bar", results.Metadata.Warnings[0].Header())
 	require.Equal(t, len(ts), num)
 	expectedTags := []prompb.Label{
@@ -256,6 +258,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 
 	verifyResult := func(t *testing.T, res PromResult) {
 		ts := res.PromResult.GetTimeseries()
+		meta := res.Metadata
 		exSeriesTags := []string{"bar", "qux", "quail"}
 		require.Equal(t, len(exSeriesTags), len(ts))
 		for i, series := range ts {
@@ -270,6 +273,10 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 			assert.Equal(t, float64(1), s.GetValue())
 			assert.Equal(t, int64(now)/int64(time.Millisecond), s.GetTimestamp())
 		}
+		merged := meta.MetadataByNameMerged()
+		// in buildIters, we create 5 series. only 3 of them have samples.
+		require.Equal(t, 5, meta.FetchedSeriesCount)
+		require.Equal(t, merged, block.ResultMetricMetadata{WithSamples: 3, NoSamples: 2})
 	}
 
 	buildIters := func() consolidators.SeriesFetchResult {

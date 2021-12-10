@@ -97,31 +97,23 @@ func AddDBResultResponseHeaders(
 		w.Header().Add(headers.FetchedSeriesCount, fmt.Sprint(meta.FetchedSeriesCount))
 	}
 
-	aggregatedSeriesCount := 0
-	unaggregatedSeriesCount := 0
-	noSamplesCount := 0
-	withSamplesCount := 0
-	for _, m := range meta.MetadataByName {
-		aggregatedSeriesCount += m.Aggregated
-		unaggregatedSeriesCount += m.Unaggregated
-		noSamplesCount += m.NoSamples
-		withSamplesCount += m.WithSamples
+	// Merge all of the metadata by name results into `merged` and report on that.
+	merged := meta.MetadataByNameMerged()
+
+	if merged.Aggregated > 0 {
+		w.Header().Add(headers.FetchedAggregatedSeriesCount, fmt.Sprint(merged.Aggregated))
 	}
 
-	if aggregatedSeriesCount > 0 {
-		w.Header().Add(headers.FetchedAggregatedSeriesCount, fmt.Sprint(aggregatedSeriesCount))
+	if merged.Unaggregated > 0 {
+		w.Header().Add(headers.FetchedUnaggregatedSeriesCount, fmt.Sprint(merged.Unaggregated))
 	}
 
-	if unaggregatedSeriesCount > 0 {
-		w.Header().Add(headers.FetchedUnaggregatedSeriesCount, fmt.Sprint(unaggregatedSeriesCount))
+	if merged.NoSamples > 0 {
+		w.Header().Add(headers.FetchedSeriesNoSamplesCount, fmt.Sprint(merged.NoSamples))
 	}
 
-	if noSamplesCount > 0 {
-		w.Header().Add(headers.FetchedSeriesNoSamplesCount, fmt.Sprint(noSamplesCount))
-	}
-
-	if withSamplesCount > 0 {
-		w.Header().Add(headers.FetchedSeriesWithSamplesCount, fmt.Sprint(withSamplesCount))
+	if merged.WithSamples > 0 {
+		w.Header().Add(headers.FetchedSeriesWithSamplesCount, fmt.Sprint(merged.WithSamples))
 	}
 
 	if len(meta.Namespaces) > 0 {
@@ -136,9 +128,13 @@ func AddDBResultResponseHeaders(
 		w.Header().Add(headers.FetchedBytesEstimateHeader, fmt.Sprint(meta.FetchedBytesEstimate))
 	}
 
+	// Also report the top metadata by name, in JSON.
 	if len(meta.MetadataByName) > 0 {
 		stats := meta.TopMetadataByName(maxMetricStatsInHeader)
-		js, _ := json.Marshal(stats)
+		js, err := json.Marshal(stats)
+		if err != nil {
+			return err
+		}
 		w.Header().Add(headers.MetricStats, string(js))
 	}
 
