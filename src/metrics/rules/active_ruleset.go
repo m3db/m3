@@ -410,8 +410,6 @@ func (as *activeRuleSet) matchRollupTarget(
 		nameTagValue  []byte
 	)
 
-	defer sortedTagIter.Close()
-
 	switch rollupOp.Type {
 	case mpipeline.GroupByRollupType:
 		// Iterate through each tag, looking to match it with corresponding filter tags on the rule
