@@ -107,7 +107,9 @@ func (m *tagDedupeMap) doUpdate(
 	attrs storagemetadata.Attributes,
 	narrowing Narrowing,
 ) error {
-	if stitched, ok := stitch(existing, tags, iter, attrs, narrowing); ok {
+	if stitched, ok, err := stitchIfNeeded(existing, tags, iter, attrs, narrowing); err != nil {
+		return err
+	} else if ok {
 		m.mapWrapper.set(tags, stitched)
 		return nil
 	}
@@ -135,17 +137,8 @@ func (m *tagDedupeMap) doUpdate(
 	}
 
 	if existsEqual {
-		acc, ok := existing.iter.(encoding.SeriesIteratorAccumulator)
-		if !ok {
-			var err error
-			acc, err = encoding.NewSeriesIteratorAccumulator(existing.iter,
-				encoding.SeriesAccumulatorOptions{})
-			if err != nil {
-				return err
-			}
-		}
-
-		if err := acc.Add(iter); err != nil {
+		acc, err := combineIters(existing.iter, iter)
+		if err != nil {
 			return err
 		}
 
@@ -172,4 +165,60 @@ func (m *tagDedupeMap) doUpdate(
 	})
 
 	return nil
+}
+
+func combineIters(first, second encoding.SeriesIterator) (encoding.SeriesIteratorAccumulator, error) {
+	acc, ok := first.(encoding.SeriesIteratorAccumulator)
+	if !ok {
+		var err error
+		acc, err = encoding.NewSeriesIteratorAccumulator(first, encoding.SeriesAccumulatorOptions{})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := acc.Add(second); err != nil {
+		return nil, err
+	}
+
+	return acc, nil
+}
+
+func stitchIfNeeded(
+	existing multiResultSeries,
+	tags models.Tags,
+	iter encoding.SeriesIterator,
+	attrs storagemetadata.Attributes,
+	narrowing Narrowing,
+) (multiResultSeries, bool, error) {
+	// Stitching based on matching narrowing start/end.
+	if !narrowing.Start.IsZero() && narrowing.Start.Equal(existing.narrowing.End) {
+		combinedIter, err := combineIters(existing.iter, iter)
+		if err != nil {
+			return multiResultSeries{}, false, err
+		}
+
+		return multiResultSeries{
+			attrs:     existing.attrs,
+			iter:      combinedIter,
+			tags:      existing.tags,
+			narrowing: Narrowing{Start: existing.narrowing.Start, End: narrowing.End},
+		}, true, nil
+	}
+
+	if !narrowing.End.IsZero() && narrowing.End.Equal(existing.narrowing.Start) {
+		combinedIter, err := combineIters(iter, existing.iter)
+		if err != nil {
+			return multiResultSeries{}, false, err
+		}
+
+		return multiResultSeries{
+			attrs:     attrs,
+			iter:      combinedIter,
+			tags:      tags,
+			narrowing: Narrowing{Start: narrowing.Start, End: existing.narrowing.End},
+		}, true, nil
+	}
+
+	return multiResultSeries{}, false, nil
 }

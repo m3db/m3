@@ -115,7 +115,9 @@ func (m *idDedupeMap) doUpdate(
 	attrs storagemetadata.Attributes,
 	narrowing Narrowing,
 ) error {
-	if stitched, ok := stitch(existing, tags, iter, attrs, narrowing); ok {
+	if stitched, ok, err := stitchIfNeeded(existing, tags, iter, attrs, narrowing); err != nil {
+		return err
+	} else if ok {
 		m.series[id] = stitched
 		return nil
 	}
@@ -150,30 +152,4 @@ func (m *idDedupeMap) doUpdate(
 	}
 
 	return nil
-}
-
-func stitch(
-	existing multiResultSeries,
-	tags models.Tags,
-	iter encoding.SeriesIterator,
-	attrs storagemetadata.Attributes,
-	narrowing Narrowing,
-) (multiResultSeries, bool) {
-	// Stitching based on matching start/end.
-	if !narrowing.Start.IsZero() && narrowing.Start.Equal(existing.narrowing.End) {
-		return multiResultSeries{
-			attrs:     existing.attrs,
-			iter:      newConcatIterator(existing.iter, iter),
-			tags:      existing.tags,
-			narrowing: Narrowing{Start: existing.narrowing.Start, End: narrowing.End},
-		}, true
-	} else if !narrowing.End.IsZero() && narrowing.End.Equal(existing.narrowing.Start) {
-		return multiResultSeries{
-			attrs:     attrs,
-			iter:      newConcatIterator(iter, existing.iter),
-			tags:      tags,
-			narrowing: Narrowing{Start: narrowing.Start, End: existing.narrowing.End},
-		}, true
-	}
-	return multiResultSeries{}, false
 }
