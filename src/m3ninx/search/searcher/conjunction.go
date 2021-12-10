@@ -56,23 +56,26 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 	if listCount < len(s.negations) {
 		listCount = len(s.negations)
 	}
-	lists := make([]postings.List, 0, listCount)
+	lists := make([]postingsListWithLength, 0, listCount)
 
 	for _, sr := range s.searchers {
 		curr, err := sr.Search(r)
 		if err != nil {
 			return nil, err
 		}
-		lists = append(lists, curr)
+		lists = append(lists, postingsListWithLength{
+			list:   curr,
+			length: curr.Len(),
+		})
 	}
 
 	sort.Sort(byLengthAscending(lists))
 	for _, curr := range lists {
 		var err error
 		if pl == nil {
-			pl = curr
+			pl = curr.list
 		} else {
-			pl, err = pl.Intersect(curr)
+			pl, err = pl.Intersect(curr.list)
 			if err != nil {
 				return nil, err
 			}
@@ -91,13 +94,16 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 		if err != nil {
 			return nil, err
 		}
-		lists = append(lists, curr)
+		lists = append(lists, postingsListWithLength{
+			list:   curr,
+			length: curr.Len(),
+		})
 	}
 
 	sort.Sort(byLengthDescending(lists))
 	for _, curr := range lists {
 		var err error
-		pl, err = pl.Difference(curr)
+		pl, err = pl.Difference(curr.list)
 		if err != nil {
 			return nil, err
 		}
@@ -117,28 +123,33 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 	return pl, nil
 }
 
-type byLengthAscending []postings.List
+type postingsListWithLength struct {
+	list   postings.List
+	length int
+}
+
+type byLengthAscending []postingsListWithLength
 
 func (l byLengthAscending) Len() int {
 	return len(l)
 }
 
 func (l byLengthAscending) Less(i, j int) bool {
-	return l[i].Len() < l[j].Len()
+	return l[i].length < l[j].length
 }
 
 func (l byLengthAscending) Swap(i, j int) {
 	l[i], l[j] = l[j], l[i]
 }
 
-type byLengthDescending []postings.List
+type byLengthDescending []postingsListWithLength
 
 func (l byLengthDescending) Len() int {
 	return len(l)
 }
 
 func (l byLengthDescending) Less(i, j int) bool {
-	return l[i].Len() > l[j].Len()
+	return l[i].length > l[j].length
 }
 
 func (l byLengthDescending) Swap(i, j int) {
