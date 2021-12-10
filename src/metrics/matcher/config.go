@@ -103,15 +103,8 @@ func (cfg *Configuration) NewOptions(
 	sortedTagIteratorPool.Init(func() id.SortedTagIterator {
 		return m3.NewPooledSortedTagIterator(nil, sortedTagIteratorPool)
 	})
-	sortedTagIteratorFn := func(tagPairs []byte) id.SortedTagIterator {
-		it := sortedTagIteratorPool.Get()
-		it.Reset(tagPairs)
-		return it
-	}
 	tagsFilterOptions := filters.TagsFilterOptions{
 		NameTagKey:          []byte(cfg.NameTagKey),
-		NameAndTagsFn:       m3.NameAndTags,
-		SortedTagIteratorFn: sortedTagIteratorFn,
 	}
 
 	ruleSetOpts := rules.NewOptions().

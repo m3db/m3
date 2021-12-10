@@ -86,7 +86,8 @@ func TestMatcherMatchDoesNotExist(t *testing.T) {
 	matcher, testScope := testMatcher(t, testMatcherOptions{
 		cache: newMemCache(),
 	})
-	require.Equal(t, rules.EmptyMatchResult, matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano()))
+	require.Equal(t, rules.EmptyMatchResult,
+		matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano(), rules.MatchOptions{}))
 
 	requireLatencyMetrics(t, "cached-matcher", testScope)
 }
@@ -108,7 +109,7 @@ func TestMatcherMatchExists(t *testing.T) {
 	})
 	c := cache.(*memCache)
 	c.namespaces[ns] = memRes
-	require.Equal(t, res, matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano()))
+	require.Equal(t, res, matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano(), rules.MatchOptions{}))
 }
 
 func TestMatcherMatchExistsNoCache(t *testing.T) {
@@ -129,21 +130,7 @@ func TestMatcherMatchExistsNoCache(t *testing.T) {
 		now = time.Now()
 	)
 	matcher, testScope := testMatcher(t, testMatcherOptions{
-		tagFilterOptions: filters.TagsFilterOptions{
-			NameAndTagsFn: func(id []byte) (name []byte, tags []byte, err error) {
-				name = metric.id
-				return
-			},
-			SortedTagIteratorFn: func(tagPairs []byte) id.SortedTagIterator {
-				iter := id.NewMockSortedTagIterator(ctrl)
-				iter.EXPECT().Next().Return(true)
-				iter.EXPECT().Current().Return([]byte("fooTag"), []byte("fooValue"))
-				iter.EXPECT().Next().Return(false)
-				iter.EXPECT().Err().Return(nil)
-				iter.EXPECT().Close()
-				return iter
-			},
-		},
+		tagFilterOptions: filters.TagsFilterOptions{},
 		storeSetup: func(t *testing.T, store kv.TxnStore) {
 			_, err := store.Set(testNamespacesKey, &rulepb.Namespaces{
 				Namespaces: []*rulepb.Namespace{
@@ -210,7 +197,23 @@ func TestMatcherMatchExistsNoCache(t *testing.T) {
 	expected := rules.NewMatchResult(1, math.MaxInt64,
 		forExistingID, forNewRollupIDs, keepOriginal)
 
-	result := matcher.ForwardMatch(metric, now.UnixNano(), now.UnixNano())
+	matchOptions := rules.MatchOptions{
+		NameAndTagsFn: func(id []byte) (name []byte, tags []byte, err error) {
+			name = metric.id
+			return
+		},
+		SortedTagIteratorFn: func(tagPairs []byte) id.SortedTagIterator {
+			iter := id.NewMockSortedTagIterator(ctrl)
+			iter.EXPECT().Next().Return(true)
+			iter.EXPECT().Current().Return([]byte("fooTag"), []byte("fooValue"))
+			iter.EXPECT().Next().Return(false)
+			iter.EXPECT().Err().Return(nil)
+			iter.EXPECT().Close()
+			return iter
+		},
+	}
+
+	result := matcher.ForwardMatch(metric, now.UnixNano(), now.UnixNano(), matchOptions)
 
 	require.Equal(t, expected, result)
 

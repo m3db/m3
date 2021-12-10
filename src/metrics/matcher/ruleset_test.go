@@ -61,7 +61,7 @@ func TestRuleSetProperties(t *testing.T) {
 func TestRuleSetMatchNoMatcher(t *testing.T) {
 	_, _, rs := testRuleSet()
 	nowNanos := rs.nowFn().UnixNano()
-	require.Equal(t, rules.EmptyMatchResult, rs.ForwardMatch([]byte("foo"), nowNanos, nowNanos))
+	require.Equal(t, rules.EmptyMatchResult, rs.ForwardMatch([]byte("foo"), nowNanos, nowNanos, rules.MatchOptions{}))
 }
 
 func TestRuleSetForwardMatchWithMatcher(t *testing.T) {
@@ -75,7 +75,7 @@ func TestRuleSetForwardMatchWithMatcher(t *testing.T) {
 		toNanos   = now.Add(time.Second).UnixNano()
 	)
 
-	require.Equal(t, mockMatcher.res, rs.ForwardMatch([]byte("foo"), fromNanos, toNanos))
+	require.Equal(t, mockMatcher.res, rs.ForwardMatch([]byte("foo"), fromNanos, toNanos, rules.MatchOptions{}))
 	require.Equal(t, []byte("foo"), mockMatcher.id)
 	require.Equal(t, fromNanos, mockMatcher.fromNanos)
 	require.Equal(t, toNanos, mockMatcher.toNanos)
@@ -211,6 +211,7 @@ type mockMatcher struct {
 func (mm *mockMatcher) ForwardMatch(
 	id []byte,
 	fromNanos, toNanos int64,
+	opts rules.MatchOptions,
 ) rules.MatchResult {
 	mm.id = id
 	mm.fromNanos = fromNanos

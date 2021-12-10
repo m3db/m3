@@ -38,7 +38,7 @@ import (
 // Matcher matches metrics against rules to determine applicable policies.
 type Matcher interface {
 	// ForwardMatch matches the applicable policies for a metric id between [fromNanos, toNanos).
-	ForwardMatch(id []byte, fromNanos, toNanos int64) MatchResult
+	ForwardMatch(id []byte, fromNanos, toNanos int64, opts MatchOptions) MatchResult
 }
 
 type activeRuleSet struct {
@@ -104,9 +104,10 @@ func newActiveRuleSet(
 func (as *activeRuleSet) ForwardMatch(
 	id []byte,
 	fromNanos, toNanos int64,
+	opts MatchOptions,
 ) MatchResult {
 	var (
-		currMatchRes     = as.forwardMatchAt(id, fromNanos)
+		currMatchRes     = as.forwardMatchAt(id, fromNanos, opts)
 		forExistingID    = metadata.StagedMetadatas{currMatchRes.forExistingID}
 		forNewRollupIDs  = currMatchRes.forNewRollupIDs
 		nextIdx          = as.nextCutoverIdx(fromNanos)
@@ -115,7 +116,7 @@ func (as *activeRuleSet) ForwardMatch(
 	)
 
 	for nextIdx < len(as.cutoverTimesAsc) && nextCutoverNanos < toNanos {
-		nextMatchRes := as.forwardMatchAt(id, nextCutoverNanos)
+		nextMatchRes := as.forwardMatchAt(id, nextCutoverNanos, opts)
 		forExistingID = mergeResultsForExistingID(forExistingID, nextMatchRes.forExistingID, nextCutoverNanos)
 		forNewRollupIDs = mergeResultsForNewRollupIDs(forNewRollupIDs, nextMatchRes.forNewRollupIDs, nextCutoverNanos)
 		nextIdx++
@@ -142,9 +143,10 @@ func (as *activeRuleSet) ForwardMatch(
 func (as *activeRuleSet) forwardMatchAt(
 	id []byte,
 	timeNanos int64,
+	matchOpts MatchOptions,
 ) forwardMatchResult {
-	mappingResults := as.mappingsForNonRollupID(id, timeNanos)
-	rollupResults := as.rollupResultsFor(id, timeNanos)
+	mappingResults := as.mappingsForNonRollupID(id, timeNanos, matchOpts)
+	rollupResults := as.rollupResultsFor(id, timeNanos, matchOpts)
 	forExistingID := mappingResults.forExistingID.
 		merge(rollupResults.forExistingID).
 		unique().
@@ -169,6 +171,7 @@ func (as *activeRuleSet) forwardMatchAt(
 func (as *activeRuleSet) mappingsForNonRollupID(
 	id []byte,
 	timeNanos int64,
+	matchOpts MatchOptions,
 ) mappingResults {
 	var (
 		cutoverNanos int64
@@ -179,7 +182,10 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 		if snapshot == nil {
 			continue
 		}
-		if !snapshot.filter.Matches(id) {
+		if !snapshot.filter.Matches(id, filters.TagMatchOptions{
+			SortedTagIteratorFn: matchOpts.SortedTagIteratorFn,
+			NameAndTagsFn:       matchOpts.NameAndTagsFn,
+		}) {
 			continue
 		}
 		// Make sure the cutover time tracks the latest cutover time among all matching
@@ -213,7 +219,7 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 	}
 }
 
-func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64) rollupResults {
+func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64, matchOpts MatchOptions) rollupResults {
 	var (
 		cutoverNanos  int64
 		rollupTargets []rollupTarget
@@ -227,7 +233,10 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64) rollupResu
 			continue
 		}
 
-		if !snapshot.filter.Matches(id) {
+		if !snapshot.filter.Matches(id, filters.TagMatchOptions{
+			NameAndTagsFn:       matchOpts.NameAndTagsFn,
+			SortedTagIteratorFn: matchOpts.SortedTagIteratorFn,
+		}) {
 			continue
 		}
 
@@ -253,7 +262,7 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64) rollupResu
 		}
 	}
 	// NB: could log the matching error here if needed.
-	res, _ := as.toRollupResults(id, cutoverNanos, rollupTargets, keepOriginal, tags)
+	res, _ := as.toRollupResults(id, cutoverNanos, rollupTargets, keepOriginal, tags, matchOpts)
 	return res
 }
 
@@ -270,6 +279,7 @@ func (as *activeRuleSet) toRollupResults(
 	targets []rollupTarget,
 	keepOriginal bool,
 	tags [][]models.Tag,
+	matchOpts MatchOptions,
 ) (rollupResults, error) {
 	if len(targets) == 0 {
 		return rollupResults{}, nil
@@ -277,7 +287,7 @@ func (as *activeRuleSet) toRollupResults(
 
 	// If we cannot extract tags from the id, this is likely an invalid
 	// metric and we bail early.
-	_, sortedTagPairBytes, err := as.tagsFilterOpts.NameAndTagsFn(id)
+	_, sortedTagPairBytes, err := matchOpts.NameAndTagsFn(id)
 	if err != nil {
 		return rollupResults{}, err
 	}
@@ -326,7 +336,7 @@ func (as *activeRuleSet) toRollupResults(
 				tagPairs,
 				tags[idx],
 				matchRollupTargetOptions{generateRollupID: true},
-			)
+				matchOpts)
 			if !matched {
 				// The incoming metric ID did not match the rollup target.
 				continue
@@ -339,7 +349,7 @@ func (as *activeRuleSet) toRollupResults(
 			continue
 		}
 		tagPairs = tagPairs[:0]
-		applied, err := as.applyIDToPipeline(sortedTagPairBytes, toApply, tagPairs, tags[idx])
+		applied, err := as.applyIDToPipeline(sortedTagPairBytes, toApply, tagPairs, tags[idx], matchOpts)
 		if err != nil {
 			err = fmt.Errorf("failed to apply id %s to pipeline %v: %v", id, toApply, err)
 			multiErr = multiErr.Add(err)
@@ -383,9 +393,10 @@ func (as *activeRuleSet) matchRollupTarget(
 	rollupOp mpipeline.RollupOp,
 	tagPairs []metricid.TagPair, // buffer for reuse to generate rollup ID across calls
 	tags []models.Tag,
-	opts matchRollupTargetOptions,
+	targetOpts matchRollupTargetOptions,
+	matchOpts MatchOptions,
 ) ([]byte, bool) {
-	if rollupOp.Type == mpipeline.ExcludeByRollupType && !opts.generateRollupID {
+	if rollupOp.Type == mpipeline.ExcludeByRollupType && !targetOpts.generateRollupID {
 		// Exclude by tag always matches, if not generating rollup ID
 		// then immediately return.
 		return nil, true
@@ -393,7 +404,7 @@ func (as *activeRuleSet) matchRollupTarget(
 
 	var (
 		rollupTags    = rollupOp.Tags
-		sortedTagIter = as.tagsFilterOpts.SortedTagIteratorFn(sortedTagPairBytes)
+		sortedTagIter = matchOpts.SortedTagIteratorFn(sortedTagPairBytes)
 		matchTagIdx   = 0
 		nameTagName   = as.tagsFilterOpts.NameTagKey
 		nameTagValue  []byte
@@ -424,7 +435,7 @@ func (as *activeRuleSet) matchRollupTarget(
 			res := bytes.Compare(tagName, rollupTags[matchTagIdx])
 			if res == 0 {
 				// Include grouped by tag.
-				if opts.generateRollupID {
+				if targetOpts.generateRollupID {
 					tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
 				}
 				matchTagIdx++
@@ -456,7 +467,7 @@ func (as *activeRuleSet) matchRollupTarget(
 
 			if matchTagIdx >= len(rollupTags) {
 				// Have matched all the tags to exclude, just blindly copy.
-				if opts.generateRollupID {
+				if targetOpts.generateRollupID {
 					tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
 				}
 				hasMoreTags = sortedTagIter.Next()
@@ -474,7 +485,7 @@ func (as *activeRuleSet) matchRollupTarget(
 
 			if res != 0 {
 				// Only include tags that don't match the exclude tag
-				if opts.generateRollupID {
+				if targetOpts.generateRollupID {
 					tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
 				}
 			}
@@ -483,7 +494,7 @@ func (as *activeRuleSet) matchRollupTarget(
 		}
 	}
 
-	if !opts.generateRollupID {
+	if !targetOpts.generateRollupID {
 		return nil, true
 	}
 
@@ -503,6 +514,7 @@ func (as *activeRuleSet) applyIDToPipeline(
 	pipeline mpipeline.Pipeline,
 	tagPairs []metricid.TagPair, // buffer for reuse across calls
 	tags []models.Tag,
+	matchOpts MatchOptions,
 ) (applied.Pipeline, error) {
 	operations := make([]applied.OpUnion, 0, pipeline.Len())
 	for i := 0; i < pipeline.Len(); i++ {
@@ -523,7 +535,7 @@ func (as *activeRuleSet) applyIDToPipeline(
 				tagPairs,
 				tags,
 				matchRollupTargetOptions{generateRollupID: true},
-			)
+				matchOpts)
 			if !matched {
 				err := fmt.Errorf("existing tag pairs %s do not contain all rollup tags %s", sortedTagPairBytes, rollupOp.Tags)
 				return applied.Pipeline{}, err

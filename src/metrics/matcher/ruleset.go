@@ -147,7 +147,7 @@ func (r *ruleSet) Tombstoned() bool {
 	return tombstoned
 }
 
-func (r *ruleSet) ForwardMatch(id []byte, fromNanos, toNanos int64) rules.MatchResult {
+func (r *ruleSet) ForwardMatch(id []byte, fromNanos, toNanos int64, opts rules.MatchOptions) rules.MatchResult {
 	callStart := r.nowFn()
 	r.RLock()
 	if r.matcher == nil {
@@ -155,7 +155,7 @@ func (r *ruleSet) ForwardMatch(id []byte, fromNanos, toNanos int64) rules.MatchR
 		r.metrics.nilMatcher.Inc(1)
 		return rules.EmptyMatchResult
 	}
-	res := r.matcher.ForwardMatch(id, fromNanos, toNanos)
+	res := r.matcher.ForwardMatch(id, fromNanos, toNanos, opts)
 	r.RUnlock()
 	r.metrics.match.ReportSuccess(r.nowFn().Sub(callStart))
 	return res

@@ -71,15 +71,15 @@ func (mr *MockMatcherMockRecorder) Close() *gomock.Call {
 }
 
 // ForwardMatch mocks base method.
-func (m *MockMatcher) ForwardMatch(arg0 id.ID, arg1, arg2 int64) rules.MatchResult {
+func (m *MockMatcher) ForwardMatch(arg0 id.ID, arg1, arg2 int64, arg3 rules.MatchOptions) rules.MatchResult {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ForwardMatch", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "ForwardMatch", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(rules.MatchResult)
 	return ret0
 }
 
 // ForwardMatch indicates an expected call of ForwardMatch.
-func (mr *MockMatcherMockRecorder) ForwardMatch(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockMatcherMockRecorder) ForwardMatch(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForwardMatch", reflect.TypeOf((*MockMatcher)(nil).ForwardMatch), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForwardMatch", reflect.TypeOf((*MockMatcher)(nil).ForwardMatch), arg0, arg1, arg2, arg3)
 }

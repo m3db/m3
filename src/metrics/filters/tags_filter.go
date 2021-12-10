@@ -27,7 +27,6 @@ import (
 	"strings"
 
 	"github.com/m3db/m3/src/metrics/errors"
-	"github.com/m3db/m3/src/metrics/metric/id"
 )
 
 const (
@@ -117,12 +116,6 @@ func (tn tagFiltersByNameAsc) Less(i, j int) bool { return bytes.Compare(tn[i].n
 type TagsFilterOptions struct {
 	// Name of the name tag.
 	NameTagKey []byte
-
-	// Function to extract name and tags from an id.
-	NameAndTagsFn id.NameAndTagsFn
-
-	// Function to create a new sorted tag iterator from id tags.
-	SortedTagIteratorFn id.SortedTagIteratorFn
 }
 
 // tagsFilter contains a list of tag filters.
@@ -138,7 +131,7 @@ func NewTagsFilter(
 	filters TagFilterValueMap,
 	op LogicalOp,
 	opts TagsFilterOptions,
-) (Filter, error) {
+) (TagsFilter, error) {
 	var (
 		nameFilter Filter
 		tagFilters = make([]tagFilter, 0, len(filters))
@@ -159,12 +152,12 @@ func NewTagsFilter(
 		}
 	}
 	sort.Sort(tagFiltersByNameAsc(tagFilters))
-	return newImmutableFilter(&tagsFilter{
+	return &tagsFilter{
 		nameFilter: nameFilter,
 		tagFilters: tagFilters,
 		op:         op,
 		opts:       opts,
-	}), nil
+	}, nil
 }
 
 func (f *tagsFilter) String() string {
@@ -186,12 +179,12 @@ func (f *tagsFilter) String() string {
 	return buf.String()
 }
 
-func (f *tagsFilter) Matches(id []byte) bool {
+func (f *tagsFilter) Matches(id []byte, opts TagMatchOptions) bool {
 	if f.nameFilter == nil && len(f.tagFilters) == 0 {
 		return true
 	}
 
-	name, tags, err := f.opts.NameAndTagsFn(id)
+	name, tags, err := opts.NameAndTagsFn(id)
 	if err != nil {
 		return false
 	}
@@ -205,7 +198,7 @@ func (f *tagsFilter) Matches(id []byte) bool {
 		}
 	}
 
-	iter := f.opts.SortedTagIteratorFn(tags)
+	iter := opts.SortedTagIteratorFn(tags)
 	defer iter.Close()
 
 	currIdx := 0

@@ -35,7 +35,9 @@ import (
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
@@ -55,12 +57,15 @@ type metricsAppenderPool struct {
 	pool pool.ObjectPool
 }
 
-func newMetricsAppenderPool(opts pool.ObjectPoolOptions) *metricsAppenderPool {
+func newMetricsAppenderPool(
+	opts pool.ObjectPoolOptions,
+	tagIterPool serialize.MetricTagsIteratorPool,
+	nameTag []byte) *metricsAppenderPool {
 	p := &metricsAppenderPool{
 		pool: pool.NewObjectPool(opts),
 	}
 	p.pool.Init(func() interface{} {
-		return newMetricsAppender(p)
+		return newMetricsAppender(p, tagIterPool, nameTag)
 	})
 	return p
 }
@@ -98,6 +103,8 @@ type metricsAppender struct {
 	originalTags *tags
 	cachedTags   []*tags
 	inuseTags    []*tags
+	tagIterFn    id.SortedTagIteratorFn
+	nameTagFn    id.NameAndTagsFn
 }
 
 // metricsAppenderOptions will have one of agg or clientRemote set.
@@ -117,10 +124,29 @@ type metricsAppenderOptions struct {
 	metrics      metricsAppenderMetrics
 }
 
-func newMetricsAppender(pool *metricsAppenderPool) *metricsAppender {
+func newMetricsAppender(
+	pool *metricsAppenderPool,
+	tagIterPool serialize.MetricTagsIteratorPool,
+	nameTag []byte) *metricsAppender {
+	tagIter := tagIterPool.Get()
 	return &metricsAppender{
 		pool:                 pool,
 		multiSamplesAppender: newMultiSamplesAppender(),
+		tagIterFn: func(tagPairs []byte) id.SortedTagIterator {
+			// Use the same tagIter for all matching computations. It is safe to reuse since a metric appender is
+			// single threaded and it's reset before each computation.
+			tagIter.Reset(tagPairs)
+			return tagIter
+		},
+		nameTagFn: func(id []byte) ([]byte, []byte, error) {
+			name, err := resolveEncodedTagsNameTag(id, nameTag)
+			if err != nil && !errors.Is(err, errNoMetricNameTag) {
+				return nil, nil, err
+			}
+			// ID is always the encoded tags for IDs in the downsampler
+			tags := id
+			return name, tags, nil
+		},
 	}
 }
 
@@ -210,7 +236,10 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	nowNanos := now.UnixNano()
 	fromNanos := nowNanos
 	toNanos := nowNanos + 1
-	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
+	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos, rules.MatchOptions{
+		NameAndTagsFn:       a.nameTagFn,
+		SortedTagIteratorFn: a.tagIterFn,
+	})
 	id.Close()
 
 	// Filter out augmented metrics tags we added for matching.
