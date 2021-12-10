@@ -45,14 +45,14 @@ var (
 type Source interface {
 	// ForwardMatch returns the match result for a given id within time range
 	// [fromNanos, toNanos).
-	ForwardMatch(id []byte, fromNanos, toNanos int64, opts rules.MatchOptions) rules.MatchResult
+	ForwardMatch(id []byte, fromNanos, toNanos int64, opts rules.MatchOptions) (rules.MatchResult, error)
 }
 
 // Cache caches the rule matching result associated with metrics.
 type Cache interface {
 	// ForwardMatch returns the rule matching result associated with a metric id
 	// between [fromNanos, toNanos).
-	ForwardMatch(namespace, id []byte, fromNanos, toNanos int64, opts rules.MatchOptions) rules.MatchResult
+	ForwardMatch(namespace, id []byte, fromNanos, toNanos int64, opts rules.MatchOptions) (rules.MatchResult, error)
 
 	// Register sets the source for a given namespace.
 	Register(namespace []byte, source Source)
@@ -176,19 +176,24 @@ func NewCache(opts Options) Cache {
 }
 
 func (c *cache) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64,
-	opts rules.MatchOptions) rules.MatchResult {
+	opts rules.MatchOptions) (rules.MatchResult, error) {
 	c.RLock()
-	res, found := c.tryGetWithLock(namespace, id, fromNanos, toNanos, dontSetIfNotFound, opts)
+	res, found, err := c.tryGetWithLock(namespace, id, fromNanos, toNanos, dontSetIfNotFound, opts)
 	c.RUnlock()
+	if err != nil {
+		return rules.MatchResult{}, err
+	}
 	if found {
-		return res
+		return res, nil
 	}
 
 	c.Lock()
-	res, _ = c.tryGetWithLock(namespace, id, fromNanos, toNanos, setIfNotFound, opts)
+	res, _, err = c.tryGetWithLock(namespace, id, fromNanos, toNanos, setIfNotFound, opts)
 	c.Unlock()
-
-	return res
+	if err != nil {
+		return rules.MatchResult{}, err
+	}
+	return res, nil
 }
 
 func (c *cache) Register(namespace []byte, source Source) {
@@ -265,12 +270,12 @@ func (c *cache) tryGetWithLock(
 	fromNanos, toNanos int64,
 	setType setType,
 	matchOpts rules.MatchOptions,
-) (rules.MatchResult, bool) {
+) (rules.MatchResult, bool, error) {
 	res := rules.EmptyMatchResult
 	results, exists := c.namespaces.Get(namespace)
 	if !exists {
 		c.metrics.hits.Inc(1)
-		return res, true
+		return res, true, nil
 	}
 	entry, exists := results.elems.Get(id)
 	if exists {
@@ -293,16 +298,20 @@ func (c *cache) tryGetWithLock(
 				c.promote(now, elem)
 			}
 			c.metrics.hits.Inc(1)
-			return res, true
+			return res, true, nil
 		}
 		c.metrics.expires.Inc(1)
 	}
 	if setType == dontSetIfNotFound {
-		return res, false
+		return res, false, nil
 	}
 	// NB(xichen): the result is either not cached, or cached but invalid, in both
 	// cases we should use the source to compute the result and set it in the cache.
-	return c.setWithLock(namespace, id, fromNanos, toNanos, results, exists, matchOpts), true
+	res, err := c.setWithLock(namespace, id, fromNanos, toNanos, results, exists, matchOpts)
+	if err != nil {
+		return rules.MatchResult{}, false, err
+	}
+	return res, true, nil
 }
 
 func (c *cache) setWithLock(
@@ -311,14 +320,17 @@ func (c *cache) setWithLock(
 	results results,
 	invalidate bool,
 	matchOpts rules.MatchOptions,
-) rules.MatchResult {
+) (rules.MatchResult, error) {
 	// NB(xichen): if a cached result is invalid, it's very likely that we've reached
 	// a new cutover time and the old cached results are now invalid, therefore it's
 	// preferrable to invalidate everything to save the overhead of multiple invalidations.
 	if invalidate {
 		results = c.invalidateWithLock(namespace, id, results)
 	}
-	res := results.source.ForwardMatch(id, fromNanos, toNanos, matchOpts)
+	res, err := results.source.ForwardMatch(id, fromNanos, toNanos, matchOpts)
+	if err != nil {
+		return rules.MatchResult{}, err
+	}
 	newElem := newElement(namespace, id, res)
 	newElem.SetPromotionExpiry(c.newPromotionExpiry(c.nowFn()))
 	results.elems.Set(id, newElem)
@@ -329,7 +341,7 @@ func (c *cache) setWithLock(
 		c.notifyEviction()
 	}
 	c.metrics.misses.Inc(1)
-	return res
+	return res, nil
 }
 
 // refreshWithLock clears the existing cached results for namespace nsHash

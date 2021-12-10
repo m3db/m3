@@ -242,10 +242,13 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	// N.B - it's safe the reuse the shared tag iterator because the matcher uses it immediately to resolve the optional
 	// namespace tag to determine the ruleset for the namespace. then the ruleset matcher reuses the tag iterator for
 	// every match computation.
-	matchResult := a.matcher.ForwardMatch(a.tagIter, fromNanos, toNanos, rules.MatchOptions{
+	matchResult, err := a.matcher.ForwardMatch(a.tagIter, fromNanos, toNanos, rules.MatchOptions{
 		NameAndTagsFn:       a.nameTagFn,
 		SortedTagIteratorFn: a.tagIterFn,
 	})
+	if err != nil {
+		return SamplesAppenderResult{}, err
+	}
 
 	// Filter out augmented metrics tags we added for matching.
 	for _, filter := range defaultFilterOutTagPrefixes {
