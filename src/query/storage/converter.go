@@ -226,6 +226,8 @@ func seriesAttributesForGraphiteSource(series prompb.TimeSeries) (ts.SeriesAttri
 		promMetricType = ts.PromMetricTypeCounter
 	case prompb.M3Type_M3_GAUGE:
 		promMetricType = ts.PromMetricTypeGauge
+	case prompb.M3Type_M3_TIMER:
+		promMetricType = ts.PromMetricTypeUnknown
 	}
 
 	return ts.SeriesAttributes{
