@@ -94,8 +94,8 @@ func resolveClusterNamespacesForQuery(
 	restrict *storage.RestrictQueryOptions,
 	relatedQueryOpts *storage.RelatedQueryOptions,
 ) (consolidators.QueryFanoutType, []resolvedNamespace, error) {
-	// Calculate a new Start time if related query opts are present.
-	// NB: We do not calculate a new End time because it does not factor
+	// Calculate a new start time if related query opts are present.
+	// NB: We do not calculate a new end time because it does not factor
 	// into namespace selection.
 	namespaceSelectionStart := start
 	if relatedQueryOpts != nil {
