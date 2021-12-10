@@ -71,10 +71,10 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 
 	sort.Sort(byLengthAscending(lists))
 	for _, curr := range lists {
-		var err error
 		if pl == nil {
 			pl = curr.list
 		} else {
+			var err error
 			pl, err = pl.Intersect(curr.list)
 			if err != nil {
 				return nil, err
@@ -102,17 +102,17 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 
 	sort.Sort(byLengthDescending(lists))
 	for _, curr := range lists {
+		// We can break early if the resulting postings list is ever empty.
+		if pl.IsEmpty() {
+			break
+		}
+
 		var err error
 		pl, err = pl.Difference(curr.list)
 		if err != nil {
 			return nil, err
 		}
 		plNeedsClone = false
-
-		// We can break early if the resulting postings list is ever empty.
-		if pl.IsEmpty() {
-			break
-		}
 	}
 
 	if pl != nil && plNeedsClone {
