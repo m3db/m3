@@ -1038,7 +1038,7 @@ func (o DownsamplerOptions) newAggregatorPools() aggPools {
 
 	metricsAppenderPool := newMetricsAppenderPool(
 		o.MetricsAppenderPoolOptions,
-		metricTagsIteratorPool,
+		o.TagDecoderOptions.TagSerializationLimits(),
 		o.NameTagOrDefault())
 
 	return aggPools{
