@@ -185,8 +185,9 @@ func testTagValuesWithMatch(
 			},
 		},
 		Metadata: block.ResultMetadata{
-			Exhaustive: false,
-			Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
+			Exhaustive:     false,
+			Warnings:       []block.Warning{{Name: "foo", Message: "bar"}},
+			MetadataByName: make(map[string]*block.ResultMetricMetadata),
 		},
 	}
 

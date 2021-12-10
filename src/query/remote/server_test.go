@@ -538,9 +538,10 @@ func TestBatchedCompleteTags(t *testing.T) {
 				CompleteNameOnly: nameOnly,
 				CompletedTags:    tags,
 				Metadata: block.ResultMetadata{
-					Exhaustive: false,
-					LocalOnly:  true,
-					Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
+					Exhaustive:     false,
+					LocalOnly:      true,
+					Warnings:       []block.Warning{{Name: "foo", Message: "bar"}},
+					MetadataByName: make(map[string]*block.ResultMetricMetadata),
 				},
 			}
 
