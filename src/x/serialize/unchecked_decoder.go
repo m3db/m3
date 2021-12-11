@@ -118,10 +118,6 @@ func (d *uncheckedDecoder) decodeTag() error {
 	if err != nil {
 		return err
 	}
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
