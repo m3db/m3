@@ -25,8 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/common/model"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -146,21 +144,21 @@ func toPromSequentially(
 			return PromResult{}, err
 		}
 
-		name := ""
-		nameTag, exists := tags.Get([]byte(model.MetricNameLabel))
-		if exists {
-			name = string(nameTag)
-		}
-
+		nameTag, _ := tags.Get(promDefaultName)
 		if len(series.GetSamples()) > 0 {
 			seriesList = append(seriesList, series)
-			meta.ByName(name).WithSamples++
+			meta.ByName(nameTag).WithSamples++
 		} else {
-			meta.ByName(name).NoSamples++
+			meta.ByName(nameTag).NoSamples++
 		}
 	}
 
-	return NewPromResult(seriesList), nil
+	return PromResult{
+		PromResult: &prompb.QueryResult{
+			Timeseries: seriesList,
+		},
+		Metadata: meta,
+	}, nil
 }
 
 func toPromConcurrently(
@@ -218,23 +216,21 @@ func toPromConcurrently(
 	meta := block.NewResultMetadata()
 	filteredList := seriesList[:0]
 	for _, s := range seriesList {
-		name := ""
-		for _, l := range s.Labels {
-			if string(l.Name) == model.MetricNameLabel {
-				name = string(l.Value)
-				break
-			}
-		}
-
+		nameTag := metricNameFromLabels(s.Labels)
 		if len(s.GetSamples()) > 0 {
 			filteredList = append(filteredList, s)
-			meta.ByName(name).WithSamples++
+			meta.ByName(nameTag).WithSamples++
 		} else {
-			meta.ByName(name).NoSamples++
+			meta.ByName(nameTag).NoSamples++
 		}
 	}
 
-	return NewPromResult(filteredList), nil
+	return PromResult{
+		PromResult: &prompb.QueryResult{
+			Timeseries: filteredList,
+		},
+		Metadata: meta,
+	}, nil
 }
 
 func seriesIteratorsToPromResult(

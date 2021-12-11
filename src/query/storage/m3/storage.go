@@ -21,6 +21,7 @@
 package m3
 
 import (
+	"bytes"
 	"context"
 	goerrors "errors"
 	"fmt"
@@ -54,6 +55,13 @@ const (
 )
 
 var (
+	// The default name for the name tag in Prometheus metrics.
+	promDefaultName = []byte(model.MetricNameLabel)
+	// The name for the rollup tag defined by the coordinator model.
+	rollupTagName = []byte(coordmodel.RollupTagName)
+	// The value for the rollup tag defined by the coordinator model.
+	rollupTagValue = []byte(coordmodel.RollupTagValue)
+
 	errUnaggregatedAndAggregatedDisabled = goerrors.New("fetch options has both" +
 		" aggregated and unaggregated namespace lookup disabled")
 	errNoNamespacesConfigured             = goerrors.New("no namespaces configured")
@@ -162,25 +170,22 @@ func (s *m3storage) FetchProm(
 		}
 
 		rollup := false
-		metricName := ""
+		nameTag := []byte{}
 		for _, label := range series.Labels {
 			// Check for both the rollup tag and the metric name label.
-			name := string(label.Name)
-			value := string(label.Value)
-			switch name {
-			case coordmodel.RollupTagName:
-				if value == coordmodel.RollupTagValue {
+			if bytes.Equal(label.Name, rollupTagName) {
+				if bytes.Equal(label.Value, rollupTagValue) {
 					rollup = true
 				}
-			case model.MetricNameLabel:
-				metricName = value
+			} else if bytes.Equal(label.Name, promDefaultName) {
+				nameTag = label.Value
 			}
 		}
 
 		if rollup {
-			fetchResult.Metadata.ByName(metricName).Aggregated++
+			fetchResult.Metadata.ByName(nameTag).Aggregated++
 		} else {
-			fetchResult.Metadata.ByName(metricName).Unaggregated++
+			fetchResult.Metadata.ByName(nameTag).Unaggregated++
 		}
 	}
 
