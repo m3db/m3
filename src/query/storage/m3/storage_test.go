@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -586,12 +587,16 @@ func TestLocalReadExceedsAggregatedAndPartialAggregated(t *testing.T) {
 func assertFetchResult(t *testing.T, results storage.PromResult, testTag ident.Tag) {
 	require.NotNil(t, results.PromResult)
 	series := results.PromResult.GetTimeseries()
+	meta := results.Metadata
 	require.Equal(t, 1, len(series))
 	labels := series[0].GetLabels()
 	require.Equal(t, 1, len(labels))
 	l := labels[0]
 	assert.Equal(t, testTag.Name.String(), string(l.GetName()))
 	assert.Equal(t, testTag.Value.String(), string(l.GetValue()))
+	merged := meta.MetadataByNameMerged()
+	assert.Equal(t, 1, meta.FetchedSeriesCount)
+	assert.Equal(t, merged, block.ResultMetricMetadata{Unaggregated: 1, WithSamples: 1})
 }
 
 func TestLocalSearchError(t *testing.T) {

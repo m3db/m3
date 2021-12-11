@@ -21,6 +21,7 @@
 package handleroptions
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http/httptest"
 	"testing"
@@ -163,6 +164,36 @@ func TestAddDBResultResponseHeadersMetadataByName(t *testing.T) {
 		"{\"metric_a\":{\"NoSamples\":1,\"WithSamples\":2,\"Aggregated\":3,\"Unaggregated\":4},"+
 			"\"metric_b\":{\"NoSamples\":10,\"WithSamples\":20,\"Aggregated\":30,\"Unaggregated\":40}}",
 		recorder.Header().Get(headers.MetricStats))
+
+	recorder = httptest.NewRecorder()
+	meta = block.NewResultMetadata()
+	numStats := maxMetricStatsInHeader + 2
+	meta.MetadataByName = make(map[string]*block.ResultMetricMetadata, numStats)
+	totalCount := 0
+	for i := 0; i < numStats; i++ {
+		count := i + 1
+		meta.MetadataByName[fmt.Sprintf("metric_%v", i)] = &block.ResultMetricMetadata{Unaggregated: count}
+		totalCount += count
+	}
+	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, nil))
+	assert.Equal(t, 2, len(recorder.Header()))
+	assert.Equal(t, fmt.Sprint(totalCount), recorder.Header().Get(headers.FetchedUnaggregatedSeriesCount))
+
+	parsed := make(map[string]*block.ResultMetricMetadata)
+	metricStatsHeader := recorder.Header().Get(headers.MetricStats)
+	assert.NotEmpty(t, metricStatsHeader)
+	err := json.Unmarshal([]byte(metricStatsHeader), &parsed)
+	assert.NoError(t, err)
+	assert.Equal(t, maxMetricStatsInHeader, len(parsed))
+	observedCount := 0
+	for _, stat := range parsed {
+		observedCount += stat.Unaggregated
+	}
+	// The total count includes `max+2` counters. The bottom two values of those 12 are 1 and 2.
+	// So we want to see the total minus (1 + 2), which means the count contains only the
+	// top `max` counts.
+	wantCount := totalCount - (1 + 2)
+	assert.Equal(t, observedCount, wantCount)
 }
 
 func TestAddReturnedLimitResponseHeaders(t *testing.T) {
