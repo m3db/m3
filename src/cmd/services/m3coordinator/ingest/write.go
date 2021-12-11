@@ -91,6 +91,8 @@ type DownsamplerAndWriter interface {
 	) BatchError
 
 	Storage() storage.Storage
+
+	Downsampler() downsample.Downsampler
 }
 
 // BatchError allows for access to individual errors.
@@ -582,6 +584,10 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 	}
 
 	return multiErr.Add(iter.Error())
+}
+
+func (d *downsamplerAndWriter) Downsampler() downsample.Downsampler {
+	return d.downsampler
 }
 
 func (d *downsamplerAndWriter) Storage() storage.Storage {

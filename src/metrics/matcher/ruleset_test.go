@@ -212,6 +212,10 @@ type mockMatcher struct {
 	aggTypesOpts                   aggregation.TypesOptions
 }
 
+func (mm *mockMatcher) LatestRollupRules(timeNanos int64) ([]view.RollupRule, error) {
+	return []view.RollupRule{}, nil
+}
+
 func (mm *mockMatcher) ForwardMatch(
 	id []byte,
 	fromNanos, toNanos int64,

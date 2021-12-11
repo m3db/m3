@@ -73,6 +73,28 @@ func TestActiveRuleSetCutoverTimesWithRollupRules(t *testing.T) {
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
 }
 
+func TestActiveRuleSetLatestRollupRules(t *testing.T) {
+	rules := testRollupRules(t)
+	as := newActiveRuleSet(
+		0,
+		nil,
+		rules,
+		testTagsFilterOptions(),
+		mockNewID,
+	)
+	timeNanos := int64(95000)
+	rollupView, err := as.LatestRollupRules(timeNanos)
+	require.NoError(t, err)
+	// rr3 is tombstoned, so it should not be returned
+	require.Equal(t, len(rules)-1, len(rollupView))
+	for _, rr := range rollupView {
+		// explicitly check that rollupRule3 is not returned..
+		require.NotEqual(t, rr.Name, "rollupRule3.snapshot3")
+		// ..and that we only get the non-Tombstoned entries.
+		require.False(t, rr.Tombstoned)
+	}
+}
+
 func TestActiveRuleSetCutoverTimesWithMappingRulesAndRollupRules(t *testing.T) {
 	as := newActiveRuleSet(
 		0,
