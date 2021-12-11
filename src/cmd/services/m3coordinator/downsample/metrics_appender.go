@@ -59,13 +59,13 @@ type metricsAppenderPool struct {
 
 func newMetricsAppenderPool(
 	opts pool.ObjectPoolOptions,
-	tagIterPool serialize.MetricTagsIteratorPool,
+	tagLimits serialize.TagSerializationLimits,
 	nameTag []byte) *metricsAppenderPool {
 	p := &metricsAppenderPool{
 		pool: pool.NewObjectPool(opts),
 	}
 	p.pool.Init(func() interface{} {
-		return newMetricsAppender(p, tagIterPool, nameTag)
+		return newMetricsAppender(p, tagLimits, nameTag)
 	})
 	return p
 }
@@ -127,11 +127,11 @@ type metricsAppenderOptions struct {
 
 func newMetricsAppender(
 	pool *metricsAppenderPool,
-	tagIterPool serialize.MetricTagsIteratorPool,
+	tagLimits serialize.TagSerializationLimits,
 	nameTag []byte) *metricsAppender {
-	// N.B - this tag iterator is used for the lifetime of this MetricsAppender, so it's not returned to the pool or
-	// closed.
-	tagIter := tagIterPool.Get()
+	// N.B - a metrics appender is not thread safe, so it's fine to use an unchecked tag iterator. this significantly
+	// speeds up the matcher performance.
+	tagIter := serialize.NewUncheckedMetricTagsIterator(tagLimits)
 	return &metricsAppender{
 		pool:                 pool,
 		multiSamplesAppender: newMultiSamplesAppender(),
