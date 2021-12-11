@@ -232,7 +232,8 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 			}
 
 			for i := 0; i < matchIter; i++ {
-				res := matcher.ForwardMatch(input.idFn(i), input.fromNanos, input.toNanos, matchOpts)
+				res, err := matcher.ForwardMatch(input.idFn(i), input.fromNanos, input.toNanos, matchOpts)
+				require.NoError(t, err)
 				results = append(results, res)
 				expected = append(expected, input.expected)
 			}

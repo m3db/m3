@@ -179,22 +179,22 @@ func (f *tagsFilter) String() string {
 	return buf.String()
 }
 
-func (f *tagsFilter) Matches(id []byte, opts TagMatchOptions) bool {
+func (f *tagsFilter) Matches(id []byte, opts TagMatchOptions) (bool, error) {
 	if f.nameFilter == nil && len(f.tagFilters) == 0 {
-		return true
+		return true, nil
 	}
 
 	name, tags, err := opts.NameAndTagsFn(id)
 	if err != nil {
-		return false
+		return false, err
 	}
 	if f.nameFilter != nil {
 		match := f.nameFilter.Matches(name)
 		if match && f.op == Disjunction {
-			return true
+			return true, nil
 		}
 		if !match && f.op == Conjunction {
-			return false
+			return false, nil
 		}
 	}
 
@@ -218,7 +218,7 @@ func (f *tagsFilter) Matches(id []byte, opts TagMatchOptions) bool {
 		if comparison > 0 {
 			if f.op == Conjunction {
 				// For AND, if the current filter tag doesn't exist, bail immediately.
-				return false
+				return false, nil
 			}
 
 			// Iterate tagFilters for the OR case.
@@ -229,7 +229,7 @@ func (f *tagsFilter) Matches(id []byte, opts TagMatchOptions) bool {
 
 			if currIdx == len(f.tagFilters) {
 				// Past all tagFilters without covering all of the metric's tags
-				return false
+				return false, nil
 			}
 
 			if bytes.Compare(name, f.tagFilters[currIdx].name) < 0 {
@@ -240,21 +240,25 @@ func (f *tagsFilter) Matches(id []byte, opts TagMatchOptions) bool {
 		// Now check that the metric's underlying tag value passes the corresponding filter's value
 		match := f.tagFilters[currIdx].valueFilter.Matches(value)
 		if match && f.op == Disjunction {
-			return true
+			return true, nil
 		}
 
 		if !match && f.op == Conjunction {
-			return false
+			return false, nil
 		}
 
 		currIdx++
 	}
 
-	if iter.Err() != nil || f.op == Disjunction {
-		return false
+	if iter.Err() != nil {
+		return false, iter.Err()
 	}
 
-	return currIdx == len(f.tagFilters)
+	if f.op == Disjunction {
+		return false, nil
+	}
+
+	return currIdx == len(f.tagFilters), nil
 }
 
 // ValidateTagsFilter validates whether a given string is a valid tags filter,

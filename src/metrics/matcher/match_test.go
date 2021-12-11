@@ -86,8 +86,9 @@ func TestMatcherMatchDoesNotExist(t *testing.T) {
 	matcher, testScope := testMatcher(t, testMatcherOptions{
 		cache: newMemCache(),
 	})
-	require.Equal(t, rules.EmptyMatchResult,
-		matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano(), rules.MatchOptions{}))
+	res, err := matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano(), rules.MatchOptions{})
+	require.NoError(t, err)
+	require.Equal(t, rules.EmptyMatchResult, res)
 
 	requireLatencyMetrics(t, "cached-matcher", testScope)
 }
@@ -109,7 +110,9 @@ func TestMatcherMatchExists(t *testing.T) {
 	})
 	c := cache.(*memCache)
 	c.namespaces[ns] = memRes
-	require.Equal(t, res, matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano(), rules.MatchOptions{}))
+	actual, err := matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano(), rules.MatchOptions{})
+	require.NoError(t, err)
+	require.Equal(t, res, actual)
 }
 
 func TestMatcherMatchExistsNoCache(t *testing.T) {
@@ -212,8 +215,9 @@ func TestMatcherMatchExistsNoCache(t *testing.T) {
 		},
 	}
 
-	result := matcher.ForwardMatch(metric, now.UnixNano(), now.UnixNano(), matchOptions)
+	result, err := matcher.ForwardMatch(metric, now.UnixNano(), now.UnixNano(), matchOptions)
 
+	require.NoError(t, err)
 	require.Equal(t, expected, result)
 
 	// Check that latency was measured

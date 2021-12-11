@@ -492,10 +492,11 @@ func TestDownsamplerAggregationWithRulesStore(t *testing.T) {
 	})
 	for {
 		now := time.Now().UnixNano()
-		res := appenderImpl.matcher.ForwardMatch(testMatchID, now, now+1, rules.MatchOptions{
+		res, err := appenderImpl.matcher.ForwardMatch(testMatchID, now, now+1, rules.MatchOptions{
 			NameAndTagsFn:       appenderImpl.nameTagFn,
 			SortedTagIteratorFn: appenderImpl.tagIterFn,
 		})
+		require.NoError(t, err)
 		results := res.ForExistingIDAt(now)
 		if !results.IsDefault() {
 			break

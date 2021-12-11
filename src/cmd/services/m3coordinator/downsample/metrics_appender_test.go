@@ -70,7 +70,7 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 	for i := 0; i < count; i++ {
 		matcher := matcher.NewMockMatcher(ctrl)
 		matcher.EXPECT().ForwardMatch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			DoAndReturn(func(encodedID id.ID, _, _ int64, _ rules.MatchOptions) rules.MatchResult {
+			DoAndReturn(func(encodedID id.ID, _, _ int64, _ rules.MatchOptions) (rules.MatchResult, error) {
 				// NB: ensure tags are cleared correctly between runs.
 				bs := encodedID.Bytes()
 
@@ -98,7 +98,7 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 						},
 					},
 					true,
-				)
+				), nil
 			})
 
 		appender := appenderPool.Get()

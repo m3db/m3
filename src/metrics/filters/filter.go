@@ -84,7 +84,7 @@ type Filter interface {
 // TagsFilter matches a string of tags against certain conditions.
 type TagsFilter interface {
 	// Matches returns true if the conditions are met.
-	Matches(val []byte, opts TagMatchOptions) bool
+	Matches(val []byte, opts TagMatchOptions) (bool, error)
 }
 
 // TagMatchOptions are the options for a TagsFilter match.
