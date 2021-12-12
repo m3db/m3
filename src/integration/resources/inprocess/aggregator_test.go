@@ -163,10 +163,10 @@ func TestAggregatorWriteWithCluster(t *testing.T) {
 }
 
 func setupCoordinator(t *testing.T) (resources.Coordinator, func()) {
-	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
+	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{Start: true})
 	require.NoError(t, err)
 
-	coord, err := NewCoordinatorFromYAML(aggregatorCoordConfig, CoordinatorOptions{})
+	coord, err := NewCoordinatorFromYAML(aggregatorCoordConfig, CoordinatorOptions{Start: true})
 	require.NoError(t, err)
 
 	return coord, func() {

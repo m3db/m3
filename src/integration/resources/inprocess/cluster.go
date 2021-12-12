@@ -212,7 +212,6 @@ func NewClusterFromSpecification(
 		agg, err = NewAggregator(aggCfg, AggregatorOptions{
 			GeneratePorts:  true,
 			GenerateHostID: false,
-			Start:          false,
 		})
 		if err != nil {
 			return nil, err
@@ -220,11 +219,13 @@ func NewClusterFromSpecification(
 		aggs = append(aggs, agg)
 	}
 
+	// Start all the configured resources.
 	m3 := NewM3Resources(ResourceOptions{
 		Coordinator: coord,
 		DBNodes:     nodes,
 		Aggregators: aggs,
 	})
+	m3.Start()
 
 	if err = resources.SetupCluster(m3, opts); err != nil {
 		return nil, err

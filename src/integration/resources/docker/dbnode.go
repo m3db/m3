@@ -85,6 +85,11 @@ func newDockerHTTPNode(
 	}, nil
 }
 
+func (c *dbNode) Start() {
+	// noop as docker container should already be started
+	return
+}
+
 func (c *dbNode) HostDetails(p int) (*admin.Host, error) {
 	var network docker.ContainerNetwork
 	for _, n := range c.resource.resource.Container.NetworkSettings.Networks { // nolint: gocritic

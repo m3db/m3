@@ -165,6 +165,11 @@ func AttachToExistingContainers(
 	}, err
 }
 
+func (r *dockerResources) Start() {
+	// noop as docker containers are expected to be started before attaching.
+	return
+}
+
 func (r *dockerResources) Cleanup() error {
 	if r == nil {
 		return nil
