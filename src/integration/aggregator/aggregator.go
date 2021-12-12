@@ -263,21 +263,21 @@ func testRollupRule(t *testing.T, m3 resources.M3Resources) {
 		require.NoError(t, err)
 	}
 
-	require.NoError(t, resources.Retry(func() error {
+	require.NoError(t, resources.RetryWithMaxTime(func() error {
 		return verifyPromQuery(
 			m3,
 			`http_requests_by_status_code{endpoint="/foo/bar"}`,
 			float64(valRate1),
 		)
-	}))
+	}, 2*time.Minute))
 
-	require.NoError(t, resources.Retry(func() error {
+	require.NoError(t, resources.RetryWithMaxTime(func() error {
 		return verifyPromQuery(
 			m3,
 			`http_requests_by_status_code{endpoint="/foo/baz"}`,
 			float64(valRate2),
 		)
-	}))
+	}, 2*time.Minute))
 }
 
 func verifyPromQuery(

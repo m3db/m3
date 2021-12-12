@@ -53,6 +53,7 @@ const (
 	shutdownTimeout  = time.Minute
 )
 
+//nolint:maligned
 // Coordinator is an in-process implementation of resources.Coordinator for use
 // in integration tests.
 type Coordinator struct {
@@ -68,6 +69,7 @@ type Coordinator struct {
 	shutdownCh  <-chan struct{}
 }
 
+//nolint:maligned
 // CoordinatorOptions are options for starting a coordinator server.
 type CoordinatorOptions struct {
 	// GeneratePorts will automatically update the config to use open ports
@@ -212,6 +214,8 @@ func NewEmbeddedCoordinator(d *DBNode) (resources.Coordinator, error) {
 	}, nil
 }
 
+// Start is the start method for the coordinator.
+//nolint:dupl
 func (c *Coordinator) Start() {
 	if c.started {
 		c.logger.Debug("coordinator already started")

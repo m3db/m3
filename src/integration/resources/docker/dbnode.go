@@ -87,7 +87,6 @@ func newDockerHTTPNode(
 
 func (c *dbNode) Start() {
 	// noop as docker container should already be started
-	return
 }
 
 func (c *dbNode) HostDetails(p int) (*admin.Host, error) {

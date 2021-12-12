@@ -64,6 +64,7 @@ type DBNode struct {
 	tchanClient *integration.TestTChannelClient
 }
 
+//nolint:maligned
 // DBNodeOptions are options for starting a DB node server.
 type DBNodeOptions struct {
 	// GeneratePorts will automatically update the config to use open ports

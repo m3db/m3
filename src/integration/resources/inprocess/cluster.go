@@ -238,6 +238,8 @@ func NewClusterFromSpecification(
 	return m3, nil
 }
 
+// ConfigurePlacementsForAggregation sets up the correct placement information for
+// coordinators and aggregators when aggregation is enabled.
 func ConfigurePlacementsForAggregation(
 	nodes resources.Nodes,
 	coord resources.Coordinator,
@@ -293,11 +295,7 @@ func ConfigurePlacementsForAggregation(
 		return err
 	}
 
-	if err = resources.SetupM3MsgTopics(coordAPI, *aggInstanceInfo, opts); err != nil {
-		return err
-	}
-
-	return nil
+	return resources.SetupM3MsgTopics(coordAPI, *aggInstanceInfo, opts)
 }
 
 // GenerateClusterSpecification generates the per-instance configuration and options

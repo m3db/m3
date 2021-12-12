@@ -80,7 +80,6 @@ func newDockerHTTPCoordinator(
 
 func (c *coordinator) Start() {
 	// noop as docker container should already be started
-	return
 }
 
 func (c *coordinator) HostDetails() (*resources.InstanceInfo, error) {
