@@ -53,7 +53,7 @@ type NewClientFromConfig func(
 
 // ClusterStaticConfiguration is a static cluster configuration.
 type ClusterStaticConfiguration struct {
-	NewClientFromConfig NewClientFromConfig
+	NewClientFromConfig NewClientFromConfig                   `yaml:"-"`
 	Namespaces          []ClusterStaticNamespaceConfiguration `yaml:"namespaces"`
 	Client              client.Configuration                  `yaml:"client"`
 }

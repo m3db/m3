@@ -44,6 +44,11 @@ var validMatchTypes = []MatchType{
 	MatchTags,
 }
 
+// MarshalYAML returns the YAML representation of the MatchType.
+func (t MatchType) MarshalYAML() (interface{}, error) {
+	return t.String(), nil
+}
+
 // UnmarshalYAML unmarshals an ExtendedMetricsType into a valid type from string.
 func (t *MatchType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string

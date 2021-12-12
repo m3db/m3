@@ -53,13 +53,9 @@ func (i *inprocessM3Resources) Start() {
 	for _, node := range i.dbNodes {
 		node.Start()
 	}
-	// TODO(nate): don't start aggs here yet until resources.SetupCluster is
-	// refactored to not start aggs and configure topics
-	/*
-		for _, agg := range i.aggregators {
-			agg.Start()
-		}
-	*/
+	for _, agg := range i.aggregators {
+		agg.Start()
+	}
 	i.coordinator.Start()
 }
 
