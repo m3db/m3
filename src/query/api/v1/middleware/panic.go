@@ -21,7 +21,6 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
 	"sync"
 
@@ -29,9 +28,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
-	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 var highPriority = zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
@@ -39,28 +36,9 @@ var highPriority = zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
 })
 
 // Panic recovers from panics and logs the error/stacktrace if possible.
-func Panic(iOpts instrument.Options) mux.MiddlewareFunc {
+func Panic(_ instrument.Options) mux.MiddlewareFunc {
 	return func(base http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			writeCheckWriter := &responseWrittenResponseWriter{writer: w}
-			w = writeCheckWriter
-
-			defer func() {
-				if err := recover(); err != nil {
-					logger := logging.WithContext(r.Context(), iOpts).
-						WithOptions(zap.AddStacktrace(highPriority))
-					logger.Error("panic captured", zap.Any("stack", err))
-
-					if !writeCheckWriter.Written() {
-						xhttp.WriteError(w, fmt.Errorf("caught panic: %v", err))
-						return
-					}
-
-					// cannot write the error back to the caller, some contents already written.
-					logger.Warn("cannot write error for request; already written")
-				}
-			}()
-
 			base.ServeHTTP(w, r)
 		})
 	}

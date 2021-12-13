@@ -113,7 +113,7 @@ func newReadHandler(
 
 func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rr := rand.Float32()
-	if rr <= 0.05 {
+	if rr <= 0.02 {
 		panic("Force panics")
 	}
 	ctx := r.Context()
