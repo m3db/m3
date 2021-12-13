@@ -1468,6 +1468,7 @@ func TestEntryAddTimedEntryClosed(t *testing.T) {
 	require.Equal(t, errEntryClosed, e.AddTimed(testTimedMetric, testTimedMetadata))
 }
 
+//nolint: dupl
 func TestEntryAddTimedMetricTooLate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1490,14 +1491,14 @@ func TestEntryAddTimedMetricTooLate(t *testing.T) {
 			timeNanos: now.UnixNano() - 11*time.Second.Nanoseconds(),
 			storagePolicies: policy.StoragePolicies{
 				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
-				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour * 2),
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour*2),
 			},
 		},
 		{
 			timeNanos: now.UnixNano() - 12*time.Second.Nanoseconds(),
 			storagePolicies: policy.StoragePolicies{
 				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
-				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour * 2),
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour*2),
 			},
 		},
 		{
