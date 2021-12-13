@@ -21,6 +21,7 @@
 package native
 
 import (
+	"math/rand"
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
@@ -109,6 +110,10 @@ func newHandler(opts options.HandlerOptions, instant bool) http.Handler {
 }
 
 func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	rr := rand.Float32()
+	if rr < 0.05 {
+		panic("Force panics")
+	}
 	timer := h.promReadMetrics.fetchTimerSuccess.Start()
 	defer timer.Stop()
 
