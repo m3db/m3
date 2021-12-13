@@ -30,6 +30,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -46,7 +47,9 @@ func TestWriteBatchSortByUnmarkedAndIndexBlockStart(t *testing.T) {
 		Truncate(blockSize).
 		Add(time.Minute)
 
+	closer := resource.NoopCloser{}
 	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
@@ -54,6 +57,7 @@ func TestWriteBatchSortByUnmarkedAndIndexBlockStart(t *testing.T) {
 	h2.EXPECT().OnIndexFinalize(blockStart)
 
 	h3 := doc.NewMockOnIndexSeries(ctrl)
+	h3.EXPECT().ReconciledOnIndexSeries().Return(h3, closer, false)
 	h3.EXPECT().OnIndexFinalize(blockStart)
 	h3.EXPECT().OnIndexSuccess(blockStart)
 

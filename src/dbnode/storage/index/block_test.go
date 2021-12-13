@@ -93,6 +93,7 @@ func TestBlockCtor(t *testing.T) {
 	require.Error(t, b.Close())
 }
 
+// nolint: unparam
 func testWriteBatchOptionsWithBlockSize(d time.Duration) WriteBatchOptions {
 	return WriteBatchOptions{
 		IndexBlockSize:    d,
@@ -218,11 +219,14 @@ func TestBlockWrite(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
+	closer := resource.NoopCloser{}
 	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
 	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, closer, false)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
@@ -262,7 +266,9 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
+	closer := resource.NoopCloser{}
 	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
@@ -321,7 +327,9 @@ func TestBlockWritePartialFailure(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
+	closer := resource.NoopCloser{}
 	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
@@ -1275,7 +1283,9 @@ func TestBlockNeedsMutableSegmentsEvicted(t *testing.T) {
 	require.False(t, b.NeedsMutableSegmentsEvicted())
 
 	// perform write and ensure it says it needs eviction
+	closer := resource.NoopCloser{}
 	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(start)
 	h1.EXPECT().OnIndexSuccess(start)
 	batch := NewWriteBatch(testWriteBatchOptionsWithBlockSize(time.Hour))
@@ -1409,11 +1419,14 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
+	closer := resource.NoopCloser{}
 	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
 	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, closer, false)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
@@ -1491,14 +1504,17 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
+	closer := resource.NoopCloser{}
 	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
-	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, resource.SimpleCloserFn(func() {}), false)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().IndexedRange().Return(blockStart, blockStart)
 	h1.EXPECT().IndexedForBlockStart(blockStart).Return(true)
 
 	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, closer, false)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
@@ -1578,17 +1594,20 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
+	closer := resource.NoopCloser{}
 	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
-	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, resource.SimpleCloserFn(func() {}), false)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().IndexedRange().Return(blockStart, blockStart)
 	h1.EXPECT().IndexedForBlockStart(blockStart).Return(true)
 
 	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, closer, false)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
-	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, resource.SimpleCloserFn(func() {}), false)
+	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, closer, false)
 	h2.EXPECT().IndexedRange().Return(blockStart, blockStart)
 	h2.EXPECT().IndexedForBlockStart(blockStart).Return(true)
 
@@ -1678,10 +1697,12 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
+	closer := resource.NoopCloser{}
 	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
-	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, resource.SimpleCloserFn(func() {}), false)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().IndexedRange().Return(blockStart, blockStart)
 	h1.EXPECT().IndexedForBlockStart(blockStart).Return(true)
 
@@ -1767,19 +1788,22 @@ func TestBlockE2EInsertAddResultsQueryNarrowingBlockRange(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
+	closer := resource.NoopCloser{}
 	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
-	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, resource.SimpleCloserFn(func() {}), false)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().IndexedRange().Return(blockStart, blockStart.Add(2*blockSize))
 	h1.EXPECT().IndexedForBlockStart(blockStart).Return(false)
 	h1.EXPECT().IndexedForBlockStart(blockStart.Add(1 * blockSize)).Return(false)
 	h1.EXPECT().IndexedForBlockStart(blockStart.Add(2 * blockSize)).Return(true)
 
 	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, closer, false)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
-	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, resource.SimpleCloserFn(func() {}), false)
+	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, closer, false)
 	h2.EXPECT().IndexedRange().Return(xtime.UnixNano(0), xtime.UnixNano(0))
 
 	batch := NewWriteBatch(testWriteBatchOptionsWithBlockSize(blockSize))
@@ -1876,11 +1900,14 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	b.mutableSegments.compact.compactingBackgroundGarbageCollect = true
 
 	// First write
+	closer := resource.NoopCloser{}
 	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
 	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, closer, false)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
@@ -1908,6 +1935,7 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 
 	// Second write
 	h1 = doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
@@ -2302,15 +2330,19 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
+	closer := resource.NoopCloser{}
 	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
 	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, closer, false)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
 	h3 := doc.NewMockOnIndexSeries(ctrl)
+	h3.EXPECT().ReconciledOnIndexSeries().Return(h3, closer, false)
 	h3.EXPECT().OnIndexFinalize(blockStart)
 	h3.EXPECT().OnIndexSuccess(blockStart)
 

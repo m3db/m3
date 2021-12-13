@@ -41,9 +41,9 @@ import (
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/uber-go/tally"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/uber-go/tally"
 )
 
 // ReservedFieldNameID is the field name used to index the ID in the
