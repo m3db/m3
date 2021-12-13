@@ -161,6 +161,10 @@ func NewAutoMappingRules(namespaces []m3.ClusterNamespace) ([]AutoMappingRule, e
 			continue
 		}
 
+		if opts.ReadOnly() {
+			continue
+		}
+
 		downsampleOpts, err := opts.DownsampleOptions()
 		if err != nil {
 			errFmt := "unable to resolve downsample options for namespace: %v"

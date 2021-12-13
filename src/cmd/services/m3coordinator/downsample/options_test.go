@@ -67,22 +67,31 @@ func TestAutoMappingRules(t *testing.T) {
 
 	session := client.NewMockSession(ctrl)
 
-	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("default"),
-		Retention:   48 * time.Hour,
-		Session:     session,
-	}, m3.AggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("2s:1d"),
-		Resolution:  2 * time.Second,
-		Retention:   24 * time.Hour,
-		Session:     session,
-	}, m3.AggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("4s:2d"),
-		Resolution:  4 * time.Second,
-		Retention:   48 * time.Hour,
-		Session:     session,
-		Downsample:  &m3.ClusterNamespaceDownsampleOptions{All: false},
-	})
+	clusters, err := m3.NewClusters(
+		m3.UnaggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("default"),
+			Retention:   48 * time.Hour,
+			Session:     session,
+		}, m3.AggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("2s:1d"),
+			Resolution:  2 * time.Second,
+			Retention:   24 * time.Hour,
+			Session:     session,
+		}, m3.AggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("4s:2d"),
+			Resolution:  4 * time.Second,
+			Retention:   48 * time.Hour,
+			Session:     session,
+			Downsample:  &m3.ClusterNamespaceDownsampleOptions{All: false},
+		}, m3.AggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("10s:4d"),
+			Resolution:  10 * time.Second,
+			Retention:   96 * time.Hour,
+			Session:     session,
+			ReadOnly:    true,
+		},
+	)
+	require.NoError(t, err)
 
 	rules, err := NewAutoMappingRules(clusters.ClusterNamespaces())
 	require.NoError(t, err)
