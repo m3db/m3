@@ -101,6 +101,7 @@ type ClusterNamespaceOptions struct {
 	// and/or error if call to access a field is not relevant/correct.
 	attributes storagemetadata.Attributes
 	downsample *ClusterNamespaceDownsampleOptions
+	readOnly   bool
 }
 
 // NewClusterNamespaceOptions creates new cluster namespace options.
@@ -117,6 +118,11 @@ func NewClusterNamespaceOptions(
 // Attributes returns the storage attributes of the cluster namespace.
 func (o ClusterNamespaceOptions) Attributes() storagemetadata.Attributes {
 	return o.attributes
+}
+
+// ReadOnly returns the value of ReadOnly option for a cluster namespace.
+func (o ClusterNamespaceOptions) ReadOnly() bool {
+	return o.readOnly
 }
 
 // DownsampleOptions returns the downsample options for a cluster namespace,
@@ -206,6 +212,7 @@ type AggregatedClusterNamespaceDefinition struct {
 	Retention   time.Duration
 	Resolution  time.Duration
 	Downsample  *ClusterNamespaceDownsampleOptions
+	ReadOnly    bool
 }
 
 // Validate validates the cluster namespace definition.
@@ -386,6 +393,7 @@ func newAggregatedClusterNamespace(
 				Resolution:  def.Resolution,
 			},
 			downsample: def.Downsample,
+			readOnly:   def.ReadOnly,
 		},
 		session: def.Session,
 	}, nil

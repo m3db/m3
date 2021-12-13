@@ -790,6 +790,12 @@ func (s *m3storage) Write(
 		if !exists {
 			err = fmt.Errorf("no configured cluster namespace for: retention=%s,"+
 				" resolution=%s", attrs.Retention.String(), attrs.Resolution.String())
+			break
+		}
+		if namespace.Options().ReadOnly() {
+			err = fmt.Errorf(
+				"cannot write to read only namespace %s (%s:%s)",
+				namespace.NamespaceID(), attrs.Resolution.String(), attrs.Retention.String())
 		}
 	default:
 		metricsType := attributes.MetricsType
