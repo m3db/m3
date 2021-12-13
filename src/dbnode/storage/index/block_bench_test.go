@@ -58,7 +58,8 @@ func BenchmarkBlockWrite(b *testing.B) {
 
 	var onIndexSeries mockOnIndexSeries
 	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
+		IndexBlockSize:    blockSize,
+		WriteBatchMetrics: NewWriteBatchMetrics(tally.NoopScope),
 	})
 
 	fieldValues := map[string][]string{

@@ -28,6 +28,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -118,7 +119,8 @@ func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.
 				}
 
 				batch := NewWriteBatch(WriteBatchOptions{
-					IndexBlockSize: blockSize,
+					IndexBlockSize:    blockSize,
+					WriteBatchMetrics: NewWriteBatchMetrics(tally.NoopScope),
 				})
 				for i := 0; i < 128; i++ {
 					onIndexSeries := doc.NewMockOnIndexSeries(ctrl)

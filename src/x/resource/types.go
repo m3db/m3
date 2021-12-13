@@ -63,3 +63,9 @@ type CloserFn func() error
 func (fn CloserFn) Close() error {
 	return fn()
 }
+
+// NoopCloser is a no-op closer.
+type NoopCloser struct{}
+
+// Close closes the no-op closer.
+func (NoopCloser) Close() {}

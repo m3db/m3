@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -57,7 +58,8 @@ func TestWriteBatchSortByUnmarkedAndIndexBlockStart(t *testing.T) {
 	h3.EXPECT().OnIndexSuccess(blockStart)
 
 	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
+		IndexBlockSize:    blockSize,
+		WriteBatchMetrics: NewWriteBatchMetrics(tally.NoopScope),
 	})
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,

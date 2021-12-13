@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/uber-go/tally"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -48,7 +49,8 @@ func TestWriteBatchForEachUnmarkedBatchByBlockStart(t *testing.T) {
 		}
 	}
 	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
+		WriteBatchMetrics: NewWriteBatchMetrics(tally.NoopScope),
+		IndexBlockSize:    blockSize,
 	})
 	for _, n := range []int64{2, 0, 1} {
 		batch.Append(WriteBatchEntry{
@@ -95,7 +97,8 @@ func TestWriteBatchForEachUnmarkedBatchByBlockStartMore(t *testing.T) {
 		}
 	}
 	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
+		IndexBlockSize:    blockSize,
+		WriteBatchMetrics: NewWriteBatchMetrics(tally.NoopScope),
 	})
 	for _, v := range []struct {
 		nTime int64

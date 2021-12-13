@@ -113,6 +113,7 @@ func setupForwardIndex(
 		lifecycle = doc.NewMockOnIndexSeries(ctrl)
 	)
 
+	closer := resource.NoopCloser{}
 	gomock.InOrder(
 		lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false),
 
@@ -121,6 +122,8 @@ func setupForwardIndex(
 
 		lifecycle.EXPECT().OnIndexSuccess(ts),
 		lifecycle.EXPECT().OnIndexFinalize(ts),
+
+		lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false),
 
 		lifecycle.EXPECT().OnIndexSuccess(nextTS),
 		lifecycle.EXPECT().OnIndexFinalize(nextTS),
@@ -402,7 +405,8 @@ func TestNamespaceIndexForwardWrite(t *testing.T) {
 	setupMockBlock(t, activeBlock, futureStart, id, tag, lifecycle)
 
 	batch := index.NewWriteBatch(index.WriteBatchOptions{
-		IndexBlockSize: blockSize,
+		IndexBlockSize:    blockSize,
+		WriteBatchMetrics: index.NewWriteBatchMetrics(tally.NoopScope),
 	})
 	batch.Append(testWriteBatchEntry(id, tags, now, lifecycle))
 	require.NoError(t, idx.WriteBatch(batch))

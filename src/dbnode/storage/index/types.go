@@ -41,15 +41,14 @@ import (
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/uber-go/tally"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 )
 
-var (
-	// ReservedFieldNameID is the field name used to index the ID in the
-	// m3ninx subsytem.
-	ReservedFieldNameID = doc.IDReservedFieldName
-)
+// ReservedFieldNameID is the field name used to index the ID in the
+// m3ninx subsytem.
+var ReservedFieldNameID = doc.IDReservedFieldName
 
 // InsertMode specifies whether inserts are synchronous or asynchronous.
 type InsertMode byte
@@ -563,6 +562,41 @@ type BlockTickResult struct {
 	FreeMmap                int64
 }
 
+// WriteBatchMetrics are metrics for a write batch.
+type WriteBatchMetrics struct {
+	needsReconcile tally.Counter
+	noReconcile    tally.Counter
+
+	markUnmarkedNeedsReconcile tally.Counter
+	markUnmarkedNoReconcile    tally.Counter
+}
+
+// NewWriteBatchMetrics builds a write batch metrics.
+func NewWriteBatchMetrics(s tally.Scope) *WriteBatchMetrics {
+	scope := s.SubScope("index_write_batch_reconcile_metrics")
+	return &WriteBatchMetrics{
+		needsReconcile: scope.Tagged(map[string]string{
+			"reconcile": "needs_reconcile",
+			"path":      "mark_entry_success",
+		}).Counter("count"),
+
+		noReconcile: scope.Tagged(map[string]string{
+			"reconcile": "no_reconcile",
+			"path":      "mark_entry_success",
+		}).Counter("count"),
+
+		markUnmarkedNeedsReconcile: scope.Tagged(map[string]string{
+			"reconcile": "needs_reconcile",
+			"path":      "mark_unmarked_already_indexed",
+		}).Counter("count"),
+
+		markUnmarkedNoReconcile: scope.Tagged(map[string]string{
+			"reconcile": "no_reconcile",
+			"path":      "mark_unmarked_already_indexed",
+		}).Counter("count"),
+	}
+}
+
 // WriteBatch is a batch type that allows for building of a slice of documents
 // with metadata in a separate slice, this allows the documents slice to be
 // passed to the segment to batch insert without having to copy into a buffer
@@ -573,6 +607,8 @@ type WriteBatch struct {
 
 	entries []WriteBatchEntry
 	docs    []doc.Metadata
+
+	metrics *WriteBatchMetrics
 }
 
 type writeBatchSortBy uint
@@ -584,8 +620,9 @@ const (
 
 // WriteBatchOptions is a set of options required for a write batch.
 type WriteBatchOptions struct {
-	InitialCapacity int
-	IndexBlockSize  time.Duration
+	InitialCapacity   int
+	IndexBlockSize    time.Duration
+	WriteBatchMetrics *WriteBatchMetrics
 }
 
 // NewWriteBatch creates a new write batch.
@@ -594,6 +631,7 @@ func NewWriteBatch(opts WriteBatchOptions) *WriteBatch {
 		opts:    opts,
 		entries: make([]WriteBatchEntry, 0, opts.InitialCapacity),
 		docs:    make([]doc.Metadata, 0, opts.InitialCapacity),
+		metrics: opts.WriteBatchMetrics,
 	}
 }
 
@@ -803,11 +841,19 @@ func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
 // MarkEntrySuccess marks an entry as success.
 func (b *WriteBatch) MarkEntrySuccess(idx int) {
 	if !b.entries[idx].result.Done {
+		indexedEntry, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
+		if reconciled {
+			b.metrics.needsReconcile.Inc(1)
+		} else {
+			b.metrics.noReconcile.Inc(1)
+		}
+
 		blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
-		b.entries[idx].OnIndexSeries.OnIndexSuccess(blockStart)
-		b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
+		indexedEntry.OnIndexSuccess(blockStart)
+		indexedEntry.OnIndexFinalize(blockStart)
 		b.entries[idx].result.Done = true
 		b.entries[idx].result.Err = nil
+		closer.Close()
 	}
 }
 
@@ -816,11 +862,20 @@ func (b *WriteBatch) MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize() {
 	for idx := range b.entries {
 		if !b.entries[idx].result.Done {
 			blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
-			r := b.entries[idx].OnIndexSeries.IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart)
+			indexedEntry, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
+			if reconciled {
+				b.metrics.markUnmarkedNeedsReconcile.Inc(1)
+			} else {
+				b.metrics.markUnmarkedNoReconcile.Inc(1)
+			}
+
+			r := indexedEntry.IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart)
 			if r {
 				b.entries[idx].result.Done = true
 				b.entries[idx].result.Err = nil
 			}
+
+			closer.Close()
 		}
 	}
 }

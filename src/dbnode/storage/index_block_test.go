@@ -41,8 +41,10 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/resource"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/uber-go/tally"
 
 	"github.com/golang/mock/gomock"
 	opentracing "github.com/opentracing/opentracing-go"
@@ -85,7 +87,9 @@ func testWriteBatch(
 	d doc.Metadata,
 	opts ...testWriteBatchOption,
 ) *index.WriteBatch {
-	var options index.WriteBatchOptions
+	options := index.WriteBatchOptions{
+		WriteBatchMetrics: index.NewWriteBatchMetrics(tally.NoopScope),
+	}
 	for _, opt := range opts {
 		options = opt(options)
 	}
@@ -258,9 +262,12 @@ func TestNamespaceIndexWrite(t *testing.T) {
 	tags := ident.NewTags(tag)
 	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	mockWriteBatch(t, &now, lifecycle, mockBlock, &tag)
+	closer := resource.NoopCloser{}
+	lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
 	batch := index.NewWriteBatch(index.WriteBatchOptions{
-		IndexBlockSize: blockSize,
+		IndexBlockSize:    blockSize,
+		WriteBatchMetrics: index.NewWriteBatchMetrics(tally.NoopScope),
 	})
 	batch.Append(testWriteBatchEntry(id, tags, now, lifecycle))
 	require.NoError(t, idx.WriteBatch(batch))
@@ -327,6 +334,8 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	tags := ident.NewTags(tag)
 	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	mockWriteBatch(t, &now, lifecycle, bActive, &tag)
+	closer := resource.NoopCloser{}
+	lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
 		Return(false).
 		AnyTimes()

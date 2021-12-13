@@ -105,7 +105,9 @@ func TestIndexInsertQueueCallback(t *testing.T) {
 	defer q.Stop()
 
 	now := xtime.Now()
-	batch := index.NewWriteBatch(index.WriteBatchOptions{})
+	batch := index.NewWriteBatch(index.WriteBatchOptions{
+		WriteBatchMetrics: index.NewWriteBatchMetrics(tally.NoopScope),
+	})
 	batch.Append(testWriteBatchEntry(testID(1), testTags(1), now, callback))
 	wg, err := q.InsertBatch(batch)
 	assert.NoError(t, err)
