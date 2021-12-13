@@ -87,7 +87,7 @@ func main() {
 	}()
 
 	rootCmd := &cobra.Command{
-		Use: "cobra",
+		Use: "m3ctl",
 	}
 
 	getCmd := &cobra.Command{
@@ -104,7 +104,7 @@ func main() {
 		Use:   "apply",
 		Short: "Apply various yamls to remote endpoint",
 		Long: `This will take specific yamls and send them over to the remote
-endpoint.  See the yaml/examples directory for examples.  Operations such as 
+endpoint.  See the yaml/examples directory for examples. Operations such as
 database creation, database init, adding a node, and replacing a node, are supported.
 `,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -159,13 +159,15 @@ database creation, database init, adding a node, and replacing a node, are suppo
 	}
 
 	getPlacementCmd := &cobra.Command{
-		Use:     "placement",
-		Short:   "Get the placement from the remote endpoint",
-		Aliases: []string{"pl"},
+		Use:       "placement <m3db/m3coordinator/m3aggregator>",
+		Short:     "Get service placement from the remote endpoint",
+		Args:      cobra.ExactValidArgs(1),
+		ValidArgs: []string{"m3db", "m3coordinator", "m3aggregator"},
+		Aliases:   []string{"pl"},
 		Run: func(cmd *cobra.Command, args []string) {
 			logger.Debug("running command", zap.String("command", cmd.Name()))
 
-			resp, err := placements.DoGet(endPoint, headers, logger)
+			resp, err := placements.DoGet(endPoint, args[0], headers, logger)
 			if err != nil {
 				logger.Fatal("get placement failed", zap.Error(err))
 			}
@@ -175,13 +177,15 @@ database creation, database init, adding a node, and replacing a node, are suppo
 	}
 
 	deletePlacementCmd := &cobra.Command{
-		Use:     "placement",
-		Short:   "Delete the placement from the remote endpoint",
-		Aliases: []string{"pl"},
+		Use:       "placement <m3db/m3coordinator/m3aggregator>",
+		Short:     "Delete service placement from the remote endpoint",
+		Args:      cobra.ExactValidArgs(1),
+		ValidArgs: []string{"m3db", "m3coordinator", "m3aggregator"},
+		Aliases:   []string{"pl"},
 		Run: func(cmd *cobra.Command, args []string) {
 			logger.Debug("running command", zap.String("command", cmd.Name()))
 
-			resp, err := placements.DoDelete(endPoint, headers, nodeName, deleteAll, logger)
+			resp, err := placements.DoDelete(endPoint, args[0], headers, nodeName, deleteAll, logger)
 			if err != nil {
 				logger.Fatal("delete placement failed", zap.Error(err))
 			}
