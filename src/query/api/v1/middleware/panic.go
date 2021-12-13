@@ -22,7 +22,6 @@ package middleware
 
 import (
 	"net/http"
-	"sync"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
@@ -42,43 +41,4 @@ func Panic(_ instrument.Options) mux.MiddlewareFunc {
 			base.ServeHTTP(w, r)
 		})
 	}
-}
-
-type responseWrittenResponseWriter struct {
-	sync.RWMutex
-	writer  http.ResponseWriter
-	written bool
-}
-
-func (w *responseWrittenResponseWriter) Written() bool {
-	w.RLock()
-	v := w.written
-	w.RUnlock()
-	return v
-}
-
-func (w *responseWrittenResponseWriter) setWritten() {
-	w.RLock()
-	if w.written {
-		return
-	}
-	w.RUnlock()
-
-	w.Lock()
-	w.written = true
-	w.Unlock()
-}
-
-func (w *responseWrittenResponseWriter) Header() http.Header {
-	return w.writer.Header()
-}
-
-func (w *responseWrittenResponseWriter) Write(d []byte) (int, error) {
-	w.setWritten()
-	return w.writer.Write(d)
-}
-
-func (w *responseWrittenResponseWriter) WriteHeader(statusCode int) {
-	w.setWritten()
-	w.writer.WriteHeader(statusCode)
 }
