@@ -525,6 +525,63 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	wg.Wait()
 }
 
+func TestDatabaseAssignShardSetDuringBootstrap(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var wgBootstrap sync.WaitGroup
+	var wgAssignShards sync.WaitGroup
+	wgBootstrap.Add(3)
+	wgAssignShards.Add(1)
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+
+	newShards := append(sharding.NewShards([]uint32{0}, shard.Available),
+		shard.NewShard(1).SetState(shard.Leaving),
+		shard.NewShard(2).SetState(shard.Initializing))
+
+	newShardSet, err := sharding.NewShardSet(newShards, nil)
+	require.NoError(t, err)
+
+	ns.EXPECT().AssignShardSet(newShardSet)
+
+	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().IsOpen().Return(true).AnyTimes()
+	mediator.EXPECT().DisableFileOpsAndWait().AnyTimes()
+	mediator.EXPECT().EnableFileOps().AnyTimes()
+	mediator.EXPECT().
+		BootstrapEnqueue(gomock.Any()).
+		Do(func(_ BootstrapEnqueueOptions) {
+			wgBootstrap.Done()
+		})
+	mediator.EXPECT().Bootstrap().DoAndReturn(func() (BootstrapResult, error) {
+		go func() {
+			// make sure bootstrap not finished before assigning new shards.
+			wgAssignShards.Done()
+			d.AssignShardSet(newShardSet)
+			wgBootstrap.Done()
+		}()
+		wgAssignShards.Wait()
+		time.Sleep(1000 * time.Millisecond)
+		// AssignShards should wait on lock and not update new shardset yet.
+		require.NotEqual(t, newShardSet, d.shardSet)
+		return BootstrapResult{}, nil
+	})
+	d.mediator = mediator
+
+	go func() {
+		require.NoError(t, d.Bootstrap())
+		wgBootstrap.Done()
+	}()
+	wgBootstrap.Wait()
+	require.Equal(t, newShardSet, d.shardSet)
+}
+
 func TestDatabaseRemoveNamespace(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
