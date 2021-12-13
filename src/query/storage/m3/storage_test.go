@@ -300,17 +300,19 @@ func TestWriteToReadOnlyNamespaceFail(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	clusters, err := NewClusters(UnaggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("unaggregated"),
-		Session:     client.NewMockSession(ctrl),
-		Retention:   time.Hour,
-	}, AggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("aggregated_readonly"),
-		Session:     client.NewMockSession(ctrl),
-		Retention:   24 * time.Hour,
-		Resolution:  time.Minute,
-		ReadOnly:    true,
-	})
+	clusters, err := NewClusters(
+		UnaggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("unaggregated"),
+			Session:     client.NewMockSession(ctrl),
+			Retention:   time.Hour,
+		}, AggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("aggregated_readonly"),
+			Session:     client.NewMockSession(ctrl),
+			Retention:   24 * time.Hour,
+			Resolution:  time.Minute,
+			ReadOnly:    true,
+		},
+	)
 	require.NoError(t, err)
 
 	store := newTestStorage(t, clusters)
