@@ -55,9 +55,67 @@ func (m Metadata) String() string {
 // Warnings is a slice of warnings.
 type Warnings []Warning
 
+// ResultMetricMetadata describes metadata on a per metric-name basis.
+type ResultMetricMetadata struct {
+	// NoSamples is the total number of series that were fetched to compute
+	// this result but had no samples.
+	NoSamples int
+	// WithSamples is the total number of series that were fetched to compute
+	// this result and had samples.
+	WithSamples int
+	// Aggregated is the total number of aggregated series that were fetched to
+	// compute this result.
+	Aggregated int
+	// Unaggregated is the total number of unaggregated series that were fetched to
+	// compute this result.
+	Unaggregated int
+}
+
+// Equals determines if two result metric metadatas are equal.
+func (m ResultMetricMetadata) Equals(other ResultMetricMetadata) bool {
+	if m.NoSamples != other.NoSamples {
+		return false
+	}
+	if m.WithSamples != other.WithSamples {
+		return false
+	}
+	if m.Aggregated != other.Aggregated {
+		return false
+	}
+	if m.Unaggregated != other.Unaggregated {
+		return false
+	}
+	return true
+}
+
+// Merge takes another ResultMetricMetadata and merges it into this one.
+func (m *ResultMetricMetadata) Merge(other ResultMetricMetadata) {
+	m.NoSamples += other.NoSamples
+	m.WithSamples += other.WithSamples
+	m.Aggregated += other.Aggregated
+	m.Unaggregated += other.Unaggregated
+}
+
+func mergeMetricMetadataMaps(dst, src map[string]*ResultMetricMetadata) {
+	for name, other := range src {
+		m, ok := dst[name]
+		if !ok {
+			dst[name] = other
+		} else {
+			m.Merge(*other)
+		}
+	}
+}
+
 // ResultMetadata describes metadata common to each type of query results,
 // indicating any additional information about the result.
 type ResultMetadata struct {
+	// Namespaces are the set of namespaces queried.
+	Namespaces []string
+	// FetchedResponses is the number of M3 RPC fetch responses received.
+	FetchedResponses int
+	// FetchedBytesEstimate is the estimated number of bytes fetched.
+	FetchedBytesEstimate int
 	// LocalOnly indicates that this query was executed only on the local store.
 	LocalOnly bool
 	// Exhaustive indicates whether the underlying data set presents a full
@@ -80,13 +138,64 @@ type ResultMetadata struct {
 	// FetchedMetadataCount is the total amount of metadata that was fetched to compute
 	// this result.
 	FetchedMetadataCount int
+	// MetricNames is the set of unique metric tag name values across all series in this result.
+	MetadataByName map[string]*ResultMetricMetadata
+}
+
+// ByName returns the ResultMetricMetadata for a given metric name.
+func (m ResultMetadata) ByName(nameTag []byte) *ResultMetricMetadata {
+	r, ok := m.MetadataByName[string(nameTag)]
+	if ok {
+		return r
+	}
+
+	r = &ResultMetricMetadata{}
+	m.MetadataByName[string(nameTag)] = r
+	return r
+}
+
+// MetadataByNameMerged returns the MetadataByName map values merged into one.
+func (m ResultMetadata) MetadataByNameMerged() ResultMetricMetadata {
+	r := ResultMetricMetadata{}
+	for _, m := range m.MetadataByName {
+		r.Merge(*m)
+	}
+	return r
+}
+
+// TopMetadataByName returns the top `max` ResultMetricMetadatas by the sum of their
+// contained counters.
+func (m ResultMetadata) TopMetadataByName(max int) map[string]*ResultMetricMetadata {
+	if len(m.MetadataByName) <= max {
+		return m.MetadataByName
+	}
+
+	keys := []string{}
+	for k := range m.MetadataByName {
+		keys = append(keys, k)
+	}
+	sort.SliceStable(keys, func(i, j int) bool {
+		a := m.MetadataByName[keys[i]]
+		b := m.MetadataByName[keys[j]]
+		n := a.Aggregated + a.Unaggregated + a.NoSamples + a.WithSamples
+		m := b.Aggregated + b.Unaggregated + b.NoSamples + b.WithSamples
+		// Sort in descending order
+		return n > m
+	})
+	top := make(map[string]*ResultMetricMetadata, max)
+	for i := 0; i < max; i++ {
+		k := keys[i]
+		top[k] = m.MetadataByName[k]
+	}
+	return top
 }
 
 // NewResultMetadata creates a new result metadata.
 func NewResultMetadata() ResultMetadata {
 	return ResultMetadata{
-		LocalOnly:  true,
-		Exhaustive: true,
+		LocalOnly:      true,
+		Exhaustive:     true,
+		MetadataByName: make(map[string]*ResultMetricMetadata),
 	}
 }
 
@@ -127,6 +236,18 @@ func combineWarnings(a, b Warnings) Warnings {
 	return nil
 }
 
+func combineMetricMetadata(a, b map[string]*ResultMetricMetadata) map[string]*ResultMetricMetadata {
+	if a == nil && b == nil {
+		return nil
+	}
+
+	merged := make(map[string]*ResultMetricMetadata)
+	mergeMetricMetadataMaps(merged, a)
+	mergeMetricMetadataMaps(merged, b)
+
+	return merged
+}
+
 // Equals determines if two result metadatas are equal.
 func (m ResultMetadata) Equals(n ResultMetadata) bool {
 	if m.Exhaustive && !n.Exhaustive || !m.Exhaustive && n.Exhaustive {
@@ -165,12 +286,19 @@ func (m ResultMetadata) Equals(n ResultMetadata) bool {
 		return false
 	}
 
+	if !m.MetadataByNameMerged().Equals(n.MetadataByNameMerged()) {
+		return false
+	}
+
 	return m.FetchedMetadataCount == n.FetchedMetadataCount
 }
 
 // CombineMetadata combines two result metadatas.
 func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
 	return ResultMetadata{
+		Namespaces:           append(m.Namespaces, other.Namespaces...),
+		FetchedResponses:     m.FetchedResponses + other.FetchedResponses,
+		FetchedBytesEstimate: m.FetchedBytesEstimate + other.FetchedBytesEstimate,
 		LocalOnly:            m.LocalOnly && other.LocalOnly,
 		Exhaustive:           m.Exhaustive && other.Exhaustive,
 		Warnings:             combineWarnings(m.Warnings, other.Warnings),
@@ -178,6 +306,7 @@ func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
 		WaitedIndex:          m.WaitedIndex + other.WaitedIndex,
 		WaitedSeriesRead:     m.WaitedSeriesRead + other.WaitedSeriesRead,
 		FetchedSeriesCount:   m.FetchedSeriesCount + other.FetchedSeriesCount,
+		MetadataByName:       combineMetricMetadata(m.MetadataByName, other.MetadataByName),
 		FetchedMetadataCount: m.FetchedMetadataCount + other.FetchedMetadataCount,
 	}
 }

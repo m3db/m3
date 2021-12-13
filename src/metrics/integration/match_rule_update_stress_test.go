@@ -75,7 +75,7 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 	// Create matcher.
 	cache := stressTestCache()
 	iterPool := stressTestSortedTagIteratorPool()
-	opts := stressTestMatcherOptions(store, iterPool)
+	opts := stressTestMatcherOptions(store)
 	matcher, err := matcher.NewMatcher(cache, opts)
 	require.NoError(t, err)
 
@@ -222,12 +222,22 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
+			it := iterPool.Get()
+			matchOpts := rules.MatchOptions{
+				NameAndTagsFn: m3.NameAndTags,
+				SortedTagIteratorFn: func(tagPairs []byte) id.SortedTagIterator {
+					it.Reset(tagPairs)
+					return it
+				},
+			}
 
 			for i := 0; i < matchIter; i++ {
-				res := matcher.ForwardMatch(input.idFn(i), input.fromNanos, input.toNanos)
+				res, err := matcher.ForwardMatch(input.idFn(i), input.fromNanos, input.toNanos, matchOpts)
+				require.NoError(t, err)
 				results = append(results, res)
 				expected = append(expected, input.expected)
 			}
+			iterPool.Put(it)
 		}()
 
 		go func() {
@@ -409,19 +419,9 @@ func stressTestSortedTagIteratorPool() id.SortedTagIteratorPool {
 	return sortedTagIteratorPool
 }
 
-func stressTestMatcherOptions(
-	store kv.Store,
-	sortedTagIteratorPool id.SortedTagIteratorPool,
-) matcher.Options {
-	sortedTagIteratorFn := func(tagPairs []byte) id.SortedTagIterator {
-		it := sortedTagIteratorPool.Get()
-		it.Reset(tagPairs)
-		return it
-	}
+func stressTestMatcherOptions(store kv.Store) matcher.Options {
 	tagsFilterOpts := filters.TagsFilterOptions{
 		NameTagKey:          []byte(stressTestNameTagKey),
-		NameAndTagsFn:       m3.NameAndTags,
-		SortedTagIteratorFn: sortedTagIteratorFn,
 	}
 	ruleSetOpts := rules.NewOptions().
 		SetTagsFilterOptions(tagsFilterOpts).

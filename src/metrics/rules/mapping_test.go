@@ -317,12 +317,12 @@ var (
 	}
 	testMappingRuleSnapshotCmpOpts = []cmp.Option{
 		cmp.AllowUnexported(mappingRuleSnapshot{}),
-		cmpopts.IgnoreInterfaces(struct{ filters.Filter }{}),
+		cmpopts.IgnoreInterfaces(struct{ filters.TagsFilter }{}),
 	}
 	testMappingRuleCmpOpts = []cmp.Option{
 		cmp.AllowUnexported(mappingRule{}),
 		cmp.AllowUnexported(mappingRuleSnapshot{}),
-		cmpopts.IgnoreInterfaces(struct{ filters.Filter }{}),
+		cmpopts.IgnoreInterfaces(struct{ filters.TagsFilter }{}),
 	}
 )
 

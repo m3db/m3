@@ -329,13 +329,13 @@ func newMemCache() cache.Cache {
 	return &memCache{namespaces: make(map[string]memResults)}
 }
 
-func (c *memCache) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult {
+func (c *memCache) ForwardMatch(namespace, id []byte, _, _ int64, _ rules.MatchOptions) (rules.MatchResult, error) {
 	c.RLock()
 	defer c.RUnlock()
 	if results, exists := c.namespaces[string(namespace)]; exists {
-		return results.results[string(id)]
+		return results.results[string(id)], nil
 	}
-	return rules.EmptyMatchResult
+	return rules.EmptyMatchResult, nil
 }
 
 func (c *memCache) Register(namespace []byte, source cache.Source) {

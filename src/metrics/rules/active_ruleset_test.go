@@ -552,8 +552,10 @@ func TestActiveRuleSetForwardMatchWithMappingRules(t *testing.T) {
 		mockNewID,
 	)
 	for i, input := range inputs {
+		input := input
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
-			res := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo)
+			res, err := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo, testMatchOptions())
+			require.NoError(t, err)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
 			require.Equal(t, 0, res.NumNewRollupIDs())
@@ -580,8 +582,10 @@ func TestActiveRuleSetForwardMatchWithAnyKeepOriginal(t *testing.T) {
 	)
 
 	for i, input := range inputs {
+		input := input
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
-			res := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo)
+			res, err := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo, testMatchOptions())
+			require.NoError(t, err)
 			require.Equal(t, res.keepOriginal, input.keepOriginal)
 			require.Equal(t, 3, res.NumNewRollupIDs())
 		})
@@ -1437,8 +1441,10 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 	)
 
 	for i, input := range inputs {
+		input := input
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
-			res := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo)
+			res, err := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo, testMatchOptions())
+			require.NoError(t, err)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
 			require.Equal(t, len(input.forNewRollupIDsResult), res.NumNewRollupIDs())
@@ -2675,8 +2681,10 @@ func TestActiveRuleSetForwardMatchWithMappingRulesAndRollupRules(t *testing.T) {
 		mockNewID,
 	)
 	for i, input := range inputs {
+		input := input
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
-			res := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo)
+			res, err := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo, testMatchOptions())
+			require.NoError(t, err)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
 			require.Equal(t, len(input.forNewRollupIDsResult), res.NumNewRollupIDs())
@@ -2779,12 +2787,13 @@ func TestMatchedKeepOriginal(t *testing.T) {
 
 	for name, tt := range cases {
 		t.Run(name, func(t *testing.T) {
-			res := as.ForwardMatch(
+			res, err := as.ForwardMatch(
 				b("baz=bat,foo=bar"),
 				tt.cutoverNanos,
 				tt.cutoverNanos+10000,
+				testMatchOptions(),
 			)
-
+			require.NoError(t, err)
 			require.Equal(t, 1, res.NumNewRollupIDs())
 			require.Equal(t, tt.expectKeepOriginal, res.KeepOriginal())
 		})

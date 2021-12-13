@@ -21,6 +21,7 @@
 package m3
 
 import (
+	"bytes"
 	"context"
 	goerrors "errors"
 	"fmt"
@@ -28,9 +29,11 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go/log"
+	"github.com/prometheus/common/model"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	coordmodel "github.com/m3db/m3/src/cmd/services/m3coordinator/model"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
@@ -52,6 +55,13 @@ const (
 )
 
 var (
+	// The default name for the name tag in Prometheus metrics.
+	promDefaultName = []byte(model.MetricNameLabel)
+	// The name for the rollup tag defined by the coordinator model.
+	rollupTagName = []byte(coordmodel.RollupTagName)
+	// The value for the rollup tag defined by the coordinator model.
+	rollupTagValue = []byte(coordmodel.RollupTagValue)
+
 	errUnaggregatedAndAggregatedDisabled = goerrors.New("fetch options has both" +
 		" aggregated and unaggregated namespace lookup disabled")
 	errNoNamespacesConfigured             = goerrors.New("no namespaces configured")
@@ -152,6 +162,31 @@ func (s *m3storage) FetchProm(
 	)
 	if err != nil {
 		return storage.PromResult{}, err
+	}
+
+	for _, series := range fetchResult.PromResult.Timeseries {
+		if series == nil {
+			continue
+		}
+
+		rollup := false
+		nameTag := []byte{}
+		for _, label := range series.Labels {
+			// Check for both the rollup tag and the metric name label.
+			if bytes.Equal(label.Name, rollupTagName) {
+				if bytes.Equal(label.Value, rollupTagValue) {
+					rollup = true
+				}
+			} else if bytes.Equal(label.Name, promDefaultName) {
+				nameTag = label.Value
+			}
+		}
+
+		if rollup {
+			fetchResult.Metadata.ByName(nameTag).Aggregated++
+		} else {
+			fetchResult.Metadata.ByName(nameTag).Unaggregated++
+		}
 	}
 
 	return fetchResult, nil
@@ -390,6 +425,9 @@ func (s *m3storage) fetchCompressed(
 			}
 
 			blockMeta := block.NewResultMetadata()
+			blockMeta.Namespaces = append(blockMeta.Namespaces, namespaceID.String())
+			blockMeta.FetchedResponses = metadata.Responses
+			blockMeta.FetchedBytesEstimate = metadata.EstimateTotalBytes
 			blockMeta.Exhaustive = metadata.Exhaustive
 			blockMeta.WaitedIndex = metadata.WaitedIndex
 			blockMeta.WaitedSeriesRead = metadata.WaitedSeriesRead
@@ -591,6 +629,9 @@ func (s *m3storage) CompleteTags(
 			}
 
 			blockMeta := block.NewResultMetadata()
+			blockMeta.Namespaces = append(blockMeta.Namespaces, namespaceID.String())
+			blockMeta.FetchedResponses = metadata.Responses
+			blockMeta.FetchedBytesEstimate = metadata.EstimateTotalBytes
 			blockMeta.Exhaustive = metadata.Exhaustive
 			blockMeta.WaitedIndex = metadata.WaitedIndex
 			blockMeta.WaitedSeriesRead = metadata.WaitedSeriesRead
@@ -696,6 +737,9 @@ func (s *m3storage) SearchCompressed(
 			}
 
 			blockMeta := block.NewResultMetadata()
+			blockMeta.Namespaces = append(blockMeta.Namespaces, namespaceID.String())
+			blockMeta.FetchedResponses = metadata.Responses
+			blockMeta.FetchedBytesEstimate = metadata.EstimateTotalBytes
 			blockMeta.Exhaustive = metadata.Exhaustive
 			blockMeta.WaitedIndex = metadata.WaitedIndex
 			blockMeta.WaitedSeriesRead = metadata.WaitedSeriesRead

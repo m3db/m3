@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/metrics/metric/id"
 )
 
@@ -207,9 +209,10 @@ func benchRangeFilterRange(b *testing.B, pattern, val []byte, expectedMatch bool
 	}
 }
 
-func benchTagsFilter(b *testing.B, id []byte, tagsFilter Filter) {
+func benchTagsFilter(b *testing.B, id []byte, tagsFilter TagsFilter) {
 	for n := 0; n < b.N; n++ {
-		tagsFilter.Matches(id)
+		_, err := tagsFilter.Matches(id, testTagsMatchOptions())
+		require.NoError(b, err)
 	}
 }
 
@@ -248,26 +251,26 @@ type testMapTagsFilter struct {
 func newTestMapTagsFilter(
 	tagFilters TagFilterValueMap,
 	iterFn id.SortedTagIteratorFn,
-) Filter {
+) TagsFilter {
 	filters := make(map[string]Filter, len(tagFilters))
 	for name, value := range tagFilters {
 		filter, _ := NewFilterFromFilterValue(value)
 		filters[name] = filter
 	}
 
-	return newImmutableFilter(&testMapTagsFilter{
+	return &testMapTagsFilter{
 		filters: filters,
 		iterFn:  iterFn,
-	})
+	}
 }
 
 func (f *testMapTagsFilter) String() string {
 	return ""
 }
 
-func (f *testMapTagsFilter) Matches(id []byte) bool {
+func (f *testMapTagsFilter) Matches(id []byte, _ TagMatchOptions) (bool, error) {
 	if len(f.filters) == 0 {
-		return true
+		return true, nil
 	}
 
 	matches := 0
@@ -285,16 +288,19 @@ func (f *testMapTagsFilter) Matches(id []byte) bool {
 			if filter.Matches(value) {
 				matches++
 				if matches == len(f.filters) {
-					return true
+					return true, nil
 				}
 				break
 			}
 
-			return false
+			return false, nil
 		}
 	}
+	if iter.Err() != nil {
+		return false, iter.Err()
+	}
 
-	return iter.Err() == nil && matches == len(f.filters)
+	return matches == len(f.filters), nil
 }
 
 func newTestMultiCharRangeSelectFilter(pattern []byte, backwards bool) (chainFilter, error) {

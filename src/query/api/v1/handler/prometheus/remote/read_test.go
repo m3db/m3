@@ -204,7 +204,11 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 	}
 
 	fetchOpts := &storage.FetchOptions{}
-	result := storage.NewPromResult([]*prompb.TimeSeries{})
+	result := storage.PromResult{
+		PromResult: &prompb.QueryResult{
+			Timeseries: []*prompb.TimeSeries{},
+		},
+	}
 	engine := executor.NewMockEngine(ctrl)
 	engine.EXPECT().
 		ExecuteProm(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -313,9 +317,10 @@ func TestMultipleRead(t *testing.T) {
 			},
 		},
 		Metadata: block.ResultMetadata{
-			Exhaustive: true,
-			LocalOnly:  true,
-			Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
+			Exhaustive:     true,
+			LocalOnly:      true,
+			Warnings:       []block.Warning{{Name: "foo", Message: "bar"}},
+			MetadataByName: make(map[string]*block.ResultMetricMetadata),
 		},
 	}
 
@@ -329,9 +334,10 @@ func TestMultipleRead(t *testing.T) {
 			},
 		},
 		Metadata: block.ResultMetadata{
-			Exhaustive: false,
-			LocalOnly:  true,
-			Warnings:   []block.Warning{},
+			Exhaustive:     false,
+			LocalOnly:      true,
+			Warnings:       []block.Warning{},
+			MetadataByName: make(map[string]*block.ResultMetricMetadata),
 		},
 	}
 
@@ -396,17 +402,19 @@ func TestReadWithOptions(t *testing.T) {
 	now := xtime.Now()
 	promNow := storage.TimeToPromTimestamp(now)
 
-	r := storage.NewPromResult(
-		[]*prompb.TimeSeries{
-			{
-				Samples: []prompb.Sample{{Value: 1, Timestamp: promNow}},
-				Labels: []prompb.Label{
-					{Name: []byte("a"), Value: []byte("b")},
-					{Name: []byte("remove"), Value: []byte("c")},
+	r := storage.PromResult{
+		PromResult: &prompb.QueryResult{
+			Timeseries: []*prompb.TimeSeries{
+				{
+					Samples: []prompb.Sample{{Value: 1, Timestamp: promNow}},
+					Labels: []prompb.Label{
+						{Name: []byte("a"), Value: []byte("b")},
+						{Name: []byte("remove"), Value: []byte("c")},
+					},
 				},
 			},
 		},
-	)
+	}
 
 	req := &prompb.ReadRequest{
 		Queries: []*prompb.Query{{StartTimestampMs: 10, EndTimestampMs: 100}},

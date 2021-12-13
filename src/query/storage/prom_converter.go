@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -129,6 +130,7 @@ func toPromSequentially(
 	maxResolution time.Duration,
 	promConvertOptions PromConvertOptions,
 ) (PromResult, error) {
+	meta := block.NewResultMetadata()
 	count := fetchResult.Count()
 	seriesList := make([]*prompb.TimeSeries, 0, count)
 	for i := 0; i < count; i++ {
@@ -142,12 +144,21 @@ func toPromSequentially(
 			return PromResult{}, err
 		}
 
+		nameTag, _ := tags.Get(promDefaultName)
 		if len(series.GetSamples()) > 0 {
 			seriesList = append(seriesList, series)
+			meta.ByName(nameTag).WithSamples++
+		} else {
+			meta.ByName(nameTag).NoSamples++
 		}
 	}
 
-	return NewPromResult(seriesList), nil
+	return PromResult{
+		PromResult: &prompb.QueryResult{
+			Timeseries: seriesList,
+		},
+		Metadata: meta,
+	}, nil
 }
 
 func toPromConcurrently(
@@ -202,14 +213,24 @@ func toPromConcurrently(
 	}
 
 	// Filter out empty series inplace.
+	meta := block.NewResultMetadata()
 	filteredList := seriesList[:0]
 	for _, s := range seriesList {
+		nameTag := metricNameFromLabels(s.Labels)
 		if len(s.GetSamples()) > 0 {
 			filteredList = append(filteredList, s)
+			meta.ByName(nameTag).WithSamples++
+		} else {
+			meta.ByName(nameTag).NoSamples++
 		}
 	}
 
-	return NewPromResult(filteredList), nil
+	return PromResult{
+		PromResult: &prompb.QueryResult{
+			Timeseries: filteredList,
+		},
+		Metadata: meta,
+	}, nil
 }
 
 func seriesIteratorsToPromResult(
@@ -250,7 +271,7 @@ func SeriesIteratorsToPromResult(
 
 	promResult, err := seriesIteratorsToPromResult(ctx, fetchResult,
 		readWorkerPool, tagOptions, maxResolution, promConvertOptions)
-	// Merge the fetchResult metadata into any metadata that was already
+	// Combine the fetchResult metadata into any metadata that was already
 	// computed for this promResult.
 	promResult.Metadata = promResult.Metadata.CombineMetadata(fetchResult.Metadata)
 

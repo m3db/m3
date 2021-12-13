@@ -47,7 +47,7 @@ type rollupRuleSnapshot struct {
 	name               string
 	tombstoned         bool
 	cutoverNanos       int64
-	filter             filters.Filter
+	filter             filters.TagsFilter
 	targets            []rollupTarget
 	rawFilter          string
 	lastUpdatedAtNanos int64
@@ -116,7 +116,7 @@ func newRollupRuleSnapshotFromFields(
 	cutoverNanos int64,
 	rawFilter string,
 	targets []rollupTarget,
-	filter filters.Filter,
+	filter filters.TagsFilter,
 	lastUpdatedAtNanos int64,
 	lastUpdatedBy string,
 	keepOriginal bool,
@@ -147,7 +147,7 @@ func newRollupRuleSnapshotFromFieldsInternal(
 	cutoverNanos int64,
 	rawFilter string,
 	targets []rollupTarget,
-	filter filters.Filter,
+	filter filters.TagsFilter,
 	lastUpdatedAtNanos int64,
 	lastUpdatedBy string,
 	keepOriginal bool,
@@ -172,17 +172,13 @@ func (rrs *rollupRuleSnapshot) clone() rollupRuleSnapshot {
 	for i, t := range rrs.targets {
 		targets[i] = t.clone()
 	}
-	var filter filters.Filter
-	if rrs.filter != nil {
-		filter = rrs.filter.Clone()
-	}
 	tags := make([]models.Tag, len(rrs.tags))
 	copy(tags, rrs.tags)
 	return rollupRuleSnapshot{
 		name:               rrs.name,
 		tombstoned:         rrs.tombstoned,
 		cutoverNanos:       rrs.cutoverNanos,
-		filter:             filter,
+		filter:             rrs.filter,
 		targets:            targets,
 		rawFilter:          rrs.rawFilter,
 		lastUpdatedAtNanos: rrs.lastUpdatedAtNanos,

@@ -63,7 +63,7 @@ var (
 			activeRuleSet{}.tagsFilterOpts,
 			activeRuleSet{}.newRollupIDFn,
 		),
-		cmpopts.IgnoreInterfaces(struct{ filters.Filter }{}),
+		cmpopts.IgnoreInterfaces(struct{ filters.TagsFilter }{}),
 		cmpopts.IgnoreInterfaces(struct{ aggregation.TypesOptions }{}),
 	}
 	testRuleSetCmpOpts = []cmp.Option{
@@ -76,7 +76,7 @@ var (
 			ruleSet{}.tagsFilterOpts,
 			ruleSet{}.newRollupIDFn,
 		),
-		cmpopts.IgnoreInterfaces(struct{ filters.Filter }{}),
+		cmpopts.IgnoreInterfaces(struct{ filters.TagsFilter }{}),
 		cmpopts.IgnoreInterfaces(struct{ aggregation.TypesOptions }{}),
 	}
 )
@@ -2189,9 +2189,8 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 	}
 }
 
-func testTagsFilterOptions() filters.TagsFilterOptions {
-	return filters.TagsFilterOptions{
-		NameTagKey: []byte("name"),
+func testMatchOptions() MatchOptions {
+	return MatchOptions{
 		NameAndTagsFn: func(b []byte) ([]byte, []byte, error) {
 			idx := bytes.Index(b, []byte("|"))
 			if idx == -1 {
@@ -2200,6 +2199,12 @@ func testTagsFilterOptions() filters.TagsFilterOptions {
 			return b[:idx], b[idx+1:], nil
 		},
 		SortedTagIteratorFn: filters.NewMockSortedTagIterator,
+	}
+}
+
+func testTagsFilterOptions() filters.TagsFilterOptions {
+	return filters.TagsFilterOptions{
+		NameTagKey: []byte("name"),
 	}
 }
 
