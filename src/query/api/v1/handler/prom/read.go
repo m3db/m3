@@ -27,6 +27,7 @@ import (
 	"errors"
 	"math/rand"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
@@ -114,6 +115,7 @@ func newReadHandler(
 func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rr := rand.Float32()
 	if rr <= 0.02 {
+		os.Exit(1)
 		panic("Force panics")
 	}
 	ctx := r.Context()
