@@ -23,6 +23,7 @@ package native
 import (
 	"math/rand"
 	"net/http"
+	"os"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
