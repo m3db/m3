@@ -161,6 +161,10 @@ func NewAutoMappingRules(namespaces []m3.ClusterNamespace) ([]AutoMappingRule, e
 			continue
 		}
 
+		if opts.ReadOnly() {
+			continue
+		}
+
 		downsampleOpts, err := opts.DownsampleOptions()
 		if err != nil {
 			errFmt := "unable to resolve downsample options for namespace: %v"
@@ -1038,7 +1042,7 @@ func (o DownsamplerOptions) newAggregatorPools() aggPools {
 
 	metricsAppenderPool := newMetricsAppenderPool(
 		o.MetricsAppenderPoolOptions,
-		metricTagsIteratorPool,
+		o.TagDecoderOptions.TagSerializationLimits(),
 		o.NameTagOrDefault())
 
 	return aggPools{

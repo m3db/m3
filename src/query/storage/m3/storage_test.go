@@ -296,6 +296,45 @@ func TestLocalWriteUnaggregatedNamespaceUninitializedError(t *testing.T) {
 		fmt.Sprintf("unexpected error string: %v", err.Error()))
 }
 
+func TestWriteToReadOnlyNamespaceFail(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	clusters, err := NewClusters(
+		UnaggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("unaggregated"),
+			Session:     client.NewMockSession(ctrl),
+			Retention:   time.Hour,
+		}, AggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("aggregated_readonly"),
+			Session:     client.NewMockSession(ctrl),
+			Retention:   24 * time.Hour,
+			Resolution:  time.Minute,
+			ReadOnly:    true,
+		},
+	)
+	require.NoError(t, err)
+
+	store := newTestStorage(t, clusters)
+
+	opts := newWriteQuery(t).Options()
+
+	opts.Attributes = storagemetadata.Attributes{
+		MetricsType: storagemetadata.AggregatedMetricsType,
+		Retention:   24 * time.Hour,
+		Resolution:  time.Minute,
+	}
+
+	writeQuery, err := storage.NewWriteQuery(opts)
+	require.NoError(t, err)
+
+	err = store.Write(context.TODO(), writeQuery)
+	assert.Error(t, err)
+	assert.True(t,
+		strings.Contains(err.Error(), "cannot write to read only namespace aggregated_readonly"),
+		fmt.Sprintf("unexpected error string: %v", err.Error()))
+}
+
 func TestLocalWriteAggregatedInvalidMetricsTypeError(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()

@@ -62,10 +62,7 @@ func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 		}), poolOpts)
 	tagDecoderPool.Init()
 
-	metricTagsIteratorPool := serialize.NewMetricTagsIteratorPool(tagDecoderPool, poolOpts)
-	metricTagsIteratorPool.Init()
-
-	appenderPool := newMetricsAppenderPool(poolOpts, metricTagsIteratorPool, defaultMetricNameTagName)
+	appenderPool := newMetricsAppenderPool(poolOpts, serialize.NewTagSerializationLimits(), defaultMetricNameTagName)
 
 	for i := 0; i < count; i++ {
 		matcher := matcher.NewMockMatcher(ctrl)
@@ -157,10 +154,7 @@ func TestSamplesAppenderPoolResetsTagSimple(t *testing.T) {
 		}), poolOpts)
 	tagDecoderPool.Init()
 
-	metricTagsIteratorPool := serialize.NewMetricTagsIteratorPool(tagDecoderPool, poolOpts)
-	metricTagsIteratorPool.Init()
-
-	appenderPool := newMetricsAppenderPool(poolOpts, metricTagsIteratorPool, defaultMetricNameTagName)
+	appenderPool := newMetricsAppenderPool(poolOpts, serialize.NewTagSerializationLimits(), defaultMetricNameTagName)
 
 	appender := appenderPool.Get()
 	appender.AddTag([]byte("foo"), []byte("bar"))

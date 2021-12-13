@@ -87,6 +87,9 @@ type ClusterStaticNamespaceConfiguration struct {
 	// Downsample is the configuration for downsampling options to use with
 	// the namespace.
 	Downsample *DownsampleClusterStaticNamespaceConfiguration `yaml:"downsample"`
+
+	// ReadOnly prevents any writes to this namespace.
+	ReadOnly bool `yaml:"readOnly"`
 }
 
 func (c ClusterStaticNamespaceConfiguration) metricsType() (storagemetadata.MetricsType, error) {
@@ -296,6 +299,7 @@ func (c ClustersStaticConfiguration) NewStaticClusters(
 				Retention:   n.Retention,
 				Resolution:  n.Resolution,
 				Downsample:  &downsampleOpts,
+				ReadOnly:    n.ReadOnly,
 			}
 			aggregatedClusterNamespaces = append(aggregatedClusterNamespaces, def)
 		}
