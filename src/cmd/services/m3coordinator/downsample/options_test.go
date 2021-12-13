@@ -91,6 +91,7 @@ func TestAutoMappingRules(t *testing.T) {
 			ReadOnly:    true,
 		},
 	)
+	require.NoError(t, err)
 
 	rules, err := NewAutoMappingRules(clusters.ClusterNamespaces())
 	require.NoError(t, err)
