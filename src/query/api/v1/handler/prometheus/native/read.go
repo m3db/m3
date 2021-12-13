@@ -111,7 +111,7 @@ func newHandler(opts options.HandlerOptions, instant bool) http.Handler {
 
 func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rr := rand.Float32()
-	if rr < 0.05 {
+	if rr <= 0.05 {
 		panic("Force panics")
 	}
 	timer := h.promReadMetrics.fetchTimerSuccess.Start()
