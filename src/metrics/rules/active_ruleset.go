@@ -31,12 +31,16 @@ import (
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	mpipeline "github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
+	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/query/models"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 // Matcher matches metrics against rules to determine applicable policies.
 type Matcher interface {
+	// LatestRollupRules returns the latest rollup rules for a given time.
+	LatestRollupRules(timeNanos int64) ([]view.RollupRule, error)
+
 	// ForwardMatch matches the applicable policies for a metric id between [fromNanos, toNanos).
 	ForwardMatch(id []byte, fromNanos, toNanos int64, opts MatchOptions) (MatchResult, error)
 }
@@ -233,6 +237,27 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 	return mappingResults{
 		forExistingID: ruleMatchResults{cutoverNanos: cutoverNanos, pipelines: pipelines},
 	}, nil
+}
+
+func (as *activeRuleSet) LatestRollupRules(timeNanos int64) ([]view.RollupRule, error) {
+	out := []view.RollupRule{}
+	// Return the list of cloned rollup rule views that were active (and are still
+	// active) as of timeNanos.
+	for _, rollupRule := range as.rollupRules {
+		rule := rollupRule.activeRule(timeNanos)
+		// Skip missing or empty rules.
+		// tombstoned() returns true if the length of rule.snapshots is zero.
+		if rule == nil || rule.tombstoned() {
+			continue
+		}
+
+		view, err := rule.rollupRuleView(len(rule.snapshots) - 1)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, view)
+	}
+	return out, nil
 }
 
 func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64, matchOpts MatchOptions) (rollupResults, error) {

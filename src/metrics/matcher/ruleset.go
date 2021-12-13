@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv/util/runtime"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/rules"
+	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -117,6 +118,13 @@ func newRuleSet(
 		SetProcessFn(r.process)
 	r.Value = runtime.NewValue(key, valueOpts)
 	return r
+}
+
+func (r *ruleSet) LatestRollupRules(timeNanos int64) ([]view.RollupRule, error) {
+	r.RLock()
+	rollupRules, err := r.matcher.LatestRollupRules(timeNanos)
+	r.RUnlock()
+	return rollupRules, err
 }
 
 func (r *ruleSet) Namespace() []byte {

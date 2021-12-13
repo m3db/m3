@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv/util/runtime"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/rules"
+	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xos "github.com/m3db/m3/src/x/os"
@@ -49,8 +50,12 @@ type Namespaces interface {
 	// Open opens the namespaces and starts watching runtime rule updates
 	Open() error
 
-	// Version returns the current version for a give namespace.
+	// Version returns the current version for a given namespace.
 	Version(namespace []byte) int
+
+	// LatestRollupRules returns the latest rollup rules for a given namespace
+	// at a given time.
+	LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error)
 
 	// ForwardMatch forward matches the matching policies for a given id in a given namespace
 	// between [fromNanos, toNanos).
@@ -175,6 +180,15 @@ func (n *namespaces) Version(namespace []byte) int {
 		return kv.UninitializedVersion
 	}
 	return ruleSet.Version()
+}
+
+func (n *namespaces) LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error) {
+	ruleSet, exists := n.ruleSet(namespace)
+	if !exists {
+		return nil, errors.New("ruleset not found for namespace")
+	}
+
+	return ruleSet.LatestRollupRules(timeNanos)
 }
 
 func (n *namespaces) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64,
