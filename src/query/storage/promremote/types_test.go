@@ -33,9 +33,8 @@ import (
 
 func TestNamespaces(t *testing.T) {
 	tcs := []struct {
-		name               string
-		endpoint           EndpointOptions
-		expectedDownsample *bool
+		name     string
+		endpoint EndpointOptions
 	}{
 		{
 			name: "raw",
@@ -45,7 +44,6 @@ func TestNamespaces(t *testing.T) {
 					MetricsType: storagemetadata.UnaggregatedMetricsType,
 				},
 			},
-			expectedDownsample: nil,
 		},
 		{
 			name: "donwsampled",
