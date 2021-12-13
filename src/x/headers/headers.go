@@ -124,6 +124,10 @@ const (
 	// M3 returns an error if query execution must wait for permits.
 	LimitRequireNoWaitHeader = M3HeaderPrefix + "Limit-Require-No-Wait"
 
+	// LimitMaxMetricMetadataStatsHeader is the M3 header that limits
+	// the number of metric metadata stats returned in M3-Metric-Stats.
+	LimitMaxMetricMetadataStatsHeader = M3HeaderPrefix + "Limit-Max-Metric-Metadata-Stats"
+
 	// UnaggregatedStoragePolicy specifies the unaggregated storage policy.
 	UnaggregatedStoragePolicy = "unaggregated"
 

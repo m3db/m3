@@ -31,12 +31,6 @@ import (
 	"github.com/m3db/m3/src/x/headers"
 )
 
-const (
-	// maxMetricStatsInHeader is the maximum number of metric stats to
-	// serialize into the headers.MetricStats header.
-	maxMetricStatsInHeader = 10
-)
-
 // ReturnedDataLimited is info about whether data was limited by a query.
 type ReturnedDataLimited struct {
 	Series     int
@@ -129,13 +123,15 @@ func AddDBResultResponseHeaders(
 	}
 
 	// Also report the top metadata by name, in JSON.
-	if len(meta.MetadataByName) > 0 {
-		stats := meta.TopMetadataByName(maxMetricStatsInHeader)
-		js, err := json.Marshal(stats)
-		if err != nil {
-			return err
+	if fetchOpts != nil && fetchOpts.MaxMetricMetadataStats > 0 {
+		if len(meta.MetadataByName) > 0 {
+			stats := meta.TopMetadataByName(fetchOpts.MaxMetricMetadataStats)
+			js, err := json.Marshal(stats)
+			if err != nil {
+				return err
+			}
+			w.Header().Add(headers.MetricStats, string(js))
 		}
-		w.Header().Add(headers.MetricStats, string(js))
 	}
 
 	if meta.FetchedMetadataCount > 0 {

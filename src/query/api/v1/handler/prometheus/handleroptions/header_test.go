@@ -21,6 +21,7 @@
 package handleroptions
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http/httptest"
@@ -128,8 +129,11 @@ func TestAddDBResultResponseHeadersMetadataByName(t *testing.T) {
 			Unaggregated: 4,
 		},
 	}
-	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, nil))
-	assert.Equal(t, 5, len(recorder.Header()))
+	fetchOpts := storage.NewFetchOptions()
+	fetchOpts.MaxMetricMetadataStats = 10
+	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, fetchOpts))
+	assert.Equal(t, 6, len(recorder.Header()))
+	assert.Equal(t, "0s", recorder.Header().Get(headers.TimeoutHeader))
 	assert.Equal(t, "1", recorder.Header().Get(headers.FetchedSeriesNoSamplesCount))
 	assert.Equal(t, "2", recorder.Header().Get(headers.FetchedSeriesWithSamplesCount))
 	assert.Equal(t, "3", recorder.Header().Get(headers.FetchedAggregatedSeriesCount))
@@ -154,8 +158,9 @@ func TestAddDBResultResponseHeadersMetadataByName(t *testing.T) {
 			Unaggregated: 40,
 		},
 	}
-	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, nil))
-	assert.Equal(t, 5, len(recorder.Header()))
+	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, fetchOpts))
+	assert.Equal(t, 6, len(recorder.Header()))
+	assert.Equal(t, "0s", recorder.Header().Get(headers.TimeoutHeader))
 	assert.Equal(t, "11", recorder.Header().Get(headers.FetchedSeriesNoSamplesCount))
 	assert.Equal(t, "22", recorder.Header().Get(headers.FetchedSeriesWithSamplesCount))
 	assert.Equal(t, "33", recorder.Header().Get(headers.FetchedAggregatedSeriesCount))
@@ -167,7 +172,7 @@ func TestAddDBResultResponseHeadersMetadataByName(t *testing.T) {
 
 	recorder = httptest.NewRecorder()
 	meta = block.NewResultMetadata()
-	numStats := maxMetricStatsInHeader + 2
+	numStats := fetchOpts.MaxMetricMetadataStats + 2
 	meta.MetadataByName = make(map[string]*block.ResultMetricMetadata, numStats)
 	totalCount := 0
 	for i := 0; i < numStats; i++ {
@@ -175,8 +180,9 @@ func TestAddDBResultResponseHeadersMetadataByName(t *testing.T) {
 		meta.MetadataByName[fmt.Sprintf("metric_%v", i)] = &block.ResultMetricMetadata{Unaggregated: count}
 		totalCount += count
 	}
-	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, nil))
-	assert.Equal(t, 2, len(recorder.Header()))
+	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, fetchOpts))
+	assert.Equal(t, 3, len(recorder.Header()))
+	assert.Equal(t, "0s", recorder.Header().Get(headers.TimeoutHeader))
 	assert.Equal(t, fmt.Sprint(totalCount), recorder.Header().Get(headers.FetchedUnaggregatedSeriesCount))
 
 	parsed := make(map[string]*block.ResultMetricMetadata)
@@ -184,7 +190,7 @@ func TestAddDBResultResponseHeadersMetadataByName(t *testing.T) {
 	assert.NotEmpty(t, metricStatsHeader)
 	err := json.Unmarshal([]byte(metricStatsHeader), &parsed)
 	assert.NoError(t, err)
-	assert.Equal(t, maxMetricStatsInHeader, len(parsed))
+	assert.Equal(t, fetchOpts.MaxMetricMetadataStats, len(parsed))
 	observedCount := 0
 	for _, stat := range parsed {
 		observedCount += stat.Unaggregated
@@ -194,6 +200,51 @@ func TestAddDBResultResponseHeadersMetadataByName(t *testing.T) {
 	// top `max` counts.
 	wantCount := totalCount - (1 + 2)
 	assert.Equal(t, observedCount, wantCount)
+}
+
+func TestAddDBResultResponseHeadersMetadataByNameMaxConfig(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	meta := block.NewResultMetadata()
+	meta.MetadataByName = map[string]*block.ResultMetricMetadata{
+		"mymetric": {
+			NoSamples:    1,
+			WithSamples:  2,
+			Aggregated:   3,
+			Unaggregated: 4,
+		},
+	}
+
+	// Disable metric metadata stats using a header
+	req := httptest.NewRequest("GET", "/api/v1/query", nil)
+	req.Header.Add(headers.LimitMaxMetricMetadataStatsHeader, "0")
+	fetchOptsBuilder, err := NewFetchOptionsBuilder(
+		FetchOptionsBuilderOptions{
+			Timeout: 5 * time.Second,
+		},
+	)
+	require.NoError(t, err)
+	_, fetchOpts, err := fetchOptsBuilder.NewFetchOptions(context.Background(), req)
+	require.NoError(t, err)
+	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, fetchOpts))
+	assert.Equal(t, 5, len(recorder.Header()))
+	assert.Equal(t, "5s", recorder.Header().Get(headers.TimeoutHeader))
+	assert.Equal(t, "1", recorder.Header().Get(headers.FetchedSeriesNoSamplesCount))
+	assert.Equal(t, "2", recorder.Header().Get(headers.FetchedSeriesWithSamplesCount))
+	assert.Equal(t, "3", recorder.Header().Get(headers.FetchedAggregatedSeriesCount))
+	assert.Equal(t, "4", recorder.Header().Get(headers.FetchedUnaggregatedSeriesCount))
+	assert.Empty(t, recorder.Header().Get(headers.MetricStats))
+
+	// Disable metric metadata stats using config
+	recorder = httptest.NewRecorder()
+	fetchOpts.MaxMetricMetadataStats = 0
+	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, fetchOpts))
+	assert.Equal(t, 5, len(recorder.Header()))
+	assert.Equal(t, "5s", recorder.Header().Get(headers.TimeoutHeader))
+	assert.Equal(t, "1", recorder.Header().Get(headers.FetchedSeriesNoSamplesCount))
+	assert.Equal(t, "2", recorder.Header().Get(headers.FetchedSeriesWithSamplesCount))
+	assert.Equal(t, "3", recorder.Header().Get(headers.FetchedAggregatedSeriesCount))
+	assert.Equal(t, "4", recorder.Header().Get(headers.FetchedUnaggregatedSeriesCount))
+	assert.Empty(t, recorder.Header().Get(headers.MetricStats))
 }
 
 func TestAddReturnedLimitResponseHeaders(t *testing.T) {

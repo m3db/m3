@@ -97,6 +97,7 @@ type FetchOptionsBuilderLimitsOptions struct {
 	ReturnedDatapointsLimit     int
 	ReturnedSeriesMetadataLimit int
 	RequireExhaustive           bool
+	MaxMetricMetadataStats      int
 }
 
 type fetchOptionsBuilder struct {
@@ -309,6 +310,14 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	}
 
 	fetchOpts.ReturnedSeriesMetadataLimit = returnedSeriesMetadataLimit
+
+	returnedMaxMetricMetadataStats, err := ParseLimit(req, headers.LimitMaxMetricMetadataStatsHeader,
+		"returnedMaxMetricMetadataStats", b.opts.Limits.MaxMetricMetadataStats)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fetchOpts.MaxMetricMetadataStats = returnedMaxMetricMetadataStats
 
 	requireExhaustive, err := ParseRequireExhaustive(req, b.opts.Limits.RequireExhaustive)
 	if err != nil {
