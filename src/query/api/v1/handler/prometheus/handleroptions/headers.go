@@ -110,8 +110,8 @@ func AddDBResultResponseHeaders(
 		w.Header().Add(headers.FetchedSeriesWithSamplesCount, fmt.Sprint(merged.WithSamples))
 	}
 
-	if len(meta.Namespaces) > 0 {
-		w.Header().Add(headers.NamespacesHeader, strings.Join(meta.Namespaces, ","))
+	if namespaces := meta.GetNamespaces(); len(namespaces) > 0 {
+		w.Header().Add(headers.NamespacesHeader, strings.Join(namespaces, ","))
 	}
 
 	if meta.FetchedResponses > 0 {
@@ -124,8 +124,7 @@ func AddDBResultResponseHeaders(
 
 	// Also report the top metadata by name, in JSON.
 	if fetchOpts != nil && fetchOpts.MaxMetricMetadataStats > 0 {
-		if len(meta.MetadataByName) > 0 {
-			stats := meta.TopMetadataByName(fetchOpts.MaxMetricMetadataStats)
+		if stats := meta.TopMetadataByName(fetchOpts.MaxMetricMetadataStats); len(stats) > 0 {
 			js, err := json.Marshal(stats)
 			if err != nil {
 				return err

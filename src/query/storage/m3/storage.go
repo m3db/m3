@@ -433,7 +433,7 @@ func (s *m3storage) fetchCompressed(
 			}
 
 			blockMeta := block.NewResultMetadata()
-			blockMeta.Namespaces = append(blockMeta.Namespaces, namespaceID.String())
+			blockMeta.AddNamespace(namespaceID.String())
 			blockMeta.FetchedResponses = metadata.Responses
 			blockMeta.FetchedBytesEstimate = metadata.EstimateTotalBytes
 			blockMeta.Exhaustive = metadata.Exhaustive
@@ -637,7 +637,7 @@ func (s *m3storage) CompleteTags(
 			}
 
 			blockMeta := block.NewResultMetadata()
-			blockMeta.Namespaces = append(blockMeta.Namespaces, namespaceID.String())
+			blockMeta.AddNamespace(namespaceID.String())
 			blockMeta.FetchedResponses = metadata.Responses
 			blockMeta.FetchedBytesEstimate = metadata.EstimateTotalBytes
 			blockMeta.Exhaustive = metadata.Exhaustive
@@ -745,7 +745,7 @@ func (s *m3storage) SearchCompressed(
 			}
 
 			blockMeta := block.NewResultMetadata()
-			blockMeta.Namespaces = append(blockMeta.Namespaces, namespaceID.String())
+			blockMeta.AddNamespace(namespaceID.String())
 			blockMeta.FetchedResponses = metadata.Responses
 			blockMeta.FetchedBytesEstimate = metadata.EstimateTotalBytes
 			blockMeta.Exhaustive = metadata.Exhaustive

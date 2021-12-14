@@ -99,20 +99,21 @@ func TestAddDBResultResponseHeadersFetched(t *testing.T) {
 func TestAddDBResultResponseHeadersNamespaces(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	meta := block.NewResultMetadata()
-	meta.Namespaces = []string{}
 	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, nil))
 	assert.Equal(t, 0, len(recorder.Header()))
 
 	recorder = httptest.NewRecorder()
 	meta = block.NewResultMetadata()
-	meta.Namespaces = []string{"default"}
+	meta.AddNamespace("default")
 	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, nil))
 	assert.Equal(t, 1, len(recorder.Header()))
 	assert.Equal(t, "default", recorder.Header().Get(headers.NamespacesHeader))
 
 	recorder = httptest.NewRecorder()
 	meta = block.NewResultMetadata()
-	meta.Namespaces = []string{"default", "myfavoritens"}
+	meta.AddNamespace("default")
+	meta.AddNamespace("myfavoritens")
+	meta.AddNamespace("myfavoritens")
 	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, nil))
 	assert.Equal(t, 1, len(recorder.Header()))
 	assert.Equal(t, "default,myfavoritens", recorder.Header().Get(headers.NamespacesHeader))
@@ -121,13 +122,11 @@ func TestAddDBResultResponseHeadersNamespaces(t *testing.T) {
 func TestAddDBResultResponseHeadersMetadataByName(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	meta := block.NewResultMetadata()
-	meta.MetadataByName = map[string]*block.ResultMetricMetadata{
-		"mymetric": {
-			NoSamples:    1,
-			WithSamples:  2,
-			Aggregated:   3,
-			Unaggregated: 4,
-		},
+	*(meta.ByName([]byte("mymetric"))) = block.ResultMetricMetadata{
+		NoSamples:    1,
+		WithSamples:  2,
+		Aggregated:   3,
+		Unaggregated: 4,
 	}
 	fetchOpts := storage.NewFetchOptions()
 	fetchOpts.MaxMetricMetadataStats = 10
@@ -144,19 +143,17 @@ func TestAddDBResultResponseHeadersMetadataByName(t *testing.T) {
 
 	recorder = httptest.NewRecorder()
 	meta = block.NewResultMetadata()
-	meta.MetadataByName = map[string]*block.ResultMetricMetadata{
-		"metric_a": {
-			NoSamples:    1,
-			WithSamples:  2,
-			Aggregated:   3,
-			Unaggregated: 4,
-		},
-		"metric_b": {
-			NoSamples:    10,
-			WithSamples:  20,
-			Aggregated:   30,
-			Unaggregated: 40,
-		},
+	*(meta.ByName([]byte("metric_a"))) = block.ResultMetricMetadata{
+		NoSamples:    1,
+		WithSamples:  2,
+		Aggregated:   3,
+		Unaggregated: 4,
+	}
+	*(meta.ByName([]byte("metric_b"))) = block.ResultMetricMetadata{
+		NoSamples:    10,
+		WithSamples:  20,
+		Aggregated:   30,
+		Unaggregated: 40,
 	}
 	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, fetchOpts))
 	assert.Equal(t, 6, len(recorder.Header()))
@@ -173,11 +170,10 @@ func TestAddDBResultResponseHeadersMetadataByName(t *testing.T) {
 	recorder = httptest.NewRecorder()
 	meta = block.NewResultMetadata()
 	numStats := fetchOpts.MaxMetricMetadataStats + 2
-	meta.MetadataByName = make(map[string]*block.ResultMetricMetadata, numStats)
 	totalCount := 0
 	for i := 0; i < numStats; i++ {
 		count := i + 1
-		meta.MetadataByName[fmt.Sprintf("metric_%v", i)] = &block.ResultMetricMetadata{Unaggregated: count}
+		meta.ByName([]byte(fmt.Sprintf("metric_%v", i))).Unaggregated = count
 		totalCount += count
 	}
 	require.NoError(t, AddDBResultResponseHeaders(recorder, meta, fetchOpts))
@@ -205,13 +201,11 @@ func TestAddDBResultResponseHeadersMetadataByName(t *testing.T) {
 func TestAddDBResultResponseHeadersMetadataByNameMaxConfig(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	meta := block.NewResultMetadata()
-	meta.MetadataByName = map[string]*block.ResultMetricMetadata{
-		"mymetric": {
-			NoSamples:    1,
-			WithSamples:  2,
-			Aggregated:   3,
-			Unaggregated: 4,
-		},
+	*(meta.ByName([]byte("mymetric"))) = block.ResultMetricMetadata{
+		NoSamples:    1,
+		WithSamples:  2,
+		Aggregated:   3,
+		Unaggregated: 4,
 	}
 
 	// Disable metric metadata stats using a header
