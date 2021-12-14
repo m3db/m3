@@ -364,9 +364,9 @@ func testMultiFetchResultTagDedupeMap(
 
 		exTags := models.MustMakeTags(ex.tags...)
 		assert.Equal(t, exTags.String(), tags.String())
-		for j := 0; iter.Next(); j++ {
+		for _, exDp := range ex.dps {
+			require.True(t, iter.Next())
 			dp, _, _ := iter.Current()
-			exDp := ex.dps[j]
 			assert.Equal(t, exDp.val, dp.Value)
 			assert.Equal(t, exDp.t, dp.TimestampNanos)
 		}

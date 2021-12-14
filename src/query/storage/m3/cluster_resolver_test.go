@@ -695,10 +695,12 @@ func TestResolveNamespaceWithDataLatency(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	now := xtime.Now()
-	end := now.Add(-3 * time.Hour)
+	var (
+		now   = xtime.Now()
+		start = now.Add(-40 * 24 * time.Hour)
+		end   = now.Add(-3 * time.Hour)
+	)
 
-	start := now.Add(-40 * 24 * time.Hour)
 	fanoutType, clusters, err := resolveClusterNamespacesForQuery(now, start, end, ns,
 		&storage.FanoutOptions{}, nil, nil)
 	require.NoError(t, err)
@@ -708,9 +710,10 @@ func TestResolveNamespaceWithDataLatency(t *testing.T) {
 		actualNamespaces[c.NamespaceID().String()] = c.narrowing
 	}
 
+	stitchAt := now.Add(-dataLatency)
 	expectedNamespaces := map[string]narrowing{
-		"default":        {start: now.Add(-dataLatency)},
-		"aggregated_60d": {end: now.Add(-dataLatency)},
+		"default":        {start: stitchAt},
+		"aggregated_60d": {end: stitchAt},
 	}
 
 	assert.Equal(t, expectedNamespaces, actualNamespaces)

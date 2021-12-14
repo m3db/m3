@@ -52,11 +52,10 @@ func verifyDedupeMap(
 	assert.Equal(t, "quail", string(val))
 
 	iter := series[0].iter
-	for i := 0; i < len(expected); i++ {
+	for _, expDp := range expected {
 		require.True(t, iter.Next())
 		dp, _, _ := iter.Current()
-		assert.Equal(t, expected[i], dp)
-		i++
+		assert.Equal(t, expDp, dp)
 	}
 }
 
@@ -81,14 +80,15 @@ func it(
 	tagIter := ident.MustNewTagStringsIterator(tags...)
 	it.EXPECT().Tags().Return(tagIter).AnyTimes()
 
-	it.EXPECT().Next().Return(true).AnyTimes()
+	it.EXPECT().Next().Return(true)
 	it.EXPECT().Current().
 		Return(ts.Datapoint{
 			TimestampNanos: dp.t,
 			Value:          dp.val,
 		}, xtime.Second, nil).AnyTimes()
+	it.EXPECT().Next().Return(false)
 	it.EXPECT().Err().Return(nil).AnyTimes()
-	it.EXPECT().Close()
+	it.EXPECT().Close().MinTimes(1)
 
 	return it
 }

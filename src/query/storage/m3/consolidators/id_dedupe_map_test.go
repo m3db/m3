@@ -92,7 +92,7 @@ func rangeIt(
 	it.EXPECT().Namespace().Return(ident.StringID("ns")).AnyTimes()
 	it.EXPECT().Start().Return(start).AnyTimes()
 	it.EXPECT().End().Return(end).AnyTimes()
-	it.EXPECT().Next().Return(true).AnyTimes()
+	it.EXPECT().Next().Return(true).MaxTimes(1)
 
 	tagIter := ident.MustNewTagStringsIterator(tags...)
 	it.EXPECT().Tags().Return(tagIter).AnyTimes()
@@ -102,6 +102,8 @@ func rangeIt(
 			TimestampNanos: dp.t,
 			Value:          dp.val,
 		}, xtime.Second, nil).AnyTimes()
+	it.EXPECT().Next().Return(false).AnyTimes()
+
 	it.EXPECT().Err().Return(nil).AnyTimes()
 	it.EXPECT().Close()
 
