@@ -416,7 +416,7 @@ func TestFilteredInsert(t *testing.T) {
 		expected: []expectedSeries{
 			{
 				tags: []string{"foo", "bar"},
-				dps:  []dp{{t: step(1), val: 1}, {t: step(5), val: 6}},
+				dps:  []dp{{t: step(1), val: 1}},
 			},
 		},
 		exMeta:  warn1Meta,
