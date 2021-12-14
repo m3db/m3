@@ -25,12 +25,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/m3ninx/doc"
-	xtime "github.com/m3db/m3/src/x/time"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3/src/m3ninx/doc"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func TestWriteBatchForEachUnmarkedBatchByBlockStart(t *testing.T) {

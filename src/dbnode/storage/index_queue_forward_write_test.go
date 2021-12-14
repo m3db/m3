@@ -115,16 +115,17 @@ func setupForwardIndex(
 
 	closer := resource.NoopCloser{}
 	gomock.InOrder(
+		lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false),
 		lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false),
 
 		lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true),
 		lifecycle.EXPECT().OnIndexPrepare(next),
 
+		lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false),
 		lifecycle.EXPECT().OnIndexSuccess(ts),
 		lifecycle.EXPECT().OnIndexFinalize(ts),
 
 		lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false),
-
 		lifecycle.EXPECT().OnIndexSuccess(nextTS),
 		lifecycle.EXPECT().OnIndexFinalize(nextTS),
 	)
@@ -397,6 +398,8 @@ func TestNamespaceIndexForwardWrite(t *testing.T) {
 		next = ts.Truncate(blockSize).Add(blockSize)
 	)
 
+	closer := resource.NoopCloser{}
+	lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false)
 	lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true)
 	lifecycle.EXPECT().OnIndexPrepare(next)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
@@ -441,8 +444,10 @@ func TestNamespaceIndexForwardWriteCreatesBlock(t *testing.T) {
 		next = ts.Truncate(blockSize).Add(blockSize)
 	)
 
-	lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true)
+	closer := resource.NoopCloser{}
+	lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false).AnyTimes()
 	lifecycle.EXPECT().OnIndexPrepare(next)
+	lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
 
 	setupMockBlock(t, activeBlock, now, id, tag, lifecycle)
