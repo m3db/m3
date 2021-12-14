@@ -57,6 +57,7 @@ func verifyDedupeMap(
 		dp, _, _ := iter.Current()
 		assert.Equal(t, expDp, dp)
 	}
+	assert.False(t, iter.Next())
 }
 
 type dp struct {
