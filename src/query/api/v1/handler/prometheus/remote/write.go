@@ -513,11 +513,42 @@ func (h *PromWriteHandler) parseRequest(
 	}, nil
 }
 
+var (
+	nameBytes       = []byte("__name__")
+	metricNameBytes = []byte("envoy_http_downstream_cx_length_ms_bucket")
+)
+
 func (h *PromWriteHandler) write(
 	ctx context.Context,
 	r *prompb.WriteRequest,
 	opts ingest.WriteOptions,
 ) ingest.BatchError {
+	for _, ts := range r.Timeseries {
+		found := false
+		for _, tag := range ts.Labels {
+			if bytes.Equal(tag.Name, nameBytes) {
+				found = bytes.Equal(tag.Value, metricNameBytes)
+				break
+			}
+		}
+
+		if !found {
+			continue
+		}
+
+		var sb strings.Builder
+		sb.WriteString(`!!!   "`)
+		for i, tag := range ts.Labels {
+			if i > 0 {
+				sb.WriteString(";")
+			}
+
+			sb.WriteString(fmt.Sprintf("%s=%s", string(tag.Name), string(tag.Value)))
+		}
+		sb.WriteString(`"`)
+		fmt.Println(sb.String(), ts.Samples)
+	}
+
 	iter, err := newPromTSIter(r.Timeseries, h.tagOptions, h.storeMetricsType)
 	if err != nil {
 		var errs xerrors.MultiError
