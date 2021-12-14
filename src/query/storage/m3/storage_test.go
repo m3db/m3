@@ -426,7 +426,7 @@ func TestLocalReadExceedsRetention(t *testing.T) {
 	assertFetchResult(t, results, testTag)
 }
 
-func TestLocalReadWithNamespaceStitching(t *testing.T) {
+func TestFetchPromWithNamespaceStitching(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -436,8 +436,8 @@ func TestLocalReadWithNamespaceStitching(t *testing.T) {
 
 		testTag = seriesiter.GenerateTag()
 
-		unaggregatedSession = client.NewMockSession(ctrl)
-		aggregatedSession   = client.NewMockSession(ctrl)
+		unaggSession = client.NewMockSession(ctrl)
+		aggSession   = client.NewMockSession(ctrl)
 
 		unaggNamespaceID = ident.StringID("unaggregated")
 		aggNamespaceID   = ident.StringID("aggregated")
@@ -448,12 +448,12 @@ func TestLocalReadWithNamespaceStitching(t *testing.T) {
 	clusters, err := NewClusters(
 		UnaggregatedClusterNamespaceDefinition{
 			NamespaceID: unaggNamespaceID,
-			Session:     unaggregatedSession,
+			Session:     unaggSession,
 			Retention:   24 * time.Hour,
 		},
 		AggregatedClusterNamespaceDefinition{
 			NamespaceID: aggNamespaceID,
-			Session:     aggregatedSession,
+			Session:     aggSession,
 			Retention:   96 * time.Hour,
 			Resolution:  time.Minute,
 			DataLatency: 10 * time.Hour,
@@ -463,7 +463,7 @@ func TestLocalReadWithNamespaceStitching(t *testing.T) {
 
 	store := newTestStorage(t, clusters)
 
-	unaggregatedSession.EXPECT().FetchTagged(gomock.Any(), unaggNamespaceID, gomock.Any(), gomock.Any()).
+	unaggSession.EXPECT().FetchTagged(gomock.Any(), unaggNamespaceID, gomock.Any(), gomock.Any()).
 		DoAndReturn(func(
 			ctx context.Context,
 			namespace ident.ID,
@@ -473,9 +473,9 @@ func TestLocalReadWithNamespaceStitching(t *testing.T) {
 			unaggQueryOpts = opts
 			return seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2), testFetchResponseMetadata, nil
 		})
-	unaggregatedSession.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
+	unaggSession.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
-	aggregatedSession.EXPECT().FetchTagged(gomock.Any(), aggNamespaceID, gomock.Any(), gomock.Any()).
+	aggSession.EXPECT().FetchTagged(gomock.Any(), aggNamespaceID, gomock.Any(), gomock.Any()).
 		DoAndReturn(func(
 			ctx context.Context,
 			namespace ident.ID,
@@ -485,17 +485,17 @@ func TestLocalReadWithNamespaceStitching(t *testing.T) {
 			aggQueryOpts = opts
 			return seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2), testFetchResponseMetadata, nil
 		})
-	aggregatedSession.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
+	aggSession.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	var (
 		fetchOpts = buildFetchOpts()
-		fetchReq  = newFetchReq()
+		req       = newFetchReq()
 	)
 
-	fetchReq.Start = start.ToTime()
-	fetchReq.End = end.ToTime()
+	req.Start = start.ToTime()
+	req.End = end.ToTime()
 
-	results, err := store.FetchProm(context.TODO(), fetchReq, fetchOpts)
+	results, err := store.FetchProm(context.TODO(), req, fetchOpts)
 	require.NoError(t, err)
 
 	assert.Equal(t, start, aggQueryOpts.StartInclusive)
@@ -965,21 +965,7 @@ func TestLocalCompleteTagsSuccessFinalize(t *testing.T) {
 	store := newTestStorage(t, clusters)
 
 	name, value := ident.StringID("name"), ident.StringID("value")
-	iter := client.NewMockAggregatedTagsIterator(ctrl)
-	gomock.InOrder(
-		iter.EXPECT().Remaining().Return(1),
-		iter.EXPECT().Next().Return(true),
-		iter.EXPECT().Current().Return(
-			name,
-			ident.NewIDsIterator(value),
-		),
-		iter.EXPECT().Next().Return(false),
-		iter.EXPECT().Err().Return(nil),
-		iter.EXPECT().Finalize().Do(func() {
-			name.Finalize()
-			value.Finalize()
-		}),
-	)
+	iter := newAggregatedTagsIter(ctrl, name, value)
 
 	unagg.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(iter, testFetchResponseMetadata, nil)
@@ -1006,6 +992,92 @@ func TestLocalCompleteTagsSuccessFinalize(t *testing.T) {
 	assert.False(t, bytetest.ByteSlicesBackedBySameData(value.Bytes(), v))
 }
 
+func TestCompleteTagsWithNamespaceStitching(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		end   = xtime.Now().Truncate(time.Hour)
+		start = end.Add(-48 * time.Hour)
+
+		name  = ident.StringID("name")
+		value = ident.StringID("value")
+
+		unaggSession = client.NewMockSession(ctrl)
+		aggSession   = client.NewMockSession(ctrl)
+
+		unaggNamespaceID = ident.StringID("unaggregated")
+		aggNamespaceID   = ident.StringID("aggregated")
+
+		unaggQueryOpts, aggQueryOpts index.AggregationOptions
+	)
+
+	clusters, err := NewClusters(
+		UnaggregatedClusterNamespaceDefinition{
+			NamespaceID: unaggNamespaceID,
+			Session:     unaggSession,
+			Retention:   24 * time.Hour,
+		},
+		AggregatedClusterNamespaceDefinition{
+			NamespaceID: aggNamespaceID,
+			Session:     aggSession,
+			Retention:   96 * time.Hour,
+			Resolution:  time.Minute,
+			DataLatency: 10 * time.Hour,
+		},
+	)
+	require.NoError(t, err)
+
+	store := newTestStorage(t, clusters)
+
+	unaggIter := newAggregatedTagsIter(ctrl, name, value)
+	unaggSession.EXPECT().Aggregate(gomock.Any(), unaggNamespaceID, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			ctx context.Context,
+			namespace ident.ID,
+			q index.Query,
+			opts index.AggregationOptions,
+		) (client.AggregatedTagsIterator, client.FetchResponseMetadata, error) {
+			unaggQueryOpts = opts
+			return unaggIter, testFetchResponseMetadata, nil
+		})
+
+	aggIter := newAggregatedTagsIter(ctrl, name, value)
+	aggSession.EXPECT().Aggregate(gomock.Any(), aggNamespaceID, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			ctx context.Context,
+			namespace ident.ID,
+			q index.Query,
+			opts index.AggregationOptions,
+		) (client.AggregatedTagsIterator, client.FetchResponseMetadata, error) {
+			aggQueryOpts = opts
+			return aggIter, testFetchResponseMetadata, nil
+		})
+
+	var (
+		fetchOpts = buildFetchOpts()
+		req       = newCompleteTagsReq()
+	)
+
+	req.Start = start
+	req.End = end
+
+	result, err := store.CompleteTags(context.TODO(), req, fetchOpts)
+	require.NoError(t, err)
+
+	assert.Equal(t, start, aggQueryOpts.StartInclusive)
+	assert.Equal(t, aggQueryOpts.EndExclusive, unaggQueryOpts.StartInclusive) // stitching point
+	assert.Equal(t, end, unaggQueryOpts.EndExclusive)
+
+	expected := []consolidators.CompletedTag{
+		{
+			Name:   []byte("name"),
+			Values: [][]byte{[]byte("value")},
+		},
+	}
+	assert.Equal(t, expected, result.CompletedTags)
+}
+
 func TestInvalidBlockTypes(t *testing.T) {
 	opts := NewOptions(encoding.NewOptions())
 	s, err := NewStorage(nil, opts, instrument.NewOptions())
@@ -1015,4 +1087,28 @@ func TestInvalidBlockTypes(t *testing.T) {
 	fetchOpts := &storage.FetchOptions{BlockType: models.TypeMultiBlock}
 	defer instrument.SetShouldPanicEnvironmentVariable(true)()
 	require.Panics(t, func() { _, _ = s.FetchBlocks(context.TODO(), query, fetchOpts) })
+}
+
+func newAggregatedTagsIter(
+	ctrl *gomock.Controller,
+	name, value ident.ID,
+) client.AggregatedTagsIterator {
+	iter := client.NewMockAggregatedTagsIterator(ctrl)
+
+	gomock.InOrder(
+		iter.EXPECT().Remaining().Return(1),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Current().Return(
+			name,
+			ident.NewIDsIterator(value),
+		),
+		iter.EXPECT().Next().Return(false),
+		iter.EXPECT().Err().Return(nil),
+		iter.EXPECT().Finalize().Do(func() {
+			name.Finalize()
+			value.Finalize()
+		}),
+	)
+
+	return iter
 }

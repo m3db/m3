@@ -46,7 +46,6 @@ type unaggregatedNamespaceDetails struct {
 
 type resolvedNamespace struct {
 	ClusterNamespace
-
 	narrowing narrowing
 }
 

@@ -671,24 +671,28 @@ func TestResolveNamespaceWithDataLatency(t *testing.T) {
 	dataLatency := 10 * time.Hour
 
 	session := client.NewMockSession(ctrl)
-	ns, err := NewClusters(UnaggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("default"),
-		Retention:   24 * time.Hour,
-		Session:     session,
-	}, AggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("aggregated_30d"),
-		Retention:   30 * 24 * time.Hour,
-		Resolution:  5 * time.Minute,
-		Downsample:  &ClusterNamespaceDownsampleOptions{All: true},
-		Session:     session,
-	}, AggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("aggregated_60d"),
-		Retention:   60 * 24 * time.Hour,
-		Resolution:  10 * time.Minute,
-		Downsample:  &ClusterNamespaceDownsampleOptions{All: true},
-		DataLatency: dataLatency,
-		Session:     session,
-	})
+	ns, err := NewClusters(
+		UnaggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("default"),
+			Retention:   24 * time.Hour,
+			Session:     session,
+		},
+		AggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("aggregated_30d"),
+			Retention:   30 * 24 * time.Hour,
+			Resolution:  5 * time.Minute,
+			Downsample:  &ClusterNamespaceDownsampleOptions{All: true},
+			Session:     session,
+		},
+		AggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("aggregated_60d"),
+			Retention:   60 * 24 * time.Hour,
+			Resolution:  10 * time.Minute,
+			Downsample:  &ClusterNamespaceDownsampleOptions{All: true},
+			DataLatency: dataLatency,
+			Session:     session,
+		},
+	)
 	require.NoError(t, err)
 
 	now := xtime.Now()
