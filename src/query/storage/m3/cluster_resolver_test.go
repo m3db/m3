@@ -703,7 +703,7 @@ func TestResolveNamespaceWithDataLatency(t *testing.T) {
 		&storage.FanoutOptions{}, nil, nil)
 	require.NoError(t, err)
 
-	actualNamespaces := make(map[string]narrowing, 0)
+	actualNamespaces := make(map[string]narrowing)
 	for _, c := range clusters {
 		actualNamespaces[c.NamespaceID().String()] = c.narrowing
 	}
