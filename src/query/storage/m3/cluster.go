@@ -34,10 +34,11 @@ import (
 )
 
 var (
-	errNamespaceIDNotSet = errors.New("namespace ID not set")
-	errSessionNotSet     = errors.New("session not set")
-	errRetentionNotSet   = errors.New("retention not set")
-	errResolutionNotSet  = errors.New("resolution not set")
+	errNamespaceIDNotSet   = errors.New("namespace ID not set")
+	errSessionNotSet       = errors.New("session not set")
+	errRetentionNotSet     = errors.New("retention not set")
+	errResolutionNotSet    = errors.New("resolution not set")
+	errNegativeDataLatency = errors.New("negative dataLatency")
 
 	// DefaultClusterNamespaceDownsampleOptions is a default options.
 	// NB(antanas): this was made public to access it in promremote storage.
@@ -99,9 +100,10 @@ type ClusterNamespace interface {
 type ClusterNamespaceOptions struct {
 	// Note: Don't allow direct access, as we want to provide defaults
 	// and/or error if call to access a field is not relevant/correct.
-	attributes storagemetadata.Attributes
-	downsample *ClusterNamespaceDownsampleOptions
-	readOnly   bool
+	attributes  storagemetadata.Attributes
+	downsample  *ClusterNamespaceDownsampleOptions
+	dataLatency time.Duration
+	readOnly    bool
 }
 
 // NewClusterNamespaceOptions creates new cluster namespace options.
@@ -118,6 +120,11 @@ func NewClusterNamespaceOptions(
 // Attributes returns the storage attributes of the cluster namespace.
 func (o ClusterNamespaceOptions) Attributes() storagemetadata.Attributes {
 	return o.attributes
+}
+
+// DataLatency returns the duration after which the data is available in this cluster namespace.
+func (o ClusterNamespaceOptions) DataLatency() time.Duration {
+	return o.dataLatency
 }
 
 // ReadOnly returns the value of ReadOnly option for a cluster namespace.
@@ -192,6 +199,7 @@ type AggregatedClusterNamespaceDefinition struct {
 	Retention   time.Duration
 	Resolution  time.Duration
 	Downsample  *ClusterNamespaceDownsampleOptions
+	DataLatency time.Duration
 	ReadOnly    bool
 }
 
@@ -208,6 +216,9 @@ func (def AggregatedClusterNamespaceDefinition) Validate() error {
 	}
 	if def.Resolution <= 0 {
 		return errResolutionNotSet
+	}
+	if def.DataLatency < 0 {
+		return errNegativeDataLatency
 	}
 	return nil
 }
@@ -372,8 +383,9 @@ func newAggregatedClusterNamespace(
 				Retention:   def.Retention,
 				Resolution:  def.Resolution,
 			},
-			downsample: def.Downsample,
-			readOnly:   def.ReadOnly,
+			downsample:  def.Downsample,
+			dataLatency: def.DataLatency,
+			readOnly:    def.ReadOnly,
 		},
 		session: def.Session,
 	}, nil

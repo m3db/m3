@@ -23,8 +23,6 @@ package m3
 import (
 	"fmt"
 	"sort"
-	"strings"
-	"time"
 
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -366,14 +364,10 @@ func aggregatedNamespaces(
 
 		resolvedNs := resolved(namespace)
 
-		var dataLatency time.Duration
-		downsampled := strings.HasPrefix(resolvedNs.NamespaceID().String(), "downsampled")
-		if downsampled {
-			// FIXME: make this configurable
-			dataLatency = 12 * time.Hour
-		}
-
-		dataAvailableUntil := now.Add(-dataLatency)
+		var (
+			dataLatency        = nsOpts.DataLatency()
+			dataAvailableUntil = now.Add(-dataLatency)
+		)
 		if dataLatency > 0 && end.After(dataAvailableUntil) {
 			resolvedNs.narrowing.End = dataAvailableUntil
 		}
@@ -393,7 +387,7 @@ func aggregatedNamespaces(
 			continue
 		}
 
-		if downsampleOpts.All || downsampled /*FIXME: make this configurable*/ {
+		if downsampleOpts.All {
 			// This namespace has a complete set of metrics. Ensure that it passes
 			// the filter if it was a forced addition, otherwise it may be too short
 			// to cover the entire range and should be considered a partial result.
