@@ -705,8 +705,8 @@ func TestResolveNamespaceWithDataLatency(t *testing.T) {
 	}
 
 	expectedNamespaces := map[string]narrowing{
-		"aggregated_60d": {end: now.Add(-dataLatency)},
 		"default":        {start: now.Add(-dataLatency)},
+		"aggregated_60d": {end: now.Add(-dataLatency)},
 	}
 
 	assert.Equal(t, expectedNamespaces, actualNamespaces)

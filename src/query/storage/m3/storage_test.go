@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -305,7 +306,8 @@ func TestWriteToReadOnlyNamespaceFail(t *testing.T) {
 			NamespaceID: ident.StringID("unaggregated"),
 			Session:     client.NewMockSession(ctrl),
 			Retention:   time.Hour,
-		}, AggregatedClusterNamespaceDefinition{
+		},
+		AggregatedClusterNamespaceDefinition{
 			NamespaceID: ident.StringID("aggregated_readonly"),
 			Session:     client.NewMockSession(ctrl),
 			Retention:   24 * time.Hour,
@@ -421,6 +423,85 @@ func TestLocalReadExceedsRetention(t *testing.T) {
 	searchReq.End = time.Now()
 	results, err := store.FetchProm(context.TODO(), searchReq, buildFetchOpts())
 	require.NoError(t, err)
+	assertFetchResult(t, results, testTag)
+}
+
+func TestLocalReadWithNamespaceStitching(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		end   = xtime.Now().Truncate(time.Hour)
+		start = end.Add(-48 * time.Hour)
+
+		testTag = seriesiter.GenerateTag()
+
+		unaggregatedSession = client.NewMockSession(ctrl)
+		aggregatedSession   = client.NewMockSession(ctrl)
+
+		unaggNamespaceID = ident.StringID("unaggregated")
+		aggNamespaceID   = ident.StringID("aggregated")
+
+		unaggQueryOpts, aggQueryOpts index.QueryOptions
+	)
+
+	clusters, err := NewClusters(
+		UnaggregatedClusterNamespaceDefinition{
+			NamespaceID: unaggNamespaceID,
+			Session:     unaggregatedSession,
+			Retention:   24 * time.Hour,
+		},
+		AggregatedClusterNamespaceDefinition{
+			NamespaceID: aggNamespaceID,
+			Session:     aggregatedSession,
+			Retention:   96 * time.Hour,
+			Resolution:  time.Minute,
+			DataLatency: 10 * time.Hour,
+		},
+	)
+	require.NoError(t, err)
+
+	store := newTestStorage(t, clusters)
+
+	unaggregatedSession.EXPECT().FetchTagged(gomock.Any(), unaggNamespaceID, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			ctx context.Context,
+			namespace ident.ID,
+			q index.Query,
+			opts index.QueryOptions,
+		) (encoding.SeriesIterators, client.FetchResponseMetadata, error) {
+			unaggQueryOpts = opts
+			return seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2), testFetchResponseMetadata, nil
+		})
+	unaggregatedSession.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
+
+	aggregatedSession.EXPECT().FetchTagged(gomock.Any(), aggNamespaceID, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			ctx context.Context,
+			namespace ident.ID,
+			q index.Query,
+			opts index.QueryOptions,
+		) (encoding.SeriesIterators, client.FetchResponseMetadata, error) {
+			aggQueryOpts = opts
+			return seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2), testFetchResponseMetadata, nil
+		})
+	aggregatedSession.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
+
+	var (
+		fetchOpts = buildFetchOpts()
+		fetchReq  = newFetchReq()
+	)
+
+	fetchReq.Start = start.ToTime()
+	fetchReq.End = end.ToTime()
+
+	results, err := store.FetchProm(context.TODO(), fetchReq, fetchOpts)
+	require.NoError(t, err)
+
+	assert.Equal(t, start, aggQueryOpts.StartInclusive)
+	assert.Equal(t, aggQueryOpts.EndExclusive, unaggQueryOpts.StartInclusive) // stitching point
+	assert.Equal(t, end, unaggQueryOpts.EndExclusive)
+
 	assertFetchResult(t, results, testTag)
 }
 
