@@ -373,9 +373,9 @@ func (s *m3storage) fetchCompressed(
 				zap.String("query", query.Raw),
 				zap.String("m3query", m3query.String()),
 				zap.Time("start", queryStart.ToTime()),
-				zap.Time("startNarrowing", n.narrowing.Start.ToTime()),
+				zap.Time("narrowing.start", n.narrowing.start.ToTime()),
 				zap.Time("end", queryEnd.ToTime()),
-				zap.Time("endNarrowing", n.narrowing.End.ToTime()),
+				zap.Time("narrowing.end", n.narrowing.end.ToTime()),
 				zap.String("fanoutType", fanout.String()),
 				zap.String("namespace", n.NamespaceID().String()),
 				zap.String("type", n.Options().Attributes().MetricsType.String()),
@@ -442,7 +442,6 @@ func (s *m3storage) fetchCompressed(
 				SeriesIterators: iters,
 				Metadata:        blockMeta,
 				Attrs:           namespace.Options().Attributes(),
-				Narrowing:       namespace.narrowing,
 				Err:             err,
 			})
 		}()
@@ -889,11 +888,11 @@ func (s *m3storage) writeSingle(
 
 func narrowQueryOpts(o index.QueryOptions, namespace resolvedNamespace) index.QueryOptions {
 	narrowed := o
-	if !namespace.narrowing.Start.IsZero() && namespace.narrowing.Start.After(o.StartInclusive) {
-		narrowed.StartInclusive = namespace.narrowing.Start
+	if !namespace.narrowing.start.IsZero() && namespace.narrowing.start.After(o.StartInclusive) {
+		narrowed.StartInclusive = namespace.narrowing.start
 	}
-	if !namespace.narrowing.End.IsZero() && namespace.narrowing.End.Before(o.EndExclusive) {
-		narrowed.EndExclusive = namespace.narrowing.End
+	if !namespace.narrowing.end.IsZero() && namespace.narrowing.end.Before(o.EndExclusive) {
+		narrowed.EndExclusive = namespace.narrowing.end
 	}
 
 	return narrowed

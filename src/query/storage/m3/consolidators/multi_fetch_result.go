@@ -34,8 +34,8 @@ import (
 )
 
 type fetchDedupeMap interface {
-	add(iter encoding.SeriesIterator, attrs storagemetadata.Attributes, narrowing Narrowing) error
-	update(iter encoding.SeriesIterator, attrs storagemetadata.Attributes, narrowing Narrowing) (bool, error)
+	add(iter encoding.SeriesIterator, attrs storagemetadata.Attributes) error
+	update(iter encoding.SeriesIterator, attrs storagemetadata.Attributes) (bool, error)
 	list() []multiResultSeries
 	len() int
 	close()
@@ -43,10 +43,9 @@ type fetchDedupeMap interface {
 
 type multiResult struct {
 	sync.Mutex
-	metadata           block.ResultMetadata
-	fanout             QueryFanoutType
-	seenFirstAttrs     storagemetadata.Attributes
-	seenFirstNarrowing Narrowing
+	metadata       block.ResultMetadata
+	fanout         QueryFanoutType
+	seenFirstAttrs storagemetadata.Attributes
 
 	seenIters       []encoding.SeriesIterators // track known iterators to avoid leaking
 	mergedIterators encoding.MutableSeriesIterators
@@ -87,10 +86,9 @@ func NewMultiFetchResult(
 }
 
 type multiResultSeries struct {
-	attrs     storagemetadata.Attributes
-	iter      encoding.SeriesIterator
-	tags      models.Tags
-	narrowing Narrowing
+	attrs storagemetadata.Attributes
+	iter  encoding.SeriesIterator
+	tags  models.Tags
 }
 
 func (r *multiResult) Close() error {
@@ -202,7 +200,6 @@ func (r *multiResult) Add(add MultiFetchResults) {
 		newIterators = add.SeriesIterators
 		metadata     = add.Metadata
 		attrs        = add.Attrs
-		narrowing    = add.Narrowing
 	)
 
 	r.Lock()
@@ -233,7 +230,6 @@ func (r *multiResult) Add(add MultiFetchResults) {
 	if len(r.seenIters) == 0 {
 		// store the first attributes seen
 		r.seenFirstAttrs = attrs
-		r.seenFirstNarrowing = narrowing
 	} else if !r.metadata.Exhaustive {
 		// a previous namespace result already hit the limit, so bail. this handles the case of RequireExhaustive=false
 		// and there is no error to short circuit.
@@ -271,10 +267,10 @@ func (r *multiResult) Add(add MultiFetchResults) {
 			r.dedupeMap = newTagDedupeMap(opts)
 		}
 
-		added = r.addOrUpdateDedupeMap(r.seenFirstAttrs, r.seenFirstNarrowing, first)
+		added = r.addOrUpdateDedupeMap(r.seenFirstAttrs, first)
 	} else {
 		// Now de-duplicate
-		added = r.addOrUpdateDedupeMap(attrs, narrowing, newIterators)
+		added = r.addOrUpdateDedupeMap(attrs, newIterators)
 	}
 
 	// the series limit was reached by adding the results of this namespace to the existing results.
@@ -302,7 +298,6 @@ func NewLimitError(msg string) error {
 
 func (r *multiResult) addOrUpdateDedupeMap(
 	attrs storagemetadata.Attributes,
-	narrowing Narrowing,
 	newIterators encoding.SeriesIterators,
 ) bool {
 	for _, iter := range newIterators.Iters() {
@@ -319,7 +314,7 @@ func (r *multiResult) addOrUpdateDedupeMap(
 		}
 
 		if r.dedupeMap.len() == r.limitOpts.Limit {
-			updated, err := r.dedupeMap.update(iter, attrs, narrowing)
+			updated, err := r.dedupeMap.update(iter, attrs)
 			if err != nil {
 				r.err = r.err.Add(err)
 				return false
@@ -327,7 +322,7 @@ func (r *multiResult) addOrUpdateDedupeMap(
 			if !updated {
 				return false
 			}
-		} else if err := r.dedupeMap.add(iter, attrs, narrowing); err != nil {
+		} else if err := r.dedupeMap.add(iter, attrs); err != nil {
 			r.err = r.err.Add(err)
 			return false
 		}

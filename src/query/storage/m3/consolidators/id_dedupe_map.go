@@ -67,7 +67,6 @@ func (m *idDedupeMap) len() int {
 func (m *idDedupeMap) update(
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
-	narrowing Narrowing,
 ) (bool, error) {
 	id := iter.ID().String()
 	existing, exists := m.series[id]
@@ -78,13 +77,12 @@ func (m *idDedupeMap) update(
 	if err != nil {
 		return false, err
 	}
-	return true, m.doUpdate(id, existing, tags, iter, attrs, narrowing)
+	return true, m.doUpdate(id, existing, tags, iter, attrs)
 }
 
 func (m *idDedupeMap) add(
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
-	narrowing Narrowing,
 ) error {
 	id := iter.ID().String()
 	tags, err := FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
@@ -97,14 +95,13 @@ func (m *idDedupeMap) add(
 	if !exists {
 		// Does not exist, new addition
 		m.series[id] = multiResultSeries{
-			attrs:     attrs,
-			iter:      iter,
-			tags:      tags,
-			narrowing: narrowing,
+			attrs: attrs,
+			iter:  iter,
+			tags:  tags,
 		}
 		return nil
 	}
-	return m.doUpdate(id, existing, tags, iter, attrs, narrowing)
+	return m.doUpdate(id, existing, tags, iter, attrs)
 }
 
 func (m *idDedupeMap) doUpdate(
@@ -113,9 +110,8 @@ func (m *idDedupeMap) doUpdate(
 	tags models.Tags,
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
-	narrowing Narrowing,
 ) error {
-	if stitched, ok, err := stitchIfNeeded(existing, tags, iter, attrs, narrowing); err != nil {
+	if stitched, ok, err := stitchIfNeeded(existing, tags, iter, attrs); err != nil {
 		return err
 	} else if ok {
 		m.series[id] = stitched
@@ -140,15 +136,16 @@ func (m *idDedupeMap) doUpdate(
 	}
 	if existsBetter {
 		// Existing result is already better
+		iter.Close()
 		return nil
 	}
 
 	// Override
+	existing.iter.Close()
 	m.series[id] = multiResultSeries{
-		attrs:     attrs,
-		iter:      iter,
-		tags:      tags,
-		narrowing: narrowing,
+		attrs: attrs,
+		iter:  iter,
+		tags:  tags,
 	}
 
 	return nil

@@ -699,14 +699,14 @@ func TestResolveNamespaceWithDataLatency(t *testing.T) {
 		&storage.FanoutOptions{}, nil, nil)
 	require.NoError(t, err)
 
-	actualNamespaces := make(map[string]consolidators.Narrowing, 0)
+	actualNamespaces := make(map[string]narrowing, 0)
 	for _, c := range clusters {
 		actualNamespaces[c.NamespaceID().String()] = c.narrowing
 	}
 
-	expectedNamespaces := map[string]consolidators.Narrowing{
-		"aggregated_60d": {End: now.Add(-dataLatency)},
-		"default":        {Start: now.Add(-dataLatency)},
+	expectedNamespaces := map[string]narrowing{
+		"aggregated_60d": {end: now.Add(-dataLatency)},
+		"default":        {start: now.Add(-dataLatency)},
 	}
 
 	assert.Equal(t, expectedNamespaces, actualNamespaces)

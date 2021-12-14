@@ -63,7 +63,6 @@ func (m *tagDedupeMap) list() []multiResultSeries {
 func (m *tagDedupeMap) update(
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
-	narrowing Narrowing,
 ) (bool, error) {
 	tags, err := FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
 	if err != nil {
@@ -73,13 +72,12 @@ func (m *tagDedupeMap) update(
 	if !exists {
 		return false, nil
 	}
-	return true, m.doUpdate(existing, tags, iter, attrs, narrowing)
+	return true, m.doUpdate(existing, tags, iter, attrs)
 }
 
 func (m *tagDedupeMap) add(
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
-	narrowing Narrowing,
 ) error {
 	tags, err := FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
 	if err != nil {
@@ -90,14 +88,13 @@ func (m *tagDedupeMap) add(
 	existing, exists := m.mapWrapper.get(tags)
 	if !exists {
 		m.mapWrapper.set(tags, multiResultSeries{
-			iter:      iter,
-			attrs:     attrs,
-			tags:      tags,
-			narrowing: narrowing,
+			iter:  iter,
+			attrs: attrs,
+			tags:  tags,
 		})
 		return nil
 	}
-	return m.doUpdate(existing, tags, iter, attrs, narrowing)
+	return m.doUpdate(existing, tags, iter, attrs)
 }
 
 func (m *tagDedupeMap) doUpdate(
@@ -105,9 +102,8 @@ func (m *tagDedupeMap) doUpdate(
 	tags models.Tags,
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
-	narrowing Narrowing,
 ) error {
-	if stitched, ok, err := stitchIfNeeded(existing, tags, iter, attrs, narrowing); err != nil {
+	if stitched, ok, err := stitchIfNeeded(existing, tags, iter, attrs); err != nil {
 		return err
 	} else if ok {
 		m.mapWrapper.set(tags, stitched)
@@ -153,6 +149,7 @@ func (m *tagDedupeMap) doUpdate(
 
 	if existsBetter {
 		// Existing result is already better
+		iter.Close()
 		return nil
 	}
 
@@ -189,34 +186,31 @@ func stitchIfNeeded(
 	tags models.Tags,
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
-	narrowing Narrowing,
 ) (multiResultSeries, bool, error) {
-	// Stitching based on matching narrowing start/end.
-	if !narrowing.Start.IsZero() && narrowing.Start.Equal(existing.narrowing.End) {
+	// Stitching based on matching start/end.
+	if iter.Start().Equal(existing.iter.End()) {
 		combinedIter, err := combineIters(existing.iter, iter)
 		if err != nil {
 			return multiResultSeries{}, false, err
 		}
 
 		return multiResultSeries{
-			attrs:     existing.attrs,
-			iter:      combinedIter,
-			tags:      existing.tags,
-			narrowing: Narrowing{Start: existing.narrowing.Start, End: narrowing.End},
+			attrs: existing.attrs,
+			iter:  combinedIter,
+			tags:  existing.tags,
 		}, true, nil
 	}
 
-	if !narrowing.End.IsZero() && narrowing.End.Equal(existing.narrowing.Start) {
+	if iter.End().Equal(existing.iter.Start()) {
 		combinedIter, err := combineIters(iter, existing.iter)
 		if err != nil {
 			return multiResultSeries{}, false, err
 		}
 
 		return multiResultSeries{
-			attrs:     attrs,
-			iter:      combinedIter,
-			tags:      tags,
-			narrowing: Narrowing{Start: narrowing.Start, End: existing.narrowing.End},
+			attrs: attrs,
+			iter:  combinedIter,
+			tags:  tags,
 		}, true, nil
 	}
 

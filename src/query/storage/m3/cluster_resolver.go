@@ -47,7 +47,7 @@ type unaggregatedNamespaceDetails struct {
 type resolvedNamespace struct {
 	ClusterNamespace
 
-	narrowing consolidators.Narrowing
+	narrowing narrowing
 }
 
 func resolved(ns ClusterNamespace) resolvedNamespace {
@@ -211,11 +211,11 @@ func resolveClusterNamespacesForQueryLogicalPlan(
 			}
 		}
 
-		if !result[0].narrowing.End.IsZero() {
+		if !result[0].narrowing.end.IsZero() {
 			// completeAggregated namespace will not have the most recent data available, will
 			// have to query unaggregated namespace for it and then stitch the responses together.
 			unaggregatedNarrowed := resolved(unaggregated.clusterNamespace)
-			unaggregatedNarrowed.narrowing.Start = result[0].narrowing.End
+			unaggregatedNarrowed.narrowing.start = result[0].narrowing.end
 
 			result = append(result, unaggregatedNarrowed)
 		}
@@ -272,11 +272,11 @@ func resolveClusterNamespacesForQueryLogicalPlan(
 		}
 	}
 
-	if !result[0].narrowing.End.IsZero() {
+	if !result[0].narrowing.end.IsZero() {
 		// completeAggregated namespace will not have the most recent data available, will
 		// have to query unaggregated namespace for it and then stitch the responses together.
 		unaggregatedNarrowed := resolved(unaggregated.clusterNamespace)
-		unaggregatedNarrowed.narrowing.Start = result[0].narrowing.End
+		unaggregatedNarrowed.narrowing.start = result[0].narrowing.end
 
 		result = append(result, unaggregatedNarrowed)
 	}
@@ -369,7 +369,7 @@ func aggregatedNamespaces(
 			dataAvailableUntil = now.Add(-dataLatency)
 		)
 		if dataLatency > 0 && end.After(dataAvailableUntil) {
-			resolvedNs.narrowing.End = dataAvailableUntil
+			resolvedNs.narrowing.end = dataAvailableUntil
 		}
 
 		// If not optimizing fanout to aggregated namespaces, set all aggregated
