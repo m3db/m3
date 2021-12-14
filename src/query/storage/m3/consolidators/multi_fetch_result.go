@@ -259,7 +259,7 @@ func (r *multiResult) Add(add MultiFetchResults) {
 	if len(r.seenIters) == 1 {
 		// need to backfill the dedupe map from the first result first
 		first := r.seenIters[0]
-		opts := tagMapOpts{
+		opts := dedupeMapOpts{
 			fanout:  r.fanout,
 			size:    first.Len(),
 			tagOpts: r.tagOpts,

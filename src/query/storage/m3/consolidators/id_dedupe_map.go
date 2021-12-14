@@ -35,7 +35,7 @@ type idDedupeMap struct {
 	tagOpts models.TagOptions
 }
 
-func newIDDedupeMap(opts tagMapOpts) fetchDedupeMap {
+func newIDDedupeMap(opts dedupeMapOpts) fetchDedupeMap {
 	return &idDedupeMap{
 		fanout:  opts.fanout,
 		series:  make(map[string]multiResultSeries, opts.size),

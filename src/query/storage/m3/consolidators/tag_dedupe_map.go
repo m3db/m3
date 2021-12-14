@@ -34,13 +34,13 @@ type tagDedupeMap struct {
 	tagOpts    models.TagOptions
 }
 
-type tagMapOpts struct {
+type dedupeMapOpts struct {
 	size    int
 	fanout  QueryFanoutType
 	tagOpts models.TagOptions
 }
 
-func newTagDedupeMap(opts tagMapOpts) fetchDedupeMap {
+func newTagDedupeMap(opts dedupeMapOpts) fetchDedupeMap {
 	return &tagDedupeMap{
 		fanout:     opts.fanout,
 		mapWrapper: newFetchResultMapWrapper(opts.size),

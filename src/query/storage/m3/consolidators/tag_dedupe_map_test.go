@@ -123,7 +123,7 @@ func TestTagDedupeMap(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	dedupeMap := newTagDedupeMap(tagMapOpts{
+	dedupeMap := newTagDedupeMap(dedupeMapOpts{
 		size:    8,
 		fanout:  NamespaceCoversAllQueryRange,
 		tagOpts: models.NewTagOptions(),
@@ -134,17 +134,24 @@ func TestTagDedupeMap(t *testing.T) {
 		MetricsType: storagemetadata.UnaggregatedMetricsType,
 		Resolution:  time.Hour,
 	}
+	noNarrowing := Narrowing{}
 
-	dedupeMap.add(it(ctrl, dp{t: start, val: 14},
-		"id1", "foo", "bar", "qux", "quail"), attrs)
+	err := dedupeMap.add(it(ctrl, dp{t: start, val: 14},
+		"id1", "foo", "bar", "qux", "quail"), attrs, noNarrowing)
+	require.NoError(t, err)
+
 	verifyDedupeMap(t, dedupeMap, ts.Datapoint{TimestampNanos: start, Value: 14})
 
 	// Lower resolution must override.
 	attrs.Resolution = time.Minute
-	dedupeMap.add(it(ctrl, dp{t: start.Add(time.Minute), val: 10},
-		"id1", "foo", "bar", "qux", "quail"), attrs)
-	dedupeMap.add(it(ctrl, dp{t: start.Add(time.Minute * 2), val: 12},
-		"id2", "foo", "bar", "qux", "quail"), attrs)
+
+	err = dedupeMap.add(it(ctrl, dp{t: start.Add(time.Minute), val: 10},
+		"id1", "foo", "bar", "qux", "quail"), attrs, noNarrowing)
+	require.NoError(t, err)
+
+	err = dedupeMap.add(it(ctrl, dp{t: start.Add(time.Minute * 2), val: 12},
+		"id2", "foo", "bar", "qux", "quail"), attrs, noNarrowing)
+	require.NoError(t, err)
 
 	verifyDedupeMap(t, dedupeMap,
 		ts.Datapoint{TimestampNanos: start.Add(time.Minute), Value: 10},
@@ -152,8 +159,11 @@ func TestTagDedupeMap(t *testing.T) {
 
 	// Lower resolution must override.
 	attrs.Resolution = time.Second
-	dedupeMap.add(it(ctrl, dp{t: start, val: 100},
-		"id1", "foo", "bar", "qux", "quail"), attrs)
+
+	err = dedupeMap.add(it(ctrl, dp{t: start, val: 100},
+		"id1", "foo", "bar", "qux", "quail"), attrs, noNarrowing)
+	require.NoError(t, err)
+
 	verifyDedupeMap(t, dedupeMap, ts.Datapoint{TimestampNanos: start, Value: 100})
 
 	for _, it := range dedupeMap.list() {
