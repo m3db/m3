@@ -370,6 +370,7 @@ func testMultiFetchResultTagDedupeMap(
 			assert.Equal(t, exDp.val, dp.Value)
 			assert.Equal(t, exDp.t, dp.TimestampNanos)
 		}
+		assert.False(t, iter.Next())
 
 		assert.NoError(t, iter.Err())
 	}
