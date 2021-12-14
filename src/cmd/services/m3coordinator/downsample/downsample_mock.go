@@ -27,6 +27,7 @@ package downsample
 import (
 	"reflect"
 
+	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -67,6 +68,21 @@ func (m *MockDownsampler) Enabled() bool {
 func (mr *MockDownsamplerMockRecorder) Enabled() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enabled", reflect.TypeOf((*MockDownsampler)(nil).Enabled))
+}
+
+// LatestRollupRules mocks base method.
+func (m *MockDownsampler) LatestRollupRules(arg0 []byte, arg1 int64) ([]view.RollupRule, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LatestRollupRules", arg0, arg1)
+	ret0, _ := ret[0].([]view.RollupRule)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LatestRollupRules indicates an expected call of LatestRollupRules.
+func (mr *MockDownsamplerMockRecorder) LatestRollupRules(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LatestRollupRules", reflect.TypeOf((*MockDownsampler)(nil).LatestRollupRules), arg0, arg1)
 }
 
 // NewMetricsAppender mocks base method.

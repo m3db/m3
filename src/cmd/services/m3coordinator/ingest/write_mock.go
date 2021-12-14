@@ -28,6 +28,7 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
@@ -57,6 +58,20 @@ func NewMockDownsamplerAndWriter(ctrl *gomock.Controller) *MockDownsamplerAndWri
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockDownsamplerAndWriter) EXPECT() *MockDownsamplerAndWriterMockRecorder {
 	return m.recorder
+}
+
+// Downsampler mocks base method.
+func (m *MockDownsamplerAndWriter) Downsampler() downsample.Downsampler {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Downsampler")
+	ret0, _ := ret[0].(downsample.Downsampler)
+	return ret0
+}
+
+// Downsampler indicates an expected call of Downsampler.
+func (mr *MockDownsamplerAndWriterMockRecorder) Downsampler() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Downsampler", reflect.TypeOf((*MockDownsamplerAndWriter)(nil).Downsampler))
 }
 
 // Storage mocks base method.
