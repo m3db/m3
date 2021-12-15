@@ -87,8 +87,8 @@ func (r *seriesResolver) resolve() error {
 		return r.resolvedErr
 	}
 
-	// NB: the responsibility for keeping the ref count on the entry is managed by the consume of this resolver.
-	// On creation, the created entry is incremented and resolver.ReleaseRef() decrements that same entry. So
+	// NB: the responsibility of managing the ref count on the entry belongs to the consumer of this resolver.
+	// On creation, the created entry is incremented and on resolver.ReleaseRef() that same entry is decremented. So
 	// here we just want to retrieve the entry present on the shard without affecting the ref count.
 	entry.DecrementReaderWriterCount()
 
@@ -106,7 +106,7 @@ func (r *seriesResolver) SeriesRef() (bootstrap.SeriesRef, error) {
 func (r *seriesResolver) ReleaseRef() {
 	// We explicitly dec the originally created entry for the resolver since that is the one that was incremented.
 	// If the entry that won the race to the shard map was not this one, that means that some other resolver is
-	// responsible for this decrement. This pattern ensures we don't have multiple resolver for the same series
+	// responsible for this decrement. This pattern ensures we don't have multiple resolvers for the same series
 	// calling decrement on the same entry more than once.
 	r.createdEntry.ReleaseRef()
 }

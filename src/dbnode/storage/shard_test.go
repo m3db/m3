@@ -2067,6 +2067,13 @@ func TestSeriesRefResolverAsync(t *testing.T) {
 		Return(ident.NewTagsIterator(seriesTags)).
 		AnyTimes()
 
+	// This resolution path is async due to the use of the index insert queue.
+	// When many entries for the same series are queued up at once, only one
+	// is persisted in the shard map. We induce this by spinning up N goroutines
+	// to cause an insert for the same series, and release them all at once.
+	// We then verify at the end that the ref counts are correctly freed for the
+	// entry ultimately in the shard map (i.e. it should have zero outstanding after
+	// every resolver is closed).
 	var (
 		start  sync.WaitGroup
 		finish sync.WaitGroup
@@ -2098,7 +2105,8 @@ func TestSeriesRefResolverAsync(t *testing.T) {
 
 	entryInShard, _, err := shard.TryRetrieveSeriesAndIncrementReaderWriterCount(seriesID)
 	require.NoError(t, err)
-	require.Equal(t, int32(1), entryInShard.ReaderWriterCount())
+	entryInShard.DecrementReaderWriterCount() // Decrement because the above retrieval increments.
+	require.Equal(t, int32(0), entryInShard.ReaderWriterCount())
 }
 
 func getMockReader(
