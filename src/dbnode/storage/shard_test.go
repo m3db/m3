@@ -2060,12 +2060,7 @@ func TestSeriesRefResolverAsync(t *testing.T) {
 		Value: ident.StringID("baz"),
 	})
 
-	iter := ident.NewMockTagIterator(ctrl)
-	// Ensure duplicate called but no close, etc
-	iter.EXPECT().
-		Duplicate().
-		Return(ident.NewTagsIterator(seriesTags)).
-		AnyTimes()
+	iter := ident.NewTagsIterator(seriesTags)
 
 	// This resolution path is async due to the use of the index insert queue.
 	// When many entries for the same series are queued up at once, only one
