@@ -139,8 +139,20 @@ func multiProcessRun(
 				fmt.Sprintf("%s=%d", multiProcessInstanceEnvVar, i+1),
 			}
 
+			if cfg.MultiProcess.AutoGoMaxProcs {
+				goMaxProcs := runtime.GOMAXPROCS(0)
+				cfg.MultiProcess.GoMaxProcs = goMaxProcs / count
+				if goMaxProcs%count != 0 {
+					logger.Sugar().Warnf("%s (%v) is not divisible by %v. consider changing to improve "+
+						"scheduling", goMaxProcsEnvVar, goMaxProcs, count)
+					cfg.MultiProcess.GoMaxProcs++
+				}
+				logger.Sugar().Infof("automatically setting %s=%v/%v", goMaxProcsEnvVar, goMaxProcs, count)
+			}
+
 			// Set GOMAXPROCS correctly if configured.
 			if v := cfg.MultiProcess.GoMaxProcs; v > 0 {
+				logger.Sugar().Infof("setting %s=%v", goMaxProcsEnvVar, v)
 				newEnv = append(newEnv,
 					fmt.Sprintf("%s=%d", goMaxProcsEnvVar, v))
 			}

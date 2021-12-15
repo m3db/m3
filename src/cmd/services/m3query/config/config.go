@@ -932,4 +932,7 @@ type MultiProcessConfiguration struct {
 	PerCPU float64 `yaml:"perCPU" validate:"min=0.0, max=1.0"`
 	// GoMaxProcs if set will explicitly set the child GOMAXPROCs env var.
 	GoMaxProcs int `yaml:"goMaxProcs"`
+	// AutoGoMaxProcs automatically sets GoMaxProcs to be parent GOMAXPROCS / Count. It uses the ceiling to round up
+	// when it's not evenly divisible.
+	AutoGoMaxProcs bool `yaml:"AutoGoMaxProcs"`
 }
