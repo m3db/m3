@@ -3,11 +3,17 @@ syntax = "proto3";
 package annotation;
 
 message Payload {
-    MetricType metric_type   = 1;
-    bool handle_value_resets = 2;
+    SourceFormat source_format = 3;
+
+    // Used when source_format == PROMETHEUS
+    PrometheusType metric_type = 1;
+    bool handle_value_resets   = 2;
+
+    // Used when source_format == GRAPHITE
+    GraphiteType graphite_type = 4;
 }
 
-enum MetricType {
+enum PrometheusType {
     UNKNOWN         = 0;
     COUNTER         = 1;
     GAUGE           = 2;
@@ -16,4 +22,16 @@ enum MetricType {
     SUMMARY         = 5;
     INFO            = 6;
     STATESET        = 7;
+}
+
+enum SourceFormat {
+    PROMETHEUS = 0;
+    GRAPHITE   = 1;
+}
+
+enum GraphiteType {
+    GRAPHITE_UNKNOWN = 0;
+    GRAPHITE_COUNTER = 1;
+    GRAPHITE_GAUGE   = 2;
+    GRAPHITE_TIMER   = 3;
 }
