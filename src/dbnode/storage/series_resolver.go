@@ -74,7 +74,7 @@ func (r *seriesResolver) resolve() error {
 	}
 
 	r.wg.Wait()
-	entry, err := r.retrieveWritableSeriesAndIncrementReaderWriterCountFn(r.createdEntry.Series.ID())
+	entry, err := r.retrieveWritableSeriesAndIncrementReaderWriterCountFn(r.createdEntry.ID)
 	r.resolved = true
 	// Retrieve the inserted entry
 	if err != nil {
@@ -83,7 +83,7 @@ func (r *seriesResolver) resolve() error {
 	}
 
 	if entry == nil {
-		r.resolvedErr = fmt.Errorf("could not resolve: %s", r.createdEntry.Series.ID())
+		r.resolvedErr = fmt.Errorf("could not resolve: %s", r.createdEntry.ID)
 		return r.resolvedErr
 	}
 
@@ -103,10 +103,10 @@ func (r *seriesResolver) SeriesRef() (bootstrap.SeriesRef, error) {
 	return r.entry, nil
 }
 
-func (r *seriesResolver) ReleaseRef() error {
+func (r *seriesResolver) ReleaseRef() {
 	// We explicitly dec the originally created entry for the resolver since that is the one that was incremented.
 	// If the entry that won the race to the shard map was not this one, that means that some other resolver is
 	// responsible for this decrement. This pattern ensures we don't have multiple resolver for the same series
 	// calling decrement on the same entry more than once.
-	return r.createdEntry.ReleaseRef()
+	r.createdEntry.ReleaseRef()
 }

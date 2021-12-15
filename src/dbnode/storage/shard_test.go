@@ -2036,10 +2036,8 @@ func TestSeriesRefResolver(t *testing.T) {
 	err = seriesRef.LoadBlock(databaseBlock, series.ColdWrite)
 	require.NoError(t, err)
 
-	err = resolver.ReleaseRef()
-	require.NoError(t, err)
-	err = resolverEntry.ReleaseRef()
-	require.NoError(t, err)
+	resolver.ReleaseRef()
+	resolverEntry.ReleaseRef()
 	entry := seriesRef.(*Entry)
 	require.Zero(t, entry.ReaderWriterCount())
 }
