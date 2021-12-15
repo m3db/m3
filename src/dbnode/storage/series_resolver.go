@@ -35,8 +35,7 @@ type seriesResolver struct {
 	sync.RWMutex
 
 	wg                                                    *sync.WaitGroup
-	createdSeriesID                                       ident.ID
-	createdSeriesIndex                                    uint64
+	createdEntry                                          *Entry
 	retrieveWritableSeriesAndIncrementReaderWriterCountFn retrieveWritableSeriesAndIncrementReaderWriterCountFn
 
 	resolved    bool
@@ -47,14 +46,12 @@ type seriesResolver struct {
 // NewSeriesResolver creates new series ref resolver.
 func NewSeriesResolver(
 	wg *sync.WaitGroup,
-	createdSeriesID ident.ID,
-	createdSeriesIndex uint64,
+	createdEntry *Entry,
 	retrieveWritableSeriesAndIncrementReaderWriterCountFn retrieveWritableSeriesAndIncrementReaderWriterCountFn,
 ) bootstrap.SeriesRefResolver {
 	return &seriesResolver{
-		wg:                 wg,
-		createdSeriesID:    createdSeriesID,
-		createdSeriesIndex: createdSeriesIndex,
+		wg:           wg,
+		createdEntry: createdEntry,
 		retrieveWritableSeriesAndIncrementReaderWriterCountFn: retrieveWritableSeriesAndIncrementReaderWriterCountFn,
 	}
 }
@@ -77,8 +74,7 @@ func (r *seriesResolver) resolve() error {
 	}
 
 	r.wg.Wait()
-	id := r.createdSeriesID
-	entry, err := r.retrieveWritableSeriesAndIncrementReaderWriterCountFn(id)
+	entry, err := r.retrieveWritableSeriesAndIncrementReaderWriterCountFn(r.createdEntry.Series.ID())
 	r.resolved = true
 	// Retrieve the inserted entry
 	if err != nil {
@@ -87,19 +83,14 @@ func (r *seriesResolver) resolve() error {
 	}
 
 	if entry == nil {
-		r.resolvedErr = fmt.Errorf("could not resolve: %s", id)
+		r.resolvedErr = fmt.Errorf("could not resolve: %s", r.createdEntry.Series.ID())
 		return r.resolvedErr
 	}
 
-	if entry.Index == r.createdSeriesIndex {
-		// TODO: Add comment about why we do this only for created
-		// entries (because of for created entries it's now rw_count=2 after
-		// fetching it from shard with retrieveWritableSeries).
-
-		// NB: we always retrieve already incremented entry during the resolver creation, so we must decrement
-		// rw count to avoid entry leaks.
-		entry.DecrementReaderWriterCount()
-	}
+	// NB: the responsibility for keeping the ref count on the entry is managed by the consume of this resolver.
+	// On creation, the created entry is incremented and resolver.ReleaseRef() decrements that same entry. So
+	// here we just want to retrieve the entry present on the shard without affecting the ref count.
+	entry.DecrementReaderWriterCount()
 
 	r.entry = entry
 	return nil
@@ -113,8 +104,9 @@ func (r *seriesResolver) SeriesRef() (bootstrap.SeriesRef, error) {
 }
 
 func (r *seriesResolver) ReleaseRef() error {
-	if err := r.resolve(); err != nil {
-		return err
-	}
-	return r.entry.ReleaseRef()
+	// We explicitly dec the originally created entry for the resolver since that is the one that was incremented.
+	// If the entry that won the race to the shard map was not this one, that means that some other resolver is
+	// responsible for this decrement. This pattern ensures we don't have multiple resolver for the same series
+	// calling decrement on the same entry more than once.
+	return r.createdEntry.ReleaseRef()
 }
