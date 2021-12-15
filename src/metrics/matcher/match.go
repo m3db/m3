@@ -28,13 +28,18 @@ import (
 	"github.com/m3db/m3/src/metrics/matcher/cache"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
+	"github.com/m3db/m3/src/metrics/rules/view"
 )
 
 // Matcher matches rules against metric IDs.
 type Matcher interface {
+	// LatestRollupRules returns the latest rollup rules for a given namespace
+	// at a given time.
+	LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error)
+
 	// ForwardMatch matches rules against metric ID for time range [fromNanos, toNanos)
 	// and returns the match result.
-	ForwardMatch(id id.ID, fromNanos, toNanos int64) rules.MatchResult
+	ForwardMatch(id id.ID, fromNanos, toNanos int64, opts rules.MatchOptions) (rules.MatchResult, error)
 
 	// Close closes the matcher.
 	Close() error
@@ -106,13 +111,18 @@ func NewMatcher(cache cache.Cache, opts Options) (Matcher, error) {
 	}, nil
 }
 
+func (m *matcher) LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error) {
+	return m.namespaces.LatestRollupRules(namespace, timeNanos)
+}
+
 func (m *matcher) ForwardMatch(
 	id id.ID,
 	fromNanos, toNanos int64,
-) rules.MatchResult {
+	opts rules.MatchOptions,
+) (rules.MatchResult, error) {
 	sw := m.metrics.matchLatency.Start()
 	defer sw.Stop()
-	return m.cache.ForwardMatch(m.namespaceResolver.Resolve(id), id.Bytes(), fromNanos, toNanos)
+	return m.cache.ForwardMatch(m.namespaceResolver.Resolve(id), id.Bytes(), fromNanos, toNanos, opts)
 }
 
 func (m *matcher) Close() error {
@@ -142,13 +152,18 @@ func newMatcherMetrics(scope tally.Scope) matcherMetrics {
 	}
 }
 
+func (m *noCacheMatcher) LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error) {
+	return m.namespaces.LatestRollupRules(namespace, timeNanos)
+}
+
 func (m *noCacheMatcher) ForwardMatch(
 	id id.ID,
 	fromNanos, toNanos int64,
-) rules.MatchResult {
+	opts rules.MatchOptions,
+) (rules.MatchResult, error) {
 	sw := m.metrics.matchLatency.Start()
 	defer sw.Stop()
-	return m.namespaces.ForwardMatch(m.namespaceResolver.Resolve(id), id.Bytes(), fromNanos, toNanos)
+	return m.namespaces.ForwardMatch(m.namespaceResolver.Resolve(id), id.Bytes(), fromNanos, toNanos, opts)
 }
 
 func (m *noCacheMatcher) Close() error {

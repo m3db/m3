@@ -22,5 +22,5 @@ package placements
 
 const (
 	// DefaultPath is the url path for api calls for placements
-	DefaultPath = "/api/v1/services/m3db/placement"
+	DefaultPath = "/api/v1/services/"
 )

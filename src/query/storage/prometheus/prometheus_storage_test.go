@@ -22,6 +22,7 @@ package prometheus
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -43,10 +44,16 @@ func TestSelectWithMetaInContext(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	var res block.ResultMetadata
+	var resMutex sync.Mutex
+	res := block.NewResultMetadata()
+	resultMetadataReceiveFn := func(m block.ResultMetadata) {
+		resMutex.Lock()
+		defer resMutex.Unlock()
+		res = res.CombineMetadata(m)
+	}
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, FetchOptionsContextKey, storage.NewFetchOptions())
-	ctx = context.WithValue(ctx, BlockResultMetadataKey, &res)
+	ctx = context.WithValue(ctx, BlockResultMetadataFnKey, resultMetadataReceiveFn)
 
 	store := storage.NewMockStorage(ctrl)
 	opts := PrometheusOptions{

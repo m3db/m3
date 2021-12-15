@@ -32,6 +32,11 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -52,11 +57,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 type testIncreasingIndex struct {
@@ -1229,12 +1229,12 @@ func TestShardTickRace(t *testing.T) {
 
 	wg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{}) //nolint
+		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{}) // nolint
 		wg.Done()
 	}()
 
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{}) //nolint
+		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{}) // nolint
 		wg.Done()
 	}()
 
@@ -1381,7 +1381,7 @@ func TestShardTicksStopWhenClosing(t *testing.T) {
 
 	closeWg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{}) //nolint
+		shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{}) // nolint
 		closeWg.Done()
 	}()
 
@@ -2040,6 +2040,8 @@ func TestSeriesRefResolver(t *testing.T) {
 	require.NoError(t, err)
 	err = resolverEntry.ReleaseRef()
 	require.NoError(t, err)
+	entry := seriesRef.(*Entry)
+	require.Zero(t, entry.ReaderWriterCount())
 }
 
 func getMockReader(

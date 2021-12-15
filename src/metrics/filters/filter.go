@@ -24,6 +24,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+
+	"github.com/m3db/m3/src/metrics/metric/id"
 )
 
 var (
@@ -77,6 +79,23 @@ type Filter interface {
 	filter
 
 	Clone() Filter
+}
+
+// TagsFilter matches a string of tags against certain conditions.
+type TagsFilter interface {
+	// Matches returns true if the conditions are met.
+	Matches(val []byte, opts TagMatchOptions) (bool, error)
+}
+
+// TagMatchOptions are the options for a TagsFilter match.
+type TagMatchOptions struct {
+	// Function to extract name and tags from an id.
+	NameAndTagsFn id.NameAndTagsFn
+
+	// Function to get a sorted tag iterator from id tags.
+	// The caller of Matches is the owner of the Iterator and is responsible for closing it, this allows reusing the
+	// same Iterator across many Matches.
+	SortedTagIteratorFn id.SortedTagIteratorFn
 }
 
 type filter interface {

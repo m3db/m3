@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv/util/runtime"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/rules"
+	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -119,6 +120,13 @@ func newRuleSet(
 	return r
 }
 
+func (r *ruleSet) LatestRollupRules(timeNanos int64) ([]view.RollupRule, error) {
+	r.RLock()
+	rollupRules, err := r.matcher.LatestRollupRules(timeNanos)
+	r.RUnlock()
+	return rollupRules, err
+}
+
 func (r *ruleSet) Namespace() []byte {
 	r.RLock()
 	namespace := r.namespace
@@ -147,18 +155,22 @@ func (r *ruleSet) Tombstoned() bool {
 	return tombstoned
 }
 
-func (r *ruleSet) ForwardMatch(id []byte, fromNanos, toNanos int64) rules.MatchResult {
+func (r *ruleSet) ForwardMatch(id []byte, fromNanos, toNanos int64, opts rules.MatchOptions) (
+	rules.MatchResult, error) {
 	callStart := r.nowFn()
 	r.RLock()
 	if r.matcher == nil {
 		r.RUnlock()
 		r.metrics.nilMatcher.Inc(1)
-		return rules.EmptyMatchResult
+		return rules.EmptyMatchResult, nil
 	}
-	res := r.matcher.ForwardMatch(id, fromNanos, toNanos)
+	res, err := r.matcher.ForwardMatch(id, fromNanos, toNanos, opts)
 	r.RUnlock()
+	if err != nil {
+		return rules.EmptyMatchResult, err
+	}
 	r.metrics.match.ReportSuccess(r.nowFn().Sub(callStart))
-	return res
+	return res, nil
 }
 
 func (r *ruleSet) toRuleSet(value kv.Value) (interface{}, error) {
