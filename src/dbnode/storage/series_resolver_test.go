@@ -107,12 +107,21 @@ func TestReleaseRef(t *testing.T) {
 		entry.IncrementReaderWriterCount()
 		return entry, nil
 	})
+
+	// Initial creation increments the entry.
+	require.Equal(t, int32(1), entry.ReaderWriterCount())
+
 	seriesRef, err := sut.SeriesRef()
 	require.NoError(t, err)
 	require.IsType(t, &Entry{}, seriesRef)
 
-	require.Equal(t, int32(1), entry.ReaderWriterCount())
+	// Subsequent reference increments the entry (this is to be defensive around
+	// ref counting based on the one that happened to be created vs one persisted in the shard).
+	require.Equal(t, int32(2), entry.ReaderWriterCount())
+
 	sut.ReleaseRef()
+
+	// All references released.
 	require.Zero(t, entry.ReaderWriterCount())
 }
 
