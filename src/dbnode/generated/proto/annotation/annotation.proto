@@ -25,8 +25,10 @@ enum PrometheusType {
 }
 
 enum SourceFormat {
-    PROMETHEUS = 0;
-    GRAPHITE   = 1;
+    // Using 0 for PROMETHEUS_FORMAT because only Prometheus types were being stored before.
+    PROMETHEUS_FORMAT = 0;
+    UNKNOWN_FORMAT    = 1;
+    GRAPHITE_FORMAT   = 2;
 }
 
 enum GraphiteType {
