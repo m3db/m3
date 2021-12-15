@@ -36,15 +36,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
-// Matcher matches metrics against rules to determine applicable policies.
-type Matcher interface {
-	// LatestRollupRules returns the latest rollup rules for a given time.
-	LatestRollupRules(timeNanos int64) ([]view.RollupRule, error)
-
-	// ForwardMatch matches the applicable policies for a metric id between [fromNanos, toNanos).
-	ForwardMatch(id []byte, fromNanos, toNanos int64, opts MatchOptions) (MatchResult, error)
-}
-
 type activeRuleSet struct {
 	version         int
 	mappingRules    []*mappingRule
@@ -106,11 +97,11 @@ func newActiveRuleSet(
 //
 // NB(xichen): can further consolidate consecutive staged metadata to deduplicate.
 func (as *activeRuleSet) ForwardMatch(
-	id []byte,
+	id metricid.ID,
 	fromNanos, toNanos int64,
 	opts MatchOptions,
 ) (MatchResult, error) {
-	currMatchRes, err := as.forwardMatchAt(id, fromNanos, opts)
+	currMatchRes, err := as.forwardMatchAt(id.Bytes(), fromNanos, opts)
 	if err != nil {
 		return MatchResult{}, err
 	}
@@ -123,7 +114,7 @@ func (as *activeRuleSet) ForwardMatch(
 	)
 
 	for nextIdx < len(as.cutoverTimesAsc) && nextCutoverNanos < toNanos {
-		nextMatchRes, err := as.forwardMatchAt(id, nextCutoverNanos, opts)
+		nextMatchRes, err := as.forwardMatchAt(id.Bytes(), nextCutoverNanos, opts)
 		if err != nil {
 			return MatchResult{}, err
 		}
@@ -239,7 +230,7 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 	}, nil
 }
 
-func (as *activeRuleSet) LatestRollupRules(timeNanos int64) ([]view.RollupRule, error) {
+func (as *activeRuleSet) LatestRollupRules(_ []byte, timeNanos int64) ([]view.RollupRule, error) {
 	out := []view.RollupRule{}
 	// Return the list of cloned rollup rule views that were active (and are still
 	// active) as of timeNanos.
