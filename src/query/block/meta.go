@@ -111,7 +111,8 @@ func mergeMetricMetadataMaps(dst, src map[string]*ResultMetricMetadata) {
 // indicating any additional information about the result.
 type ResultMetadata struct {
 	// Namespaces are the set of namespaces queried.
-	Namespaces []string
+	// External users must access via `AddNamespace`
+	namespaces map[string]struct{}
 	// FetchedResponses is the number of M3 RPC fetch responses received.
 	FetchedResponses int
 	// FetchedBytesEstimate is the estimated number of bytes fetched.
@@ -139,25 +140,51 @@ type ResultMetadata struct {
 	// this result.
 	FetchedMetadataCount int
 	// MetricNames is the set of unique metric tag name values across all series in this result.
-	MetadataByName map[string]*ResultMetricMetadata
+	// External users must access via `ByName(name)`.
+	metadataByName map[string]*ResultMetricMetadata
+}
+
+// AddNamespace adds a namespace to the namespace set, initializing the underlying map if necessary.
+func (m *ResultMetadata) AddNamespace(namespace string) {
+	if m.namespaces == nil {
+		m.namespaces = make(map[string]struct{})
+	}
+	m.namespaces[namespace] = struct{}{}
+}
+
+// GetNamespaces returns an array representing the set of namespaces added via AddNamespace.
+func (m ResultMetadata) GetNamespaces() []string {
+	if m.namespaces == nil {
+		return []string{}
+	}
+	namespaces := []string{}
+	for n := range m.namespaces {
+		namespaces = append(namespaces, n)
+	}
+	sort.Strings(namespaces)
+	return namespaces
 }
 
 // ByName returns the ResultMetricMetadata for a given metric name.
-func (m ResultMetadata) ByName(nameTag []byte) *ResultMetricMetadata {
-	r, ok := m.MetadataByName[string(nameTag)]
+func (m *ResultMetadata) ByName(nameTag []byte) *ResultMetricMetadata {
+	if m.metadataByName == nil {
+		m.metadataByName = make(map[string]*ResultMetricMetadata)
+	}
+
+	r, ok := m.metadataByName[string(nameTag)]
 	if ok {
 		return r
 	}
 
 	r = &ResultMetricMetadata{}
-	m.MetadataByName[string(nameTag)] = r
+	m.metadataByName[string(nameTag)] = r
 	return r
 }
 
-// MetadataByNameMerged returns the MetadataByName map values merged into one.
+// MetadataByNameMerged returns the metadataByName map values merged into one.
 func (m ResultMetadata) MetadataByNameMerged() ResultMetricMetadata {
 	r := ResultMetricMetadata{}
-	for _, m := range m.MetadataByName {
+	for _, m := range m.metadataByName {
 		r.Merge(*m)
 	}
 	return r
@@ -166,17 +193,17 @@ func (m ResultMetadata) MetadataByNameMerged() ResultMetricMetadata {
 // TopMetadataByName returns the top `max` ResultMetricMetadatas by the sum of their
 // contained counters.
 func (m ResultMetadata) TopMetadataByName(max int) map[string]*ResultMetricMetadata {
-	if len(m.MetadataByName) <= max {
-		return m.MetadataByName
+	if len(m.metadataByName) <= max {
+		return m.metadataByName
 	}
 
 	keys := []string{}
-	for k := range m.MetadataByName {
+	for k := range m.metadataByName {
 		keys = append(keys, k)
 	}
 	sort.SliceStable(keys, func(i, j int) bool {
-		a := m.MetadataByName[keys[i]]
-		b := m.MetadataByName[keys[j]]
+		a := m.metadataByName[keys[i]]
+		b := m.metadataByName[keys[j]]
 		n := a.Aggregated + a.Unaggregated + a.NoSamples + a.WithSamples
 		m := b.Aggregated + b.Unaggregated + b.NoSamples + b.WithSamples
 		// Sort in descending order
@@ -185,7 +212,7 @@ func (m ResultMetadata) TopMetadataByName(max int) map[string]*ResultMetricMetad
 	top := make(map[string]*ResultMetricMetadata, max)
 	for i := 0; i < max; i++ {
 		k := keys[i]
-		top[k] = m.MetadataByName[k]
+		top[k] = m.metadataByName[k]
 	}
 	return top
 }
@@ -193,9 +220,8 @@ func (m ResultMetadata) TopMetadataByName(max int) map[string]*ResultMetricMetad
 // NewResultMetadata creates a new result metadata.
 func NewResultMetadata() ResultMetadata {
 	return ResultMetadata{
-		LocalOnly:      true,
-		Exhaustive:     true,
-		MetadataByName: make(map[string]*ResultMetricMetadata),
+		LocalOnly:  true,
+		Exhaustive: true,
 	}
 }
 
@@ -234,6 +260,23 @@ func combineWarnings(a, b Warnings) Warnings {
 	}
 
 	return nil
+}
+
+func combineNamespaces(a, b map[string]struct{}) map[string]struct{} {
+	if a == nil {
+		return b
+	}
+	if b == nil {
+		return a
+	}
+	merged := make(map[string]struct{})
+	for n := range a {
+		merged[n] = struct{}{}
+	}
+	for n := range b {
+		merged[n] = struct{}{}
+	}
+	return merged
 }
 
 func combineMetricMetadata(a, b map[string]*ResultMetricMetadata) map[string]*ResultMetricMetadata {
@@ -296,7 +339,7 @@ func (m ResultMetadata) Equals(n ResultMetadata) bool {
 // CombineMetadata combines two result metadatas.
 func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
 	return ResultMetadata{
-		Namespaces:           append(m.Namespaces, other.Namespaces...),
+		namespaces:           combineNamespaces(m.namespaces, other.namespaces),
 		FetchedResponses:     m.FetchedResponses + other.FetchedResponses,
 		FetchedBytesEstimate: m.FetchedBytesEstimate + other.FetchedBytesEstimate,
 		LocalOnly:            m.LocalOnly && other.LocalOnly,
@@ -306,7 +349,7 @@ func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
 		WaitedIndex:          m.WaitedIndex + other.WaitedIndex,
 		WaitedSeriesRead:     m.WaitedSeriesRead + other.WaitedSeriesRead,
 		FetchedSeriesCount:   m.FetchedSeriesCount + other.FetchedSeriesCount,
-		MetadataByName:       combineMetricMetadata(m.MetadataByName, other.MetadataByName),
+		metadataByName:       combineMetricMetadata(m.metadataByName, other.metadataByName),
 		FetchedMetadataCount: m.FetchedMetadataCount + other.FetchedMetadataCount,
 	}
 }

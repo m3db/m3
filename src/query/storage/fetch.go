@@ -29,12 +29,17 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 )
 
+const (
+	defaultMaxMetricMetadataStats = 4
+)
+
 // NewFetchOptions creates a new fetch options.
 func NewFetchOptions() *FetchOptions {
 	return &FetchOptions{
-		SeriesLimit: 0,
-		DocsLimit:   0,
-		BlockType:   models.TypeSingleBlock,
+		SeriesLimit:            0,
+		DocsLimit:              0,
+		MaxMetricMetadataStats: defaultMaxMetricMetadataStats,
+		BlockType:              models.TypeSingleBlock,
 		FanoutOptions: &FanoutOptions{
 			FanoutUnaggregated:        FanoutDefault,
 			FanoutAggregated:          FanoutDefault,
