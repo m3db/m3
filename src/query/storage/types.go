@@ -126,6 +126,8 @@ type FetchOptions struct {
 	RequireExhaustive bool
 	// RequireNoWait results in an error if the query execution must wait for permits.
 	RequireNoWait bool
+	// MaxMetricMetadataStats is the maximum number of metric metadata stats to return.
+	MaxMetricMetadataStats int
 	// BlockType is the block type that the fetch function returns.
 	BlockType models.FetchedBlockType
 	// FanoutOptions are the options for the fetch namespace fanout.
