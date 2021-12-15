@@ -6,8 +6,8 @@ message Payload {
     SourceFormat source_format = 3;
 
     // Used when source_format == PROMETHEUS
-    PrometheusType metric_type = 1;
-    bool handle_value_resets   = 2;
+    PrometheusType prom_type = 1;
+    bool handle_value_resets = 2;
 
     // Used when source_format == GRAPHITE
     GraphiteType graphite_type = 4;
