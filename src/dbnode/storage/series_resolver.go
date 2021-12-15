@@ -68,15 +68,17 @@ func (r *seriesResolver) resolve() error {
 	r.Lock()
 	defer r.Unlock()
 
-	// fast path: if we already resolved the result, just return it.
+	// Fast path: if we already resolved the result, just return it.
 	if r.resolved {
 		return r.resolvedErr
 	}
 
+	// Wait for the insertion.
 	r.wg.Wait()
+
+	// Retrieve the inserted entry.
 	entry, err := r.retrieveWritableSeriesAndIncrementReaderWriterCountFn(r.createdEntry.ID)
 	r.resolved = true
-	// Retrieve the inserted entry
 	if err != nil {
 		r.resolvedErr = err
 		return r.resolvedErr
@@ -86,11 +88,6 @@ func (r *seriesResolver) resolve() error {
 		r.resolvedErr = fmt.Errorf("could not resolve: %s", r.createdEntry.ID)
 		return r.resolvedErr
 	}
-
-	// NB: the responsibility of managing the ref count on the entry belongs to the consumer of this resolver.
-	// On creation, the created entry is incremented and on resolver.ReleaseRef() that same entry is decremented. So
-	// here we just want to retrieve the entry present on the shard without affecting the ref count.
-	entry.DecrementReaderWriterCount()
 
 	r.entry = entry
 	return nil
@@ -104,9 +101,22 @@ func (r *seriesResolver) SeriesRef() (bootstrap.SeriesRef, error) {
 }
 
 func (r *seriesResolver) ReleaseRef() {
-	// We explicitly dec the originally created entry for the resolver since that is the one that was incremented.
-	// If the entry that won the race to the shard map was not this one, that means that some other resolver is
-	// responsible for this decrement. This pattern ensures we don't have multiple resolvers for the same series
-	// calling decrement on the same entry more than once.
-	r.createdEntry.ReleaseRef()
+	if r.createdEntry != nil {
+		// We explicitly dec the originally created entry for the resolver since
+		// that it is the one that was incremented before we took ownership of it,
+		// this was done to make sure it was valid during insertion until we
+		// operated on it.
+		// If we got it back from the shard map and incremented the reader writer
+		// count as well during that retrieval, then we'll again decrement it below.
+		r.createdEntry.ReleaseRef()
+		r.createdEntry = nil
+	}
+	if r.entry != nil {
+		// To account for decrementing the increment that occurred when checking
+		// out the series from the shard itself (which was incremented
+		// the reader writer counter when we checked it out using by calling
+		// "retrieveWritableSeriesAndIncrementReaderWriterCount").
+		r.entry.DecrementReaderWriterCount()
+		r.entry = nil
+	}
 }
