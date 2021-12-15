@@ -35,7 +35,8 @@ type seriesResolver struct {
 	sync.RWMutex
 
 	wg                                                    *sync.WaitGroup
-	copiedID                                              ident.ID
+	createdSeriesID                                       ident.ID
+	createdSeriesIndex                                    uint64
 	retrieveWritableSeriesAndIncrementReaderWriterCountFn retrieveWritableSeriesAndIncrementReaderWriterCountFn
 
 	resolved    bool
@@ -46,12 +47,14 @@ type seriesResolver struct {
 // NewSeriesResolver creates new series ref resolver.
 func NewSeriesResolver(
 	wg *sync.WaitGroup,
-	copiedID ident.ID,
+	createdSeriesID ident.ID,
+	createdSeriesIndex uint64,
 	retrieveWritableSeriesAndIncrementReaderWriterCountFn retrieveWritableSeriesAndIncrementReaderWriterCountFn,
 ) bootstrap.SeriesRefResolver {
 	return &seriesResolver{
-		wg:       wg,
-		copiedID: copiedID,
+		wg:                 wg,
+		createdSeriesID:    createdSeriesID,
+		createdSeriesIndex: createdSeriesIndex,
 		retrieveWritableSeriesAndIncrementReaderWriterCountFn: retrieveWritableSeriesAndIncrementReaderWriterCountFn,
 	}
 }
@@ -74,7 +77,7 @@ func (r *seriesResolver) resolve() error {
 	}
 
 	r.wg.Wait()
-	id := r.copiedID
+	id := r.createdSeriesID
 	entry, err := r.retrieveWritableSeriesAndIncrementReaderWriterCountFn(id)
 	r.resolved = true
 	// Retrieve the inserted entry
@@ -87,9 +90,17 @@ func (r *seriesResolver) resolve() error {
 		r.resolvedErr = fmt.Errorf("could not resolve: %s", id)
 		return r.resolvedErr
 	}
-	// NB: we always retrieve already incremented entry during the resolver creation, so we must decrement
-	// rw count to avoid entry leaks.
-	entry.DecrementReaderWriterCount()
+
+	if entry.Index == r.createdSeriesIndex {
+		// TODO: Add comment about why we do this only for created
+		// entries (because of for created entries it's now rw_count=2 after
+		// fetching it from shard with retrieveWritableSeries).
+
+		// NB: we always retrieve already incremented entry during the resolver creation, so we must decrement
+		// rw count to avoid entry leaks.
+		entry.DecrementReaderWriterCount()
+	}
+
 	r.entry = entry
 	return nil
 }

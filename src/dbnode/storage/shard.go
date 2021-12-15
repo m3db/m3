@@ -836,6 +836,9 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*Entry) {
 		count := entry.ReaderWriterCount()
 		// The contract requires all entries to have count >= 1.
 		if count < 1 {
+			// TODO: Make this an invariant error.
+			// TODO: Also add an explicit metric to track this specific
+			// occurence separate to a generic invariant error over time.
 			s.logger.Error("purgeExpiredSeries encountered invalid series read/write count",
 				zap.Stringer("namespace", s.namespace.ID()),
 				zap.Uint32("shard", s.ID()),
@@ -1051,7 +1054,7 @@ func (s *dbShard) SeriesRefResolver(
 	if err != nil {
 		return nil, err
 	}
-	// increment ref count to avoid expiration of the new entry just after adding it to the queue.
+	// Increment ref count to avoid expiration of the new entry just after adding it to the queue.
 	entry.IncrementReaderWriterCount()
 	wg, err := s.insertQueue.Insert(dbShardInsert{
 		entry: entry,
@@ -1073,6 +1076,7 @@ func (s *dbShard) SeriesRefResolver(
 		wg,
 		// ID was already copied in newShardEntry so we can set it here safely.
 		entry.Series.ID(),
+		entry.Index,
 		s.retrieveWritableSeriesAndIncrementReaderWriterCount), nil
 }
 
