@@ -102,23 +102,22 @@ func (r *seriesResolver) SeriesRef() (bootstrap.SeriesRef, error) {
 }
 
 func (r *seriesResolver) ReleaseRef() {
-	// We explicitly dec the originally created entry for the resolver since
-	// that it is the one that was incremented before we took ownership of it,
-	// this was done to make sure it was valid during insertion until we
-	// operated on it.
-	// If we got it back from the shard map and incremented the reader writer
-	// count as well during that retrieval, then we'll again decrement it below.
-	r.createdEntry.ReleaseRef()
-
-	if r.entry == nil {
-		// Was not resolved and therefore reader writer count not incremented
-		// when retrieved from shard.
-		return
+	if r.createdEntry != nil {
+		// We explicitly dec the originally created entry for the resolver since
+		// that it is the one that was incremented before we took ownership of it,
+		// this was done to make sure it was valid during insertion until we
+		// operated on it.
+		// If we got it back from the shard map and incremented the reader writer
+		// count as well during that retrieval, then we'll again decrement it below.
+		r.createdEntry.ReleaseRef()
+		r.createdEntry = nil
 	}
-
-	// To account for decrementing the increment that occurred when checking
-	// out the series from the shard itself (which was incremented
-	// the reader writer counter when we checked it out using by calling
-	// "retrieveWritableSeriesAndIncrementReaderWriterCount").
-	r.entry.ReleaseRef()
+	if r.entry != nil {
+		// To account for decrementing the increment that occurred when checking
+		// out the series from the shard itself (which was incremented
+		// the reader writer counter when we checked it out using by calling
+		// "retrieveWritableSeriesAndIncrementReaderWriterCount").
+		r.entry.DecrementReaderWriterCount()
+		r.entry = nil
+	}
 }
