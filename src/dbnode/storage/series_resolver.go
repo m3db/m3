@@ -75,12 +75,7 @@ func (r *seriesResolver) resolve() error {
 
 	r.wg.Wait()
 	entry, err := r.retrieveWritableSeriesAndIncrementReaderWriterCountFn(r.createdEntry.ID)
-	// We explicitly dec the originally created entry for the resolver since
-	// that is the one that was incremented to make sure it was valid during
-	// insertion, at this point we will have the entry back from the shard map
-	// and already incremented for our use as a side-effect of calling
-	// "retrieveWritableSeriesAndIncrementReaderWriterCount".
-	r.createdEntry.ReleaseRef()
+
 	// Mark resolved true
 	r.resolved = true
 
@@ -107,10 +102,22 @@ func (r *seriesResolver) SeriesRef() (bootstrap.SeriesRef, error) {
 }
 
 func (r *seriesResolver) ReleaseRef() {
+	// We explicitly dec the originally created entry for the resolver since
+	// that it is the one that was incremented before we took ownership of it,
+	// this was done to make sure it was valid during insertion until we
+	// operated on it.
+	// If we got it back from the shard map and incremented the reader writer
+	// count as well during that retrieval, then we'll again decrement it below.
+	r.createdEntry.ReleaseRef()
+
 	if r.entry == nil {
-		return // Was not resolved.
+		// Was not resolved and therefore reader writer count not incremented
+		// when retrieved from shard.
+		return
 	}
-	// Finished using the ref to the resolved series (which was incremented
+
+	// To account for decrementing the increment that occurred when checking
+	// out the series from the shard itself (which was incremented
 	// the reader writer counter when we checked it out using by calling
 	// "retrieveWritableSeriesAndIncrementReaderWriterCount").
 	r.entry.ReleaseRef()
