@@ -33,8 +33,7 @@ import (
 
 // Matcher matches rules against metric IDs.
 type Matcher interface {
-	rules.Matcher
-	rules.Fetcher
+	rules.ActiveSet
 
 	// Close closes the matcher.
 	Close() error

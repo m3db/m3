@@ -120,7 +120,7 @@ type MutableRuleSet interface {
 	Clone() MutableRuleSet
 
 	// AppendMappingRule creates a new mapping rule and adds it to this ruleset.
-	// Should return the id of the newly src/metrics/matcher/cache/options.gocreated rule.
+	// Should return the id of the newly created rule.
 	AddMappingRule(view.MappingRule, UpdateMetadata) (string, error)
 
 	// UpdateMappingRule creates a new mapping rule and adds it to this ruleset.
