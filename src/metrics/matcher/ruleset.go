@@ -21,12 +21,15 @@
 package matcher
 
 import (
+	"bytes"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/util/runtime"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/x/clock"
@@ -39,7 +42,7 @@ import (
 // API to match metic ids against rules in the corresponding ruleset.
 type RuleSet interface {
 	runtime.Value
-	rules.Matcher
+	rules.ActiveSet
 
 	// Namespace returns the namespace of the ruleset.
 	Namespace() []byte
@@ -86,7 +89,7 @@ type ruleSet struct {
 	version      int
 	cutoverNanos int64
 	tombstoned   bool
-	matcher      rules.Matcher
+	activeSet    rules.ActiveSet
 	metrics      ruleSetMetrics
 }
 
@@ -120,9 +123,12 @@ func newRuleSet(
 	return r
 }
 
-func (r *ruleSet) LatestRollupRules(timeNanos int64) ([]view.RollupRule, error) {
+func (r *ruleSet) LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error) {
 	r.RLock()
-	rollupRules, err := r.matcher.LatestRollupRules(timeNanos)
+	if !bytes.Equal(namespace, r.Namespace()) {
+		return nil, fmt.Errorf("namespaces do not match: %s %s", namespace, r.Namespace())
+	}
+	rollupRules, err := r.activeSet.LatestRollupRules(namespace, timeNanos)
 	r.RUnlock()
 	return rollupRules, err
 }
@@ -155,16 +161,16 @@ func (r *ruleSet) Tombstoned() bool {
 	return tombstoned
 }
 
-func (r *ruleSet) ForwardMatch(id []byte, fromNanos, toNanos int64, opts rules.MatchOptions) (
+func (r *ruleSet) ForwardMatch(id id.ID, fromNanos, toNanos int64, opts rules.MatchOptions) (
 	rules.MatchResult, error) {
 	callStart := r.nowFn()
 	r.RLock()
-	if r.matcher == nil {
+	if r.activeSet == nil {
 		r.RUnlock()
 		r.metrics.nilMatcher.Inc(1)
 		return rules.EmptyMatchResult, nil
 	}
-	res, err := r.matcher.ForwardMatch(id, fromNanos, toNanos, opts)
+	res, err := r.activeSet.ForwardMatch(id, fromNanos, toNanos, opts)
 	r.RUnlock()
 	if err != nil {
 		return rules.EmptyMatchResult, err
@@ -194,7 +200,7 @@ func (r *ruleSet) process(value interface{}) error {
 	r.version = ruleSet.Version()
 	r.cutoverNanos = ruleSet.CutoverNanos()
 	r.tombstoned = ruleSet.Tombstoned()
-	r.matcher = ruleSet.ActiveSet(r.nowFn().Add(-r.matchRangePast).UnixNano())
+	r.activeSet = ruleSet.ActiveSet(r.nowFn().Add(-r.matchRangePast).UnixNano())
 	r.Unlock()
 
 	// NB: calling the update callback outside the ruleset lock to avoid circular
