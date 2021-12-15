@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+if [ ! -d .git/ ] ; then
+	echo "Must be run from the root of the m3 git source tree"
+	exit 1
+fi
+
+HOOKS_SRC="${PWD}/scripts/git/hooks"
+HOOKS_DIR=".git/hooks"
+mkdir -p ${HOOKS_DIR}
+
+if [ ! -e "${HOOKS_DIR}/pre-push" ]; then
+	echo "Linking ${HOOKS_SRC}/pre-push -> ${HOOKS_DIR}/pre-push"
+	ln -sf "${HOOKS_SRC}/pre-push" "${HOOKS_DIR}/pre-push"
+fi

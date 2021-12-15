@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+#
+# A git hook that runs before push to check formatting and lint rules.
+# Inspired by the pre-push hook in github.com/envoyproxy/envoy (Apache 2.0)
+
+DUMMY_SHA=0000000000000000000000000000000000000000
+
+echo "Running pre-push hook (skip using --no-verify)"
+echo ""
+
+while read -r LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA
+do
+	if [ "$LOCAL_SHA" = $DUMMY_SHA ]
+	then
+		# Branch deleted. Do nothing.
+		exit 0
+	else
+		if [ "$REMOTE_SHA" = $DUMMY_SHA ]
+		then
+			# New branch. Verify the last commit, since this is very likely where the new code is
+			# (though there is no way to know for sure). In the extremely uncommon case in which someone
+			# pushes more than 1 new commit to a branch, CI will enforce full checking.
+			RANGE="$LOCAL_SHA~1..$LOCAL_SHA"
+			echo "Comparing $RANGE (new branch)"
+		else
+			# Updating branch. Verify new commits.
+			RANGE="$REMOTE_SHA..$LOCAL_SHA"
+			echo "Comparing $RANGE (updated branch)"
+		fi
+		files=$(git diff ${RANGE} --name-only --diff-filter=ACMR --ignore-submodules=all 2>&1 | grep '\.go$')
+		if [ -z "${files}" ] ; then
+			echo "No Go files changed, nothing to do."
+			exit 0
+		fi
+
+		echo $(echo "$files" | wc -l | tr -d ' ')' Go file(s) changed.'
+		gofumpt=$(which gofumpt)
+		if [ -z "${gofumpt}" ] ; then
+			echo "Could not find gofumpt"
+			echo "Try running:"
+			echo ""
+			echo "go install mvdan.cc/gofumpt@latest"
+			exit 1
+		fi
+
+		packages=$(echo "$files" | xargs -I{} dirname {} | sort | uniq)
+		echo $(echo "$packages" | wc -l | tr -d ' ')' Go package(s) changed.'
+		lint=$(which golangci-lint)
+		if [ -z "${lint}" ] ; then
+			echo "Could not find golangci-lint"
+			echo "Try running:"
+			echo ""
+			echo "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.37.0"
+			exit 1
+		fi
+
+		echo ""
+		echo "Running gofumpt:"
+		echo ""
+		failed=()
+		for f in ${files} ; do
+			out=$(gofumpt -l ${f})
+			echo -ne "  ${f} - "
+			if [ ! -z "${out}" ] ; then
+				echo "FAIL"
+				failed+=( "$out" )
+			else
+				echo "OK"
+			fi
+		done
+
+		if [ ${#failed[@]} -gt 0 ] ; then
+			len=${#failed[@]}
+			echo ""
+			echo "gofumpt had failures. To fix them, run:"
+			echo ""
+			echo -ne "  gofumpt -w "
+			for (( i=0; i<$len; i++ )) do
+				echo -ne "${failed[$i]} "
+			done
+			echo ""
+			exit 1
+		fi
+
+		echo ""
+		echo "Running ./scripts/run-ci-lint.sh:"
+		echo ""
+		for p in ${packages} ; do
+			pkg="./${p}"
+			echo -ne "  ${pkg} - " 
+			./scripts/run-ci-lint.sh ${lint} ${pkg} || exit 1
+			echo "OK"
+		done
+	fi
+done
+
+exit 0
