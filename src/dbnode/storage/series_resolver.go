@@ -68,18 +68,17 @@ func (r *seriesResolver) resolve() error {
 	r.Lock()
 	defer r.Unlock()
 
-	// fast path: if we already resolved the result, just return it.
+	// Fast path: if we already resolved the result, just return it.
 	if r.resolved {
 		return r.resolvedErr
 	}
 
+	// Wait for the insertion.
 	r.wg.Wait()
+
+	// Retrieve the inserted entry.
 	entry, err := r.retrieveWritableSeriesAndIncrementReaderWriterCountFn(r.createdEntry.ID)
-
-	// Mark resolved true
 	r.resolved = true
-
-	// Retrieve the inserted entry
 	if err != nil {
 		r.resolvedErr = err
 		return r.resolvedErr
