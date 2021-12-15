@@ -101,6 +101,7 @@ type commitLog struct {
 	newCommitLogWriterFn newCommitLogWriterFn
 	writeFn              writeCommitLogFn
 	commitLogFailFn      commitLogFailFn
+	beforeAsyncWriteFn   func()
 
 	metrics commitLogMetrics
 
@@ -245,8 +246,16 @@ type commitLogWrite struct {
 	callbackFn callbackFn
 }
 
+type testOnlyOpts struct {
+	beforeAsyncWriteFn func()
+}
+
 // NewCommitLog creates a new commit log
 func NewCommitLog(opts Options) (CommitLog, error) {
+	return newCommitLog(opts, testOnlyOpts{})
+}
+
+func newCommitLog(opts Options, testOpts testOnlyOpts) (CommitLog, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -281,6 +290,7 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 			flushErrors:      scope.Counter("writes.flush-errors"),
 			flushDone:        scope.Counter("writes.flush-done"),
 		},
+		beforeAsyncWriteFn: testOpts.beforeAsyncWriteFn,
 	}
 	// Setup backreferences for onFlush().
 	commitLog.writerState.primary.commitlog = commitLog
@@ -318,7 +328,13 @@ func (l *commitLog) Open() error {
 	}
 
 	// Asynchronously write
-	go l.write()
+	go func() {
+		// a test hook to block/release the async writer
+		if l.beforeAsyncWriteFn != nil {
+			l.beforeAsyncWriteFn()
+		}
+		l.write()
+	}()
 
 	if flushInterval := l.opts.FlushInterval(); flushInterval > 0 {
 		// Continually flush the commit log at given interval if set
