@@ -74,6 +74,8 @@ type mutableSegmentsState uint
 const (
 	mutableSegmentsStateOpen   mutableSegmentsState = iota
 	mutableSegmentsStateClosed mutableSegmentsState = iota
+	maxForegroundCompactorAge                       = 1 * time.Hour
+	maxBackgroundCompactorAge                       = 1 * time.Hour
 )
 
 // nolint: maligned
@@ -424,9 +426,7 @@ func (m *mutableSegments) NumSegmentsAndDocs() (int64, int64) {
 }
 
 func numSegmentsAndDocs(segs []*readableSeg) (int64, int64) {
-	var (
-		numSegments, numDocs int64
-	)
+	var numSegments, numDocs int64
 	for _, seg := range segs {
 		numSegments++
 		numDocs += seg.Segment().Size()
@@ -1388,6 +1388,7 @@ func (m *mutableSegments) cleanupForegroundCompactWithLock() {
 		m.compact.segmentBuilder = nil
 	}
 }
+
 func (m *mutableSegments) cleanupCompactWithLock() {
 	// If not compacting, trigger a cleanup so that all frozen segments get
 	// closed, otherwise after the current running compaction the compacted
@@ -1413,6 +1414,9 @@ type mutableSegmentsCompact struct {
 	compactingBackgroundGarbageCollect bool
 	numForeground                      int
 	numBackground                      int
+
+	foregroundCompactorCreatedAt  time.Time
+	backgroundCompactorsCreatedAt time.Time
 }
 
 func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
@@ -1432,7 +1436,20 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 		}
 	}
 
+	// Compactors are not meant to be long-lived because of the pooling and accumulation of allocs
+	// that occur over time. Prior to active block change, these compactors were closed regularly per
+	// block rotations since the ownership is block->mutableSegments->compactor->fstWriter->builder.
+	// To account for the active block being long-lived, we now periodically GC the compactor and create anew.
+	now := m.opts.ClockOptions().NowFn()()
+	if m.foregroundCompactor != nil && now.Sub(m.foregroundCompactorCreatedAt) > maxForegroundCompactorAge {
+		if err := m.foregroundCompactor.Close(); err != nil {
+			m.opts.InstrumentOptions().Logger().Error("error closing foreground compactor", zap.Error(err))
+		}
+		m.foregroundCompactor = nil
+	}
+
 	if m.foregroundCompactor == nil {
+		m.foregroundCompactorCreatedAt = now
 		m.foregroundCompactor, err = compaction.NewCompactor(metadataPool,
 			MetadataArrayPoolCapacity,
 			m.opts.SegmentBuilderOptions(),
@@ -1449,6 +1466,22 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 		if err != nil {
 			return err
 		}
+	}
+
+	// Compactors are not meant to be long-lived because of the pooling and accumulation of allocs
+	// that occur over time. Prior to active block change, these compactors were closed regularly per
+	// block rotations since the ownership is block->mutableSegments->compactor->fstWriter->builder.
+	// To account for the active block being long-lived, we now periodically GC the compactor and create anew.
+	if m.backgroundCompactors != nil && now.Sub(m.backgroundCompactorsCreatedAt) > maxBackgroundCompactorAge {
+		backgroundCompactors := m.backgroundCompactors // Save into temp var
+		m.backgroundCompactors = nil                   // Nil out
+		go func() {
+			for compactor := range backgroundCompactors {
+				if err := compactor.Close(); err != nil {
+					m.opts.InstrumentOptions().Logger().Error("error closing background compactor", zap.Error(err))
+				}
+			}
+		}()
 	}
 
 	if m.backgroundCompactors == nil {
