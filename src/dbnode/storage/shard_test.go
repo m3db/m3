@@ -2042,6 +2042,73 @@ func TestSeriesRefResolver(t *testing.T) {
 	require.Zero(t, entry.ReaderWriterCount())
 }
 
+// TestSeriesRefResolverAsync tests async resolver creation/closure for the same series
+// to validate proper ref counting.
+func TestSeriesRefResolverAsync(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	shard := testDatabaseShard(t, DefaultTestOptions())
+	ctx := context.NewBackground()
+	defer func() {
+		ctrl.Finish()
+		_ = shard.Close()
+		ctx.Close()
+	}()
+
+	seriesID := ident.StringID("foo+bar=baz")
+	seriesTags := ident.NewTags(ident.Tag{
+		Name:  ident.StringID("bar"),
+		Value: ident.StringID("baz"),
+	})
+
+	iter := ident.NewMockTagIterator(ctrl)
+	// Ensure duplicate called but no close, etc
+	iter.EXPECT().
+		Duplicate().
+		Return(ident.NewTagsIterator(seriesTags)).
+		AnyTimes()
+
+	// This resolution path is async due to the use of the index insert queue.
+	// When many entries for the same series are queued up at once, only one
+	// is persisted in the shard map. We induce this by spinning up N goroutines
+	// to cause an insert for the same series, and release them all at once.
+	// We then verify at the end that the ref counts are correctly freed for the
+	// entry ultimately in the shard map (i.e. it should have zero outstanding after
+	// every resolver is closed).
+	var (
+		start  sync.WaitGroup
+		finish sync.WaitGroup
+	)
+	start.Add(1)
+	for i := 0; i < 100; i++ {
+		i := i
+		finish.Add(1)
+		go func() {
+			start.Wait()
+
+			resolver, err := shard.SeriesRefResolver(seriesID, iter)
+			require.NoError(t, err)
+
+			if i%2 == 0 {
+				// Half the time exercise the ref retrieval path.
+				_, err = resolver.SeriesRef()
+				require.NoError(t, err)
+			}
+
+			resolver.ReleaseRef()
+
+			finish.Done()
+		}()
+	}
+
+	start.Done()
+	finish.Wait()
+
+	entryInShard, _, err := shard.TryRetrieveSeriesAndIncrementReaderWriterCount(seriesID)
+	require.NoError(t, err)
+	entryInShard.DecrementReaderWriterCount() // Decrement because the above retrieval increments.
+	require.Equal(t, int32(0), entryInShard.ReaderWriterCount())
+}
+
 func getMockReader(
 	ctrl *gomock.Controller,
 	t *testing.T,
