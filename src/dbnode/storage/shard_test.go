@@ -2042,6 +2042,65 @@ func TestSeriesRefResolver(t *testing.T) {
 	require.Zero(t, entry.ReaderWriterCount())
 }
 
+// TestSeriesRefResolverAsync tests async resolver creation/closure for the same series
+// to validate proper ref counting.
+func TestSeriesRefResolverAsync(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	shard := testDatabaseShard(t, DefaultTestOptions())
+	ctx := context.NewBackground()
+	defer func() {
+		ctrl.Finish()
+		_ = shard.Close()
+		ctx.Close()
+	}()
+
+	seriesID := ident.StringID("foo+bar=baz")
+	seriesTags := ident.NewTags(ident.Tag{
+		Name:  ident.StringID("bar"),
+		Value: ident.StringID("baz"),
+	})
+
+	iter := ident.NewMockTagIterator(ctrl)
+	// Ensure duplicate called but no close, etc
+	iter.EXPECT().
+		Duplicate().
+		Return(ident.NewTagsIterator(seriesTags)).
+		AnyTimes()
+
+	var (
+		start  sync.WaitGroup
+		finish sync.WaitGroup
+	)
+	start.Add(1)
+	for i := 0; i < 100; i++ {
+		i := i
+		finish.Add(1)
+		go func() {
+			start.Wait()
+
+			resolver, err := shard.SeriesRefResolver(seriesID, iter)
+			require.NoError(t, err)
+
+			if i%2 == 0 {
+				// Half the time exercise the ref retrieval path.
+				_, err = resolver.SeriesRef()
+				require.NoError(t, err)
+			}
+
+			resolver.ReleaseRef()
+
+			finish.Done()
+		}()
+	}
+
+	start.Done()
+	finish.Wait()
+
+	entryInShard, _, err := shard.TryRetrieveSeriesAndIncrementReaderWriterCount(seriesID)
+	require.NoError(t, err)
+	require.Equal(t, int32(1), entryInShard.ReaderWriterCount())
+}
+
 func getMockReader(
 	ctrl *gomock.Controller,
 	t *testing.T,
