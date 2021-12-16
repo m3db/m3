@@ -24,13 +24,14 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/m3db/m3/src/query/models"
-	xconfig "github.com/m3db/m3/src/x/config"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/validator.v2"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/models"
+	xconfig "github.com/m3db/m3/src/x/config"
 )
 
 const testConfigFile = "./testdata/config.yml"
@@ -103,6 +104,18 @@ func TestConfigLoading(t *testing.T) {
 	assert.Equal(t, HTTPConfiguration{EnableH2C: true}, cfg.HTTP)
 
 	// TODO: assert on more fields here.
+}
+
+func TestDefaultAsFetchOptionsBuilderLimitsOptions(t *testing.T) {
+	limits := LimitsConfiguration{}
+	assert.Equal(t, handleroptions.FetchOptionsBuilderLimitsOptions{
+		SeriesLimit:            defaultStorageQuerySeriesLimit,
+		InstanceMultiple:       float32(0),
+		DocsLimit:              defaultStorageQueryDocsLimit,
+		RangeLimit:             0,
+		RequireExhaustive:      defaultRequireExhaustive,
+		MaxMetricMetadataStats: defaultMaxMetricMetadataStats,
+	}, limits.PerQuery.AsFetchOptionsBuilderLimitsOptions())
 }
 
 func TestConfigValidation(t *testing.T) {

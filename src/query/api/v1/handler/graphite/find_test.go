@@ -292,9 +292,8 @@ func testFind(t *testing.T, opts testFindOptions) {
 							{Name: b("__g1__"), Values: bs("bug", "bar", "baz")},
 						},
 						Metadata: block.ResultMetadata{
-							LocalOnly:      true,
-							Exhaustive:     lt.ex,
-							MetadataByName: make(map[string]*block.ResultMetricMetadata),
+							LocalOnly:  true,
+							Exhaustive: lt.ex,
 						},
 					}
 				},
@@ -318,10 +317,9 @@ func testFind(t *testing.T, opts testFindOptions) {
 							{Name: b("__g1__"), Values: bs("baz", "bix", "bug")},
 						},
 						Metadata: block.ResultMetadata{
-							LocalOnly:      false,
-							Exhaustive:     true,
-							Warnings:       warnings,
-							MetadataByName: make(map[string]*block.ResultMetricMetadata),
+							LocalOnly:  false,
+							Exhaustive: true,
+							Warnings:   warnings,
 						},
 					}
 				},
@@ -367,9 +365,8 @@ func testFind(t *testing.T, opts testFindOptions) {
 							{Name: b("__g3__"), Values: bs("baz0", "baz1", "baz2")},
 						},
 						Metadata: block.ResultMetadata{
-							LocalOnly:      true,
-							Exhaustive:     true,
-							MetadataByName: make(map[string]*block.ResultMetricMetadata),
+							LocalOnly:  true,
+							Exhaustive: true,
 						},
 					}
 				},

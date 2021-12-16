@@ -59,6 +59,4 @@ func TestConfigurationNewNamespaces(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, cfg.InitWatchTimeout, opts.InitWatchTimeout())
 	require.Equal(t, cfg.NamespacesKey, opts.NamespacesKey())
-	require.Equal(t, []byte(cfg.NamespaceTag), opts.NamespaceTag())
-	require.Equal(t, []byte(cfg.DefaultNamespace), opts.DefaultNamespace())
 }

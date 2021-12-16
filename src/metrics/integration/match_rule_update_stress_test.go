@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/id/m3"
@@ -53,12 +54,13 @@ import (
 
 const (
 	stressTestNamespacesKey = "namespaces"
-	stressTestNamespaceTag  = "namespace"
 	stressTestRuleSetKeyFmt = "rulesets/%s"
 	stressTestNameTagKey    = "name"
 	stressTestNamespaceName = "stress"
 	stressTestRuleSetKey    = "rulesets/stress"
 )
+
+var stressTestNamespaceTag = []byte("namespace")
 
 func TestMatchWithRuleUpdatesStress(t *testing.T) {
 	if testing.Short() {
@@ -312,10 +314,10 @@ func updateStore(
 func stressTestNamespaces() *rulepb.Namespaces {
 	return &rulepb.Namespaces{
 		Namespaces: []*rulepb.Namespace{
-			&rulepb.Namespace{
+			{
 				Name: stressTestNamespaceName,
 				Snapshots: []*rulepb.NamespaceSnapshot{
-					&rulepb.NamespaceSnapshot{
+					{
 						ForRulesetVersion: 1,
 						Tombstoned:        false,
 					},
@@ -327,16 +329,16 @@ func stressTestNamespaces() *rulepb.Namespaces {
 
 func stressTestMappingRulesConfig() []*rulepb.MappingRule {
 	return []*rulepb.MappingRule{
-		&rulepb.MappingRule{
+		{
 			Uuid: "mappingRule1",
 			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
+				{
 					Name:         "mappingRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 1000,
 					Filter:       "mtagName1:mtagValue1",
 					StoragePolicies: []*policypb.StoragePolicy{
-						&policypb.StoragePolicy{
+						{
 							Resolution: policypb.Resolution{
 								WindowSize: int64(10 * time.Second),
 								Precision:  int64(time.Second),
@@ -354,17 +356,17 @@ func stressTestMappingRulesConfig() []*rulepb.MappingRule {
 
 func stressTestRollupRulesConfig() []*rulepb.RollupRule {
 	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
+		{
 			Uuid: "rollupRule1",
 			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
+				{
 					Name:         "rollupRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 500,
 					Filter:       "rtagName1:rtagValue1",
 					KeepOriginal: true,
 					TargetsV2: []*rulepb.RollupTargetV2{
-						&rulepb.RollupTargetV2{
+						{
 							Pipeline: &pipelinepb.Pipeline{
 								Ops: []pipelinepb.PipelineOp{
 									{
@@ -377,7 +379,7 @@ func stressTestRollupRulesConfig() []*rulepb.RollupRule {
 								},
 							},
 							StoragePolicies: []*policypb.StoragePolicy{
-								&policypb.StoragePolicy{
+								{
 									Resolution: policypb.Resolution{
 										WindowSize: int64(time.Minute),
 										Precision:  int64(time.Minute),
@@ -421,7 +423,7 @@ func stressTestSortedTagIteratorPool() id.SortedTagIteratorPool {
 
 func stressTestMatcherOptions(store kv.Store) matcher.Options {
 	tagsFilterOpts := filters.TagsFilterOptions{
-		NameTagKey:          []byte(stressTestNameTagKey),
+		NameTagKey: []byte(stressTestNameTagKey),
 	}
 	ruleSetOpts := rules.NewOptions().
 		SetTagsFilterOptions(tagsFilterOpts).
@@ -432,6 +434,6 @@ func stressTestMatcherOptions(store kv.Store) matcher.Options {
 		SetRuleSetKeyFn(func(namespace []byte) string {
 			return fmt.Sprintf(stressTestRuleSetKeyFmt, namespace)
 		}).
-		SetNamespaceTag([]byte(stressTestNamespaceTag)).
+		SetNamespaceResolver(namespace.NewResolver(stressTestNamespaceTag, nil)).
 		SetRuleSetOptions(ruleSetOpts)
 }

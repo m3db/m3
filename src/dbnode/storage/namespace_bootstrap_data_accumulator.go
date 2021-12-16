@@ -25,7 +25,6 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 )
 
@@ -87,13 +86,8 @@ func (a *namespaceDataAccumulator) Close() error {
 	}
 
 	// Release all refs.
-	multiError := xerrors.NewMultiError()
 	for _, elem := range a.needsRelease {
-		multiError = multiError.Add(elem.ReleaseRef())
-	}
-
-	if !multiError.Empty() {
-		return multiError.FinalError()
+		elem.ReleaseRef()
 	}
 
 	a.closed = true
