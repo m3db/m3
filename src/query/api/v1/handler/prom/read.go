@@ -26,6 +26,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sync"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
@@ -123,9 +124,19 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// NB (@shreyas): We put the FetchOptions in context so it can be
 	// retrieved in the queryable object as there is no other way to pass
 	// that through.
-	var resultMetadata block.ResultMetadata
+	//
+	// We also put a function into the context that allows callers to safely
+	// pass back result metadata concurrently so that they can be combined
+	// for later reporting.
+	var resultMetadataMutex sync.Mutex
+	resultMetadata := block.NewResultMetadata()
+	resultMetadataReceiveFn := func(m block.ResultMetadata) {
+		resultMetadataMutex.Lock()
+		defer resultMetadataMutex.Unlock()
+		resultMetadata = resultMetadata.CombineMetadata(m)
+	}
 	ctx = context.WithValue(ctx, prometheus.FetchOptionsContextKey, fetchOptions)
-	ctx = context.WithValue(ctx, prometheus.BlockResultMetadataKey, &resultMetadata)
+	ctx = context.WithValue(ctx, prometheus.BlockResultMetadataFnKey, resultMetadataReceiveFn)
 
 	qry, err := h.opts.newQueryFn(params)
 	if err != nil {

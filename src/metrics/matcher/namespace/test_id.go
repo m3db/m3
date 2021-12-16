@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,9 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package placements
+package namespace
 
-const (
-	// DefaultPath is the url path for api calls for placements
-	DefaultPath = "/api/v1/services/"
+import (
+	"github.com/m3db/m3/src/metrics/metric/id"
 )
+
+// NewTestID creates a new ID for testing that always returns the namespace for TagValue.
+func NewTestID(id, namespace string) id.ID {
+	return &testID{
+		id: []byte(id),
+		ns: []byte(namespace),
+	}
+}
+
+type testID struct {
+	id []byte
+	ns []byte
+}
+
+func (t testID) Bytes() []byte {
+	return t.id
+}
+
+func (t testID) TagValue(_ []byte) ([]byte, bool) {
+	return t.ns, true
+}

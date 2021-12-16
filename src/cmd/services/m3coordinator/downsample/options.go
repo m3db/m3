@@ -27,6 +27,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/client"
@@ -45,6 +47,7 @@ import (
 	"github.com/m3db/m3/src/metrics/generated/proto/transformationpb"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
@@ -91,6 +94,7 @@ const (
 )
 
 var (
+	defaultMetricNameTagName    = []byte(model.MetricNameLabel)
 	numShards                   = runtime.GOMAXPROCS(0)
 	defaultNamespaceTag         = metric.M3MetricsPrefixString + "_namespace__"
 	defaultFilterOutTagPrefixes = [][]byte{
@@ -134,6 +138,14 @@ type DownsamplerOptions struct {
 	InterruptedCh              <-chan struct{}
 }
 
+// NameTagOrDefault returns the configured name tag or the default if one is not set.
+func (o DownsamplerOptions) NameTagOrDefault() []byte {
+	if o.NameTag == "" {
+		return defaultMetricNameTagName
+	}
+	return []byte(o.NameTag)
+}
+
 // AutoMappingRule is a mapping rule to apply to metrics.
 type AutoMappingRule struct {
 	Aggregations []aggregation.Type
@@ -147,6 +159,10 @@ func NewAutoMappingRules(namespaces []m3.ClusterNamespace) ([]AutoMappingRule, e
 		opts := namespace.Options()
 		attrs := opts.Attributes()
 		if attrs.MetricsType != storagemetadata.AggregatedMetricsType {
+			continue
+		}
+
+		if opts.ReadOnly() {
 			continue
 		}
 
@@ -726,7 +742,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetInstrumentOptions(instrumentOpts).
 		SetRuleSetOptions(ruleSetOpts).
 		SetKVStore(o.RulesKVStore).
-		SetNamespaceTag([]byte(namespaceTag)).
+		SetNamespaceResolver(namespace.NewResolver([]byte(namespaceTag), nil)).
 		SetRequireNamespaceWatchOnInit(cfg.Matcher.RequireNamespaceWatchOnInit).
 		SetInterruptedCh(o.InterruptedCh)
 
@@ -1025,7 +1041,10 @@ func (o DownsamplerOptions) newAggregatorPools() aggPools {
 		o.TagDecoderPoolOptions)
 	metricTagsIteratorPool.Init()
 
-	metricsAppenderPool := newMetricsAppenderPool(o.MetricsAppenderPoolOptions)
+	metricsAppenderPool := newMetricsAppenderPool(
+		o.MetricsAppenderPoolOptions,
+		o.TagDecoderOptions.TagSerializationLimits(),
+		o.NameTagOrDefault())
 
 	return aggPools{
 		tagEncoderPool:         tagEncoderPool,
@@ -1036,29 +1055,9 @@ func (o DownsamplerOptions) newAggregatorPools() aggPools {
 }
 
 func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Options {
-	nameTag := defaultMetricNameTagName
-	if o.NameTag != "" {
-		nameTag = []byte(o.NameTag)
-	}
-
-	sortedTagIteratorFn := func(tagPairs []byte) id.SortedTagIterator {
-		it := pools.metricTagsIteratorPool.Get()
-		it.Reset(tagPairs)
-		return it
-	}
-
+	nameTag := o.NameTagOrDefault()
 	tagsFilterOpts := filters.TagsFilterOptions{
 		NameTagKey: nameTag,
-		NameAndTagsFn: func(id []byte) ([]byte, []byte, error) {
-			name, err := resolveEncodedTagsNameTag(id, nameTag)
-			if err != nil && err != errNoMetricNameTag {
-				return nil, nil, err
-			}
-			// ID is always the encoded tags for IDs in the downsampler
-			tags := id
-			return name, tags, nil
-		},
-		SortedTagIteratorFn: sortedTagIteratorFn,
 	}
 
 	newRollupIDProviderPool := newRollupIDProviderPool(pools.tagEncoderPool,
@@ -1106,6 +1105,7 @@ func (o DownsamplerOptions) newAggregatorMatcher(
 			SetMetricsScope(scope)
 		cacheOpts := cache.NewOptions().
 			SetCapacity(capacity).
+			SetNamespaceResolver(opts.NamespaceResolver()).
 			SetClockOptions(opts.ClockOptions()).
 			SetInstrumentOptions(instrumentOpts)
 		matcherCache = cache.NewCache(cacheOpts)

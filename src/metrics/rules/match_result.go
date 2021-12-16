@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric/id"
 )
 
 var (
@@ -66,6 +67,12 @@ type MatchResult struct {
 	// as its first step.
 	forNewRollupIDs []IDWithMetadatas
 	keepOriginal    bool
+}
+
+// MatchOptions are request level options for each Match.
+type MatchOptions struct {
+	NameAndTagsFn       id.NameAndTagsFn
+	SortedTagIteratorFn id.SortedTagIteratorFn
 }
 
 // NewMatchResult creates a new match result.

@@ -31,15 +31,15 @@ m3ctl apply -f ./database/examples/dbcreate.yaml
 m3ctl get ns
 # delete a namespace
 m3ctl delete ns -id default
-# list placements
-m3ctl get pl
+# list service placements (m3db/m3coordinator/m3aggregator)
+m3ctl get pl <service>
 # point to some remote and list namespaces
 m3ctl -endpoint http://localhost:7201 get ns
 # check the namespaces in a kubernetes cluster
-# first setup a tunnel via kubectl port-forward ... 7201 
+# first setup a tunnel via kubectl port-forward ... 7201
 m3ctl -endpoint http://localhost:7201 get ns
-# list the ids of the placements
-m3ctl -endpoint http://localhost:7201 get pl | jq .placement.instances[].id
+# list the ids of the m3db placements
+m3ctl -endpoint http://localhost:7201 get pl m3db | jq .placement.instances[].id
 ```
 
 Some example yaml files for the "apply" subcommand are provided in the yaml/examples directory.
@@ -72,11 +72,11 @@ instances:
     endpoint: node3:9000
     hostname: node3
     port: 9000
-```    
+```
 
 See the examples directories below.
 
 # References
 
- * [Operational guide](https://docs.m3db.io/operational_guide) 
+ * [Operational guide](https://docs.m3db.io/operational_guide)
  * [API docs](https://www.m3db.io/openapi/)

@@ -204,8 +204,11 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 	}
 
 	fetchOpts := &storage.FetchOptions{}
-	result := storage.PromResult{Metadata: block.ResultMetadata{
-		Exhaustive: true, LocalOnly: true}}
+	result := storage.PromResult{
+		PromResult: &prompb.QueryResult{
+			Timeseries: []*prompb.TimeSeries{},
+		},
+	}
 	engine := executor.NewMockEngine(ctrl)
 	engine.EXPECT().
 		ExecuteProm(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -409,7 +412,6 @@ func TestReadWithOptions(t *testing.T) {
 				},
 			},
 		},
-		Metadata: block.NewResultMetadata(),
 	}
 
 	req := &prompb.ReadRequest{

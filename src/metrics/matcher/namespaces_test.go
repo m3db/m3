@@ -32,6 +32,8 @@ import (
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
 
 	"github.com/golang/protobuf/proto"
@@ -316,29 +318,29 @@ func testNamespaces() (kv.TxnStore, cache.Cache, *namespaces, Options) {
 
 type memResults struct {
 	results map[string]rules.MatchResult
-	source  cache.Source
+	source  rules.Matcher
 }
 
 type memCache struct {
 	sync.RWMutex
-
+	nsResolver namespace.Resolver
 	namespaces map[string]memResults
 }
 
 func newMemCache() cache.Cache {
-	return &memCache{namespaces: make(map[string]memResults)}
+	return &memCache{namespaces: make(map[string]memResults), nsResolver: namespace.Default}
 }
 
-func (c *memCache) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult {
+func (c *memCache) ForwardMatch(id id.ID, _, _ int64, _ rules.MatchOptions) (rules.MatchResult, error) {
 	c.RLock()
 	defer c.RUnlock()
-	if results, exists := c.namespaces[string(namespace)]; exists {
-		return results.results[string(id)]
+	if results, exists := c.namespaces[string(c.nsResolver.Resolve(id))]; exists {
+		return results.results[string(id.Bytes())], nil
 	}
-	return rules.EmptyMatchResult
+	return rules.EmptyMatchResult, nil
 }
 
-func (c *memCache) Register(namespace []byte, source cache.Source) {
+func (c *memCache) Register(namespace []byte, source rules.Matcher) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -354,7 +356,7 @@ func (c *memCache) Register(namespace []byte, source cache.Source) {
 	panic(fmt.Errorf("re-registering existing namespace %s", namespace))
 }
 
-func (c *memCache) Refresh(namespace []byte, source cache.Source) {
+func (c *memCache) Refresh(namespace []byte, source rules.Matcher) {
 	c.Lock()
 	defer c.Unlock()
 

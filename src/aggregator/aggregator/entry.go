@@ -43,7 +43,6 @@ import (
 
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
-	"go.uber.org/multierr"
 )
 
 const (
@@ -735,12 +734,12 @@ func (e *Entry) updateStagedMetadatasWithLock(
 }
 
 func (e *Entry) addUntimedWithLock(serverTimestamp time.Time, mu unaggregated.MetricUnion) error {
-	var err error
+	multiErr := xerrors.NewMultiError()
 	for i := range e.aggregations {
-		multierr.AppendInto(&err, e.addUntimedValueWithLock(
+		multiErr = multiErr.Add(e.addUntimedValueWithLock(
 			e.aggregations[i], serverTimestamp, mu, e.aggregations[i].resendEnabled, false))
 	}
-	return err
+	return multiErr.FinalError()
 }
 
 // addUntimedValueWithLock adds the untimed value to the aggregationValue.
@@ -1001,25 +1000,24 @@ func (e *Entry) addTimedWithLock(
 func (e *Entry) addTimedWithStagedMetadatasAndLock(metric aggregated.Metric) error {
 	var (
 		timestamp = time.Unix(0, metric.TimeNanos)
-		err       error
+		multiErr  = xerrors.NewMultiError()
 	)
 
 	for i := range e.aggregations {
-		if multierr.AppendInto(
-			&err,
-			e.checkTimestampForMetric(
-				metric.TimeNanos,
-				e.nowFn().UnixNano(),
-				e.aggregations[i].key.storagePolicy.Resolution().Window),
-		) {
+		err := e.checkTimestampForMetric(
+			metric.TimeNanos,
+			e.nowFn().UnixNano(),
+			e.aggregations[i].key.storagePolicy.Resolution().Window)
+		if err != nil {
+			multiErr = multiErr.Add(err)
 			continue
 		}
-		multierr.AppendInto(
-			&err,
-			e.aggregations[i].elem.Value.(metricElem).AddValue(timestamp, metric.Value, metric.Annotation),
-		)
+		err = e.aggregations[i].elem.Value.(metricElem).AddValue(timestamp, metric.Value, metric.Annotation)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
 	}
-	return err
+	return multiErr.FinalError()
 }
 
 func (e *Entry) addForwarded(

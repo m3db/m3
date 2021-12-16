@@ -24,6 +24,8 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
+	"github.com/m3db/m3/src/metrics/rules"
+	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
@@ -35,6 +37,9 @@ import (
 
 // Downsampler is a downsampler.
 type Downsampler interface {
+	rules.Fetcher
+	// LatestRollupRules returns a snapshot of the latest rollup rules for a given namespace
+	// at a given time.
 	NewMetricsAppender() (MetricsAppender, error)
 	// Enabled indicates whether the downsampler is enabled or not. A
 	// downsampler is enabled if there are aggregated ClusterNamespaces
@@ -137,17 +142,22 @@ func defaultMetricsAppenderOptions(opts DownsamplerOptions, agg agg) metricsAppe
 	}
 
 	return metricsAppenderOptions{
-		agg:                    agg.aggregator,
-		clientRemote:           agg.clientRemote,
-		clockOpts:              agg.clockOpts,
-		tagEncoderPool:         agg.pools.tagEncoderPool,
-		matcher:                agg.matcher,
-		metricTagsIteratorPool: agg.pools.metricTagsIteratorPool,
-		debugLogging:           debugLogging,
-		logger:                 logger,
-		untimedRollups:         agg.untimedRollups,
-		metrics:                metrics,
+		agg:            agg.aggregator,
+		clientRemote:   agg.clientRemote,
+		clockOpts:      agg.clockOpts,
+		tagEncoderPool: agg.pools.tagEncoderPool,
+		matcher:        agg.matcher,
+		debugLogging:   debugLogging,
+		logger:         logger,
+		untimedRollups: agg.untimedRollups,
+		metrics:        metrics,
 	}
+}
+
+func (d *downsampler) LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error) {
+	d.RLock()
+	defer d.RUnlock()
+	return d.agg.matcher.LatestRollupRules(namespace, timeNanos)
 }
 
 func (d *downsampler) NewMetricsAppender() (MetricsAppender, error) {

@@ -21,6 +21,7 @@
 package m3
 
 import (
+	"bytes"
 	"context"
 	goerrors "errors"
 	"fmt"
@@ -28,13 +29,16 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go/log"
+	"github.com/prometheus/common/model"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	coordmodel "github.com/m3db/m3/src/cmd/services/m3coordinator/model"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -52,6 +56,13 @@ const (
 )
 
 var (
+	// The default name for the name tag in Prometheus metrics.
+	promDefaultName = []byte(model.MetricNameLabel)
+	// The name for the rollup tag defined by the coordinator model.
+	rollupTagName = []byte(coordmodel.RollupTagName)
+	// The value for the rollup tag defined by the coordinator model.
+	rollupTagValue = []byte(coordmodel.RollupTagValue)
+
 	errUnaggregatedAndAggregatedDisabled = goerrors.New("fetch options has both" +
 		" aggregated and unaggregated namespace lookup disabled")
 	errNoNamespacesConfigured             = goerrors.New("no namespaces configured")
@@ -116,6 +127,33 @@ func (s *m3storage) Name() string {
 	return "local_store"
 }
 
+func calculateMetadataByName(result *prompb.QueryResult, metadata *block.ResultMetadata) {
+	for _, series := range result.Timeseries {
+		if series == nil {
+			continue
+		}
+
+		rollup := false
+		nameTag := []byte{}
+		for _, label := range series.Labels {
+			// Check for both the rollup tag and the metric name label.
+			if bytes.Equal(label.Name, rollupTagName) {
+				if bytes.Equal(label.Value, rollupTagValue) {
+					rollup = true
+				}
+			} else if bytes.Equal(label.Name, promDefaultName) {
+				nameTag = label.Value
+			}
+		}
+
+		if rollup {
+			metadata.ByName(nameTag).Aggregated++
+		} else {
+			metadata.ByName(nameTag).Unaggregated++
+		}
+	}
+}
+
 func (s *m3storage) FetchProm(
 	ctx context.Context,
 	query *storage.FetchQuery,
@@ -149,9 +187,14 @@ func (s *m3storage) FetchProm(
 		s.opts.ReadWorkerPool(),
 		s.opts.TagOptions(),
 		s.opts.PromConvertOptions(),
+		options,
 	)
 	if err != nil {
 		return storage.PromResult{}, err
+	}
+
+	if options != nil && options.MaxMetricMetadataStats > 0 {
+		calculateMetadataByName(fetchResult.PromResult, &fetchResult.Metadata)
 	}
 
 	return fetchResult, nil
@@ -390,6 +433,9 @@ func (s *m3storage) fetchCompressed(
 			}
 
 			blockMeta := block.NewResultMetadata()
+			blockMeta.AddNamespace(namespaceID.String())
+			blockMeta.FetchedResponses = metadata.Responses
+			blockMeta.FetchedBytesEstimate = metadata.EstimateTotalBytes
 			blockMeta.Exhaustive = metadata.Exhaustive
 			blockMeta.WaitedIndex = metadata.WaitedIndex
 			blockMeta.WaitedSeriesRead = metadata.WaitedSeriesRead
@@ -591,6 +637,9 @@ func (s *m3storage) CompleteTags(
 			}
 
 			blockMeta := block.NewResultMetadata()
+			blockMeta.AddNamespace(namespaceID.String())
+			blockMeta.FetchedResponses = metadata.Responses
+			blockMeta.FetchedBytesEstimate = metadata.EstimateTotalBytes
 			blockMeta.Exhaustive = metadata.Exhaustive
 			blockMeta.WaitedIndex = metadata.WaitedIndex
 			blockMeta.WaitedSeriesRead = metadata.WaitedSeriesRead
@@ -696,6 +745,9 @@ func (s *m3storage) SearchCompressed(
 			}
 
 			blockMeta := block.NewResultMetadata()
+			blockMeta.AddNamespace(namespaceID.String())
+			blockMeta.FetchedResponses = metadata.Responses
+			blockMeta.FetchedBytesEstimate = metadata.EstimateTotalBytes
 			blockMeta.Exhaustive = metadata.Exhaustive
 			blockMeta.WaitedIndex = metadata.WaitedIndex
 			blockMeta.WaitedSeriesRead = metadata.WaitedSeriesRead
@@ -746,6 +798,12 @@ func (s *m3storage) Write(
 		if !exists {
 			err = fmt.Errorf("no configured cluster namespace for: retention=%s,"+
 				" resolution=%s", attrs.Retention.String(), attrs.Resolution.String())
+			break
+		}
+		if namespace.Options().ReadOnly() {
+			err = fmt.Errorf(
+				"cannot write to read only namespace %s (%s:%s)",
+				namespace.NamespaceID(), attrs.Resolution.String(), attrs.Retention.String())
 		}
 	default:
 		metricsType := attributes.MetricsType

@@ -360,6 +360,7 @@ func validateLookup(t *testing.T, f chainFilter, val string, expectedMatch bool,
 type mockFilterData struct {
 	val   string
 	match bool
+	err   error
 }
 
 type testPattern struct {

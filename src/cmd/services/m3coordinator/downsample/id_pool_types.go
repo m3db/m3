@@ -30,19 +30,11 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
-
-	"github.com/prometheus/common/model"
 )
 
 var (
-	defaultMetricNameTagName = []byte(model.MetricNameLabel)
-	rollupTagName            = []byte(coordmodel.RollupTagName)
-	rollupTagValue           = []byte(coordmodel.RollupTagValue)
-	rollupTag                = ident.Tag{
-		Name:  ident.BytesID(rollupTagName),
-		Value: ident.BytesID(rollupTagValue),
-	}
-
+	rollupTagName      = []byte(coordmodel.RollupTagName)
+	rollupTagValue     = []byte(coordmodel.RollupTagValue)
 	errNoMetricNameTag = errors.New("no metric name tag found")
 )
 

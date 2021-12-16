@@ -48,9 +48,8 @@ func (r *seriesTestResolver) SeriesRef() (bootstrap.SeriesRef, error) {
 	return r.series, nil
 }
 
-func (r *seriesTestResolver) ReleaseRef() error {
+func (r *seriesTestResolver) ReleaseRef() {
 	r.releaseCalls++
-	return nil
 }
 
 func (r *seriesTestResolver) UniqueIndex() uint64 {

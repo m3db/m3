@@ -35,7 +35,9 @@ import (
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
@@ -55,12 +57,15 @@ type metricsAppenderPool struct {
 	pool pool.ObjectPool
 }
 
-func newMetricsAppenderPool(opts pool.ObjectPoolOptions) *metricsAppenderPool {
+func newMetricsAppenderPool(
+	opts pool.ObjectPoolOptions,
+	tagLimits serialize.TagSerializationLimits,
+	nameTag []byte) *metricsAppenderPool {
 	p := &metricsAppenderPool{
 		pool: pool.NewObjectPool(opts),
 	}
 	p.pool.Init(func() interface{} {
-		return newMetricsAppender(p)
+		return newMetricsAppender(p, tagLimits, nameTag)
 	})
 	return p
 }
@@ -82,6 +87,7 @@ type metricsAppenderMetrics struct {
 	operationsCount         tally.Counter
 }
 
+// a metricsAppender is not thread safe
 type metricsAppender struct {
 	metricsAppenderOptions
 
@@ -98,6 +104,9 @@ type metricsAppender struct {
 	originalTags *tags
 	cachedTags   []*tags
 	inuseTags    []*tags
+	tagIter      serialize.MetricTagsIterator
+	tagIterFn    id.SortedTagIteratorFn
+	nameTagFn    id.NameAndTagsFn
 }
 
 // metricsAppenderOptions will have one of agg or clientRemote set.
@@ -108,7 +117,6 @@ type metricsAppenderOptions struct {
 	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
 	matcher                      matcher.Matcher
 	tagEncoderPool               serialize.TagEncoderPool
-	metricTagsIteratorPool       serialize.MetricTagsIteratorPool
 	untimedRollups               bool
 
 	clockOpts    clock.Options
@@ -117,10 +125,32 @@ type metricsAppenderOptions struct {
 	metrics      metricsAppenderMetrics
 }
 
-func newMetricsAppender(pool *metricsAppenderPool) *metricsAppender {
+func newMetricsAppender(
+	pool *metricsAppenderPool,
+	tagLimits serialize.TagSerializationLimits,
+	nameTag []byte) *metricsAppender {
+	// N.B - a metrics appender is not thread safe, so it's fine to use an unchecked tag iterator. this significantly
+	// speeds up the matcher performance.
+	tagIter := serialize.NewUncheckedMetricTagsIterator(tagLimits)
 	return &metricsAppender{
 		pool:                 pool,
 		multiSamplesAppender: newMultiSamplesAppender(),
+		tagIter:              tagIter,
+		tagIterFn: func(tagPairs []byte) id.SortedTagIterator {
+			// Use the same tagIter for all matching computations. It is safe to reuse since a metric appender is
+			// single threaded and it's reset before each computation.
+			tagIter.Reset(tagPairs)
+			return tagIter
+		},
+		nameTagFn: func(id []byte) ([]byte, []byte, error) {
+			name, err := resolveEncodedTagsNameTag(id, nameTag)
+			if err != nil && !errors.Is(err, errNoMetricNameTag) {
+				return nil, nil, err
+			}
+			// ID is always the encoded tags for IDs in the downsampler
+			tags := id
+			return name, tags, nil
+		},
 	}
 }
 
@@ -204,14 +234,21 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	a.multiSamplesAppender.reset()
 	unownedID := data.Bytes()
 	// Match policies and rollups and build samples appender
-	id := a.metricTagsIteratorPool.Get()
-	id.Reset(unownedID)
+	a.tagIter.Reset(unownedID)
 	now := time.Now()
 	nowNanos := now.UnixNano()
 	fromNanos := nowNanos
 	toNanos := nowNanos + 1
-	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
-	id.Close()
+	// N.B - it's safe the reuse the shared tag iterator because the matcher uses it immediately to resolve the optional
+	// namespace tag to determine the ruleset for the namespace. then the ruleset matcher reuses the tag iterator for
+	// every match computation.
+	matchResult, err := a.matcher.ForwardMatch(a.tagIter, fromNanos, toNanos, rules.MatchOptions{
+		NameAndTagsFn:       a.nameTagFn,
+		SortedTagIteratorFn: a.tagIterFn,
+	})
+	if err != nil {
+		return SamplesAppenderResult{}, err
+	}
 
 	// Filter out augmented metrics tags we added for matching.
 	for _, filter := range defaultFilterOutTagPrefixes {

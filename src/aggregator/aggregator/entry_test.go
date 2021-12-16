@@ -1468,6 +1468,7 @@ func TestEntryAddTimedEntryClosed(t *testing.T) {
 	require.Equal(t, errEntryClosed, e.AddTimed(testTimedMetric, testTimedMetadata))
 }
 
+//nolint: dupl
 func TestEntryAddTimedMetricTooLate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1483,31 +1484,51 @@ func TestEntryAddTimedMetricTooLate(t *testing.T) {
 	e.opts = e.opts.SetBufferForPastTimedMetricFn(timedAggregationBufferPastFn)
 
 	inputs := []struct {
-		timeNanos     int64
-		storagePolicy policy.StoragePolicy
+		timeNanos       int64
+		storagePolicies policy.StoragePolicies
 	}{
 		{
-			timeNanos:     now.UnixNano() - 11*time.Second.Nanoseconds(),
-			storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+			timeNanos: now.UnixNano() - 11*time.Second.Nanoseconds(),
+			storagePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour*2),
+			},
 		},
 		{
-			timeNanos:     now.UnixNano() - 12*time.Second.Nanoseconds(),
-			storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+			timeNanos: now.UnixNano() - 12*time.Second.Nanoseconds(),
+			storagePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour*2),
+			},
 		},
 		{
-			timeNanos:     now.UnixNano() - 61*time.Second.Nanoseconds(),
-			storagePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+			timeNanos: now.UnixNano() - 61*time.Second.Nanoseconds(),
+			storagePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+			},
 		},
 		{
-			timeNanos:     now.UnixNano() - 62*time.Second.Nanoseconds(),
-			storagePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+			timeNanos: now.UnixNano() - 62*time.Second.Nanoseconds(),
+			storagePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+			},
 		},
 	}
 
 	for i, input := range inputs {
 		metric := testTimedMetric
 		metric.TimeNanos = input.timeNanos
-		err := e.AddTimed(metric, metadata.TimedMetadata{StoragePolicy: input.storagePolicy})
+		err := e.AddTimedWithStagedMetadatas(metric, metadata.StagedMetadatas{
+			metadata.StagedMetadata{
+				Metadata: metadata.Metadata{
+					Pipelines: metadata.PipelineMetadatas{
+						metadata.PipelineMetadata{
+							StoragePolicies: input.storagePolicies,
+						},
+					},
+				},
+			},
+		})
 		if i%2 == 0 {
 			require.NoError(t, err)
 			for _, l := range e.lists.lists {
@@ -1516,7 +1537,6 @@ func TestEntryAddTimedMetricTooLate(t *testing.T) {
 		} else {
 			require.True(t, xerrors.IsInvalidParams(err))
 			require.True(t, xerrors.Is(err, errTooFarInThePast))
-			require.Equal(t, errTooFarInThePast, xerrors.InnerError(err))
 			require.True(t, strings.Contains(err.Error(), "datapoint for aggregation too far in past"))
 			require.True(t, strings.Contains(err.Error(), "timestamp="))
 			require.True(t, strings.Contains(err.Error(), "past_limit="))
