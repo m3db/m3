@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/metric/id/m3"
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/x/clock"
@@ -116,8 +117,7 @@ func (cfg *Configuration) NewOptions(
 		SetKVStore(rulesStore).
 		SetNamespacesKey(cfg.NamespacesKey).
 		SetRuleSetKeyFn(ruleSetKeyFn).
-		SetNamespaceTag([]byte(cfg.NamespaceTag)).
-		SetDefaultNamespace([]byte(cfg.DefaultNamespace))
+		SetNamespaceResolver(namespace.NewResolver([]byte(cfg.NamespaceTag), []byte(cfg.DefaultNamespace)))
 
 	if cfg.InitWatchTimeout != 0 {
 		opts = opts.SetInitWatchTimeout(cfg.InitWatchTimeout)
