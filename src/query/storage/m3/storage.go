@@ -58,6 +58,8 @@ const (
 var (
 	// The default name for the name tag in Prometheus metrics.
 	promDefaultName = []byte(model.MetricNameLabel)
+	// The prefix for reserved labels, e.g. __name__
+	reservedLabelPrefix = []byte(model.ReservedLabelPrefix)
 	// The name for the rollup tag defined by the coordinator model.
 	rollupTagName = []byte(coordmodel.RollupTagName)
 	// The value for the rollup tag defined by the coordinator model.
@@ -127,29 +129,52 @@ func (s *m3storage) Name() string {
 	return "local_store"
 }
 
+// Find a reserved label target (one that begins with the reservedLabelPrefix)
+// from an array of sorted labels.
+func findReservedLabel(labels []prompb.Label, target []byte) []byte {
+	// The target should always contain the reservedLabelPrefix.
+	// If it doesn't, then we won't be able to find it within
+	// the reserved labels by definition.
+	if !bytes.HasPrefix(target, reservedLabelPrefix) {
+		return nil
+	}
+
+	foundReservedLabels := false
+	for idx := 0; idx < len(labels); idx++ {
+		label := labels[idx]
+		if !bytes.HasPrefix(label.Name, reservedLabelPrefix) {
+			if foundReservedLabels {
+				// We previously found reserved labels, and now that we've iterated
+				// past the end of the section that contains them, we know the target
+				// doesn't exist.
+				return nil
+			}
+			// We haven't found reserve labels yet, so keep going.
+			continue
+		}
+
+		// At this point we know that the current label contains the reservedLabelPrefix
+		foundReservedLabels = true
+		if bytes.Equal(label.Name, target) {
+			return label.Value
+		}
+	}
+
+	return nil
+}
+
 func calculateMetadataByName(result *prompb.QueryResult, metadata *block.ResultMetadata) {
 	for _, series := range result.Timeseries {
 		if series == nil {
 			continue
 		}
 
-		rollup := false
-		nameTag := []byte{}
-		for _, label := range series.Labels {
-			// Check for both the rollup tag and the metric name label.
-			if bytes.Equal(label.Name, rollupTagName) {
-				if bytes.Equal(label.Value, rollupTagValue) {
-					rollup = true
-				}
-			} else if bytes.Equal(label.Name, promDefaultName) {
-				nameTag = label.Value
-			}
-		}
-
-		if rollup {
-			metadata.ByName(nameTag).Aggregated++
+		name := findReservedLabel(series.Labels, promDefaultName)
+		rollup := findReservedLabel(series.Labels, rollupTagName)
+		if bytes.Equal(rollup, rollupTagValue) {
+			metadata.ByName(name).Aggregated++
 		} else {
-			metadata.ByName(nameTag).Unaggregated++
+			metadata.ByName(name).Unaggregated++
 		}
 	}
 }
