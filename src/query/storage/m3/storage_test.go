@@ -495,6 +495,7 @@ func TestLocalWritesWithExpiredContext(t *testing.T) {
 func buildFetchOpts() *storage.FetchOptions {
 	opts := storage.NewFetchOptions()
 	opts.SeriesLimit = 100
+	opts.MaxMetricMetadataStats = 1
 	return opts
 }
 
@@ -635,7 +636,7 @@ func assertFetchResult(t *testing.T, results storage.PromResult, testTag ident.T
 	assert.Equal(t, testTag.Value.String(), string(l.GetValue()))
 	merged := meta.MetadataByNameMerged()
 	assert.Equal(t, 1, meta.FetchedSeriesCount)
-	assert.Equal(t, merged, block.ResultMetricMetadata{Unaggregated: 1, WithSamples: 1})
+	assert.Equal(t, block.ResultMetricMetadata{Unaggregated: 1, WithSamples: 1}, merged)
 }
 
 func TestLocalSearchError(t *testing.T) {

@@ -247,8 +247,6 @@ func testMatcher(t *testing.T, opts testMatcherOptions) (Matcher, tally.TestScop
 				SetInitWatchTimeout(100 * time.Millisecond).
 				SetKVStore(store).
 				SetNamespacesKey(testNamespacesKey).
-				SetNamespaceTag([]byte("namespace")).
-				SetDefaultNamespace([]byte("default")).
 				SetRuleSetKeyFn(defaultRuleSetKeyFn).
 				SetRuleSetOptions(rules.NewOptions().
 					SetTagsFilterOptions(opts.tagFilterOptions)).

@@ -505,5 +505,5 @@ type SeriesRefResolver interface {
 	// ReleaseRef must be called after using the series ref
 	// to release the reference count to the series so it can
 	// be expired by the owning shard eventually.
-	ReleaseRef() error
+	ReleaseRef()
 }

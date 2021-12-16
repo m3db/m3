@@ -54,6 +54,24 @@ var (
 	unknownOpTypeFmt        = "unknown op type %v"
 )
 
+// Matcher matches metrics against rules to determine applicable policies.
+type Matcher interface {
+	// ForwardMatch matches the applicable policies for a metric id between [fromNanos, toNanos).
+	ForwardMatch(id metricid.ID, fromNanos, toNanos int64, opts MatchOptions) (MatchResult, error)
+}
+
+// Fetcher fetches rules.
+type Fetcher interface {
+	// LatestRollupRules returns the latest rollup rules for a given time.
+	LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error)
+}
+
+// ActiveSet is the currently active RuleSet.
+type ActiveSet interface {
+	Matcher
+	Fetcher
+}
+
 // RuleSet is a read-only set of rules associated with a namespace.
 type RuleSet interface {
 	// Namespace is the metrics namespace the ruleset applies to.
@@ -88,7 +106,7 @@ type RuleSet interface {
 	Latest() (view.RuleSet, error)
 
 	// ActiveSet returns the active ruleset at a given time.
-	ActiveSet(timeNanos int64) Matcher
+	ActiveSet(timeNanos int64) ActiveSet
 
 	// ToMutableRuleSet returns a mutable version of this ruleset.
 	ToMutableRuleSet() MutableRuleSet
@@ -206,7 +224,7 @@ func (rs *ruleSet) LastUpdatedAtNanos() int64        { return rs.lastUpdatedAtNa
 func (rs *ruleSet) CreatedAtNanos() int64            { return rs.createdAtNanos }
 func (rs *ruleSet) ToMutableRuleSet() MutableRuleSet { return rs }
 
-func (rs *ruleSet) ActiveSet(timeNanos int64) Matcher {
+func (rs *ruleSet) ActiveSet(timeNanos int64) ActiveSet {
 	mappingRules := make([]*mappingRule, 0, len(rs.mappingRules))
 	for _, mappingRule := range rs.mappingRules {
 		activeRule := mappingRule.activeRule(timeNanos)

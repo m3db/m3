@@ -24,9 +24,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/m3dbx/pilosa/roaring"
+
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/x"
-	"github.com/m3dbx/pilosa/roaring"
 )
 
 var (
@@ -42,7 +43,6 @@ func Union(inputs []postings.List) (postings.MutableList, error) {
 		return NewPostingsList(), nil
 	}
 
-	// TODO: Sort the posting lists so that we take the union in order of decreasing size.
 	unioned := roaring.NewBitmap()
 	if err := union(unioned, inputs); err != nil {
 		return nil, err

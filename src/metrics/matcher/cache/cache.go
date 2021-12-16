@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/x/clock"
 
@@ -41,24 +43,15 @@ var (
 	errCacheClosed = errors.New("cache is already closed")
 )
 
-// Source is a datasource providing match results.
-type Source interface {
-	// ForwardMatch returns the match result for a given id within time range
-	// [fromNanos, toNanos).
-	ForwardMatch(id []byte, fromNanos, toNanos int64, opts rules.MatchOptions) (rules.MatchResult, error)
-}
-
 // Cache caches the rule matching result associated with metrics.
 type Cache interface {
-	// ForwardMatch returns the rule matching result associated with a metric id
-	// between [fromNanos, toNanos).
-	ForwardMatch(namespace, id []byte, fromNanos, toNanos int64, opts rules.MatchOptions) (rules.MatchResult, error)
+	rules.Matcher
 
 	// Register sets the source for a given namespace.
-	Register(namespace []byte, source Source)
+	Register(namespace []byte, source rules.Matcher)
 
 	// Refresh clears the cached results for the given source for a given namespace.
-	Refresh(namespace []byte, source Source)
+	Refresh(namespace []byte, source rules.Matcher)
 
 	// Unregister deletes the cached results for a given namespace.
 	Unregister(namespace []byte)
@@ -80,10 +73,10 @@ type elementPtr *element
 
 type results struct {
 	elems  *elemMap
-	source Source
+	source rules.Matcher
 }
 
-func newResults(source Source) results {
+func newResults(source rules.Matcher) results {
 	return results{
 		elems:  newElemMap(elemMapOptions{}),
 		source: source,
@@ -136,6 +129,7 @@ type cache struct {
 	deletionBatchSize int
 	invalidationMode  InvalidationMode
 	sleepFn           sleepFn
+	nsResolver        namespace.Resolver
 
 	namespaces *namespaceResultsMap
 	list       lockedList
@@ -166,6 +160,7 @@ func NewCache(opts Options) Cache {
 		deleteCh:          make(chan struct{}, 1),
 		closedCh:          make(chan struct{}),
 		metrics:           newCacheMetrics(instrumentOpts.MetricsScope()),
+		nsResolver:        opts.NamespaceResolver(),
 	}
 
 	c.wgWorker.Add(numOngoingTasks)
@@ -175,8 +170,9 @@ func NewCache(opts Options) Cache {
 	return c
 }
 
-func (c *cache) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64,
+func (c *cache) ForwardMatch(id id.ID, fromNanos, toNanos int64,
 	opts rules.MatchOptions) (rules.MatchResult, error) {
+	namespace := c.nsResolver.Resolve(id)
 	c.RLock()
 	res, found, err := c.tryGetWithLock(namespace, id, fromNanos, toNanos, dontSetIfNotFound, opts)
 	c.RUnlock()
@@ -196,7 +192,7 @@ func (c *cache) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64,
 	return res, nil
 }
 
-func (c *cache) Register(namespace []byte, source Source) {
+func (c *cache) Register(namespace []byte, source rules.Matcher) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -209,7 +205,7 @@ func (c *cache) Register(namespace []byte, source Source) {
 	}
 }
 
-func (c *cache) Refresh(namespace []byte, source Source) {
+func (c *cache) Refresh(namespace []byte, source rules.Matcher) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -266,7 +262,8 @@ func (c *cache) Close() error {
 // result is successfully determined and no further processing is required,
 // and false otherwise.
 func (c *cache) tryGetWithLock(
-	namespace, id []byte,
+	namespace []byte,
+	id id.ID,
 	fromNanos, toNanos int64,
 	setType setType,
 	matchOpts rules.MatchOptions,
@@ -277,7 +274,7 @@ func (c *cache) tryGetWithLock(
 		c.metrics.hits.Inc(1)
 		return res, true, nil
 	}
-	entry, exists := results.elems.Get(id)
+	entry, exists := results.elems.Get(id.Bytes())
 	if exists {
 		elem := (*element)(entry)
 		res = elem.result
@@ -315,7 +312,8 @@ func (c *cache) tryGetWithLock(
 }
 
 func (c *cache) setWithLock(
-	namespace, id []byte,
+	namespace []byte,
+	id id.ID,
 	fromNanos, toNanos int64,
 	results results,
 	invalidate bool,
@@ -325,15 +323,15 @@ func (c *cache) setWithLock(
 	// a new cutover time and the old cached results are now invalid, therefore it's
 	// preferrable to invalidate everything to save the overhead of multiple invalidations.
 	if invalidate {
-		results = c.invalidateWithLock(namespace, id, results)
+		results = c.invalidateWithLock(namespace, id.Bytes(), results)
 	}
 	res, err := results.source.ForwardMatch(id, fromNanos, toNanos, matchOpts)
 	if err != nil {
 		return rules.MatchResult{}, err
 	}
-	newElem := newElement(namespace, id, res)
+	newElem := newElement(namespace, id.Bytes(), res)
 	newElem.SetPromotionExpiry(c.newPromotionExpiry(c.nowFn()))
-	results.elems.Set(id, newElem)
+	results.elems.Set(id.Bytes(), newElem)
 	// NB(xichen): we don't evict until the number of cached items goes
 	// above the capacity by at least the eviction batch size to amortize
 	// the eviction overhead.
@@ -346,7 +344,7 @@ func (c *cache) setWithLock(
 
 // refreshWithLock clears the existing cached results for namespace nsHash
 // and associates the namespace results with a new source.
-func (c *cache) refreshWithLock(namespace []byte, source Source, results results) {
+func (c *cache) refreshWithLock(namespace []byte, source rules.Matcher, results results) {
 	c.toDelete = append(c.toDelete, results.elems)
 	c.notifyDeletion()
 	results.source = source

@@ -31,12 +31,6 @@ import (
 	"github.com/m3db/m3/src/x/headers"
 )
 
-const (
-	// maxMetricStatsInHeader is the maximum number of metric stats to
-	// serialize into the headers.MetricStats header.
-	maxMetricStatsInHeader = 10
-)
-
 // ReturnedDataLimited is info about whether data was limited by a query.
 type ReturnedDataLimited struct {
 	Series     int
@@ -116,8 +110,8 @@ func AddDBResultResponseHeaders(
 		w.Header().Add(headers.FetchedSeriesWithSamplesCount, fmt.Sprint(merged.WithSamples))
 	}
 
-	if len(meta.Namespaces) > 0 {
-		w.Header().Add(headers.NamespacesHeader, strings.Join(meta.Namespaces, ","))
+	if namespaces := meta.GetNamespaces(); len(namespaces) > 0 {
+		w.Header().Add(headers.NamespacesHeader, strings.Join(namespaces, ","))
 	}
 
 	if meta.FetchedResponses > 0 {
@@ -129,13 +123,14 @@ func AddDBResultResponseHeaders(
 	}
 
 	// Also report the top metadata by name, in JSON.
-	if len(meta.MetadataByName) > 0 {
-		stats := meta.TopMetadataByName(maxMetricStatsInHeader)
-		js, err := json.Marshal(stats)
-		if err != nil {
-			return err
+	if fetchOpts != nil && fetchOpts.MaxMetricMetadataStats > 0 {
+		if stats := meta.TopMetadataByName(fetchOpts.MaxMetricMetadataStats); len(stats) > 0 {
+			js, err := json.Marshal(stats)
+			if err != nil {
+				return err
+			}
+			w.Header().Add(headers.MetricStats, string(js))
 		}
-		w.Header().Add(headers.MetricStats, string(js))
 	}
 
 	if meta.FetchedMetadataCount > 0 {
