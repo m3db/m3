@@ -17,3 +17,9 @@ enum MetricType {
     INFO            = 6;
     STATESET        = 7;
 }
+
+message AltPayload {
+    oneof type_info {
+        Payload prometheus_payload = 1;
+    }
+}
