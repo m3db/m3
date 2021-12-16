@@ -5,15 +5,24 @@ package annotation;
 message Payload {
     SourceFormat source_format = 3;
 
-    // Used when source_format == PROMETHEUS
-    PrometheusType prom_type = 1;
-    bool handle_value_resets = 2;
+    // Used when source_format == OPEN_METRICS_FORMAT
+    OpenMetricsFamilyType open_metrics_family_type = 1;
+    bool open_metrics_handle_value_resets          = 2;
 
-    // Used when source_format == GRAPHITE
+    // Used when source_format == GRAPHITE_FORMAT
     GraphiteType graphite_type = 4;
 }
 
-enum PrometheusType {
+enum SourceFormat {
+    // OPEN_METRICS_FORMAT also includes Prometheus data.
+    // Using 0 for OPEN_METRICS_FORMAT because only Prometheus types were being stored before.
+    OPEN_METRICS_FORMAT = 0;
+
+    // Graphite/statsd.
+    GRAPHITE_FORMAT = 1;
+}
+
+enum OpenMetricsFamilyType {
     UNKNOWN         = 0;
     COUNTER         = 1;
     GAUGE           = 2;
@@ -22,13 +31,6 @@ enum PrometheusType {
     SUMMARY         = 5;
     INFO            = 6;
     STATESET        = 7;
-}
-
-enum SourceFormat {
-    // Using 0 for PROMETHEUS_FORMAT because only Prometheus types were being stored before.
-    PROMETHEUS_FORMAT = 0;
-    UNKNOWN_FORMAT    = 1;
-    GRAPHITE_FORMAT   = 2;
 }
 
 enum GraphiteType {
