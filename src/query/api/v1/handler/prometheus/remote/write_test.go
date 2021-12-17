@@ -498,7 +498,7 @@ func verifyIterValueAnnotationGraphite(
 	t *testing.T,
 	iter ingest.DownsampleAndWriteIter,
 	expectedMetricType annotation.GraphiteType,
-) ingest.IterValue {
+) {
 	require.True(t, iter.Next())
 	value := iter.Current()
 
@@ -507,8 +507,6 @@ func verifyIterValueAnnotationGraphite(
 		GraphiteType: expectedMetricType,
 	}
 	assert.Equal(t, expectedPayload, unmarshalAnnotation(t, value.Annotation))
-
-	return value
 }
 
 func verifyIterValueNoAnnotation(t *testing.T, iter ingest.DownsampleAndWriteIter) {
