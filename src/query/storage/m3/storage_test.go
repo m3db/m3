@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -576,6 +577,7 @@ func TestLocalWritesWithExpiredContext(t *testing.T) {
 func buildFetchOpts() *storage.FetchOptions {
 	opts := storage.NewFetchOptions()
 	opts.SeriesLimit = 100
+	opts.MaxMetricMetadataStats = 1
 	return opts
 }
 
@@ -716,7 +718,7 @@ func assertFetchResult(t *testing.T, results storage.PromResult, testTag ident.T
 	assert.Equal(t, testTag.Value.String(), string(l.GetValue()))
 	merged := meta.MetadataByNameMerged()
 	assert.Equal(t, 1, meta.FetchedSeriesCount)
-	assert.Equal(t, merged, block.ResultMetricMetadata{Unaggregated: 1, WithSamples: 1})
+	assert.Equal(t, block.ResultMetricMetadata{Unaggregated: 1, WithSamples: 1}, merged)
 }
 
 func TestLocalSearchError(t *testing.T) {
@@ -1111,4 +1113,67 @@ func newAggregatedTagsIter(
 	)
 
 	return iter
+}
+
+func TestFindReservedLabel(t *testing.T) {
+	nameLabel := []byte("__name__")
+	rollupLabel := []byte("__rollup__")
+
+	// Empty
+	labels := []prompb.Label{}
+	assert.Nil(t, findReservedLabel(labels, nameLabel))
+	assert.Nil(t, findReservedLabel(labels, rollupLabel))
+
+	// Single label, shorter than the reserved prefix
+	labels = []prompb.Label{
+		{Name: []byte("_"), Value: []byte("1")},
+	}
+	assert.Nil(t, findReservedLabel(labels, nameLabel))
+	assert.Nil(t, findReservedLabel(labels, rollupLabel))
+
+	// Multiple labels, only one contains than the reserved prefix
+	labels = []prompb.Label{
+		{Name: []byte("_"), Value: []byte("1")},
+		{Name: []byte("__wrong__"), Value: []byte("2")},
+	}
+	assert.Nil(t, findReservedLabel(labels, nameLabel))
+	assert.Nil(t, findReservedLabel(labels, rollupLabel))
+
+	// Multiple labels, only one contains an expected value
+	labels = []prompb.Label{
+		{Name: []byte("_"), Value: []byte("1")},
+		{Name: []byte("__name__"), Value: []byte("2")},
+		{Name: []byte("mymetric"), Value: []byte("3")},
+	}
+	assert.Equal(t, []byte("2"), findReservedLabel(labels, nameLabel))
+	assert.Nil(t, findReservedLabel(labels, rollupLabel))
+
+	// Multiple labels, only one contains an expected value
+	labels = []prompb.Label{
+		{Name: []byte("__abc__"), Value: []byte("1")},
+		{Name: []byte("__rollup__"), Value: []byte("2")},
+		{Name: []byte("metric"), Value: []byte("2")},
+	}
+	assert.Nil(t, findReservedLabel(labels, nameLabel))
+	assert.Equal(t, []byte("2"), findReservedLabel(labels, rollupLabel))
+
+	// Multiple labels, all expected values exist contain an expected value
+	labels = []prompb.Label{
+		{Name: []byte("__name__"), Value: []byte("1")},
+		{Name: []byte("__rollup__"), Value: []byte("2")},
+		{Name: []byte("one"), Value: []byte("2")},
+		{Name: []byte("two"), Value: []byte("2")},
+	}
+	assert.Equal(t, []byte("1"), findReservedLabel(labels, nameLabel))
+	assert.Equal(t, []byte("2"), findReservedLabel(labels, rollupLabel))
+
+	// Multiple labels, with reserved section, nothing exists.
+	labels = []prompb.Label{
+		{Name: []byte("__a__"), Value: []byte("1")},
+		{Name: []byte("__b__"), Value: []byte("2")},
+		{Name: []byte("one"), Value: []byte("2")},
+		{Name: []byte("two"), Value: []byte("2")},
+	}
+	assert.Nil(t, findReservedLabel(labels, nameLabel))
+	assert.Nil(t, findReservedLabel(labels, rollupLabel))
 }

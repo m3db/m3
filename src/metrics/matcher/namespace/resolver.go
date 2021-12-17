@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,40 +18,49 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package searcher
+// Package namespace provides namespace functionality for the matcher.
+package namespace
 
 import (
-	"github.com/m3db/m3/src/m3ninx/index"
-	"github.com/m3db/m3/src/m3ninx/postings"
-	"github.com/m3db/m3/src/m3ninx/postings/roaring"
-	"github.com/m3db/m3/src/m3ninx/search"
+	"github.com/m3db/m3/src/metrics/metric/id"
 )
 
-type disjunctionSearcher struct {
-	searchers search.Searchers
+var (
+	defaultNamespaceTag   = []byte("namespace")
+	defaultNamespaceValue = []byte("default")
+	// Default is the default Resolver.
+	Default = NewResolver(defaultNamespaceTag, defaultNamespaceValue)
+)
+
+// Resolver resolves a namespace value from an encoded metric id.
+type Resolver interface {
+	// Resolve the namespace value.
+	Resolve(id id.ID) []byte
 }
 
-// NewDisjunctionSearcher returns a new Searcher which matches documents which are matched
-// by any of the given Searchers.
-func NewDisjunctionSearcher(searchers search.Searchers) (search.Searcher, error) {
-	if len(searchers) == 0 {
-		return nil, errEmptySearchers
+// NewResolver creates a new Resolver.
+func NewResolver(namespaceTag, defaultNamespace []byte) Resolver {
+	if namespaceTag == nil {
+		namespaceTag = defaultNamespaceTag
 	}
-
-	return &disjunctionSearcher{
-		searchers: searchers,
-	}, nil
+	if defaultNamespace == nil {
+		defaultNamespace = defaultNamespaceValue
+	}
+	return &resolver{
+		namespaceTag:     namespaceTag,
+		defaultNamespace: defaultNamespace,
+	}
 }
 
-func (s *disjunctionSearcher) Search(r index.Reader) (postings.List, error) {
-	lists := make([]postings.List, 0, len(s.searchers))
-	for _, sr := range s.searchers {
-		curr, err := sr.Search(r)
-		if err != nil {
-			return nil, err
-		}
-		lists = append(lists, curr)
-	}
+type resolver struct {
+	namespaceTag     []byte
+	defaultNamespace []byte
+}
 
-	return roaring.Union(lists)
+func (r resolver) Resolve(id id.ID) []byte {
+	ns, found := id.TagValue(r.namespaceTag)
+	if !found {
+		ns = r.defaultNamespace
+	}
+	return ns
 }

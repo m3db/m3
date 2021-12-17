@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -57,6 +58,8 @@ const (
 var (
 	// The default name for the name tag in Prometheus metrics.
 	promDefaultName = []byte(model.MetricNameLabel)
+	// The prefix for reserved labels, e.g. __name__
+	reservedLabelPrefix = []byte(model.ReservedLabelPrefix)
 	// The name for the rollup tag defined by the coordinator model.
 	rollupTagName = []byte(coordmodel.RollupTagName)
 	// The value for the rollup tag defined by the coordinator model.
@@ -126,6 +129,56 @@ func (s *m3storage) Name() string {
 	return "local_store"
 }
 
+// Find a reserved label target (one that begins with the reservedLabelPrefix)
+// from an array of sorted labels.
+func findReservedLabel(labels []prompb.Label, target []byte) []byte {
+	// The target should always contain the reservedLabelPrefix.
+	// If it doesn't, then we won't be able to find it within
+	// the reserved labels by definition.
+	if !bytes.HasPrefix(target, reservedLabelPrefix) {
+		return nil
+	}
+
+	foundReservedLabels := false
+	for idx := 0; idx < len(labels); idx++ {
+		label := labels[idx]
+		if !bytes.HasPrefix(label.Name, reservedLabelPrefix) {
+			if foundReservedLabels {
+				// We previously found reserved labels, and now that we've iterated
+				// past the end of the section that contains them, we know the target
+				// doesn't exist.
+				return nil
+			}
+			// We haven't found reserve labels yet, so keep going.
+			continue
+		}
+
+		// At this point we know that the current label contains the reservedLabelPrefix
+		foundReservedLabels = true
+		if bytes.Equal(label.Name, target) {
+			return label.Value
+		}
+	}
+
+	return nil
+}
+
+func calculateMetadataByName(result *prompb.QueryResult, metadata *block.ResultMetadata) {
+	for _, series := range result.Timeseries {
+		if series == nil {
+			continue
+		}
+
+		name := findReservedLabel(series.Labels, promDefaultName)
+		rollup := findReservedLabel(series.Labels, rollupTagName)
+		if bytes.Equal(rollup, rollupTagValue) {
+			metadata.ByName(name).Aggregated++
+		} else {
+			metadata.ByName(name).Unaggregated++
+		}
+	}
+}
+
 func (s *m3storage) FetchProm(
 	ctx context.Context,
 	query *storage.FetchQuery,
@@ -159,34 +212,14 @@ func (s *m3storage) FetchProm(
 		s.opts.ReadWorkerPool(),
 		s.opts.TagOptions(),
 		s.opts.PromConvertOptions(),
+		options,
 	)
 	if err != nil {
 		return storage.PromResult{}, err
 	}
 
-	for _, series := range fetchResult.PromResult.Timeseries {
-		if series == nil {
-			continue
-		}
-
-		rollup := false
-		nameTag := []byte{}
-		for _, label := range series.Labels {
-			// Check for both the rollup tag and the metric name label.
-			if bytes.Equal(label.Name, rollupTagName) {
-				if bytes.Equal(label.Value, rollupTagValue) {
-					rollup = true
-				}
-			} else if bytes.Equal(label.Name, promDefaultName) {
-				nameTag = label.Value
-			}
-		}
-
-		if rollup {
-			fetchResult.Metadata.ByName(nameTag).Aggregated++
-		} else {
-			fetchResult.Metadata.ByName(nameTag).Unaggregated++
-		}
+	if options != nil && options.MaxMetricMetadataStats > 0 {
+		calculateMetadataByName(fetchResult.PromResult, &fetchResult.Metadata)
 	}
 
 	return fetchResult, nil
@@ -430,7 +463,7 @@ func (s *m3storage) fetchCompressed(
 			}
 
 			blockMeta := block.NewResultMetadata()
-			blockMeta.Namespaces = append(blockMeta.Namespaces, namespaceID.String())
+			blockMeta.AddNamespace(namespaceID.String())
 			blockMeta.FetchedResponses = metadata.Responses
 			blockMeta.FetchedBytesEstimate = metadata.EstimateTotalBytes
 			blockMeta.Exhaustive = metadata.Exhaustive
@@ -634,7 +667,7 @@ func (s *m3storage) CompleteTags(
 			}
 
 			blockMeta := block.NewResultMetadata()
-			blockMeta.Namespaces = append(blockMeta.Namespaces, namespaceID.String())
+			blockMeta.AddNamespace(namespaceID.String())
 			blockMeta.FetchedResponses = metadata.Responses
 			blockMeta.FetchedBytesEstimate = metadata.EstimateTotalBytes
 			blockMeta.Exhaustive = metadata.Exhaustive
@@ -743,7 +776,7 @@ func (s *m3storage) SearchCompressed(
 			}
 
 			blockMeta := block.NewResultMetadata()
-			blockMeta.Namespaces = append(blockMeta.Namespaces, namespaceID.String())
+			blockMeta.AddNamespace(namespaceID.String())
 			blockMeta.FetchedResponses = metadata.Responses
 			blockMeta.FetchedBytesEstimate = metadata.EstimateTotalBytes
 			blockMeta.Exhaustive = metadata.Exhaustive
