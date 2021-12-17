@@ -90,6 +90,9 @@ type ClusterStaticNamespaceConfiguration struct {
 
 	// ReadOnly prevents any writes to this namespace.
 	ReadOnly bool `yaml:"readOnly"`
+
+	// DataLatency is the duration after which the data is available in this namespace.
+	DataLatency time.Duration `yaml:"dataLatency"`
 }
 
 func (c ClusterStaticNamespaceConfiguration) metricsType() (storagemetadata.MetricsType, error) {
@@ -300,6 +303,7 @@ func (c ClustersStaticConfiguration) NewStaticClusters(
 				Resolution:  n.Resolution,
 				Downsample:  &downsampleOpts,
 				ReadOnly:    n.ReadOnly,
+				DataLatency: n.DataLatency,
 			}
 			aggregatedClusterNamespaces = append(aggregatedClusterNamespaces, def)
 		}
