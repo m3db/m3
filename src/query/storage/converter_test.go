@@ -472,7 +472,15 @@ func TestPromTimeSeriesToSeriesAttributesMetricsTypeFromGraphite(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestSeriesAttributesToAnnotationPayload(t *testing.T) {
+func TestPrometheusSeriesAttributesToAnnotationPayload(t *testing.T) {
+	testSeriesAttributesToAnnotationPayload(t, ts.SourceTypePrometheus)
+}
+
+func TestOpenMetricsSeriesAttributesToAnnotationPayload(t *testing.T) {
+	testSeriesAttributesToAnnotationPayload(t, ts.SourceTypeOpenMetrics)
+}
+
+func testSeriesAttributesToAnnotationPayload(t *testing.T, source ts.SourceType) {
 	mapping := map[ts.PromMetricType]annotation.OpenMetricsFamilyType{
 		ts.PromMetricTypeUnknown:        annotation.OpenMetricsFamilyType_UNKNOWN,
 		ts.PromMetricTypeCounter:        annotation.OpenMetricsFamilyType_COUNTER,
@@ -484,22 +492,64 @@ func TestSeriesAttributesToAnnotationPayload(t *testing.T) {
 		ts.PromMetricTypeStateSet:       annotation.OpenMetricsFamilyType_STATESET,
 	}
 
-	for promType, expected := range mapping {
-		payload, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromType: promType})
+	for promType, expectedType := range mapping {
+		payload, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{
+			Source:   source,
+			PromType: promType,
+		})
 		require.NoError(t, err)
-		assert.Equal(t, expected, payload.OpenMetricsFamilyType)
+
+		expectedPayload := annotation.Payload{
+			SourceFormat:          annotation.SourceFormat_OPEN_METRICS,
+			OpenMetricsFamilyType: expectedType,
+		}
+		assert.Equal(t, expectedPayload, payload)
 	}
 
 	_, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromType: math.MaxUint8})
 	require.Error(t, err)
 
-	payload, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{HandleValueResets: true})
+	payload, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{
+		Source:            source,
+		HandleValueResets: true,
+	})
 	require.NoError(t, err)
 	assert.True(t, payload.OpenMetricsHandleValueResets)
 
-	payload, err = SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{HandleValueResets: false})
+	payload, err = SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{
+		Source:            source,
+		HandleValueResets: false,
+	})
 	require.NoError(t, err)
 	assert.False(t, payload.OpenMetricsHandleValueResets)
+}
+
+func TestGraphiteSeriesAttributesToAnnotationPayload(t *testing.T) {
+	mapping := map[ts.M3MetricType]annotation.GraphiteType{
+		ts.M3MetricTypeGauge:   annotation.GraphiteType_GRAPHITE_GAUGE,
+		ts.M3MetricTypeCounter: annotation.GraphiteType_GRAPHITE_COUNTER,
+		ts.M3MetricTypeTimer:   annotation.GraphiteType_GRAPHITE_TIMER,
+	}
+
+	for graphiteType, expectedType := range mapping {
+		payload, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{
+			Source: ts.SourceTypeGraphite,
+			M3Type: graphiteType,
+		})
+		require.NoError(t, err)
+
+		expectedPayload := annotation.Payload{
+			SourceFormat: annotation.SourceFormat_GRAPHITE,
+			GraphiteType: expectedType,
+		}
+		assert.Equal(t, expectedPayload, payload)
+	}
+
+	_, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{
+		Source: ts.SourceTypeGraphite,
+		M3Type: math.MaxUint8,
+	})
+	require.EqualError(t, err, "invalid Graphite metric type 255")
 }
 
 func TestPromTimestampToTime(t *testing.T) {
