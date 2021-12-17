@@ -237,15 +237,18 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 
 		var (
 			wg       sync.WaitGroup
+			gwg      sync.WaitGroup
 			start    = nowFn()
 			deadline = start.Add(interval + randStutter(p.healthCheckRand, stutter))
 		)
 
 		p.RLock()
+		gwg.Add(1)
 		for i := int64(0); i < p.poolLen; i++ {
 			wg.Add(1)
 			go func(client rpc.TChanNode) {
 				defer wg.Done()
+				gwg.Wait()
 
 				var (
 					attempts = p.opts.BackgroundHealthCheckFailLimit()
@@ -295,6 +298,7 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 				}
 			}(p.pool[i].client)
 		}
+		gwg.Done()
 		p.RUnlock()
 
 		wg.Wait()
