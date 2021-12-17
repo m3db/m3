@@ -564,6 +564,8 @@ type BlockTickResult struct {
 
 // WriteBatchMetrics are metrics for a write batch.
 type WriteBatchMetrics struct {
+	batchSize tally.Histogram
+
 	needsReconcile tally.Counter
 	noReconcile    tally.Counter
 
@@ -594,6 +596,25 @@ func NewWriteBatchMetrics(s tally.Scope) *WriteBatchMetrics {
 			"reconcile": "no_reconcile",
 			"path":      "mark_unmarked_already_indexed",
 		}).Counter("count"),
+
+		batchSize: scope.Histogram("batch_size", tally.ValueBuckets{
+			1,
+			10,
+			25,
+			50,
+			75,
+			100,
+			250,
+			500,
+			750,
+			1000,
+			1500,
+			2000,
+			4000,
+			8000,
+			16000,
+			32000,
+		}),
 	}
 }
 
@@ -833,6 +854,7 @@ func (b *WriteBatch) SortByEnqueued() {
 
 // MarkUnmarkedEntriesSuccess marks all unmarked entries as success.
 func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
+	b.metrics.batchSize.RecordValue(float64(len(b.entries)))
 	for idx := range b.entries {
 		b.MarkEntrySuccess(idx)
 	}
