@@ -111,6 +111,11 @@ func NewEntry(opts NewEntryOptions) *Entry {
 	return entry
 }
 
+// GetID returns the entry's ID.
+func (entry *Entry) GetID() string {
+	return entry.ID.String()
+}
+
 // ReaderWriterCount returns the current ref count on the Entry.
 func (entry *Entry) ReaderWriterCount() int32 {
 	return atomic.LoadInt32(&entry.curReadWriters)

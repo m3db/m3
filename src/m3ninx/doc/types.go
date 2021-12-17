@@ -83,6 +83,8 @@ type QueryDocIterator interface {
 // OnIndexSeries provides a set of callback hooks to allow the reverse index
 // to do lifecycle management of any resources retained during indexing.
 type OnIndexSeries interface {
+	// GetID returns the index series ID, as a string.
+	GetID() string
 	// OnIndexSuccess is executed when an entry is successfully indexed. The
 	// provided value for `blockStart` is the blockStart for which the write
 	// was indexed.

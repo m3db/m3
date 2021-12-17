@@ -25,6 +25,7 @@ package integration
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -51,7 +52,7 @@ const (
 )
 
 func TestIndexBlockOrphanedEntry(t *testing.T) {
-	setup := generateTestSetup(t)
+	setup := generateTestSetup(t, false)
 	defer setup.Close()
 
 	// Start the server
@@ -115,7 +116,7 @@ func TestIndexBlockOrphanedEntry(t *testing.T) {
 			ok, err = isIndexedCheckedWithTime(
 				t, session, nsID, id, genTags(id), newCurrentTime,
 			)
-			if !ok {
+			if !ok || err != nil {
 				missing = id.String()
 				return false
 			}
@@ -124,6 +125,81 @@ func TestIndexBlockOrphanedEntry(t *testing.T) {
 	}, 30*time.Second)
 	assert.True(t, found, fmt.Sprintf("series %s never indexed\n", missing))
 	assert.NoError(t, err)
+}
+
+func TestIndexBlockOrphanedIndexValuesUpdatedAcrossTimes(t *testing.T) {
+	setup := generateTestSetup(t, true)
+	defer setup.Close()
+
+	// Start the server
+	log := setup.StorageOpts().InstrumentOptions().Logger()
+	require.NoError(t, setup.StartServer())
+
+	// Stop the server
+	defer func() {
+		assert.NoError(t, setup.StopServer())
+		log.Debug("server is now down")
+	}()
+
+	client := setup.M3DBClient()
+	session, err := client.DefaultSession()
+	require.NoError(t, err)
+
+	// Write a metric concurrently for multiple index blocks to generate
+	// multiple entries for the same series
+	var (
+		numIDs = 10
+		ids    = make([]ident.ID, 0, numIDs)
+
+		nsID  = testNamespaces[0]
+		nowFn = setup.DB().Options().ClockOptions().NowFn()
+		// NB: write in the middle of a block to avoid block boundaries.
+		now = nowFn().Truncate(blockSize / 2)
+
+		writesPerWorker = 5
+		writeTimes      = make([]xtime.UnixNano, 0, writesPerWorker)
+	)
+
+	for i := 0; i < writesPerWorker; i++ {
+		writeTime := xtime.ToUnixNano(now.Add(time.Duration(i) * -blockSize))
+		writeTimes = append(writeTimes, writeTime)
+	}
+
+	for i := 0; i < numIDs; i++ {
+		fooID := ident.StringID(fmt.Sprintf("foo.%v", i))
+		ids = append(ids, fooID)
+
+		writeConcurrentMetricsAcrossTime(t, setup, session, writeTimes, fooID)
+	}
+
+	notFoundIds := make(notFoundIDs, 0, len(ids)*len(writeTimes))
+	for _, id := range ids {
+		for _, writeTime := range writeTimes {
+			notFoundIds = append(notFoundIds, notFoundID{id: id, runAt: writeTime})
+		}
+	}
+
+	found := xclock.WaitUntil(func() bool {
+		filteredIds := notFoundIds[:0]
+		for _, id := range notFoundIds {
+			ok, err := isIndexedCheckedWithTime(
+				t, session, nsID, id.id, genTags(id.id), id.runAt,
+			)
+			if !ok || err != nil {
+				filteredIds = append(filteredIds, id)
+			}
+		}
+
+		if len(filteredIds) == 0 {
+			return true
+		}
+
+		notFoundIds = filteredIds
+		return false
+	}, time.Second*10)
+
+	require.True(t, found, fmt.Sprintf("series %s never indexed\n", notFoundIds))
+	return
 }
 
 func writeConcurrentMetrics(
@@ -175,11 +251,17 @@ func writeMetric(
 	require.NoError(t, err)
 }
 
-func generateTestSetup(t *testing.T) TestSetup {
-	md, err := namespace.NewMetadata(testNamespaces[0],
-		namespace.NewOptions().
-			SetRetentionOptions(DefaultIntegrationTestRetentionOpts).
-			SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true)))
+func generateTestSetup(t *testing.T, withColdWrites bool) TestSetup {
+	nsOpts := namespace.NewOptions().
+		SetRetentionOptions(DefaultIntegrationTestRetentionOpts).
+		SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true))
+	if withColdWrites {
+		retOpts := nsOpts.RetentionOptions().SetRetentionPeriod(time.Hour * 2400)
+		nsOpts = nsOpts.SetRetentionOptions(retOpts).
+			SetColdWritesEnabled(true)
+	}
+
+	md, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
 
 	testOpts := NewTestOptions(t).
@@ -204,4 +286,50 @@ func generateTestSetup(t *testing.T) TestSetup {
 	require.NoError(t, err)
 
 	return testSetup
+}
+
+type notFoundID struct {
+	id    ident.ID
+	runAt xtime.UnixNano
+}
+
+func (i notFoundID) String() string {
+	return fmt.Sprintf("{ID: %s, time: %s}", i.id.String(), i.runAt.Format("3:04:05PM"))
+}
+
+type notFoundIDs []notFoundID
+
+func (ids notFoundIDs) String() string {
+	strs := make([]string, 0, len(ids))
+	for _, id := range ids {
+		strs = append(strs, id.String())
+	}
+
+	return fmt.Sprintf("[%s]", strings.Join(strs, ", "))
+}
+
+// writeConcurrentMetricsAcrossTime writes a datapoint for the given series at
+// each `writeTime` simultaneously.
+func writeConcurrentMetricsAcrossTime(
+	t *testing.T,
+	setup TestSetup,
+	session client.Session,
+	writeTimes []xtime.UnixNano,
+	seriesID ident.ID,
+) {
+	var wg sync.WaitGroup
+	workerPool := xsync.NewWorkerPool(concurrentWorkers)
+	workerPool.Init()
+
+	mdID := setup.Namespaces()[0].ID()
+	for j, writeTime := range writeTimes {
+		j, writeTime := j, writeTime
+		wg.Add(1)
+		workerPool.Go(func() {
+			defer wg.Done()
+			writeMetric(t, session, mdID, seriesID, writeTime, float64(j))
+		})
+	}
+
+	wg.Wait()
 }
