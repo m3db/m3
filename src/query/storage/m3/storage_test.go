@@ -466,9 +466,9 @@ func TestFetchPromWithNamespaceStitching(t *testing.T) {
 
 	unaggSession.EXPECT().FetchTagged(gomock.Any(), unaggNamespaceID, gomock.Any(), gomock.Any()).
 		DoAndReturn(func(
-			ctx context.Context,
-			namespace ident.ID,
-			q index.Query,
+			_ context.Context,
+			_ ident.ID,
+			_ index.Query,
 			opts index.QueryOptions,
 		) (encoding.SeriesIterators, client.FetchResponseMetadata, error) {
 			unaggQueryOpts = opts
@@ -478,9 +478,9 @@ func TestFetchPromWithNamespaceStitching(t *testing.T) {
 
 	aggSession.EXPECT().FetchTagged(gomock.Any(), aggNamespaceID, gomock.Any(), gomock.Any()).
 		DoAndReturn(func(
-			ctx context.Context,
-			namespace ident.ID,
-			q index.Query,
+			_ context.Context,
+			_ ident.ID,
+			_ index.Query,
 			opts index.QueryOptions,
 		) (encoding.SeriesIterators, client.FetchResponseMetadata, error) {
 			aggQueryOpts = opts
@@ -1035,9 +1035,9 @@ func TestCompleteTagsWithNamespaceStitching(t *testing.T) {
 	unaggIter := newAggregatedTagsIter(ctrl, name, value)
 	unaggSession.EXPECT().Aggregate(gomock.Any(), unaggNamespaceID, gomock.Any(), gomock.Any()).
 		DoAndReturn(func(
-			ctx context.Context,
-			namespace ident.ID,
-			q index.Query,
+			_ context.Context,
+			_ ident.ID,
+			_ index.Query,
 			opts index.AggregationOptions,
 		) (client.AggregatedTagsIterator, client.FetchResponseMetadata, error) {
 			unaggQueryOpts = opts
@@ -1047,9 +1047,9 @@ func TestCompleteTagsWithNamespaceStitching(t *testing.T) {
 	aggIter := newAggregatedTagsIter(ctrl, name, value)
 	aggSession.EXPECT().Aggregate(gomock.Any(), aggNamespaceID, gomock.Any(), gomock.Any()).
 		DoAndReturn(func(
-			ctx context.Context,
-			namespace ident.ID,
-			q index.Query,
+			_ context.Context,
+			_ ident.ID,
+			_ index.Query,
 			opts index.AggregationOptions,
 		) (client.AggregatedTagsIterator, client.FetchResponseMetadata, error) {
 			aggQueryOpts = opts
