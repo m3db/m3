@@ -863,19 +863,19 @@ func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
 // MarkEntrySuccess marks an entry as success.
 func (b *WriteBatch) MarkEntrySuccess(idx int) {
 	if !b.entries[idx].result.Done {
-		indexedEntry, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
-		if reconciled {
-			b.metrics.needsReconcile.Inc(1)
-		} else {
-			b.metrics.noReconcile.Inc(1)
-		}
+		// indexedEntry, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
+		// if reconciled {
+		// 	b.metrics.needsReconcile.Inc(1)
+		// } else {
+		// 	b.metrics.noReconcile.Inc(1)
+		// }
 
 		blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
-		indexedEntry.OnIndexSuccess(blockStart)
-		indexedEntry.OnIndexFinalize(blockStart)
+		b.entries[idx].OnIndexSeries.OnIndexSuccess(blockStart)
+		b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
 		b.entries[idx].result.Done = true
 		b.entries[idx].result.Err = nil
-		closer.Close()
+		// closer.Close()
 	}
 }
 
