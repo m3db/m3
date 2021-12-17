@@ -1288,7 +1288,8 @@ func startCarbonIngestion(
 	} else {
 		carbonWorkerPoolOpts = xsync.NewPooledWorkerPoolOptions().
 			SetGrowOnDemand(true).
-			SetKillWorkerProbability(0.001)
+			SetKillWorkerProbability(0.001).
+			SetInstrumentOptions(carbonIOpts)
 		carbonWorkerPoolSize = defaultCarbonIngesterWorkerPoolSize
 	}
 	workerPool, err := xsync.NewPooledWorkerPool(carbonWorkerPoolSize, carbonWorkerPoolOpts)
