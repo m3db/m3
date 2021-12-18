@@ -185,6 +185,8 @@ type dbShardMetrics struct {
 	snapshotChecksumLatency             tally.Timer
 	snapshotPersistLatency              tally.Timer
 	snapshotCloseLatency                tally.Timer
+
+	purgeUnexpectedRefCount tally.Counter
 }
 
 func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
@@ -222,6 +224,7 @@ func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 		snapshotChecksumLatency:           snapshotScope.Timer("checksum-latency"),
 		snapshotPersistLatency:            snapshotScope.Timer("persist-latency"),
 		snapshotCloseLatency:              snapshotScope.Timer("close-latency"),
+		purgeUnexpectedRefCount:           scope.Counter("purge-unexpected-ref-count"),
 	}
 }
 
@@ -839,11 +842,14 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*Entry) {
 		count := entry.ReaderWriterCount()
 		// The contract requires all entries to have count >= 1.
 		if count < 1 {
-			s.logger.Error("purgeExpiredSeries encountered invalid series read/write count",
-				zap.Stringer("namespace", s.namespace.ID()),
-				zap.Uint32("shard", s.ID()),
-				zap.Stringer("series", series.ID()),
-				zap.Int32("readerWriterCount", count))
+			s.metrics.purgeUnexpectedRefCount.Inc(1)
+			instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l *zap.Logger) {
+				l.Error("purgeExpiredSeries encountered invalid series read/write count",
+					zap.Stringer("namespace", s.namespace.ID()),
+					zap.Uint32("shard", s.ID()),
+					zap.Stringer("series", series.ID()),
+					zap.Int32("readerWriterCount", count))
+			})
 			continue
 		}
 		// If this series is currently being written to or read from, we don't
@@ -1054,8 +1060,13 @@ func (s *dbShard) SeriesRefResolver(
 	if err != nil {
 		return nil, err
 	}
-	// increment ref count to avoid expiration of the new entry just after adding it to the queue.
+
+	// Increment ref count to avoid expiration of the new entry just after adding it to the queue.
+	// It is possible that this entry does not end up as the one in the shard. Therefore, the resolver
+	// for this specific entry is responsible for closing, and there should always be one resolver
+	// responsible for the one that DOES end up in the shard.
 	entry.IncrementReaderWriterCount()
+
 	wg, err := s.insertQueue.Insert(dbShardInsert{
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
@@ -1074,8 +1085,7 @@ func (s *dbShard) SeriesRefResolver(
 	// Series will wait for the result to be batched together and inserted.
 	return NewSeriesResolver(
 		wg,
-		// ID was already copied in newShardEntry so we can set it here safely.
-		entry.Series.ID(),
+		entry,
 		s.retrieveWritableSeriesAndIncrementReaderWriterCount), nil
 }
 

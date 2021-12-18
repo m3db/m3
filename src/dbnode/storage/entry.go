@@ -395,9 +395,8 @@ func (entry *Entry) SeriesRef() (bootstrap.SeriesRef, error) {
 // ReleaseRef must be called after using the series ref
 // to release the reference count to the series so it can
 // be expired by the owning shard eventually.
-func (entry *Entry) ReleaseRef() error {
+func (entry *Entry) ReleaseRef() {
 	entry.DecrementReaderWriterCount()
-	return nil
 }
 
 // entryIndexState is used to capture the state of indexing for a single shard

@@ -259,7 +259,8 @@ func (c *grpcClient) FetchProm(
 		result,
 		c.opts.ReadWorkerPool(),
 		c.opts.TagOptions(),
-		c.opts.PromConvertOptions())
+		c.opts.PromConvertOptions(),
+		options)
 }
 
 func (c *grpcClient) fetchRaw(

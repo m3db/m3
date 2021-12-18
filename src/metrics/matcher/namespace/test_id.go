@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,40 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package searcher
+package namespace
 
 import (
-	"github.com/m3db/m3/src/m3ninx/index"
-	"github.com/m3db/m3/src/m3ninx/postings"
-	"github.com/m3db/m3/src/m3ninx/postings/roaring"
-	"github.com/m3db/m3/src/m3ninx/search"
+	"github.com/m3db/m3/src/metrics/metric/id"
 )
 
-type disjunctionSearcher struct {
-	searchers search.Searchers
+// NewTestID creates a new ID for testing that always returns the namespace for TagValue.
+func NewTestID(id, namespace string) id.ID {
+	return &testID{
+		id: []byte(id),
+		ns: []byte(namespace),
+	}
 }
 
-// NewDisjunctionSearcher returns a new Searcher which matches documents which are matched
-// by any of the given Searchers.
-func NewDisjunctionSearcher(searchers search.Searchers) (search.Searcher, error) {
-	if len(searchers) == 0 {
-		return nil, errEmptySearchers
-	}
-
-	return &disjunctionSearcher{
-		searchers: searchers,
-	}, nil
+type testID struct {
+	id []byte
+	ns []byte
 }
 
-func (s *disjunctionSearcher) Search(r index.Reader) (postings.List, error) {
-	lists := make([]postings.List, 0, len(s.searchers))
-	for _, sr := range s.searchers {
-		curr, err := sr.Search(r)
-		if err != nil {
-			return nil, err
-		}
-		lists = append(lists, curr)
-	}
+func (t testID) Bytes() []byte {
+	return t.id
+}
 
-	return roaring.Union(lists)
+func (t testID) TagValue(_ []byte) ([]byte, bool) {
+	return t.ns, true
 }
