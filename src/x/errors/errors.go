@@ -164,6 +164,7 @@ func IsResourceExhausted(err error) bool {
 // if contained by this error, nil otherwise.
 func GetInnerResourceExhaustedError(err error) error {
 	for err != nil {
+		// nolint:errorlint
 		if _, ok := err.(resourceExhaustedError); ok {
 			return InnerError(err)
 		}
