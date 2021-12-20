@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/query/tracepoint"
 	"github.com/m3db/m3/src/query/ts"
 	xcontext "github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -847,6 +848,11 @@ func (s *m3storage) Write(
 
 	// Set id to NoFinalize to avoid cloning it in write operations
 	id.NoFinalize()
+
+	if !s.opts.RateLimiter().Limit(namespace, datapoints, tags.Tags) {
+		return xerrors.NewResourceExhaustedError(goerrors.New("rate limit exceeded"))
+	}
+
 	tags.Tags, err = s.opts.TagsTransform()(ctx, namespace, tags.Tags)
 	if err != nil {
 		return err
