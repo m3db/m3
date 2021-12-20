@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xresource "github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/sync"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 // Cleanup is a cleanup function to be called after resources are freed.
@@ -246,3 +247,8 @@ type peekValue struct {
 
 // TagsTransform transforms a set of tags.
 type TagsTransform func(context.Context, ClusterNamespace, []models.Tag) ([]models.Tag, error)
+
+// narrowing allows to restrict query time range based on namespace configuration.
+type narrowing struct {
+	start, end xtime.UnixNano
+}

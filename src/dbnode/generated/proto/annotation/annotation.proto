@@ -3,11 +3,26 @@ syntax = "proto3";
 package annotation;
 
 message Payload {
-    MetricType metric_type   = 1;
-    bool handle_value_resets = 2;
+    SourceFormat source_format = 3;
+
+    // Used when source_format == OPEN_METRICS
+    OpenMetricsFamilyType open_metrics_family_type = 1;
+    bool open_metrics_handle_value_resets          = 2;
+
+    // Used when source_format == GRAPHITE
+    GraphiteType graphite_type = 4;
 }
 
-enum MetricType {
+enum SourceFormat {
+    // OPEN_METRICS also includes Prometheus data.
+    // Using 0 for OPEN_METRICS because only Prometheus types were being stored before.
+    OPEN_METRICS = 0;
+
+    // Graphite/statsd.
+    GRAPHITE = 1;
+}
+
+enum OpenMetricsFamilyType {
     UNKNOWN         = 0;
     COUNTER         = 1;
     GAUGE           = 2;
@@ -16,4 +31,11 @@ enum MetricType {
     SUMMARY         = 5;
     INFO            = 6;
     STATESET        = 7;
+}
+
+enum GraphiteType {
+    GRAPHITE_UNKNOWN = 0;
+    GRAPHITE_COUNTER = 1;
+    GRAPHITE_GAUGE   = 2;
+    GRAPHITE_TIMER   = 3;
 }

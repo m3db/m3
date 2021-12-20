@@ -364,12 +364,13 @@ func testMultiFetchResultTagDedupeMap(
 
 		exTags := models.MustMakeTags(ex.tags...)
 		assert.Equal(t, exTags.String(), tags.String())
-		for j := 0; iter.Next(); j++ {
+		for _, exDp := range ex.dps {
+			require.True(t, iter.Next())
 			dp, _, _ := iter.Current()
-			exDp := ex.dps[j]
 			assert.Equal(t, exDp.val, dp.Value)
 			assert.Equal(t, exDp.t, dp.TimestampNanos)
 		}
+		assert.False(t, iter.Next())
 
 		assert.NoError(t, iter.Err())
 	}
@@ -415,7 +416,7 @@ func TestFilteredInsert(t *testing.T) {
 		expected: []expectedSeries{
 			{
 				tags: []string{"foo", "bar"},
-				dps:  []dp{{t: step(1), val: 1}, {t: step(5), val: 6}},
+				dps:  []dp{{t: step(1), val: 1}},
 			},
 		},
 		exMeta:  warn1Meta,

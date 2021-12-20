@@ -34,13 +34,13 @@ type tagDedupeMap struct {
 	tagOpts    models.TagOptions
 }
 
-type tagMapOpts struct {
+type dedupeMapOpts struct {
 	size    int
 	fanout  QueryFanoutType
 	tagOpts models.TagOptions
 }
 
-func newTagDedupeMap(opts tagMapOpts) fetchDedupeMap {
+func newTagDedupeMap(opts dedupeMapOpts) fetchDedupeMap {
 	return &tagDedupeMap{
 		fanout:     opts.fanout,
 		mapWrapper: newFetchResultMapWrapper(opts.size),
@@ -101,7 +101,15 @@ func (m *tagDedupeMap) doUpdate(
 	existing multiResultSeries,
 	tags models.Tags,
 	iter encoding.SeriesIterator,
-	attrs storagemetadata.Attributes) error {
+	attrs storagemetadata.Attributes,
+) error {
+	if stitched, ok, err := stitchIfNeeded(existing, tags, iter, attrs); err != nil {
+		return err
+	} else if ok {
+		m.mapWrapper.set(tags, stitched)
+		return nil
+	}
+
 	var existsBetter bool
 	var existsEqual bool
 	switch m.fanout {
@@ -125,17 +133,8 @@ func (m *tagDedupeMap) doUpdate(
 	}
 
 	if existsEqual {
-		acc, ok := existing.iter.(encoding.SeriesIteratorAccumulator)
-		if !ok {
-			var err error
-			acc, err = encoding.NewSeriesIteratorAccumulator(existing.iter,
-				encoding.SeriesAccumulatorOptions{})
-			if err != nil {
-				return err
-			}
-		}
-
-		if err := acc.Add(iter); err != nil {
+		acc, err := combineIters(existing.iter, iter)
+		if err != nil {
 			return err
 		}
 
@@ -162,4 +161,57 @@ func (m *tagDedupeMap) doUpdate(
 	})
 
 	return nil
+}
+
+func combineIters(first, second encoding.SeriesIterator) (encoding.SeriesIteratorAccumulator, error) {
+	acc, ok := first.(encoding.SeriesIteratorAccumulator)
+	if !ok {
+		var err error
+		acc, err = encoding.NewSeriesIteratorAccumulator(first, encoding.SeriesAccumulatorOptions{})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := acc.Add(second); err != nil {
+		return nil, err
+	}
+
+	return acc, nil
+}
+
+func stitchIfNeeded(
+	existing multiResultSeries,
+	tags models.Tags,
+	iter encoding.SeriesIterator,
+	attrs storagemetadata.Attributes,
+) (multiResultSeries, bool, error) {
+	// Stitching based on matching start/end.
+	if iter.Start().Equal(existing.iter.End()) {
+		combinedIter, err := combineIters(existing.iter, iter)
+		if err != nil {
+			return multiResultSeries{}, false, err
+		}
+
+		return multiResultSeries{
+			attrs: existing.attrs,
+			iter:  combinedIter,
+			tags:  existing.tags,
+		}, true, nil
+	}
+
+	if iter.End().Equal(existing.iter.Start()) {
+		combinedIter, err := combineIters(iter, existing.iter)
+		if err != nil {
+			return multiResultSeries{}, false, err
+		}
+
+		return multiResultSeries{
+			attrs: attrs,
+			iter:  combinedIter,
+			tags:  tags,
+		}, true, nil
+	}
+
+	return multiResultSeries{}, false, nil
 }
