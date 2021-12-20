@@ -500,7 +500,10 @@ func (s *fanoutStorage) CompleteTags(
 			}
 
 			metadata = metadata.CombineMetadata(result.Metadata)
-			accumulatedTags.Add(result)
+			err = accumulatedTags.Add(result)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		completeTagsResult = accumulatedTags.Build()

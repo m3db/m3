@@ -188,7 +188,8 @@ func TestCompleteTags_RestrictOptionsWorks_SingleStore(t *testing.T) {
 	fetchOptions.RestrictQueryOptions = &storage.RestrictQueryOptions{
 		RestrictByTag: &storage.RestrictByTag{
 			Strip: xtest.BytesArray("bar"),
-		}}
+		},
+	}
 
 	completeTagsResult, err := fanoutStorage.CompleteTags(
 		context.TODO(),

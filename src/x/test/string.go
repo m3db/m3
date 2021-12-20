@@ -20,6 +20,8 @@
 
 package test
 
+// BytesArray converts a variable length string arguments (array of strings)
+// into an array of byte arrays
 func BytesArray(strings ...string) [][]byte {
 	stringBytesArray := make([][]byte, len(strings))
 	for i, v := range strings {
