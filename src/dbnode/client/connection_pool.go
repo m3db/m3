@@ -128,9 +128,13 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 						closedCount += 1
 					}
 				case *noopPooledChannel:
-					if channel.(*noopPooledChannel).closed {
+					noopPooledChannelMu.Lock()
+					closed := channel.(*noopPooledChannel).closed
+					noopPooledChannelMu.Unlock()
+					if closed {
 						closedCount += 1
 					}
+
 				}
 			}
 			p.RLock()
@@ -139,9 +143,21 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 			allConsLen := len(allCons)
 			allConsLock.RUnlock()
 			openCount := int64(allConsLen - closedCount)
-			fmt.Printf("pool %s stats: %d %d %d %d \n", host.ID(), allConsLen, closedCount, poolLen, openCount)
+			opts.InstrumentOptions().Logger().Info("pool stats",
+				zap.String("pool", host.ID()),
+				zap.Int("allConsLen", allConsLen),
+				zap.Int("closedCount", closedCount),
+				zap.Int64("poolLen", poolLen),
+				zap.Int64("openCount", openCount),
+			)
 			if openCount != poolLen {
-				fmt.Printf("invariant violation: pool %s stats: %d %d %d %d \n", host.ID(), allConsLen, closedCount, poolLen, openCount)
+				opts.InstrumentOptions().Logger().Info("invariant violation: pool stats",
+					zap.String("pool", host.ID()),
+					zap.Int("allConsLen", allConsLen),
+					zap.Int("closedCount", closedCount),
+					zap.Int64("poolLen", poolLen),
+					zap.Int64("openCount", openCount),
+				)
 			}
 			time.Sleep(time.Second)
 		}
@@ -372,14 +388,18 @@ func randStutter(source rand.Source, t time.Duration) time.Duration {
 	return time.Duration(float64(t) * amount)
 }
 
+var noopPooledChannelMu sync.RWMutex
 type noopPooledChannel struct {
 	address string
 	closed bool
+
 }
 
 func (c *noopPooledChannel) Close() {
 	time.Sleep(time.Millisecond * time.Duration(20 * rand.Float32()))
+	noopPooledChannelMu.Lock()
 	c.closed = true
+	noopPooledChannelMu.Unlock()
 }
 
 func (c *noopPooledChannel) GetSubChannel(
