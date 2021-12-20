@@ -161,22 +161,23 @@ func (r *ruleSet) Tombstoned() bool {
 	return tombstoned
 }
 
-func (r *ruleSet) ForwardMatch(id id.ID, fromNanos, toNanos int64, opts rules.MatchOptions) (
-	rules.MatchResult, error) {
+func (r *ruleSet) ForwardMatch(id id.ID, fromNanos, toNanos int64, opts *rules.MatchOptions) error {
 	callStart := r.nowFn()
 	r.RLock()
 	if r.activeSet == nil {
 		r.RUnlock()
 		r.metrics.nilMatcher.Inc(1)
-		return rules.EmptyMatchResult, nil
+		opts.MatchResult = &rules.EmptyMatchResult
+		return nil
 	}
-	res, err := r.activeSet.ForwardMatch(id, fromNanos, toNanos, opts)
+	err := r.activeSet.ForwardMatch(id, fromNanos, toNanos, opts)
 	r.RUnlock()
 	if err != nil {
-		return rules.EmptyMatchResult, err
+		opts.MatchResult = &rules.EmptyMatchResult
+		return err
 	}
 	r.metrics.match.ReportSuccess(r.nowFn().Sub(callStart))
-	return res, nil
+	return nil
 }
 
 func (r *ruleSet) toRuleSet(value kv.Value) (interface{}, error) {

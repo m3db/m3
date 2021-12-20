@@ -34,6 +34,8 @@ import (
 	"github.com/m3db/m3/src/metrics/rules"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -293,13 +295,17 @@ func (t testValue) ID() id.ID {
 	return namespace.NewTestID(string(t.id), string(t.namespace))
 }
 
+func validateResult(t *testing.T, expected rules.MatchResult, actual rules.MatchResult) {
+	require.True(t, cmp.Equal(expected, actual, cmpopts.EquateEmpty(), cmp.AllowUnexported(rules.MatchResult{})))
+}
+
 func validateList(t *testing.T, l *list, expected []testValue) {
 	require.Equal(t, len(expected), l.Len())
 	i := 0
 	for elem := l.Front(); elem != nil; elem = elem.next {
 		require.Equal(t, expected[i].namespace, elem.namespace)
 		require.Equal(t, expected[i].id, elem.id)
-		require.Equal(t, expected[i].result, elem.result)
+		validateResult(t, expected[i].result, elem.result)
 		i++
 	}
 	if len(expected) == 0 {

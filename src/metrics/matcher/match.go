@@ -91,8 +91,8 @@ func (m *matcher) LatestRollupRules(namespace []byte, timeNanos int64) ([]view.R
 func (m *matcher) ForwardMatch(
 	id id.ID,
 	fromNanos, toNanos int64,
-	opts rules.MatchOptions,
-) (rules.MatchResult, error) {
+	opts *rules.MatchOptions,
+) error {
 	sw := m.metrics.matchLatency.Start()
 	defer sw.Stop()
 	return m.cache.ForwardMatch(id, fromNanos, toNanos, opts)
@@ -131,8 +131,8 @@ func (m *noCacheMatcher) LatestRollupRules(namespace []byte, timeNanos int64) ([
 func (m *noCacheMatcher) ForwardMatch(
 	id id.ID,
 	fromNanos, toNanos int64,
-	opts rules.MatchOptions,
-) (rules.MatchResult, error) {
+	opts *rules.MatchOptions,
+) error {
 	sw := m.metrics.matchLatency.Start()
 	defer sw.Stop()
 	return m.namespaces.ForwardMatch(id, fromNanos, toNanos, opts)

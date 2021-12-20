@@ -2190,8 +2190,8 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 	}
 }
 
-func testMatchOptions() MatchOptions {
-	return MatchOptions{
+func testMatchOptions() *MatchOptions {
+	return &MatchOptions{
 		NameAndTagsFn: func(b []byte) ([]byte, []byte, error) {
 			idx := bytes.Index(b, []byte("|"))
 			if idx == -1 {
@@ -2200,6 +2200,7 @@ func testMatchOptions() MatchOptions {
 			return b[:idx], b[idx+1:], nil
 		},
 		SortedTagIteratorFn: filters.NewMockSortedTagIterator,
+		MatchResult:         &MatchResult{},
 	}
 }
 

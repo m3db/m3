@@ -461,6 +461,20 @@ type StagedMetadata struct {
 	Tombstoned bool `json:"tombstoned,omitempty"`
 }
 
+// Reset resets the StagedMetadata for reuse.
+func (sm *StagedMetadata) Reset() {
+	sm.CutoverNanos = 0
+	sm.Tombstoned = false
+	sm.Pipelines = sm.Pipelines[:0]
+}
+
+// Clone creates a copy of StagedMetadata.
+func (sm StagedMetadata) Clone() StagedMetadata {
+	clone := sm
+	clone.Pipelines = sm.Pipelines.Clone()
+	return clone
+}
+
 // Equal returns true if two staged metadatas are considered equal.
 func (sm StagedMetadata) Equal(other StagedMetadata) bool {
 	return sm.Metadata.Equal(other.Metadata) &&
@@ -526,6 +540,15 @@ func (sms StagedMetadatas) Equal(other StagedMetadatas) bool {
 		}
 	}
 	return true
+}
+
+// Clone creates a copy of the StagedMetadatas.
+func (sms StagedMetadatas) Clone() StagedMetadatas {
+	clone := make(StagedMetadatas, 0, len(sms))
+	for _, sm := range sms {
+		clone = append(clone, sm.Clone())
+	}
+	return clone
 }
 
 // IsDefault determines whether the list of staged metadata is a default list.

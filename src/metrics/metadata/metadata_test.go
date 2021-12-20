@@ -38,6 +38,8 @@ import (
 	"github.com/m3db/m3/src/metrics/transformation"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -1332,4 +1334,23 @@ func TestStagedMetadatasDropReturnsIsDropPolicyAppliedTrue(t *testing.T) {
 	require.True(t, StagedMetadatas{
 		StagedMetadata{Metadata: DropMetadata, CutoverNanos: 123},
 	}.IsDropPolicyApplied())
+}
+
+func TestStagedMetadataClone(t *testing.T) {
+	mdClone := testLargeStagedMetadatas[0].Clone()
+	require.True(t, cmp.Equal(testLargeStagedMetadatas[0], mdClone, cmpopts.EquateEmpty()))
+
+	mdsClone := testLargeStagedMetadatas.Clone()
+	require.True(t, cmp.Equal(testLargeStagedMetadatas, mdsClone, cmpopts.EquateEmpty()))
+}
+
+func TestStagedMetadataReset(t *testing.T) {
+	md := testLargeStagedMetadatas[0].Clone()
+	md.Reset()
+
+	require.Equal(t, StagedMetadata{
+		Metadata: Metadata{
+			Pipelines: []PipelineMetadata{},
+		},
+	}, md)
 }

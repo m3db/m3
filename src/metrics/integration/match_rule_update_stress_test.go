@@ -225,7 +225,7 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			it := iterPool.Get()
-			matchOpts := rules.MatchOptions{
+			matchOpts := &rules.MatchOptions{
 				NameAndTagsFn: m3.NameAndTags,
 				SortedTagIteratorFn: func(tagPairs []byte) id.SortedTagIterator {
 					it.Reset(tagPairs)
@@ -234,9 +234,10 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 			}
 
 			for i := 0; i < matchIter; i++ {
-				res, err := matcher.ForwardMatch(input.idFn(i), input.fromNanos, input.toNanos, matchOpts)
+				matchOpts.MatchResult = &rules.MatchResult{}
+				err := matcher.ForwardMatch(input.idFn(i), input.fromNanos, input.toNanos, matchOpts)
 				require.NoError(t, err)
-				results = append(results, res)
+				results = append(results, *matchOpts.MatchResult)
 				expected = append(expected, input.expected)
 			}
 			iterPool.Put(it)

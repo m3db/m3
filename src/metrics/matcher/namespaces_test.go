@@ -331,13 +331,16 @@ func newMemCache() cache.Cache {
 	return &memCache{namespaces: make(map[string]memResults), nsResolver: namespace.Default}
 }
 
-func (c *memCache) ForwardMatch(id id.ID, _, _ int64, _ rules.MatchOptions) (rules.MatchResult, error) {
+func (c *memCache) ForwardMatch(id id.ID, _, _ int64, opts *rules.MatchOptions) error {
 	c.RLock()
 	defer c.RUnlock()
 	if results, exists := c.namespaces[string(c.nsResolver.Resolve(id))]; exists {
-		return results.results[string(id.Bytes())], nil
+		result := results.results[string(id.Bytes())]
+		opts.MatchResult = &result
+		return nil
 	}
-	return rules.EmptyMatchResult, nil
+	opts.MatchResult = &rules.EmptyMatchResult
+	return nil
 }
 
 func (c *memCache) Register(namespace []byte, source rules.Matcher) {

@@ -51,9 +51,10 @@ func TestCacheMatchNamespaceDoesNotExist(t *testing.T) {
 	opts := testCacheOptions()
 	c := NewCache(opts)
 
-	res, err := c.ForwardMatch(namespace.NewTestID("foo", "nonexistentNs"), 0, 0, rules.MatchOptions{})
+	matchOpts := &rules.MatchOptions{}
+	err := c.ForwardMatch(namespace.NewTestID("foo", "nonexistentNs"), 0, 0, matchOpts)
 	require.NoError(t, err)
-	require.Equal(t, testEmptyMatchResult, res)
+	validateResult(t, testEmptyMatchResult, *matchOpts.MatchResult)
 }
 
 func TestCacheMatchIDCachedValidNoPromotion(t *testing.T) {
@@ -65,9 +66,10 @@ func TestCacheMatchIDCachedValidNoPromotion(t *testing.T) {
 	populateCache(c, testValues, now.Add(time.Minute), source, populateBoth)
 
 	// Get the second id and assert we didn't perform a promotion.
-	res, err := c.ForwardMatch(testValues[1].ID(), now.UnixNano(), now.UnixNano(), rules.MatchOptions{})
+	matchOpts := &rules.MatchOptions{}
+	err := c.ForwardMatch(testValues[1].ID(), now.UnixNano(), now.UnixNano(), matchOpts)
 	require.NoError(t, err)
-	require.Equal(t, testValues[1].result, res)
+	validateResult(t, testValues[1].result, *matchOpts.MatchResult)
 	validateCache(t, c, testValues)
 }
 
@@ -81,9 +83,10 @@ func TestCacheMatchIDCachedValidWithPromotion(t *testing.T) {
 
 	// Move the time and assert we performed a promotion.
 	now = now.Add(time.Minute)
-	res, err := c.ForwardMatch(testValues[1].ID(), now.UnixNano(), now.UnixNano(), rules.MatchOptions{})
+	matchOpts := &rules.MatchOptions{}
+	err := c.ForwardMatch(testValues[1].ID(), now.UnixNano(), now.UnixNano(), matchOpts)
 	require.NoError(t, err)
-	require.Equal(t, testValues[1].result, res)
+	validateResult(t, testValues[1].result, *matchOpts.MatchResult)
 	expected := []testValue{testValues[1], testValues[0]}
 	validateCache(t, c, expected)
 }
@@ -123,9 +126,10 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateAll(t *testing.T) {
 	entry, ok = c.namespaces.Get(ns)
 	require.True(t, ok)
 	require.Equal(t, 2, entry.elems.Len())
-	res, err := c.ForwardMatch(testValues[1].ID(), now.UnixNano(), now.Add(time.Minute).UnixNano(), rules.MatchOptions{})
+	matchOpts := &rules.MatchOptions{}
+	err := c.ForwardMatch(testValues[1].ID(), now.UnixNano(), now.Add(time.Minute).UnixNano(), matchOpts)
 	require.NoError(t, err)
-	require.Equal(t, result, res)
+	validateResult(t, result, *matchOpts.MatchResult)
 
 	// Wait for deletion to happen
 	conditionFn := func() bool {
@@ -174,9 +178,10 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateAllNoEviction(t *testing.
 	entry, ok = c.namespaces.Get(ns)
 	require.True(t, ok)
 	require.Equal(t, 2, entry.elems.Len())
-	res, err := c.ForwardMatch(testValues[1].ID(), now.UnixNano(), now.UnixNano(), rules.MatchOptions{})
+	matchOpts := &rules.MatchOptions{}
+	err := c.ForwardMatch(testValues[1].ID(), now.UnixNano(), now.UnixNano(), matchOpts)
 	require.NoError(t, err)
-	require.Equal(t, result, res)
+	validateResult(t, result, *matchOpts.MatchResult)
 
 	// Wait for deletion to happen
 	conditionFn := func() bool {
@@ -222,9 +227,10 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateOneNoEviction(t *testing.
 	entry, ok := c.namespaces.Get(ns)
 	require.True(t, ok)
 	require.Equal(t, 2, entry.elems.Len())
-	res, err := c.ForwardMatch(testValues[1].ID(), now.UnixNano(), now.UnixNano(), rules.MatchOptions{})
+	matchOpts := &rules.MatchOptions{}
+	err := c.ForwardMatch(testValues[1].ID(), now.UnixNano(), now.UnixNano(), matchOpts)
 	require.NoError(t, err)
-	require.Equal(t, result, res)
+	validateResult(t, result, *matchOpts.MatchResult)
 
 	// Wait for deletion to happen.
 	conditionFn := func() bool {
@@ -283,9 +289,10 @@ func TestCacheMatchIDCachedInvalidSourceValidWithEviction(t *testing.T) {
 		{namespace: []byte("ns2"), id: []byte("baz")},
 		{namespace: []byte("ns2"), id: []byte("cat")},
 	} {
-		res, err := c.ForwardMatch(value.ID(), now.UnixNano(), now.UnixNano(), rules.MatchOptions{})
+		matchOpts := &rules.MatchOptions{}
+		err := c.ForwardMatch(value.ID(), now.UnixNano(), now.UnixNano(), matchOpts)
 		require.NoError(t, err)
-		require.Equal(t, newResult, res)
+		validateResult(t, newResult, *matchOpts.MatchResult)
 	}
 	conditionFn := func() bool {
 		c.list.Lock()
@@ -304,10 +311,11 @@ func TestCacheMatchIDCachedInvalidSourceValidWithEviction(t *testing.T) {
 
 	// Retrieve one more id and assert we perform async eviction.
 	c.invalidationMode = InvalidateAll
-	res, err := c.ForwardMatch(namespace.NewTestID("lol", "ns1"),
-		now.UnixNano(), now.UnixNano(), rules.MatchOptions{})
+	matchOpts := &rules.MatchOptions{}
+	err := c.ForwardMatch(namespace.NewTestID("lol", "ns1"),
+		now.UnixNano(), now.UnixNano(), matchOpts)
 	require.NoError(t, err)
-	require.Equal(t, newResult, res)
+	validateResult(t, newResult, *matchOpts.MatchResult)
 	require.NoError(t, testWaitUntilWithTimeout(conditionFn, testWaitTimeout))
 	expected = []testValue{
 		{namespace: []byte("ns1"), id: []byte("lol"), result: newResult},
@@ -324,10 +332,11 @@ func TestCacheMatchIDNotCachedAndDoesNotExistInSource(t *testing.T) {
 	source := newMockSource()
 	populateCache(c, testValues, now.Add(time.Minute), source, populateBoth)
 
-	res, err := c.ForwardMatch(namespace.NewTestID("nonExistent", "nsfoo"),
-		now.UnixNano(), now.UnixNano(), rules.MatchOptions{})
+	matchOpts := &rules.MatchOptions{}
+	err := c.ForwardMatch(namespace.NewTestID("nonExistent", "nsfoo"),
+		now.UnixNano(), now.UnixNano(), matchOpts)
 	require.NoError(t, err)
-	require.Equal(t, testEmptyMatchResult, res)
+	validateResult(t, testEmptyMatchResult, *matchOpts.MatchResult)
 }
 
 func TestCacheMatchIDNotCachedSourceValidNoEviction(t *testing.T) {
@@ -346,9 +355,10 @@ func TestCacheMatchIDNotCachedSourceValidNoEviction(t *testing.T) {
 	entry, ok := c.namespaces.Get(ns)
 	require.True(t, ok)
 	require.Equal(t, 0, entry.elems.Len())
-	res, err := c.ForwardMatch(testValues[1].ID(), now.UnixNano(), now.UnixNano(), rules.MatchOptions{})
+	matchOpts := &rules.MatchOptions{}
+	err := c.ForwardMatch(testValues[1].ID(), now.UnixNano(), now.UnixNano(), matchOpts)
 	require.NoError(t, err)
-	require.Equal(t, result, res)
+	validateResult(t, result, *matchOpts.MatchResult)
 
 	expected := []testValue{testValues[1]}
 	elem, exists := entry.elems.Get(id)
@@ -383,9 +393,10 @@ func TestCacheMatchParallel(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			res, err := c.ForwardMatch(v.ID(), now.UnixNano(), now.UnixNano(), rules.MatchOptions{})
+			matchOpts := &rules.MatchOptions{}
+			err := c.ForwardMatch(v.ID(), now.UnixNano(), now.UnixNano(), matchOpts)
 			require.NoError(t, err)
-			require.Equal(t, newResult, res)
+			validateResult(t, newResult, *matchOpts.MatchResult)
 		}()
 	}
 	wg.Wait()
@@ -654,13 +665,15 @@ func (s *mockSource) IsValid(version int) bool {
 	return version >= currVersion
 }
 
-func (s *mockSource) ForwardMatch(id id.ID, _, _ int64, _ rules.MatchOptions) (rules.MatchResult, error) {
+func (s *mockSource) ForwardMatch(id id.ID, _, _ int64, opts *rules.MatchOptions) error {
 	s.Lock()
 	defer s.Unlock()
 	if res, exists := s.idMap[string(id.Bytes())]; exists {
-		return res, nil
+		opts.MatchResult = &res
+		return nil
 	}
-	return rules.EmptyMatchResult, nil
+	opts.MatchResult = &rules.EmptyMatchResult
+	return nil
 }
 
 // nolint: unparam

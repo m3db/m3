@@ -188,12 +188,12 @@ func (n *namespaces) LatestRollupRules(namespace []byte, timeNanos int64) ([]vie
 	return ruleSet.LatestRollupRules(namespace, timeNanos)
 }
 
-func (n *namespaces) ForwardMatch(id id.ID, fromNanos, toNanos int64,
-	opts rules.MatchOptions) (rules.MatchResult, error) {
+func (n *namespaces) ForwardMatch(id id.ID, fromNanos, toNanos int64, opts *rules.MatchOptions) error {
 	namespace := n.nsResolver.Resolve(id)
 	ruleSet, exists := n.ruleSet(namespace)
 	if !exists {
-		return rules.EmptyMatchResult, nil
+		opts.MatchResult = &rules.EmptyMatchResult
+		return nil
 	}
 	return ruleSet.ForwardMatch(id, fromNanos, toNanos, opts)
 }

@@ -28,21 +28,37 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/id"
 )
 
-var (
-	// EmptyMatchResult is the result when no matches were found.
-	EmptyMatchResult = NewMatchResult(
-		kv.UninitializedVersion,
-		timeNanosMax,
-		metadata.DefaultStagedMetadatas,
-		nil,
-		false,
-	)
+// EmptyMatchResult is the result when no matches were found.
+var EmptyMatchResult = NewMatchResult(
+	kv.UninitializedVersion,
+	timeNanosMax,
+	metadata.DefaultStagedMetadatas,
+	nil,
+	false,
 )
 
 // IDWithMetadatas is a pair of metric ID and the associated staged metadatas.
 type IDWithMetadatas struct {
 	ID        []byte
 	Metadatas metadata.StagedMetadatas
+}
+
+// Reset resets an IDWithMetadatas for reuse.
+func (i *IDWithMetadatas) Reset() {
+	i.ID = i.ID[:0]
+	for idx := range i.Metadatas {
+		i.Metadatas[idx].Reset()
+	}
+	i.Metadatas = i.Metadatas[:0]
+}
+
+// Clone creates a copy of IDWithMetadatas.
+func (i IDWithMetadatas) Clone() IDWithMetadatas {
+	clone := i
+	clone.ID = make([]byte, 0, len(i.ID))
+	clone.ID = append(clone.ID, i.ID...)
+	clone.Metadatas = i.Metadatas.Clone()
+	return clone
 }
 
 // IDWithMetadatasByIDAsc sorts a list of ID with metadatas by metric ID in ascending order.
@@ -73,6 +89,10 @@ type MatchResult struct {
 type MatchOptions struct {
 	NameAndTagsFn       id.NameAndTagsFn
 	SortedTagIteratorFn id.SortedTagIteratorFn
+
+	// MatchResult is the final MatchResult that will
+	// be updated by the ForwardMatch logic.
+	MatchResult *MatchResult
 }
 
 // NewMatchResult creates a new match result.
@@ -122,6 +142,34 @@ func (r *MatchResult) ForNewRollupIDsAt(idx int, timeNanos int64) IDWithMetadata
 // should be kept, and false if it should be dropped.
 func (r *MatchResult) KeepOriginal() bool {
 	return r.keepOriginal
+}
+
+// Clone creates a copy of the MatchResult.
+func (r MatchResult) Clone() MatchResult {
+	clone := r
+	clone.forNewRollupIDs = make([]IDWithMetadatas, 0, len(r.forNewRollupIDs))
+	for _, idWithMetadata := range r.forNewRollupIDs {
+		clone.forNewRollupIDs = append(clone.forNewRollupIDs, idWithMetadata.Clone())
+	}
+	clone.forExistingID = r.forExistingID.Clone()
+	return clone
+}
+
+// Reset resets a MatchResult so that it can be reused.
+func (r *MatchResult) Reset() {
+	r.version = 0
+	r.expireAtNanos = 0
+	r.keepOriginal = false
+
+	for i := range r.forExistingID {
+		r.forExistingID[i].Reset()
+	}
+	r.forExistingID = r.forExistingID[:0]
+
+	for i := range r.forNewRollupIDs {
+		r.forNewRollupIDs[i].Reset()
+	}
+	r.forNewRollupIDs = r.forNewRollupIDs[:0]
 }
 
 // activeStagedMetadatasAt returns the active staged metadatas at a given time, assuming

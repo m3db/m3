@@ -86,9 +86,10 @@ func TestMatcherMatchDoesNotExist(t *testing.T) {
 	matcher, testScope := testMatcher(t, testMatcherOptions{
 		cache: newMemCache(),
 	})
-	res, err := matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano(), rules.MatchOptions{})
+	matchOpts := &rules.MatchOptions{}
+	err := matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano(), matchOpts)
 	require.NoError(t, err)
-	require.Equal(t, rules.EmptyMatchResult, res)
+	require.Equal(t, rules.EmptyMatchResult, *matchOpts.MatchResult)
 
 	requireLatencyMetrics(t, "cached-matcher", testScope)
 }
@@ -110,9 +111,11 @@ func TestMatcherMatchExists(t *testing.T) {
 	})
 	c := cache.(*memCache)
 	c.namespaces[ns] = memRes
-	actual, err := matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano(), rules.MatchOptions{})
+
+	matchOpts := &rules.MatchOptions{}
+	err := matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano(), matchOpts)
 	require.NoError(t, err)
-	require.Equal(t, res, actual)
+	require.Equal(t, res, *matchOpts.MatchResult)
 }
 
 func TestMatcherMatchExistsNoCache(t *testing.T) {
@@ -195,12 +198,12 @@ func TestMatcherMatchExistsNoCache(t *testing.T) {
 			},
 		},
 	}
-	forNewRollupIDs := []rules.IDWithMetadatas{}
+	var forNewRollupIDs []rules.IDWithMetadatas
 	keepOriginal := false
 	expected := rules.NewMatchResult(1, math.MaxInt64,
 		forExistingID, forNewRollupIDs, keepOriginal)
 
-	matchOptions := rules.MatchOptions{
+	matchOptions := &rules.MatchOptions{
 		NameAndTagsFn: func(id []byte) (name []byte, tags []byte, err error) {
 			name = metric.id
 			return
@@ -213,12 +216,13 @@ func TestMatcherMatchExistsNoCache(t *testing.T) {
 			iter.EXPECT().Err().Return(nil)
 			return iter
 		},
+		MatchResult: &rules.MatchResult{},
 	}
 
-	result, err := matcher.ForwardMatch(metric, now.UnixNano(), now.UnixNano(), matchOptions)
+	err := matcher.ForwardMatch(metric, now.UnixNano(), now.UnixNano(), matchOptions)
 
 	require.NoError(t, err)
-	require.Equal(t, expected, result)
+	require.Equal(t, expected, *matchOptions.MatchResult)
 
 	// Check that latency was measured
 	requireLatencyMetrics(t, "matcher", testScope)

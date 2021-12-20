@@ -39,9 +39,7 @@ const (
 	deletionThrottleInterval = 100 * time.Millisecond
 )
 
-var (
-	errCacheClosed = errors.New("cache is already closed")
-)
+var errCacheClosed = errors.New("cache is already closed")
 
 // Cache caches the rule matching result associated with metrics.
 type Cache interface {
@@ -170,26 +168,25 @@ func NewCache(opts Options) Cache {
 	return c
 }
 
-func (c *cache) ForwardMatch(id id.ID, fromNanos, toNanos int64,
-	opts rules.MatchOptions) (rules.MatchResult, error) {
+func (c *cache) ForwardMatch(id id.ID, fromNanos, toNanos int64, opts *rules.MatchOptions) error {
 	namespace := c.nsResolver.Resolve(id)
 	c.RLock()
-	res, found, err := c.tryGetWithLock(namespace, id, fromNanos, toNanos, dontSetIfNotFound, opts)
+	found, err := c.tryGetWithLock(namespace, id, fromNanos, toNanos, dontSetIfNotFound, opts)
 	c.RUnlock()
 	if err != nil {
-		return rules.MatchResult{}, err
+		return err
 	}
 	if found {
-		return res, nil
+		return nil
 	}
 
 	c.Lock()
-	res, _, err = c.tryGetWithLock(namespace, id, fromNanos, toNanos, setIfNotFound, opts)
+	_, err = c.tryGetWithLock(namespace, id, fromNanos, toNanos, setIfNotFound, opts)
 	c.Unlock()
 	if err != nil {
-		return rules.MatchResult{}, err
+		return err
 	}
-	return res, nil
+	return nil
 }
 
 func (c *cache) Register(namespace []byte, source rules.Matcher) {
@@ -266,18 +263,18 @@ func (c *cache) tryGetWithLock(
 	id id.ID,
 	fromNanos, toNanos int64,
 	setType setType,
-	matchOpts rules.MatchOptions,
-) (rules.MatchResult, bool, error) {
-	res := rules.EmptyMatchResult
+	matchOpts *rules.MatchOptions,
+) (bool, error) {
 	results, exists := c.namespaces.Get(namespace)
 	if !exists {
+		matchOpts.MatchResult = &rules.EmptyMatchResult
 		c.metrics.hits.Inc(1)
-		return res, true, nil
+		return true, nil
 	}
 	entry, exists := results.elems.Get(id.Bytes())
 	if exists {
 		elem := (*element)(entry)
-		res = elem.result
+		res := elem.result
 		// NB(xichen): the cached match result expires when a new rule takes effect.
 		// Therefore we need to check if the cache result is valid up to the end
 		// of the match time range, a.k.a. toNanos.
@@ -294,21 +291,21 @@ func (c *cache) tryGetWithLock(
 			if elem.ShouldPromote(now) {
 				c.promote(now, elem)
 			}
+			matchOpts.MatchResult = &res
 			c.metrics.hits.Inc(1)
-			return res, true, nil
+			return true, nil
 		}
 		c.metrics.expires.Inc(1)
 	}
 	if setType == dontSetIfNotFound {
-		return res, false, nil
+		return false, nil
 	}
 	// NB(xichen): the result is either not cached, or cached but invalid, in both
 	// cases we should use the source to compute the result and set it in the cache.
-	res, err := c.setWithLock(namespace, id, fromNanos, toNanos, results, exists, matchOpts)
-	if err != nil {
-		return rules.MatchResult{}, false, err
+	if err := c.setWithLock(namespace, id, fromNanos, toNanos, results, exists, matchOpts); err != nil {
+		return false, err
 	}
-	return res, true, nil
+	return true, nil
 }
 
 func (c *cache) setWithLock(
@@ -317,19 +314,21 @@ func (c *cache) setWithLock(
 	fromNanos, toNanos int64,
 	results results,
 	invalidate bool,
-	matchOpts rules.MatchOptions,
-) (rules.MatchResult, error) {
+	matchOpts *rules.MatchOptions,
+) error {
 	// NB(xichen): if a cached result is invalid, it's very likely that we've reached
 	// a new cutover time and the old cached results are now invalid, therefore it's
 	// preferrable to invalidate everything to save the overhead of multiple invalidations.
 	if invalidate {
 		results = c.invalidateWithLock(namespace, id.Bytes(), results)
 	}
-	res, err := results.source.ForwardMatch(id, fromNanos, toNanos, matchOpts)
+	err := results.source.ForwardMatch(id, fromNanos, toNanos, matchOpts)
 	if err != nil {
-		return rules.MatchResult{}, err
+		return err
 	}
-	newElem := newElement(namespace, id.Bytes(), res)
+	// Clone before placing in cache so that nothing can manipulate the result
+	// external to the cache.
+	newElem := newElement(namespace, id.Bytes(), matchOpts.MatchResult.Clone())
 	newElem.SetPromotionExpiry(c.newPromotionExpiry(c.nowFn()))
 	results.elems.Set(id.Bytes(), newElem)
 	// NB(xichen): we don't evict until the number of cached items goes
@@ -339,7 +338,7 @@ func (c *cache) setWithLock(
 		c.notifyEviction()
 	}
 	c.metrics.misses.Inc(1)
-	return res, nil
+	return nil
 }
 
 // refreshWithLock clears the existing cached results for namespace nsHash

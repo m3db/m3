@@ -30,7 +30,137 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	testIDWithMetadatas = IDWithMetadatas{
+		ID: b("rName2|rtagName1=rtagValue1"),
+		Metadatas: metadata.StagedMetadatas{
+			{
+				CutoverNanos: 12345,
+				Tombstoned:   false,
+				Metadata: metadata.Metadata{
+					Pipelines: []metadata.PipelineMetadata{
+						metadata.DefaultPipelineMetadata,
+					},
+				},
+			},
+		},
+	}
+	testExpireAtNanos = int64(67890)
+	//nolint:dupl
+	testForExistingID = metadata.StagedMetadatas{
+		{
+			CutoverNanos: 12345,
+			Tombstoned:   false,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID: aggregation.DefaultID,
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+							policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+							policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+						},
+					},
+				},
+			},
+		},
+		{
+			CutoverNanos: 23456,
+			Tombstoned:   true,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID: aggregation.DefaultID,
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(30*time.Second, xtime.Second, 10*time.Hour),
+							policy.NewStoragePolicy(2*time.Minute, xtime.Minute, 48*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
+	testForNewRollupIDs = []IDWithMetadatas{
+		{
+			ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
+			//nolint:dupl
+			Metadatas: metadata.StagedMetadatas{
+				{
+					CutoverNanos: 12345,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+									policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+									policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+								},
+							},
+						},
+					},
+				},
+				{
+					CutoverNanos: 23456,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(30*time.Second, xtime.Second, 10*time.Hour),
+									policy.NewStoragePolicy(2*time.Minute, xtime.Minute, 48*time.Hour),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			ID: b("rName2|rtagName1=rtagValue1"),
+			Metadatas: metadata.StagedMetadatas{
+				{
+					CutoverNanos: 12345,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+						},
+					},
+				},
+			},
+		},
+		{
+			ID: b("rName3|rtagName1=rtagValue2"),
+			Metadatas: metadata.StagedMetadatas{
+				{
+					CutoverNanos: 12345,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+						},
+					},
+				},
+				{
+					CutoverNanos: 27000,
+					Tombstoned:   true,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							metadata.DefaultPipelineMetadata,
+						},
+					},
+				},
+			},
+		},
+	}
 )
 
 func TestMatchResultProperties(t *testing.T) {
@@ -71,118 +201,6 @@ func TestMatchResultProperties(t *testing.T) {
 }
 
 func TestMatchResult(t *testing.T) {
-	var (
-		testExpireAtNanos = int64(67890)
-		testForExistingID = metadata.StagedMetadatas{
-			{
-				CutoverNanos: 12345,
-				Tombstoned:   false,
-				Metadata: metadata.Metadata{
-					Pipelines: []metadata.PipelineMetadata{
-						{
-							AggregationID: aggregation.DefaultID,
-							StoragePolicies: policy.StoragePolicies{
-								policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
-								policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
-								policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
-							},
-						},
-					},
-				},
-			},
-			{
-				CutoverNanos: 23456,
-				Tombstoned:   true,
-				Metadata: metadata.Metadata{
-					Pipelines: []metadata.PipelineMetadata{
-						{
-							AggregationID: aggregation.DefaultID,
-							StoragePolicies: policy.StoragePolicies{
-								policy.NewStoragePolicy(30*time.Second, xtime.Second, 10*time.Hour),
-								policy.NewStoragePolicy(2*time.Minute, xtime.Minute, 48*time.Hour),
-							},
-						},
-					},
-				},
-			},
-		}
-		testForNewRollupIDs = []IDWithMetadatas{
-			{
-				ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
-				Metadatas: metadata.StagedMetadatas{
-					{
-						CutoverNanos: 12345,
-						Tombstoned:   false,
-						Metadata: metadata.Metadata{
-							Pipelines: []metadata.PipelineMetadata{
-								{
-									AggregationID: aggregation.DefaultID,
-									StoragePolicies: policy.StoragePolicies{
-										policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
-										policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
-										policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
-									},
-								},
-							},
-						},
-					},
-					{
-						CutoverNanos: 23456,
-						Tombstoned:   false,
-						Metadata: metadata.Metadata{
-							Pipelines: []metadata.PipelineMetadata{
-								{
-									AggregationID: aggregation.DefaultID,
-									StoragePolicies: policy.StoragePolicies{
-										policy.NewStoragePolicy(30*time.Second, xtime.Second, 10*time.Hour),
-										policy.NewStoragePolicy(2*time.Minute, xtime.Minute, 48*time.Hour),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			{
-				ID: b("rName2|rtagName1=rtagValue1"),
-				Metadatas: metadata.StagedMetadatas{
-					{
-						CutoverNanos: 12345,
-						Tombstoned:   false,
-						Metadata: metadata.Metadata{
-							Pipelines: []metadata.PipelineMetadata{
-								metadata.DefaultPipelineMetadata,
-							},
-						},
-					},
-				},
-			},
-			{
-				ID: b("rName3|rtagName1=rtagValue2"),
-				Metadatas: metadata.StagedMetadatas{
-					{
-						CutoverNanos: 12345,
-						Tombstoned:   false,
-						Metadata: metadata.Metadata{
-							Pipelines: []metadata.PipelineMetadata{
-								metadata.DefaultPipelineMetadata,
-							},
-						},
-					},
-					{
-						CutoverNanos: 27000,
-						Tombstoned:   true,
-						Metadata: metadata.Metadata{
-							Pipelines: []metadata.PipelineMetadata{
-								metadata.DefaultPipelineMetadata,
-							},
-						},
-					},
-				},
-			},
-		}
-	)
-
 	inputs := []struct {
 		matchAtNanos            int64
 		expectedForExistingID   metadata.StagedMetadatas
@@ -236,4 +254,33 @@ func TestMatchResult(t *testing.T) {
 			require.Equal(t, input.expectedForNewRollupIDs[i], forNewRollupID)
 		}
 	}
+}
+
+func TestMatchResultClone(t *testing.T) {
+	res := NewMatchResult(10, testExpireAtNanos, testForExistingID, testForNewRollupIDs, true)
+	clone := res.Clone()
+	require.True(t, cmp.Equal(res, clone, cmpopts.EquateEmpty(), cmp.AllowUnexported(MatchResult{})))
+}
+
+func TestMatchResultReset(t *testing.T) {
+	res := NewMatchResult(10, testExpireAtNanos, testForExistingID, testForNewRollupIDs, true)
+	res.Reset()
+	require.Equal(t, MatchResult{
+		forExistingID:   metadata.StagedMetadatas{},
+		forNewRollupIDs: []IDWithMetadatas{},
+	}, res)
+}
+
+func TestIDWithMetadatasClone(t *testing.T) {
+	clone := testIDWithMetadatas.Clone()
+	require.True(t, cmp.Equal(testIDWithMetadatas, clone, cmpopts.EquateEmpty()))
+}
+
+func TestIDWithMetadatasReset(t *testing.T) {
+	clone := testIDWithMetadatas.Clone()
+	clone.Reset()
+	require.Equal(t, IDWithMetadatas{
+		ID:        []byte{},
+		Metadatas: metadata.StagedMetadatas{},
+	}, clone)
 }

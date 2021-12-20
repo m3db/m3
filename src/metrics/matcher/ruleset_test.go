@@ -63,9 +63,10 @@ func TestRuleSetProperties(t *testing.T) {
 func TestRuleSetMatchNoMatcher(t *testing.T) {
 	_, _, rs := testRuleSet()
 	nowNanos := rs.nowFn().UnixNano()
-	res, err := rs.ForwardMatch(testID("foo"), nowNanos, nowNanos, rules.MatchOptions{})
+	opts := &rules.MatchOptions{}
+	err := rs.ForwardMatch(testID("foo"), nowNanos, nowNanos, opts)
 	require.NoError(t, err)
-	require.Equal(t, rules.EmptyMatchResult, res)
+	require.Equal(t, rules.EmptyMatchResult, *opts.MatchResult)
 }
 
 func TestRuleSetForwardMatchWithMatcher(t *testing.T) {
@@ -79,9 +80,10 @@ func TestRuleSetForwardMatchWithMatcher(t *testing.T) {
 		toNanos   = now.Add(time.Second).UnixNano()
 	)
 
-	res, err := rs.ForwardMatch(testID("foo"), fromNanos, toNanos, rules.MatchOptions{})
+	opts := &rules.MatchOptions{}
+	err := rs.ForwardMatch(testID("foo"), fromNanos, toNanos, opts)
 	require.NoError(t, err)
-	require.Equal(t, mockMatcher.res, res)
+	require.Equal(t, mockMatcher.res, *opts.MatchResult)
 	require.Equal(t, []byte("foo"), mockMatcher.id)
 	require.Equal(t, fromNanos, mockMatcher.fromNanos)
 	require.Equal(t, toNanos, mockMatcher.toNanos)
@@ -225,12 +227,13 @@ func (mm *mockMatcher) LatestRollupRules(_ []byte, _ int64) ([]view.RollupRule, 
 func (mm *mockMatcher) ForwardMatch(
 	id id.ID,
 	fromNanos, toNanos int64,
-	_ rules.MatchOptions,
-) (rules.MatchResult, error) {
+	opts *rules.MatchOptions,
+) error {
 	mm.id = id.Bytes()
 	mm.fromNanos = fromNanos
 	mm.toNanos = toNanos
-	return mm.res, nil
+	opts.MatchResult = &mm.res
+	return nil
 }
 
 type mockRuleSet struct {

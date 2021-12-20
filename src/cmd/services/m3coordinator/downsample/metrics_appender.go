@@ -107,6 +107,7 @@ type metricsAppender struct {
 	tagIter      serialize.MetricTagsIterator
 	tagIterFn    id.SortedTagIteratorFn
 	nameTagFn    id.NameAndTagsFn
+	matchResult  rules.MatchResult
 }
 
 // metricsAppenderOptions will have one of agg or clientRemote set.
@@ -231,6 +232,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			tags.names, tags.values)
 	}
 
+	a.matchResult.Reset()
 	a.multiSamplesAppender.reset()
 	unownedID := data.Bytes()
 	// Match policies and rollups and build samples appender
@@ -242,13 +244,17 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	// N.B - it's safe the reuse the shared tag iterator because the matcher uses it immediately to resolve the optional
 	// namespace tag to determine the ruleset for the namespace. then the ruleset matcher reuses the tag iterator for
 	// every match computation.
-	matchResult, err := a.matcher.ForwardMatch(a.tagIter, fromNanos, toNanos, rules.MatchOptions{
+	matchOptions := &rules.MatchOptions{
 		NameAndTagsFn:       a.nameTagFn,
 		SortedTagIteratorFn: a.tagIterFn,
-	})
-	if err != nil {
+		MatchResult:         &a.matchResult,
+	}
+	if err := a.matcher.ForwardMatch(a.tagIter, fromNanos, toNanos, matchOptions); err != nil {
 		return SamplesAppenderResult{}, err
 	}
+	// Use the MatchResult on matchOptions as opposed to matchResult member variable
+	// as certain matchers may replace the MatchResult (e.g. cache matcher).
+	matchResult := matchOptions.MatchResult
 
 	// Filter out augmented metrics tags we added for matching.
 	for _, filter := range defaultFilterOutTagPrefixes {

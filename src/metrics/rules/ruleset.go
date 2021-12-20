@@ -57,7 +57,9 @@ var (
 // Matcher matches metrics against rules to determine applicable policies.
 type Matcher interface {
 	// ForwardMatch matches the applicable policies for a metric id between [fromNanos, toNanos).
-	ForwardMatch(id metricid.ID, fromNanos, toNanos int64, opts MatchOptions) (MatchResult, error)
+	// Result for forward match is provided via the MatchResult specified in the
+	// MatchOptions parameter.
+	ForwardMatch(id metricid.ID, fromNanos, toNanos int64, opts *MatchOptions) error
 }
 
 // Fetcher fetches rules.

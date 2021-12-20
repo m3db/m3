@@ -99,43 +99,34 @@ func newActiveRuleSet(
 func (as *activeRuleSet) ForwardMatch(
 	id metricid.ID,
 	fromNanos, toNanos int64,
-	opts MatchOptions,
-) (MatchResult, error) {
-	currMatchRes, err := as.forwardMatchAt(id.Bytes(), fromNanos, opts)
+	opts *MatchOptions,
+) error {
+	err := as.forwardMatchAt(id.Bytes(), fromNanos, opts)
 	if err != nil {
-		return MatchResult{}, err
+		return err
 	}
 	var (
-		forExistingID    = metadata.StagedMetadatas{currMatchRes.forExistingID}
-		forNewRollupIDs  = currMatchRes.forNewRollupIDs
 		nextIdx          = as.nextCutoverIdx(fromNanos)
 		nextCutoverNanos = as.cutoverNanosAt(nextIdx)
-		keepOriginal     = currMatchRes.keepOriginal
 	)
 
 	for nextIdx < len(as.cutoverTimesAsc) && nextCutoverNanos < toNanos {
-		nextMatchRes, err := as.forwardMatchAt(id.Bytes(), nextCutoverNanos, opts)
+		err := as.forwardMatchAt(id.Bytes(), nextCutoverNanos, opts)
 		if err != nil {
-			return MatchResult{}, err
+			return err
 		}
-		forExistingID = mergeResultsForExistingID(forExistingID, nextMatchRes.forExistingID, nextCutoverNanos)
-		forNewRollupIDs = mergeResultsForNewRollupIDs(forNewRollupIDs, nextMatchRes.forNewRollupIDs, nextCutoverNanos)
 		nextIdx++
 		nextCutoverNanos = as.cutoverNanosAt(nextIdx)
-		keepOriginal = nextMatchRes.keepOriginal
 	}
 
+	opts.MatchResult.version = as.version
 	// The result expires when the beginning of the match time range reaches the first cutover time
 	// after `fromNanos`, or the end of the match time range reaches the first cutover time after
 	// `toNanos` among all active rules because the metric may then be matched against a different
 	// set of rules.
-	return NewMatchResult(
-		as.version,
-		nextCutoverNanos,
-		forExistingID,
-		forNewRollupIDs,
-		keepOriginal,
-	), nil
+	opts.MatchResult.expireAtNanos = nextCutoverNanos
+
+	return nil
 }
 
 // NB(xichen): can further consolidate pipelines with the same aggregation ID
@@ -144,46 +135,72 @@ func (as *activeRuleSet) ForwardMatch(
 func (as *activeRuleSet) forwardMatchAt(
 	id []byte,
 	timeNanos int64,
-	matchOpts MatchOptions,
-) (forwardMatchResult, error) {
-	mappingResults, err := as.mappingsForNonRollupID(id, timeNanos, matchOpts)
-	if err != nil {
-		return forwardMatchResult{}, err
+	matchOpts *MatchOptions,
+) error {
+	if err := as.mappingsForNonRollupID(id, timeNanos, matchOpts); err != nil {
+		return err
 	}
-	rollupResults, err := as.rollupResultsFor(id, timeNanos, matchOpts)
-	if err != nil {
-		return forwardMatchResult{}, err
+
+	if err := as.rollupResultsFor(id, timeNanos, matchOpts); err != nil {
+		return err
 	}
-	forExistingID := mappingResults.forExistingID.
-		merge(rollupResults.forExistingID).
-		unique().
-		toStagedMetadata()
-	forNewRollupIDs := make([]IDWithMetadatas, 0, len(rollupResults.forNewRollupIDs))
-	for _, idWithMatchResult := range rollupResults.forNewRollupIDs {
-		stagedMetadata := idWithMatchResult.matchResults.unique().toStagedMetadata()
-		newIDWithMetadatas := IDWithMetadatas{
-			ID:        idWithMatchResult.id,
-			Metadatas: metadata.StagedMetadatas{stagedMetadata},
+
+	ensureNonDecreasingCutoverForExistingID(matchOpts.MatchResult, timeNanos)
+	dedupeForExistingIDStagedMetadatas(matchOpts.MatchResult)
+
+	return nil
+}
+
+func dedupeForExistingIDStagedMetadatas(matchResult *MatchResult) {
+	if len(matchResult.forExistingID) == 0 {
+		return
+	}
+
+	idx := len(matchResult.forExistingID) - 1
+	if len(matchResult.forExistingID[idx].Pipelines) == 0 {
+		return
+	}
+
+	// Otherwise merge as per usual
+	curr := 0
+	for i := 1; i < len(matchResult.forExistingID[idx].Pipelines); i++ {
+		foundDup := false
+		for j := 0; j <= curr; j++ {
+			if matchResult.forExistingID[idx].Pipelines[j].Equal(matchResult.forExistingID[idx].Pipelines[i]) {
+				foundDup = true
+				break
+			}
 		}
-		forNewRollupIDs = append(forNewRollupIDs, newIDWithMetadatas)
+		if foundDup {
+			continue
+		}
+		curr++
+		matchResult.forExistingID[idx].Pipelines[curr] = matchResult.forExistingID[idx].Pipelines[i]
 	}
-	sort.Sort(IDWithMetadatasByIDAsc(forNewRollupIDs))
-	return forwardMatchResult{
-		forExistingID:   forExistingID,
-		forNewRollupIDs: forNewRollupIDs,
-		keepOriginal:    rollupResults.keepOriginal,
-	}, nil
+	for i := curr + 1; i < len(matchResult.forExistingID[idx].Pipelines); i++ {
+		matchResult.forExistingID[idx].Pipelines[i] = metadata.PipelineMetadata{}
+	}
+	matchResult.forExistingID[idx].Pipelines = matchResult.forExistingID[idx].Pipelines[:curr+1]
 }
 
 func (as *activeRuleSet) mappingsForNonRollupID(
 	id []byte,
 	timeNanos int64,
-	matchOpts MatchOptions,
-) (mappingResults, error) {
+	matchOpts *MatchOptions,
+) error {
 	var (
 		cutoverNanos int64
-		pipelines    []metadata.PipelineMetadata
+		matchResult  = matchOpts.MatchResult
 	)
+
+	if cap(matchResult.forExistingID) > len(matchResult.forExistingID) {
+		matchResult.forExistingID = matchResult.forExistingID[0 : len(matchResult.forExistingID)+1]
+	} else {
+		matchResult.forExistingID = append(matchResult.forExistingID, metadata.StagedMetadata{})
+	}
+	numMetadatas := len(matchResult.forExistingID)
+	idx := numMetadatas - 1
+
 	for _, mappingRule := range as.mappingRules {
 		snapshot := mappingRule.activeSnapshot(timeNanos)
 		if snapshot == nil {
@@ -194,7 +211,7 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 			NameAndTagsFn:       matchOpts.NameAndTagsFn,
 		})
 		if err != nil {
-			return mappingResults{}, err
+			return err
 		}
 		if !matches {
 			continue
@@ -216,18 +233,19 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 			Tags:            snapshot.tags,
 			GraphitePrefix:  snapshot.graphitePrefix,
 		}
-		pipelines = append(pipelines, pipeline)
+		matchResult.forExistingID[idx].Pipelines = append(
+			matchResult.forExistingID[idx].Pipelines, pipeline,
+		)
 	}
+	matchResult.forExistingID[idx].CutoverNanos = cutoverNanos
 
 	// NB: The pipeline list should never be empty as the resulting pipelines are
 	// used to determine how the *existing* ID is aggregated and retained. If there
 	// are no rule match, the default pipeline list is used.
-	if len(pipelines) == 0 {
-		pipelines = metadata.DefaultPipelineMetadatas.Clone()
+	if len(matchResult.forExistingID[idx].Pipelines) == 0 {
+		matchResult.forExistingID[idx].Pipelines = metadata.DefaultPipelineMetadatas.Clone()
 	}
-	return mappingResults{
-		forExistingID: ruleMatchResults{cutoverNanos: cutoverNanos, pipelines: pipelines},
-	}, nil
+	return nil
 }
 
 func (as *activeRuleSet) LatestRollupRules(_ []byte, timeNanos int64) ([]view.RollupRule, error) {
@@ -251,7 +269,11 @@ func (as *activeRuleSet) LatestRollupRules(_ []byte, timeNanos int64) ([]view.Ro
 	return out, nil
 }
 
-func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64, matchOpts MatchOptions) (rollupResults, error) {
+func (as *activeRuleSet) rollupResultsFor(
+	id []byte,
+	timeNanos int64,
+	matchOpts *MatchOptions,
+) error {
 	var (
 		cutoverNanos  int64
 		rollupTargets []rollupTarget
@@ -269,7 +291,7 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64, matchOpts 
 			SortedTagIteratorFn: matchOpts.SortedTagIteratorFn,
 		})
 		if err != nil {
-			return rollupResults{}, err
+			return err
 		}
 		if !match {
 			continue
@@ -296,12 +318,12 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64, matchOpts 
 			tags = append(tags, snapshot.tags)
 		}
 	}
-	// NB: could log the matching error here if needed.
-	res, _ := as.toRollupResults(id, cutoverNanos, rollupTargets, keepOriginal, tags, matchOpts)
-	return res, nil
+	return as.toRollupResults(
+		id, timeNanos, cutoverNanos, rollupTargets, keepOriginal, tags, matchOpts,
+	)
 }
 
-// toRollupMatchResult applies the rollup operation in each rollup pipelines contained
+// toRollupResults applies the rollup operation in each rollup pipelines contained
 // in the rollup targets against the matching ID to determine the resulting new rollup
 // ID. It additionally distinguishes rollup pipelines whose first operation is a rollup
 // operation from those that aren't since the former pipelines are applied against the
@@ -310,28 +332,31 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64, matchOpts 
 // nolint: unparam
 func (as *activeRuleSet) toRollupResults(
 	id []byte,
+	timeNanos int64,
 	cutoverNanos int64,
 	targets []rollupTarget,
 	keepOriginal bool,
 	tags [][]models.Tag,
-	matchOpts MatchOptions,
-) (rollupResults, error) {
+	matchOpts *MatchOptions,
+) error {
 	if len(targets) == 0 {
-		return rollupResults{}, nil
+		return nil
 	}
 
 	// If we cannot extract tags from the id, this is likely an invalid
 	// metric and we bail early.
 	_, sortedTagPairBytes, err := matchOpts.NameAndTagsFn(id)
 	if err != nil {
-		return rollupResults{}, err
+		return err
 	}
 
 	var (
-		multiErr           = xerrors.NewMultiError()
-		pipelines          = make([]metadata.PipelineMetadata, 0, len(targets))
-		newRollupIDResults = make([]idWithMatchResults, 0, len(targets))
-		tagPairs           []metricid.TagPair
+		multiErr    = xerrors.NewMultiError()
+		tagPairs    []metricid.TagPair
+		matchResult = matchOpts.MatchResult
+		// merge into forExistingID StagedMetadata created while processing mapping rules
+		feIdx              = len(matchResult.forExistingID) - 1
+		newRollupIDResults = make([]IDWithMetadatas, 0, len(targets))
 	)
 
 	for idx, target := range targets {
@@ -402,26 +427,36 @@ func (as *activeRuleSet) toRollupResults(
 		}
 		if rollupID == nil {
 			// The applied pipeline applies to the incoming ID.
-			pipelines = append(pipelines, newPipeline)
+			matchResult.forExistingID[feIdx].Pipelines =
+				append(matchResult.forExistingID[feIdx].Pipelines, newPipeline)
 		} else {
 			if len(tags[idx]) > 0 {
 				newPipeline.Tags = tags[idx]
 			}
 			// The applied pipeline applies to a new rollup ID.
-			matchResults := ruleMatchResults{
-				cutoverNanos: cutoverNanos,
-				pipelines:    []metadata.PipelineMetadata{newPipeline},
+			newRollupIDResult := IDWithMetadatas{
+				ID: rollupID,
+				Metadatas: metadata.StagedMetadatas{
+					{
+						CutoverNanos: cutoverNanos,
+						Metadata: metadata.Metadata{
+							Pipelines: []metadata.PipelineMetadata{newPipeline},
+						},
+					},
+				},
 			}
-			newRollupIDResult := idWithMatchResults{id: rollupID, matchResults: matchResults}
 			newRollupIDResults = append(newRollupIDResults, newRollupIDResult)
 		}
 	}
+	if matchResult.forExistingID[feIdx].CutoverNanos < cutoverNanos {
+		matchResult.forExistingID[feIdx].CutoverNanos = cutoverNanos
+	}
+	matchResult.keepOriginal = keepOriginal
 
-	return rollupResults{
-		forExistingID:   ruleMatchResults{cutoverNanos: cutoverNanos, pipelines: pipelines},
-		forNewRollupIDs: newRollupIDResults,
-		keepOriginal:    keepOriginal,
-	}, multiErr.FinalError()
+	sort.Sort(IDWithMetadatasByIDAsc(newRollupIDResults))
+	mergeResultsForNewRollupIDs(matchResult, newRollupIDResults, timeNanos)
+
+	return multiErr.FinalError()
 }
 
 // matchRollupTarget matches an incoming metric ID against a rollup target,
@@ -433,7 +468,7 @@ func (as *activeRuleSet) matchRollupTarget(
 	tagPairs []metricid.TagPair, // buffer for reuse to generate rollup ID across calls
 	tags []models.Tag,
 	targetOpts matchRollupTargetOptions,
-	matchOpts MatchOptions,
+	matchOpts *MatchOptions,
 ) ([]byte, bool, error) {
 	if rollupOp.Type == mpipeline.ExcludeByRollupType && !targetOpts.generateRollupID {
 		// Exclude by tag always matches, if not generating rollup ID
@@ -555,7 +590,7 @@ func (as *activeRuleSet) applyIDToPipeline(
 	pipeline mpipeline.Pipeline,
 	tagPairs []metricid.TagPair, // buffer for reuse across calls
 	tags []models.Tag,
-	matchOpts MatchOptions,
+	matchOpts *MatchOptions,
 ) (applied.Pipeline, error) {
 	operations := make([]applied.OpUnion, 0, pipeline.Len())
 	for i := 0; i < pipeline.Len(); i++ {
@@ -619,8 +654,8 @@ func (as *activeRuleSet) cutoverNanosAt(idx int) int64 {
 	return timeNanosMax
 }
 
-// mergeResultsForExistingID merges the next staged metadata into the current list of staged
-// metadatas while ensuring the cutover times of the staged metadatas are non-decreasing. This
+// ensureNonDecreasingCutoverForExistingID ensures the most recently added staged metadata in the
+// current list of staged metadatas has a cutover time greater than or equal to the one before it. This
 // is needed because the cutover times of staged metadata results produced by mapping rule matching
 // may not always be in ascending order. For example, if at time T0 a metric matches against a
 // mapping rule, and the filter of such rule changed at T1 such that the metric no longer matches
@@ -628,20 +663,15 @@ func (as *activeRuleSet) cutoverNanosAt(idx int) int64 {
 // whereas the staged metadata at T1 would have a cutover time of 0 (due to no rule match),
 // in which case we need to set the cutover time of the staged metadata at T1 to T1 to ensure
 // the mononicity of cutover times.
-func mergeResultsForExistingID(
-	currMetadatas metadata.StagedMetadatas,
-	nextMetadata metadata.StagedMetadata,
+func ensureNonDecreasingCutoverForExistingID(
+	matchResult *MatchResult,
 	nextCutoverNanos int64,
-) metadata.StagedMetadatas {
-	if len(currMetadatas) == 0 {
-		return metadata.StagedMetadatas{nextMetadata}
+) {
+	numMetadatas := len(matchResult.forExistingID)
+	if numMetadatas > 1 &&
+		matchResult.forExistingID[numMetadatas-2].CutoverNanos > matchResult.forExistingID[numMetadatas-1].CutoverNanos {
+		matchResult.forExistingID[numMetadatas-1].CutoverNanos = nextCutoverNanos
 	}
-	currCutoverNanos := currMetadatas[len(currMetadatas)-1].CutoverNanos
-	if currCutoverNanos > nextMetadata.CutoverNanos {
-		nextMetadata.CutoverNanos = nextCutoverNanos
-	}
-	currMetadatas = append(currMetadatas, nextMetadata)
-	return currMetadatas
 }
 
 // mergeResultsForNewRollupIDs merges the current list of staged metadatas for new rollup IDs
@@ -651,12 +681,12 @@ func mergeResultsForExistingID(
 // NB: each item in the `nextResults` array has a single staged metadata in the `metadatas` array
 // as the staged metadata for the associated rollup ID at the next cutover time.
 func mergeResultsForNewRollupIDs(
-	currResults []IDWithMetadatas,
+	currMatchResult *MatchResult,
 	nextResults []IDWithMetadatas,
 	nextCutoverNanos int64,
-) []IDWithMetadatas {
+) {
 	var (
-		currLen, nextLen = len(currResults), len(nextResults)
+		currLen, nextLen = len(currMatchResult.forNewRollupIDs), len(nextResults)
 		currIdx, nextIdx int
 	)
 	for currIdx < currLen || nextIdx < nextLen {
@@ -666,13 +696,18 @@ func mergeResultsForNewRollupIDs(
 		} else if nextIdx >= nextLen {
 			compareResult = -1
 		} else {
-			compareResult = bytes.Compare(currResults[currIdx].ID, nextResults[nextIdx].ID)
+			compareResult = bytes.Compare(
+				currMatchResult.forNewRollupIDs[currIdx].ID,
+				nextResults[nextIdx].ID,
+			)
 		}
 
 		// If the current result and the next result have the same ID, we append the next metadata
 		// to the end of the metadata list.
 		if compareResult == 0 {
-			currResults[currIdx].Metadatas = append(currResults[currIdx].Metadatas, nextResults[nextIdx].Metadatas[0])
+			currMatchResult.forNewRollupIDs[currIdx].Metadatas = append(
+				currMatchResult.forNewRollupIDs[currIdx].Metadatas, nextResults[nextIdx].Metadatas[0],
+			)
 			currIdx++
 			nextIdx++
 			continue
@@ -681,18 +716,24 @@ func mergeResultsForNewRollupIDs(
 		// If the current ID is smaller, it means the current rollup ID is tombstoned at the next
 		// cutover time.
 		if compareResult < 0 {
-			tombstonedMetadata := metadata.StagedMetadata{CutoverNanos: nextCutoverNanos, Tombstoned: true}
-			currResults[currIdx].Metadatas = append(currResults[currIdx].Metadatas, tombstonedMetadata)
+			tombstonedMetadata := metadata.StagedMetadata{
+				CutoverNanos: nextCutoverNanos,
+				Tombstoned:   true,
+			}
+			currMatchResult.forNewRollupIDs[currIdx].Metadatas = append(
+				currMatchResult.forNewRollupIDs[currIdx].Metadatas, tombstonedMetadata,
+			)
 			currIdx++
 			continue
 		}
 
 		// Otherwise the current ID is larger, meaning a new ID is added at the next cutover time.
-		currResults = append(currResults, nextResults[nextIdx])
+		currMatchResult.forNewRollupIDs = append(
+			currMatchResult.forNewRollupIDs, nextResults[nextIdx],
+		)
 		nextIdx++
 	}
-	sort.Sort(IDWithMetadatasByIDAsc(currResults))
-	return currResults
+	sort.Sort(IDWithMetadatasByIDAsc(currMatchResult.forNewRollupIDs))
 }
 
 type int64Asc []int64
@@ -703,99 +744,4 @@ func (a int64Asc) Less(i, j int) bool { return a[i] < a[j] }
 
 type matchRollupTargetOptions struct {
 	generateRollupID bool
-}
-
-type ruleMatchResults struct {
-	cutoverNanos int64
-	pipelines    []metadata.PipelineMetadata
-}
-
-// merge merges in another rule match results in place.
-func (res *ruleMatchResults) merge(other ruleMatchResults) *ruleMatchResults {
-	if res.cutoverNanos < other.cutoverNanos {
-		res.cutoverNanos = other.cutoverNanos
-	}
-	res.pipelines = append(res.pipelines, other.pipelines...)
-	return res
-}
-
-// unique de-duplicates the pipelines.
-func (res *ruleMatchResults) unique() *ruleMatchResults {
-	if len(res.pipelines) == 0 {
-		return res
-	}
-
-	// Otherwise merge as per usual
-	curr := 0
-	for i := 1; i < len(res.pipelines); i++ {
-		foundDup := false
-		for j := 0; j <= curr; j++ {
-			if res.pipelines[j].Equal(res.pipelines[i]) {
-				foundDup = true
-				break
-			}
-		}
-		if foundDup {
-			continue
-		}
-		curr++
-		res.pipelines[curr] = res.pipelines[i]
-	}
-	for i := curr + 1; i < len(res.pipelines); i++ {
-		res.pipelines[i] = metadata.PipelineMetadata{}
-	}
-	res.pipelines = res.pipelines[:curr+1]
-	return res
-}
-
-// toStagedMetadata converts the match results to a staged metadata.
-func (res *ruleMatchResults) toStagedMetadata() metadata.StagedMetadata {
-	return metadata.StagedMetadata{
-		CutoverNanos: res.cutoverNanos,
-		Tombstoned:   false,
-		Metadata:     metadata.Metadata{Pipelines: res.resolvedPipelines()},
-	}
-}
-
-func (res *ruleMatchResults) resolvedPipelines() []metadata.PipelineMetadata {
-	if len(res.pipelines) > 0 {
-		return res.pipelines
-	}
-	return metadata.DefaultPipelineMetadatas
-}
-
-type idWithMatchResults struct {
-	id           []byte
-	matchResults ruleMatchResults
-}
-
-type mappingResults struct {
-	// This represent the match result that should be applied against the
-	// incoming metric ID the mapping rules were matched against.
-	forExistingID ruleMatchResults
-}
-
-type rollupResults struct {
-	// This represent the match result that should be applied against the
-	// incoming metric ID the rollup rules were matched against. This usually contains
-	// the match result produced by rollup rules containing rollup pipelines whose first
-	// pipeline operation is not a rollup operation.
-	forExistingID ruleMatchResults
-
-	// This represents the match result that should be applied against new rollup
-	// IDs generated during the rule matching process. This usually contains
-	// the match result produced by rollup rules containing rollup pipelines whose first
-	// pipeline operation is a rollup operation.
-	forNewRollupIDs []idWithMatchResults
-
-	// This represents whether or not the original (source) metric for the
-	// matched rollup rule should be kept. If true, both metrics are written;
-	// if false, only the new generated rollup metric is written.
-	keepOriginal bool
-}
-
-type forwardMatchResult struct {
-	forExistingID   metadata.StagedMetadata
-	forNewRollupIDs []IDWithMetadatas
-	keepOriginal    bool
 }
