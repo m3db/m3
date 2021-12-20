@@ -119,7 +119,7 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 
 	go func() {
 		for {
-			allConsLock.RLock()
+			allConsLock.Lock()
 			closedCount := 0
 			for _, channel := range allCons {
 				switch channel.(type) {
@@ -141,7 +141,7 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 			poolLen := p.poolLen
 			p.RUnlock()
 			allConsLen := len(allCons)
-			allConsLock.RUnlock()
+			allConsLock.Unlock()
 			openCount := int64(allConsLen - closedCount)
 			opts.InstrumentOptions().Logger().Info("pool stats",
 				zap.String("pool", host.ID()),
@@ -149,6 +149,7 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 				zap.Int("closedCount", closedCount),
 				zap.Int64("poolLen", poolLen),
 				zap.Int64("openCount", openCount),
+				zap.String("poolInstance", fmt.Sprintf("%p", p)),
 			)
 			if openCount != poolLen {
 				opts.InstrumentOptions().Logger().Info("invariant violation: pool stats",
@@ -157,6 +158,7 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 					zap.Int("closedCount", closedCount),
 					zap.Int64("poolLen", poolLen),
 					zap.Int64("openCount", openCount),
+					zap.String("poolInstance", fmt.Sprintf("%p", p)),
 				)
 			}
 			time.Sleep(time.Second)
