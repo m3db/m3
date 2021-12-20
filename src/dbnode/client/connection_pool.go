@@ -167,6 +167,7 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 }
 
 func (p *connPool) Open() {
+	p.opts.InstrumentOptions().Logger().Info("opening pool", zap.String("host", p.host.ID()))
 	p.Lock()
 	defer p.Unlock()
 
@@ -209,6 +210,7 @@ func (p *connPool) NextClient() (rpc.TChanNode, Channel, error) {
 }
 
 func (p *connPool) Close() {
+	p.opts.InstrumentOptions().Logger().Info("closing pool", zap.String("host", p.host.ID()))
 	p.Lock()
 	if p.status != statusOpen {
 		p.Unlock()
