@@ -445,16 +445,16 @@ func TestDedicatedConnection(t *testing.T) {
 
 	_, ch, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
 	require.NoError(t, err)
-	assert.Equal(t, &noopPooledChannel{"remote1"}, ch)
+	assert.Equal(t, &noopPooledChannel{"remote1", false}, ch)
 
 	_, ch2, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{ShardStateFilter: shard.Available})
 	require.NoError(t, err)
-	assert.Equal(t, &noopPooledChannel{"remote2"}, ch2)
+	assert.Equal(t, &noopPooledChannel{"remote2", false}, ch2)
 
 	s.healthCheckNewConnFn = testHealthCheck(nil, true)
 	_, ch3, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{BootstrappedNodesOnly: true})
 	require.NoError(t, err)
-	assert.Equal(t, &noopPooledChannel{"remote1"}, ch3)
+	assert.Equal(t, &noopPooledChannel{"remote1", false}, ch3)
 
 	healthErr := errors.New("unhealthy")
 	s.healthCheckNewConnFn = testHealthCheck(healthErr, false)
@@ -625,5 +625,5 @@ func noopNewConnection(
 	addr string,
 	opts Options,
 ) (Channel, rpc.TChanNode, error) {
-	return &noopPooledChannel{addr}, nil, nil
+	return &noopPooledChannel{addr, false}, nil, nil
 }

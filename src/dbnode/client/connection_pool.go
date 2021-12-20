@@ -31,6 +31,7 @@ import (
 
 	murmur3 "github.com/m3db/stackmurmur3/v2"
 	"github.com/uber-go/tally"
+	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
@@ -90,6 +91,17 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 			"hostID": host.ID(),
 		})
 
+	var allConsLock sync.RWMutex
+	var allCons []Channel
+	oldFn := opts.NewConnectionFn()
+	opts = opts.SetNewConnectionFn(func(channelName string, addr string, opts Options) (Channel, rpc.TChanNode, error) {
+		c, cc, err := oldFn(channelName, addr, opts)
+		allConsLock.Lock()
+		allCons = append(allCons, c)
+		allConsLock.Unlock()
+		return c, cc, err
+	})
+
 	p := &connPool{
 		opts:               opts,
 		host:               host,
@@ -104,6 +116,36 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 		sleepHealthRetry:   time.Sleep,
 		healthStatus:       scope.Gauge("health-status"),
 	}
+
+	go func() {
+		for {
+			allConsLock.RLock()
+			closedCount := 0
+			for _, channel := range allCons {
+				switch channel.(type) {
+				case *tchannel.Channel:
+					if channel.(*tchannel.Channel).Closed() {
+						closedCount += 1
+					}
+				case *noopPooledChannel:
+					if channel.(*noopPooledChannel).closed {
+						closedCount += 1
+					}
+				}
+			}
+			p.RLock()
+			poolLen := p.poolLen
+			p.RUnlock()
+			allConsLen := len(allCons)
+			allConsLock.RUnlock()
+			openCount := int64(allConsLen - closedCount)
+			fmt.Printf("pool %s stats: %d %d %d %d \n", host.ID(), allConsLen, closedCount, poolLen, openCount)
+			if openCount != poolLen {
+				fmt.Printf("invariant violation: pool %s stats: %d %d %d %d \n", host.ID(), allConsLen, closedCount, poolLen, openCount)
+			}
+			time.Sleep(time.Second)
+		}
+	}()
 
 	return p
 }
@@ -237,18 +279,15 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 
 		var (
 			wg       sync.WaitGroup
-			gwg      sync.WaitGroup
 			start    = nowFn()
 			deadline = start.Add(interval + randStutter(p.healthCheckRand, stutter))
 		)
 
 		p.RLock()
-		gwg.Add(1)
 		for i := int64(0); i < p.poolLen; i++ {
 			wg.Add(1)
 			go func(client rpc.TChanNode) {
 				defer wg.Done()
-				gwg.Wait()
 
 				var (
 					attempts = p.opts.BackgroundHealthCheckFailLimit()
@@ -298,7 +337,6 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 				}
 			}(p.pool[i].client)
 		}
-		gwg.Done()
 		p.RUnlock()
 
 		wg.Wait()
@@ -332,4 +370,21 @@ func healthCheck(client rpc.TChanNode, opts Options, checkBootstrapped bool) err
 func randStutter(source rand.Source, t time.Duration) time.Duration {
 	amount := float64(source.Int63()) / float64(math.MaxInt64)
 	return time.Duration(float64(t) * amount)
+}
+
+type noopPooledChannel struct {
+	address string
+	closed bool
+}
+
+func (c *noopPooledChannel) Close() {
+	time.Sleep(time.Millisecond * time.Duration(20 * rand.Float32()))
+	c.closed = true
+}
+
+func (c *noopPooledChannel) GetSubChannel(
+	serviceName string,
+	opts ...tchannel.SubChannelOption,
+) *tchannel.SubChannel {
+	return nil
 }

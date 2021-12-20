@@ -21,7 +21,9 @@
 package client
 
 import (
+	"errors"
 	"fmt"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -30,10 +32,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xclock "github.com/m3db/m3/src/x/clock"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/tchannel-go"
 )
 
 const (
@@ -45,24 +47,103 @@ var (
 	h = topology.NewHost(testHostStr, testHostAddr)
 )
 
-type noopPooledChannel struct {
-	address string
-}
-
-func (c *noopPooledChannel) Close() {}
-func (c *noopPooledChannel) GetSubChannel(
-	serviceName string,
-	opts ...tchannel.SubChannelOption,
-) *tchannel.SubChannel {
-	return nil
-}
-
 func newConnectionPoolTestOptions() Options {
 	return newSessionTestOptions().
 		SetBackgroundConnectInterval(5 * time.Millisecond).
 		SetBackgroundConnectStutter(2 * time.Millisecond).
 		SetBackgroundHealthCheckInterval(5 * time.Millisecond).
 		SetBackgroundHealthCheckStutter(2 * time.Millisecond)
+}
+
+func TestPoolLifecycle(t *testing.T) {
+	opts := newConnectionPoolTestOptions()
+	maxConns := 500
+	opts = opts.SetMaxConnectionCount(maxConns).
+		SetBackgroundHealthCheckFailLimit(1).
+		SetBackgroundConnectInterval(time.Millisecond * 20).
+		SetBackgroundHealthCheckInterval(time.Millisecond * 20).
+		SetBackgroundHealthCheckStutter(time.Millisecond * 10).
+		SetBackgroundConnectStutter(time.Millisecond * 10)
+
+	connsMu := sync.RWMutex{}
+	var conns []*noopPooledChannel
+	fn := func(
+		ch string, addr string, opts Options,
+	) (Channel, rpc.TChanNode, error) {
+		c := &noopPooledChannel{}
+		connsMu.Lock()
+		conns = append(conns, c)
+		time.Sleep(time.Millisecond * time.Duration(1*rand.Float32()))
+		connsMu.Unlock()
+		return c, nil, nil
+	}
+
+	opts = opts.SetNewConnectionFn(fn)
+	pool := newConnectionPool(h, opts).(*connPool)
+	pool.healthCheckNewConn = func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
+		time.Sleep(time.Millisecond * time.Duration(1*rand.Float32()))
+		f := rand.Float32()
+		if f < 0.2 {
+			return errors.New("broken")
+		}
+		return nil
+	}
+	pool.healthCheck = func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
+		time.Sleep(time.Millisecond * time.Duration(1*rand.Float32()))
+		f := rand.Float32()
+		if f < 0.3 {
+			return errors.New("broken")
+		}
+		return nil
+	}
+
+	require.Equal(t, 0, pool.ConnectionCount())
+
+	pool.Open()
+
+	/*go func() {
+		for {
+			connsMu.RLock()
+			closedCount := 0
+			all := len(conns)
+			for _, channel := range conns {
+				_, _, _ = pool.NextClient()
+				if channel.closed {
+					closedCount += 1
+					continue
+				}
+			}
+			connsMu.RUnlock()
+			fmt.Printf("pool stats: %d %d %d %d\n", all, closedCount, pool.ConnectionCount(), all - closedCount - pool.ConnectionCount())
+			assert.True(t, all - closedCount <= maxConns)
+			time.Sleep(time.Millisecond * 20)
+		}
+	}()*/
+	time.Sleep(time.Second * 100)
+	pool.Close()
+	connsMu.RLock()
+	closedCount := 0
+	all := len(conns)
+	for _, channel := range conns {
+		if channel.closed {
+			closedCount += 1
+			continue
+		}
+		found := false
+		pool.RLock()
+		for _, channelFromPool := range pool.pool {
+			noopc := channelFromPool.channel.(*noopPooledChannel)
+			if noopc == channel {
+				found = true
+			}
+		}
+		pool.RUnlock()
+		assert.True(t, found, "open channel not found in pool")
+	}
+	connsMu.RUnlock()
+
+	fmt.Printf("pool stats all/closed: %d/%d \n", all, closedCount)
+	fmt.Printf("pool stats final: %d %d %d %d \n", all, closedCount, pool.ConnectionCount(), all-closedCount-pool.ConnectionCount())
 }
 
 func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
