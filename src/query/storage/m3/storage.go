@@ -58,6 +58,8 @@ const (
 var (
 	// The default name for the name tag in Prometheus metrics.
 	promDefaultName = []byte(model.MetricNameLabel)
+	// The prefix for reserved labels, e.g. __name__
+	reservedLabelPrefix = []byte(model.ReservedLabelPrefix)
 	// The name for the rollup tag defined by the coordinator model.
 	rollupTagName = []byte(coordmodel.RollupTagName)
 	// The value for the rollup tag defined by the coordinator model.
@@ -127,29 +129,52 @@ func (s *m3storage) Name() string {
 	return "local_store"
 }
 
+// Find a reserved label target (one that begins with the reservedLabelPrefix)
+// from an array of sorted labels.
+func findReservedLabel(labels []prompb.Label, target []byte) []byte {
+	// The target should always contain the reservedLabelPrefix.
+	// If it doesn't, then we won't be able to find it within
+	// the reserved labels by definition.
+	if !bytes.HasPrefix(target, reservedLabelPrefix) {
+		return nil
+	}
+
+	foundReservedLabels := false
+	for idx := 0; idx < len(labels); idx++ {
+		label := labels[idx]
+		if !bytes.HasPrefix(label.Name, reservedLabelPrefix) {
+			if foundReservedLabels {
+				// We previously found reserved labels, and now that we've iterated
+				// past the end of the section that contains them, we know the target
+				// doesn't exist.
+				return nil
+			}
+			// We haven't found reserve labels yet, so keep going.
+			continue
+		}
+
+		// At this point we know that the current label contains the reservedLabelPrefix
+		foundReservedLabels = true
+		if bytes.Equal(label.Name, target) {
+			return label.Value
+		}
+	}
+
+	return nil
+}
+
 func calculateMetadataByName(result *prompb.QueryResult, metadata *block.ResultMetadata) {
 	for _, series := range result.Timeseries {
 		if series == nil {
 			continue
 		}
 
-		rollup := false
-		nameTag := []byte{}
-		for _, label := range series.Labels {
-			// Check for both the rollup tag and the metric name label.
-			if bytes.Equal(label.Name, rollupTagName) {
-				if bytes.Equal(label.Value, rollupTagValue) {
-					rollup = true
-				}
-			} else if bytes.Equal(label.Name, promDefaultName) {
-				nameTag = label.Value
-			}
-		}
-
-		if rollup {
-			metadata.ByName(nameTag).Aggregated++
+		name := findReservedLabel(series.Labels, promDefaultName)
+		rollup := findReservedLabel(series.Labels, rollupTagName)
+		if bytes.Equal(rollup, rollupTagValue) {
+			metadata.ByName(name).Aggregated++
 		} else {
-			metadata.ByName(nameTag).Unaggregated++
+			metadata.ByName(name).Unaggregated++
 		}
 	}
 }
@@ -377,10 +402,13 @@ func (s *m3storage) fetchCompressed(
 				continue
 			}
 
-			debugLog.Write(zap.String("query", query.Raw),
+			debugLog.Write(
+				zap.String("query", query.Raw),
 				zap.String("m3query", m3query.String()),
 				zap.Time("start", queryStart.ToTime()),
+				zap.Time("narrowing.start", n.narrowing.start.ToTime()),
 				zap.Time("end", queryEnd.ToTime()),
+				zap.Time("narrowing.end", n.narrowing.end.ToTime()),
 				zap.String("fanoutType", fanout.String()),
 				zap.String("namespace", n.NamespaceID().String()),
 				zap.String("type", n.Options().Attributes().MetricsType.String()),
@@ -412,6 +440,7 @@ func (s *m3storage) fetchCompressed(
 	result := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts, limitOpts)
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
+
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -421,7 +450,8 @@ func (s *m3storage) fetchCompressed(
 
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
-			iters, metadata, err := session.FetchTagged(ctx, namespaceID, m3query, queryOptions)
+			narrowedQueryOpts := narrowQueryOpts(queryOptions, namespace)
+			iters, metadata, err := session.FetchTagged(ctx, namespaceID, m3query, narrowedQueryOpts)
 			if err == nil && sampled {
 				span.LogFields(
 					log.String("namespace", namespaceID.String()),
@@ -555,7 +585,7 @@ func (s *m3storage) CompleteTags(
 
 	// NB(r): Since we don't use a single index we fan out to each
 	// cluster that can completely fulfill this range and then prefer the
-	// highest resolution (most fine grained) results.
+	// highest resolution (most fine-grained) results.
 	// This needs to be optimized, however this is a start.
 	_, namespaces, err := resolveClusterNamespacesForQuery(xtime.ToUnixNano(s.nowFn()),
 		queryStart,
@@ -583,8 +613,7 @@ func (s *m3storage) CompleteTags(
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
 		go func() {
-			_, span, sampled := xcontext.StartSampledTraceSpan(ctx,
-				tracepoint.CompleteTagsAggregate)
+			_, span, sampled := xcontext.StartSampledTraceSpan(ctx, tracepoint.CompleteTagsAggregate)
 			defer func() {
 				span.Finish()
 				wg.Done()
@@ -592,7 +621,8 @@ func (s *m3storage) CompleteTags(
 
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
-			aggTagIter, metadata, err := session.Aggregate(ctx, namespaceID, m3query, aggOpts)
+			narrowedAggOpts := narrowAggOpts(aggOpts, namespace)
+			aggTagIter, metadata, err := session.Aggregate(ctx, namespaceID, m3query, narrowedAggOpts)
 			if err != nil {
 				multiErr.add(err)
 				return
@@ -733,7 +763,8 @@ func (s *m3storage) SearchCompressed(
 
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
-			iter, metadata, err := session.FetchTaggedIDs(ctx, namespaceID, m3query, m3opts)
+			narrowedM3Opts := narrowQueryOpts(m3opts, namespace)
+			iter, metadata, err := session.FetchTaggedIDs(ctx, namespaceID, m3query, narrowedM3Opts)
 			if err == nil && sampled {
 				span.LogFields(
 					log.String("namespace", namespaceID.String()),
@@ -886,4 +917,23 @@ func (s *m3storage) writeSingle(
 	session := namespace.Session()
 	return session.WriteTagged(namespaceID, identID, iterator,
 		datapoint.Timestamp, datapoint.Value, query.Unit(), query.Annotation())
+}
+
+func narrowQueryOpts(o index.QueryOptions, namespace resolvedNamespace) index.QueryOptions {
+	narrowed := o
+	if !namespace.narrowing.start.IsZero() && namespace.narrowing.start.After(o.StartInclusive) {
+		narrowed.StartInclusive = namespace.narrowing.start
+	}
+	if !namespace.narrowing.end.IsZero() && namespace.narrowing.end.Before(o.EndExclusive) {
+		narrowed.EndExclusive = namespace.narrowing.end
+	}
+
+	return narrowed
+}
+
+func narrowAggOpts(o index.AggregationOptions, namespace resolvedNamespace) index.AggregationOptions {
+	narrowed := o
+	narrowed.QueryOptions = narrowQueryOpts(o.QueryOptions, namespace)
+
+	return narrowed
 }

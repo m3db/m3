@@ -30,7 +30,9 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -305,7 +307,8 @@ func TestWriteToReadOnlyNamespaceFail(t *testing.T) {
 			NamespaceID: ident.StringID("unaggregated"),
 			Session:     client.NewMockSession(ctrl),
 			Retention:   time.Hour,
-		}, AggregatedClusterNamespaceDefinition{
+		},
+		AggregatedClusterNamespaceDefinition{
 			NamespaceID: ident.StringID("aggregated_readonly"),
 			Session:     client.NewMockSession(ctrl),
 			Retention:   24 * time.Hour,
@@ -421,6 +424,85 @@ func TestLocalReadExceedsRetention(t *testing.T) {
 	searchReq.End = time.Now()
 	results, err := store.FetchProm(context.TODO(), searchReq, buildFetchOpts())
 	require.NoError(t, err)
+	assertFetchResult(t, results, testTag)
+}
+
+func TestFetchPromWithNamespaceStitching(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		end   = xtime.Now().Truncate(time.Hour)
+		start = end.Add(-48 * time.Hour)
+
+		testTag = seriesiter.GenerateTag()
+
+		unaggSession = client.NewMockSession(ctrl)
+		aggSession   = client.NewMockSession(ctrl)
+
+		unaggNamespaceID = ident.StringID("unaggregated")
+		aggNamespaceID   = ident.StringID("aggregated")
+
+		unaggQueryOpts, aggQueryOpts index.QueryOptions
+	)
+
+	clusters, err := NewClusters(
+		UnaggregatedClusterNamespaceDefinition{
+			NamespaceID: unaggNamespaceID,
+			Session:     unaggSession,
+			Retention:   24 * time.Hour,
+		},
+		AggregatedClusterNamespaceDefinition{
+			NamespaceID: aggNamespaceID,
+			Session:     aggSession,
+			Retention:   96 * time.Hour,
+			Resolution:  time.Minute,
+			DataLatency: 10 * time.Hour,
+		},
+	)
+	require.NoError(t, err)
+
+	store := newTestStorage(t, clusters)
+
+	unaggSession.EXPECT().FetchTagged(gomock.Any(), unaggNamespaceID, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			_ context.Context,
+			_ ident.ID,
+			_ index.Query,
+			opts index.QueryOptions,
+		) (encoding.SeriesIterators, client.FetchResponseMetadata, error) {
+			unaggQueryOpts = opts
+			return seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2), testFetchResponseMetadata, nil
+		})
+	unaggSession.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
+
+	aggSession.EXPECT().FetchTagged(gomock.Any(), aggNamespaceID, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			_ context.Context,
+			_ ident.ID,
+			_ index.Query,
+			opts index.QueryOptions,
+		) (encoding.SeriesIterators, client.FetchResponseMetadata, error) {
+			aggQueryOpts = opts
+			return seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2), testFetchResponseMetadata, nil
+		})
+	aggSession.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
+
+	var (
+		fetchOpts = buildFetchOpts()
+		req       = newFetchReq()
+	)
+
+	req.Start = start.ToTime()
+	req.End = end.ToTime()
+
+	results, err := store.FetchProm(context.TODO(), req, fetchOpts)
+	require.NoError(t, err)
+
+	assert.Equal(t, start, aggQueryOpts.StartInclusive)
+	assert.Equal(t, aggQueryOpts.EndExclusive, unaggQueryOpts.StartInclusive) // stitching point
+	assert.Equal(t, end, unaggQueryOpts.EndExclusive)
+
 	assertFetchResult(t, results, testTag)
 }
 
@@ -885,21 +967,7 @@ func TestLocalCompleteTagsSuccessFinalize(t *testing.T) {
 	store := newTestStorage(t, clusters)
 
 	name, value := ident.StringID("name"), ident.StringID("value")
-	iter := client.NewMockAggregatedTagsIterator(ctrl)
-	gomock.InOrder(
-		iter.EXPECT().Remaining().Return(1),
-		iter.EXPECT().Next().Return(true),
-		iter.EXPECT().Current().Return(
-			name,
-			ident.NewIDsIterator(value),
-		),
-		iter.EXPECT().Next().Return(false),
-		iter.EXPECT().Err().Return(nil),
-		iter.EXPECT().Finalize().Do(func() {
-			name.Finalize()
-			value.Finalize()
-		}),
-	)
+	iter := newAggregatedTagsIter(ctrl, name, value)
 
 	unagg.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(iter, testFetchResponseMetadata, nil)
@@ -926,6 +994,92 @@ func TestLocalCompleteTagsSuccessFinalize(t *testing.T) {
 	assert.False(t, bytetest.ByteSlicesBackedBySameData(value.Bytes(), v))
 }
 
+func TestCompleteTagsWithNamespaceStitching(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		end   = xtime.Now().Truncate(time.Hour)
+		start = end.Add(-48 * time.Hour)
+
+		name  = ident.StringID("name")
+		value = ident.StringID("value")
+
+		unaggSession = client.NewMockSession(ctrl)
+		aggSession   = client.NewMockSession(ctrl)
+
+		unaggNamespaceID = ident.StringID("unaggregated")
+		aggNamespaceID   = ident.StringID("aggregated")
+
+		unaggQueryOpts, aggQueryOpts index.AggregationOptions
+	)
+
+	clusters, err := NewClusters(
+		UnaggregatedClusterNamespaceDefinition{
+			NamespaceID: unaggNamespaceID,
+			Session:     unaggSession,
+			Retention:   24 * time.Hour,
+		},
+		AggregatedClusterNamespaceDefinition{
+			NamespaceID: aggNamespaceID,
+			Session:     aggSession,
+			Retention:   96 * time.Hour,
+			Resolution:  time.Minute,
+			DataLatency: 10 * time.Hour,
+		},
+	)
+	require.NoError(t, err)
+
+	store := newTestStorage(t, clusters)
+
+	unaggIter := newAggregatedTagsIter(ctrl, name, value)
+	unaggSession.EXPECT().Aggregate(gomock.Any(), unaggNamespaceID, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			_ context.Context,
+			_ ident.ID,
+			_ index.Query,
+			opts index.AggregationOptions,
+		) (client.AggregatedTagsIterator, client.FetchResponseMetadata, error) {
+			unaggQueryOpts = opts
+			return unaggIter, testFetchResponseMetadata, nil
+		})
+
+	aggIter := newAggregatedTagsIter(ctrl, name, value)
+	aggSession.EXPECT().Aggregate(gomock.Any(), aggNamespaceID, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			_ context.Context,
+			_ ident.ID,
+			_ index.Query,
+			opts index.AggregationOptions,
+		) (client.AggregatedTagsIterator, client.FetchResponseMetadata, error) {
+			aggQueryOpts = opts
+			return aggIter, testFetchResponseMetadata, nil
+		})
+
+	var (
+		fetchOpts = buildFetchOpts()
+		req       = newCompleteTagsReq()
+	)
+
+	req.Start = start
+	req.End = end
+
+	result, err := store.CompleteTags(context.TODO(), req, fetchOpts)
+	require.NoError(t, err)
+
+	assert.Equal(t, start, aggQueryOpts.StartInclusive)
+	assert.Equal(t, aggQueryOpts.EndExclusive, unaggQueryOpts.StartInclusive) // stitching point
+	assert.Equal(t, end, unaggQueryOpts.EndExclusive)
+
+	expected := []consolidators.CompletedTag{
+		{
+			Name:   []byte("name"),
+			Values: [][]byte{[]byte("value")},
+		},
+	}
+	assert.Equal(t, expected, result.CompletedTags)
+}
+
 func TestInvalidBlockTypes(t *testing.T) {
 	opts := NewOptions(encoding.NewOptions())
 	s, err := NewStorage(nil, opts, instrument.NewOptions())
@@ -935,4 +1089,91 @@ func TestInvalidBlockTypes(t *testing.T) {
 	fetchOpts := &storage.FetchOptions{BlockType: models.TypeMultiBlock}
 	defer instrument.SetShouldPanicEnvironmentVariable(true)()
 	require.Panics(t, func() { _, _ = s.FetchBlocks(context.TODO(), query, fetchOpts) })
+}
+
+func newAggregatedTagsIter(
+	ctrl *gomock.Controller,
+	name, value ident.ID,
+) client.AggregatedTagsIterator {
+	iter := client.NewMockAggregatedTagsIterator(ctrl)
+
+	gomock.InOrder(
+		iter.EXPECT().Remaining().Return(1),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Current().Return(
+			name,
+			ident.NewIDsIterator(value),
+		),
+		iter.EXPECT().Next().Return(false),
+		iter.EXPECT().Err().Return(nil),
+		iter.EXPECT().Finalize().Do(func() {
+			name.Finalize()
+			value.Finalize()
+		}),
+	)
+
+	return iter
+}
+
+func TestFindReservedLabel(t *testing.T) {
+	nameLabel := []byte("__name__")
+	rollupLabel := []byte("__rollup__")
+
+	// Empty
+	labels := []prompb.Label{}
+	assert.Nil(t, findReservedLabel(labels, nameLabel))
+	assert.Nil(t, findReservedLabel(labels, rollupLabel))
+
+	// Single label, shorter than the reserved prefix
+	labels = []prompb.Label{
+		{Name: []byte("_"), Value: []byte("1")},
+	}
+	assert.Nil(t, findReservedLabel(labels, nameLabel))
+	assert.Nil(t, findReservedLabel(labels, rollupLabel))
+
+	// Multiple labels, only one contains than the reserved prefix
+	labels = []prompb.Label{
+		{Name: []byte("_"), Value: []byte("1")},
+		{Name: []byte("__wrong__"), Value: []byte("2")},
+	}
+	assert.Nil(t, findReservedLabel(labels, nameLabel))
+	assert.Nil(t, findReservedLabel(labels, rollupLabel))
+
+	// Multiple labels, only one contains an expected value
+	labels = []prompb.Label{
+		{Name: []byte("_"), Value: []byte("1")},
+		{Name: []byte("__name__"), Value: []byte("2")},
+		{Name: []byte("mymetric"), Value: []byte("3")},
+	}
+	assert.Equal(t, []byte("2"), findReservedLabel(labels, nameLabel))
+	assert.Nil(t, findReservedLabel(labels, rollupLabel))
+
+	// Multiple labels, only one contains an expected value
+	labels = []prompb.Label{
+		{Name: []byte("__abc__"), Value: []byte("1")},
+		{Name: []byte("__rollup__"), Value: []byte("2")},
+		{Name: []byte("metric"), Value: []byte("2")},
+	}
+	assert.Nil(t, findReservedLabel(labels, nameLabel))
+	assert.Equal(t, []byte("2"), findReservedLabel(labels, rollupLabel))
+
+	// Multiple labels, all expected values exist contain an expected value
+	labels = []prompb.Label{
+		{Name: []byte("__name__"), Value: []byte("1")},
+		{Name: []byte("__rollup__"), Value: []byte("2")},
+		{Name: []byte("one"), Value: []byte("2")},
+		{Name: []byte("two"), Value: []byte("2")},
+	}
+	assert.Equal(t, []byte("1"), findReservedLabel(labels, nameLabel))
+	assert.Equal(t, []byte("2"), findReservedLabel(labels, rollupLabel))
+
+	// Multiple labels, with reserved section, nothing exists.
+	labels = []prompb.Label{
+		{Name: []byte("__a__"), Value: []byte("1")},
+		{Name: []byte("__b__"), Value: []byte("2")},
+		{Name: []byte("one"), Value: []byte("2")},
+		{Name: []byte("two"), Value: []byte("2")},
+	}
+	assert.Nil(t, findReservedLabel(labels, nameLabel))
+	assert.Nil(t, findReservedLabel(labels, rollupLabel))
 }

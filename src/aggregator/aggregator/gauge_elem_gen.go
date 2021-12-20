@@ -388,7 +388,6 @@ func (e *GaugeElem) Consume(
 
 	// Process the aggregations that are ready for consumption.
 	for _, cState := range e.toConsume {
-		fMetrics.valuesProcessed.Inc(1)
 		e.processValue(cState,
 			timestampNanosFn,
 			flushLocalFn,
@@ -399,6 +398,7 @@ func (e *GaugeElem) Consume(
 			fMetrics,
 		)
 	}
+	fMetrics.valuesProcessed.Inc(int64(len(e.toConsume)))
 
 	// expire the flush state after processing since it's needed in the processing.
 	e.expireFlushState()
