@@ -143,18 +143,20 @@ func (q *querier) Select(
 	}
 	seriesSet := fromQueryResult(sortSeries, result.PromResult, result.Metadata)
 
-	resultMetadataPtr, err := resultMetadata(q.ctx)
+	receiveResultMetadataFn, err := resultMetadataReceiveFn(q.ctx)
 	if err != nil {
 		q.logger.Error("result metadata not set in context", zap.Error(err))
 		return promstorage.ErrSeriesSet(err)
 	}
-	if resultMetadataPtr == nil {
-		err := errors.New("result metadata nil for context")
+	if receiveResultMetadataFn == nil {
+		err := errors.New("result metadata receive function nil for context")
 		q.logger.Error(err.Error())
 		return promstorage.ErrSeriesSet(err)
 	}
 
-	*resultMetadataPtr = result.Metadata
+	// Pass the result.Metadata back using the receive function.
+	// This handles concurrent updates to a single result metadata.
+	receiveResultMetadataFn(result.Metadata)
 
 	return seriesSet
 }

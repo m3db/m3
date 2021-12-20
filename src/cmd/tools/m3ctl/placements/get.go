@@ -31,9 +31,11 @@ import (
 // DoGet calls the backend api for get placements
 func DoGet(
 	endpoint string,
+	service string,
 	headers map[string]string,
 	logger *zap.Logger,
 ) ([]byte, error) {
-	url := fmt.Sprintf("%s%s", endpoint, DefaultPath)
+	path := DefaultPath + service + "/placement"
+	url := fmt.Sprintf("%s%s", endpoint, path)
 	return client.DoGet(url, headers, logger)
 }

@@ -28,7 +28,10 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/util/runtime"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
+	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xos "github.com/m3db/m3/src/x/os"
@@ -46,15 +49,12 @@ var (
 // Namespaces manages runtime updates to registered namespaces and provides
 // API to match metic ids against rules in the corresponding namespaces.
 type Namespaces interface {
+	rules.ActiveSet
 	// Open opens the namespaces and starts watching runtime rule updates
 	Open() error
 
-	// Version returns the current version for a give namespace.
+	// Version returns the current version for a given namespace.
 	Version(namespace []byte) int
-
-	// ForwardMatch forward matches the matching policies for a given id in a given namespace
-	// between [fromNanos, toNanos).
-	ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult
 
 	// Close closes the namespaces.
 	Close()
@@ -104,6 +104,7 @@ type namespaces struct {
 	proto                       *rulepb.Namespaces
 	rules                       *namespaceRuleSetsMap
 	metrics                     namespacesMetrics
+	nsResolver                  namespace.Resolver
 	requireNamespaceWatchOnInit bool
 }
 
@@ -124,6 +125,7 @@ func NewNamespaces(key string, opts Options) Namespaces {
 		rules:                       newNamespaceRuleSetsMap(namespaceRuleSetsMapOptions{}),
 		metrics:                     newNamespacesMetrics(instrumentOpts.MetricsScope()),
 		requireNamespaceWatchOnInit: opts.RequireNamespaceWatchOnInit(),
+		nsResolver:                  opts.NamespaceResolver(),
 	}
 	valueOpts := runtime.NewOptions().
 		SetInstrumentOptions(instrumentOpts).
@@ -177,12 +179,23 @@ func (n *namespaces) Version(namespace []byte) int {
 	return ruleSet.Version()
 }
 
-func (n *namespaces) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult {
+func (n *namespaces) LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error) {
 	ruleSet, exists := n.ruleSet(namespace)
 	if !exists {
-		return rules.EmptyMatchResult
+		return nil, errors.New("ruleset not found for namespace")
 	}
-	return ruleSet.ForwardMatch(id, fromNanos, toNanos)
+
+	return ruleSet.LatestRollupRules(namespace, timeNanos)
+}
+
+func (n *namespaces) ForwardMatch(id id.ID, fromNanos, toNanos int64,
+	opts rules.MatchOptions) (rules.MatchResult, error) {
+	namespace := n.nsResolver.Resolve(id)
+	ruleSet, exists := n.ruleSet(namespace)
+	if !exists {
+		return rules.EmptyMatchResult, nil
+	}
+	return ruleSet.ForwardMatch(id, fromNanos, toNanos, opts)
 }
 
 func (n *namespaces) ruleSet(namespace []byte) (RuleSet, bool) {

@@ -294,6 +294,8 @@ func TestFanoutReadEmpty(t *testing.T) {
 	assert.NoError(t, err)
 	require.NotNil(t, res)
 	assert.Equal(t, 0, len(res.PromResult.GetTimeseries()))
+	assert.Equal(t, 0, res.Metadata.FetchedSeriesCount)
+	assert.Equal(t, block.ResultMetricMetadata{}, res.Metadata.MetadataByNameMerged())
 }
 
 func TestFanoutReadError(t *testing.T) {

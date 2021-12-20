@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
@@ -100,17 +101,11 @@ type Options interface {
 	// RuleSetKeyFn returns the function to generate ruleset keys.
 	RuleSetKeyFn() RuleSetKeyFn
 
-	// SetNamespaceTag sets the namespace tag.
-	SetNamespaceTag(value []byte) Options
+	// SetNamespaceResolver sets the NamespaceResolver.
+	SetNamespaceResolver(value namespace.Resolver) Options
 
-	// NamespaceTag returns the namespace tag.
-	NamespaceTag() []byte
-
-	// SetDefaultNamespace sets the default namespace for ids without a namespace.
-	SetDefaultNamespace(value []byte) Options
-
-	// DefaultNamespace returns the default namespace for ids without a namespace.
-	DefaultNamespace() []byte
+	// NamespaceResolver returns the namespace Resolver.
+	NamespaceResolver() namespace.Resolver
 
 	// SetMatchRangePast sets the limit on the earliest time eligible for rule matching.
 	SetMatchRangePast(value time.Duration) Options
@@ -157,8 +152,7 @@ type options struct {
 	kvStore                     kv.Store
 	namespacesKey               string
 	ruleSetKeyFn                RuleSetKeyFn
-	namespaceTag                []byte
-	defaultNamespace            []byte
+	nsResolver                  namespace.Resolver
 	matchRangePast              time.Duration
 	onNamespaceAddedFn          OnNamespaceAddedFn
 	onNamespaceRemovedFn        OnNamespaceRemovedFn
@@ -177,8 +171,7 @@ func NewOptions() Options {
 		kvStore:          mem.NewStore(),
 		namespacesKey:    defaultNamespacesKey,
 		ruleSetKeyFn:     defaultRuleSetKeyFn,
-		namespaceTag:     defaultNamespaceTag,
-		defaultNamespace: defaultDefaultNamespace,
+		nsResolver:       namespace.Default,
 		matchRangePast:   defaultMatchRangePast,
 	}
 }
@@ -253,24 +246,14 @@ func (o *options) RuleSetKeyFn() RuleSetKeyFn {
 	return o.ruleSetKeyFn
 }
 
-func (o *options) SetNamespaceTag(value []byte) Options {
+func (o *options) SetNamespaceResolver(value namespace.Resolver) Options {
 	opts := *o
-	opts.namespaceTag = value
+	opts.nsResolver = value
 	return &opts
 }
 
-func (o *options) NamespaceTag() []byte {
-	return o.namespaceTag
-}
-
-func (o *options) SetDefaultNamespace(value []byte) Options {
-	opts := *o
-	opts.defaultNamespace = value
-	return &opts
-}
-
-func (o *options) DefaultNamespace() []byte {
-	return o.defaultNamespace
+func (o *options) NamespaceResolver() namespace.Resolver {
+	return o.nsResolver
 }
 
 func (o *options) SetMatchRangePast(value time.Duration) Options {

@@ -28,45 +28,25 @@ import (
 	"github.com/m3db/m3/src/metrics/matcher/cache"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
+	"github.com/m3db/m3/src/metrics/rules/view"
 )
 
 // Matcher matches rules against metric IDs.
 type Matcher interface {
-	// ForwardMatch matches rules against metric ID for time range [fromNanos, toNanos)
-	// and returns the match result.
-	ForwardMatch(id id.ID, fromNanos, toNanos int64) rules.MatchResult
+	rules.ActiveSet
 
 	// Close closes the matcher.
 	Close() error
 }
 
 type matcher struct {
-	namespaceResolver namespaceResolver
-	namespaces        Namespaces
-	cache             cache.Cache
-	metrics           matcherMetrics
-}
-
-type namespaceResolver struct {
-	namespaceTag     []byte
-	defaultNamespace []byte
-}
-
-func (r namespaceResolver) Resolve(id id.ID) []byte {
-	ns, found := id.TagValue(r.namespaceTag)
-	if !found {
-		ns = r.defaultNamespace
-	}
-	return ns
+	namespaces Namespaces
+	cache      cache.Cache
+	metrics    matcherMetrics
 }
 
 // NewMatcher creates a new rule matcher, optionally with a cache.
 func NewMatcher(cache cache.Cache, opts Options) (Matcher, error) {
-	nsResolver := namespaceResolver{
-		namespaceTag:     opts.NamespaceTag(),
-		defaultNamespace: opts.DefaultNamespace(),
-	}
-
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope()
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("namespaces"))
@@ -92,27 +72,30 @@ func NewMatcher(cache cache.Cache, opts Options) (Matcher, error) {
 
 	if cache == nil {
 		return &noCacheMatcher{
-			namespaceResolver: nsResolver,
-			namespaces:        namespaces,
-			metrics:           newMatcherMetrics(scope.SubScope("matcher")),
+			namespaces: namespaces,
+			metrics:    newMatcherMetrics(scope.SubScope("matcher")),
 		}, nil
 	}
 
 	return &matcher{
-		namespaceResolver: nsResolver,
-		namespaces:        namespaces,
-		cache:             cache,
-		metrics:           newMatcherMetrics(scope.SubScope("cached-matcher")),
+		namespaces: namespaces,
+		cache:      cache,
+		metrics:    newMatcherMetrics(scope.SubScope("cached-matcher")),
 	}, nil
+}
+
+func (m *matcher) LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error) {
+	return m.namespaces.LatestRollupRules(namespace, timeNanos)
 }
 
 func (m *matcher) ForwardMatch(
 	id id.ID,
 	fromNanos, toNanos int64,
-) rules.MatchResult {
+	opts rules.MatchOptions,
+) (rules.MatchResult, error) {
 	sw := m.metrics.matchLatency.Start()
 	defer sw.Stop()
-	return m.cache.ForwardMatch(m.namespaceResolver.Resolve(id), id.Bytes(), fromNanos, toNanos)
+	return m.cache.ForwardMatch(id, fromNanos, toNanos, opts)
 }
 
 func (m *matcher) Close() error {
@@ -121,9 +104,8 @@ func (m *matcher) Close() error {
 }
 
 type noCacheMatcher struct {
-	namespaces        Namespaces
-	namespaceResolver namespaceResolver
-	metrics           matcherMetrics
+	namespaces Namespaces
+	metrics    matcherMetrics
 }
 
 type matcherMetrics struct {
@@ -142,13 +124,18 @@ func newMatcherMetrics(scope tally.Scope) matcherMetrics {
 	}
 }
 
+func (m *noCacheMatcher) LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error) {
+	return m.namespaces.LatestRollupRules(namespace, timeNanos)
+}
+
 func (m *noCacheMatcher) ForwardMatch(
 	id id.ID,
 	fromNanos, toNanos int64,
-) rules.MatchResult {
+	opts rules.MatchOptions,
+) (rules.MatchResult, error) {
 	sw := m.metrics.matchLatency.Start()
 	defer sw.Stop()
-	return m.namespaces.ForwardMatch(m.namespaceResolver.Resolve(id), id.Bytes(), fromNanos, toNanos)
+	return m.namespaces.ForwardMatch(id, fromNanos, toNanos, opts)
 }
 
 func (m *noCacheMatcher) Close() error {

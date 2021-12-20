@@ -940,11 +940,9 @@ func (m *MockSeriesRefResolver) EXPECT() *MockSeriesRefResolverMockRecorder {
 }
 
 // ReleaseRef mocks base method.
-func (m *MockSeriesRefResolver) ReleaseRef() error {
+func (m *MockSeriesRefResolver) ReleaseRef() {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReleaseRef")
-	ret0, _ := ret[0].(error)
-	return ret0
+	m.ctrl.Call(m, "ReleaseRef")
 }
 
 // ReleaseRef indicates an expected call of ReleaseRef.

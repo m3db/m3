@@ -27,7 +27,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -285,6 +287,10 @@ type testValue struct {
 	namespace []byte
 	id        []byte
 	result    rules.MatchResult
+}
+
+func (t testValue) ID() id.ID {
+	return namespace.NewTestID(string(t.id), string(t.namespace))
 }
 
 func validateList(t *testing.T, l *list, expected []testValue) {

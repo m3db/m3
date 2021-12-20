@@ -24,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+
+	"github.com/m3db/m3/src/metrics/rules/view"
 )
 
 const (
@@ -82,6 +84,12 @@ func NewAsyncDownsampler(
 	}()
 
 	return asyncDownsampler
+}
+
+func (d *asyncDownsampler) LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error) {
+	d.RLock()
+	defer d.RUnlock()
+	return d.downsampler.LatestRollupRules(namespace, timeNanos)
 }
 
 func (d *asyncDownsampler) NewMetricsAppender() (MetricsAppender, error) {

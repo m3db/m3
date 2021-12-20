@@ -21,6 +21,7 @@
 package block
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -91,6 +92,70 @@ func TestMergeEmptyWarnings(t *testing.T) {
 	assert.Equal(t, 0, len(rTwo.Warnings))
 	require.Equal(t, 1, len(merge.Warnings))
 	assert.Equal(t, "foo_bar", merge.Warnings[0].Header())
+}
+
+func TestMergeResultMetricMetadata(t *testing.T) {
+	r1 := ResultMetricMetadata{
+		WithSamples: 100,
+		NoSamples:   20,
+		Aggregated:  10,
+	}
+	r2 := ResultMetricMetadata{
+		WithSamples:  1,
+		Aggregated:   2,
+		Unaggregated: 3,
+	}
+	r1.Merge(r2)
+	assert.Equal(t, 101, r1.WithSamples)
+	assert.Equal(t, 20, r1.NoSamples)
+	assert.Equal(t, 12, r1.Aggregated)
+	assert.Equal(t, 3, r1.Unaggregated)
+}
+
+func TestCombineMetadataWithMetricMetadataMaps(t *testing.T) {
+	r1 := NewResultMetadata()
+	r2 := NewResultMetadata()
+	a := []byte("a")
+	b := []byte("b")
+	c := []byte("c")
+	noname := []byte{}
+
+	r1.ByName(a).WithSamples = 5
+	r1.ByName(c).Aggregated = 1
+	r1.ByName(noname).Unaggregated = 19
+
+	r2.ByName(nil).Aggregated = 99
+	r2.ByName(a).WithSamples = 6
+	r2.ByName(a).NoSamples = 1
+	r2.ByName(b).NoSamples = 1
+	r2.ByName(b).Unaggregated = 15
+	r2.ByName(c).Aggregated = 2
+
+	r := r1.CombineMetadata(r2)
+	assert.Equal(t, &ResultMetricMetadata{
+		NoSamples:   1,
+		WithSamples: 11,
+	}, r.ByName(a))
+	assert.Equal(t, &ResultMetricMetadata{
+		NoSamples:    1,
+		Unaggregated: 15,
+	}, r.ByName(b))
+	assert.Equal(t, &ResultMetricMetadata{
+		Aggregated: 3,
+	}, r.ByName(c))
+	assert.Equal(t, &ResultMetricMetadata{
+		Unaggregated: 19,
+		Aggregated:   99,
+	}, r.ByName(nil))
+
+	// Sanity check that accessing by nil or by an empty name
+	// yields the same result.
+	assert.Equal(t, r.ByName(nil), r.ByName(noname))
+
+	// And finally it should marshal to JSON without error.
+	js, err := json.Marshal(r)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, string(js))
 }
 
 func TestMergeIntoEmptyWarnings(t *testing.T) {
