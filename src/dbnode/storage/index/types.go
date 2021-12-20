@@ -841,7 +841,9 @@ func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
 // MarkEntrySuccess marks an entry as success.
 func (b *WriteBatch) MarkEntrySuccess(idx int) {
 	if !b.entries[idx].result.Done {
-		indexedEntry, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
+		// NB: OnIndexFinalize will already decrement the reconciled indexed entry,
+		// if it exists, so there is no need to close.
+		indexedEntry, _, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
 		if reconciled {
 			b.metrics.needsReconcile.Inc(1)
 		} else {
@@ -853,7 +855,6 @@ func (b *WriteBatch) MarkEntrySuccess(idx int) {
 		indexedEntry.OnIndexFinalize(blockStart)
 		b.entries[idx].result.Done = true
 		b.entries[idx].result.Err = nil
-		closer.Close()
 	}
 }
 
@@ -873,9 +874,11 @@ func (b *WriteBatch) MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize() {
 			if r {
 				b.entries[idx].result.Done = true
 				b.entries[idx].result.Err = nil
+			} else {
+				// NB: IfAlreadyIndexedMarkIndexSuccessAndFinalize decrements the series
+				// if successful already, so it is not necessary to close in this case.
+				closer.Close()
 			}
-
-			closer.Close()
 		}
 	}
 }
