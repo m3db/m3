@@ -178,6 +178,34 @@ func (entry *Entry) ReconciledOnIndexSeries() (doc.OnIndexSeries, resource.Simpl
 	}), true
 }
 
+func (entry *Entry) GetEntryIndexBlockStates() doc.EntryIndexBlockStates {
+	entry.reverseIndex.RLock()
+	states := entry.reverseIndex.states
+	// todo: alloc
+	entryStates := make(doc.EntryIndexBlockStates, len(states))
+	for k, v := range states {
+		entryStates[k] = v
+	}
+
+	entry.reverseIndex.RUnlock()
+	return entryStates
+}
+
+func (entry *Entry) MergeEntryIndexBlockStates(states doc.EntryIndexBlockStates) {
+	entry.reverseIndex.Lock()
+	for t, state := range states {
+		if state.Attempt {
+			entry.reverseIndex.setAttemptWithWLock(t, false)
+		}
+
+		if state.Success {
+			entry.reverseIndex.setSuccessWithWLock(t)
+		}
+	}
+
+	entry.reverseIndex.Unlock()
+}
+
 // NeedsIndexUpdate returns a bool to indicate if the Entry needs to be indexed
 // for the provided blockStart. It only allows a single index attempt at a time
 // for a single entry.
@@ -251,7 +279,7 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 	successAlready := false
 	entry.reverseIndex.Lock()
 	for _, state := range entry.reverseIndex.states {
-		if state.success {
+		if state.Success {
 			successAlready = true
 			break
 		}
@@ -410,21 +438,13 @@ func (entry *Entry) ReleaseRef() {
 // have a write for the 12-2p block from the 2-4p block, or we'd drop the late write.
 type entryIndexState struct {
 	sync.RWMutex
-	states                   map[xtime.UnixNano]entryIndexBlockState
+	states                   doc.EntryIndexBlockStates
 	minIndexedT, maxIndexedT xtime.UnixNano
-}
-
-// entryIndexBlockState is used to capture the state of indexing for a single shard
-// entry for a given index block start. It's used to prevent attempts at double indexing
-// for the same block start.
-type entryIndexBlockState struct {
-	attempt bool
-	success bool
 }
 
 func newEntryIndexState() entryIndexState {
 	return entryIndexState{
-		states: make(map[xtime.UnixNano]entryIndexBlockState, 4),
+		states: make(doc.EntryIndexBlockStates, 4),
 	}
 }
 
@@ -435,7 +455,7 @@ func (s *entryIndexState) indexedRangeWithRLock() (xtime.UnixNano, xtime.UnixNan
 func (s *entryIndexState) indexedWithRLock(t xtime.UnixNano) bool {
 	v, ok := s.states[t]
 	if ok {
-		return v.success
+		return v.Success
 	}
 	return false
 }
@@ -443,7 +463,7 @@ func (s *entryIndexState) indexedWithRLock(t xtime.UnixNano) bool {
 func (s *entryIndexState) indexedOrAttemptedWithRLock(t xtime.UnixNano) bool {
 	v, ok := s.states[t]
 	if ok {
-		return v.success || v.attempt
+		return v.Success || v.Attempt
 	}
 	return false
 }
@@ -456,8 +476,8 @@ func (s *entryIndexState) setSuccessWithWLock(t xtime.UnixNano) {
 	// NB(r): If not inserted state yet that means we need to make an insertion,
 	// this will happen if synchronously indexing and we haven't called
 	// NeedIndexUpdate before we indexed the series.
-	s.states[t] = entryIndexBlockState{
-		success: true,
+	s.states[t] = doc.EntryIndexBlockState{
+		Success: true,
 	}
 
 	if t > s.maxIndexedT {
@@ -471,15 +491,15 @@ func (s *entryIndexState) setSuccessWithWLock(t xtime.UnixNano) {
 func (s *entryIndexState) setAttemptWithWLock(t xtime.UnixNano, attempt bool) {
 	v, ok := s.states[t]
 	if ok {
-		if v.success {
+		if v.Success {
 			return // Attempt is not relevant if success.
 		}
-		v.attempt = attempt
+		v.Attempt = attempt
 		s.states[t] = v
 		return
 	}
 
-	s.states[t] = entryIndexBlockState{
-		attempt: attempt,
+	s.states[t] = doc.EntryIndexBlockState{
+		Attempt: attempt,
 	}
 }

@@ -143,4 +143,19 @@ type OnIndexSeries interface {
 	// Cleanup function must be called once done with the reconciled entry so that
 	// reader and writer counts are accurately updated.
 	ReconciledOnIndexSeries() (OnIndexSeries, resource.SimpleCloser, bool)
+
+	GetEntryIndexBlockStates() EntryIndexBlockStates
+	MergeEntryIndexBlockStates(states EntryIndexBlockStates)
+}
+
+// EntryIndexBlockStates captures the indexing for a single shard entry, across
+// all block starts.
+type EntryIndexBlockStates map[xtime.UnixNano]EntryIndexBlockState
+
+// EntryIndexBlockState is used to capture the state of indexing for a single shard
+// entry for a given index block start. It's used to prevent attempts at double indexing
+// for the same block start.
+type EntryIndexBlockState struct {
+	Attempt bool
+	Success bool
 }

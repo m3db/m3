@@ -841,20 +841,24 @@ func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
 // MarkEntrySuccess marks an entry as success.
 func (b *WriteBatch) MarkEntrySuccess(idx int) {
 	if !b.entries[idx].result.Done {
+		blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
+		b.entries[idx].OnIndexSeries.OnIndexSuccess(blockStart)
+		b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
+		b.entries[idx].result.Done = true
+		b.entries[idx].result.Err = nil
+
 		// NB: OnIndexFinalize will already decrement the reconciled indexed entry,
 		// if it exists, so there is no need to close.
-		indexedEntry, _, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
+		indexedEntry, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
 		if reconciled {
+			states := b.entries[idx].OnIndexSeries.GetEntryIndexBlockStates()
+			indexedEntry.MergeEntryIndexBlockStates(states)
 			b.metrics.needsReconcile.Inc(1)
 		} else {
 			b.metrics.noReconcile.Inc(1)
 		}
 
-		blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
-		indexedEntry.OnIndexSuccess(blockStart)
-		indexedEntry.OnIndexFinalize(blockStart)
-		b.entries[idx].result.Done = true
-		b.entries[idx].result.Err = nil
+		closer.Close()
 	}
 }
 
@@ -863,22 +867,22 @@ func (b *WriteBatch) MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize() {
 	for idx := range b.entries {
 		if !b.entries[idx].result.Done {
 			blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
-			indexedEntry, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
-			if reconciled {
-				b.metrics.markUnmarkedNeedsReconcile.Inc(1)
-			} else {
-				b.metrics.markUnmarkedNoReconcile.Inc(1)
-			}
-
-			r := indexedEntry.IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart)
+			r := b.entries[idx].OnIndexSeries.IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart)
 			if r {
 				b.entries[idx].result.Done = true
 				b.entries[idx].result.Err = nil
-			} else {
-				// NB: IfAlreadyIndexedMarkIndexSuccessAndFinalize decrements the series
-				// if successful already, so it is not necessary to close in this case.
-				closer.Close()
 			}
+
+			indexedEntry, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
+			if reconciled {
+				states := b.entries[idx].OnIndexSeries.GetEntryIndexBlockStates()
+				indexedEntry.MergeEntryIndexBlockStates(states)
+				b.metrics.needsReconcile.Inc(1)
+			} else {
+				b.metrics.noReconcile.Inc(1)
+			}
+
+			closer.Close()
 		}
 	}
 }

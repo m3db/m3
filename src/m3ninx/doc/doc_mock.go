@@ -308,6 +308,34 @@ func (m *MockOnIndexSeries) EXPECT() *MockOnIndexSeriesMockRecorder {
 	return m.recorder
 }
 
+// GetEntryIndexBlockStates mocks base method.
+func (m *MockOnIndexSeries) GetEntryIndexBlockStates() EntryIndexBlockStates {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetEntryIndexBlockStates")
+	ret0, _ := ret[0].(EntryIndexBlockStates)
+	return ret0
+}
+
+// GetEntryIndexBlockStates indicates an expected call of GetEntryIndexBlockStates.
+func (mr *MockOnIndexSeriesMockRecorder) GetEntryIndexBlockStates() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEntryIndexBlockStates", reflect.TypeOf((*MockOnIndexSeries)(nil).GetEntryIndexBlockStates))
+}
+
+// GetID mocks base method.
+func (m *MockOnIndexSeries) GetID() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetID")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetID indicates an expected call of GetID.
+func (mr *MockOnIndexSeriesMockRecorder) GetID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetID", reflect.TypeOf((*MockOnIndexSeries)(nil).GetID))
+}
+
 // IfAlreadyIndexedMarkIndexSuccessAndFinalize mocks base method.
 func (m *MockOnIndexSeries) IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart time.UnixNano) bool {
 	m.ctrl.T.Helper()
@@ -349,6 +377,18 @@ func (m *MockOnIndexSeries) IndexedRange() (time.UnixNano, time.UnixNano) {
 func (mr *MockOnIndexSeriesMockRecorder) IndexedRange() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexedRange", reflect.TypeOf((*MockOnIndexSeries)(nil).IndexedRange))
+}
+
+// MergeEntryIndexBlockStates mocks base method.
+func (m *MockOnIndexSeries) MergeEntryIndexBlockStates(states EntryIndexBlockStates) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "MergeEntryIndexBlockStates", states)
+}
+
+// MergeEntryIndexBlockStates indicates an expected call of MergeEntryIndexBlockStates.
+func (mr *MockOnIndexSeriesMockRecorder) MergeEntryIndexBlockStates(states interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MergeEntryIndexBlockStates", reflect.TypeOf((*MockOnIndexSeries)(nil).MergeEntryIndexBlockStates), states)
 }
 
 // NeedsIndexGarbageCollected mocks base method.
