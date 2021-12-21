@@ -1306,6 +1306,42 @@ func TestBalanceShardsForShardedWhenImbalanced(t *testing.T) {
 	assert.Equal(t, expectedInstances, balancedPlacement.Instances())
 }
 
+func TestInitialPlacementIsBalanced(t *testing.T) {
+	instances := make([]placement.Instance, 0)
+
+	for i := 0; i < 10; i++ {
+		instances = append(instances,
+			placement.NewEmptyInstance(fmt.Sprintf("instance-0-%03d", i), "iso0", "zone", "endpoint", 1),
+			placement.NewEmptyInstance(fmt.Sprintf("instance-1-%03d", i), "iso1", "zone", "endpoint", 1),
+		)
+	}
+
+	ids := make([]uint32, 1024)
+	for i := 0; i < len(ids); i++ {
+		ids[i] = uint32(i)
+	}
+
+	a := newShardedAlgorithm(placement.NewOptions())
+	p, err := a.InitialPlacement(instances, ids, 2)
+	require.NoError(t, err)
+
+	var (
+		min = math.MaxInt32
+		max = math.MinInt32
+	)
+	for _, instance := range p.Instances() {
+		n := instance.Shards().NumShards()
+		if n < min {
+			min = n
+		}
+		if n > max {
+			max = n
+		}
+	}
+	require.True(t, max-min <= 1,
+		"The number of shards per instance differs by more than 1, min=%d max=%d", min, max)
+}
+
 func verifyAllShardsInAvailableState(t *testing.T, p placement.Placement) {
 	for _, instance := range p.Instances() {
 		s := instance.Shards()
