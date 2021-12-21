@@ -74,7 +74,7 @@ func idIt(
 			Value:          dp.val,
 		}, xtime.Second, nil).AnyTimes()
 	it.EXPECT().Err().Return(nil).AnyTimes()
-	it.EXPECT().Close().AnyTimes()
+	it.EXPECT().Close()
 
 	return it
 }
@@ -105,7 +105,7 @@ func rangeIt(
 	it.EXPECT().Next().Return(false).AnyTimes()
 
 	it.EXPECT().Err().Return(nil).AnyTimes()
-	it.EXPECT().Close().AnyTimes()
+	it.EXPECT().Close()
 
 	return it
 }
