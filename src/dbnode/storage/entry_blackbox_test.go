@@ -263,7 +263,7 @@ func TestMergeWithIndexSeries(t *testing.T) {
 		numEntries = 3
 		start      = xtime.Now().
 				Truncate(blockSize).
-				Add(blockSize * -time.Duration(numEntries*numBlocks))
+				Add(blockSize * -time.Duration(numEntries*numBlocks)) //nolint: durationcheck
 
 		expectedIndexTimes = make([]xtime.UnixNano, 0, numEntries*numBlocks)
 		entries            = make([]*Entry, 0, numEntries)

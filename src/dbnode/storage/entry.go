@@ -178,6 +178,8 @@ func (entry *Entry) ReconciledOnIndexSeries() (doc.OnIndexSeries, resource.Simpl
 	}), true
 }
 
+// GetEntryIndexBlockStates returns the entry index block states by time for
+// the indexed entry.
 func (entry *Entry) GetEntryIndexBlockStates() doc.EntryIndexBlockStates {
 	entry.reverseIndex.RLock()
 	states := entry.reverseIndex.states
@@ -191,6 +193,8 @@ func (entry *Entry) GetEntryIndexBlockStates() doc.EntryIndexBlockStates {
 	return entryStates
 }
 
+// MergeEntryIndexBlockStates merges the given states into the current
+// indexed entry.
 func (entry *Entry) MergeEntryIndexBlockStates(states doc.EntryIndexBlockStates) {
 	entry.reverseIndex.Lock()
 	for t, state := range states {

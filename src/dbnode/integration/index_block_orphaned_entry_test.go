@@ -199,7 +199,6 @@ func TestIndexBlockOrphanedIndexValuesUpdatedAcrossTimes(t *testing.T) {
 	}, time.Second*10)
 
 	require.True(t, found, fmt.Sprintf("series %s never indexed\n", notFoundIds))
-	return
 }
 
 func writeConcurrentMetrics(
