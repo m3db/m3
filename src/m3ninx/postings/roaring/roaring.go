@@ -24,14 +24,15 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/m3dbx/pilosa/roaring"
+
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/x"
-	"github.com/m3dbx/pilosa/roaring"
 )
 
 var (
 	errIntersectRoaringOnly  = errors.New("Intersect only supported between roaringDocId sets")
-	errUnionRoaringOnly      = errors.New("Union only supported between roaringDocId sets")
+	errUnionRoaringOnly      = errors.New("UnionInPlace only supported between roaringDocId sets")
 	errDifferenceRoaringOnly = errors.New("Difference only supported between roaringDocId sets")
 	errIteratorClosed        = errors.New("iterator has been closed")
 )
@@ -96,27 +97,29 @@ func (d *postingsList) Insert(i postings.ID) error {
 	return nil
 }
 
-func (d *postingsList) Intersect(other postings.List) error {
+func (d *postingsList) Intersect(other postings.List) (postings.List, error) {
 	o, ok := other.(*postingsList)
 	if !ok {
-		return errIntersectRoaringOnly
+		return nil, errIntersectRoaringOnly
 	}
 
-	d.bitmap = d.bitmap.Intersect(o.bitmap)
-	return nil
+	intersection := d.bitmap.Intersect(o.bitmap)
+
+	return NewPostingsListFromBitmap(intersection), nil
 }
 
-func (d *postingsList) Difference(other postings.List) error {
+func (d *postingsList) Difference(other postings.List) (postings.List, error) {
 	o, ok := other.(*postingsList)
 	if !ok {
-		return errDifferenceRoaringOnly
+		return nil, errDifferenceRoaringOnly
 	}
 
-	d.bitmap = d.bitmap.Difference(o.bitmap)
-	return nil
+	difference := d.bitmap.Difference(o.bitmap)
+
+	return NewPostingsListFromBitmap(difference), nil
 }
 
-func (d *postingsList) Union(other postings.List) error {
+func (d *postingsList) UnionInPlace(other postings.List) error {
 	o, ok := other.(*postingsList)
 	if !ok {
 		return errUnionRoaringOnly
@@ -126,7 +129,7 @@ func (d *postingsList) Union(other postings.List) error {
 	return nil
 }
 
-func (d *postingsList) UnionMany(others []postings.List) error {
+func (d *postingsList) UnionManyInPlace(others []postings.List) error {
 	return union(d.bitmap, others)
 }
 
@@ -197,7 +200,7 @@ func (d *postingsList) Iterator() postings.Iterator {
 	}
 }
 
-func (d *postingsList) Clone() postings.MutableList {
+func (d *postingsList) CloneAsMutable() postings.MutableList {
 	// TODO: It's cheaper to Clone than to cache roaring bitmaps, see
 	// `postings_list_bench_test.go`. Their internals don't allow for
 	// pooling at the moment. We should address this when get a chance

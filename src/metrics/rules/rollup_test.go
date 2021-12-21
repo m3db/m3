@@ -445,12 +445,12 @@ var (
 	}
 	testRollupRuleSnapshotCmpOpts = []cmp.Option{
 		cmp.AllowUnexported(rollupRuleSnapshot{}),
-		cmpopts.IgnoreInterfaces(struct{ filters.Filter }{}),
+		cmpopts.IgnoreInterfaces(struct{ filters.TagsFilter }{}),
 	}
 	testRollupRuleCmpOpts = []cmp.Option{
 		cmp.AllowUnexported(rollupRule{}),
 		cmp.AllowUnexported(rollupRuleSnapshot{}),
-		cmpopts.IgnoreInterfaces(struct{ filters.Filter }{}),
+		cmpopts.IgnoreInterfaces(struct{ filters.TagsFilter }{}),
 	}
 )
 

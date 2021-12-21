@@ -27,16 +27,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 	xtest "github.com/m3db/m3/src/x/test"
-
-	"github.com/fortytw2/leaktest"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 var (
@@ -393,7 +393,13 @@ func testOptions() Options {
 		SetMessagePoolOptions(pool.NewObjectPoolOptions().SetSize(1)).
 		SetMessageQueueNewWritesScanInterval(100 * time.Millisecond).
 		SetMessageQueueFullScanInterval(200 * time.Millisecond).
-		SetMessageRetryOptions(retry.NewOptions().SetInitialBackoff(100 * time.Millisecond).SetMaxBackoff(500 * time.Millisecond)).
+		SetMessageRetryNanosFn(
+			NextRetryNanosFn(
+				retry.NewOptions().
+					SetInitialBackoff(100 * time.Millisecond).
+					SetMaxBackoff(500 * time.Millisecond),
+			),
+		).
 		SetAckErrorRetryOptions(retry.NewOptions().SetInitialBackoff(200 * time.Millisecond).SetMaxBackoff(time.Second)).
 		SetConnectionOptions(testConnectionOptions())
 }

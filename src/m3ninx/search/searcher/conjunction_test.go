@@ -86,17 +86,23 @@ func TestConjunctionSearcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test the postings list from the first Reader.
-	expected := firstPL1.Clone()
-	expected.Intersect(secondPL1)
-	expected.Difference(thirdPL1)
+	var expected postings.List = firstPL1
+	expected, err = expected.Intersect(secondPL1)
+	require.NoError(t, err)
+	expected, err = expected.Difference(thirdPL1)
+	require.NoError(t, err)
+
 	pl, err := s.Search(firstReader)
 	require.NoError(t, err)
 	require.True(t, pl.Equal(expected))
 
 	// Test the postings list from the second Reader.
-	expected = firstPL2.Clone()
-	expected.Intersect(secondPL2)
-	expected.Difference(thirdPL2)
+	expected = firstPL2
+	expected, err = expected.Intersect(secondPL2)
+	require.NoError(t, err)
+	expected, err = expected.Difference(thirdPL2)
+	require.NoError(t, err)
+
 	pl, err = s.Search(secondReader)
 	require.NoError(t, err)
 	require.True(t, pl.Equal(expected))

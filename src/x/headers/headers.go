@@ -124,6 +124,10 @@ const (
 	// M3 returns an error if query execution must wait for permits.
 	LimitRequireNoWaitHeader = M3HeaderPrefix + "Limit-Require-No-Wait"
 
+	// LimitMaxMetricMetadataStatsHeader is the M3 header that limits
+	// the number of metric metadata stats returned in M3-Metric-Stats.
+	LimitMaxMetricMetadataStatsHeader = M3HeaderPrefix + "Limit-Max-Metric-Metadata-Stats"
+
 	// UnaggregatedStoragePolicy specifies the unaggregated storage policy.
 	UnaggregatedStoragePolicy = "unaggregated"
 
@@ -168,6 +172,38 @@ const (
 	// FetchedSeriesCount is the header added that tracks the total number of
 	// series that were fetched by the query, before computation.
 	FetchedSeriesCount = M3HeaderPrefix + "Series-Count"
+
+	// FetchedSeriesNoSamplesCount is the header added that tracks the total number of
+	// fetched series that were fetched by the query but had no samples.
+	FetchedSeriesNoSamplesCount = M3HeaderPrefix + "Series-No-Samples-Count"
+
+	// FetchedSeriesWithSamplesCount is the header added that tracks the total number of
+	// fetched series that were fetched by the query and had non-zero samples.
+	FetchedSeriesWithSamplesCount = M3HeaderPrefix + "Series-With-Samples-Count"
+
+	// FetchedAggregatedSeriesCount is the header added that tracks the total number of
+	// aggregated series that were fetched by the query, before computation.
+	FetchedAggregatedSeriesCount = M3HeaderPrefix + "Aggregated-Series-Count"
+
+	// FetchedUnaggregatedSeriesCount is the header added that tracks the total number of
+	// unaggregated series that were fetched by the query, before computation.
+	FetchedUnaggregatedSeriesCount = M3HeaderPrefix + "Unaggregated-Series-Count"
+
+	// MetricStats is the header added that tracks the unique set of metric stats
+	// all series fetched by this query, before computation, by metric name.
+	MetricStats = M3HeaderPrefix + "Metric-Stats"
+
+	// NamespacesHeader is the header added that tracks the unique set of namespaces
+	// read by this query.
+	NamespacesHeader = M3HeaderPrefix + "Namespaces"
+
+	// FetchedResponsesHeader is the header added that tracks the number of M3DB responses
+	// read by this query.
+	FetchedResponsesHeader = M3HeaderPrefix + "Fetched-Responses"
+
+	// FetchedBytesEstimateHeader is the header added that tracks the estimated number
+	// of bytes returned by all fetch responses (counted by FetchedResponsesHeader).
+	FetchedBytesEstimateHeader = M3HeaderPrefix + "Fetched-Bytes-Estimate"
 
 	// FetchedMetadataCount is the header added that tracks the total amount of
 	// metadata that was fetched by the query, before computation.

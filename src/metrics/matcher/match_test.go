@@ -86,7 +86,9 @@ func TestMatcherMatchDoesNotExist(t *testing.T) {
 	matcher, testScope := testMatcher(t, testMatcherOptions{
 		cache: newMemCache(),
 	})
-	require.Equal(t, rules.EmptyMatchResult, matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano()))
+	res, err := matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano(), rules.MatchOptions{})
+	require.NoError(t, err)
+	require.Equal(t, rules.EmptyMatchResult, res)
 
 	requireLatencyMetrics(t, "cached-matcher", testScope)
 }
@@ -108,7 +110,9 @@ func TestMatcherMatchExists(t *testing.T) {
 	})
 	c := cache.(*memCache)
 	c.namespaces[ns] = memRes
-	require.Equal(t, res, matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano()))
+	actual, err := matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano(), rules.MatchOptions{})
+	require.NoError(t, err)
+	require.Equal(t, res, actual)
 }
 
 func TestMatcherMatchExistsNoCache(t *testing.T) {
@@ -129,21 +133,7 @@ func TestMatcherMatchExistsNoCache(t *testing.T) {
 		now = time.Now()
 	)
 	matcher, testScope := testMatcher(t, testMatcherOptions{
-		tagFilterOptions: filters.TagsFilterOptions{
-			NameAndTagsFn: func(id []byte) (name []byte, tags []byte, err error) {
-				name = metric.id
-				return
-			},
-			SortedTagIteratorFn: func(tagPairs []byte) id.SortedTagIterator {
-				iter := id.NewMockSortedTagIterator(ctrl)
-				iter.EXPECT().Next().Return(true)
-				iter.EXPECT().Current().Return([]byte("fooTag"), []byte("fooValue"))
-				iter.EXPECT().Next().Return(false)
-				iter.EXPECT().Err().Return(nil)
-				iter.EXPECT().Close()
-				return iter
-			},
-		},
+		tagFilterOptions: filters.TagsFilterOptions{},
 		storeSetup: func(t *testing.T, store kv.TxnStore) {
 			_, err := store.Set(testNamespacesKey, &rulepb.Namespaces{
 				Namespaces: []*rulepb.Namespace{
@@ -210,8 +200,24 @@ func TestMatcherMatchExistsNoCache(t *testing.T) {
 	expected := rules.NewMatchResult(1, math.MaxInt64,
 		forExistingID, forNewRollupIDs, keepOriginal)
 
-	result := matcher.ForwardMatch(metric, now.UnixNano(), now.UnixNano())
+	matchOptions := rules.MatchOptions{
+		NameAndTagsFn: func(id []byte) (name []byte, tags []byte, err error) {
+			name = metric.id
+			return
+		},
+		SortedTagIteratorFn: func(tagPairs []byte) id.SortedTagIterator {
+			iter := id.NewMockSortedTagIterator(ctrl)
+			iter.EXPECT().Next().Return(true)
+			iter.EXPECT().Current().Return([]byte("fooTag"), []byte("fooValue"))
+			iter.EXPECT().Next().Return(false)
+			iter.EXPECT().Err().Return(nil)
+			return iter
+		},
+	}
 
+	result, err := matcher.ForwardMatch(metric, now.UnixNano(), now.UnixNano(), matchOptions)
+
+	require.NoError(t, err)
 	require.Equal(t, expected, result)
 
 	// Check that latency was measured
@@ -241,8 +247,6 @@ func testMatcher(t *testing.T, opts testMatcherOptions) (Matcher, tally.TestScop
 				SetInitWatchTimeout(100 * time.Millisecond).
 				SetKVStore(store).
 				SetNamespacesKey(testNamespacesKey).
-				SetNamespaceTag([]byte("namespace")).
-				SetDefaultNamespace([]byte("default")).
 				SetRuleSetKeyFn(defaultRuleSetKeyFn).
 				SetRuleSetOptions(rules.NewOptions().
 					SetTagsFilterOptions(opts.tagFilterOptions)).

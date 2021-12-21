@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -76,7 +77,7 @@ func iteratorToPromResult(
 				if err := annotationPayload.Unmarshal(firstAnnotation); err != nil {
 					return nil, err
 				}
-				handleResets = annotationPayload.HandleValueResets
+				handleResets = annotationPayload.OpenMetricsHandleValueResets
 			}
 		}
 
@@ -128,7 +129,9 @@ func toPromSequentially(
 	tagOptions models.TagOptions,
 	maxResolution time.Duration,
 	promConvertOptions PromConvertOptions,
+	fetchOptions *FetchOptions,
 ) (PromResult, error) {
+	meta := block.NewResultMetadata()
 	count := fetchResult.Count()
 	seriesList := make([]*prompb.TimeSeries, 0, count)
 	for i := 0; i < count; i++ {
@@ -145,12 +148,22 @@ func toPromSequentially(
 		if len(series.GetSamples()) > 0 {
 			seriesList = append(seriesList, series)
 		}
+
+		if fetchOptions != nil && fetchOptions.MaxMetricMetadataStats > 0 {
+			name, _ := tags.Get(promDefaultName)
+			if len(series.GetSamples()) > 0 {
+				meta.ByName(name).WithSamples++
+			} else {
+				meta.ByName(name).NoSamples++
+			}
+		}
 	}
 
 	return PromResult{
 		PromResult: &prompb.QueryResult{
 			Timeseries: seriesList,
 		},
+		Metadata: meta,
 	}, nil
 }
 
@@ -161,6 +174,7 @@ func toPromConcurrently(
 	tagOptions models.TagOptions,
 	maxResolution time.Duration,
 	promConvertOptions PromConvertOptions,
+	fetchOptions *FetchOptions,
 ) (PromResult, error) {
 	count := fetchResult.Count()
 	var (
@@ -206,10 +220,20 @@ func toPromConcurrently(
 	}
 
 	// Filter out empty series inplace.
+	meta := block.NewResultMetadata()
 	filteredList := seriesList[:0]
-	for _, s := range seriesList {
-		if len(s.GetSamples()) > 0 {
-			filteredList = append(filteredList, s)
+	for _, series := range seriesList {
+		if len(series.GetSamples()) > 0 {
+			filteredList = append(filteredList, series)
+		}
+
+		if fetchOptions != nil && fetchOptions.MaxMetricMetadataStats > 0 {
+			name := metricNameFromLabels(series.Labels)
+			if len(series.GetSamples()) > 0 {
+				meta.ByName(name).WithSamples++
+			} else {
+				meta.ByName(name).NoSamples++
+			}
 		}
 	}
 
@@ -217,6 +241,7 @@ func toPromConcurrently(
 		PromResult: &prompb.QueryResult{
 			Timeseries: filteredList,
 		},
+		Metadata: meta,
 	}, nil
 }
 
@@ -227,12 +252,15 @@ func seriesIteratorsToPromResult(
 	tagOptions models.TagOptions,
 	maxResolution time.Duration,
 	promConvertOptions PromConvertOptions,
+	fetchOptions *FetchOptions,
 ) (PromResult, error) {
 	if readWorkerPool == nil {
-		return toPromSequentially(fetchResult, tagOptions, maxResolution, promConvertOptions)
+		return toPromSequentially(fetchResult, tagOptions, maxResolution,
+			promConvertOptions, fetchOptions)
 	}
 
-	return toPromConcurrently(ctx, fetchResult, readWorkerPool, tagOptions, maxResolution, promConvertOptions)
+	return toPromConcurrently(ctx, fetchResult, readWorkerPool, tagOptions, maxResolution,
+		promConvertOptions, fetchOptions)
 }
 
 // SeriesIteratorsToPromResult converts raw series iterators directly to a
@@ -243,6 +271,7 @@ func SeriesIteratorsToPromResult(
 	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 	promConvertOptions PromConvertOptions,
+	fetchOptions *FetchOptions,
 ) (PromResult, error) {
 	defer fetchResult.Close()
 	if err := fetchResult.Verify(); err != nil {
@@ -257,8 +286,10 @@ func SeriesIteratorsToPromResult(
 	}
 
 	promResult, err := seriesIteratorsToPromResult(ctx, fetchResult,
-		readWorkerPool, tagOptions, maxResolution, promConvertOptions)
-	promResult.Metadata = fetchResult.Metadata
+		readWorkerPool, tagOptions, maxResolution, promConvertOptions, fetchOptions)
+	// Combine the fetchResult metadata into any metadata that was already
+	// computed for this promResult.
+	promResult.Metadata = promResult.Metadata.CombineMetadata(fetchResult.Metadata)
 
 	return promResult, err
 }

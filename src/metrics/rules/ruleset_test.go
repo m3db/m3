@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/id"
@@ -62,9 +63,8 @@ var (
 		cmpopts.IgnoreTypes(
 			activeRuleSet{}.tagsFilterOpts,
 			activeRuleSet{}.newRollupIDFn,
-			activeRuleSet{}.isRollupIDFn,
 		),
-		cmpopts.IgnoreInterfaces(struct{ filters.Filter }{}),
+		cmpopts.IgnoreInterfaces(struct{ filters.TagsFilter }{}),
 		cmpopts.IgnoreInterfaces(struct{ aggregation.TypesOptions }{}),
 	}
 	testRuleSetCmpOpts = []cmp.Option{
@@ -76,9 +76,8 @@ var (
 		cmpopts.IgnoreTypes(
 			ruleSet{}.tagsFilterOpts,
 			ruleSet{}.newRollupIDFn,
-			ruleSet{}.isRollupIDFn,
 		),
-		cmpopts.IgnoreInterfaces(struct{ filters.Filter }{}),
+		cmpopts.IgnoreInterfaces(struct{ filters.TagsFilter }{}),
 		cmpopts.IgnoreInterfaces(struct{ aggregation.TypesOptions }{}),
 	}
 )
@@ -201,7 +200,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 			input.expectedRollupRules,
 			rs.tagsFilterOpts,
 			rs.newRollupIDFn,
-			rs.isRollupIDFn,
 		)
 		require.True(t, cmp.Equal(expected, as, testActiveRuleSetCmpOpts...))
 	}
@@ -2192,9 +2190,8 @@ func testRollupRulesConfig() []*rulepb.RollupRule {
 	}
 }
 
-func testTagsFilterOptions() filters.TagsFilterOptions {
-	return filters.TagsFilterOptions{
-		NameTagKey: []byte("name"),
+func testMatchOptions() MatchOptions {
+	return MatchOptions{
 		NameAndTagsFn: func(b []byte) ([]byte, []byte, error) {
 			idx := bytes.Index(b, []byte("|"))
 			if idx == -1 {
@@ -2203,6 +2200,12 @@ func testTagsFilterOptions() filters.TagsFilterOptions {
 			return b[:idx], b[idx+1:], nil
 		},
 		SortedTagIteratorFn: filters.NewMockSortedTagIterator,
+	}
+}
+
+func testTagsFilterOptions() filters.TagsFilterOptions {
+	return filters.TagsFilterOptions{
+		NameTagKey: []byte("name"),
 	}
 }
 
@@ -2246,4 +2249,8 @@ type testMatchInput struct {
 	forExistingIDResult   metadata.StagedMetadatas
 	forNewRollupIDsResult []IDWithMetadatas
 	keepOriginal          bool
+}
+
+func (t testMatchInput) ID() id.ID {
+	return namespace.NewTestID(t.id, "ns")
 }

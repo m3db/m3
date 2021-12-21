@@ -34,7 +34,7 @@ import (
 func TestResolveError(t *testing.T) {
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
+	sut := NewSeriesResolver(&wg, &Entry{ID: id}, func(id ident.ID) (*Entry, error) {
 		return nil, fmt.Errorf("unable to resolve series")
 	})
 	_, err := sut.SeriesRef()
@@ -44,7 +44,7 @@ func TestResolveError(t *testing.T) {
 func TestResolveNilEntry(t *testing.T) {
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
+	sut := NewSeriesResolver(&wg, &Entry{ID: id}, func(id ident.ID) (*Entry, error) {
 		return nil, nil
 	})
 	_, err := sut.SeriesRef()
@@ -57,7 +57,7 @@ func TestResolve(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
+	sut := NewSeriesResolver(&wg, &Entry{ID: id}, func(id ident.ID) (*Entry, error) {
 		return NewEntry(NewEntryOptions{
 			Series: newMockSeries(ctrl),
 			Index:  11,
@@ -76,7 +76,7 @@ func TestSecondResolveWontWait(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
+	sut := NewSeriesResolver(&wg, &Entry{ID: id}, func(id ident.ID) (*Entry, error) {
 		return NewEntry(NewEntryOptions{
 			Series: newMockSeries(ctrl),
 			Index:  11,
@@ -101,31 +101,28 @@ func TestReleaseRef(t *testing.T) {
 	defer ctrl.Finish()
 
 	wg := sync.WaitGroup{}
-	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
-		entry := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
+	entry := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
+	entry.IncrementReaderWriterCount()
+	sut := NewSeriesResolver(&wg, entry, func(id ident.ID) (*Entry, error) {
 		entry.IncrementReaderWriterCount()
 		return entry, nil
 	})
+
+	// Initial creation increments the entry.
+	require.Equal(t, int32(1), entry.ReaderWriterCount())
+
 	seriesRef, err := sut.SeriesRef()
 	require.NoError(t, err)
 	require.IsType(t, &Entry{}, seriesRef)
 
-	entry := seriesRef.(*Entry)
-	require.Equal(t, int32(1), entry.ReaderWriterCount())
-	err = sut.ReleaseRef()
-	require.NoError(t, err)
-	require.Zero(t, entry.ReaderWriterCount())
-}
+	// Subsequent reference increments the entry (this is to be defensive around
+	// ref counting based on the one that happened to be created vs one persisted in the shard).
+	require.Equal(t, int32(2), entry.ReaderWriterCount())
 
-func TestReleaseRefError(t *testing.T) {
-	wg := sync.WaitGroup{}
-	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
-		return nil, fmt.Errorf("unable to resolve series")
-	})
-	err := sut.ReleaseRef()
-	require.Error(t, err)
+	sut.ReleaseRef()
+
+	// All references released.
+	require.Zero(t, entry.ReaderWriterCount())
 }
 
 func TestReleaseRefWithoutSeriesRef(t *testing.T) {
@@ -134,11 +131,10 @@ func TestReleaseRefWithoutSeriesRef(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 	id := ident.StringID("foo")
-	sut := NewSeriesResolver(&wg, id, func(id ident.ID) (*Entry, error) {
+	sut := NewSeriesResolver(&wg, &Entry{ID: id}, func(id ident.ID) (*Entry, error) {
 		entry := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
 		entry.IncrementReaderWriterCount()
 		return entry, nil
 	})
-	err := sut.ReleaseRef()
-	require.NoError(t, err)
+	sut.ReleaseRef()
 }

@@ -25,17 +25,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var defaultTestOpts = MatchOptions{
@@ -52,20 +52,30 @@ const (
 // NB: Each seriesIterators has two seriesIterator; one with a constant ID which
 // will be overwritten as necessary by multi_fetch_result, and one per namespace
 // which should not be overwritten and should appear in the results.
-func generateSeriesIterators(
-	ctrl *gomock.Controller, ns string) encoding.SeriesIterators {
+func generateSeriesIterators(ctrl *gomock.Controller, ns string) encoding.SeriesIterators {
+	var (
+		end   = xtime.Now().Truncate(time.Hour)
+		start = end.Add(-24 * time.Hour)
+	)
+
 	iter := encoding.NewMockSeriesIterator(ctrl)
 	iter.EXPECT().ID().Return(ident.StringID(common)).MinTimes(1)
 	iter.EXPECT().Namespace().Return(ident.StringID(ns)).AnyTimes()
 	iter.EXPECT().Tags().Return(ident.EmptyTagIterator).AnyTimes()
+	iter.EXPECT().Start().Return(start).AnyTimes()
+	iter.EXPECT().End().Return(end).AnyTimes()
+	iter.EXPECT().Close().AnyTimes()
 
 	unique := encoding.NewMockSeriesIterator(ctrl)
 	unique.EXPECT().ID().Return(ident.StringID(ns)).MinTimes(1)
 	unique.EXPECT().Namespace().Return(ident.StringID(ns)).AnyTimes()
 	unique.EXPECT().Tags().Return(ident.EmptyTagIterator).AnyTimes()
+	unique.EXPECT().Start().Return(start).AnyTimes()
+	unique.EXPECT().End().Return(end).AnyTimes()
+	unique.EXPECT().Close().AnyTimes()
 
 	iters := encoding.NewMockSeriesIterators(ctrl)
-	iters.EXPECT().Close().Return().Times(1)
+	iters.EXPECT().Close().MinTimes(1)
 	iters.EXPECT().Len().Return(1).AnyTimes()
 	iters.EXPECT().Iters().Return([]encoding.SeriesIterator{iter, unique}).AnyTimes()
 
@@ -132,8 +142,11 @@ var namespaces = []struct {
 	},
 }
 
-func TestMultiResult(t *testing.T) {
+func TestMultiResultPartialQueryRange(t *testing.T) {
 	testMultiResult(t, NamespaceCoversPartialQueryRange, long)
+}
+
+func TestMultiResultAllQueryRange(t *testing.T) {
 	testMultiResult(t, NamespaceCoversAllQueryRange, unaggregated)
 }
 

@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 )
 
 // concurrentPostingsMap is a thread-safe map from []byte -> postings.List.
@@ -100,7 +101,7 @@ func (m *concurrentPostingsMap) Get(key []byte) (postings.List, bool) {
 // GetRegex returns the union of the postings lists whose keys match the
 // provided regexp.
 func (m *concurrentPostingsMap) GetRegex(re *regexp.Regexp) (postings.List, bool) {
-	var pl postings.MutableList
+	lists := make([]postings.List, 0, m.postingsMap.Len())
 
 	m.RLock()
 	for _, mapEntry := range m.postingsMap.Iter() {
@@ -108,17 +109,15 @@ func (m *concurrentPostingsMap) GetRegex(re *regexp.Regexp) (postings.List, bool
 		// evaluating this predicate.
 		// TODO: Evaluate if performing a prefix match would speed up the common case.
 		if re.Match(mapEntry.Key()) {
-			if pl == nil {
-				pl = mapEntry.Value().Clone()
-			} else {
-				pl.Union(mapEntry.Value())
-			}
+			lists = append(lists, mapEntry.Value())
 		}
 	}
 	m.RUnlock()
 
-	if pl == nil {
+	if len(lists) == 0 {
 		return nil, false
 	}
-	return pl, true
+
+	result, _ := roaring.Union(lists)
+	return result, true
 }

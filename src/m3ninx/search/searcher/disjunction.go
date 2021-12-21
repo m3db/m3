@@ -23,6 +23,7 @@ package searcher
 import (
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/search"
 )
 
@@ -43,19 +44,14 @@ func NewDisjunctionSearcher(searchers search.Searchers) (search.Searcher, error)
 }
 
 func (s *disjunctionSearcher) Search(r index.Reader) (postings.List, error) {
-	var pl postings.MutableList
+	lists := make([]postings.List, 0, len(s.searchers))
 	for _, sr := range s.searchers {
 		curr, err := sr.Search(r)
 		if err != nil {
 			return nil, err
 		}
-
-		// TODO: Sort the iterators so that we take the union in order of decreasing size.
-		if pl == nil {
-			pl = curr.Clone()
-		} else {
-			pl.Union(curr)
-		}
+		lists = append(lists, curr)
 	}
-	return pl, nil
+
+	return roaring.Union(lists)
 }

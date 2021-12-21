@@ -21,7 +21,10 @@
 package config
 
 import (
+	"errors"
 	"time"
+
+	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -34,8 +37,6 @@ import (
 	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
-
-	"github.com/uber-go/tally"
 )
 
 // ConnectionConfiguration configs the connection options.
@@ -93,7 +94,6 @@ type WriterConfiguration struct {
 	PlacementServiceOverride          services.OverrideConfiguration `yaml:"placementServiceOverride"`
 	PlacementWatchInitTimeout         *time.Duration                 `yaml:"placementWatchInitTimeout"`
 	MessagePool                       *pool.ObjectPoolConfiguration  `yaml:"messagePool"`
-	MessageRetry                      *retry.Configuration           `yaml:"messageRetry"`
 	MessageQueueNewWritesScanInterval *time.Duration                 `yaml:"messageQueueNewWritesScanInterval"`
 	MessageQueueFullScanInterval      *time.Duration                 `yaml:"messageQueueFullScanInterval"`
 	MessageQueueScanBatchSize         *int                           `yaml:"messageQueueScanBatchSize"`
@@ -104,12 +104,24 @@ type WriterConfiguration struct {
 	Decoder                           *proto.Configuration           `yaml:"decoder"`
 	Connection                        *ConnectionConfiguration       `yaml:"connection"`
 
+	// StaticMessageRetry configs a static message retry policy.
+	StaticMessageRetry *StaticMessageRetryConfiguration `yaml:"staticMessageRetry"`
+	// MessageRetry configs a algorithmic retry policy.
+	// Only one of the retry configuration should be used.
+	MessageRetry *retry.Configuration `yaml:"messageRetry"`
+
 	// IgnoreCutoffCutover allows producing writes ignoring cutoff/cutover timestamp.
 	// Must be in sync with AggregatorConfiguration.WritesIgnoreCutoffCutover.
 	IgnoreCutoffCutover bool `yaml:"ignoreCutoffCutover"`
 	// WithoutConsumerScope drops the consumer tag from the metrics. For large m3msg deployments the consumer tag can
 	// add a lot of cardinality to the metrics.
 	WithoutConsumerScope bool `yaml:"withoutConsumerScope"`
+}
+
+// StaticMessageRetryConfiguration configs the static message retry policy.
+// When messageRetry config exists, messageRetry will override the static config.
+type StaticMessageRetryConfiguration struct {
+	Backoff []time.Duration `yaml:"backoff"`
 }
 
 // NewOptions creates writer options.
@@ -155,8 +167,9 @@ func (c *WriterConfiguration) NewOptions(
 	if c.MessagePool != nil {
 		opts = opts.SetMessagePoolOptions(c.MessagePool.NewObjectPoolOptions(iOpts))
 	}
-	if c.MessageRetry != nil {
-		opts = opts.SetMessageRetryOptions(c.MessageRetry.NewOptions(iOpts.MetricsScope()))
+	opts, err = c.setRetryOptions(opts, iOpts)
+	if err != nil {
+		return nil, err
 	}
 	if c.MessageQueueNewWritesScanInterval != nil {
 		opts = opts.SetMessageQueueNewWritesScanInterval(*c.MessageQueueNewWritesScanInterval)
@@ -189,5 +202,27 @@ func (c *WriterConfiguration) NewOptions(
 	opts = opts.SetIgnoreCutoffCutover(c.IgnoreCutoffCutover)
 
 	opts = opts.SetDecoderOptions(opts.DecoderOptions().SetRWOptions(rwOptions))
+	return opts, nil
+}
+
+func (c *WriterConfiguration) setRetryOptions(
+	opts writer.Options,
+	iOpts instrument.Options,
+) (writer.Options, error) {
+	if c.StaticMessageRetry != nil && c.MessageRetry != nil {
+		return nil, errors.New("invalid writer config with both static and algorithmic retry config set")
+	}
+	if c.MessageRetry != nil {
+		return opts.SetMessageRetryNanosFn(
+			writer.NextRetryNanosFn(c.MessageRetry.NewOptions(iOpts.MetricsScope())),
+		), nil
+	}
+	if c.StaticMessageRetry != nil {
+		fn, err := writer.StaticRetryNanosFn(c.StaticMessageRetry.Backoff)
+		if err != nil {
+			return nil, err
+		}
+		return opts.SetMessageRetryNanosFn(fn), nil
+	}
 	return opts, nil
 }

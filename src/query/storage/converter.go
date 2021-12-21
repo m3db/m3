@@ -254,40 +254,40 @@ func convertM3Type(m3Type prompb.M3Type) (ts.M3MetricType, error) {
 
 // SeriesAttributesToAnnotationPayload converts ts.SeriesAttributes into an annotation.Payload.
 func SeriesAttributesToAnnotationPayload(seriesAttributes ts.SeriesAttributes) (annotation.Payload, error) {
-	var metricType annotation.MetricType
+	var metricType annotation.OpenMetricsFamilyType
 
 	switch seriesAttributes.PromType {
 	case ts.PromMetricTypeUnknown:
-		metricType = annotation.MetricType_UNKNOWN
+		metricType = annotation.OpenMetricsFamilyType_UNKNOWN
 
 	case ts.PromMetricTypeCounter:
-		metricType = annotation.MetricType_COUNTER
+		metricType = annotation.OpenMetricsFamilyType_COUNTER
 
 	case ts.PromMetricTypeGauge:
-		metricType = annotation.MetricType_GAUGE
+		metricType = annotation.OpenMetricsFamilyType_GAUGE
 
 	case ts.PromMetricTypeHistogram:
-		metricType = annotation.MetricType_HISTOGRAM
+		metricType = annotation.OpenMetricsFamilyType_HISTOGRAM
 
 	case ts.PromMetricTypeGaugeHistogram:
-		metricType = annotation.MetricType_GAUGE_HISTOGRAM
+		metricType = annotation.OpenMetricsFamilyType_GAUGE_HISTOGRAM
 
 	case ts.PromMetricTypeSummary:
-		metricType = annotation.MetricType_SUMMARY
+		metricType = annotation.OpenMetricsFamilyType_SUMMARY
 
 	case ts.PromMetricTypeInfo:
-		metricType = annotation.MetricType_INFO
+		metricType = annotation.OpenMetricsFamilyType_INFO
 
 	case ts.PromMetricTypeStateSet:
-		metricType = annotation.MetricType_STATESET
+		metricType = annotation.OpenMetricsFamilyType_STATESET
 
 	default:
 		return annotation.Payload{}, fmt.Errorf("invalid Prometheus metric type %v", seriesAttributes.PromType)
 	}
 
 	return annotation.Payload{
-		MetricType:        metricType,
-		HandleValueResets: seriesAttributes.HandleValueResets,
+		OpenMetricsFamilyType:        metricType,
+		OpenMetricsHandleValueResets: seriesAttributes.HandleValueResets,
 	}, nil
 }
 

@@ -43,7 +43,6 @@ import (
 
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
-	"go.uber.org/multierr"
 )
 
 const (
@@ -181,7 +180,7 @@ type entryMetrics struct {
 	untimed               untimedEntryMetrics
 	timed                 timedEntryMetrics
 	forwarded             forwardedEntryMetrics
-	entryExpiryByCategory map[metricCategory]tally.Histogram
+	durationBetweenWrites map[metricCategory]tally.Histogram
 }
 
 // NewEntryMetrics creates new entry metrics.
@@ -191,12 +190,12 @@ func NewEntryMetrics(scope tally.Scope) *entryMetrics {
 	untimedEntryScope := scope.Tagged(map[string]string{"entry-type": "untimed"})
 	timedEntryScope := scope.Tagged(map[string]string{"entry-type": "timed"})
 	forwardedEntryScope := scope.Tagged(map[string]string{"entry-type": "forwarded"})
-	// NB: add a histogram tracking entry expiries to help tune entry TTL.
-	expiries := make(map[metricCategory]tally.Histogram, len(validMetricCategories))
+	// NB: add a histogram tracking the duration between writes to help tune entry TTL.
+	writeDurations := make(map[metricCategory]tally.Histogram, len(validMetricCategories))
 	for _, category := range validMetricCategories {
-		expiries[category] = scope.
+		writeDurations[category] = scope.
 			Tagged(map[string]string{"metric-category": category.String()}).
-			Histogram("expiry", tally.DurationBuckets{
+			Histogram("duration-between-writes", tally.DurationBuckets{
 				time.Minute,
 				time.Minute * 2,
 				time.Minute * 5,
@@ -215,7 +214,7 @@ func NewEntryMetrics(scope tally.Scope) *entryMetrics {
 		untimed:               newUntimedEntryMetrics(untimedEntryScope),
 		timed:                 newTimedEntryMetrics(timedEntryScope),
 		forwarded:             newForwardedEntryMetrics(forwardedEntryScope),
-		entryExpiryByCategory: expiries,
+		durationBetweenWrites: writeDurations,
 	}
 }
 
@@ -375,18 +374,18 @@ func (e *Entry) ShouldExpire(now time.Time) bool {
 	}
 	e.mtx.RUnlock()
 
-	return e.shouldExpire(xtime.UnixNano(now.UnixNano()), unknownMetricCategory, false)
+	return e.shouldExpire(xtime.UnixNano(now.UnixNano()))
 }
 
 // TryExpire attempts to expire the entry, returning true
 // if the entry is expired, and false otherwise.
-func (e *Entry) TryExpire(now time.Time, metricCategory metricCategory) bool {
+func (e *Entry) TryExpire(now time.Time) bool {
 	e.mtx.Lock()
 	if e.closed {
 		e.mtx.Unlock()
 		return false
 	}
-	if !e.shouldExpire(xtime.UnixNano(now.UnixNano()), metricCategory, true) {
+	if !e.shouldExpire(xtime.UnixNano(now.UnixNano())) {
 		e.mtx.Unlock()
 		return false
 	}
@@ -451,7 +450,7 @@ func (e *Entry) addUntimed(
 	// must have all completed. This is used to ensure we never write metrics
 	// for times that have already been flushed.
 	currTime := e.nowFn()
-	e.lastAccessNanos.Store(currTime.UnixNano())
+	e.setLastAccessed(unknownMetricCategory)
 
 	e.mtx.RLock()
 	if e.closed {
@@ -735,12 +734,12 @@ func (e *Entry) updateStagedMetadatasWithLock(
 }
 
 func (e *Entry) addUntimedWithLock(serverTimestamp time.Time, mu unaggregated.MetricUnion) error {
-	var err error
+	multiErr := xerrors.NewMultiError()
 	for i := range e.aggregations {
-		multierr.AppendInto(&err, e.addUntimedValueWithLock(
+		multiErr = multiErr.Add(e.addUntimedValueWithLock(
 			e.aggregations[i], serverTimestamp, mu, e.aggregations[i].resendEnabled, false))
 	}
-	return err
+	return multiErr.FinalError()
 }
 
 // addUntimedValueWithLock adds the untimed value to the aggregationValue.
@@ -798,7 +797,7 @@ func (e *Entry) addTimed(
 	// must have all completed. This is used to ensure we never write metrics
 	// for times that have already been flushed.
 	currTime := e.nowFn()
-	e.lastAccessNanos.Store(currTime.UnixNano())
+	e.setLastAccessed(timedMetric)
 
 	e.mtx.RLock()
 	if e.closed {
@@ -1001,25 +1000,24 @@ func (e *Entry) addTimedWithLock(
 func (e *Entry) addTimedWithStagedMetadatasAndLock(metric aggregated.Metric) error {
 	var (
 		timestamp = time.Unix(0, metric.TimeNanos)
-		err       error
+		multiErr  = xerrors.NewMultiError()
 	)
 
 	for i := range e.aggregations {
-		if multierr.AppendInto(
-			&err,
-			e.checkTimestampForMetric(
-				metric.TimeNanos,
-				e.nowFn().UnixNano(),
-				e.aggregations[i].key.storagePolicy.Resolution().Window),
-		) {
+		err := e.checkTimestampForMetric(
+			metric.TimeNanos,
+			e.nowFn().UnixNano(),
+			e.aggregations[i].key.storagePolicy.Resolution().Window)
+		if err != nil {
+			multiErr = multiErr.Add(err)
 			continue
 		}
-		multierr.AppendInto(
-			&err,
-			e.aggregations[i].elem.Value.(metricElem).AddValue(timestamp, metric.Value, metric.Annotation),
-		)
+		err = e.aggregations[i].elem.Value.(metricElem).AddValue(timestamp, metric.Value, metric.Annotation)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
 	}
-	return err
+	return multiErr.FinalError()
 }
 
 func (e *Entry) addForwarded(
@@ -1037,7 +1035,7 @@ func (e *Entry) addForwarded(
 	// for times that have already been flushed.
 	currTime := e.nowFn()
 	currTimeNanos := currTime.UnixNano()
-	e.lastAccessNanos.Store(currTimeNanos)
+	e.setLastAccessed(forwardedMetric)
 
 	e.mtx.RLock()
 	if e.closed {
@@ -1179,18 +1177,10 @@ func (e *Entry) addForwardedWithLock(
 	return err
 }
 
-func (e *Entry) shouldExpire(
-	now xtime.UnixNano,
-	metricCategory metricCategory,
-	recordTiming bool,
-) bool {
+func (e *Entry) shouldExpire(now xtime.UnixNano) bool {
 	// Only expire the entry if there are no active writers
 	// and it has reached its ttl since last accessed.
 	age := now.Sub(xtime.UnixNano(e.lastAccessNanos.Load()))
-	if recordTiming {
-		e.metrics.entryExpiryByCategory[metricCategory].RecordDuration(age)
-	}
-
 	return e.numWriters.Load() == 0 && age > e.opts.EntryTTL()
 }
 
@@ -1208,6 +1198,12 @@ func (e *Entry) applyValueRateLimit(numValues int64, m rateLimitEntryMetrics) er
 	m.valueRateLimitExceeded.Inc(1)
 	m.droppedValues.Inc(numValues)
 	return errWriteValueRateLimitExceeded
+}
+
+func (e *Entry) setLastAccessed(category metricCategory) {
+	now := e.nowFn().UnixNano()
+	prev := e.lastAccessNanos.Swap(now)
+	e.metrics.durationBetweenWrites[category].RecordDuration(time.Duration(now - prev))
 }
 
 type aggregationValue struct {

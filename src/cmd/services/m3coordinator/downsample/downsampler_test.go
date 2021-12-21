@@ -483,14 +483,20 @@ func TestDownsamplerAggregationWithRulesStore(t *testing.T) {
 
 	// Wait for mapping rule to appear
 	logger.Info("waiting for mapping rules to propagate")
-	matcher := testDownsampler.matcher
+	appender, err := testDownsampler.downsampler.NewMetricsAppender()
+	require.NoError(t, err)
+	appenderImpl := appender.(*metricsAppender)
 	testMatchID := newTestID(t, map[string]string{
 		"__name__": "foo",
 		"app":      "test123",
 	})
 	for {
 		now := time.Now().UnixNano()
-		res := matcher.ForwardMatch(testMatchID, now, now+1)
+		res, err := appenderImpl.matcher.ForwardMatch(testMatchID, now, now+1, rules.MatchOptions{
+			NameAndTagsFn:       appenderImpl.nameTagFn,
+			SortedTagIteratorFn: appenderImpl.tagIterFn,
+		})
+		require.NoError(t, err)
 		results := res.ForExistingIDAt(now)
 		if !results.IsDefault() {
 			break
@@ -3457,7 +3463,6 @@ type testDownsampler struct {
 	opts           DownsamplerOptions
 	testOpts       testDownsamplerOptions
 	downsampler    Downsampler
-	matcher        matcher.Matcher
 	storage        mock.Storage
 	rulesStore     rules.Store
 	instrumentOpts instrument.Options
@@ -3611,7 +3616,6 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 		opts:           downcast.opts,
 		testOpts:       opts,
 		downsampler:    instance,
-		matcher:        downcast.agg.matcher,
 		storage:        storage,
 		rulesStore:     rulesStore,
 		instrumentOpts: instrumentOpts,

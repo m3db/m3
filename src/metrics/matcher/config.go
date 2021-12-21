@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
-	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/metric/id/m3"
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/x/clock"
@@ -97,31 +97,13 @@ func (cfg *Configuration) NewOptions(
 	}
 
 	// Configure rules options.
-	scope := instrumentOpts.MetricsScope().SubScope("sorted-tag-iterator-pool")
-	poolOpts := cfg.SortedTagIteratorPool.NewObjectPoolOptions(instrumentOpts.SetMetricsScope(scope))
-	sortedTagIteratorPool := id.NewSortedTagIteratorPool(poolOpts)
-	sortedTagIteratorPool.Init(func() id.SortedTagIterator {
-		return m3.NewPooledSortedTagIterator(nil, sortedTagIteratorPool)
-	})
-	sortedTagIteratorFn := func(tagPairs []byte) id.SortedTagIterator {
-		it := sortedTagIteratorPool.Get()
-		it.Reset(tagPairs)
-		return it
-	}
 	tagsFilterOptions := filters.TagsFilterOptions{
-		NameTagKey:          []byte(cfg.NameTagKey),
-		NameAndTagsFn:       m3.NameAndTags,
-		SortedTagIteratorFn: sortedTagIteratorFn,
-	}
-
-	isRollupIDFn := func(name []byte, tags []byte) bool {
-		return m3.IsRollupID(name, tags, sortedTagIteratorPool)
+		NameTagKey: []byte(cfg.NameTagKey),
 	}
 
 	ruleSetOpts := rules.NewOptions().
 		SetTagsFilterOptions(tagsFilterOptions).
-		SetNewRollupIDFn(m3.NewRollupID).
-		SetIsRollupIDFn(isRollupIDFn)
+		SetNewRollupIDFn(m3.NewRollupID)
 
 	// Configure ruleset key function.
 	ruleSetKeyFn := func(namespace []byte) string {
@@ -135,8 +117,7 @@ func (cfg *Configuration) NewOptions(
 		SetKVStore(rulesStore).
 		SetNamespacesKey(cfg.NamespacesKey).
 		SetRuleSetKeyFn(ruleSetKeyFn).
-		SetNamespaceTag([]byte(cfg.NamespaceTag)).
-		SetDefaultNamespace([]byte(cfg.DefaultNamespace))
+		SetNamespaceResolver(namespace.NewResolver([]byte(cfg.NamespaceTag), []byte(cfg.DefaultNamespace)))
 
 	if cfg.InitWatchTimeout != 0 {
 		opts = opts.SetInitWatchTimeout(cfg.InitWatchTimeout)

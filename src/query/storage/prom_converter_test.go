@@ -44,6 +44,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func buildFetchOpts() *FetchOptions {
+	opts := NewFetchOptions()
+	opts.MaxMetricMetadataStats = 1
+	return opts
+}
+
 func fr(
 	t *testing.T,
 	its encoding.SeriesIterators,
@@ -81,7 +87,7 @@ func verifyExpandPromSeries(
 	}
 
 	results, err := SeriesIteratorsToPromResult(
-		context.Background(), fetchResult, pools, nil, NewPromConvertOptions())
+		context.Background(), fetchResult, pools, nil, NewPromConvertOptions(), buildFetchOpts())
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
@@ -89,6 +95,8 @@ func verifyExpandPromSeries(
 	require.NotNil(t, ts)
 	require.Equal(t, ex, results.Metadata.Exhaustive)
 	require.Equal(t, 1, len(results.Metadata.Warnings))
+	merged := results.Metadata.MetadataByNameMerged()
+	require.Equal(t, len(ts), merged.WithSamples)
 	require.Equal(t, "foo_bar", results.Metadata.Warnings[0].Header())
 	require.Equal(t, len(ts), num)
 	expectedTags := []prompb.Label{
@@ -127,7 +135,7 @@ func TestContextCanceled(t *testing.T) {
 	iters := seriesiter.NewMockSeriesIters(ctrl, ident.Tag{}, 1, 2)
 	fetchResult := fr(t, iters, makeTag("foo", "bar", 1)...)
 	_, err = SeriesIteratorsToPromResult(
-		ctx, fetchResult, pool, nil, NewPromConvertOptions())
+		ctx, fetchResult, pool, nil, NewPromConvertOptions(), buildFetchOpts())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "context canceled")
 }
@@ -256,6 +264,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 
 	verifyResult := func(t *testing.T, res PromResult) {
 		ts := res.PromResult.GetTimeseries()
+		meta := res.Metadata
 		exSeriesTags := []string{"bar", "qux", "quail"}
 		require.Equal(t, len(exSeriesTags), len(ts))
 		for i, series := range ts {
@@ -270,6 +279,10 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 			assert.Equal(t, float64(1), s.GetValue())
 			assert.Equal(t, int64(now)/int64(time.Millisecond), s.GetTimestamp())
 		}
+		merged := meta.MetadataByNameMerged()
+		// in buildIters, we create 5 series. only 3 of them have samples.
+		require.Equal(t, 5, meta.FetchedSeriesCount)
+		require.Equal(t, merged, block.ResultMetricMetadata{WithSamples: 3, NoSamples: 2})
 	}
 
 	buildIters := func() consolidators.SeriesFetchResult {
@@ -289,7 +302,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 
 	opts := models.NewTagOptions()
 	res, err := SeriesIteratorsToPromResult(
-		context.Background(), buildIters(), nil, opts, NewPromConvertOptions())
+		context.Background(), buildIters(), nil, opts, NewPromConvertOptions(), buildFetchOpts())
 	require.NoError(t, err)
 	verifyResult(t, res)
 
@@ -298,7 +311,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	pool.Init()
 
 	res, err = SeriesIteratorsToPromResult(
-		context.Background(), buildIters(), pool, opts, NewPromConvertOptions())
+		context.Background(), buildIters(), pool, opts, NewPromConvertOptions(), buildFetchOpts())
 	require.NoError(t, err)
 	verifyResult(t, res)
 }
@@ -527,8 +540,13 @@ func testSeriesIteratorsToPromResult(
 	defer ctrl.Finish()
 
 	var (
-		gaugePayload   = &annotation.Payload{MetricType: annotation.MetricType_GAUGE}
-		counterPayload = &annotation.Payload{MetricType: annotation.MetricType_COUNTER, HandleValueResets: true}
+		gaugePayload = &annotation.Payload{
+			OpenMetricsFamilyType: annotation.OpenMetricsFamilyType_GAUGE,
+		}
+		counterPayload = &annotation.Payload{
+			OpenMetricsFamilyType:        annotation.OpenMetricsFamilyType_COUNTER,
+			OpenMetricsHandleValueResets: true,
+		}
 	)
 
 	firstAnnotation := annotationBytes(t, gaugePayload)
@@ -572,7 +590,7 @@ func testSeriesIteratorsToPromResult(
 	assert.NoError(t, err)
 
 	res, err := SeriesIteratorsToPromResult(
-		context.Background(), fetchResult, nil, models.NewTagOptions(), opts)
+		context.Background(), fetchResult, nil, models.NewTagOptions(), opts, buildFetchOpts())
 	require.NoError(t, err)
 	verifyResult(t, want, res)
 }

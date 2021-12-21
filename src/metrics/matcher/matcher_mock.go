@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
+	"github.com/m3db/m3/src/metrics/rules/view"
 
 	"github.com/golang/mock/gomock"
 )
@@ -71,15 +72,31 @@ func (mr *MockMatcherMockRecorder) Close() *gomock.Call {
 }
 
 // ForwardMatch mocks base method.
-func (m *MockMatcher) ForwardMatch(arg0 id.ID, arg1, arg2 int64) rules.MatchResult {
+func (m *MockMatcher) ForwardMatch(arg0 id.ID, arg1, arg2 int64, arg3 rules.MatchOptions) (rules.MatchResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ForwardMatch", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "ForwardMatch", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(rules.MatchResult)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // ForwardMatch indicates an expected call of ForwardMatch.
-func (mr *MockMatcherMockRecorder) ForwardMatch(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockMatcherMockRecorder) ForwardMatch(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForwardMatch", reflect.TypeOf((*MockMatcher)(nil).ForwardMatch), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForwardMatch", reflect.TypeOf((*MockMatcher)(nil).ForwardMatch), arg0, arg1, arg2, arg3)
+}
+
+// LatestRollupRules mocks base method.
+func (m *MockMatcher) LatestRollupRules(arg0 []byte, arg1 int64) ([]view.RollupRule, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LatestRollupRules", arg0, arg1)
+	ret0, _ := ret[0].([]view.RollupRule)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LatestRollupRules indicates an expected call of LatestRollupRules.
+func (mr *MockMatcherMockRecorder) LatestRollupRules(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LatestRollupRules", reflect.TypeOf((*MockMatcher)(nil).LatestRollupRules), arg0, arg1)
 }

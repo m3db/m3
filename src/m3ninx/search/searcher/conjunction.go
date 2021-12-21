@@ -21,6 +21,8 @@
 package searcher
 
 import (
+	"sort"
+
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -45,44 +47,111 @@ func NewConjunctionSearcher(searchers, negations search.Searchers) (search.Searc
 }
 
 func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
-	var pl postings.MutableList
+	var (
+		pl           postings.List
+		plNeedsClone = true
+	)
+
+	listCount := len(s.searchers)
+	if listCount < len(s.negations) {
+		listCount = len(s.negations)
+	}
+	lists := make([]postingsListWithLength, 0, listCount)
+
 	for _, sr := range s.searchers {
 		curr, err := sr.Search(r)
 		if err != nil {
 			return nil, err
 		}
+		lists = append(lists, postingsListWithLength{
+			list:   curr,
+			length: curr.Len(),
+		})
+	}
 
-		// TODO: Sort the iterators so that we take the intersection in order of increasing size.
+	sort.Sort(byLengthAscending(lists))
+	for _, curr := range lists {
 		if pl == nil {
-			pl = curr.Clone()
+			pl = curr.list
 		} else {
-			if err := pl.Intersect(curr); err != nil {
+			var err error
+			pl, err = pl.Intersect(curr.list)
+			if err != nil {
 				return nil, err
 			}
+			plNeedsClone = false
 		}
 
-		// We can break early if the interescted postings list is ever empty.
+		// We can break early if the intersected postings list is ever empty.
 		if pl.IsEmpty() {
 			break
 		}
 	}
 
+	lists = lists[:0]
 	for _, sr := range s.negations {
 		curr, err := sr.Search(r)
 		if err != nil {
 			return nil, err
 		}
+		lists = append(lists, postingsListWithLength{
+			list:   curr,
+			length: curr.Len(),
+		})
+	}
 
-		// TODO: Sort the iterators so that we take the set differences in order of decreasing size.
-		if err := pl.Difference(curr); err != nil {
-			return nil, err
-		}
-
-		// We can break early if the interescted postings list is ever empty.
+	sort.Sort(byLengthDescending(lists))
+	for _, curr := range lists {
+		// We can break early if the resulting postings list is ever empty.
 		if pl.IsEmpty() {
 			break
 		}
+
+		var err error
+		pl, err = pl.Difference(curr.list)
+		if err != nil {
+			return nil, err
+		}
+		plNeedsClone = false
+	}
+
+	if pl != nil && plNeedsClone {
+		// There was no new instance created indirectly (by Intersect/Difference), so need to clone.
+		pl = pl.CloneAsMutable()
 	}
 
 	return pl, nil
+}
+
+type postingsListWithLength struct {
+	list   postings.List
+	length int
+}
+
+type byLengthAscending []postingsListWithLength
+
+func (l byLengthAscending) Len() int {
+	return len(l)
+}
+
+func (l byLengthAscending) Less(i, j int) bool {
+	return l[i].length < l[j].length
+}
+
+func (l byLengthAscending) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
+}
+
+type byLengthDescending []postingsListWithLength
+
+func (l byLengthDescending) Len() int {
+	return len(l)
+}
+
+func (l byLengthDescending) Less(i, j int) bool {
+	return l[i].length > l[j].length
+}
+
+func (l byLengthDescending) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
 }

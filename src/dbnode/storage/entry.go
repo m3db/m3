@@ -25,6 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/uber-go/tally"
 	xatomic "go.uber.org/atomic"
 
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -264,7 +265,7 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 
 // TryMarkIndexGarbageCollected checks if the entry is eligible to be garbage collected
 // from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
-func (entry *Entry) TryMarkIndexGarbageCollected() bool {
+func (entry *Entry) TryMarkIndexGarbageCollected(reconciled, unreconciled tally.Counter) bool {
 	// Since series insertions + index insertions are done separately async, it is possible for
 	// a series to be in the index but not have data written yet, and so any series not in the
 	// lookup yet we cannot yet consider empty.
@@ -286,8 +287,17 @@ func (entry *Entry) TryMarkIndexGarbageCollected() bool {
 		return false
 	}
 
-	// Mark as GCed from index so the entry can be safely cleaned up elsewhere.
-	entry.IndexGarbageCollected.Store(true)
+	// Mark as GCed from index so the entry can be safely cleaned up in the shard.
+	// The reference to this entry from the index is removed by the code path that
+	// marks this GCed bool.
+	e.IndexGarbageCollected.Store(true)
+
+	// Was reconciled if the entry retrieved from the shard differs from the current.
+	if e != entry {
+		reconciled.Inc(1)
+	} else {
+		unreconciled.Inc(1)
+	}
 
 	return true
 }
@@ -380,9 +390,8 @@ func (entry *Entry) SeriesRef() (bootstrap.SeriesRef, error) {
 // ReleaseRef must be called after using the series ref
 // to release the reference count to the series so it can
 // be expired by the owning shard eventually.
-func (entry *Entry) ReleaseRef() error {
+func (entry *Entry) ReleaseRef() {
 	entry.DecrementReaderWriterCount()
-	return nil
 }
 
 // entryIndexState is used to capture the state of indexing for a single shard

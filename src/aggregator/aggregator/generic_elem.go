@@ -431,7 +431,7 @@ func (e *GenericElem) Consume(
 ) bool {
 	resolution := e.sp.Resolution().Window
 	fMetrics := e.flushMetrics(resolution, flushType)
-	fMetrics.valuesProcessed.Inc(1)
+	fMetrics.elemsScanned.Inc(1)
 
 	// reverse engineer the allowed lateness.
 	latenessAllowed := time.Duration(targetNanos - targetNanosFn(targetNanos))
@@ -461,6 +461,7 @@ func (e *GenericElem) Consume(
 			fMetrics,
 		)
 	}
+	fMetrics.valuesProcessed.Inc(int64(len(e.toConsume)))
 
 	// expire the flush state after processing since it's needed in the processing.
 	e.expireFlushState()

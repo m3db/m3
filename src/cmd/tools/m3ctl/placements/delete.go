@@ -31,15 +31,17 @@ import (
 // DoDelete does the delete api calls for placements
 func DoDelete(
 	endpoint string,
+	service string,
 	headers map[string]string,
 	nodeName string,
 	deleteEntire bool,
 	logger *zap.Logger,
 ) ([]byte, error) {
+	path := DefaultPath + service + "/placement"
 	if deleteEntire {
-		url := fmt.Sprintf("%s%s", endpoint, DefaultPath)
+		url := fmt.Sprintf("%s%s", endpoint, path)
 		return client.DoDelete(url, headers, logger)
 	}
-	url := fmt.Sprintf("%s%s/%s", endpoint, DefaultPath, nodeName)
+	url := fmt.Sprintf("%s%s/%s", endpoint, path, nodeName)
 	return client.DoDelete(url, headers, logger)
 }

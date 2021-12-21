@@ -91,6 +91,48 @@ func AddDBResultResponseHeaders(
 		w.Header().Add(headers.FetchedSeriesCount, fmt.Sprint(meta.FetchedSeriesCount))
 	}
 
+	// Merge all of the metadata by name results into `merged` and report on that.
+	merged := meta.MetadataByNameMerged()
+
+	if merged.Aggregated > 0 {
+		w.Header().Add(headers.FetchedAggregatedSeriesCount, fmt.Sprint(merged.Aggregated))
+	}
+
+	if merged.Unaggregated > 0 {
+		w.Header().Add(headers.FetchedUnaggregatedSeriesCount, fmt.Sprint(merged.Unaggregated))
+	}
+
+	if merged.NoSamples > 0 {
+		w.Header().Add(headers.FetchedSeriesNoSamplesCount, fmt.Sprint(merged.NoSamples))
+	}
+
+	if merged.WithSamples > 0 {
+		w.Header().Add(headers.FetchedSeriesWithSamplesCount, fmt.Sprint(merged.WithSamples))
+	}
+
+	if namespaces := meta.GetNamespaces(); len(namespaces) > 0 {
+		w.Header().Add(headers.NamespacesHeader, strings.Join(namespaces, ","))
+	}
+
+	if meta.FetchedResponses > 0 {
+		w.Header().Add(headers.FetchedResponsesHeader, fmt.Sprint(meta.FetchedResponses))
+	}
+
+	if meta.FetchedBytesEstimate > 0 {
+		w.Header().Add(headers.FetchedBytesEstimateHeader, fmt.Sprint(meta.FetchedBytesEstimate))
+	}
+
+	// Also report the top metadata by name, in JSON.
+	if fetchOpts != nil && fetchOpts.MaxMetricMetadataStats > 0 {
+		if stats := meta.TopMetadataByName(fetchOpts.MaxMetricMetadataStats); len(stats) > 0 {
+			js, err := json.Marshal(stats)
+			if err != nil {
+				return err
+			}
+			w.Header().Add(headers.MetricStats, string(js))
+		}
+	}
+
 	if meta.FetchedMetadataCount > 0 {
 		w.Header().Add(headers.FetchedMetadataCount, fmt.Sprint(meta.FetchedMetadataCount))
 	}

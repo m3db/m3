@@ -28,30 +28,13 @@ import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/metadata"
-	"github.com/m3db/m3/src/metrics/metric"
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	mpipeline "github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
+	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/query/models"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
-
-// Matcher matches metrics against rules to determine applicable policies.
-type Matcher interface {
-	// ForwardMatch matches the applicable policies for a metric id between [fromNanos, toNanos).
-	ForwardMatch(id []byte, fromNanos, toNanos int64) MatchResult
-
-	// ReverseMatch reverse matches the applicable policies for a metric id between [fromNanos, toNanos),
-	// with aware of the metric type and aggregation type for the given id.
-	ReverseMatch(
-		id []byte,
-		fromNanos, toNanos int64,
-		mt metric.Type,
-		at aggregation.Type,
-		isMultiAggregationTypesAllowed bool,
-		aggTypesOpts aggregation.TypesOptions,
-	) MatchResult
-}
 
 type activeRuleSet struct {
 	version         int
@@ -60,7 +43,6 @@ type activeRuleSet struct {
 	cutoverTimesAsc []int64
 	tagsFilterOpts  filters.TagsFilterOptions
 	newRollupIDFn   metricid.NewIDFn
-	isRollupIDFn    metricid.MatchIDFn
 }
 
 func newActiveRuleSet(
@@ -68,9 +50,7 @@ func newActiveRuleSet(
 	mappingRules []*mappingRule,
 	rollupRules []*rollupRule,
 	tagsFilterOpts filters.TagsFilterOptions,
-	newRollupIDFn metricid.NewIDFn,
-	isRollupIDFn metricid.MatchIDFn,
-) *activeRuleSet {
+	newRollupIDFn metricid.NewIDFn) *activeRuleSet {
 	uniqueCutoverTimes := make(map[int64]struct{})
 	for _, mappingRule := range mappingRules {
 		for _, snapshot := range mappingRule.snapshots {
@@ -96,7 +76,6 @@ func newActiveRuleSet(
 		cutoverTimesAsc: cutoverTimesAsc,
 		tagsFilterOpts:  tagsFilterOpts,
 		newRollupIDFn:   newRollupIDFn,
-		isRollupIDFn:    isRollupIDFn,
 	}
 }
 
@@ -118,11 +97,15 @@ func newActiveRuleSet(
 //
 // NB(xichen): can further consolidate consecutive staged metadata to deduplicate.
 func (as *activeRuleSet) ForwardMatch(
-	id []byte,
+	id metricid.ID,
 	fromNanos, toNanos int64,
-) MatchResult {
+	opts MatchOptions,
+) (MatchResult, error) {
+	currMatchRes, err := as.forwardMatchAt(id.Bytes(), fromNanos, opts)
+	if err != nil {
+		return MatchResult{}, err
+	}
 	var (
-		currMatchRes     = as.forwardMatchAt(id, fromNanos)
 		forExistingID    = metadata.StagedMetadatas{currMatchRes.forExistingID}
 		forNewRollupIDs  = currMatchRes.forNewRollupIDs
 		nextIdx          = as.nextCutoverIdx(fromNanos)
@@ -131,7 +114,10 @@ func (as *activeRuleSet) ForwardMatch(
 	)
 
 	for nextIdx < len(as.cutoverTimesAsc) && nextCutoverNanos < toNanos {
-		nextMatchRes := as.forwardMatchAt(id, nextCutoverNanos)
+		nextMatchRes, err := as.forwardMatchAt(id.Bytes(), nextCutoverNanos, opts)
+		if err != nil {
+			return MatchResult{}, err
+		}
 		forExistingID = mergeResultsForExistingID(forExistingID, nextMatchRes.forExistingID, nextCutoverNanos)
 		forNewRollupIDs = mergeResultsForNewRollupIDs(forNewRollupIDs, nextMatchRes.forNewRollupIDs, nextCutoverNanos)
 		nextIdx++
@@ -149,76 +135,7 @@ func (as *activeRuleSet) ForwardMatch(
 		forExistingID,
 		forNewRollupIDs,
 		keepOriginal,
-	)
-}
-
-func (as *activeRuleSet) ReverseMatch(
-	id []byte,
-	fromNanos, toNanos int64,
-	mt metric.Type,
-	at aggregation.Type,
-	isMultiAggregationTypesAllowed bool,
-	aggTypesOpts aggregation.TypesOptions,
-) MatchResult {
-	var (
-		nextIdx          = as.nextCutoverIdx(fromNanos)
-		nextCutoverNanos = as.cutoverNanosAt(nextIdx)
-		forExistingID    metadata.StagedMetadatas
-		isRollupID       bool
-		keepOriginal     bool
-	)
-
-	// Determine whether the ID is a rollup metric ID.
-	name, tags, err := as.tagsFilterOpts.NameAndTagsFn(id)
-	if err == nil {
-		isRollupID = as.isRollupIDFn(name, tags)
-	}
-
-	currResult, found := as.reverseMappingsFor(
-		id,
-		name,
-		tags,
-		isRollupID,
-		fromNanos,
-		mt,
-		at,
-		isMultiAggregationTypesAllowed,
-		aggTypesOpts,
-	)
-	if found {
-		forExistingID = mergeResultsForExistingID(forExistingID, currResult.metadata, fromNanos)
-		if currResult.keepOriginal {
-			keepOriginal = true
-		}
-	}
-
-	for nextIdx < len(as.cutoverTimesAsc) && nextCutoverNanos < toNanos {
-		nextResult, found := as.reverseMappingsFor(
-			id,
-			name,
-			tags,
-			isRollupID,
-			nextCutoverNanos,
-			mt,
-			at,
-			isMultiAggregationTypesAllowed,
-			aggTypesOpts,
-		)
-		if found {
-			forExistingID = mergeResultsForExistingID(
-				forExistingID,
-				nextResult.metadata,
-				nextCutoverNanos,
-			)
-			if nextResult.keepOriginal {
-				keepOriginal = true
-			}
-		}
-
-		nextIdx++
-		nextCutoverNanos = as.cutoverNanosAt(nextIdx)
-	}
-	return NewMatchResult(as.version, nextCutoverNanos, forExistingID, nil, keepOriginal)
+	), nil
 }
 
 // NB(xichen): can further consolidate pipelines with the same aggregation ID
@@ -227,9 +144,16 @@ func (as *activeRuleSet) ReverseMatch(
 func (as *activeRuleSet) forwardMatchAt(
 	id []byte,
 	timeNanos int64,
-) forwardMatchResult {
-	mappingResults := as.mappingsForNonRollupID(id, timeNanos)
-	rollupResults := as.rollupResultsFor(id, timeNanos)
+	matchOpts MatchOptions,
+) (forwardMatchResult, error) {
+	mappingResults, err := as.mappingsForNonRollupID(id, timeNanos, matchOpts)
+	if err != nil {
+		return forwardMatchResult{}, err
+	}
+	rollupResults, err := as.rollupResultsFor(id, timeNanos, matchOpts)
+	if err != nil {
+		return forwardMatchResult{}, err
+	}
 	forExistingID := mappingResults.forExistingID.
 		merge(rollupResults.forExistingID).
 		unique().
@@ -248,13 +172,14 @@ func (as *activeRuleSet) forwardMatchAt(
 		forExistingID:   forExistingID,
 		forNewRollupIDs: forNewRollupIDs,
 		keepOriginal:    rollupResults.keepOriginal,
-	}
+	}, nil
 }
 
 func (as *activeRuleSet) mappingsForNonRollupID(
 	id []byte,
 	timeNanos int64,
-) mappingResults {
+	matchOpts MatchOptions,
+) (mappingResults, error) {
 	var (
 		cutoverNanos int64
 		pipelines    []metadata.PipelineMetadata
@@ -264,7 +189,14 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 		if snapshot == nil {
 			continue
 		}
-		if !snapshot.filter.Matches(id) {
+		matches, err := snapshot.filter.Matches(id, filters.TagMatchOptions{
+			SortedTagIteratorFn: matchOpts.SortedTagIteratorFn,
+			NameAndTagsFn:       matchOpts.NameAndTagsFn,
+		})
+		if err != nil {
+			return mappingResults{}, err
+		}
+		if !matches {
 			continue
 		}
 		// Make sure the cutover time tracks the latest cutover time among all matching
@@ -295,10 +227,31 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 	}
 	return mappingResults{
 		forExistingID: ruleMatchResults{cutoverNanos: cutoverNanos, pipelines: pipelines},
-	}
+	}, nil
 }
 
-func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64) rollupResults {
+func (as *activeRuleSet) LatestRollupRules(_ []byte, timeNanos int64) ([]view.RollupRule, error) {
+	out := []view.RollupRule{}
+	// Return the list of cloned rollup rule views that were active (and are still
+	// active) as of timeNanos.
+	for _, rollupRule := range as.rollupRules {
+		rule := rollupRule.activeRule(timeNanos)
+		// Skip missing or empty rules.
+		// tombstoned() returns true if the length of rule.snapshots is zero.
+		if rule == nil || rule.tombstoned() {
+			continue
+		}
+
+		view, err := rule.rollupRuleView(len(rule.snapshots) - 1)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, view)
+	}
+	return out, nil
+}
+
+func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64, matchOpts MatchOptions) (rollupResults, error) {
 	var (
 		cutoverNanos  int64
 		rollupTargets []rollupTarget
@@ -311,8 +264,14 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64) rollupResu
 		if snapshot == nil {
 			continue
 		}
-
-		if !snapshot.filter.Matches(id) {
+		match, err := snapshot.filter.Matches(id, filters.TagMatchOptions{
+			NameAndTagsFn:       matchOpts.NameAndTagsFn,
+			SortedTagIteratorFn: matchOpts.SortedTagIteratorFn,
+		})
+		if err != nil {
+			return rollupResults{}, err
+		}
+		if !match {
 			continue
 		}
 
@@ -338,8 +297,8 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64) rollupResu
 		}
 	}
 	// NB: could log the matching error here if needed.
-	res, _ := as.toRollupResults(id, cutoverNanos, rollupTargets, keepOriginal, tags)
-	return res
+	res, _ := as.toRollupResults(id, cutoverNanos, rollupTargets, keepOriginal, tags, matchOpts)
+	return res, nil
 }
 
 // toRollupMatchResult applies the rollup operation in each rollup pipelines contained
@@ -355,6 +314,7 @@ func (as *activeRuleSet) toRollupResults(
 	targets []rollupTarget,
 	keepOriginal bool,
 	tags [][]models.Tag,
+	matchOpts MatchOptions,
 ) (rollupResults, error) {
 	if len(targets) == 0 {
 		return rollupResults{}, nil
@@ -362,7 +322,7 @@ func (as *activeRuleSet) toRollupResults(
 
 	// If we cannot extract tags from the id, this is likely an invalid
 	// metric and we bail early.
-	_, sortedTagPairBytes, err := as.tagsFilterOpts.NameAndTagsFn(id)
+	_, sortedTagPairBytes, err := matchOpts.NameAndTagsFn(id)
 	if err != nil {
 		return rollupResults{}, err
 	}
@@ -405,13 +365,17 @@ func (as *activeRuleSet) toRollupResults(
 		case mpipeline.RollupOpType:
 			tagPairs = tagPairs[:0]
 			var matched bool
-			rollupID, matched = as.matchRollupTarget(
+			rollupID, matched, err = as.matchRollupTarget(
 				sortedTagPairBytes,
 				firstOp.Rollup,
 				tagPairs,
 				tags[idx],
 				matchRollupTargetOptions{generateRollupID: true},
-			)
+				matchOpts)
+			if err != nil {
+				multiErr = multiErr.Add(err)
+				continue
+			}
 			if !matched {
 				// The incoming metric ID did not match the rollup target.
 				continue
@@ -424,7 +388,7 @@ func (as *activeRuleSet) toRollupResults(
 			continue
 		}
 		tagPairs = tagPairs[:0]
-		applied, err := as.applyIDToPipeline(sortedTagPairBytes, toApply, tagPairs, tags[idx])
+		applied, err := as.applyIDToPipeline(sortedTagPairBytes, toApply, tagPairs, tags[idx], matchOpts)
 		if err != nil {
 			err = fmt.Errorf("failed to apply id %s to pipeline %v: %v", id, toApply, err)
 			multiErr = multiErr.Add(err)
@@ -468,23 +432,22 @@ func (as *activeRuleSet) matchRollupTarget(
 	rollupOp mpipeline.RollupOp,
 	tagPairs []metricid.TagPair, // buffer for reuse to generate rollup ID across calls
 	tags []models.Tag,
-	opts matchRollupTargetOptions,
-) ([]byte, bool) {
-	if rollupOp.Type == mpipeline.ExcludeByRollupType && !opts.generateRollupID {
+	targetOpts matchRollupTargetOptions,
+	matchOpts MatchOptions,
+) ([]byte, bool, error) {
+	if rollupOp.Type == mpipeline.ExcludeByRollupType && !targetOpts.generateRollupID {
 		// Exclude by tag always matches, if not generating rollup ID
 		// then immediately return.
-		return nil, true
+		return nil, true, nil
 	}
 
 	var (
 		rollupTags    = rollupOp.Tags
-		sortedTagIter = as.tagsFilterOpts.SortedTagIteratorFn(sortedTagPairBytes)
+		sortedTagIter = matchOpts.SortedTagIteratorFn(sortedTagPairBytes)
 		matchTagIdx   = 0
 		nameTagName   = as.tagsFilterOpts.NameTagKey
 		nameTagValue  []byte
 	)
-
-	defer sortedTagIter.Close()
 
 	switch rollupOp.Type {
 	case mpipeline.GroupByRollupType:
@@ -509,7 +472,7 @@ func (as *activeRuleSet) matchRollupTarget(
 			res := bytes.Compare(tagName, rollupTags[matchTagIdx])
 			if res == 0 {
 				// Include grouped by tag.
-				if opts.generateRollupID {
+				if targetOpts.generateRollupID {
 					tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
 				}
 				matchTagIdx++
@@ -518,7 +481,7 @@ func (as *activeRuleSet) matchRollupTarget(
 
 			// If one of the target tags is not found in the ID, this is considered  a non-match so return immediately.
 			if res > 0 {
-				return nil, false
+				return nil, false, nil
 			}
 		}
 	case mpipeline.ExcludeByRollupType:
@@ -541,7 +504,7 @@ func (as *activeRuleSet) matchRollupTarget(
 
 			if matchTagIdx >= len(rollupTags) {
 				// Have matched all the tags to exclude, just blindly copy.
-				if opts.generateRollupID {
+				if targetOpts.generateRollupID {
 					tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
 				}
 				hasMoreTags = sortedTagIter.Next()
@@ -559,7 +522,7 @@ func (as *activeRuleSet) matchRollupTarget(
 
 			if res != 0 {
 				// Only include tags that don't match the exclude tag
-				if opts.generateRollupID {
+				if targetOpts.generateRollupID {
 					tagPairs = append(tagPairs, metricid.TagPair{Name: tagName, Value: tagVal})
 				}
 			}
@@ -568,8 +531,12 @@ func (as *activeRuleSet) matchRollupTarget(
 		}
 	}
 
-	if !opts.generateRollupID {
-		return nil, true
+	if sortedTagIter.Err() != nil {
+		return nil, false, sortedTagIter.Err()
+	}
+
+	if !targetOpts.generateRollupID {
+		return nil, true, nil
 	}
 
 	for _, tag := range tags {
@@ -580,7 +547,7 @@ func (as *activeRuleSet) matchRollupTarget(
 	}
 
 	newName := rollupOp.NewName(nameTagValue)
-	return as.newRollupIDFn(newName, tagPairs), true
+	return as.newRollupIDFn(newName, tagPairs), true, nil
 }
 
 func (as *activeRuleSet) applyIDToPipeline(
@@ -588,6 +555,7 @@ func (as *activeRuleSet) applyIDToPipeline(
 	pipeline mpipeline.Pipeline,
 	tagPairs []metricid.TagPair, // buffer for reuse across calls
 	tags []models.Tag,
+	matchOpts MatchOptions,
 ) (applied.Pipeline, error) {
 	operations := make([]applied.OpUnion, 0, pipeline.Len())
 	for i := 0; i < pipeline.Len(); i++ {
@@ -602,13 +570,16 @@ func (as *activeRuleSet) applyIDToPipeline(
 		case mpipeline.RollupOpType:
 			rollupOp := pipelineOp.Rollup
 			var matched bool
-			rollupID, matched := as.matchRollupTarget(
+			rollupID, matched, err := as.matchRollupTarget(
 				sortedTagPairBytes,
 				rollupOp,
 				tagPairs,
 				tags,
 				matchRollupTargetOptions{generateRollupID: true},
-			)
+				matchOpts)
+			if err != nil {
+				return applied.Pipeline{}, err
+			}
 			if !matched {
 				err := fmt.Errorf("existing tag pairs %s do not contain all rollup tags %s", sortedTagPairBytes, rollupOp.Tags)
 				return applied.Pipeline{}, err
@@ -623,137 +594,6 @@ func (as *activeRuleSet) applyIDToPipeline(
 		operations = append(operations, opUnion)
 	}
 	return applied.NewPipeline(operations), nil
-}
-
-func (as *activeRuleSet) reverseMappingsFor(
-	id, name, tags []byte,
-	isRollupID bool,
-	timeNanos int64,
-	mt metric.Type,
-	at aggregation.Type,
-	isMultiAggregationTypesAllowed bool,
-	aggTypesOpts aggregation.TypesOptions,
-) (reverseMatchResult, bool) {
-	if !isRollupID {
-		return as.reverseMappingsForNonRollupID(id, timeNanos, mt, at, aggTypesOpts)
-	}
-	return as.reverseMappingsForRollupID(name, tags, timeNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
-}
-
-type reverseMatchResult struct {
-	metadata     metadata.StagedMetadata
-	keepOriginal bool
-}
-
-// reverseMappingsForNonRollupID returns the staged metadata for the given non-rollup ID at
-// the given time, and true if a non-empty list of pipelines are found, and false otherwise.
-func (as *activeRuleSet) reverseMappingsForNonRollupID(
-	id []byte,
-	timeNanos int64,
-	mt metric.Type,
-	at aggregation.Type,
-	aggTypesOpts aggregation.TypesOptions,
-) (reverseMatchResult, bool) {
-	mappingRes := as.mappingsForNonRollupID(id, timeNanos).forExistingID
-	// Always filter pipelines with aggregation types because for non rollup IDs, it is possible
-	// that none of the rules would match based on the aggregation types, in which case we fall
-	// back to the default staged metadata.
-	filteredPipelines := filteredPipelinesWithAggregationType(mappingRes.pipelines, mt, at, aggTypesOpts)
-	if len(filteredPipelines) == 0 {
-		return reverseMatchResult{
-			metadata: metadata.DefaultStagedMetadata,
-		}, false
-	}
-
-	return reverseMatchResult{
-		metadata: metadata.StagedMetadata{
-			CutoverNanos: mappingRes.cutoverNanos,
-			Tombstoned:   false,
-			Metadata:     metadata.Metadata{Pipelines: filteredPipelines},
-		},
-	}, true
-}
-
-// NB(xichen): in order to determine the applicable policies for a rollup metric, we need to
-// match the id against rollup rules to determine which rollup rules are applicable, under the
-// assumption that no two rollup targets in the same namespace may have the same rollup metric
-// name and the list of rollup tags. Otherwise, a rollup metric could potentially match more
-// than one rollup rule with different policies even though only one of the matched rules was
-// used to produce the given rollup metric id due to its tag filters, thereby causing the wrong
-// staged policies to be returned. This also implies at any given time, at most one rollup target
-// may match the given rollup id.
-// Since we may have rollup pipelines with different aggregation types defined for a roll up rule,
-// and each aggregation type would generate a new id. So when doing reverse mapping, not only do
-// we need to match the roll up tags, we also need to check the aggregation type against
-// each rollup pipeline to see if the aggregation type was actually contained in the pipeline.
-func (as *activeRuleSet) reverseMappingsForRollupID(
-	name, sortedTagPairBytes []byte,
-	timeNanos int64,
-	mt metric.Type,
-	at aggregation.Type,
-	isMultiAggregationTypesAllowed bool,
-	aggTypesOpts aggregation.TypesOptions,
-) (reverseMatchResult, bool) {
-	for _, rollupRule := range as.rollupRules {
-		snapshot := rollupRule.activeSnapshot(timeNanos)
-		if snapshot == nil || snapshot.tombstoned {
-			continue
-		}
-
-		for _, target := range snapshot.targets {
-			for i := 0; i < target.Pipeline.Len(); i++ {
-				pipelineOp := target.Pipeline.At(i)
-				if pipelineOp.Type != mpipeline.RollupOpType {
-					continue
-				}
-				rollupOp := pipelineOp.Rollup
-				if !bytes.Equal(rollupOp.NewName(name), name) {
-					continue
-				}
-				if _, matched := as.matchRollupTarget(
-					sortedTagPairBytes,
-					rollupOp,
-					nil,
-					nil,
-					matchRollupTargetOptions{generateRollupID: false},
-				); !matched {
-					continue
-				}
-				// NB: the list of pipeline steps is not important and thus not computed and returned.
-				pipeline := metadata.PipelineMetadata{
-					AggregationID:   rollupOp.AggregationID,
-					StoragePolicies: target.StoragePolicies.Clone(),
-				}
-				// Only further filter the pipelines with aggregation types if the given metric type
-				// supports multiple aggregation types. This is because if a metric type only supports
-				// a single aggregation type, this is the only pipline that could possibly produce this
-				// rollup metric and as such is chosen. The aggregation type passed in is not used because
-				// it maybe not be accurate because it may not be possible to infer the actual aggregation
-				// type only from the metric ID.
-				filteredPipelines := []metadata.PipelineMetadata{pipeline}
-				if isMultiAggregationTypesAllowed {
-					filteredPipelines = filteredPipelinesWithAggregationType(filteredPipelines, mt, at, aggTypesOpts)
-				}
-				if len(filteredPipelines) == 0 {
-					return reverseMatchResult{
-						metadata: metadata.DefaultStagedMetadata,
-					}, false
-				}
-
-				return reverseMatchResult{
-					metadata: metadata.StagedMetadata{
-						CutoverNanos: snapshot.cutoverNanos,
-						Tombstoned:   false,
-						Metadata:     metadata.Metadata{Pipelines: filteredPipelines},
-					},
-					keepOriginal: snapshot.keepOriginal,
-				}, true
-			}
-		}
-	}
-	return reverseMatchResult{
-		metadata: metadata.DefaultStagedMetadata,
-	}, false
 }
 
 // nextCutoverIdx returns the next snapshot index whose cutover time is after t.
@@ -777,33 +617,6 @@ func (as *activeRuleSet) cutoverNanosAt(idx int) int64 {
 		return as.cutoverTimesAsc[idx]
 	}
 	return timeNanosMax
-}
-
-// filterByAggregationType takes a list of pipelines as input and returns those
-// containing the given aggregation type.
-func filteredPipelinesWithAggregationType(
-	pipelines []metadata.PipelineMetadata,
-	mt metric.Type,
-	at aggregation.Type,
-	opts aggregation.TypesOptions,
-) []metadata.PipelineMetadata {
-	var cur int
-	for i := 0; i < len(pipelines); i++ {
-		var containsAggType bool
-		if aggID := pipelines[i].AggregationID; aggID.IsDefault() {
-			containsAggType = opts.IsContainedInDefaultAggregationTypes(at, mt)
-		} else {
-			containsAggType = aggID.Contains(at)
-		}
-		if !containsAggType {
-			continue
-		}
-		if cur != i {
-			pipelines[cur] = pipelines[i]
-		}
-		cur++
-	}
-	return pipelines[:cur]
 }
 
 // mergeResultsForExistingID merges the next staged metadata into the current list of staged
