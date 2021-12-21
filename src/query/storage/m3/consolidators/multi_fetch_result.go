@@ -43,9 +43,10 @@ type fetchDedupeMap interface {
 
 type multiResult struct {
 	sync.Mutex
-	metadata        block.ResultMetadata
-	fanout          QueryFanoutType
-	seenFirstAttrs  storagemetadata.Attributes
+	metadata       block.ResultMetadata
+	fanout         QueryFanoutType
+	seenFirstAttrs storagemetadata.Attributes
+
 	seenIters       []encoding.SeriesIterators // track known iterators to avoid leaking
 	mergedIterators encoding.MutableSeriesIterators
 	mergedTags      []*models.Tags
@@ -195,9 +196,11 @@ func (r *multiResult) Results() []MultiFetchResults {
 }
 
 func (r *multiResult) Add(add MultiFetchResults) {
-	newIterators := add.SeriesIterators
-	metadata := add.Metadata
-	attrs := add.Attrs
+	var (
+		newIterators = add.SeriesIterators
+		metadata     = add.Metadata
+		attrs        = add.Attrs
+	)
 
 	r.Lock()
 	defer r.Unlock()
@@ -252,7 +255,7 @@ func (r *multiResult) Add(add MultiFetchResults) {
 	if len(r.seenIters) == 1 {
 		// need to backfill the dedupe map from the first result first
 		first := r.seenIters[0]
-		opts := tagMapOpts{
+		opts := dedupeMapOpts{
 			fanout:  r.fanout,
 			size:    first.Len(),
 			tagOpts: r.tagOpts,

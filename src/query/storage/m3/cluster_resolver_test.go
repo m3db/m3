@@ -43,6 +43,8 @@ import (
 func TestFanoutAggregatedOptimizationDisabledGivesAllClustersAsPartial(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	now := xtime.Now()
 	s, _ := setup(t, ctrl)
 	store, ok := s.(*m3storage)
 	assert.True(t, ok)
@@ -52,7 +54,7 @@ func TestFanoutAggregatedOptimizationDisabledGivesAllClustersAsPartial(t *testin
 	}
 
 	clusters := store.clusters.ClusterNamespaces()
-	r = aggregatedNamespaces(clusters, r, nil, opts)
+	r = aggregatedNamespaces(clusters, r, nil, now, now, opts)
 	assert.Equal(t, 0, len(r.completeAggregated))
 	assert.Equal(t, 4, len(r.partialAggregated))
 }
@@ -659,5 +661,61 @@ func TestDeduplicatePartialAggregateNamespaces(t *testing.T) {
 	// NB: order does not matter.
 	sort.Strings(actualNames)
 	assert.Equal(t, []string{"aggregated_block_6h"}, actualNames)
+	assert.Equal(t, consolidators.NamespaceCoversAllQueryRange, fanoutType)
+}
+
+func TestResolveNamespaceWithDataLatency(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dataLatency := 10 * time.Hour
+
+	session := client.NewMockSession(ctrl)
+	ns, err := NewClusters(
+		UnaggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("default"),
+			Retention:   24 * time.Hour,
+			Session:     session,
+		},
+		AggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("aggregated_30d"),
+			Retention:   30 * 24 * time.Hour,
+			Resolution:  5 * time.Minute,
+			Downsample:  &ClusterNamespaceDownsampleOptions{All: true},
+			Session:     session,
+		},
+		AggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID("aggregated_60d"),
+			Retention:   60 * 24 * time.Hour,
+			Resolution:  10 * time.Minute,
+			Downsample:  &ClusterNamespaceDownsampleOptions{All: true},
+			DataLatency: dataLatency,
+			Session:     session,
+		},
+	)
+	require.NoError(t, err)
+
+	var (
+		now   = xtime.Now()
+		start = now.Add(-40 * 24 * time.Hour)
+		end   = now.Add(-3 * time.Hour)
+	)
+
+	fanoutType, clusters, err := resolveClusterNamespacesForQuery(now, start, end, ns,
+		&storage.FanoutOptions{}, nil, nil)
+	require.NoError(t, err)
+
+	actualNamespaces := make(map[string]narrowing)
+	for _, c := range clusters {
+		actualNamespaces[c.NamespaceID().String()] = c.narrowing
+	}
+
+	stitchAt := now.Add(-dataLatency)
+	expectedNamespaces := map[string]narrowing{
+		"default":        {start: stitchAt},
+		"aggregated_60d": {end: stitchAt},
+	}
+
+	assert.Equal(t, expectedNamespaces, actualNamespaces)
 	assert.Equal(t, consolidators.NamespaceCoversAllQueryRange, fanoutType)
 }

@@ -77,7 +77,7 @@ func iteratorToPromResult(
 				if err := annotationPayload.Unmarshal(firstAnnotation); err != nil {
 					return nil, err
 				}
-				handleResets = annotationPayload.HandleValueResets
+				handleResets = annotationPayload.OpenMetricsHandleValueResets
 			}
 		}
 

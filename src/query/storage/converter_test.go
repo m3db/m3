@@ -473,21 +473,21 @@ func TestPromTimeSeriesToSeriesAttributesMetricsTypeFromGraphite(t *testing.T) {
 }
 
 func TestSeriesAttributesToAnnotationPayload(t *testing.T) {
-	mapping := map[ts.PromMetricType]annotation.MetricType{
-		ts.PromMetricTypeUnknown:        annotation.MetricType_UNKNOWN,
-		ts.PromMetricTypeCounter:        annotation.MetricType_COUNTER,
-		ts.PromMetricTypeGauge:          annotation.MetricType_GAUGE,
-		ts.PromMetricTypeHistogram:      annotation.MetricType_HISTOGRAM,
-		ts.PromMetricTypeGaugeHistogram: annotation.MetricType_GAUGE_HISTOGRAM,
-		ts.PromMetricTypeSummary:        annotation.MetricType_SUMMARY,
-		ts.PromMetricTypeInfo:           annotation.MetricType_INFO,
-		ts.PromMetricTypeStateSet:       annotation.MetricType_STATESET,
+	mapping := map[ts.PromMetricType]annotation.OpenMetricsFamilyType{
+		ts.PromMetricTypeUnknown:        annotation.OpenMetricsFamilyType_UNKNOWN,
+		ts.PromMetricTypeCounter:        annotation.OpenMetricsFamilyType_COUNTER,
+		ts.PromMetricTypeGauge:          annotation.OpenMetricsFamilyType_GAUGE,
+		ts.PromMetricTypeHistogram:      annotation.OpenMetricsFamilyType_HISTOGRAM,
+		ts.PromMetricTypeGaugeHistogram: annotation.OpenMetricsFamilyType_GAUGE_HISTOGRAM,
+		ts.PromMetricTypeSummary:        annotation.OpenMetricsFamilyType_SUMMARY,
+		ts.PromMetricTypeInfo:           annotation.OpenMetricsFamilyType_INFO,
+		ts.PromMetricTypeStateSet:       annotation.OpenMetricsFamilyType_STATESET,
 	}
 
 	for promType, expected := range mapping {
 		payload, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromType: promType})
 		require.NoError(t, err)
-		assert.Equal(t, expected, payload.MetricType)
+		assert.Equal(t, expected, payload.OpenMetricsFamilyType)
 	}
 
 	_, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromType: math.MaxUint8})
@@ -495,11 +495,11 @@ func TestSeriesAttributesToAnnotationPayload(t *testing.T) {
 
 	payload, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{HandleValueResets: true})
 	require.NoError(t, err)
-	assert.True(t, payload.HandleValueResets)
+	assert.True(t, payload.OpenMetricsHandleValueResets)
 
 	payload, err = SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{HandleValueResets: false})
 	require.NoError(t, err)
-	assert.False(t, payload.HandleValueResets)
+	assert.False(t, payload.OpenMetricsHandleValueResets)
 }
 
 func TestPromTimestampToTime(t *testing.T) {

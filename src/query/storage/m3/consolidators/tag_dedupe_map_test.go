@@ -52,15 +52,12 @@ func verifyDedupeMap(
 	assert.Equal(t, "quail", string(val))
 
 	iter := series[0].iter
-	i := 0
-	for iter.Next() {
+	for _, expDp := range expected {
+		require.True(t, iter.Next())
 		dp, _, _ := iter.Current()
-		ex := expected[i]
-		assert.Equal(t, ex, dp)
-		i++
+		assert.Equal(t, expDp, dp)
 	}
-
-	assert.Equal(t, len(expected), i)
+	assert.False(t, iter.Next())
 }
 
 type dp struct {
@@ -123,7 +120,7 @@ func TestTagDedupeMap(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	dedupeMap := newTagDedupeMap(tagMapOpts{
+	dedupeMap := newTagDedupeMap(dedupeMapOpts{
 		size:    8,
 		fanout:  NamespaceCoversAllQueryRange,
 		tagOpts: models.NewTagOptions(),
@@ -135,16 +132,22 @@ func TestTagDedupeMap(t *testing.T) {
 		Resolution:  time.Hour,
 	}
 
-	dedupeMap.add(it(ctrl, dp{t: start, val: 14},
+	err := dedupeMap.add(it(ctrl, dp{t: start, val: 14},
 		"id1", "foo", "bar", "qux", "quail"), attrs)
+	require.NoError(t, err)
+
 	verifyDedupeMap(t, dedupeMap, ts.Datapoint{TimestampNanos: start, Value: 14})
 
 	// Lower resolution must override.
 	attrs.Resolution = time.Minute
-	dedupeMap.add(it(ctrl, dp{t: start.Add(time.Minute), val: 10},
+
+	err = dedupeMap.add(it(ctrl, dp{t: start.Add(time.Minute), val: 10},
 		"id1", "foo", "bar", "qux", "quail"), attrs)
-	dedupeMap.add(it(ctrl, dp{t: start.Add(time.Minute * 2), val: 12},
+	require.NoError(t, err)
+
+	err = dedupeMap.add(it(ctrl, dp{t: start.Add(time.Minute * 2), val: 12},
 		"id2", "foo", "bar", "qux", "quail"), attrs)
+	require.NoError(t, err)
 
 	verifyDedupeMap(t, dedupeMap,
 		ts.Datapoint{TimestampNanos: start.Add(time.Minute), Value: 10},
@@ -152,9 +155,103 @@ func TestTagDedupeMap(t *testing.T) {
 
 	// Lower resolution must override.
 	attrs.Resolution = time.Second
-	dedupeMap.add(it(ctrl, dp{t: start, val: 100},
+
+	err = dedupeMap.add(it(ctrl, dp{t: start, val: 100},
 		"id1", "foo", "bar", "qux", "quail"), attrs)
+	require.NoError(t, err)
+
 	verifyDedupeMap(t, dedupeMap, ts.Datapoint{TimestampNanos: start, Value: 100})
+
+	for _, it := range dedupeMap.list() {
+		iter := it.iter
+		require.NoError(t, iter.Err())
+		iter.Close()
+	}
+}
+
+func TestTagDedupeMapWithStitching(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	dedupeMap := newTagDedupeMap(dedupeMapOpts{
+		size:    8,
+		fanout:  NamespaceCoversAllQueryRange,
+		tagOpts: models.NewTagOptions(),
+	})
+
+	var (
+		start    = xtime.Now().Truncate(time.Hour).Add(-24 * time.Hour)
+		stitchAt = start.Add(12 * time.Hour)
+		end      = start.Add(20 * time.Hour)
+
+		attrs = storagemetadata.Attributes{
+			MetricsType: storagemetadata.UnaggregatedMetricsType,
+			Resolution:  time.Hour,
+		}
+	)
+
+	err := dedupeMap.add(
+		rangeIt(ctrl, dp{t: start, val: 14}, "id1", start, stitchAt,
+			"foo", "bar", "qux", "quail"), attrs)
+	require.NoError(t, err)
+	assert.Equal(t, dedupeMap.len(), 1)
+
+	err = dedupeMap.add(
+		rangeIt(ctrl, dp{t: start.Add(time.Minute), val: 10}, "id1", stitchAt, end,
+			"foo", "bar", "qux", "quail"), attrs)
+	require.NoError(t, err)
+	assert.Equal(t, dedupeMap.len(), 1)
+
+	verifyDedupeMap(t, dedupeMap,
+		ts.Datapoint{TimestampNanos: start, Value: 14},
+		ts.Datapoint{TimestampNanos: start.Add(time.Minute), Value: 10})
+
+	err = dedupeMap.add(
+		rangeIt(ctrl, dp{t: start.Add(time.Minute * 2), val: 12}, "id2", stitchAt, end, "tag", "2"), attrs)
+	require.NoError(t, err)
+	assert.Equal(t, dedupeMap.len(), 2)
+
+	err = dedupeMap.add(
+		rangeIt(ctrl, dp{t: start, val: 100}, "id2", start, stitchAt, "tag", "2"), attrs)
+	require.NoError(t, err)
+	assert.Equal(t, dedupeMap.len(), 2)
+
+	err = dedupeMap.add(
+		rangeIt(ctrl, dp{t: start.Add(time.Minute * 2), val: 12}, "id3", start, stitchAt, "tag", "3"), attrs)
+	require.NoError(t, err)
+	assert.Equal(t, dedupeMap.len(), 3)
+
+	err = dedupeMap.add(
+		rangeIt(ctrl, dp{t: start.Add(time.Minute * 2), val: 12}, "id4", stitchAt, end, "tag", "4"), attrs)
+	require.NoError(t, err)
+	assert.Equal(t, dedupeMap.len(), 4)
+
+	err = dedupeMap.add(
+		rangeIt(ctrl, dp{t: start.Add(time.Minute * 2), val: 5}, "id5", start, end, "tag", "5"), attrs)
+	require.NoError(t, err)
+	assert.Equal(t, dedupeMap.len(), 5)
+
+	err = dedupeMap.add(
+		rangeIt(ctrl, dp{t: start.Add(time.Minute * 3), val: 6}, "id5", start, end, "tag", "5"), attrs)
+	require.NoError(t, err)
+	assert.Equal(t, dedupeMap.len(), 5)
+
+	actual := map[string]startEnd{}
+	for _, it := range dedupeMap.list() {
+		iter := it.iter
+		actual[iter.ID().String()] = startEnd{
+			start: iter.Start(),
+			end:   iter.End(),
+		}
+	}
+	expected := map[string]startEnd{
+		"id1": {start, end},
+		"id2": {start, end},
+		"id3": {start, stitchAt},
+		"id4": {stitchAt, end},
+		"id5": {start, end},
+	}
+	assert.Equal(t, expected, actual)
 
 	for _, it := range dedupeMap.list() {
 		iter := it.iter

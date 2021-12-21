@@ -49,6 +49,7 @@ var (
 		[]models.Tag, error) {
 		return tags, nil
 	}
+	defaultRateLimiter = &noopRateLimiter{}
 )
 
 type dynamicClusterOptions struct {
@@ -132,6 +133,7 @@ type encodedBlockOptions struct {
 	consolidationFn               consolidators.ConsolidationFunc
 	tagOptions                    models.TagOptions
 	tagsTransform                 TagsTransform
+	rateLimiter                   RateLimiter
 	pools                         encoding.IteratorPools
 	checkedPools                  pool.CheckedBytesPool
 	readWorkerPools               xsync.PooledWorkerPool
@@ -161,6 +163,7 @@ func newOptions(
 		queryConsolidatorMatchOptions: consolidators.MatchOptions{
 			MatchType: consolidators.MatchIDs,
 		},
+		rateLimiter:        defaultRateLimiter,
 		tagsTransform:      defaultTagsTransform,
 		promConvertOptions: storage.NewPromConvertOptions(),
 	}
@@ -214,6 +217,16 @@ func (o *encodedBlockOptions) SetTagsTransform(value TagsTransform) Options {
 
 func (o *encodedBlockOptions) TagsTransform() TagsTransform {
 	return o.tagsTransform
+}
+
+func (o *encodedBlockOptions) SetRateLimiter(value RateLimiter) Options {
+	opts := *o
+	opts.rateLimiter = value
+	return &opts
+}
+
+func (o *encodedBlockOptions) RateLimiter() RateLimiter {
+	return o.rateLimiter
 }
 
 func (o *encodedBlockOptions) SetIteratorPools(p encoding.IteratorPools) Options {

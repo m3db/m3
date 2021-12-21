@@ -540,8 +540,13 @@ func testSeriesIteratorsToPromResult(
 	defer ctrl.Finish()
 
 	var (
-		gaugePayload   = &annotation.Payload{MetricType: annotation.MetricType_GAUGE}
-		counterPayload = &annotation.Payload{MetricType: annotation.MetricType_COUNTER, HandleValueResets: true}
+		gaugePayload = &annotation.Payload{
+			OpenMetricsFamilyType: annotation.OpenMetricsFamilyType_GAUGE,
+		}
+		counterPayload = &annotation.Payload{
+			OpenMetricsFamilyType:        annotation.OpenMetricsFamilyType_COUNTER,
+			OpenMetricsHandleValueResets: true,
+		}
 	)
 
 	firstAnnotation := annotationBytes(t, gaugePayload)

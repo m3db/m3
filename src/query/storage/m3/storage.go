@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/query/tracepoint"
 	"github.com/m3db/m3/src/query/ts"
 	xcontext "github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -402,10 +403,13 @@ func (s *m3storage) fetchCompressed(
 				continue
 			}
 
-			debugLog.Write(zap.String("query", query.Raw),
+			debugLog.Write(
+				zap.String("query", query.Raw),
 				zap.String("m3query", m3query.String()),
 				zap.Time("start", queryStart.ToTime()),
+				zap.Time("narrowing.start", n.narrowing.start.ToTime()),
 				zap.Time("end", queryEnd.ToTime()),
+				zap.Time("narrowing.end", n.narrowing.end.ToTime()),
 				zap.String("fanoutType", fanout.String()),
 				zap.String("namespace", n.NamespaceID().String()),
 				zap.String("type", n.Options().Attributes().MetricsType.String()),
@@ -437,6 +441,7 @@ func (s *m3storage) fetchCompressed(
 	result := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts, limitOpts)
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
+
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -446,7 +451,8 @@ func (s *m3storage) fetchCompressed(
 
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
-			iters, metadata, err := session.FetchTagged(ctx, namespaceID, m3query, queryOptions)
+			narrowedQueryOpts := narrowQueryOpts(queryOptions, namespace)
+			iters, metadata, err := session.FetchTagged(ctx, namespaceID, m3query, narrowedQueryOpts)
 			if err == nil && sampled {
 				span.LogFields(
 					log.String("namespace", namespaceID.String()),
@@ -580,7 +586,7 @@ func (s *m3storage) CompleteTags(
 
 	// NB(r): Since we don't use a single index we fan out to each
 	// cluster that can completely fulfill this range and then prefer the
-	// highest resolution (most fine grained) results.
+	// highest resolution (most fine-grained) results.
 	// This needs to be optimized, however this is a start.
 	_, namespaces, err := resolveClusterNamespacesForQuery(xtime.ToUnixNano(s.nowFn()),
 		queryStart,
@@ -608,8 +614,7 @@ func (s *m3storage) CompleteTags(
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
 		go func() {
-			_, span, sampled := xcontext.StartSampledTraceSpan(ctx,
-				tracepoint.CompleteTagsAggregate)
+			_, span, sampled := xcontext.StartSampledTraceSpan(ctx, tracepoint.CompleteTagsAggregate)
 			defer func() {
 				span.Finish()
 				wg.Done()
@@ -617,7 +622,8 @@ func (s *m3storage) CompleteTags(
 
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
-			aggTagIter, metadata, err := session.Aggregate(ctx, namespaceID, m3query, aggOpts)
+			narrowedAggOpts := narrowAggOpts(aggOpts, namespace)
+			aggTagIter, metadata, err := session.Aggregate(ctx, namespaceID, m3query, narrowedAggOpts)
 			if err != nil {
 				multiErr.add(err)
 				return
@@ -758,7 +764,8 @@ func (s *m3storage) SearchCompressed(
 
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
-			iter, metadata, err := session.FetchTaggedIDs(ctx, namespaceID, m3query, m3opts)
+			narrowedM3Opts := narrowQueryOpts(m3opts, namespace)
+			iter, metadata, err := session.FetchTaggedIDs(ctx, namespaceID, m3query, narrowedM3Opts)
 			if err == nil && sampled {
 				span.LogFields(
 					log.String("namespace", namespaceID.String()),
@@ -841,6 +848,11 @@ func (s *m3storage) Write(
 
 	// Set id to NoFinalize to avoid cloning it in write operations
 	id.NoFinalize()
+
+	if !s.opts.RateLimiter().Limit(namespace, datapoints, tags.Tags) {
+		return xerrors.NewResourceExhaustedError(goerrors.New("rate limit exceeded"))
+	}
+
 	tags.Tags, err = s.opts.TagsTransform()(ctx, namespace, tags.Tags)
 	if err != nil {
 		return err
@@ -911,4 +923,23 @@ func (s *m3storage) writeSingle(
 	session := namespace.Session()
 	return session.WriteTagged(namespaceID, identID, iterator,
 		datapoint.Timestamp, datapoint.Value, query.Unit(), query.Annotation())
+}
+
+func narrowQueryOpts(o index.QueryOptions, namespace resolvedNamespace) index.QueryOptions {
+	narrowed := o
+	if !namespace.narrowing.start.IsZero() && namespace.narrowing.start.After(o.StartInclusive) {
+		narrowed.StartInclusive = namespace.narrowing.start
+	}
+	if !namespace.narrowing.end.IsZero() && namespace.narrowing.end.Before(o.EndExclusive) {
+		narrowed.EndExclusive = namespace.narrowing.end
+	}
+
+	return narrowed
+}
+
+func narrowAggOpts(o index.AggregationOptions, namespace resolvedNamespace) index.AggregationOptions {
+	narrowed := o
+	narrowed.QueryOptions = narrowQueryOpts(o.QueryOptions, namespace)
+
+	return narrowed
 }
