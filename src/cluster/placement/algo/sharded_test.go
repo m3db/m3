@@ -1316,13 +1316,13 @@ func TestInitialPlacementIsBalanced(t *testing.T) {
 		)
 	}
 
-	ids := make([]uint32, 1024)
-	for i := range ids {
-		ids[i] = uint32(i)
+	shardIDs := make([]uint32, 1024)
+	for i := range shardIDs {
+		shardIDs[i] = uint32(i)
 	}
 
 	algo := newShardedAlgorithm(placement.NewOptions())
-	p, err := algo.InitialPlacement(instances, ids, 2)
+	p, err := algo.InitialPlacement(instances, shardIDs, 2)
 	require.NoError(t, err)
 
 	var (
@@ -1338,8 +1338,8 @@ func TestInitialPlacementIsBalanced(t *testing.T) {
 			max = n
 		}
 	}
-	require.True(t, max-min <= 1,
-		"The number of shards per instance differs by more than 1, min=%d max=%d", min, max)
+	require.Equal(t, 102, min)
+	require.Equal(t, 103, max)
 }
 
 func verifyAllShardsInAvailableState(t *testing.T, p placement.Placement) {
