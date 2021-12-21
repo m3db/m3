@@ -1317,12 +1317,12 @@ func TestInitialPlacementIsBalanced(t *testing.T) {
 	}
 
 	ids := make([]uint32, 1024)
-	for i := 0; i < len(ids); i++ {
+	for i := range ids {
 		ids[i] = uint32(i)
 	}
 
-	a := newShardedAlgorithm(placement.NewOptions())
-	p, err := a.InitialPlacement(instances, ids, 2)
+	algo := newShardedAlgorithm(placement.NewOptions())
+	p, err := algo.InitialPlacement(instances, ids, 2)
 	require.NoError(t, err)
 
 	var (
