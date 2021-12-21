@@ -120,6 +120,7 @@ type mockOnIndexSeries struct{}
 
 var _ doc.OnIndexSeries = mockOnIndexSeries{}
 
+func (m mockOnIndexSeries) GetID() string                    { return "" }
 func (m mockOnIndexSeries) OnIndexSuccess(_ xtime.UnixNano)  {}
 func (m mockOnIndexSeries) OnIndexFinalize(_ xtime.UnixNano) {}
 func (m mockOnIndexSeries) OnIndexPrepare(_ xtime.UnixNano)  {}
@@ -134,6 +135,11 @@ func (m mockOnIndexSeries) IndexedForBlockStart(_ xtime.UnixNano) bool          
 func (m mockOnIndexSeries) IndexedOrAttemptedAny() bool                          { return false }
 func (m mockOnIndexSeries) TryMarkIndexGarbageCollected(_, _ tally.Counter) bool { return false }
 func (m mockOnIndexSeries) NeedsIndexGarbageCollected() bool                     { return false }
+func (m mockOnIndexSeries) GetEntryIndexBlockStates() doc.EntryIndexBlockStates {
+	return doc.EntryIndexBlockStates{}
+}
+
+func (m mockOnIndexSeries) MergeEntryIndexBlockStates(states doc.EntryIndexBlockStates) {}
 func (m mockOnIndexSeries) IndexedRange() (xtime.UnixNano, xtime.UnixNano) {
 	return 0, 0
 }

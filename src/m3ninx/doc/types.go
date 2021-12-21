@@ -144,7 +144,12 @@ type OnIndexSeries interface {
 	// reader and writer counts are accurately updated.
 	ReconciledOnIndexSeries() (OnIndexSeries, resource.SimpleCloser, bool)
 
+	// GetEntryIndexBlockStates returns the entry index block states by time for
+	// the indexed entry.
 	GetEntryIndexBlockStates() EntryIndexBlockStates
+
+	// MergeEntryIndexBlockStates merges the given states into the current
+	// indexed entry.
 	MergeEntryIndexBlockStates(states EntryIndexBlockStates)
 }
 
@@ -156,6 +161,8 @@ type EntryIndexBlockStates map[xtime.UnixNano]EntryIndexBlockState
 // entry for a given index block start. It's used to prevent attempts at double indexing
 // for the same block start.
 type EntryIndexBlockState struct {
+	// Attempt indicates that indexing has been attempted.
 	Attempt bool
+	// Success indicates that indexing has succeeded.
 	Success bool
 }

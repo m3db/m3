@@ -262,7 +262,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 	tags := ident.NewTags(tag)
 	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	mockWriteBatch(t, &now, lifecycle, mockBlock, &tag)
-	closer := resource.NoopCloser{}
+	closer := &resource.NoopCloser{}
 	lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
 	batch := index.NewWriteBatch(index.WriteBatchOptions{
@@ -334,7 +334,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	tags := ident.NewTags(tag)
 	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	mockWriteBatch(t, &now, lifecycle, bActive, &tag)
-	closer := resource.NoopCloser{}
+	closer := &resource.NoopCloser{}
 	lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
 		Return(false).

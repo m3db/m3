@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -48,9 +49,12 @@ func newTime(n int) xtime.UnixNano {
 }
 
 func newMockSeries(ctrl *gomock.Controller) series.DatabaseSeries {
-	id := ident.StringID("foo")
+	return newMockSeriesWithID(ctrl, "foo")
+}
+
+func newMockSeriesWithID(ctrl *gomock.Controller, id string) series.DatabaseSeries {
 	series := series.NewMockDatabaseSeries(ctrl)
-	series.EXPECT().ID().Return(id).AnyTimes()
+	series.EXPECT().ID().Return(ident.StringID(id)).AnyTimes()
 	return series
 }
 
@@ -247,6 +251,52 @@ func TestReconciledOnIndexSeries(t *testing.T) {
 	require.False(t, reconciled)
 	require.Equal(t, uint64(0), e.(*Entry).Index)
 	closer.Close()
+}
+
+func TestMergeWithIndexSeries(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		blockSize  = time.Hour * 2
+		numBlocks  = 5
+		numEntries = 3
+		start      = xtime.Now().
+				Truncate(blockSize).
+				Add(blockSize * -time.Duration(numEntries*numBlocks))
+
+		expectedIndexTimes = make([]xtime.UnixNano, 0, numEntries*numBlocks)
+		entries            = make([]*Entry, 0, numEntries)
+	)
+
+	for entryIdx := 0; entryIdx < numEntries; entryIdx++ {
+		series := newMockSeriesWithID(ctrl, fmt.Sprint("bar", entryIdx))
+		entry := NewEntry(NewEntryOptions{Series: series})
+
+		for blockIdx := 0; blockIdx < numBlocks; blockIdx++ {
+			blockStart := start.
+				Add(blockSize * time.Duration(blockIdx+numBlocks*entryIdx))
+
+			expectedIndexTimes = append(expectedIndexTimes, blockStart)
+			entry.OnIndexSuccess(blockStart)
+		}
+
+		entries = append(entries, entry)
+	}
+
+	mergedEntry := NewEntry(NewEntryOptions{Series: newMockSeries(ctrl)})
+	for _, entry := range entries {
+		states := entry.GetEntryIndexBlockStates()
+		mergedEntry.MergeEntryIndexBlockStates(states)
+	}
+
+	for _, start := range expectedIndexTimes {
+		require.True(t, mergedEntry.IndexedForBlockStart(start))
+	}
+
+	min, max := mergedEntry.IndexedRange()
+	require.Equal(t, min, start)
+	require.Equal(t, max, start.Add(blockSize*time.Duration(numEntries*numBlocks-1)))
 }
 
 func TestEntryTryMarkIndexGarbageCollected(t *testing.T) {

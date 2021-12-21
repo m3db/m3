@@ -172,7 +172,7 @@ func TestNamespaceIndexWriteAfterClose(t *testing.T) {
 	now := xtime.Now()
 
 	lifecycle := doc.NewMockOnIndexSeries(ctrl)
-	closer := resource.NoopCloser{}
+	closer := &resource.NoopCloser{}
 	lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false)
 	lifecycle.EXPECT().OnIndexFinalize(now.Truncate(idx.blockSize))
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
@@ -198,7 +198,7 @@ func TestNamespaceIndexWriteQueueError(t *testing.T) {
 
 	n := xtime.Now()
 	lifecycle := doc.NewMockOnIndexSeries(ctrl)
-	closer := resource.NoopCloser{}
+	closer := &resource.NoopCloser{}
 	lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false)
 	lifecycle.EXPECT().OnIndexFinalize(n.Truncate(idx.blockSize))
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
@@ -247,7 +247,7 @@ func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 	)
 
 	tooOld := now.Add(-1 * idx.bufferPast).Add(-1 * time.Second)
-	closer := resource.NoopCloser{}
+	closer := &resource.NoopCloser{}
 	lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false).AnyTimes()
 	lifecycle.EXPECT().OnIndexFinalize(tooOld.Truncate(idx.blockSize))
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
@@ -313,7 +313,7 @@ func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
 	var wg sync.WaitGroup
 	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	q.EXPECT().InsertBatch(gomock.Any()).Return(&wg, nil)
-	closer := resource.NoopCloser{}
+	closer := &resource.NoopCloser{}
 	lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false).AnyTimes()
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
 		Return(false).
@@ -357,7 +357,7 @@ func setupIndex(t *testing.T,
 		lifecycleFns = doc.NewMockOnIndexSeries(ctrl)
 	)
 
-	closer := resource.NoopCloser{}
+	closer := &resource.NoopCloser{}
 	lifecycleFns.EXPECT().ReconciledOnIndexSeries().Return(lifecycleFns, closer, false).AnyTimes()
 	lifecycleFns.EXPECT().OnIndexFinalize(ts)
 	lifecycleFns.EXPECT().OnIndexSuccess(ts)

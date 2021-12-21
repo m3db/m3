@@ -28,14 +28,122 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/resource"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
+func TestMarkEntrySuccessWithReconcile(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		reconcileCloser = &resource.NoopCloser{}
+		blockSize       = time.Hour
+
+		now         = xtime.Now()
+		blockStart  = now.Truncate(blockSize)
+		blockStart2 = blockStart.Add(blockSize)
+
+		nowNotBlockStartAligned = now.
+					Truncate(blockSize).
+					Add(time.Minute)
+		notAligned2 = nowNotBlockStartAligned.Add(blockSize)
+	)
+
+	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, &resource.NoopCloser{}, false)
+	h1.EXPECT().OnIndexFinalize(blockStart)
+	h1.EXPECT().OnIndexSuccess(blockStart)
+
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize:    blockSize,
+		WriteBatchMetrics: NewWriteBatchMetrics(tally.NoopScope),
+	})
+
+	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2reconciled := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().ReconciledOnIndexSeries().Return(h2reconciled, reconcileCloser, true)
+	h2.EXPECT().OnIndexFinalize(blockStart2)
+	h2.EXPECT().OnIndexSuccess(blockStart2)
+
+	states := doc.EntryIndexBlockStates{
+		100: doc.EntryIndexBlockState{},
+	}
+
+	h2.EXPECT().GetEntryIndexBlockStates().Return(states)
+	h2reconciled.EXPECT().MergeEntryIndexBlockStates(states)
+
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h1,
+	}, testDoc1())
+
+	batch.Append(WriteBatchEntry{
+		Timestamp:     notAligned2,
+		OnIndexSeries: h2,
+	}, testDoc2())
+
+	batch.MarkUnmarkedEntriesSuccess()
+	require.Equal(t, 1, reconcileCloser.Calls)
+}
+
+func TestMarkUnmarkedIfAlreadyIndexedWithReconcile(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		reconcileCloser = &resource.NoopCloser{}
+		blockSize       = time.Hour
+
+		now         = xtime.Now()
+		blockStart  = now.Truncate(blockSize)
+		blockStart2 = blockStart.Add(blockSize)
+
+		nowNotBlockStartAligned = now.
+					Truncate(blockSize).
+					Add(time.Minute)
+		notAligned2 = nowNotBlockStartAligned.Add(blockSize)
+	)
+
+	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, &resource.NoopCloser{}, false)
+	h1.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart).Return(true)
+
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize:    blockSize,
+		WriteBatchMetrics: NewWriteBatchMetrics(tally.NoopScope),
+	})
+
+	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2reconciled := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().ReconciledOnIndexSeries().Return(h2reconciled, reconcileCloser, true)
+	h2.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(blockStart2).Return(true)
+
+	states := doc.EntryIndexBlockStates{
+		100: doc.EntryIndexBlockState{},
+	}
+
+	h2.EXPECT().GetEntryIndexBlockStates().Return(states)
+	h2reconciled.EXPECT().MergeEntryIndexBlockStates(states)
+
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h1,
+	}, testDoc1())
+
+	batch.Append(WriteBatchEntry{
+		Timestamp:     notAligned2,
+		OnIndexSeries: h2,
+	}, testDoc2())
+
+	batch.MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize()
+	require.Equal(t, 1, reconcileCloser.Calls)
+}
+
 func TestWriteBatchSortByUnmarkedAndIndexBlockStart(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
@@ -47,7 +155,7 @@ func TestWriteBatchSortByUnmarkedAndIndexBlockStart(t *testing.T) {
 		Truncate(blockSize).
 		Add(time.Minute)
 
-	closer := resource.NoopCloser{}
+	closer := &resource.NoopCloser{}
 	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)

@@ -113,28 +113,20 @@ func setupForwardIndex(
 		lifecycle = doc.NewMockOnIndexSeries(ctrl)
 	)
 
-	closer := resource.NoopCloser{}
-	gomock.InOrder(
-		lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false),
-		lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false),
+	closer := &resource.NoopCloser{}
+	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
+	lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false).AnyTimes()
 
-		lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true),
-		lifecycle.EXPECT().OnIndexPrepare(next),
+	lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true)
+	lifecycle.EXPECT().OnIndexPrepare(next)
 
-		lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false),
-		lifecycle.EXPECT().OnIndexSuccess(ts),
-		lifecycle.EXPECT().OnIndexFinalize(ts),
+	lifecycle.EXPECT().OnIndexSuccess(ts)
+	lifecycle.EXPECT().OnIndexFinalize(ts)
 
-		lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false),
-		lifecycle.EXPECT().OnIndexSuccess(nextTS),
-		lifecycle.EXPECT().OnIndexFinalize(nextTS),
-	)
+	lifecycle.EXPECT().OnIndexSuccess(nextTS)
+	lifecycle.EXPECT().OnIndexFinalize(nextTS)
 
 	if !expectAggregateQuery {
-		lifecycle.EXPECT().ReconciledOnIndexSeries().Return(
-			lifecycle, resource.SimpleCloserFn(func() {}), false,
-		).AnyTimes()
-
 		lifecycle.EXPECT().IndexedRange().Return(ts, ts)
 		lifecycle.EXPECT().IndexedForBlockStart(ts).Return(true)
 
@@ -398,7 +390,7 @@ func TestNamespaceIndexForwardWrite(t *testing.T) {
 		next = ts.Truncate(blockSize).Add(blockSize)
 	)
 
-	closer := resource.NoopCloser{}
+	closer := &resource.NoopCloser{}
 	lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false)
 	lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true)
 	lifecycle.EXPECT().OnIndexPrepare(next)
@@ -444,7 +436,7 @@ func TestNamespaceIndexForwardWriteCreatesBlock(t *testing.T) {
 		next = ts.Truncate(blockSize).Add(blockSize)
 	)
 
-	closer := resource.NoopCloser{}
+	closer := &resource.NoopCloser{}
 	lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false).AnyTimes()
 	lifecycle.EXPECT().OnIndexPrepare(next)
 	lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true)
