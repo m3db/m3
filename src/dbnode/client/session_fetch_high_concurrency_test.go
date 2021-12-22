@@ -95,9 +95,10 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 
 	// Override the new connection function for connection pools
 	// to be able to mock the entire end to end pipeline
-	newConnFn := func(
-		_ string, addr string, _ Options,
-	) (Channel, rpc.TChanNode, error) {
+	newConnFn := func(_ string, _ Options) (Channel, error) {
+		return &noopPooledChannel{}, nil
+	}
+	var newClientFn NewClientFn = func(_ Channel, _ string) (rpc.TChanNode, error) {
 		mockClient := rpc.NewMockTChanNode(ctrl)
 		mockClient.EXPECT().Health(gomock.Any()).
 			Return(healthCheckResult, nil).
@@ -105,7 +106,7 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 		mockClient.EXPECT().FetchBatchRaw(gomock.Any(), gomock.Any()).
 			Return(respResult, nil).
 			AnyTimes()
-		return &noopPooledChannel{}, mockClient, nil
+		return mockClient, nil
 	}
 	shards := make([]shard.Shard, numShards)
 	for i := range shards {
@@ -160,6 +161,7 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 	opts := newSessionTestOptions().
 		SetFetchBatchSize(128).
 		SetNewConnectionFn(newConnFn).
+		SetNewClientFn(newClientFn).
 		SetTopologyInitializer(topology.NewStaticInitializer(
 			topology.NewStaticOptions().
 				SetReplicas(numReplicas).

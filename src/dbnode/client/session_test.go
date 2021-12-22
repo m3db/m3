@@ -421,9 +421,11 @@ func TestDedicatedConnection(t *testing.T) {
 
 		topoMap = topology.NewMockMap(ctrl)
 
-		local   = mockHost(ctrl, "h0", "local")
-		remote1 = mockHost(ctrl, "h1", "remote1")
-		remote2 = mockHost(ctrl, "h2", "remote2")
+		local         = mockHost(ctrl, "h0", "local")
+		remote1       = mockHost(ctrl, "h1", "remote1")
+		remote2       = mockHost(ctrl, "h2", "remote2")
+		remote1Client = rpc.NewMockTChanNode(ctrl)
+		remote2Client = rpc.NewMockTChanNode(ctrl)
 
 		availableShard    = shard.NewShard(shardID).SetState(shard.Available)
 		initializingShard = shard.NewShard(shardID).SetState(shard.Initializing)
@@ -438,26 +440,36 @@ func TestDedicatedConnection(t *testing.T) {
 		}).Times(4)
 
 	s := session{origin: local}
-	s.opts = NewOptions().SetNewConnectionFn(noopNewConnection)
-	s.healthCheckNewConnFn = testHealthCheck(nil, false)
+	newClientFn := func(_ Channel, addr string) (rpc.TChanNode, error) {
+		switch addr {
+		case "remote1":
+			return remote1Client, nil
+		case "remote2":
+			return remote2Client, nil
+		}
+		return nil, fmt.Errorf("unexpected addr %s", addr)
+	}
+	s.opts = NewOptions().SetNewConnectionFn(noopNewConnection).
+		SetNewClientFn(newClientFn).
+		SetHealthCheckNewConnFn(testHealthCheck(nil, false))
 	s.state.status = statusOpen
 	s.state.topoMap = topoMap
 
-	_, ch, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
+	c1, _, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
 	require.NoError(t, err)
-	assert.Equal(t, &noopPooledChannel{"remote1"}, ch)
+	assert.Equal(t, remote1Client, c1)
 
-	_, ch2, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{ShardStateFilter: shard.Available})
+	c2, _, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{ShardStateFilter: shard.Available})
 	require.NoError(t, err)
-	assert.Equal(t, &noopPooledChannel{"remote2"}, ch2)
+	assert.Equal(t, remote2Client, c2)
 
-	s.healthCheckNewConnFn = testHealthCheck(nil, true)
-	_, ch3, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{BootstrappedNodesOnly: true})
+	s.opts = s.opts.SetHealthCheckNewConnFn(testHealthCheck(nil, true))
+	c3, _, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{BootstrappedNodesOnly: true})
 	require.NoError(t, err)
-	assert.Equal(t, &noopPooledChannel{"remote1"}, ch3)
+	assert.Equal(t, remote1Client, c3)
 
 	healthErr := errors.New("unhealthy")
-	s.healthCheckNewConnFn = testHealthCheck(healthErr, false)
+	s.opts = s.opts.SetHealthCheckNewConnFn(testHealthCheck(healthErr, false))
 
 	_, _, err = s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
 	require.NotNil(t, err)
@@ -620,10 +632,6 @@ func testHealthCheck(err error, bootstrappedNodesOnly bool) func(rpc.TChanNode, 
 	}
 }
 
-func noopNewConnection(
-	channelName string,
-	addr string,
-	opts Options,
-) (Channel, rpc.TChanNode, error) {
-	return &noopPooledChannel{addr}, nil, nil
+func noopNewConnection(_ string, _ Options) (Channel, error) {
+	return &noopPooledChannel{}, nil
 }

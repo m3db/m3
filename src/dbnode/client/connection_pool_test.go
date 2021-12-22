@@ -45,9 +45,7 @@ var (
 	h = topology.NewHost(testHostStr, testHostAddr)
 )
 
-type noopPooledChannel struct {
-	address string
-}
+type noopPooledChannel struct{}
 
 func (c *noopPooledChannel) Close() {}
 func (c *noopPooledChannel) GetSubChannel(
@@ -274,7 +272,10 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		return nil
 
 	}
-	opts = opts.SetNewConnectionFn(fn).SetNewClientFn(newClientFn).SetHealthCheckFn(healthCheck).SetHealthCheckNewConnFn(healthCheckNewConn)
+	opts = opts.SetNewConnectionFn(fn).
+		SetNewClientFn(newClientFn).
+		SetHealthCheckFn(healthCheck).
+		SetHealthCheckNewConnFn(healthCheckNewConn)
 	conns := newConnectionPool(h, opts).(*connPool)
 	conns.sleepConnect = func(d time.Duration) {
 		atomic.AddInt32(&connectRounds, 1)

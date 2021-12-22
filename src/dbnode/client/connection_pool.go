@@ -29,7 +29,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	nchannel "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
+	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
 	murmur3 "github.com/m3db/stackmurmur3/v2"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go"
@@ -53,18 +53,18 @@ var (
 type connPool struct {
 	sync.RWMutex
 
-	opts               Options
-	host               topology.Host
-	pool               []conn
-	poolLen            int64
-	used               int64
-	connectRand        rand.Source
-	healthCheckRand    rand.Source
-	sleepConnect       sleepFn
-	sleepHealth        sleepFn
-	sleepHealthRetry   sleepFn
-	status             status
-	healthStatus       tally.Gauge
+	opts             Options
+	host             topology.Host
+	pool             []conn
+	poolLen          int64
+	used             int64
+	connectRand      rand.Source
+	healthCheckRand  rand.Source
+	sleepConnect     sleepFn
+	sleepHealth      sleepFn
+	sleepHealthRetry sleepFn
+	status           status
+	healthStatus     tally.Gauge
 }
 
 type conn struct {
@@ -93,16 +93,16 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 		})
 
 	p := &connPool{
-		opts:               opts,
-		host:               host,
-		pool:               make([]conn, 0, opts.MaxConnectionCount()),
-		poolLen:            0,
-		connectRand:        rand.NewSource(seed),
-		healthCheckRand:    rand.NewSource(seed + 1),
-		sleepConnect:       time.Sleep,
-		sleepHealth:        time.Sleep,
-		sleepHealthRetry:   time.Sleep,
-		healthStatus:       scope.Gauge("health-status"),
+		opts:             opts,
+		host:             host,
+		pool:             make([]conn, 0, opts.MaxConnectionCount()),
+		poolLen:          0,
+		connectRand:      rand.NewSource(seed),
+		healthCheckRand:  rand.NewSource(seed + 1),
+		sleepConnect:     time.Sleep,
+		sleepHealth:      time.Sleep,
+		sleepHealthRetry: time.Sleep,
+		healthStatus:     scope.Gauge("health-status"),
 	}
 
 	return p
@@ -167,9 +167,6 @@ func (p *connPool) Close() {
 func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 	log := p.opts.InstrumentOptions().Logger()
 	target := p.opts.MaxConnectionCount()
-	newConnFn := p.opts.NewConnectionFn()
-	newClientFn := p.opts.NewClientFn()
-	healthCheckNewConnFn := p.opts.HealthCheckNewConnFn()
 
 	for {
 		p.RLock()
@@ -188,33 +185,22 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 			go func() {
 				defer wg.Done()
 
-				// Create connection
-				channel, err := newConnFn(channelName, p.opts)
+				ch, client, healthCheckErr, err := establishNewConnection(address, false, p.opts)
 				if err != nil {
-					log.Warn("could not connect", zap.Error(err))
-					return
-				}
-				client, err := newClientFn(channel, address)
-				if err != nil {
-					log.Warn("could not construct client", zap.String("host", address), zap.Error(err))
-					channel.Close()
-					return
-				}
-				// Health check the connection
-				if err := healthCheckNewConnFn(client, p.opts, false); err != nil {
-					p.maybeEmitHealthStatus(healthStatusCheckFailed)
-					log.Warn("could not connect, failed health check", zap.String("host", address), zap.Error(err))
-					channel.Close()
+					if healthCheckErr {
+						p.maybeEmitHealthStatus(healthStatusCheckFailed)
+					}
+					log.Warn("could not connect", zap.String("host", address), zap.Error(err))
 					return
 				}
 
 				p.maybeEmitHealthStatus(healthStatusOK)
 				p.Lock()
 				if p.status == statusOpen {
-					p.pool = append(p.pool, conn{channel, client})
+					p.pool = append(p.pool, conn{ch, client})
 					p.poolLen = int64(len(p.pool))
 				} else {
-					channel.Close()
+					ch.Close()
 				}
 				p.Unlock()
 			}()
@@ -354,7 +340,7 @@ func defaultNewClientFn(c Channel, address string) (rpc.TChanNode, error) {
 		return nil, errors.New("can't create new client: not a *tchannel.Channel")
 	}
 	endpoint := &thrift.ClientOptions{HostPort: address}
-	thriftClient := thrift.NewClient(tc, nchannel.ChannelName, endpoint)
+	thriftClient := thrift.NewClient(tc, channel.ChannelName, endpoint)
 	client := rpc.NewTChanNodeClient(thriftClient)
 	return client, nil
 }
@@ -362,4 +348,30 @@ func defaultNewClientFn(c Channel, address string) (rpc.TChanNode, error) {
 func randStutter(source rand.Source, t time.Duration) time.Duration {
 	amount := float64(source.Int63()) / float64(math.MaxInt64)
 	return time.Duration(float64(t) * amount)
+}
+
+// TODO unit test
+func establishNewConnection(addr string, bootstrappedNodesOnly bool, opts Options) (Channel, rpc.TChanNode, bool, error) {
+	var (
+		newConnFn            = opts.NewConnectionFn()
+		newClientFn          = opts.NewClientFn()
+		healthCheckNewConnFn = opts.HealthCheckNewConnFn()
+	)
+
+	ch, err := newConnFn(channelName, opts)
+	if err != nil {
+		return nil, nil, false, err
+	}
+
+	cl, err := newClientFn(ch, addr)
+	if err != nil {
+		ch.Close()
+		return nil, nil, false, err
+	}
+
+	if err := healthCheckNewConnFn(cl, opts, bootstrappedNodesOnly); err != nil {
+		ch.Close()
+		return nil, nil, true, err
+	}
+	return ch, cl, false, nil
 }

@@ -154,7 +154,6 @@ type session struct {
 	newPeerBlocksQueueFn                 newPeerBlocksQueueFn
 	reattemptStreamBlocksFromPeersFn     reattemptStreamBlocksFromPeersFn
 	pickBestPeerFn                       pickBestPeerFn
-	healthCheckNewConnFn                 HealthCheckFn
 	origin                               topology.Host
 	streamBlocksMaxBlockRetries          int
 	streamBlocksWorkers                  xsync.WorkerPool
@@ -286,7 +285,6 @@ func newSession(opts Options) (clientSession, error) {
 		newHostQueueFn:       newHostQueue,
 		fetchBatchSize:       opts.FetchBatchSize(),
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
-		healthCheckNewConnFn: defaultHealthCheck,
 		writeRetrier:         opts.WriteRetrier(),
 		fetchRetrier:         opts.FetchRetrier(),
 		pools: sessionPools{
@@ -777,23 +775,9 @@ func (s *session) DedicatedConnection(
 			return
 		}
 
-		newConnFn := s.opts.NewConnectionFn()
-		channel, err = newConnFn(channelName, s.opts)
+		channel, client, _, err = establishNewConnection(host.Address(), opts.BootstrappedNodesOnly, s.opts)
 		if err != nil {
 			multiErr = multiErr.Add(err)
-			return
-		}
-
-		client, err := s.opts.NewClientFn()(channel, host.Address())
-		if err != nil {
-			multiErr = multiErr.Add(err)
-			channel.Close()
-			return
-		}
-
-		if err := s.healthCheckNewConnFn(client, s.opts, opts.BootstrappedNodesOnly); err != nil {
-			multiErr = multiErr.Add(err)
-			channel.Close()
 			return
 		}
 
@@ -3335,8 +3319,8 @@ func (s *session) streamBlocksBatchFromPeer(
 		ropts              = namespaceMetadata.Options().RetentionOptions()
 		retention          = ropts.RetentionPeriod()
 		earliestBlockStart = xtime.ToUnixNano(nowFn()).
-					Add(-retention).
-					Truncate(ropts.BlockSize())
+			Add(-retention).
+			Truncate(ropts.BlockSize())
 	)
 	req.NameSpace = namespaceMetadata.ID().Bytes()
 	req.Shard = int32(shard)
