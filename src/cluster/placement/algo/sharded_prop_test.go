@@ -51,7 +51,7 @@ func TestInitialPlacementIsBalancedPropTest(t *testing.T) {
 		testInitialPlacementIsBalanced,
 		gen.IntRange(1, 3),
 		gen.IntRange(1, 20),
-		gen.IntRange(128, 1024),
+		gen.IntRange(64, 3072),
 	))
 
 	if !props.Run(reporter) {
