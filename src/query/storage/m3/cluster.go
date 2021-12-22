@@ -34,10 +34,11 @@ import (
 )
 
 var (
-	errNamespaceIDNotSet = errors.New("namespace ID not set")
-	errSessionNotSet     = errors.New("session not set")
-	errRetentionNotSet   = errors.New("retention not set")
-	errResolutionNotSet  = errors.New("resolution not set")
+	errNamespaceIDNotSet   = errors.New("namespace ID not set")
+	errSessionNotSet       = errors.New("session not set")
+	errRetentionNotSet     = errors.New("retention not set")
+	errResolutionNotSet    = errors.New("resolution not set")
+	errNegativeDataLatency = errors.New("negative dataLatency")
 
 	// DefaultClusterNamespaceDownsampleOptions is a default options.
 	// NB(antanas): this was made public to access it in promremote storage.
@@ -99,8 +100,10 @@ type ClusterNamespace interface {
 type ClusterNamespaceOptions struct {
 	// Note: Don't allow direct access, as we want to provide defaults
 	// and/or error if call to access a field is not relevant/correct.
-	attributes storagemetadata.Attributes
-	downsample *ClusterNamespaceDownsampleOptions
+	attributes  storagemetadata.Attributes
+	downsample  *ClusterNamespaceDownsampleOptions
+	dataLatency time.Duration
+	readOnly    bool
 }
 
 // NewClusterNamespaceOptions creates new cluster namespace options.
@@ -117,6 +120,16 @@ func NewClusterNamespaceOptions(
 // Attributes returns the storage attributes of the cluster namespace.
 func (o ClusterNamespaceOptions) Attributes() storagemetadata.Attributes {
 	return o.attributes
+}
+
+// DataLatency returns the duration after which the data is available in this cluster namespace.
+func (o ClusterNamespaceOptions) DataLatency() time.Duration {
+	return o.dataLatency
+}
+
+// ReadOnly returns the value of ReadOnly option for a cluster namespace.
+func (o ClusterNamespaceOptions) ReadOnly() bool {
+	return o.readOnly
 }
 
 // DownsampleOptions returns the downsample options for a cluster namespace,
@@ -142,26 +155,6 @@ type ClusterNamespaceDownsampleOptions struct {
 
 // ClusterNamespaces is a slice of ClusterNamespace instances.
 type ClusterNamespaces []ClusterNamespace
-
-// ClusterNamespacesByResolutionAsc is a slice of ClusterNamespace instances is
-// sortable by resolution.
-type ClusterNamespacesByResolutionAsc []ClusterNamespace
-
-func (a ClusterNamespacesByResolutionAsc) Len() int      { return len(a) }
-func (a ClusterNamespacesByResolutionAsc) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a ClusterNamespacesByResolutionAsc) Less(i, j int) bool {
-	return a[i].Options().Attributes().Resolution < a[j].Options().Attributes().Resolution
-}
-
-// ClusterNamespacesByRetentionAsc is a slice of ClusterNamespace instances is
-// sortable by retention.
-type ClusterNamespacesByRetentionAsc []ClusterNamespace
-
-func (a ClusterNamespacesByRetentionAsc) Len() int      { return len(a) }
-func (a ClusterNamespacesByRetentionAsc) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a ClusterNamespacesByRetentionAsc) Less(i, j int) bool {
-	return a[i].Options().Attributes().Retention < a[j].Options().Attributes().Retention
-}
 
 // NumAggregatedClusterNamespaces returns the number of aggregated
 // cluster namespaces.
@@ -206,6 +199,8 @@ type AggregatedClusterNamespaceDefinition struct {
 	Retention   time.Duration
 	Resolution  time.Duration
 	Downsample  *ClusterNamespaceDownsampleOptions
+	DataLatency time.Duration
+	ReadOnly    bool
 }
 
 // Validate validates the cluster namespace definition.
@@ -221,6 +216,9 @@ func (def AggregatedClusterNamespaceDefinition) Validate() error {
 	}
 	if def.Resolution <= 0 {
 		return errResolutionNotSet
+	}
+	if def.DataLatency < 0 {
+		return errNegativeDataLatency
 	}
 	return nil
 }
@@ -385,7 +383,9 @@ func newAggregatedClusterNamespace(
 				Retention:   def.Retention,
 				Resolution:  def.Resolution,
 			},
-			downsample: def.Downsample,
+			downsample:  def.Downsample,
+			dataLatency: def.DataLatency,
+			readOnly:    def.ReadOnly,
 		},
 		session: def.Session,
 	}, nil

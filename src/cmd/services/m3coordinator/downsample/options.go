@@ -47,6 +47,7 @@ import (
 	"github.com/m3db/m3/src/metrics/generated/proto/transformationpb"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
@@ -158,6 +159,10 @@ func NewAutoMappingRules(namespaces []m3.ClusterNamespace) ([]AutoMappingRule, e
 		opts := namespace.Options()
 		attrs := opts.Attributes()
 		if attrs.MetricsType != storagemetadata.AggregatedMetricsType {
+			continue
+		}
+
+		if opts.ReadOnly() {
 			continue
 		}
 
@@ -737,7 +742,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetInstrumentOptions(instrumentOpts).
 		SetRuleSetOptions(ruleSetOpts).
 		SetKVStore(o.RulesKVStore).
-		SetNamespaceTag([]byte(namespaceTag)).
+		SetNamespaceResolver(namespace.NewResolver([]byte(namespaceTag), nil)).
 		SetRequireNamespaceWatchOnInit(cfg.Matcher.RequireNamespaceWatchOnInit).
 		SetInterruptedCh(o.InterruptedCh)
 
@@ -1100,6 +1105,7 @@ func (o DownsamplerOptions) newAggregatorMatcher(
 			SetMetricsScope(scope)
 		cacheOpts := cache.NewOptions().
 			SetCapacity(capacity).
+			SetNamespaceResolver(opts.NamespaceResolver()).
 			SetClockOptions(opts.ClockOptions()).
 			SetInstrumentOptions(instrumentOpts)
 		matcherCache = cache.NewCache(cacheOpts)

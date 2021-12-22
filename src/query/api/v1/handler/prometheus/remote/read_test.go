@@ -317,10 +317,9 @@ func TestMultipleRead(t *testing.T) {
 			},
 		},
 		Metadata: block.ResultMetadata{
-			Exhaustive:     true,
-			LocalOnly:      true,
-			Warnings:       []block.Warning{{Name: "foo", Message: "bar"}},
-			MetadataByName: make(map[string]*block.ResultMetricMetadata),
+			Exhaustive: true,
+			LocalOnly:  true,
+			Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
 		},
 	}
 
@@ -334,10 +333,9 @@ func TestMultipleRead(t *testing.T) {
 			},
 		},
 		Metadata: block.ResultMetadata{
-			Exhaustive:     false,
-			LocalOnly:      true,
-			Warnings:       []block.Warning{},
-			MetadataByName: make(map[string]*block.ResultMetricMetadata),
+			Exhaustive: false,
+			LocalOnly:  true,
+			Warnings:   []block.Warning{},
 		},
 	}
 

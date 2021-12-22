@@ -30,7 +30,9 @@ import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/metrics/rules/view"
 
@@ -61,7 +63,7 @@ func TestRuleSetProperties(t *testing.T) {
 func TestRuleSetMatchNoMatcher(t *testing.T) {
 	_, _, rs := testRuleSet()
 	nowNanos := rs.nowFn().UnixNano()
-	res, err := rs.ForwardMatch([]byte("foo"), nowNanos, nowNanos, rules.MatchOptions{})
+	res, err := rs.ForwardMatch(testID("foo"), nowNanos, nowNanos, rules.MatchOptions{})
 	require.NoError(t, err)
 	require.Equal(t, rules.EmptyMatchResult, res)
 }
@@ -69,7 +71,7 @@ func TestRuleSetMatchNoMatcher(t *testing.T) {
 func TestRuleSetForwardMatchWithMatcher(t *testing.T) {
 	_, _, rs := testRuleSet()
 	mockMatcher := &mockMatcher{res: rules.EmptyMatchResult}
-	rs.matcher = mockMatcher
+	rs.activeSet = mockMatcher
 
 	var (
 		now       = rs.nowFn()
@@ -77,7 +79,7 @@ func TestRuleSetForwardMatchWithMatcher(t *testing.T) {
 		toNanos   = now.Add(time.Second).UnixNano()
 	)
 
-	res, err := rs.ForwardMatch([]byte("foo"), fromNanos, toNanos, rules.MatchOptions{})
+	res, err := rs.ForwardMatch(testID("foo"), fromNanos, toNanos, rules.MatchOptions{})
 	require.NoError(t, err)
 	require.Equal(t, mockMatcher.res, res)
 	require.Equal(t, []byte("foo"), mockMatcher.id)
@@ -138,7 +140,7 @@ func TestRuleSetProcessNamespaceNotRegistered(t *testing.T) {
 	require.Equal(t, 5, rs.Version())
 	require.Equal(t, int64(1238), rs.CutoverNanos())
 	require.Equal(t, false, rs.Tombstoned())
-	require.NotNil(t, rs.matcher)
+	require.NotNil(t, rs.activeSet)
 	require.Equal(t, 0, len(memCache.namespaces))
 }
 
@@ -166,7 +168,7 @@ func TestRuleSetProcessStaleUpdate(t *testing.T) {
 	require.Equal(t, 5, rs.Version())
 	require.Equal(t, int64(1238), rs.CutoverNanos())
 	require.Equal(t, false, rs.Tombstoned())
-	require.NotNil(t, rs.matcher)
+	require.NotNil(t, rs.activeSet)
 	require.Equal(t, 1, len(memCache.namespaces))
 	actual := memCache.namespaces["ns5"]
 	require.Equal(t, src, actual.source)
@@ -195,10 +197,14 @@ func TestRuleSetProcessSuccess(t *testing.T) {
 	require.Equal(t, 5, rs.Version())
 	require.Equal(t, int64(1238), rs.CutoverNanos())
 	require.Equal(t, false, rs.Tombstoned())
-	require.NotNil(t, rs.matcher)
+	require.NotNil(t, rs.activeSet)
 	require.Equal(t, 1, len(memCache.namespaces))
 	actual := memCache.namespaces["ns5"]
 	require.Equal(t, rs, actual.source)
+}
+
+func testID(id string) id.ID {
+	return namespace.NewTestID(id, string(testNamespace))
 }
 
 type mockMatcher struct {
@@ -212,12 +218,16 @@ type mockMatcher struct {
 	aggTypesOpts                   aggregation.TypesOptions
 }
 
+func (mm *mockMatcher) LatestRollupRules(_ []byte, _ int64) ([]view.RollupRule, error) {
+	return []view.RollupRule{}, nil
+}
+
 func (mm *mockMatcher) ForwardMatch(
-	id []byte,
+	id id.ID,
 	fromNanos, toNanos int64,
 	_ rules.MatchOptions,
 ) (rules.MatchResult, error) {
-	mm.id = id
+	mm.id = id.Bytes()
 	mm.fromNanos = fromNanos
 	mm.toNanos = toNanos
 	return mm.res, nil
@@ -238,7 +248,7 @@ func (r *mockRuleSet) LastUpdatedAtNanos() int64                { return 0 }
 func (r *mockRuleSet) CreatedAtNanos() int64                    { return 0 }
 func (r *mockRuleSet) Tombstoned() bool                         { return r.tombstoned }
 func (r *mockRuleSet) Proto() (*rulepb.RuleSet, error)          { return nil, nil }
-func (r *mockRuleSet) ActiveSet(timeNanos int64) rules.Matcher  { return r.matcher }
+func (r *mockRuleSet) ActiveSet(_ int64) rules.ActiveSet        { return r.matcher }
 func (r *mockRuleSet) ToMutableRuleSet() rules.MutableRuleSet   { return nil }
 func (r *mockRuleSet) MappingRules() (view.MappingRules, error) { return nil, nil }
 func (r *mockRuleSet) RollupRules() (view.RollupRules, error)   { return nil, nil }

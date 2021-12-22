@@ -21,6 +21,8 @@
 package searcher
 
 import (
+	"sort"
+
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -49,17 +51,31 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 		pl           postings.List
 		plNeedsClone = true
 	)
+
+	listCount := len(s.searchers)
+	if listCount < len(s.negations) {
+		listCount = len(s.negations)
+	}
+	lists := make([]postingsListWithLength, 0, listCount)
+
 	for _, sr := range s.searchers {
 		curr, err := sr.Search(r)
 		if err != nil {
 			return nil, err
 		}
+		lists = append(lists, postingsListWithLength{
+			list:   curr,
+			length: curr.Len(),
+		})
+	}
 
-		// TODO: Sort the iterators so that we take the intersection in order of increasing size.
+	sort.Sort(byLengthAscending(lists))
+	for _, curr := range lists {
 		if pl == nil {
-			pl = curr
+			pl = curr.list
 		} else {
-			pl, err = pl.Intersect(curr)
+			var err error
+			pl, err = pl.Intersect(curr.list)
 			if err != nil {
 				return nil, err
 			}
@@ -72,23 +88,31 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 		}
 	}
 
+	lists = lists[:0]
 	for _, sr := range s.negations {
 		curr, err := sr.Search(r)
 		if err != nil {
 			return nil, err
 		}
+		lists = append(lists, postingsListWithLength{
+			list:   curr,
+			length: curr.Len(),
+		})
+	}
 
-		// TODO: Sort the iterators so that we take the set differences in order of decreasing size.
-		pl, err = pl.Difference(curr)
-		if err != nil {
-			return nil, err
-		}
-		plNeedsClone = false
-
+	sort.Sort(byLengthDescending(lists))
+	for _, curr := range lists {
 		// We can break early if the resulting postings list is ever empty.
 		if pl.IsEmpty() {
 			break
 		}
+
+		var err error
+		pl, err = pl.Difference(curr.list)
+		if err != nil {
+			return nil, err
+		}
+		plNeedsClone = false
 	}
 
 	if pl != nil && plNeedsClone {
@@ -97,4 +121,37 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 	}
 
 	return pl, nil
+}
+
+type postingsListWithLength struct {
+	list   postings.List
+	length int
+}
+
+type byLengthAscending []postingsListWithLength
+
+func (l byLengthAscending) Len() int {
+	return len(l)
+}
+
+func (l byLengthAscending) Less(i, j int) bool {
+	return l[i].length < l[j].length
+}
+
+func (l byLengthAscending) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
+}
+
+type byLengthDescending []postingsListWithLength
+
+func (l byLengthDescending) Len() int {
+	return len(l)
+}
+
+func (l byLengthDescending) Less(i, j int) bool {
+	return l[i].length > l[j].length
+}
+
+func (l byLengthDescending) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
 }

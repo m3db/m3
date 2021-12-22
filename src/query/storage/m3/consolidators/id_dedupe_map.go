@@ -35,7 +35,7 @@ type idDedupeMap struct {
 	tagOpts models.TagOptions
 }
 
-func newIDDedupeMap(opts tagMapOpts) fetchDedupeMap {
+func newIDDedupeMap(opts dedupeMapOpts) fetchDedupeMap {
 	return &idDedupeMap{
 		fanout:  opts.fanout,
 		series:  make(map[string]multiResultSeries, opts.size),
@@ -85,7 +85,6 @@ func (m *idDedupeMap) add(
 	attrs storagemetadata.Attributes,
 ) error {
 	id := iter.ID().String()
-
 	tags, err := FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
 	if err != nil {
 		return err
@@ -110,7 +109,15 @@ func (m *idDedupeMap) doUpdate(
 	existing multiResultSeries,
 	tags models.Tags,
 	iter encoding.SeriesIterator,
-	attrs storagemetadata.Attributes) error {
+	attrs storagemetadata.Attributes,
+) error {
+	if stitched, ok, err := stitchIfNeeded(existing, tags, iter, attrs); err != nil {
+		return err
+	} else if ok {
+		m.series[id] = stitched
+		return nil
+	}
+
 	var existsBetter bool
 	switch m.fanout {
 	case NamespaceCoversAllQueryRange:

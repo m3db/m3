@@ -111,6 +111,9 @@ var (
 		Size:                  4096,
 		KillWorkerProbability: 0.001,
 	}
+
+	// By default, return up to 4 metric metadata stats per request.
+	defaultMaxMetricMetadataStats = 4
 )
 
 // Configuration is the configuration for the query service.
@@ -437,6 +440,11 @@ type PerQueryLimitsConfiguration struct {
 
 	// RequireExhaustive results in an error if the query exceeds any limit.
 	RequireExhaustive *bool `yaml:"requireExhaustive"`
+
+	// MaxMetricMetadataStats limits the number of metric metadata stats to return
+	// as a response header after a query. If unset, defaults to 4. If set to zero,
+	// no metric metadata stats will be returned as a response header.
+	MaxMetricMetadataStats *int `yaml:"maxMetricMetadataStats"`
 }
 
 // AsFetchOptionsBuilderLimitsOptions converts this configuration to
@@ -457,12 +465,18 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handl
 		requireExhaustive = *r
 	}
 
+	maxMetricMetadataStats := defaultMaxMetricMetadataStats
+	if v := l.MaxMetricMetadataStats; v != nil {
+		maxMetricMetadataStats = *v
+	}
+
 	return handleroptions.FetchOptionsBuilderLimitsOptions{
-		SeriesLimit:       int(seriesLimit),
-		InstanceMultiple:  l.InstanceMultiple,
-		DocsLimit:         int(docsLimit),
-		RangeLimit:        l.MaxFetchedRange,
-		RequireExhaustive: requireExhaustive,
+		SeriesLimit:            seriesLimit,
+		InstanceMultiple:       l.InstanceMultiple,
+		DocsLimit:              docsLimit,
+		RangeLimit:             l.MaxFetchedRange,
+		RequireExhaustive:      requireExhaustive,
+		MaxMetricMetadataStats: maxMetricMetadataStats,
 	}
 }
 
