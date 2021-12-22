@@ -844,7 +844,7 @@ func (s *m3storage) Write(
 	// Set id to NoFinalize to avoid cloning it in write operations
 	id.NoFinalize()
 
-	if !s.opts.RateLimiter().Limit(namespace, datapoints, tags.Tags) {
+	if s.opts.RateLimiter().Limit(namespace, datapoints, tags.Tags) {
 		return xerrors.NewResourceExhaustedError(goerrors.New("rate limit exceeded"))
 	}
 
