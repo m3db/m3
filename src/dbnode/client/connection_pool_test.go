@@ -95,13 +95,13 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 	opts = opts.SetMaxConnectionCount(4)
 
 	fn := func(
-		ch string, addr string, opts Options,
-	) (Channel, rpc.TChanNode, error) {
+		ch string, opts Options,
+	) (Channel, error) {
 		attempt := int(atomic.AddInt32(&attempts, 1))
 		if attempt == 1 {
-			return nil, nil, fmt.Errorf("a connect error")
+			return nil, fmt.Errorf("a connect error")
 		}
-		return &noopPooledChannel{}, nil, nil
+		return &noopPooledChannel{}, nil
 	}
 
 	healthCheckNewConn := func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
@@ -114,7 +114,7 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 	healthCheck := func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
 		return nil
 	}
-	opts = opts.SetNewConnectionFn(fn).SetHealthCheckNewConn(healthCheckNewConn).SetHealthCheck(healthCheck)
+	opts = opts.SetNewConnectionFn(fn).SetHealthCheckNewConnFn(healthCheckNewConn).SetHealthCheckFn(healthCheck)
 	conns := newConnectionPool(h, opts).(*connPool)
 	conns.sleepConnect = func(t time.Duration) {
 		sleep := int(atomic.AddInt32(&sleeps, 1))
@@ -247,15 +247,22 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 	}
 
 	fn := func(
-		ch string, addr string, opts Options,
-	) (Channel, rpc.TChanNode, error) {
+		ch string, opts Options,
+	) (Channel, error) {
 		attempt := atomic.AddInt32(&newConnAttempt, 1)
-		if attempt == 1 {
-			return &noopPooledChannel{}, client1, nil
-		} else if attempt == 2 {
-			return &noopPooledChannel{}, client2, nil
+		if attempt == 1 || attempt == 2 {
+			return &noopPooledChannel{}, nil
 		}
-		return nil, nil, fmt.Errorf("spawning only 2 connections")
+		return nil, fmt.Errorf("spawning only 2 connections")
+	}
+	newClientFn := func(c Channel, address string) (rpc.TChanNode, error) {
+		attempt := atomic.LoadInt32(&newConnAttempt)
+		if attempt == 1 {
+			return client1, nil
+		} else if attempt == 2 {
+			return client2, nil
+		}
+		return nil, fmt.Errorf("spawning only 2 clients")
 	}
 	healthCheckNewConn := func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
 		return nil
@@ -267,7 +274,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		return nil
 
 	}
-	opts = opts.SetNewConnectionFn(fn).SetHealthCheck(healthCheck).SetHealthCheckNewConn(healthCheckNewConn)
+	opts = opts.SetNewConnectionFn(fn).SetNewClientFn(newClientFn).SetHealthCheckFn(healthCheck).SetHealthCheckNewConnFn(healthCheckNewConn)
 	conns := newConnectionPool(h, opts).(*connPool)
 	conns.sleepConnect = func(d time.Duration) {
 		atomic.AddInt32(&connectRounds, 1)

@@ -60,8 +60,6 @@ type connPool struct {
 	used               int64
 	connectRand        rand.Source
 	healthCheckRand    rand.Source
-	healthCheckNewConn HealthCheckFn
-	healthCheck        HealthCheckFn
 	sleepConnect       sleepFn
 	sleepHealth        sleepFn
 	sleepHealthRetry   sleepFn
@@ -75,9 +73,10 @@ type conn struct {
 }
 
 // NewConnectionFn is a function that creates a connection.
-type NewConnectionFn func(
-	channelName string, addr string, opts Options,
-) (Channel, rpc.TChanNode, error)
+type NewConnectionFn func(channelName string, opts Options) (Channel, error)
+
+// NewClientFn constructs client given a channel.
+type NewClientFn func(c Channel, address string) (rpc.TChanNode, error)
 
 // HealthCheckFn is a function that checks if connection is still healthy and should be kept in the pool.
 type HealthCheckFn func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error
@@ -100,8 +99,6 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 		poolLen:            0,
 		connectRand:        rand.NewSource(seed),
 		healthCheckRand:    rand.NewSource(seed + 1),
-		healthCheckNewConn: opts.HealthCheckNewConn(),
-		healthCheck:        opts.HealthCheck(),
 		sleepConnect:       time.Sleep,
 		sleepHealth:        time.Sleep,
 		sleepHealthRetry:   time.Sleep,
@@ -170,6 +167,9 @@ func (p *connPool) Close() {
 func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 	log := p.opts.InstrumentOptions().Logger()
 	target := p.opts.MaxConnectionCount()
+	newConnFn := p.opts.NewConnectionFn()
+	newClientFn := p.opts.NewClientFn()
+	healthCheckNewConnFn := p.opts.HealthCheckNewConnFn()
 
 	for {
 		p.RLock()
@@ -185,21 +185,25 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 		var wg sync.WaitGroup
 		for i := 0; i < target-poolLen; i++ {
 			wg.Add(1)
-			newConnFn := p.opts.NewConnectionFn()
 			go func() {
 				defer wg.Done()
 
 				// Create connection
-				channel, client, err := newConnFn(channelName, address, p.opts)
+				channel, err := newConnFn(channelName, p.opts)
 				if err != nil {
-					log.Debug("could not connect", zap.String("host", address), zap.Error(err))
+					log.Warn("could not connect", zap.Error(err))
 					return
 				}
-
+				client, err := newClientFn(channel, address)
+				if err != nil {
+					log.Warn("could not construct client", zap.String("host", address), zap.Error(err))
+					channel.Close()
+					return
+				}
 				// Health check the connection
-				if err := p.healthCheckNewConn(client, p.opts, false); err != nil {
+				if err := healthCheckNewConnFn(client, p.opts, false); err != nil {
 					p.maybeEmitHealthStatus(healthStatusCheckFailed)
-					log.Debug("could not connect, failed health check", zap.String("host", address), zap.Error(err))
+					log.Warn("could not connect, failed health check", zap.String("host", address), zap.Error(err))
 					channel.Close()
 					return
 				}
@@ -209,6 +213,8 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 				if p.status == statusOpen {
 					p.pool = append(p.pool, conn{channel, client})
 					p.poolLen = int64(len(p.pool))
+				} else {
+					channel.Close()
 				}
 				p.Unlock()
 			}()
@@ -229,6 +235,7 @@ func (p *connPool) maybeEmitHealthStatus(hs healthStatus) {
 func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duration) {
 	log := p.opts.InstrumentOptions().Logger()
 	nowFn := p.opts.ClockOptions().NowFn()
+	healthCheckFn := p.opts.HealthCheckFn()
 
 	for {
 		p.RLock()
@@ -256,7 +263,7 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 					checkErr error
 				)
 				for j := 0; j < attempts; j++ {
-					if err := p.healthCheck(client, p.opts, false); err != nil {
+					if err := healthCheckFn(client, p.opts, false); err != nil {
 						checkErr = err
 						failed++
 						throttleDuration := time.Duration(math.Max(
@@ -329,8 +336,8 @@ func defaultHealthCheck(client rpc.TChanNode, opts Options, checkBootstrapped bo
 }
 
 func defaultNewConnectionFn(
-	channelName string, address string, clientOpts Options,
-) (Channel, rpc.TChanNode, error) {
+	channelName string, clientOpts Options,
+) (Channel, error) {
 	// NB(r): Keep ref to a local channel options since it's actually modified
 	// by TChannel itself to set defaults.
 	var opts *tchannel.ChannelOptions
@@ -338,14 +345,18 @@ func defaultNewConnectionFn(
 		immutableOpts := *chanOpts
 		opts = &immutableOpts
 	}
-	channel, err := tchannel.NewChannel(channelName, opts)
-	if err != nil {
-		return nil, nil, err
+	return tchannel.NewChannel(channelName, opts)
+}
+
+func defaultNewClientFn(c Channel, address string) (rpc.TChanNode, error) {
+	tc, ok := c.(*tchannel.Channel)
+	if !ok {
+		return nil, errors.New("can't create new client: not a *tchannel.Channel")
 	}
 	endpoint := &thrift.ClientOptions{HostPort: address}
-	thriftClient := thrift.NewClient(channel, nchannel.ChannelName, endpoint)
+	thriftClient := thrift.NewClient(tc, nchannel.ChannelName, endpoint)
 	client := rpc.NewTChanNodeClient(thriftClient)
-	return channel, client, nil
+	return client, nil
 }
 
 func randStutter(source rand.Source, t time.Duration) time.Duration {

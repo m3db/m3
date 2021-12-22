@@ -713,18 +713,24 @@ type Options interface {
 	// NewConnectionFn returns the new connection generator function.
 	NewConnectionFn() NewConnectionFn
 
-	// SetHealthCheckNewConn sets health check function used by connection pool
+	// SetNewClientFn sets a new client generator function.
+	SetNewClientFn(value NewClientFn) AdminOptions
+
+	// NewClientFn returns the new client generator function.
+	NewClientFn() NewClientFn
+
+	// SetHealthCheckNewConnFn sets health check function used by connection pool
 	// when the connection is made for the first time.
-	SetHealthCheckNewConn(value HealthCheckFn) AdminOptions
+	SetHealthCheckNewConnFn(value HealthCheckFn) AdminOptions
 
-	// HealthCheckNewConn  returns a health check function used by connection pool.
-	HealthCheckNewConn() HealthCheckFn
+	// HealthCheckNewConnFn  returns a health check function used by connection pool.
+	HealthCheckNewConnFn() HealthCheckFn
 
-	// SetHealthCheck sets health check function used by connection pool.
-	SetHealthCheck(value HealthCheckFn) AdminOptions
+	// SetHealthCheckFn sets health check function used by connection pool.
+	SetHealthCheckFn(value HealthCheckFn) AdminOptions
 
-	// HealthCheck returns a health check function used by connection pool.
-	HealthCheck() HealthCheckFn
+	// HealthCheckFn returns a health check function used by connection pool.
+	HealthCheckFn() HealthCheckFn
 
 	// SetNamespaceInitializer sets the NamespaceInitializer used to generate a namespace.Registry object
 	// that can be used to watch namespaces.

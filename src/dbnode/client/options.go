@@ -263,6 +263,7 @@ type options struct {
 	writeShardsInitializing                 bool
 	shardsLeavingCountTowardsConsistency    bool
 	newConnectionFn                         NewConnectionFn
+	newClientFn                             NewClientFn
 	healthCheck                             HealthCheckFn
 	healthCheckNewConn                      HealthCheckFn
 	readerIteratorAllocate                  encoding.ReaderIteratorAllocate
@@ -392,28 +393,29 @@ func newOptions() *options {
 		backgroundHealthCheckStutter:            defaultBackgroundHealthCheckStutter,
 		backgroundHealthCheckFailLimit:          defaultBackgroundHealthCheckFailLimit,
 		backgroundHealthCheckFailThrottleFactor: defaultBackgroundHealthCheckFailThrottleFactor,
-		writeRetrier:                         defaultWriteRetrier,
-		fetchRetrier:                         defaultFetchRetrier,
-		writeShardsInitializing:              defaultWriteShardsInitializing,
-		shardsLeavingCountTowardsConsistency: defaultShardsLeavingCountTowardsConsistency,
-		tagEncoderPoolSize:                   defaultTagEncoderPoolSize,
-		tagEncoderOpts:                       serialize.NewTagEncoderOptions(),
-		tagDecoderPoolSize:                   defaultTagDecoderPoolSize,
-		tagDecoderOpts:                       serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
-		streamBlocksRetrier:                  defaultStreamBlocksRetrier,
-		newConnectionFn:                      defaultNewConnectionFn,
-		healthCheck:                          defaultHealthCheck,
-		healthCheckNewConn:                   defaultHealthCheck,
-		writeOperationPoolSize:               defaultWriteOpPoolSize,
-		writeTaggedOperationPoolSize:         defaultWriteTaggedOpPoolSize,
-		fetchBatchOpPoolSize:                 defaultFetchBatchOpPoolSize,
-		writeBatchSize:                       DefaultWriteBatchSize,
-		fetchBatchSize:                       defaultFetchBatchSize,
-		checkedBytesPool:                     bytesPool,
-		identifierPool:                       idPool,
-		hostQueueOpsFlushSize:                defaultHostQueueOpsFlushSize,
-		hostQueueOpsFlushInterval:            defaultHostQueueOpsFlushInterval,
-		hostQueueOpsArrayPoolSize:            defaultHostQueueOpsArrayPoolSize,
+		writeRetrier:                            defaultWriteRetrier,
+		fetchRetrier:                            defaultFetchRetrier,
+		writeShardsInitializing:                 defaultWriteShardsInitializing,
+		shardsLeavingCountTowardsConsistency:    defaultShardsLeavingCountTowardsConsistency,
+		tagEncoderPoolSize:                      defaultTagEncoderPoolSize,
+		tagEncoderOpts:                          serialize.NewTagEncoderOptions(),
+		tagDecoderPoolSize:                      defaultTagDecoderPoolSize,
+		tagDecoderOpts:                          serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
+		streamBlocksRetrier:                     defaultStreamBlocksRetrier,
+		newConnectionFn:                         defaultNewConnectionFn,
+		newClientFn:                             defaultNewClientFn,
+		healthCheck:                             defaultHealthCheck,
+		healthCheckNewConn:                      defaultHealthCheck,
+		writeOperationPoolSize:                  defaultWriteOpPoolSize,
+		writeTaggedOperationPoolSize:            defaultWriteTaggedOpPoolSize,
+		fetchBatchOpPoolSize:                    defaultFetchBatchOpPoolSize,
+		writeBatchSize:                          DefaultWriteBatchSize,
+		fetchBatchSize:                          defaultFetchBatchSize,
+		checkedBytesPool:                        bytesPool,
+		identifierPool:                          idPool,
+		hostQueueOpsFlushSize:                   defaultHostQueueOpsFlushSize,
+		hostQueueOpsFlushInterval:               defaultHostQueueOpsFlushInterval,
+		hostQueueOpsArrayPoolSize:               defaultHostQueueOpsArrayPoolSize,
 		hostQueueNewPooledWorkerFn:              hostQueueNewPooledWorkerFn,
 		hostQueueEmitsHealthStatus:              defaultHostQueueEmitsHealthStatus,
 		seriesIteratorPoolSize:                  defaultSeriesIteratorPoolSize,
@@ -821,23 +823,33 @@ func (o *options) NewConnectionFn() NewConnectionFn {
 	return o.newConnectionFn
 }
 
-func (o *options) SetHealthCheckNewConn(value HealthCheckFn) AdminOptions {
+func (o *options) SetNewClientFn(value NewClientFn) AdminOptions {
+	opts := *o
+	opts.newClientFn = value
+	return &opts
+}
+
+func (o *options) NewClientFn() NewClientFn {
+	return o.newClientFn
+}
+
+func (o *options) SetHealthCheckNewConnFn(value HealthCheckFn) AdminOptions {
 	opts := *o
 	opts.healthCheckNewConn = value
 	return &opts
 }
 
-func (o *options) HealthCheckNewConn() HealthCheckFn {
+func (o *options) HealthCheckNewConnFn() HealthCheckFn {
 	return o.healthCheckNewConn
 }
 
-func (o *options) SetHealthCheck(value HealthCheckFn) AdminOptions {
+func (o *options) SetHealthCheckFn(value HealthCheckFn) AdminOptions {
 	opts := *o
 	opts.healthCheck = value
 	return &opts
 }
 
-func (o *options) HealthCheck() HealthCheckFn {
+func (o *options) HealthCheckFn() HealthCheckFn {
 	return o.healthCheck
 }
 
