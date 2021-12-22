@@ -47,9 +47,25 @@ var (
 
 type noopPooledChannel struct {
 	address string
+	closed  int32
 }
 
-func (c *noopPooledChannel) Close() {}
+func asNoopPooledChannel(c Channel) *noopPooledChannel {
+	cc, ok := c.(*noopPooledChannel)
+	if !ok {
+		panic("not a noopPooledChannel")
+	}
+	return cc
+}
+
+func (c *noopPooledChannel) Closed() bool {
+	return atomic.LoadInt32(&c.closed) == 1
+}
+
+func (c *noopPooledChannel) Close() {
+	atomic.StoreInt32(&c.closed, 1)
+}
+
 func (c *noopPooledChannel) GetSubChannel(
 	serviceName string,
 	opts ...tchannel.SubChannelOption,

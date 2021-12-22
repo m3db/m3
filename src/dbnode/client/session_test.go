@@ -445,25 +445,30 @@ func TestDedicatedConnection(t *testing.T) {
 
 	_, ch, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
 	require.NoError(t, err)
-	assert.Equal(t, &noopPooledChannel{"remote1"}, ch)
+	assert.Equal(t, "remote1", asNoopPooledChannel(ch).address)
 
 	_, ch2, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{ShardStateFilter: shard.Available})
 	require.NoError(t, err)
-	assert.Equal(t, &noopPooledChannel{"remote2"}, ch2)
+	assert.Equal(t, "remote2", asNoopPooledChannel(ch2).address)
 
 	s.healthCheckNewConnFn = testHealthCheck(nil, true)
 	_, ch3, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{BootstrappedNodesOnly: true})
 	require.NoError(t, err)
-	assert.Equal(t, &noopPooledChannel{"remote1"}, ch3)
+	assert.Equal(t, "remote1", asNoopPooledChannel(ch3).address)
 
 	healthErr := errors.New("unhealthy")
 	s.healthCheckNewConnFn = testHealthCheck(healthErr, false)
 
+	ch = &noopPooledChannel{"test", 0}
+	s.opts = NewOptions().SetNewConnectionFn(func(_ string, _ string, _ Options) (Channel, rpc.TChanNode, error) {
+		return ch, nil, nil
+	})
 	_, _, err = s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
 	require.NotNil(t, err)
 	multiErr, ok := err.(xerror.MultiError) // nolint: errorlint
 	assert.True(t, ok, "expecting MultiError")
 	assert.True(t, multiErr.Contains(healthErr))
+	assert.True(t, asNoopPooledChannel(ch).Closed())
 }
 
 func testSessionClusterConnectConsistencyLevel(
@@ -621,9 +626,9 @@ func testHealthCheck(err error, bootstrappedNodesOnly bool) func(rpc.TChanNode, 
 }
 
 func noopNewConnection(
-	channelName string,
+	_ string,
 	addr string,
-	opts Options,
+	_ Options,
 ) (Channel, rpc.TChanNode, error) {
-	return &noopPooledChannel{addr}, nil, nil
+	return &noopPooledChannel{addr, 0}, nil, nil
 }

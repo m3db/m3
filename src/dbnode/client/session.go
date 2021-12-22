@@ -785,6 +785,7 @@ func (s *session) DedicatedConnection(
 		}
 
 		if err := s.healthCheckNewConnFn(client, s.opts, opts.BootstrappedNodesOnly); err != nil {
+			channel.Close()
 			multiErr = multiErr.Add(err)
 			return
 		}
