@@ -3319,8 +3319,8 @@ func (s *session) streamBlocksBatchFromPeer(
 		ropts              = namespaceMetadata.Options().RetentionOptions()
 		retention          = ropts.RetentionPeriod()
 		earliestBlockStart = xtime.ToUnixNano(nowFn()).
-			Add(-retention).
-			Truncate(ropts.BlockSize())
+					Add(-retention).
+					Truncate(ropts.BlockSize())
 	)
 	req.NameSpace = namespaceMetadata.ID().Bytes()
 	req.Shard = int32(shard)

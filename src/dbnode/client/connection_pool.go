@@ -29,7 +29,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
 	murmur3 "github.com/m3db/stackmurmur3/v2"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go"
@@ -37,6 +36,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
 	"github.com/m3db/m3/src/dbnode/topology"
 )
 
@@ -350,8 +350,11 @@ func randStutter(source rand.Source, t time.Duration) time.Duration {
 	return time.Duration(float64(t) * amount)
 }
 
-// TODO unit test
-func establishNewConnection(addr string, bootstrappedNodesOnly bool, opts Options) (Channel, rpc.TChanNode, bool, error) {
+func establishNewConnection(
+	addr string,
+	bootstrappedNodesOnly bool,
+	opts Options,
+) (Channel, rpc.TChanNode, bool, error) {
 	var (
 		newConnFn            = opts.NewConnectionFn()
 		newClientFn          = opts.NewClientFn()

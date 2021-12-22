@@ -21,6 +21,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -32,6 +33,7 @@ import (
 	xclock "github.com/m3db/m3/src/x/clock"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/tchannel-go"
 )
@@ -45,9 +47,18 @@ var (
 	h = topology.NewHost(testHostStr, testHostAddr)
 )
 
-type noopPooledChannel struct{}
+type noopPooledChannel struct {
+	closed int32
+}
 
-func (c *noopPooledChannel) Close() {}
+func (c *noopPooledChannel) Closed() bool {
+	return atomic.LoadInt32(&c.closed) == 1
+}
+
+func (c *noopPooledChannel) Close() {
+	atomic.StoreInt32(&c.closed, 1)
+}
+
 func (c *noopPooledChannel) GetSubChannel(
 	serviceName string,
 	opts ...tchannel.SubChannelOption,
@@ -270,7 +281,6 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 			return fn(client, opts, checkBootstrapped)
 		}
 		return nil
-
 	}
 	opts = opts.SetNewConnectionFn(fn).
 		SetNewClientFn(newClientFn).
@@ -352,4 +362,89 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 	nextClient, _, err = conns.NextClient()
 	require.Nil(t, nextClient)
 	require.Equal(t, errConnectionPoolClosed, err)
+}
+
+func TestEstablishNewConnection(t *testing.T) {
+	for _, tc := range []struct {
+		name                      string
+		newConnErr                string
+		newClientErr              string
+		healthCheckErr            string
+		expectedError             string
+		expectedHealthCheckFailed bool
+		expectedChannelClosed     bool
+	}{
+		{
+			name: "connection established successfully",
+		},
+		{
+			name:          "channel creation fails",
+			newConnErr:    "err creating channel",
+			expectedError: "err creating channel",
+		},
+		{
+			name:                  "client creation fails",
+			newClientErr:          "err creating client",
+			expectedError:         "err creating client",
+			expectedChannelClosed: true,
+		},
+		{
+			name:                      "health check fails",
+			healthCheckErr:            "err checking health",
+			expectedError:             "err checking health",
+			expectedChannelClosed:     true,
+			expectedHealthCheckFailed: true,
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			ctrl.Finish()
+
+			ch := &noopPooledChannel{}
+			cl := rpc.NewMockTChanNode(ctrl)
+
+			newConnectionFn := func(channelName string, opts Options) (Channel, error) {
+				if tc.newConnErr == "" {
+					return ch, nil
+				}
+				return nil, errors.New(tc.newConnErr)
+			}
+			newClientFn := func(c Channel, address string) (rpc.TChanNode, error) {
+				if tc.newConnErr == "" {
+					assert.Equal(t, ch, c, "newClientFn received wrong instance of a channel")
+				}
+				if tc.newClientErr == "" {
+					return cl, nil
+				}
+				return nil, errors.New(tc.newClientErr)
+			}
+			healthCheckNewConnFn := func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
+				if tc.newClientErr == "" {
+					assert.Equal(t, cl, client, "healthCheckNewConnFn received wrong instance of a client")
+				}
+				if tc.healthCheckErr == "" {
+					return nil
+				}
+				return errors.New(tc.healthCheckErr)
+			}
+
+			opts := newConnectionPoolTestOptions().
+				SetNewConnectionFn(newConnectionFn).
+				SetNewClientFn(newClientFn).
+				SetHealthCheckNewConnFn(healthCheckNewConnFn)
+			gotCh, gotCl, healthCheckFailed, err := establishNewConnection("testAddr", false, opts)
+
+			if tc.expectedError != "" {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, ch, gotCh)
+				assert.Equal(t, cl, gotCl)
+			}
+
+			assert.Equal(t, tc.expectedHealthCheckFailed, healthCheckFailed)
+			assert.Equal(t, tc.expectedChannelClosed, ch.Closed())
+		})
+	}
 }
