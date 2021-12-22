@@ -12,6 +12,8 @@ You can:
 * delete namespaces
 * list placements
 * delete placements
+* list topics
+* delete topics
 * add nodes
 * remove nodes
 
@@ -33,6 +35,8 @@ m3ctl get ns
 m3ctl delete ns -id default
 # list service placements (m3db/m3coordinator/m3aggregator)
 m3ctl get pl <service>
+# list topics
+m3ctl get topic --header 'Cluster-Environment-Name: namespace/m3db-cluster-name, Topic-Name: aggregator_ingest'
 # point to some remote and list namespaces
 m3ctl -endpoint http://localhost:7201 get ns
 # check the namespaces in a kubernetes cluster

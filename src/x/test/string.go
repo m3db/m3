@@ -18,11 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package generated is a dummy package to make sure mockgen dependencies are pulled in correctly in vendor mode.
-package generated
+package test
 
-import (
-
-	// https://github.com/golang/mock/issues/494
-	_ "github.com/golang/mock/mockgen/model"
-)
+// BytesArray converts a variable length string arguments (array of strings)
+// into an array of byte arrays
+func BytesArray(strings ...string) [][]byte {
+	stringBytesArray := make([][]byte, len(strings))
+	for i, v := range strings {
+		stringBytesArray[i] = []byte(v)
+	}
+	return stringBytesArray
+}
