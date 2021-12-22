@@ -53,6 +53,7 @@ const (
 	shutdownTimeout  = time.Minute
 )
 
+//nolint:maligned
 // Coordinator is an in-process implementation of resources.Coordinator for use
 // in integration tests.
 type Coordinator struct {
@@ -62,11 +63,13 @@ type Coordinator struct {
 	tmpDirs  []string
 	embedded bool
 	startFn  CoordinatorStartFn
+	started  bool
 
 	interruptCh chan<- error
 	shutdownCh  <-chan struct{}
 }
 
+//nolint:maligned
 // CoordinatorOptions are options for starting a coordinator server.
 type CoordinatorOptions struct {
 	// GeneratePorts will automatically update the config to use open ports
@@ -74,6 +77,8 @@ type CoordinatorOptions struct {
 	GeneratePorts bool
 	// StartFn is a custom function that can be used to start the Coordinator.
 	StartFn CoordinatorStartFn
+	// Start indicates whether to start the coordinator instance.
+	Start bool
 	// Logger is the logger to use for the coordinator. If not provided,
 	// a default one will be created.
 	Logger *zap.Logger
@@ -169,7 +174,9 @@ func NewCoordinator(cfg config.Configuration, opts CoordinatorOptions) (resource
 		tmpDirs: tmpDirs,
 		startFn: opts.StartFn,
 	}
-	coord.start()
+	if opts.Start {
+		coord.Start()
+	}
 
 	return coord, nil
 }
@@ -207,7 +214,15 @@ func NewEmbeddedCoordinator(d *DBNode) (resources.Coordinator, error) {
 	}, nil
 }
 
-func (c *Coordinator) start() {
+// Start is the start method for the coordinator.
+//nolint:dupl
+func (c *Coordinator) Start() {
+	if c.started {
+		c.logger.Debug("coordinator already started")
+		return
+	}
+	c.started = true
+
 	if c.startFn != nil {
 		c.interruptCh, c.shutdownCh = c.startFn(&c.cfg)
 		return
@@ -373,6 +388,8 @@ func (c *Coordinator) Close() error {
 		return errors.New("timeout waiting for shutdown notification. coordinator closing may" +
 			" not be completely graceful")
 	}
+
+	c.started = false
 
 	return nil
 }

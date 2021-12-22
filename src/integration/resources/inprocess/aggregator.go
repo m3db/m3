@@ -171,9 +171,10 @@ func (a *Aggregator) HostDetails() (*resources.InstanceInfo, error) {
 }
 
 // Start starts the aggregator instance.
+//nolint:dupl
 func (a *Aggregator) Start() {
 	if a.started {
-		a.logger.Warn("aggregator instance has started already")
+		a.logger.Debug("aggregator instance has started already")
 		return
 	}
 	a.started = true
