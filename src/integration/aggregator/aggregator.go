@@ -39,11 +39,21 @@ const (
 	// TestAggregatorDBNodeConfig is the test config for the dbnode.
 	TestAggregatorDBNodeConfig = `
 db: {}
+coordinator: {}
 `
 
 	// TestAggregatorCoordinatorConfig is the test config for the coordinator.
 	TestAggregatorCoordinatorConfig = `
 listenAddress: 0.0.0.0:7202
+metrics:
+  scope:
+    prefix: "coordinator"
+  prometheus:
+    handlerPath: /metrics
+    listenAddress: 0.0.0.0:7303
+  sanitization: prometheus
+  samplingRate: 1.0
+  extended: none
 carbon:
   ingester:
     listenAddress: "0.0.0.0:7204"
@@ -69,6 +79,43 @@ downsample:
         storagePolicies:
           - resolution: 5s
             retention: 6h
+  remoteAggregator:
+    client:
+      type: m3msg
+      m3msg:
+        producer:
+          writer:
+            topicName: aggregator_ingest
+            topicServiceOverride:
+              zone: embedded
+              environment: default_env
+            placement:
+              isStaged: true
+            placementServiceOverride:
+              namespaces:
+                placement: /placement
+            connection:
+              numConnections: 4
+            messagePool:
+              size: 16384
+              watermark:
+                low: 0.2
+                high: 0.5
+ingest:
+  ingester:
+    workerPoolSize: 10000
+    opPool:
+      size: 10000
+    retry:
+      maxRetries: 3
+      jitter: true
+    logSampleRate: 0.01
+  m3msg:
+    server:
+      listenAddress: "0.0.0.0:7507"
+      retry:
+        maxBackoff: 10s
+        jitter: true
 storeMetricsType: true
 `
 
@@ -128,9 +175,9 @@ func testAggregatedGraphiteMetric(t *testing.T, m3 resources.M3Resources) {
 		}
 	}()
 
-	require.NoError(t, resources.Retry(func() error {
+	require.NoError(t, resources.RetryWithMaxTime(func() error {
 		return verifyGraphiteQuery(m3, carbonTarget, expectedCarbonMean)
-	}))
+	}, 2*time.Minute))
 }
 
 func verifyGraphiteQuery(m3 resources.M3Resources, target string, expected float64) error {
@@ -166,7 +213,7 @@ func filterNull(datapoints []resources.Datapoint) []resources.Datapoint {
 func testRollupRule(t *testing.T, m3 resources.M3Resources) {
 	var (
 		numDatapoints = 5
-		resolutionSec = 10
+		resolutionSec = 5
 		nowTime       = time.Now()
 		initWriteTime = nowTime.Truncate(time.Duration(resolutionSec) * time.Second)
 		metricName    = "http_requests"
@@ -216,21 +263,21 @@ func testRollupRule(t *testing.T, m3 resources.M3Resources) {
 		require.NoError(t, err)
 	}
 
-	require.NoError(t, resources.Retry(func() error {
+	require.NoError(t, resources.RetryWithMaxTime(func() error {
 		return verifyPromQuery(
 			m3,
 			`http_requests_by_status_code{endpoint="/foo/bar"}`,
 			float64(valRate1),
 		)
-	}))
+	}, 2*time.Minute))
 
-	require.NoError(t, resources.Retry(func() error {
+	require.NoError(t, resources.RetryWithMaxTime(func() error {
 		return verifyPromQuery(
 			m3,
 			`http_requests_by_status_code{endpoint="/foo/baz"}`,
 			float64(valRate2),
 		)
-	}))
+	}, 2*time.Minute))
 }
 
 func verifyPromQuery(

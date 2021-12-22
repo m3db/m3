@@ -229,6 +229,11 @@ var validInstanceIDTypes = []InstanceIDType{
 	HostIDPortInstanceIDType,
 }
 
+// MarshalYAML returns the YAML representation of the InstanceIDType.
+func (t InstanceIDType) MarshalYAML() (interface{}, error) {
+	return t.String(), nil
+}
+
 // UnmarshalYAML unmarshals a InstanceIDType into a valid type from string.
 func (t *InstanceIDType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
