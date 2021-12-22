@@ -154,7 +154,7 @@ type session struct {
 	newPeerBlocksQueueFn                 newPeerBlocksQueueFn
 	reattemptStreamBlocksFromPeersFn     reattemptStreamBlocksFromPeersFn
 	pickBestPeerFn                       pickBestPeerFn
-	healthCheckNewConnFn                 healthCheckFn
+	healthCheckNewConnFn                 HealthCheckFn
 	origin                               topology.Host
 	streamBlocksMaxBlockRetries          int
 	streamBlocksWorkers                  xsync.WorkerPool
@@ -286,7 +286,7 @@ func newSession(opts Options) (clientSession, error) {
 		newHostQueueFn:       newHostQueue,
 		fetchBatchSize:       opts.FetchBatchSize(),
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
-		healthCheckNewConnFn: healthCheck,
+		healthCheckNewConnFn: defaultHealthCheck,
 		writeRetrier:         opts.WriteRetrier(),
 		fetchRetrier:         opts.FetchRetrier(),
 		pools: sessionPools{

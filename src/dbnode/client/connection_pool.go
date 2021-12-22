@@ -29,8 +29,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	nchannel "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
 	murmur3 "github.com/m3db/stackmurmur3/v2"
 	"github.com/uber-go/tally"
+	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
@@ -58,8 +60,8 @@ type connPool struct {
 	used               int64
 	connectRand        rand.Source
 	healthCheckRand    rand.Source
-	healthCheckNewConn healthCheckFn
-	healthCheck        healthCheckFn
+	healthCheckNewConn HealthCheckFn
+	healthCheck        HealthCheckFn
 	sleepConnect       sleepFn
 	sleepHealth        sleepFn
 	sleepHealthRetry   sleepFn
@@ -77,7 +79,8 @@ type NewConnectionFn func(
 	channelName string, addr string, opts Options,
 ) (Channel, rpc.TChanNode, error)
 
-type healthCheckFn func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error
+// HealthCheckFn is a function that checks if connection is still healthy and should be kept in the pool.
+type HealthCheckFn func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error
 
 type sleepFn func(t time.Duration)
 
@@ -97,8 +100,8 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 		poolLen:            0,
 		connectRand:        rand.NewSource(seed),
 		healthCheckRand:    rand.NewSource(seed + 1),
-		healthCheckNewConn: healthCheck,
-		healthCheck:        healthCheck,
+		healthCheckNewConn: opts.HealthCheckNewConn(),
+		healthCheck:        opts.HealthCheck(),
 		sleepConnect:       time.Sleep,
 		sleepHealth:        time.Sleep,
 		sleepHealthRetry:   time.Sleep,
@@ -310,7 +313,7 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 	}
 }
 
-func healthCheck(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
+func defaultHealthCheck(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
 	tctx, _ := thrift.NewContext(opts.HostConnectTimeout())
 	result, err := client.Health(tctx)
 	if err != nil {
@@ -323,6 +326,26 @@ func healthCheck(client rpc.TChanNode, opts Options, checkBootstrapped bool) err
 		return errNodeNotBootstrapped
 	}
 	return nil
+}
+
+func defaultNewConnectionFn(
+	channelName string, address string, clientOpts Options,
+) (Channel, rpc.TChanNode, error) {
+	// NB(r): Keep ref to a local channel options since it's actually modified
+	// by TChannel itself to set defaults.
+	var opts *tchannel.ChannelOptions
+	if chanOpts := clientOpts.ChannelOptions(); chanOpts != nil {
+		immutableOpts := *chanOpts
+		opts = &immutableOpts
+	}
+	channel, err := tchannel.NewChannel(channelName, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	endpoint := &thrift.ClientOptions{HostPort: address}
+	thriftClient := thrift.NewClient(channel, nchannel.ChannelName, endpoint)
+	client := rpc.NewTChanNodeClient(thriftClient)
+	return channel, client, nil
 }
 
 func randStutter(source rand.Source, t time.Duration) time.Duration {

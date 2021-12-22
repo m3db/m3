@@ -1451,6 +1451,34 @@ func (mr *MockOptionsMockRecorder) FetchRetrier() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchRetrier", reflect.TypeOf((*MockOptions)(nil).FetchRetrier))
 }
 
+// HealthCheck mocks base method.
+func (m *MockOptions) HealthCheck() HealthCheckFn {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HealthCheck")
+	ret0, _ := ret[0].(HealthCheckFn)
+	return ret0
+}
+
+// HealthCheck indicates an expected call of HealthCheck.
+func (mr *MockOptionsMockRecorder) HealthCheck() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HealthCheck", reflect.TypeOf((*MockOptions)(nil).HealthCheck))
+}
+
+// HealthCheckNewConn mocks base method.
+func (m *MockOptions) HealthCheckNewConn() HealthCheckFn {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HealthCheckNewConn")
+	ret0, _ := ret[0].(HealthCheckFn)
+	return ret0
+}
+
+// HealthCheckNewConn indicates an expected call of HealthCheckNewConn.
+func (mr *MockOptionsMockRecorder) HealthCheckNewConn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HealthCheckNewConn", reflect.TypeOf((*MockOptions)(nil).HealthCheckNewConn))
+}
+
 // HostConnectTimeout mocks base method.
 func (m *MockOptions) HostConnectTimeout() time.Duration {
 	m.ctrl.T.Helper()
@@ -2051,6 +2079,34 @@ func (m *MockOptions) SetFetchRetrier(value retry.Retrier) Options {
 func (mr *MockOptionsMockRecorder) SetFetchRetrier(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchRetrier", reflect.TypeOf((*MockOptions)(nil).SetFetchRetrier), value)
+}
+
+// SetHealthCheck mocks base method.
+func (m *MockOptions) SetHealthCheck(value HealthCheckFn) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHealthCheck", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetHealthCheck indicates an expected call of SetHealthCheck.
+func (mr *MockOptionsMockRecorder) SetHealthCheck(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHealthCheck", reflect.TypeOf((*MockOptions)(nil).SetHealthCheck), value)
+}
+
+// SetHealthCheckNewConn mocks base method.
+func (m *MockOptions) SetHealthCheckNewConn(value HealthCheckFn) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHealthCheckNewConn", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetHealthCheckNewConn indicates an expected call of SetHealthCheckNewConn.
+func (mr *MockOptionsMockRecorder) SetHealthCheckNewConn(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHealthCheckNewConn", reflect.TypeOf((*MockOptions)(nil).SetHealthCheckNewConn), value)
 }
 
 // SetHostConnectTimeout mocks base method.
@@ -3210,6 +3266,34 @@ func (mr *MockAdminOptionsMockRecorder) FetchSeriesBlocksMetadataBatchTimeout() 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchSeriesBlocksMetadataBatchTimeout", reflect.TypeOf((*MockAdminOptions)(nil).FetchSeriesBlocksMetadataBatchTimeout))
 }
 
+// HealthCheck mocks base method.
+func (m *MockAdminOptions) HealthCheck() HealthCheckFn {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HealthCheck")
+	ret0, _ := ret[0].(HealthCheckFn)
+	return ret0
+}
+
+// HealthCheck indicates an expected call of HealthCheck.
+func (mr *MockAdminOptionsMockRecorder) HealthCheck() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HealthCheck", reflect.TypeOf((*MockAdminOptions)(nil).HealthCheck))
+}
+
+// HealthCheckNewConn mocks base method.
+func (m *MockAdminOptions) HealthCheckNewConn() HealthCheckFn {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HealthCheckNewConn")
+	ret0, _ := ret[0].(HealthCheckFn)
+	return ret0
+}
+
+// HealthCheckNewConn indicates an expected call of HealthCheckNewConn.
+func (mr *MockAdminOptionsMockRecorder) HealthCheckNewConn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HealthCheckNewConn", reflect.TypeOf((*MockAdminOptions)(nil).HealthCheckNewConn))
+}
+
 // HostConnectTimeout mocks base method.
 func (m *MockAdminOptions) HostConnectTimeout() time.Duration {
 	m.ctrl.T.Helper()
@@ -3908,6 +3992,34 @@ func (m *MockAdminOptions) SetFetchSeriesBlocksMetadataBatchTimeout(value time.D
 func (mr *MockAdminOptionsMockRecorder) SetFetchSeriesBlocksMetadataBatchTimeout(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchSeriesBlocksMetadataBatchTimeout", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchSeriesBlocksMetadataBatchTimeout), value)
+}
+
+// SetHealthCheck mocks base method.
+func (m *MockAdminOptions) SetHealthCheck(value HealthCheckFn) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHealthCheck", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetHealthCheck indicates an expected call of SetHealthCheck.
+func (mr *MockAdminOptionsMockRecorder) SetHealthCheck(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHealthCheck", reflect.TypeOf((*MockAdminOptions)(nil).SetHealthCheck), value)
+}
+
+// SetHealthCheckNewConn mocks base method.
+func (m *MockAdminOptions) SetHealthCheckNewConn(value HealthCheckFn) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHealthCheckNewConn", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetHealthCheckNewConn indicates an expected call of SetHealthCheckNewConn.
+func (mr *MockAdminOptionsMockRecorder) SetHealthCheckNewConn(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHealthCheckNewConn", reflect.TypeOf((*MockAdminOptions)(nil).SetHealthCheckNewConn), value)
 }
 
 // SetHostConnectTimeout mocks base method.

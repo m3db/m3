@@ -33,9 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/environment"
-	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	nchannel "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -265,6 +263,8 @@ type options struct {
 	writeShardsInitializing                 bool
 	shardsLeavingCountTowardsConsistency    bool
 	newConnectionFn                         NewConnectionFn
+	healthCheck                             HealthCheckFn
+	healthCheckNewConn                      HealthCheckFn
 	readerIteratorAllocate                  encoding.ReaderIteratorAllocate
 	writeOperationPoolSize                  pool.Size
 	writeTaggedOperationPoolSize            pool.Size
@@ -325,26 +325,6 @@ func NewOptionsForAsyncClusters(opts Options, topoInits []topology.Initializer, 
 		result = append(result, options)
 	}
 	return result
-}
-
-func defaultNewConnectionFn(
-	channelName string, address string, clientOpts Options,
-) (Channel, rpc.TChanNode, error) {
-	// NB(r): Keep ref to a local channel options since it's actually modified
-	// by TChannel itself to set defaults.
-	var opts *tchannel.ChannelOptions
-	if chanOpts := clientOpts.ChannelOptions(); chanOpts != nil {
-		immutableOpts := *chanOpts
-		opts = &immutableOpts
-	}
-	channel, err := tchannel.NewChannel(channelName, opts)
-	if err != nil {
-		return nil, nil, err
-	}
-	endpoint := &thrift.ClientOptions{HostPort: address}
-	thriftClient := thrift.NewClient(channel, nchannel.ChannelName, endpoint)
-	client := rpc.NewTChanNodeClient(thriftClient)
-	return channel, client, nil
 }
 
 func newOptions() *options {
@@ -412,26 +392,28 @@ func newOptions() *options {
 		backgroundHealthCheckStutter:            defaultBackgroundHealthCheckStutter,
 		backgroundHealthCheckFailLimit:          defaultBackgroundHealthCheckFailLimit,
 		backgroundHealthCheckFailThrottleFactor: defaultBackgroundHealthCheckFailThrottleFactor,
-		writeRetrier:                            defaultWriteRetrier,
-		fetchRetrier:                            defaultFetchRetrier,
-		writeShardsInitializing:                 defaultWriteShardsInitializing,
-		shardsLeavingCountTowardsConsistency:    defaultShardsLeavingCountTowardsConsistency,
-		tagEncoderPoolSize:                      defaultTagEncoderPoolSize,
-		tagEncoderOpts:                          serialize.NewTagEncoderOptions(),
-		tagDecoderPoolSize:                      defaultTagDecoderPoolSize,
-		tagDecoderOpts:                          serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
-		streamBlocksRetrier:                     defaultStreamBlocksRetrier,
-		newConnectionFn:                         defaultNewConnectionFn,
-		writeOperationPoolSize:                  defaultWriteOpPoolSize,
-		writeTaggedOperationPoolSize:            defaultWriteTaggedOpPoolSize,
-		fetchBatchOpPoolSize:                    defaultFetchBatchOpPoolSize,
-		writeBatchSize:                          DefaultWriteBatchSize,
-		fetchBatchSize:                          defaultFetchBatchSize,
-		checkedBytesPool:                        bytesPool,
-		identifierPool:                          idPool,
-		hostQueueOpsFlushSize:                   defaultHostQueueOpsFlushSize,
-		hostQueueOpsFlushInterval:               defaultHostQueueOpsFlushInterval,
-		hostQueueOpsArrayPoolSize:               defaultHostQueueOpsArrayPoolSize,
+		writeRetrier:                         defaultWriteRetrier,
+		fetchRetrier:                         defaultFetchRetrier,
+		writeShardsInitializing:              defaultWriteShardsInitializing,
+		shardsLeavingCountTowardsConsistency: defaultShardsLeavingCountTowardsConsistency,
+		tagEncoderPoolSize:                   defaultTagEncoderPoolSize,
+		tagEncoderOpts:                       serialize.NewTagEncoderOptions(),
+		tagDecoderPoolSize:                   defaultTagDecoderPoolSize,
+		tagDecoderOpts:                       serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
+		streamBlocksRetrier:                  defaultStreamBlocksRetrier,
+		newConnectionFn:                      defaultNewConnectionFn,
+		healthCheck:                          defaultHealthCheck,
+		healthCheckNewConn:                   defaultHealthCheck,
+		writeOperationPoolSize:               defaultWriteOpPoolSize,
+		writeTaggedOperationPoolSize:         defaultWriteTaggedOpPoolSize,
+		fetchBatchOpPoolSize:                 defaultFetchBatchOpPoolSize,
+		writeBatchSize:                       DefaultWriteBatchSize,
+		fetchBatchSize:                       defaultFetchBatchSize,
+		checkedBytesPool:                     bytesPool,
+		identifierPool:                       idPool,
+		hostQueueOpsFlushSize:                defaultHostQueueOpsFlushSize,
+		hostQueueOpsFlushInterval:            defaultHostQueueOpsFlushInterval,
+		hostQueueOpsArrayPoolSize:            defaultHostQueueOpsArrayPoolSize,
 		hostQueueNewPooledWorkerFn:              hostQueueNewPooledWorkerFn,
 		hostQueueEmitsHealthStatus:              defaultHostQueueEmitsHealthStatus,
 		seriesIteratorPoolSize:                  defaultSeriesIteratorPoolSize,
@@ -837,6 +819,26 @@ func (o *options) SetNewConnectionFn(value NewConnectionFn) AdminOptions {
 
 func (o *options) NewConnectionFn() NewConnectionFn {
 	return o.newConnectionFn
+}
+
+func (o *options) SetHealthCheckNewConn(value HealthCheckFn) AdminOptions {
+	opts := *o
+	opts.healthCheckNewConn = value
+	return &opts
+}
+
+func (o *options) HealthCheckNewConn() HealthCheckFn {
+	return o.healthCheckNewConn
+}
+
+func (o *options) SetHealthCheck(value HealthCheckFn) AdminOptions {
+	opts := *o
+	opts.healthCheck = value
+	return &opts
+}
+
+func (o *options) HealthCheck() HealthCheckFn {
+	return o.healthCheck
 }
 
 func (o *options) SetWriteOpPoolSize(value pool.Size) Options {

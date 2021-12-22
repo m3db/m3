@@ -104,18 +104,18 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 		return &noopPooledChannel{}, nil, nil
 	}
 
-	opts = opts.SetNewConnectionFn(fn)
-	conns := newConnectionPool(h, opts).(*connPool)
-	conns.healthCheckNewConn = func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
+	healthCheckNewConn := func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
 		if atomic.LoadInt32(&rounds) == 1 {
 			// If second round then fail health check
 			return fmt.Errorf("a health check error")
 		}
 		return nil
 	}
-	conns.healthCheck = func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
+	healthCheck := func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
 		return nil
 	}
+	opts = opts.SetNewConnectionFn(fn).SetHealthCheckNewConn(healthCheckNewConn).SetHealthCheck(healthCheck)
+	conns := newConnectionPool(h, opts).(*connPool)
 	conns.sleepConnect = func(t time.Duration) {
 		sleep := int(atomic.AddInt32(&sleeps, 1))
 		if sleep <= 4 {
@@ -190,16 +190,16 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		invokeFail     int32
 		client1        = rpc.TChanNode(rpc.NewMockTChanNode(ctrl))
 		client2        = rpc.TChanNode(rpc.NewMockTChanNode(ctrl))
-		overrides      = []healthCheckFn{}
+		overrides      = []HealthCheckFn{}
 		overridesMut   sync.RWMutex
-		pushOverride   = func(fn healthCheckFn, count int) {
+		pushOverride   = func(fn HealthCheckFn, count int) {
 			overridesMut.Lock()
 			defer overridesMut.Unlock()
 			for i := 0; i < count; i++ {
 				overrides = append(overrides, fn)
 			}
 		}
-		popOverride = func() healthCheckFn {
+		popOverride = func() HealthCheckFn {
 			overridesMut.Lock()
 			defer overridesMut.Unlock()
 			if len(overrides) == 0 {
@@ -210,7 +210,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 			return next
 		}
 		pushFailClientOverride = func(failTargetClient rpc.TChanNode) {
-			var failOverride healthCheckFn
+			var failOverride HealthCheckFn
 			failOverride = func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
 				if client == failTargetClient {
 					atomic.AddInt32(&invokeFail, 1)
@@ -257,18 +257,18 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		}
 		return nil, nil, fmt.Errorf("spawning only 2 connections")
 	}
-	opts = opts.SetNewConnectionFn(fn)
-
-	conns := newConnectionPool(h, opts).(*connPool)
-	conns.healthCheckNewConn = func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
+	healthCheckNewConn := func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
 		return nil
 	}
-	conns.healthCheck = func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
+	healthCheck := func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
 		if fn := popOverride(); fn != nil {
 			return fn(client, opts, checkBootstrapped)
 		}
 		return nil
+
 	}
+	opts = opts.SetNewConnectionFn(fn).SetHealthCheck(healthCheck).SetHealthCheckNewConn(healthCheckNewConn)
+	conns := newConnectionPool(h, opts).(*connPool)
 	conns.sleepConnect = func(d time.Duration) {
 		atomic.AddInt32(&connectRounds, 1)
 		time.Sleep(time.Millisecond)
