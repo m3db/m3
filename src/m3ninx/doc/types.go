@@ -151,6 +151,9 @@ type OnIndexSeries interface {
 	// MergeEntryIndexBlockStates merges the given states into the current
 	// indexed entry.
 	MergeEntryIndexBlockStates(states EntryIndexBlockStates)
+
+	// TryReconcileDuplicates attempts to reconcile the index states of this entry.
+	TryReconcileDuplicates()
 }
 
 // EntryIndexBlockStates captures the indexing for a single shard entry, across

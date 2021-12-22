@@ -117,6 +117,7 @@ type CompactResult struct {
 func (c *Compactor) Compact(
 	segs []segment.Segment,
 	filter segment.DocumentsFilter,
+	reconcileIndex segment.ReconcileDuplicateFn,
 	filterCounter tally.Counter,
 	reporterOptions mmap.ReporterOptions,
 ) (CompactResult, error) {
@@ -128,7 +129,7 @@ func (c *Compactor) Compact(
 	}
 
 	c.builder.Reset()
-	c.builder.SetFilter(filter, filterCounter)
+	c.builder.SetFilter(filter, reconcileIndex, filterCounter)
 	if err := c.builder.AddSegments(segs); err != nil {
 		return CompactResult{}, err
 	}

@@ -560,6 +560,7 @@ type BlockTickResult struct {
 }
 
 // WriteBatchMetrics are metrics for a write batch.
+// TODO: cleanup these.
 type WriteBatchMetrics struct {
 	needsReconcile tally.Counter
 	noReconcile    tally.Counter
@@ -843,19 +844,6 @@ func (b *WriteBatch) MarkEntrySuccess(idx int) {
 		b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
 		b.entries[idx].result.Done = true
 		b.entries[idx].result.Err = nil
-
-		// NB: OnIndexFinalize will already decrement the reconciled indexed entry,
-		// if it exists, so there is no need to close.
-		indexedEntry, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
-		if reconciled {
-			states := b.entries[idx].OnIndexSeries.GetEntryIndexBlockStates()
-			indexedEntry.MergeEntryIndexBlockStates(states)
-			b.metrics.needsReconcile.Inc(1)
-		} else {
-			b.metrics.noReconcile.Inc(1)
-		}
-
-		closer.Close()
 	}
 }
 
@@ -869,17 +857,6 @@ func (b *WriteBatch) MarkUnmarkedIfAlreadyIndexedSuccessAndFinalize() {
 				b.entries[idx].result.Done = true
 				b.entries[idx].result.Err = nil
 			}
-
-			indexedEntry, closer, reconciled := b.entries[idx].OnIndexSeries.ReconciledOnIndexSeries()
-			if reconciled {
-				states := b.entries[idx].OnIndexSeries.GetEntryIndexBlockStates()
-				indexedEntry.MergeEntryIndexBlockStates(states)
-				b.metrics.needsReconcile.Inc(1)
-			} else {
-				b.metrics.noReconcile.Inc(1)
-			}
-
-			closer.Close()
 		}
 	}
 }

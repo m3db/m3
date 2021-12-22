@@ -310,7 +310,18 @@ func (entry *Entry) TryMarkIndexGarbageCollected(reconciled, unreconciled tally.
 	if err != nil || e == nil {
 		return false
 	}
+
 	defer e.DecrementReaderWriterCount()
+
+	// Was reconciled if the entry retrieved from the shard differs from the current.
+	if e != entry {
+		reconciled.Inc(1)
+		entry.reverseIndex.RLock()
+		e.MergeEntryIndexBlockStates(entry.reverseIndex.states)
+		entry.reverseIndex.RUnlock()
+	} else {
+		unreconciled.Inc(1)
+	}
 
 	// Consider non-empty if the entry is still being held since this could indicate
 	// another thread holding a new series prior to writing to it.
@@ -329,14 +340,26 @@ func (entry *Entry) TryMarkIndexGarbageCollected(reconciled, unreconciled tally.
 	// marks this GCed bool.
 	e.IndexGarbageCollected.Store(true)
 
-	// Was reconciled if the entry retrieved from the shard differs from the current.
-	if e != entry {
-		reconciled.Inc(1)
-	} else {
-		unreconciled.Inc(1)
+	return true
+}
+
+// TryReconcileDuplicates attempts to reconcile the index states of this entry.
+func (entry *Entry) TryReconcileDuplicates() {
+	// Since series insertions + index insertions are done separately async, it is possible for
+	// a series to be in the index but not have data written yet, and so any series not in the
+	// lookup yet we cannot yet consider empty.
+	e, _, err := entry.Shard.TryRetrieveSeriesAndIncrementReaderWriterCount(entry.ID)
+	if err != nil || e == nil {
+		return
 	}
 
-	return true
+	if e != entry {
+		entry.reverseIndex.RLock()
+		e.MergeEntryIndexBlockStates(entry.reverseIndex.states)
+		entry.reverseIndex.RUnlock()
+	}
+
+	e.DecrementReaderWriterCount()
 }
 
 // NeedsIndexGarbageCollected checks if the entry is eligible to be garbage collected

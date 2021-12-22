@@ -230,6 +230,10 @@ func (m *mutableSegments) SetNamespaceRuntimeOptions(opts namespace.RuntimeOptio
 	builder.SetSortConcurrency(m.writeIndexingConcurrency)
 }
 
+func (m *mutableSegments) reconcileIndex(d doc.Metadata) {
+	d.OnIndexSeries.TryReconcileDuplicates()
+}
+
 func (m *mutableSegments) seriesActive(d doc.Metadata) bool {
 	// Filter out any documents that only were indexed for
 	// sealed blocks.
@@ -398,9 +402,7 @@ func (m *mutableSegments) NumSegmentsAndDocs() (int64, int64) {
 }
 
 func numSegmentsAndDocs(segs []*readableSeg) (int64, int64) {
-	var (
-		numSegments, numDocs int64
-	)
+	var numSegments, numDocs int64
 	for _, seg := range segs {
 		numSegments++
 		numDocs += seg.Segment().Size()
@@ -775,7 +777,7 @@ func (m *mutableSegments) backgroundCompactWithTask(
 
 	start := time.Now()
 	compactResult, err := compactor.Compact(segments, documentsFilter,
-		m.metrics.activeBlockGarbageCollectSeries,
+		m.reconcileIndex, m.metrics.activeBlockGarbageCollectSeries,
 		mmap.ReporterOptions{
 			Context: mmap.Context{
 				Name: mmapIndexBlockName,
@@ -1394,6 +1396,7 @@ func (m *mutableSegments) cleanupForegroundCompactWithLock() {
 		m.compact.segmentBuilder = nil
 	}
 }
+
 func (m *mutableSegments) cleanupCompactWithLock() {
 	// If not compacting, trigger a cleanup so that all frozen segments get
 	// closed, otherwise after the current running compaction the compacted

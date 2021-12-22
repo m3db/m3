@@ -52,7 +52,11 @@ const (
 )
 
 func TestIndexBlockOrphanedEntry(t *testing.T) {
-	setup := generateTestSetup(t, false)
+	nsOpts := namespace.NewOptions().
+		SetRetentionOptions(DefaultIntegrationTestRetentionOpts).
+		SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true))
+
+	setup := generateTestSetup(t, nsOpts)
 	defer setup.Close()
 
 	// Start the server
@@ -128,7 +132,26 @@ func TestIndexBlockOrphanedEntry(t *testing.T) {
 }
 
 func TestIndexBlockOrphanedIndexValuesUpdatedAcrossTimes(t *testing.T) {
-	setup := generateTestSetup(t, true)
+	// Write a metric concurrently for multiple index blocks to generate
+	// multiple entries for the same series
+	var (
+		numIDs = 10
+		ids    = make([]ident.ID, 0, numIDs)
+
+		nsID = testNamespaces[0]
+
+		writesPerWorker = 5
+		writeTimes      = make([]xtime.UnixNano, 0, writesPerWorker)
+		retention       = blockSize * time.Duration(1+writesPerWorker)
+	)
+
+	retOpts := DefaultIntegrationTestRetentionOpts.SetRetentionPeriod(retention)
+	nsOpts := namespace.NewOptions().
+		SetRetentionOptions(retOpts).
+		SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true)).
+		SetColdWritesEnabled(true)
+
+	setup := generateTestSetup(t, nsOpts)
 	defer setup.Close()
 
 	// Start the server
@@ -145,19 +168,10 @@ func TestIndexBlockOrphanedIndexValuesUpdatedAcrossTimes(t *testing.T) {
 	session, err := client.DefaultSession()
 	require.NoError(t, err)
 
-	// Write a metric concurrently for multiple index blocks to generate
-	// multiple entries for the same series
 	var (
-		numIDs = 10
-		ids    = make([]ident.ID, 0, numIDs)
-
-		nsID  = testNamespaces[0]
 		nowFn = setup.DB().Options().ClockOptions().NowFn()
 		// NB: write in the middle of a block to avoid block boundaries.
 		now = nowFn().Truncate(blockSize / 2)
-
-		writesPerWorker = 5
-		writeTimes      = make([]xtime.UnixNano, 0, writesPerWorker)
 	)
 
 	for i := 0; i < writesPerWorker; i++ {
@@ -179,26 +193,46 @@ func TestIndexBlockOrphanedIndexValuesUpdatedAcrossTimes(t *testing.T) {
 		}
 	}
 
-	found := xclock.WaitUntil(func() bool {
-		filteredIds := notFoundIds[:0]
-		for _, id := range notFoundIds {
-			ok, err := isIndexedCheckedWithTime(
-				t, session, nsID, id.id, genTags(id.id), id.runAt,
-			)
-			if !ok || err != nil {
-				filteredIds = append(filteredIds, id)
+	queryIDs := func() {
+		found := xclock.WaitUntil(func() bool {
+			filteredIds := notFoundIds[:0]
+			for _, id := range notFoundIds {
+				ok, err := isIndexedCheckedWithTime(
+					t, session, nsID, id.id, genTags(id.id), id.runAt,
+				)
+				if !ok || err != nil {
+					filteredIds = append(filteredIds, id)
+				}
 			}
-		}
 
-		if len(filteredIds) == 0 {
-			return true
-		}
+			if len(filteredIds) == 0 {
+				return true
+			}
 
-		notFoundIds = filteredIds
-		return false
-	}, time.Second*10)
+			notFoundIds = filteredIds
+			return false
+		}, time.Second*30)
 
-	require.True(t, found, fmt.Sprintf("series %s never indexed\n", notFoundIds))
+		require.True(t, found, fmt.Sprintf("series %s never indexed\n", notFoundIds))
+	}
+
+	// queryIDs()
+
+	// Fast-forward to a block rotation
+	newBlock := xtime.Now().Truncate(blockSize).Add(blockSize)
+	newCurrentTime := newBlock.Add(30 * time.Minute) // Add extra to account for buffer past
+	setup.SetNowFn(newCurrentTime)
+
+	// Wait for flush
+	log.Info("waiting for block rotation to complete")
+	found := xclock.WaitUntil(func() bool {
+		filesets, err := fs.IndexFileSetsAt(setup.FilePathPrefix(), nsID, newBlock.Add(-blockSize))
+		require.NoError(t, err)
+		return len(filesets) == 1
+	}, 30*time.Second)
+	require.True(t, found)
+
+	queryIDs()
 }
 
 func writeConcurrentMetrics(
@@ -250,16 +284,7 @@ func writeMetric(
 	require.NoError(t, err)
 }
 
-func generateTestSetup(t *testing.T, withColdWrites bool) TestSetup {
-	nsOpts := namespace.NewOptions().
-		SetRetentionOptions(DefaultIntegrationTestRetentionOpts).
-		SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true))
-	if withColdWrites {
-		retOpts := nsOpts.RetentionOptions().SetRetentionPeriod(time.Hour * 2400)
-		nsOpts = nsOpts.SetRetentionOptions(retOpts).
-			SetColdWritesEnabled(true)
-	}
-
+func generateTestSetup(t *testing.T, nsOpts namespace.Options) TestSetup {
 	md, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
 
@@ -293,7 +318,7 @@ type notFoundID struct {
 }
 
 func (i notFoundID) String() string {
-	return fmt.Sprintf("{ID: %s, time: %s}", i.id.String(), i.runAt.Format("3:04:05PM"))
+	return fmt.Sprintf("{ID: %s, time: %s}", i.id.String(), i.runAt.String())
 }
 
 type notFoundIDs []notFoundID
