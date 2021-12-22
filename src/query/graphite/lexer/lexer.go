@@ -121,7 +121,7 @@ const (
 	lowercaseLetters     = "abcdefghijklmnopqrstuvwxyz"
 	digits               = "0123456789"
 	exponentRunes        = "eE"
-	identifierStartRunes = uppercaseLetters + lowercaseLetters + "_" + "-" + "$" + ":"
+	identifierStartRunes = uppercaseLetters + lowercaseLetters + "_" + "-" + "$" + ":" + "~"
 	identifierRunes      = identifierStartRunes + digits
 	signs                = "+-"
 )
