@@ -51,6 +51,14 @@ type noopPooledChannel struct {
 	closed int32
 }
 
+func asNoopPooledChannel(c Channel) *noopPooledChannel {
+	cc, ok := c.(*noopPooledChannel)
+	if !ok {
+		panic("not a noopPooledChannel")
+	}
+	return cc
+}
+
 func (c *noopPooledChannel) Closed() bool {
 	return atomic.LoadInt32(&c.closed) == 1
 }
@@ -60,8 +68,8 @@ func (c *noopPooledChannel) Close() {
 }
 
 func (c *noopPooledChannel) GetSubChannel(
-	serviceName string,
-	opts ...tchannel.SubChannelOption,
+	_ string,
+	_ ...tchannel.SubChannelOption,
 ) *tchannel.SubChannel {
 	return nil
 }
