@@ -52,6 +52,7 @@ func TestLexer(t *testing.T) {
 		{"stats.foo.counts.bar.baz.status_code.?XX",
 			[]Token{{Pattern, "stats.foo.counts.bar.baz.status_code.?XX"}}, nil},
 		{"456.03", []Token{{Number, "456.03"}}, nil},
+		{"foo:bar~baz", []Token{{Identifier, "foo:bar~baz"}}, nil},
 		{"foo:bar", []Token{
 			{Identifier, "foo:bar"}}, nil},
 		{"foo:bar  baz:q*x", []Token{
