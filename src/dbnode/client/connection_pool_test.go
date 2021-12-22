@@ -123,7 +123,11 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 	healthCheck := func(client rpc.TChanNode, opts Options, checkBootstrapped bool) error {
 		return nil
 	}
-	opts = opts.SetNewConnectionFn(fn).SetHealthCheckNewConnFn(healthCheckNewConn).SetHealthCheckFn(healthCheck)
+	newClientFn := func(_ Channel, _ string) (rpc.TChanNode, error) { return nil, nil }
+	opts = opts.SetNewConnectionFn(fn).
+		SetNewClientFn(newClientFn).
+		SetHealthCheckNewConnFn(healthCheckNewConn).
+		SetHealthCheckFn(healthCheck)
 	conns := newConnectionPool(h, opts).(*connPool)
 	conns.sleepConnect = func(t time.Duration) {
 		sleep := int(atomic.AddInt32(&sleeps, 1))
