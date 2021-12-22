@@ -40,24 +40,24 @@ import (
 )
 
 func TestNewCoordinator(t *testing.T) {
-	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
+	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{Start: true})
 	require.NoError(t, err)
 	defer func() {
 		assert.NoError(t, dbnode.Close())
 	}()
 
-	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
+	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{Start: true})
 	require.NoError(t, err)
 	require.NoError(t, coord.Close())
 
 	// Restart and shut down again to test restarting.
-	coord, err = NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
+	coord, err = NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{Start: true})
 	require.NoError(t, err)
 	require.NoError(t, coord.Close())
 }
 
 func TestNewEmbeddedCoordinator(t *testing.T) {
-	dbnode, err := NewDBNodeFromYAML(embeddedCoordConfig, DBNodeOptions{})
+	dbnode, err := NewDBNodeFromYAML(embeddedCoordConfig, DBNodeOptions{Start: true})
 	require.NoError(t, err)
 	defer func() {
 		assert.NoError(t, dbnode.Close())

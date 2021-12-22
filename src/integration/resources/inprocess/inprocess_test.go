@@ -30,10 +30,10 @@ import (
 )
 
 func TestSetupInprocessCluster(t *testing.T) {
-	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
+	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{Start: true})
 	require.NoError(t, err)
 
-	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
+	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{Start: true})
 	require.NoError(t, err)
 
 	cluster := NewM3Resources(ResourceOptions{
