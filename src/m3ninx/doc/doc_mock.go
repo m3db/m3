@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/uber-go/tally"
 )
 
 // MockMetadataIterator is a mock of MetadataIterator interface.
@@ -351,6 +350,18 @@ func (mr *MockOnIndexSeriesMockRecorder) IndexedRange() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexedRange", reflect.TypeOf((*MockOnIndexSeries)(nil).IndexedRange))
 }
 
+// MergeEntryIndexBlockStates mocks base method.
+func (m *MockOnIndexSeries) MergeEntryIndexBlockStates(states EntryIndexBlockStates) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "MergeEntryIndexBlockStates", states)
+}
+
+// MergeEntryIndexBlockStates indicates an expected call of MergeEntryIndexBlockStates.
+func (mr *MockOnIndexSeriesMockRecorder) MergeEntryIndexBlockStates(states interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MergeEntryIndexBlockStates", reflect.TypeOf((*MockOnIndexSeries)(nil).MergeEntryIndexBlockStates), states)
+}
+
 // NeedsIndexGarbageCollected mocks base method.
 func (m *MockOnIndexSeries) NeedsIndexGarbageCollected() bool {
 	m.ctrl.T.Helper()
@@ -431,16 +442,42 @@ func (mr *MockOnIndexSeriesMockRecorder) ReconciledOnIndexSeries() *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReconciledOnIndexSeries", reflect.TypeOf((*MockOnIndexSeries)(nil).ReconciledOnIndexSeries))
 }
 
-// TryMarkIndexGarbageCollected mocks base method.
-func (m *MockOnIndexSeries) TryMarkIndexGarbageCollected(reconciled, unreconciled tally.Counter) bool {
+// StringID mocks base method.
+func (m *MockOnIndexSeries) StringID() string {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TryMarkIndexGarbageCollected", reconciled, unreconciled)
+	ret := m.ctrl.Call(m, "StringID")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// StringID indicates an expected call of StringID.
+func (mr *MockOnIndexSeriesMockRecorder) StringID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StringID", reflect.TypeOf((*MockOnIndexSeries)(nil).StringID))
+}
+
+// TryMarkIndexGarbageCollected mocks base method.
+func (m *MockOnIndexSeries) TryMarkIndexGarbageCollected() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TryMarkIndexGarbageCollected")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // TryMarkIndexGarbageCollected indicates an expected call of TryMarkIndexGarbageCollected.
-func (mr *MockOnIndexSeriesMockRecorder) TryMarkIndexGarbageCollected(reconciled, unreconciled interface{}) *gomock.Call {
+func (mr *MockOnIndexSeriesMockRecorder) TryMarkIndexGarbageCollected() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryMarkIndexGarbageCollected", reflect.TypeOf((*MockOnIndexSeries)(nil).TryMarkIndexGarbageCollected), reconciled, unreconciled)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryMarkIndexGarbageCollected", reflect.TypeOf((*MockOnIndexSeries)(nil).TryMarkIndexGarbageCollected))
+}
+
+// TryReconcileDuplicates mocks base method.
+func (m *MockOnIndexSeries) TryReconcileDuplicates() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "TryReconcileDuplicates")
+}
+
+// TryReconcileDuplicates indicates an expected call of TryReconcileDuplicates.
+func (mr *MockOnIndexSeriesMockRecorder) TryReconcileDuplicates() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryReconcileDuplicates", reflect.TypeOf((*MockOnIndexSeries)(nil).TryReconcileDuplicates))
 }

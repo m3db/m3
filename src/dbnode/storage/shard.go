@@ -152,6 +152,8 @@ type dbShard struct {
 	shard                    uint32
 	coldWritesEnabled        bool
 	indexEnabled             bool
+
+	entryMetrics *EntryMetrics
 }
 
 // NB(r): dbShardRuntimeOptions does not contain its own
@@ -288,6 +290,7 @@ func newDatabaseShard(
 		logger:               opts.InstrumentOptions().Logger(),
 		metrics:              newDatabaseShardMetrics(shard, scope),
 		tileAggregator:       opts.TileAggregator(),
+		entryMetrics:         NewEntryMetrics(scope.SubScope("entries")),
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
 		s.nowFn, opts.CoreFn(), scope, opts.InstrumentOptions().Logger())
@@ -1247,11 +1250,12 @@ func (s *dbShard) newShardEntry(
 		Options:                s.seriesOpts,
 	})
 	return NewEntry(NewEntryOptions{
-		Shard:       s,
-		Series:      newSeries,
-		Index:       uniqueIndex,
-		IndexWriter: s.reverseIndex,
-		NowFn:       s.nowFn,
+		Shard:        s,
+		Series:       newSeries,
+		Index:        uniqueIndex,
+		IndexWriter:  s.reverseIndex,
+		NowFn:        s.nowFn,
+		EntryMetrics: s.entryMetrics,
 	}), nil
 }
 

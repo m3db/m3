@@ -23,7 +23,7 @@ package convert
 import xtime "github.com/m3db/m3/src/x/time"
 
 // UnitForM3DB converts a time unit into one that is suitable for m3db.
-// The is done in a explicit way for better performance and the logic is
+// The is done in an explicit way for better performance and the logic is
 // ensured though unit test.
 func UnitForM3DB(unit xtime.Unit) xtime.Unit {
 	switch unit {

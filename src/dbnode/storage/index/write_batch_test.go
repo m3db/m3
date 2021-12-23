@@ -27,13 +27,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func TestWriteBatchSortByUnmarkedAndIndexBlockStart(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockSize := time.Hour

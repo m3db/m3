@@ -48,23 +48,15 @@ var (
 )
 
 type noopPooledChannel struct {
-	closed int32
+	closeCount int32
 }
 
-func asNoopPooledChannel(c Channel) *noopPooledChannel {
-	cc, ok := c.(*noopPooledChannel)
-	if !ok {
-		panic("not a noopPooledChannel")
-	}
-	return cc
-}
-
-func (c *noopPooledChannel) Closed() bool {
-	return atomic.LoadInt32(&c.closed) == 1
+func (c *noopPooledChannel) CloseCount() int {
+	return int(atomic.LoadInt32(&c.closeCount))
 }
 
 func (c *noopPooledChannel) Close() {
-	atomic.StoreInt32(&c.closed, 1)
+	atomic.AddInt32(&c.closeCount, 1)
 }
 
 func (c *noopPooledChannel) GetSubChannel(
@@ -456,7 +448,9 @@ func TestEstablishNewConnection(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.expectedHealthCheckFailed, healthCheckFailed)
-			assert.Equal(t, tc.expectedChannelClosed, ch.Closed())
+			if tc.expectedChannelClosed {
+				assert.Equal(t, 1, ch.CloseCount())
+			}
 		})
 	}
 }

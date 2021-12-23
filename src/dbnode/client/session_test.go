@@ -468,17 +468,22 @@ func TestDedicatedConnection(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, remote1Client, c3)
 
-	channelToClose := &noopPooledChannel{}
 	healthErr := errors.New("unhealthy")
+	var channels []*noopPooledChannel
 	s.opts = s.opts.SetNewConnectionFn(func(_ string, _ Options) (Channel, error) {
-		return channelToClose, nil
+		c := &noopPooledChannel{}
+		channels = append(channels, c)
+		return c, nil
 	}).SetHealthCheckNewConnFn(testHealthCheck(healthErr, false))
 	_, _, err = s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
 	require.NotNil(t, err)
 	multiErr, ok := err.(xerror.MultiError) // nolint: errorlint
 	assert.True(t, ok, "expecting MultiError")
 	assert.True(t, multiErr.Contains(healthErr))
-	assert.True(t, asNoopPooledChannel(channelToClose).Closed())
+	// 2 because of 2 remote hosts failing health check
+	assert.Len(t, channels, 2)
+	assert.Equal(t, 1, channels[0].CloseCount())
+	assert.Equal(t, 1, channels[1].CloseCount())
 }
 
 func testSessionClusterConnectConsistencyLevel(

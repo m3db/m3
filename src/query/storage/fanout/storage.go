@@ -463,44 +463,55 @@ func (s *fanoutStorage) CompleteTags(
 	options *storage.FetchOptions,
 ) (*consolidators.CompleteTagsResult, error) {
 	stores := filterCompleteTagsStores(s.stores, s.completeTagsFilter, *query)
+
+	var completeTagsResult consolidators.CompleteTagsResult
+
 	// short circuit complete tags
 	if len(stores) == 1 {
-		return stores[0].CompleteTags(ctx, query, options)
-	}
-
-	accumulatedTags := consolidators.NewCompleteTagsResultBuilder(
-		query.CompleteNameOnly, s.tagOptions)
-	metadata := block.NewResultMetadata()
-	for _, store := range stores {
-		result, err := store.CompleteTags(ctx, query, options)
+		result, err := stores[0].CompleteTags(ctx, query, options)
 		if err != nil {
-			if warning, err := storage.IsWarning(store, err); warning {
-				metadata.AddWarning(store.Name(), fetchDataWarningError)
-				s.instrumentOpts.Logger().Warn(
-					"partial results: fanout to store returned warning",
+			return result, err
+		}
+		completeTagsResult = *result
+	} else {
+		accumulatedTags := consolidators.NewCompleteTagsResultBuilder(
+			query.CompleteNameOnly, s.tagOptions)
+		metadata := block.NewResultMetadata()
+		for _, store := range stores {
+			result, err := store.CompleteTags(ctx, query, options)
+			if err != nil {
+				if warning, err := storage.IsWarning(store, err); warning {
+					metadata.AddWarning(store.Name(), fetchDataWarningError)
+					s.instrumentOpts.Logger().Warn(
+						"partial results: fanout to store returned warning",
+						zap.Error(err),
+						zap.String("store", store.Name()),
+						zap.String("function", "CompleteTags"))
+					continue
+				}
+
+				s.instrumentOpts.Logger().Error(
+					"fanout to store returned error",
 					zap.Error(err),
 					zap.String("store", store.Name()),
 					zap.String("function", "CompleteTags"))
-				continue
+
+				return nil, err
 			}
 
-			s.instrumentOpts.Logger().Error(
-				"fanout to store returned error",
-				zap.Error(err),
-				zap.String("store", store.Name()),
-				zap.String("function", "CompleteTags"))
-
-			return nil, err
+			metadata = metadata.CombineMetadata(result.Metadata)
+			err = accumulatedTags.Add(result)
+			if err != nil {
+				return nil, err
+			}
 		}
 
-		metadata = metadata.CombineMetadata(result.Metadata)
-		accumulatedTags.Add(result)
+		completeTagsResult = accumulatedTags.Build()
+		completeTagsResult.Metadata = metadata
 	}
 
-	built := accumulatedTags.Build()
-	built.Metadata = metadata
-	built = applyOptions(built, options)
-	return &built, nil
+	completeTagsResult = applyOptions(completeTagsResult, options)
+	return &completeTagsResult, nil
 }
 
 func applyOptions(
