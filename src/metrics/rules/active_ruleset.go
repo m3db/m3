@@ -199,6 +199,7 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 		if !matches {
 			continue
 		}
+		fmt.Printf("mapping rule match id=%v rule=%v\n", string(id), mappingRule.uuid)
 		// Make sure the cutover time tracks the latest cutover time among all matching
 		// mapping rules to represent the correct time of rule change.
 		if cutoverNanos < snapshot.cutoverNanos {
@@ -207,6 +208,7 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 		// If the mapping rule snapshot is a tombstoned snapshot, its cutover time is
 		// recorded to indicate a rule change, but its policies are no longer in effect.
 		if snapshot.tombstoned {
+			fmt.Printf("mapping rule tombstoned\n")
 			continue
 		}
 		pipeline := metadata.PipelineMetadata{
