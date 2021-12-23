@@ -469,6 +469,7 @@ func TestDedicatedConnection(t *testing.T) {
 	multiErr, ok := err.(xerror.MultiError) // nolint: errorlint
 	assert.True(t, ok, "expecting MultiError")
 	assert.True(t, multiErr.Contains(healthErr))
+	// 2 because of 2 remote hosts failing health check
 	assert.Len(t, channels, 2)
 	assert.Equal(t, 1, channels[0].CloseCount())
 	assert.Equal(t, 1, channels[1].CloseCount())
