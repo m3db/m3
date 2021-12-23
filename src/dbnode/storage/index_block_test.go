@@ -41,7 +41,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/resource"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -259,8 +258,6 @@ func TestNamespaceIndexWrite(t *testing.T) {
 	tags := ident.NewTags(tag)
 	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	mockWriteBatch(t, &now, lifecycle, mockBlock, &tag)
-	closer := &resource.NoopCloser{}
-	lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
 	batch := index.NewWriteBatch(index.WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -330,8 +327,6 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	tags := ident.NewTags(tag)
 	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	mockWriteBatch(t, &now, lifecycle, bActive, &tag)
-	closer := &resource.NoopCloser{}
-	lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).
 		Return(false).
 		AnyTimes()

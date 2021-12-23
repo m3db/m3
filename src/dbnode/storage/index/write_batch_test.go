@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/x/resource"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -46,9 +45,7 @@ func TestWriteBatchSortByUnmarkedAndIndexBlockStart(t *testing.T) {
 		Truncate(blockSize).
 		Add(time.Minute)
 
-	closer := &resource.NoopCloser{}
 	h1 := doc.NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
@@ -56,7 +53,6 @@ func TestWriteBatchSortByUnmarkedAndIndexBlockStart(t *testing.T) {
 	h2.EXPECT().OnIndexFinalize(blockStart)
 
 	h3 := doc.NewMockOnIndexSeries(ctrl)
-	h3.EXPECT().ReconciledOnIndexSeries().Return(h3, closer, false)
 	h3.EXPECT().OnIndexFinalize(blockStart)
 	h3.EXPECT().OnIndexSuccess(blockStart)
 
