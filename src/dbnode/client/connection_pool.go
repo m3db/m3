@@ -185,7 +185,7 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 			go func() {
 				defer wg.Done()
 
-				ch, client, healthCheckErr, err := establishNewConnection(address, false, p.opts)
+				channel, client, healthCheckErr, err := establishNewConnection(address, false, p.opts)
 				if err != nil {
 					if healthCheckErr {
 						p.maybeEmitHealthStatus(healthStatusCheckFailed)
@@ -197,12 +197,12 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 				p.maybeEmitHealthStatus(healthStatusOK)
 				p.Lock()
 				if p.status == statusOpen {
-					p.pool = append(p.pool, conn{ch, client})
+					p.pool = append(p.pool, conn{channel, client})
 					p.poolLen = int64(len(p.pool))
 				} else {
 					// NB(antanas): just being defensive.
 					// It's likely a corner case and happens only during server shutdown.
-					ch.Close()
+					channel.Close()
 				}
 				p.Unlock()
 			}()
