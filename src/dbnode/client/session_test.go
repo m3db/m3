@@ -459,8 +459,10 @@ func TestDedicatedConnection(t *testing.T) {
 	healthErr := errors.New("unhealthy")
 	s.healthCheckNewConnFn = testHealthCheck(healthErr, false)
 
-	ch = &noopPooledChannel{"test", 0}
+	var chs []*noopPooledChannel
 	s.opts = NewOptions().SetNewConnectionFn(func(_ string, _ string, _ Options) (Channel, rpc.TChanNode, error) {
+		ch := &noopPooledChannel{address: "test"}
+		chs = append(chs, ch)
 		return ch, nil, nil
 	})
 	_, _, err = s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
@@ -468,8 +470,10 @@ func TestDedicatedConnection(t *testing.T) {
 	multiErr, ok := err.(xerror.MultiError) // nolint: errorlint
 	assert.True(t, ok, "expecting MultiError")
 	assert.True(t, multiErr.Contains(healthErr))
-	// 2 because of 2 remote hosts failing health check
-	assert.Equal(t, 2, asNoopPooledChannel(ch).CloseCount())
+
+	assert.Len(t, chs, 2)
+	assert.Equal(t, 1, asNoopPooledChannel(chs[0]).CloseCount())
+	assert.Equal(t, 1, asNoopPooledChannel(chs[1]).CloseCount())
 }
 
 func testSessionClusterConnectConsistencyLevel(
