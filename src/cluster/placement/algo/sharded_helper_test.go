@@ -880,7 +880,10 @@ func TestOptimize(t *testing.T) {
 			sort.Slice(instancesAfter, func(i, j int) bool {
 				return instancesAfter[i].ID() < instancesAfter[j].ID()
 			})
-			assert.Equal(t, tt.instancesAfter, instancesAfter)
+			require.Equal(t, len(tt.instancesAfter), len(instancesAfter))
+			for i, actual := range instancesAfter {
+				assert.Equal(t, tt.instancesAfter[i].String(), actual.String())
+			}
 		})
 	}
 }

@@ -349,14 +349,13 @@ func setupIndex(t *testing.T,
 		lifecycleFns = doc.NewMockOnIndexSeries(ctrl)
 	)
 
+	closer := &resource.NoopCloser{}
+	lifecycleFns.EXPECT().ReconciledOnIndexSeries().Return(lifecycleFns, closer, false).AnyTimes()
 	lifecycleFns.EXPECT().OnIndexFinalize(ts)
 	lifecycleFns.EXPECT().OnIndexSuccess(ts)
 	lifecycleFns.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
 
 	if !expectAggregateQuery {
-		lifecycleFns.EXPECT().ReconciledOnIndexSeries().Return(
-			lifecycleFns, resource.SimpleCloserFn(func() {}), false,
-		)
 		lifecycleFns.EXPECT().IndexedRange().Return(ts, ts)
 		lifecycleFns.EXPECT().IndexedForBlockStart(ts).Return(true)
 	}
