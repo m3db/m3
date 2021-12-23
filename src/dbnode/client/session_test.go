@@ -461,8 +461,9 @@ func TestDedicatedConnection(t *testing.T) {
 
 	var channels []*noopPooledChannel
 	s.opts = NewOptions().SetNewConnectionFn(func(_ string, _ string, _ Options) (Channel, rpc.TChanNode, error) {
-		channels = append(channels, &noopPooledChannel{"test", 0})
-		return channels[len(channels)-1], nil, nil
+		c := &noopPooledChannel{"test", 0}
+		channels = append(channels, c)
+		return c, nil, nil
 	})
 	_, _, err = s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
 	require.NotNil(t, err)
