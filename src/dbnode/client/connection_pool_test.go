@@ -46,8 +46,8 @@ var (
 )
 
 type noopPooledChannel struct {
-	address string
-	closed  int32
+	address    string
+	closeCount int32
 }
 
 func asNoopPooledChannel(c Channel) *noopPooledChannel {
@@ -58,12 +58,12 @@ func asNoopPooledChannel(c Channel) *noopPooledChannel {
 	return cc
 }
 
-func (c *noopPooledChannel) Closed() bool {
-	return atomic.LoadInt32(&c.closed) == 1
+func (c *noopPooledChannel) CloseCount() int {
+	return int(atomic.LoadInt32(&c.closeCount))
 }
 
 func (c *noopPooledChannel) Close() {
-	atomic.StoreInt32(&c.closed, 1)
+	atomic.AddInt32(&c.closeCount, 1)
 }
 
 func (c *noopPooledChannel) GetSubChannel(

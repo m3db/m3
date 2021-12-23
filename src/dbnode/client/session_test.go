@@ -468,7 +468,8 @@ func TestDedicatedConnection(t *testing.T) {
 	multiErr, ok := err.(xerror.MultiError) // nolint: errorlint
 	assert.True(t, ok, "expecting MultiError")
 	assert.True(t, multiErr.Contains(healthErr))
-	assert.True(t, asNoopPooledChannel(ch).Closed())
+	// 2 because of 2 remote hosts failing health check
+	assert.Equal(t, 2, asNoopPooledChannel(ch).CloseCount())
 }
 
 func testSessionClusterConnectConsistencyLevel(
