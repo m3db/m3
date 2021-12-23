@@ -128,8 +128,6 @@ type mutableSegmentsMetrics struct {
 	activeBlockGarbageCollectReconstructCachedSearchCacheMiss   tally.Counter
 	activeBlockGarbageCollectReconstructCachedSearchExecSuccess tally.Counter
 	activeBlockGarbageCollectReconstructCachedSearchExecError   tally.Counter
-	reconciledEntryGC                                           tally.Counter
-	unreconciledEntryGC                                         tally.Counter
 }
 
 func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
@@ -176,8 +174,6 @@ func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 		activeBlockGarbageCollectReconstructCachedSearchExecError: backgroundScope.Tagged(map[string]string{
 			"result_type": "error",
 		}).Counter("gc-reconstruct-cached-search-exec-result"),
-		reconciledEntryGC:   s.Counter("reconciled-entry-gc"),
-		unreconciledEntryGC: s.Counter("unreconciled-entry-gc"),
 	}
 }
 
@@ -230,10 +226,6 @@ func (m *mutableSegments) SetNamespaceRuntimeOptions(opts namespace.RuntimeOptio
 	builder.SetSortConcurrency(m.writeIndexingConcurrency)
 }
 
-func (m *mutableSegments) reconcileIndex(d doc.Metadata) {
-	d.OnIndexSeries.TryReconcileDuplicates()
-}
-
 func (m *mutableSegments) seriesActive(d doc.Metadata) bool {
 	// Filter out any documents that only were indexed for
 	// sealed blocks.
@@ -244,10 +236,7 @@ func (m *mutableSegments) seriesActive(d doc.Metadata) bool {
 		return true
 	}
 
-	return !d.OnIndexSeries.TryMarkIndexGarbageCollected(
-		m.metrics.reconciledEntryGC,
-		m.metrics.unreconciledEntryGC,
-	)
+	return !d.OnIndexSeries.TryMarkIndexGarbageCollected()
 }
 
 func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats, error) {
@@ -777,7 +766,7 @@ func (m *mutableSegments) backgroundCompactWithTask(
 
 	start := time.Now()
 	compactResult, err := compactor.Compact(segments, documentsFilter,
-		m.reconcileIndex, m.metrics.activeBlockGarbageCollectSeries,
+		m.metrics.activeBlockGarbageCollectSeries,
 		mmap.ReporterOptions{
 			Context: mmap.Context{
 				Name: mmapIndexBlockName,

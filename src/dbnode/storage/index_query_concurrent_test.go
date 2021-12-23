@@ -34,7 +34,6 @@ import (
 	"github.com/golang/mock/gomock"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -193,9 +192,8 @@ func testNamespaceIndexHighConcurrentQueries(
 			AnyTimes()
 
 		batch := index.NewWriteBatch(index.WriteBatchOptions{
-			InitialCapacity:   idsPerBlock,
-			IndexBlockSize:    test.indexBlockSize,
-			WriteBatchMetrics: index.NewWriteBatchMetrics(tally.NoopScope),
+			InitialCapacity: idsPerBlock,
+			IndexBlockSize:  test.indexBlockSize,
 		})
 		for i := 0; i < idsPerBlock; i++ {
 			id := fmt.Sprintf("foo.block_%d.id_%d", blockIdx, i)

@@ -222,7 +222,7 @@ type SegmentsBuilder interface {
 
 	// SetFilter sets a filter on which documents to retain
 	// when building the segment.
-	SetFilter(keep DocumentsFilter, fn ReconcileDuplicateFn, filterCount tally.Counter)
+	SetFilter(keep DocumentsFilter, filterCount tally.Counter)
 
 	// AddSegments adds segments to build from.
 	AddSegments(segments []Segment) error
@@ -247,10 +247,9 @@ type SegmentsBuilderSegmentMetadata struct {
 	Skips           int64
 }
 
-type ReconcileDuplicateFn func(d doc.Metadata)
-
 // DocumentsFilter is a documents filter.
 type DocumentsFilter interface {
+	// Contains is true if the document passes the filter.
 	Contains(d doc.Metadata) bool
 }
 

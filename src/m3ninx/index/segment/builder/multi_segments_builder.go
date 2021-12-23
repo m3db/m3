@@ -35,14 +35,13 @@ import (
 )
 
 type builderFromSegments struct {
-	docs            []doc.Metadata
-	idSet           *IDsMap
-	filter          segment.DocumentsFilter
-	reconcileDupeFn segment.ReconcileDuplicateFn
-	filterCount     tally.Counter
-	segments        []segmentMetadata
-	termsIter       *termsIterFromSegments
-	segmentsOffset  postings.ID
+	docs           []doc.Metadata
+	idSet          *IDsMap
+	filter         segment.DocumentsFilter
+	filterCount    tally.Counter
+	segments       []segmentMetadata
+	termsIter      *termsIterFromSegments
+	segmentsOffset postings.ID
 }
 
 type segmentMetadata struct {
@@ -96,11 +95,9 @@ func (b *builderFromSegments) Reset() {
 
 func (b *builderFromSegments) SetFilter(
 	filter segment.DocumentsFilter,
-	reconcileDupeFn segment.ReconcileDuplicateFn,
 	filterCount tally.Counter,
 ) {
 	b.filter = filter
-	b.reconcileDupeFn = reconcileDupeFn
 	b.filterCount = filterCount
 }
 
@@ -153,7 +150,11 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 			d := iter.Current()
 			negativeOffsets = append(negativeOffsets, currOffset)
 			if b.idSet.Contains(d.ID) {
-				b.reconcileDupeFn(d)
+				if d.OnIndexSeries != nil {
+					// Reconcile any duplicate series.
+					d.OnIndexSeries.TryReconcileDuplicates()
+				}
+
 				// Skip duplicates.
 				negativeOffsets[len(negativeOffsets)-1] = -1
 				currOffset++

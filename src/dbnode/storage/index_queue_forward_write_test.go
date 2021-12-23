@@ -400,8 +400,7 @@ func TestNamespaceIndexForwardWrite(t *testing.T) {
 	setupMockBlock(t, activeBlock, futureStart, id, tag, lifecycle)
 
 	batch := index.NewWriteBatch(index.WriteBatchOptions{
-		IndexBlockSize:    blockSize,
-		WriteBatchMetrics: index.NewWriteBatchMetrics(tally.NoopScope),
+		IndexBlockSize: blockSize,
 	})
 	batch.Append(testWriteBatchEntry(id, tags, now, lifecycle))
 	require.NoError(t, idx.WriteBatch(batch))

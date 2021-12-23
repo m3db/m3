@@ -43,7 +43,6 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/uber-go/tally"
 )
 
 // InsertMode specifies whether inserts are synchronous or asynchronous.
@@ -177,7 +176,7 @@ type DocumentResults interface {
 	// take a copy of the bytes backing the documents so the original can be
 	// modified after this function returns without affecting the results map.
 	// TODO(r): We will need to change this behavior once index fields are
-	// mutable and the most recent need to shadow older entries.gitup
+	// mutable and the most recent need to shadow older entries.
 
 	AddDocuments(batch []doc.Document) (size, docsCount int, err error)
 }
@@ -559,42 +558,6 @@ type BlockTickResult struct {
 	FreeMmap                int64
 }
 
-// WriteBatchMetrics are metrics for a write batch.
-// TODO: cleanup these.
-type WriteBatchMetrics struct {
-	needsReconcile tally.Counter
-	noReconcile    tally.Counter
-
-	markUnmarkedNeedsReconcile tally.Counter
-	markUnmarkedNoReconcile    tally.Counter
-}
-
-// NewWriteBatchMetrics builds a write batch metrics.
-func NewWriteBatchMetrics(s tally.Scope) *WriteBatchMetrics {
-	scope := s.SubScope("index_write_batch_reconcile_metrics")
-	return &WriteBatchMetrics{
-		needsReconcile: scope.Tagged(map[string]string{
-			"reconcile": "needs_reconcile",
-			"path":      "mark_entry_success",
-		}).Counter("count"),
-
-		noReconcile: scope.Tagged(map[string]string{
-			"reconcile": "no_reconcile",
-			"path":      "mark_entry_success",
-		}).Counter("count"),
-
-		markUnmarkedNeedsReconcile: scope.Tagged(map[string]string{
-			"reconcile": "needs_reconcile",
-			"path":      "mark_unmarked_already_indexed",
-		}).Counter("count"),
-
-		markUnmarkedNoReconcile: scope.Tagged(map[string]string{
-			"reconcile": "no_reconcile",
-			"path":      "mark_unmarked_already_indexed",
-		}).Counter("count"),
-	}
-}
-
 // WriteBatch is a batch type that allows for building of a slice of documents
 // with metadata in a separate slice, this allows the documents slice to be
 // passed to the segment to batch insert without having to copy into a buffer
@@ -605,8 +568,6 @@ type WriteBatch struct {
 
 	entries []WriteBatchEntry
 	docs    []doc.Metadata
-
-	metrics *WriteBatchMetrics
 }
 
 type writeBatchSortBy uint
@@ -618,9 +579,8 @@ const (
 
 // WriteBatchOptions is a set of options required for a write batch.
 type WriteBatchOptions struct {
-	InitialCapacity   int
-	IndexBlockSize    time.Duration
-	WriteBatchMetrics *WriteBatchMetrics
+	InitialCapacity int
+	IndexBlockSize  time.Duration
 }
 
 // NewWriteBatch creates a new write batch.
@@ -629,7 +589,6 @@ func NewWriteBatch(opts WriteBatchOptions) *WriteBatch {
 		opts:    opts,
 		entries: make([]WriteBatchEntry, 0, opts.InitialCapacity),
 		docs:    make([]doc.Metadata, 0, opts.InitialCapacity),
-		metrics: opts.WriteBatchMetrics,
 	}
 }
 

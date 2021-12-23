@@ -25,10 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -119,13 +117,12 @@ func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.
 				}
 
 				batch := NewWriteBatch(WriteBatchOptions{
-					IndexBlockSize:    blockSize,
-					WriteBatchMetrics: NewWriteBatchMetrics(tally.NoopScope),
+					IndexBlockSize: blockSize,
 				})
 				for i := 0; i < 128; i++ {
 					onIndexSeries := doc.NewMockOnIndexSeries(ctrl)
 					onIndexSeries.EXPECT().
-						TryMarkIndexGarbageCollected(gomock.Any(), gomock.Any()).
+						TryMarkIndexGarbageCollected().
 						// Every other is "empty".
 						Return(inserted%2 == 0).
 						AnyTimes()

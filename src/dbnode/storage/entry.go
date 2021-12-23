@@ -55,6 +55,39 @@ type IndexWriter interface {
 	) xtime.UnixNano
 }
 
+// EntryMetrics are metrics for an entry.
+type EntryMetrics struct {
+	gcNoReconcile    tally.Counter
+	gcNeedsReconcile tally.Counter
+
+	duplicatesNoReconcile    tally.Counter
+	duplicatesNeedsReconcile tally.Counter
+}
+
+// NewEntryMetrics builds an entry metrics.
+func NewEntryMetrics(scope tally.Scope) *EntryMetrics {
+	return &EntryMetrics{
+		gcNoReconcile: scope.Tagged(map[string]string{
+			"reconcile": "no_reconcile",
+			"path":      "gc",
+		}).Counter("count"),
+		gcNeedsReconcile: scope.Tagged(map[string]string{
+			"reconcile": "needs_reconcile",
+			"path":      "gc",
+		}).Counter("count"),
+
+		duplicatesNoReconcile: scope.Tagged(map[string]string{
+			"reconcile": "no_reconcile",
+			"path":      "duplicates",
+		}).Counter("count"),
+
+		duplicatesNeedsReconcile: scope.Tagged(map[string]string{
+			"reconcile": "needs_reconcile",
+			"path":      "duplicates",
+		}).Counter("count"),
+	}
+}
+
 // Entry is the entry in the shard ident.ID -> series map. It has additional
 // members to track lifecycle and minimize indexing overhead.
 // NB: users are expected to use `NewEntry` to construct these objects.
@@ -69,6 +102,7 @@ type Entry struct {
 	curReadWriters           int32
 	reverseIndex             entryIndexState
 	nowFn                    clock.NowFn
+	metrics                  *EntryMetrics
 	pendingIndexBatchSizeOne []writes.PendingIndexInsert
 }
 
@@ -83,11 +117,12 @@ var _ bootstrap.SeriesRefResolver = &Entry{}
 
 // NewEntryOptions supplies options for a new entry.
 type NewEntryOptions struct {
-	Shard       Shard
-	Series      series.DatabaseSeries
-	Index       uint64
-	IndexWriter IndexWriter
-	NowFn       clock.NowFn
+	Shard        Shard
+	Series       series.DatabaseSeries
+	Index        uint64
+	IndexWriter  IndexWriter
+	NowFn        clock.NowFn
+	EntryMetrics *EntryMetrics
 }
 
 // NewEntry returns a new Entry.
@@ -107,12 +142,13 @@ func NewEntry(opts NewEntryOptions) *Entry {
 		nowFn:                    nowFn,
 		pendingIndexBatchSizeOne: make([]writes.PendingIndexInsert, 1),
 		reverseIndex:             newEntryIndexState(),
+		metrics:                  opts.EntryMetrics,
 	}
 	return entry
 }
 
-// GetID returns the entry's ID.
-func (entry *Entry) GetID() string {
+// StringID returns the index series ID, as a string.
+func (entry *Entry) StringID() string {
 	return entry.ID.String()
 }
 
@@ -178,32 +214,17 @@ func (entry *Entry) ReconciledOnIndexSeries() (doc.OnIndexSeries, resource.Simpl
 	}), true
 }
 
-// GetEntryIndexBlockStates returns the entry index block states by time for
-// the indexed entry.
-func (entry *Entry) GetEntryIndexBlockStates() doc.EntryIndexBlockStates {
-	entry.reverseIndex.RLock()
-	states := entry.reverseIndex.states
-	// todo: alloc
-	entryStates := make(doc.EntryIndexBlockStates, len(states))
-	for k, v := range states {
-		entryStates[k] = v
-	}
-
-	entry.reverseIndex.RUnlock()
-	return entryStates
-}
-
 // MergeEntryIndexBlockStates merges the given states into the current
 // indexed entry.
 func (entry *Entry) MergeEntryIndexBlockStates(states doc.EntryIndexBlockStates) {
 	entry.reverseIndex.Lock()
 	for t, state := range states {
-		if state.Attempt {
-			entry.reverseIndex.setAttemptWithWLock(t, false)
-		}
-
 		if state.Success {
 			entry.reverseIndex.setSuccessWithWLock(t)
+		}
+
+		if state.Attempt {
+			entry.reverseIndex.setAttemptWithWLock(t, false)
 		}
 	}
 
@@ -302,7 +323,7 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 
 // TryMarkIndexGarbageCollected checks if the entry is eligible to be garbage collected
 // from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
-func (entry *Entry) TryMarkIndexGarbageCollected(reconciled, unreconciled tally.Counter) bool {
+func (entry *Entry) TryMarkIndexGarbageCollected() bool {
 	// Since series insertions + index insertions are done separately async, it is possible for
 	// a series to be in the index but not have data written yet, and so any series not in the
 	// lookup yet we cannot yet consider empty.
@@ -315,12 +336,11 @@ func (entry *Entry) TryMarkIndexGarbageCollected(reconciled, unreconciled tally.
 
 	// Was reconciled if the entry retrieved from the shard differs from the current.
 	if e != entry {
-		reconciled.Inc(1)
+		// If this entry needs further reconciliation, merge this entry's index
+		// states into the
 		entry.reverseIndex.RLock()
 		e.MergeEntryIndexBlockStates(entry.reverseIndex.states)
 		entry.reverseIndex.RUnlock()
-	} else {
-		unreconciled.Inc(1)
 	}
 
 	// Consider non-empty if the entry is still being held since this could indicate
@@ -340,6 +360,12 @@ func (entry *Entry) TryMarkIndexGarbageCollected(reconciled, unreconciled tally.
 	// marks this GCed bool.
 	e.IndexGarbageCollected.Store(true)
 
+	if e != entry {
+		entry.metrics.gcNeedsReconcile.Inc(1)
+	} else {
+		entry.metrics.gcNoReconcile.Inc(1)
+	}
+
 	return true
 }
 
@@ -357,6 +383,9 @@ func (entry *Entry) TryReconcileDuplicates() {
 		entry.reverseIndex.RLock()
 		e.MergeEntryIndexBlockStates(entry.reverseIndex.states)
 		entry.reverseIndex.RUnlock()
+		entry.metrics.duplicatesNeedsReconcile.Inc(1)
+	} else {
+		entry.metrics.duplicatesNoReconcile.Inc(1)
 	}
 
 	e.DecrementReaderWriterCount()

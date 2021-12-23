@@ -50,7 +50,6 @@ import (
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 var (
@@ -87,9 +86,7 @@ func testWriteBatch(
 	d doc.Metadata,
 	opts ...testWriteBatchOption,
 ) *index.WriteBatch {
-	options := index.WriteBatchOptions{
-		WriteBatchMetrics: index.NewWriteBatchMetrics(tally.NoopScope),
-	}
+	options := index.WriteBatchOptions{}
 	for _, opt := range opts {
 		options = opt(options)
 	}
@@ -266,8 +263,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 	lifecycle.EXPECT().ReconciledOnIndexSeries().Return(lifecycle, closer, false)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
 	batch := index.NewWriteBatch(index.WriteBatchOptions{
-		IndexBlockSize:    blockSize,
-		WriteBatchMetrics: index.NewWriteBatchMetrics(tally.NoopScope),
+		IndexBlockSize: blockSize,
 	})
 	batch.Append(testWriteBatchEntry(id, tags, now, lifecycle))
 	require.NoError(t, idx.WriteBatch(batch))

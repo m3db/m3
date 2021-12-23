@@ -21,8 +21,6 @@
 package doc
 
 import (
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -83,8 +81,9 @@ type QueryDocIterator interface {
 // OnIndexSeries provides a set of callback hooks to allow the reverse index
 // to do lifecycle management of any resources retained during indexing.
 type OnIndexSeries interface {
-	// GetID returns the index series ID, as a string.
-	GetID() string
+	// StringID returns the index series ID, as a string.
+	StringID() string
+
 	// OnIndexSuccess is executed when an entry is successfully indexed. The
 	// provided value for `blockStart` is the blockStart for which the write
 	// was indexed.
@@ -121,7 +120,7 @@ type OnIndexSeries interface {
 
 	// TryMarkIndexGarbageCollected checks if the entry is eligible to be garbage collected
 	// from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
-	TryMarkIndexGarbageCollected(reconciled, unreconciled tally.Counter) bool
+	TryMarkIndexGarbageCollected() bool
 
 	// NeedsIndexGarbageCollected returns if the entry is eligible to be garbage collected
 	// from the index.
@@ -143,10 +142,6 @@ type OnIndexSeries interface {
 	// Cleanup function must be called once done with the reconciled entry so that
 	// reader and writer counts are accurately updated.
 	ReconciledOnIndexSeries() (OnIndexSeries, resource.SimpleCloser, bool)
-
-	// GetEntryIndexBlockStates returns the entry index block states by time for
-	// the indexed entry.
-	GetEntryIndexBlockStates() EntryIndexBlockStates
 
 	// MergeEntryIndexBlockStates merges the given states into the current
 	// indexed entry.

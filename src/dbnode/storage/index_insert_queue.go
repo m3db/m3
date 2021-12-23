@@ -75,8 +75,7 @@ type nsIndexInsertQueue struct {
 
 	scope tally.Scope
 
-	metrics           nsIndexInsertQueueMetrics
-	writeBatchMetrics *index.WriteBatchMetrics
+	metrics nsIndexInsertQueueMetrics
 }
 
 type newNamespaceIndexInsertQueueFn func(
@@ -109,11 +108,10 @@ func newNamespaceIndexInsertQueue(
 		// NB(r): Use 2 * num cores so that each CPU insert queue which
 		// is 1 per num CPU core can always enqueue a notification without
 		// it being lost.
-		notifyInsert:      make(chan struct{}, 2*xsync.NumCores()),
-		closeCh:           make(chan struct{}, 1),
-		scope:             subscope,
-		metrics:           newNamespaceIndexInsertQueueMetrics(subscope),
-		writeBatchMetrics: index.NewWriteBatchMetrics(subscope),
+		notifyInsert: make(chan struct{}, 2*xsync.NumCores()),
+		closeCh:      make(chan struct{}, 1),
+		scope:        subscope,
+		metrics:      newNamespaceIndexInsertQueueMetrics(subscope),
 	}
 	q.currBatch = q.newBatch(newBatchOptions{instrumented: true})
 	return q
@@ -128,7 +126,7 @@ func (q *nsIndexInsertQueue) newBatch(opts newBatchOptions) *nsIndexInsertBatch 
 	if opts.instrumented {
 		scope = q.scope
 	}
-	return newNsIndexInsertBatch(q.namespaceMetadata, q.nowFn, scope, q.writeBatchMetrics)
+	return newNsIndexInsertBatch(q.namespaceMetadata, q.nowFn, scope)
 }
 
 func (q *nsIndexInsertQueue) insertLoop() {
@@ -286,8 +284,6 @@ type nsIndexInsertBatch struct {
 	insertsByCPUCore    []*nsIndexInsertsByCPUCore
 	allInserts          *index.WriteBatch
 	allInsertsLastReset time.Time
-
-	writeMetrics *index.WriteBatchMetrics
 }
 
 type nsIndexInsertsByCPUCore struct {
@@ -326,12 +322,10 @@ func newNsIndexInsertBatch(
 	namespace namespace.Metadata,
 	nowFn clock.NowFn,
 	scope tally.Scope,
-	writeMetrics *index.WriteBatchMetrics,
 ) *nsIndexInsertBatch {
 	b := &nsIndexInsertBatch{
-		namespace:    namespace,
-		nowFn:        nowFn,
-		writeMetrics: writeMetrics,
+		namespace: namespace,
+		nowFn:     nowFn,
 	}
 	numCores := xsync.NumCores()
 	for i := 0; i < numCores; i++ {
@@ -347,8 +341,7 @@ func newNsIndexInsertBatch(
 
 func (b *nsIndexInsertBatch) allocateAllInserts() {
 	b.allInserts = index.NewWriteBatch(index.WriteBatchOptions{
-		IndexBlockSize:    b.namespace.Options().IndexOptions().BlockSize(),
-		WriteBatchMetrics: b.writeMetrics,
+		IndexBlockSize: b.namespace.Options().IndexOptions().BlockSize(),
 	})
 	b.allInsertsLastReset = b.nowFn()
 }

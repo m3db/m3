@@ -153,7 +153,7 @@ type dbShard struct {
 	coldWritesEnabled        bool
 	indexEnabled             bool
 
-	batchMetrics *index.WriteBatchMetrics
+	entryMetrics *EntryMetrics
 }
 
 // NB(r): dbShardRuntimeOptions does not contain its own
@@ -290,7 +290,7 @@ func newDatabaseShard(
 		logger:               opts.InstrumentOptions().Logger(),
 		metrics:              newDatabaseShardMetrics(shard, scope),
 		tileAggregator:       opts.TileAggregator(),
-		batchMetrics:         index.NewWriteBatchMetrics(scope),
+		entryMetrics:         NewEntryMetrics(scope.SubScope("entries")),
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
 		s.nowFn, opts.CoreFn(), scope, opts.InstrumentOptions().Logger())
@@ -1250,11 +1250,12 @@ func (s *dbShard) newShardEntry(
 		Options:                s.seriesOpts,
 	})
 	return NewEntry(NewEntryOptions{
-		Shard:       s,
-		Series:      newSeries,
-		Index:       uniqueIndex,
-		IndexWriter: s.reverseIndex,
-		NowFn:       s.nowFn,
+		Shard:        s,
+		Series:       newSeries,
+		Index:        uniqueIndex,
+		IndexWriter:  s.reverseIndex,
+		NowFn:        s.nowFn,
+		EntryMetrics: s.entryMetrics,
 	}), nil
 }
 
@@ -1521,9 +1522,8 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	// TODO(prateek): pool this type
 	indexBlockSize := s.namespace.Options().IndexOptions().BlockSize()
 	indexBatch := index.NewWriteBatch(index.WriteBatchOptions{
-		InitialCapacity:   numPendingIndexing,
-		IndexBlockSize:    indexBlockSize,
-		WriteBatchMetrics: s.batchMetrics,
+		InitialCapacity: numPendingIndexing,
+		IndexBlockSize:  indexBlockSize,
 	})
 	for i := range inserts {
 		var (
