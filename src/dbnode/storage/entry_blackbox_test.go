@@ -373,7 +373,6 @@ func TestTryReconcileDuplicates(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		id     = ident.StringID("id_foo")
 		shard  = NewMockShard(ctrl)
 		scope  = tally.NewTestScope("test", nil)
 		series = series.NewMockDatabaseSeries(ctrl)
