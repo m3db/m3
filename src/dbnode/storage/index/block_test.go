@@ -93,6 +93,13 @@ func TestBlockCtor(t *testing.T) {
 	require.Error(t, b.Close())
 }
 
+// nolint: unparam
+func testWriteBatchOptionsWithBlockSize(d time.Duration) WriteBatchOptions {
+	return WriteBatchOptions{
+		IndexBlockSize: d,
+	}
+}
+
 func TestBlockWriteAfterClose(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -115,9 +122,7 @@ func TestBlockWriteAfterClose(t *testing.T) {
 	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	lifecycle.EXPECT().OnIndexFinalize(blockStart)
 
-	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
-	})
+	batch := NewWriteBatch(testWriteBatchOptionsWithBlockSize(blockSize))
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: lifecycle,
@@ -164,9 +169,7 @@ func TestBlockWriteAfterSeal(t *testing.T) {
 	lifecycle := doc.NewMockOnIndexSeries(ctrl)
 	lifecycle.EXPECT().OnIndexFinalize(blockStart)
 
-	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
-	})
+	batch := NewWriteBatch(testWriteBatchOptionsWithBlockSize(blockSize))
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: lifecycle,
@@ -223,9 +226,7 @@ func TestBlockWrite(t *testing.T) {
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
-	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
-	})
+	batch := NewWriteBatch(testWriteBatchOptionsWithBlockSize(blockSize))
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h1,
@@ -268,9 +269,7 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 
-	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
-	})
+	batch := NewWriteBatch(testWriteBatchOptionsWithBlockSize(blockSize))
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h1,
@@ -329,9 +328,7 @@ func TestBlockWritePartialFailure(t *testing.T) {
 	h2 := doc.NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 
-	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
-	})
+	batch := NewWriteBatch(testWriteBatchOptionsWithBlockSize(blockSize))
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h1,
@@ -1281,9 +1278,7 @@ func TestBlockNeedsMutableSegmentsEvicted(t *testing.T) {
 	h1 := doc.NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(start)
 	h1.EXPECT().OnIndexSuccess(start)
-	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: time.Hour,
-	})
+	batch := NewWriteBatch(testWriteBatchOptionsWithBlockSize(time.Hour))
 	batch.Append(WriteBatchEntry{
 		Timestamp:     start.Add(time.Minute),
 		OnIndexSeries: h1,
@@ -1422,9 +1417,7 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
-	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
-	})
+	batch := NewWriteBatch(testWriteBatchOptionsWithBlockSize(blockSize))
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h1,
@@ -1499,9 +1492,9 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	require.True(t, ok)
 
 	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, &resource.NoopCloser{}, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
-	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, resource.SimpleCloserFn(func() {}), false)
 	h1.EXPECT().IndexedRange().Return(blockStart, blockStart)
 	h1.EXPECT().IndexedForBlockStart(blockStart).Return(true)
 
@@ -1509,9 +1502,7 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
-	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
-	})
+	batch := NewWriteBatch(testWriteBatchOptionsWithBlockSize(blockSize))
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h1,
@@ -1587,23 +1578,22 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
+	closer := &resource.NoopCloser{}
 	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
-	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, resource.SimpleCloserFn(func() {}), false)
 	h1.EXPECT().IndexedRange().Return(blockStart, blockStart)
 	h1.EXPECT().IndexedForBlockStart(blockStart).Return(true)
 
 	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, closer, false)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
-	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, resource.SimpleCloserFn(func() {}), false)
 	h2.EXPECT().IndexedRange().Return(blockStart, blockStart)
 	h2.EXPECT().IndexedForBlockStart(blockStart).Return(true)
 
-	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
-	})
+	batch := NewWriteBatch(testWriteBatchOptionsWithBlockSize(blockSize))
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h1,
@@ -1690,15 +1680,13 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	require.True(t, ok)
 
 	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, &resource.NoopCloser{}, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
-	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, resource.SimpleCloserFn(func() {}), false)
 	h1.EXPECT().IndexedRange().Return(blockStart, blockStart)
 	h1.EXPECT().IndexedForBlockStart(blockStart).Return(true)
 
-	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
-	})
+	batch := NewWriteBatch(testWriteBatchOptionsWithBlockSize(blockSize))
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h1,
@@ -1780,24 +1768,23 @@ func TestBlockE2EInsertAddResultsQueryNarrowingBlockRange(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
+	closer := &resource.NoopCloser{}
 	h1 := doc.NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, closer, false)
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
-	h1.EXPECT().ReconciledOnIndexSeries().Return(h1, resource.SimpleCloserFn(func() {}), false)
 	h1.EXPECT().IndexedRange().Return(blockStart, blockStart.Add(2*blockSize))
 	h1.EXPECT().IndexedForBlockStart(blockStart).Return(false)
 	h1.EXPECT().IndexedForBlockStart(blockStart.Add(1 * blockSize)).Return(false)
 	h1.EXPECT().IndexedForBlockStart(blockStart.Add(2 * blockSize)).Return(true)
 
 	h2 := doc.NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, closer, false)
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
-	h2.EXPECT().ReconciledOnIndexSeries().Return(h2, resource.SimpleCloserFn(func() {}), false)
 	h2.EXPECT().IndexedRange().Return(xtime.UnixNano(0), xtime.UnixNano(0))
 
-	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
-	})
+	batch := NewWriteBatch(testWriteBatchOptionsWithBlockSize(blockSize))
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h1,
@@ -1899,9 +1886,7 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	h2.EXPECT().OnIndexFinalize(blockStart)
 	h2.EXPECT().OnIndexSuccess(blockStart)
 
-	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
-	})
+	batch := NewWriteBatch(testWriteBatchOptionsWithBlockSize(blockSize))
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h1,
@@ -1928,9 +1913,7 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	h1.EXPECT().OnIndexFinalize(blockStart)
 	h1.EXPECT().OnIndexSuccess(blockStart)
 
-	batch = NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
-	})
+	batch = NewWriteBatch(testWriteBatchOptionsWithBlockSize(blockSize))
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h1,
@@ -2333,9 +2316,7 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 	h3.EXPECT().OnIndexFinalize(blockStart)
 	h3.EXPECT().OnIndexSuccess(blockStart)
 
-	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
-	})
+	batch := NewWriteBatch(testWriteBatchOptionsWithBlockSize(blockSize))
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h1,

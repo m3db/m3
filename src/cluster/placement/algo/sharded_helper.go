@@ -502,6 +502,9 @@ func (ph *helper) mostUnderLoadedInstance() (placement.Instance, bool) {
 			maxLoadGap = loadGap
 			res = instance
 		}
+		if loadGap == maxLoadGap && res != nil && res.ID() > id {
+			res = instance
+		}
 		if loadGap < 0 {
 			totalLoadSurplus -= loadGap
 		}

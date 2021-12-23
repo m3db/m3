@@ -30,11 +30,9 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
-var (
-	// ErrClosed is the error returned when attempting to perform operations on a
-	// segment that has already been closed.
-	ErrClosed = errors.New("segment has been closed")
-)
+// ErrClosed is the error returned when attempting to perform operations on a
+// segment that has already been closed.
+var ErrClosed = errors.New("segment has been closed")
 
 // Segment is a sub-collection of documents within an index.
 type Segment interface {
@@ -251,6 +249,7 @@ type SegmentsBuilderSegmentMetadata struct {
 
 // DocumentsFilter is a documents filter.
 type DocumentsFilter interface {
+	// Contains is true if the document passes the filter.
 	Contains(d doc.Metadata) bool
 }
 

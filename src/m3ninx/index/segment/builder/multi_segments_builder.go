@@ -93,7 +93,10 @@ func (b *builderFromSegments) Reset() {
 	b.termsIter.clear()
 }
 
-func (b *builderFromSegments) SetFilter(filter segment.DocumentsFilter, filterCount tally.Counter) {
+func (b *builderFromSegments) SetFilter(
+	filter segment.DocumentsFilter,
+	filterCount tally.Counter,
+) {
 	b.filter = filter
 	b.filterCount = filterCount
 }
@@ -147,6 +150,11 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 			d := iter.Current()
 			negativeOffsets = append(negativeOffsets, currOffset)
 			if b.idSet.Contains(d.ID) {
+				if d.OnIndexSeries != nil {
+					// Reconcile any duplicate series.
+					d.OnIndexSeries.TryReconcileDuplicates()
+				}
+
 				// Skip duplicates.
 				negativeOffsets[len(negativeOffsets)-1] = -1
 				currOffset++
