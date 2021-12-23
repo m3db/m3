@@ -64,6 +64,7 @@ type DBNode struct {
 	tchanClient *integration.TestTChannelClient
 }
 
+//nolint:maligned
 // DBNodeOptions are options for starting a DB node server.
 type DBNodeOptions struct {
 	// GeneratePorts will automatically update the config to use open ports
@@ -74,6 +75,8 @@ type DBNodeOptions struct {
 	GenerateHostID bool
 	// StartFn is a custom function that can be used to start the DBNode.
 	StartFn DBNodeStartFn
+	// Start indicates whether to start the dbnode instance.
+	Start bool
 	// Logger is the logger to use for the dbnode. If not provided,
 	// a default one will be created.
 	Logger *zap.Logger
@@ -163,15 +166,23 @@ func NewDBNode(cfg config.Configuration, opts DBNodeOptions) (resources.Node, er
 		tmpDirs:     tmpDirs,
 		startFn:     opts.StartFn,
 	}
-	node.start()
+	if opts.Start {
+		node.Start()
+	}
 
 	return node, nil
 }
 
-func (d *DBNode) start() {
+// Start starts the DBNode instance
+func (d *DBNode) Start() {
+	if d.started {
+		d.logger.Debug("dbnode already started")
+		return
+	}
+	d.started = true
+
 	if d.startFn != nil {
 		d.interruptCh, d.shutdownCh = d.startFn(&d.cfg)
-		d.started = true
 		return
 	}
 
@@ -187,7 +198,6 @@ func (d *DBNode) start() {
 
 	d.interruptCh = interruptCh
 	d.shutdownCh = shutdownCh
-	d.started = true
 }
 
 // HostDetails returns this node's host details on the given port.
@@ -319,7 +329,7 @@ func (d *DBNode) Restart() error {
 		return err
 	}
 
-	d.start()
+	d.Start()
 
 	return nil
 }

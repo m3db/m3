@@ -199,6 +199,18 @@ func NewClusterFromSpecification(
 		nodes = append(nodes, node)
 	}
 
+	for _, aggCfg := range specs.Configs.Aggregators {
+		var agg resources.Aggregator
+		agg, err = NewAggregator(aggCfg, AggregatorOptions{
+			GeneratePorts:  true,
+			GenerateHostID: false,
+		})
+		if err != nil {
+			return nil, err
+		}
+		aggs = append(aggs, agg)
+	}
+
 	coord, err = NewCoordinator(
 		specs.Configs.Coordinator,
 		CoordinatorOptions{GeneratePorts: opts.Coordinator.GeneratePorts},
@@ -207,30 +219,83 @@ func NewClusterFromSpecification(
 		return nil, err
 	}
 
-	for _, aggCfg := range specs.Configs.Aggregators {
-		var agg resources.Aggregator
-		agg, err = NewAggregator(aggCfg, AggregatorOptions{
-			GeneratePorts:  true,
-			GenerateHostID: false,
-			Start:          false,
-		})
-		if err != nil {
-			return nil, err
-		}
-		aggs = append(aggs, agg)
+	if err = ConfigurePlacementsForAggregation(nodes, coord, aggs, specs, opts); err != nil {
+		return nil, err
 	}
 
+	// Start all the configured resources.
 	m3 := NewM3Resources(ResourceOptions{
 		Coordinator: coord,
 		DBNodes:     nodes,
 		Aggregators: aggs,
 	})
+	m3.Start()
 
 	if err = resources.SetupCluster(m3, opts); err != nil {
 		return nil, err
 	}
 
 	return m3, nil
+}
+
+// ConfigurePlacementsForAggregation sets up the correct placement information for
+// coordinators and aggregators when aggregation is enabled.
+func ConfigurePlacementsForAggregation(
+	nodes resources.Nodes,
+	coord resources.Coordinator,
+	aggs resources.Aggregators,
+	specs ClusterSpecification,
+	opts resources.ClusterOptions,
+) error {
+	if len(aggs) == 0 {
+		return nil
+	}
+
+	coordAPI := coord
+	hostDetails, err := coord.HostDetails()
+	if err != nil {
+		return err
+	}
+
+	// With remote aggregation enabled, aggregation is not handled within the coordinator.
+	// When this is true, the coordinator will fail to start until placement is updated with
+	// aggregation related information. As such, use the coordinator embedded within the dbnode
+	// to configure the placement and topics.
+	if specs.Configs.Coordinator.Downsample.RemoteAggregator != nil {
+		if len(specs.Configs.DBNodes) == 0 ||
+			specs.Configs.DBNodes[0].Coordinator == nil {
+			return errors.New("remote aggregation requires at least one DB node" +
+				" running an embedded coordinator for placement and topic configuration")
+		}
+
+		embedded, err := NewEmbeddedCoordinator(nodes[0].(*DBNode))
+		if err != nil {
+			return nil
+		}
+
+		coordAPI = embedded
+	} else {
+		// TODO(nate): Remove this in a follow up. If we're not doing remote aggregation
+		// we should not be starting aggs which is what requires the coordinator to get started.
+		// Once we've refactored existing tests that have aggs w/o remote aggregation enabled,
+		// this should be killable.
+		coord.Start()
+	}
+
+	if err = coordAPI.WaitForNamespace(""); err != nil {
+		return err
+	}
+
+	if err = resources.SetupPlacement(coordAPI, *hostDetails, aggs, *opts.Aggregator); err != nil {
+		return err
+	}
+
+	aggInstanceInfo, err := aggs[0].HostDetails()
+	if err != nil {
+		return err
+	}
+
+	return resources.SetupM3MsgTopics(coordAPI, *aggInstanceInfo, opts)
 }
 
 // GenerateClusterSpecification generates the per-instance configuration and options
@@ -318,6 +383,7 @@ func GenerateDBNodeConfigsForCluster(
 		defaultDBNodeOpts = DBNodeOptions{
 			GenerateHostID: generatePortsAndIDs,
 			GeneratePorts:  generatePortsAndIDs,
+			Start:          true,
 		}
 		cfgs     = make([]dbcfg.Configuration, 0, numNodes)
 		nodeOpts = make([]DBNodeOptions, 0, numNodes)

@@ -61,11 +61,21 @@ func (t IDSchemeType) String() string {
 	}
 }
 
+// MarshalYAML returns the YAML representation of the IDSchemeType.
+func (t IDSchemeType) MarshalYAML() (interface{}, error) {
+	return t.String(), nil
+}
+
 // UnmarshalYAML unmarshals a stored merics type.
 func (t *IDSchemeType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
+	}
+
+	if str == "" {
+		*t = TypeDefault
+		return nil
 	}
 
 	for _, valid := range validIDSchemes {

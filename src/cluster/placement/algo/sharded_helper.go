@@ -491,8 +491,8 @@ func (ph *helper) returnInitializingShardsToSource(
 
 func (ph *helper) mostUnderLoadedInstance() (placement.Instance, bool) {
 	var (
-		res        placement.Instance
-		maxLoadGap int
+		res              placement.Instance
+		maxLoadGap       int
 		totalLoadSurplus int
 	)
 
@@ -500,6 +500,9 @@ func (ph *helper) mostUnderLoadedInstance() (placement.Instance, bool) {
 		loadGap := ph.targetLoad[id] - loadOnInstance(instance)
 		if loadGap > maxLoadGap {
 			maxLoadGap = loadGap
+			res = instance
+		}
+		if loadGap == maxLoadGap && res != nil && res.ID() > id {
 			res = instance
 		}
 		if loadGap < 0 {
@@ -656,12 +659,19 @@ func (h *instanceHeap) Less(i, j int) bool {
 	leftLoadOnJ := h.targetLoadForInstance(instanceJ.ID()) - loadOnInstance(instanceJ)
 	// If both instance has tokens to be filled, prefer the one from bigger isolation group
 	// since it tends to be more picky in accepting shards
-	if leftLoadOnI > 0 && leftLoadOnJ > 0 {
-		if instanceI.IsolationGroup() != instanceJ.IsolationGroup() {
-			return h.igToWeightMap[instanceI.IsolationGroup()] > h.igToWeightMap[instanceJ.IsolationGroup()]
+	if leftLoadOnI > 0 && leftLoadOnJ > 0 && instanceI.IsolationGroup() != instanceJ.IsolationGroup() {
+		var (
+			igWeightI = h.igToWeightMap[instanceI.IsolationGroup()]
+			igWeightJ = h.igToWeightMap[instanceJ.IsolationGroup()]
+		)
+		if igWeightI != igWeightJ {
+			return igWeightI > igWeightJ
 		}
 	}
 	// compare left capacity on both instances
+	if leftLoadOnI == leftLoadOnJ {
+		return instanceI.ID() < instanceJ.ID()
+	}
 	if h.capacityAscending {
 		return leftLoadOnI > leftLoadOnJ
 	}

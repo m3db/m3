@@ -98,6 +98,11 @@ func (t AggregatorClientType) String() string {
 	return "unknown"
 }
 
+// MarshalYAML returns the YAML representation of the AggregatorClientType.
+func (t AggregatorClientType) MarshalYAML() (interface{}, error) {
+	return t.String(), nil
+}
+
 // UnmarshalYAML unmarshals a AggregatorClientType into a valid type from string.
 func (t *AggregatorClientType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string

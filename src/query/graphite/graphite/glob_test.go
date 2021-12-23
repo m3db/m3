@@ -47,6 +47,11 @@ func TestGlobToRegexPattern(t *testing.T) {
 			regex:   "barbaz:quxqaz",
 		},
 		{
+			glob:    "bar:baz~",
+			isRegex: false,
+			regex:   "bar:baz~",
+		},
+		{
 			glob:    "foo\\+bar.'baz<1001>'.qux",
 			isRegex: true,
 			regex:   "foo\\+bar\\.+\\'baz\\<1001\\>\\'\\.+qux",

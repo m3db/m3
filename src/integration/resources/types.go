@@ -55,6 +55,8 @@ type Headers map[string][]string
 type Coordinator interface {
 	Admin
 
+	// Start starts the coordinator instance.
+	Start()
 	// HostDetails returns this coordinator instance's host details.
 	HostDetails() (*InstanceInfo, error)
 	// ApplyKVUpdate applies a KV update.
@@ -133,6 +135,8 @@ type Admin interface {
 // endpoints for series data.
 // TODO: consider having this work on underlying structures.
 type Node interface {
+	// Start starts the dbnode instance.
+	Start()
 	// HostDetails returns this node's host details on the given port.
 	HostDetails(port int) (*admin.Host, error)
 	// Health gives this node's health.
@@ -184,6 +188,8 @@ type Aggregator interface {
 
 // M3Resources represents a set of test M3 components.
 type M3Resources interface {
+	// Start starts all the M3 components.
+	Start()
 	// Cleanup cleans up after each started component.
 	Cleanup() error
 	// Nodes returns all node resources.

@@ -39,13 +39,13 @@ import (
 )
 
 func TestNewDBNodeNoSetup(t *testing.T) {
-	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
+	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{Start: true})
 	require.NoError(t, err)
 
 	require.NoError(t, dbnode.Close())
 
 	// Restart and shutdown again to test restarting
-	dbnode, err = NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{})
+	dbnode, err = NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{Start: true})
 	require.NoError(t, err)
 
 	require.NoError(t, dbnode.Close())
@@ -169,10 +169,13 @@ func validateTag(t *testing.T, tag ident.Tag, name string, value string) {
 }
 
 func setupNodeAndCoordinator(t *testing.T) (resources.Node, resources.Coordinator, func()) {
-	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{GenerateHostID: true})
+	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{
+		GenerateHostID: true,
+		Start:          true,
+	})
 	require.NoError(t, err)
 
-	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{})
+	coord, err := NewCoordinatorFromYAML(defaultCoordConfig, CoordinatorOptions{Start: true})
 	require.NoError(t, err)
 
 	require.NoError(t, coord.WaitForNamespace(""))

@@ -24,6 +24,7 @@ package aggregator
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,6 +45,12 @@ func testSetup(t *testing.T) (resources.M3Resources, func()) {
 		TestAggregatorDBNodeConfig, TestAggregatorCoordinatorConfig, TestAggregatorAggregatorConfig,
 	)
 	require.NoError(t, err)
+	// NB(nate): This is a hack to account for the fact that overriding this via
+	// config would mean we'd need to also specify all the other options in the
+	// aggregator: section of the config instead of being able to use the defaults.
+	aggCfg := cfgs.Aggregator.AggregatorOrDefault()
+	aggCfg.BufferDurationForPastTimedMetric = 10 * time.Second
+	cfgs.Aggregator.Aggregator = &aggCfg
 
 	m3, err := inprocess.NewCluster(cfgs,
 		resources.ClusterOptions{

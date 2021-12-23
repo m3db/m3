@@ -18,59 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package consolidators
+// Package topics implements topic endpoint interaction.
+package topics
 
 import (
 	"fmt"
-	"strings"
+
+	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/client"
 )
 
-const (
-	defaultMatchType MatchType = MatchIDs
-)
-
-func (t MatchType) String() string {
-	switch t {
-	case MatchIDs:
-		return "ids"
-	case MatchTags:
-		return "tags"
-	}
-	return "unknown"
-}
-
-var validMatchTypes = []MatchType{
-	MatchIDs,
-	MatchTags,
-}
-
-// MarshalYAML returns the YAML representation of the MatchType.
-func (t MatchType) MarshalYAML() (interface{}, error) {
-	return t.String(), nil
-}
-
-// UnmarshalYAML unmarshals an ExtendedMetricsType into a valid type from string.
-func (t *MatchType) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
-
-	if str == "" {
-		*t = defaultMatchType
-		return nil
-	}
-
-	strs := make([]string, 0, len(validMatchTypes))
-	for _, valid := range validMatchTypes {
-		if str == valid.String() {
-			*t = valid
-			return nil
-		}
-
-		strs = append(strs, "'"+valid.String()+"'")
-	}
-
-	return fmt.Errorf("invalid MatchType '%s' valid types are: %s",
-		str, strings.Join(strs, ", "))
+// DoGet calls the backend api for get topics
+func DoGet(
+	endpoint string,
+	headers map[string]string,
+	logger *zap.Logger,
+) ([]byte, error) {
+	url := fmt.Sprintf("%s%s", endpoint, DefaultPath)
+	return client.DoGet(url, headers, logger)
 }
