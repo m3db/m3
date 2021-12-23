@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -348,6 +349,8 @@ func setupIndex(t *testing.T,
 		lifecycleFns = doc.NewMockOnIndexSeries(ctrl)
 	)
 
+	closer := &resource.NoopCloser{}
+	lifecycleFns.EXPECT().ReconciledOnIndexSeries().Return(lifecycleFns, closer, false).AnyTimes()
 	lifecycleFns.EXPECT().OnIndexFinalize(ts)
 	lifecycleFns.EXPECT().OnIndexSuccess(ts)
 	lifecycleFns.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)

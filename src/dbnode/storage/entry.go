@@ -60,8 +60,8 @@ type EntryMetrics struct {
 	gcNoReconcile    tally.Counter
 	gcNeedsReconcile tally.Counter
 
-	duplicatesNoReconcile    tally.Counter
-	duplicatesNeedsReconcile tally.Counter
+	duplicateNoReconcile    tally.Counter
+	duplicateNeedsReconcile tally.Counter
 }
 
 // NewEntryMetrics builds an entry metrics.
@@ -76,14 +76,14 @@ func NewEntryMetrics(scope tally.Scope) *EntryMetrics {
 			"path":      "gc",
 		}).Counter("count"),
 
-		duplicatesNoReconcile: scope.Tagged(map[string]string{
+		duplicateNoReconcile: scope.Tagged(map[string]string{
 			"reconcile": "no_reconcile",
-			"path":      "duplicates",
+			"path":      "duplicate",
 		}).Counter("count"),
 
-		duplicatesNeedsReconcile: scope.Tagged(map[string]string{
+		duplicateNeedsReconcile: scope.Tagged(map[string]string{
 			"reconcile": "needs_reconcile",
-			"path":      "duplicates",
+			"path":      "duplicate",
 		}).Counter("count"),
 	}
 }
@@ -219,12 +219,31 @@ func (entry *Entry) ReconciledOnIndexSeries() (doc.OnIndexSeries, resource.Simpl
 func (entry *Entry) MergeEntryIndexBlockStates(states doc.EntryIndexBlockStates) {
 	entry.reverseIndex.Lock()
 	for t, state := range states {
+		set := false
 		if state.Success {
+			set = true
 			entry.reverseIndex.setSuccessWithWLock(t)
+		} else {
+			// NB: setSuccessWithWLock(t) will perform the logic to determine if
+			// minIndexedT/maxIndexedT need to be updated; if this is not being called
+			// these should be updated.
+			if entry.reverseIndex.maxIndexedT < t {
+				entry.reverseIndex.maxIndexedT = t
+			}
+			if entry.reverseIndex.minIndexedT > t {
+				entry.reverseIndex.minIndexedT = t
+			}
 		}
 
 		if state.Attempt {
+			set = true
 			entry.reverseIndex.setAttemptWithWLock(t, false)
+		}
+
+		if !set {
+			// NB: if not set through the above methods, need to create an index block
+			// state at the given timestamp.
+			entry.reverseIndex.states[t] = doc.EntryIndexBlockState{}
 		}
 	}
 
@@ -383,9 +402,9 @@ func (entry *Entry) TryReconcileDuplicates() {
 		entry.reverseIndex.RLock()
 		e.MergeEntryIndexBlockStates(entry.reverseIndex.states)
 		entry.reverseIndex.RUnlock()
-		entry.metrics.duplicatesNeedsReconcile.Inc(1)
+		entry.metrics.duplicateNeedsReconcile.Inc(1)
 	} else {
-		entry.metrics.duplicatesNoReconcile.Inc(1)
+		entry.metrics.duplicateNoReconcile.Inc(1)
 	}
 
 	e.DecrementReaderWriterCount()

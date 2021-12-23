@@ -33,6 +33,7 @@ import (
 	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/tallytest"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -365,4 +366,58 @@ func TestEntryTryMarkIndexGarbageCollected(t *testing.T) {
 	// Entry in the shard is the one marked for GC (not the one necessarily used for the call above).
 	require.True(t, committedEntry.IndexGarbageCollected.Load())
 	require.False(t, uncommittedEntry.IndexGarbageCollected.Load())
+}
+
+func TestTryReconcileDuplicates(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		id     = ident.StringID("id_foo")
+		shard  = NewMockShard(ctrl)
+		scope  = tally.NewTestScope("test", nil)
+		series = series.NewMockDatabaseSeries(ctrl)
+	)
+
+	series.EXPECT().ID().Return(id)
+	entry := NewEntry(NewEntryOptions{
+		Series:       series,
+		Shard:        shard,
+		EntryMetrics: NewEntryMetrics(scope),
+	})
+
+	shard.EXPECT().TryRetrieveSeriesAndIncrementReaderWriterCount(id).DoAndReturn(
+		func(ident.ID) (*Entry, WritableSeriesOptions, error) {
+			// NB: TryRetrieveSeriesAndIncrementReaderWriterCount increments rw count
+			// so emulate this here.
+			entry.IncrementReaderWriterCount()
+			return entry, WritableSeriesOptions{}, nil
+		})
+
+	entry.TryReconcileDuplicates()
+	tallytest.AssertCounterValue(t, 1, scope.Snapshot(), "test.count", map[string]string{
+		"reconcile": "no_reconcile",
+		"path":      "duplicate",
+	})
+	tallytest.AssertCounterValue(t, 0, scope.Snapshot(), "test.count", map[string]string{
+		"reconcile": "needs_reconcile",
+		"path":      "duplicate",
+	})
+
+	states := doc.EntryIndexBlockStates{1: doc.EntryIndexBlockState{}}
+	entry.reverseIndex = entryIndexState{states: states}
+	e := &Entry{reverseIndex: newEntryIndexState()}
+	shard.EXPECT().TryRetrieveSeriesAndIncrementReaderWriterCount(id).
+		Return(e, WritableSeriesOptions{}, nil)
+
+	entry.TryReconcileDuplicates()
+	require.Equal(t, states, e.reverseIndex.states)
+	tallytest.AssertCounterValue(t, 1, scope.Snapshot(), "test.count", map[string]string{
+		"reconcile": "no_reconcile",
+		"path":      "duplicate",
+	})
+	tallytest.AssertCounterValue(t, 1, scope.Snapshot(), "test.count", map[string]string{
+		"reconcile": "needs_reconcile",
+		"path":      "duplicate",
+	})
 }

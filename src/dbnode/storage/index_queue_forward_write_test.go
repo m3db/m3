@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -112,18 +113,24 @@ func setupForwardIndex(
 		lifecycle = doc.NewMockOnIndexSeries(ctrl)
 	)
 
-	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
+	gomock.InOrder(
+		lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false),
 
-	lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true)
-	lifecycle.EXPECT().OnIndexPrepare(next)
+		lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true),
+		lifecycle.EXPECT().OnIndexPrepare(next),
 
-	lifecycle.EXPECT().OnIndexSuccess(ts)
-	lifecycle.EXPECT().OnIndexFinalize(ts)
+		lifecycle.EXPECT().OnIndexSuccess(ts),
+		lifecycle.EXPECT().OnIndexFinalize(ts),
 
-	lifecycle.EXPECT().OnIndexSuccess(nextTS)
-	lifecycle.EXPECT().OnIndexFinalize(nextTS)
+		lifecycle.EXPECT().OnIndexSuccess(nextTS),
+		lifecycle.EXPECT().OnIndexFinalize(nextTS),
+	)
 
 	if !expectAggregateQuery {
+		lifecycle.EXPECT().ReconciledOnIndexSeries().Return(
+			lifecycle, resource.SimpleCloserFn(func() {}), false,
+		).AnyTimes()
+
 		lifecycle.EXPECT().IndexedRange().Return(ts, ts)
 		lifecycle.EXPECT().IndexedForBlockStart(ts).Return(true)
 
@@ -430,8 +437,8 @@ func TestNamespaceIndexForwardWriteCreatesBlock(t *testing.T) {
 		next = ts.Truncate(blockSize).Add(blockSize)
 	)
 
-	lifecycle.EXPECT().OnIndexPrepare(next)
 	lifecycle.EXPECT().NeedsIndexUpdate(next).Return(true)
+	lifecycle.EXPECT().OnIndexPrepare(next)
 	lifecycle.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
 
 	setupMockBlock(t, activeBlock, now, id, tag, lifecycle)
