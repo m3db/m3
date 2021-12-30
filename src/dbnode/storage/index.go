@@ -119,7 +119,7 @@ type nsIndex struct {
 	runtimeOptsListener   xresource.SimpleCloser
 	runtimeNsOptsListener xresource.SimpleCloser
 
-	resultsPool          index.QueryResultsPool
+	resultsPool          *sync.Pool
 	aggregateResultsPool index.AggregateResultsPool
 
 	permitsManager permits.Manager
@@ -1503,7 +1503,7 @@ func (i *nsIndex) Query(
 	}
 
 	// Get results and set the namespace ID and size limit.
-	results := i.resultsPool.Get()
+	results := i.resultsPool.Get().(index.QueryResults)
 	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{
 		SizeLimit: opts.SeriesLimit,
 		FilterID:  i.shardsFilterID(),

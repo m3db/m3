@@ -23,6 +23,7 @@ package index
 import (
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -1032,10 +1033,10 @@ type Options interface {
 	CheckedBytesPool() pool.CheckedBytesPool
 
 	// SetQueryResultsPool updates the query results pool.
-	SetQueryResultsPool(values QueryResultsPool) Options
+	SetQueryResultsPool(values *sync.Pool) Options
 
 	// QueryResultsPool returns the results pool.
-	QueryResultsPool() QueryResultsPool
+	QueryResultsPool() *sync.Pool
 
 	// SetAggregateResultsPool updates the aggregate results pool.
 	SetAggregateResultsPool(values AggregateResultsPool) Options

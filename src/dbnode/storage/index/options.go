@@ -22,6 +22,7 @@ package index
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
@@ -123,7 +124,7 @@ type options struct {
 	fstOpts                         fst.Options
 	idPool                          ident.Pool
 	bytesPool                       pool.CheckedBytesPool
-	resultsPool                     QueryResultsPool
+	resultsPool                     *sync.Pool
 	aggResultsPool                  AggregateResultsPool
 	aggValuesPool                   AggregateValuesPool
 	docArrayPool                    doc.DocumentArrayPool
@@ -142,7 +143,6 @@ var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabl
 
 // NewOptions returns a new Options object with default properties.
 func NewOptions() Options {
-	resultsPool := NewQueryResultsPool(pool.NewObjectPoolOptions())
 	aggResultsPool := NewAggregateResultsPool(pool.NewObjectPoolOptions())
 	aggValuesPool := NewAggregateValuesPool(pool.NewObjectPoolOptions())
 
@@ -187,7 +187,7 @@ func NewOptions() Options {
 		fstOpts:                         fst.NewOptions().SetInstrumentOptions(instrumentOpts),
 		bytesPool:                       bytesPool,
 		idPool:                          idPool,
-		resultsPool:                     resultsPool,
+		resultsPool:                     &sync.Pool{},
 		aggResultsPool:                  aggResultsPool,
 		aggValuesPool:                   aggValuesPool,
 		docArrayPool:                    docArrayPool,
@@ -197,9 +197,9 @@ func NewOptions() Options {
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
 		queryLimits:                     limits.NoOpQueryLimits(),
 	}
-	resultsPool.Init(func() QueryResults {
+	opts.resultsPool.New = func() interface{} {
 		return NewQueryResults(nil, QueryResultsOptions{}, opts)
-	})
+	}
 	aggResultsPool.Init(func() AggregateResults {
 		return NewAggregateResults(nil, AggregateResultsOptions{}, opts)
 	})
@@ -213,9 +213,6 @@ func (o *options) Validate() error {
 	}
 	if o.bytesPool == nil {
 		return errOptionsBytesPoolUnspecified
-	}
-	if o.resultsPool == nil {
-		return errOptionsResultsPoolUnspecified
 	}
 	if o.aggResultsPool == nil {
 		return errOptionsAggResultsPoolUnspecified
@@ -322,13 +319,13 @@ func (o *options) CheckedBytesPool() pool.CheckedBytesPool {
 	return o.bytesPool
 }
 
-func (o *options) SetQueryResultsPool(value QueryResultsPool) Options {
+func (o *options) SetQueryResultsPool(value *sync.Pool) Options {
 	opts := *o
 	opts.resultsPool = value
 	return &opts
 }
 
-func (o *options) QueryResultsPool() QueryResultsPool {
+func (o *options) QueryResultsPool() *sync.Pool {
 	return o.resultsPool
 }
 
