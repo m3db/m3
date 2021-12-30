@@ -49,6 +49,16 @@ func NewM3Resources(options ResourceOptions) resources.M3Resources {
 	}
 }
 
+func (i *inprocessM3Resources) Start() {
+	for _, node := range i.dbNodes {
+		node.Start()
+	}
+	for _, agg := range i.aggregators {
+		agg.Start()
+	}
+	i.coordinator.Start()
+}
+
 func (i *inprocessM3Resources) Cleanup() error {
 	err := errors.NewMultiError()
 	if i.coordinator != nil {

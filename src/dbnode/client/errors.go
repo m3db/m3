@@ -62,6 +62,9 @@ func IsResourceExhaustedError(err error) bool {
 		if e, ok := err.(*rpc.Error); ok && tterrors.IsResourceExhaustedErrorFlag(e) { //nolint:errorlint
 			return true
 		}
+		if e := xerrors.GetInnerResourceExhaustedError(err); e != nil {
+			return true
+		}
 		err = xerrors.InnerError(err)
 	}
 	return false

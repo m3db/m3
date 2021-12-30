@@ -33,7 +33,7 @@ const (
 	ValidIdentifierRunes = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
 		"abcdefghijklmnopqrstuvwxyz" +
 		"0123456789" +
-		"$-_'|<>%#/:"
+		"$-_'|<>%#/:~"
 )
 
 // GlobToRegexPattern converts a graphite-style glob into a regex pattern, with

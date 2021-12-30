@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	queryts "github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xresource "github.com/m3db/m3/src/x/resource"
@@ -164,6 +165,10 @@ type Options interface {
 	TagsTransform() TagsTransform
 	// SetTagsTransform sets the TagsTransform.
 	SetTagsTransform(value TagsTransform) Options
+	// SetRateLimiter sets the RateLimiter
+	SetRateLimiter(value RateLimiter) Options
+	// RateLimiter returns the rate limiter.
+	RateLimiter() RateLimiter
 	// SetIteratorPools sets the iterator pools for the converter.
 	SetIteratorPools(encoding.IteratorPools) Options
 	// IteratorPools returns the iterator pools for the converter.
@@ -212,6 +217,20 @@ type Options interface {
 	PromConvertOptions() storage.PromConvertOptions
 	// Validate ensures that the given block options are valid.
 	Validate() error
+}
+
+// RateLimiter rate limits write requests to the db nodes.
+type RateLimiter interface {
+	// Limit returns a boolean indicating whether or not the storage write may proceed.
+	Limit(ClusterNamespace, queryts.Datapoints, []models.Tag) bool
+}
+
+// noopRateLimiter skips rate limiting.
+type noopRateLimiter struct{}
+
+// Limit ignores rate limiting by always returning true.
+func (f *noopRateLimiter) Limit(ClusterNamespace, queryts.Datapoints, []models.Tag) bool {
+	return true
 }
 
 // SeriesIteratorProcessor optionally defines methods to process series iterators.

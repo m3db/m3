@@ -76,6 +76,7 @@ steps:
     <<: *common
   - label: "M3 Cluster Integration Test Harness Tests"
     command: make clean test-ci-test-harness
+    skip: "NB(nate): temporarily disabling to resolve some tests flakes"
     plugins:
       docker-compose#v2.5.1:
         run: app

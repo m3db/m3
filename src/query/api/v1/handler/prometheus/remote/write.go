@@ -323,14 +323,18 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if batchErr != nil {
 		var (
-			errs              = batchErr.Errors()
-			lastRegularErr    string
-			lastBadRequestErr string
-			numRegular        int
-			numBadRequest     int
+			errs                 = batchErr.Errors()
+			lastRegularErr       string
+			lastBadRequestErr    string
+			numRegular           int
+			numBadRequest        int
+			numResourceExhausted int
 		)
 		for _, err := range errs {
 			switch {
+			case client.IsResourceExhaustedError(err):
+				numResourceExhausted++
+				lastBadRequestErr = err.Error()
 			case client.IsBadRequestError(err):
 				numBadRequest++
 				lastBadRequestErr = err.Error()
@@ -347,6 +351,8 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case numBadRequest == len(errs):
 			status = http.StatusBadRequest
+		case numResourceExhausted > 0:
+			status = http.StatusTooManyRequests
 		default:
 			status = http.StatusInternalServerError
 		}
@@ -355,6 +361,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger.Error("write error",
 			zap.String("remoteAddr", r.RemoteAddr),
 			zap.Int("httpResponseStatusCode", status),
+			zap.Int("numResourceExhaustedErrors", numResourceExhausted),
 			zap.Int("numRegularErrors", numRegular),
 			zap.Int("numBadRequestErrors", numBadRequest),
 			zap.String("lastRegularError", lastRegularErr),

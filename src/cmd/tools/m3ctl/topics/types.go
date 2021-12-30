@@ -18,59 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package consolidators
-
-import (
-	"fmt"
-	"strings"
-)
+// Package topics implements topic endpoint interaction.
+package topics
 
 const (
-	defaultMatchType MatchType = MatchIDs
+	// DefaultPath is the url path for api calls for topics
+	DefaultPath = "/api/v1/topic"
 )
-
-func (t MatchType) String() string {
-	switch t {
-	case MatchIDs:
-		return "ids"
-	case MatchTags:
-		return "tags"
-	}
-	return "unknown"
-}
-
-var validMatchTypes = []MatchType{
-	MatchIDs,
-	MatchTags,
-}
-
-// MarshalYAML returns the YAML representation of the MatchType.
-func (t MatchType) MarshalYAML() (interface{}, error) {
-	return t.String(), nil
-}
-
-// UnmarshalYAML unmarshals an ExtendedMetricsType into a valid type from string.
-func (t *MatchType) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
-
-	if str == "" {
-		*t = defaultMatchType
-		return nil
-	}
-
-	strs := make([]string, 0, len(validMatchTypes))
-	for _, valid := range validMatchTypes {
-		if str == valid.String() {
-			*t = valid
-			return nil
-		}
-
-		strs = append(strs, "'"+valid.String()+"'")
-	}
-
-	return fmt.Errorf("invalid MatchType '%s' valid types are: %s",
-		str, strings.Join(strs, ", "))
-}

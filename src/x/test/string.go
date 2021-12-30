@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,59 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package consolidators
+package test
 
-import (
-	"fmt"
-	"strings"
-)
-
-const (
-	defaultMatchType MatchType = MatchIDs
-)
-
-func (t MatchType) String() string {
-	switch t {
-	case MatchIDs:
-		return "ids"
-	case MatchTags:
-		return "tags"
+// BytesArray converts a variable length string arguments (array of strings)
+// into an array of byte arrays
+func BytesArray(strings ...string) [][]byte {
+	stringBytesArray := make([][]byte, len(strings))
+	for i, v := range strings {
+		stringBytesArray[i] = []byte(v)
 	}
-	return "unknown"
-}
-
-var validMatchTypes = []MatchType{
-	MatchIDs,
-	MatchTags,
-}
-
-// MarshalYAML returns the YAML representation of the MatchType.
-func (t MatchType) MarshalYAML() (interface{}, error) {
-	return t.String(), nil
-}
-
-// UnmarshalYAML unmarshals an ExtendedMetricsType into a valid type from string.
-func (t *MatchType) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
-
-	if str == "" {
-		*t = defaultMatchType
-		return nil
-	}
-
-	strs := make([]string, 0, len(validMatchTypes))
-	for _, valid := range validMatchTypes {
-		if str == valid.String() {
-			*t = valid
-			return nil
-		}
-
-		strs = append(strs, "'"+valid.String()+"'")
-	}
-
-	return fmt.Errorf("invalid MatchType '%s' valid types are: %s",
-		str, strings.Join(strs, ", "))
+	return stringBytesArray
 }
