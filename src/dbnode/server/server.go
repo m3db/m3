@@ -1877,8 +1877,7 @@ func withEncodingAndPoolingOptions(
 	postingsListOpts := poolOptions(policy.PostingsListPool, scope.SubScope("postingslist-pool"))
 	postingsList := postings.NewPool(postingsListOpts, roaring.NewPostingsList)
 
-	queryResultsPool := index.NewQueryResultsPool(
-		poolOptions(policy.IndexResultsPool, scope.SubScope("index-query-results-pool")))
+	queryResultsPool := &sync.Pool{}
 	aggregateQueryResultsPool := index.NewAggregateResultsPool(
 		poolOptions(policy.IndexResultsPool, scope.SubScope("index-aggregate-results-pool")))
 	aggregateQueryValuesPool := index.NewAggregateValuesPool(
@@ -1917,11 +1916,11 @@ func withEncodingAndPoolingOptions(
 		SetForwardIndexProbability(cfg.Index.ForwardIndexProbability).
 		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold)
 
-	queryResultsPool.Init(func() index.QueryResults {
+	queryResultsPool.New = func() interface{} {
 		// NB(r): Need to initialize after setting the index opts so
 		// it sees the same reference of the options as is set for the DB.
 		return index.NewQueryResults(nil, index.QueryResultsOptions{}, indexOpts)
-	})
+	}
 	aggregateQueryResultsPool.Init(func() index.AggregateResults {
 		// NB(r): Need to initialize after setting the index opts so
 		// it sees the same reference of the options as is set for the DB.
