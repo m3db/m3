@@ -128,8 +128,6 @@ type mutableSegmentsMetrics struct {
 	activeBlockGarbageCollectReconstructCachedSearchCacheMiss   tally.Counter
 	activeBlockGarbageCollectReconstructCachedSearchExecSuccess tally.Counter
 	activeBlockGarbageCollectReconstructCachedSearchExecError   tally.Counter
-	reconciledEntryGC                                           tally.Counter
-	unreconciledEntryGC                                         tally.Counter
 }
 
 func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
@@ -176,8 +174,6 @@ func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 		activeBlockGarbageCollectReconstructCachedSearchExecError: backgroundScope.Tagged(map[string]string{
 			"result_type": "error",
 		}).Counter("gc-reconstruct-cached-search-exec-result"),
-		reconciledEntryGC:   s.Counter("reconciled-entry-gc"),
-		unreconciledEntryGC: s.Counter("unreconciled-entry-gc"),
 	}
 }
 
@@ -240,10 +236,7 @@ func (m *mutableSegments) seriesActive(d doc.Metadata) bool {
 		return true
 	}
 
-	return !d.OnIndexSeries.TryMarkIndexGarbageCollected(
-		m.metrics.reconciledEntryGC,
-		m.metrics.unreconciledEntryGC,
-	)
+	return !d.OnIndexSeries.TryMarkIndexGarbageCollected()
 }
 
 func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats, error) {
@@ -398,9 +391,7 @@ func (m *mutableSegments) NumSegmentsAndDocs() (int64, int64) {
 }
 
 func numSegmentsAndDocs(segs []*readableSeg) (int64, int64) {
-	var (
-		numSegments, numDocs int64
-	)
+	var numSegments, numDocs int64
 	for _, seg := range segs {
 		numSegments++
 		numDocs += seg.Segment().Size()
@@ -1394,6 +1385,7 @@ func (m *mutableSegments) cleanupForegroundCompactWithLock() {
 		m.compact.segmentBuilder = nil
 	}
 }
+
 func (m *mutableSegments) cleanupCompactWithLock() {
 	// If not compacting, trigger a cleanup so that all frozen segments get
 	// closed, otherwise after the current running compaction the compacted

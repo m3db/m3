@@ -206,6 +206,10 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 				if p.status == statusOpen {
 					p.pool = append(p.pool, conn{channel, client})
 					p.poolLen = int64(len(p.pool))
+				} else {
+					// NB(antanas): just being defensive.
+					// It's likely a corner case and happens only during server shutdown.
+					channel.Close()
 				}
 				p.Unlock()
 			}()

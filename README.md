@@ -9,8 +9,6 @@
 ## Table of Contents
 
 - [More Information](#more-information)
-  - [Community Meetings](#community-meetings)
-  - [Office Hours](#office-hours)
 - [Install](#install)
   - [Dependencies](#dependencies)
 - [Usage](#usage)
@@ -25,13 +23,7 @@
 
 ### Community Meetings
 
-M3 contributors and maintainers have regular meetings. Join our M3 meetup group to receive notifications on upcoming meetings: <https://www.meetup.com/M3-Community/>.
-
 You can find recordings of past meetups here: <https://vimeo.com/user/120001164/folder/2290331>.
-
-### Office Hours
-
-Members of the M3 team hold office hours on the third Thursday of every month from 11AM to 1PM Eastern Standard Time (EST). To join, make sure to sign up for a slot here: <https://calendly.com/chronosphere-intro/m3-community-office-hours>.
 
 ## Install
 

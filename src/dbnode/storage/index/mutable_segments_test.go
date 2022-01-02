@@ -25,7 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -123,7 +122,7 @@ func TestMutableSegmentsBackgroundCompactGCReconstructCachedSearches(t *testing.
 				for i := 0; i < 128; i++ {
 					onIndexSeries := doc.NewMockOnIndexSeries(ctrl)
 					onIndexSeries.EXPECT().
-						TryMarkIndexGarbageCollected(gomock.Any(), gomock.Any()).
+						TryMarkIndexGarbageCollected().
 						// Every other is "empty".
 						Return(inserted%2 == 0).
 						AnyTimes()

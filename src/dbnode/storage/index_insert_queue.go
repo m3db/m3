@@ -333,6 +333,7 @@ func newNsIndexInsertBatch(
 			metrics: newNamespaceIndexInsertsByCPUCoreMetrics(i, scope),
 		})
 	}
+
 	b.allocateAllInserts()
 	b.Rotate(nil)
 	return b

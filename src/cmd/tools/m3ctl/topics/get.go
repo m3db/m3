@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,11 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package generated is a dummy package to make sure mockgen dependencies are pulled in correctly in vendor mode.
-package generated
+// Package topics implements topic endpoint interaction.
+package topics
 
 import (
+	"fmt"
 
-	// https://github.com/golang/mock/issues/494
-	_ "github.com/golang/mock/mockgen/model"
+	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/client"
 )
+
+// DoGet calls the backend api for get topics
+func DoGet(
+	endpoint string,
+	headers map[string]string,
+	logger *zap.Logger,
+) ([]byte, error) {
+	url := fmt.Sprintf("%s%s", endpoint, DefaultPath)
+	return client.DoGet(url, headers, logger)
+}

@@ -85,7 +85,7 @@ func testWriteBatch(
 	d doc.Metadata,
 	opts ...testWriteBatchOption,
 ) *index.WriteBatch {
-	var options index.WriteBatchOptions
+	options := index.WriteBatchOptions{}
 	for _, opt := range opts {
 		options = opt(options)
 	}
