@@ -209,6 +209,11 @@ func (entry *Entry) ReconciledOnIndexSeries() (doc.OnIndexSeries, resource.Simpl
 		return entry, resource.SimpleCloserFn(func() {}), false
 	}
 
+	// NB: attempt to merge the index series here, to ensure the returned
+	// reconciled series will have each index block marked from both this and the
+	// reconciliated series.
+	entry.mergeInto(e)
+
 	return e, resource.SimpleCloserFn(func() {
 		e.DecrementReaderWriterCount()
 	}), true
@@ -388,6 +393,18 @@ func (entry *Entry) TryMarkIndexGarbageCollected() bool {
 	return true
 }
 
+// mergeInto merges this entry index blocks into the provided index series.
+func (entry *Entry) mergeInto(indexSeries doc.OnIndexSeries) {
+	if entry == indexSeries {
+		// NB: short circuit if attempting to merge an entry into itself.
+		return
+	}
+
+	entry.reverseIndex.RLock()
+	indexSeries.MergeEntryIndexBlockStates(entry.reverseIndex.states)
+	entry.reverseIndex.RUnlock()
+}
+
 // TryReconcileDuplicates attempts to reconcile the index states of this entry.
 func (entry *Entry) TryReconcileDuplicates() {
 	// Since series insertions + index insertions are done separately async, it is possible for
@@ -399,9 +416,7 @@ func (entry *Entry) TryReconcileDuplicates() {
 	}
 
 	if e != entry {
-		entry.reverseIndex.RLock()
-		e.MergeEntryIndexBlockStates(entry.reverseIndex.states)
-		entry.reverseIndex.RUnlock()
+		entry.mergeInto(e)
 		entry.metrics.duplicateNeedsReconcile.Inc(1)
 	} else {
 		entry.metrics.duplicateNoReconcile.Inc(1)

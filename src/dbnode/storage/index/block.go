@@ -590,6 +590,7 @@ func (b *block) docWithinQueryRange(doc doc.Document, opts QueryOptions) bool {
 	} else {
 		b.metrics.entryUnreconciledOnQuery.Inc(1)
 	}
+
 	defer closer.Close()
 
 	var (

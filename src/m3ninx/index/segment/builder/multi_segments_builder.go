@@ -151,7 +151,15 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 			negativeOffsets = append(negativeOffsets, currOffset)
 			if b.idSet.Contains(d.ID) {
 				if d.OnIndexSeries != nil {
-					// Reconcile any duplicate series.
+					// NB: it is important to ensure duplicate entries get reconciled, as
+					// an entry being duplicated here may indicate that it is not the same
+					// entry as that stored in the shard's index map. Without this step,
+					// situations can arise when an entry may not be correctly indexed in
+					// all blocks, as the full index range for this entry may be split
+					// between the entry in the shard index map that would be persited,
+					// and this duplicated entry which will eventually expire and never
+					// get written to disk. Reconciling merges the full index ranges into
+					// the entry persisted in the shard index map.
 					d.OnIndexSeries.TryReconcileDuplicates()
 				}
 
