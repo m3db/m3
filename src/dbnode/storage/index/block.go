@@ -172,7 +172,6 @@ type blockMetrics struct {
 	aggregateDocsMatched            tally.Histogram
 	entryReconciledOnQuery          tally.Counter
 	entryUnreconciledOnQuery        tally.Counter
-	entryReconcilingDuplicates      tally.Counter
 }
 
 func newBlockMetrics(s tally.Scope) blockMetrics {
@@ -195,13 +194,12 @@ func newBlockMetrics(s tally.Scope) blockMetrics {
 			"skip_type": "not-immutable",
 		}).Counter(segmentFreeMmap),
 
-		querySeriesMatched:         s.Histogram("query-series-matched", buckets),
-		queryDocsMatched:           s.Histogram("query-docs-matched", buckets),
-		aggregateSeriesMatched:     s.Histogram("aggregate-series-matched", buckets),
-		aggregateDocsMatched:       s.Histogram("aggregate-docs-matched", buckets),
-		entryReconciledOnQuery:     s.Counter("entry-reconciled-on-query"),
-		entryUnreconciledOnQuery:   s.Counter("entry-unreconciled-on-query"),
-		entryReconcilingDuplicates: s.Counter("entry-trying-reconciling-duplicates"),
+		querySeriesMatched:       s.Histogram("query-series-matched", buckets),
+		queryDocsMatched:         s.Histogram("query-docs-matched", buckets),
+		aggregateSeriesMatched:   s.Histogram("aggregate-series-matched", buckets),
+		aggregateDocsMatched:     s.Histogram("aggregate-docs-matched", buckets),
+		entryReconciledOnQuery:   s.Counter("entry-reconciled-on-query"),
+		entryUnreconciledOnQuery: s.Counter("entry-unreconciled-on-query"),
 	}
 }
 
@@ -594,14 +592,6 @@ func (b *block) docWithinQueryRange(doc doc.Document, opts QueryOptions) bool {
 	}
 
 	defer closer.Close()
-	if reconciled && onIndexSeries != md.OnIndexSeries {
-		// NB: attempt to reconcile the index series here, especially in the case
-		// of foreground segments, since reconciling duplicate index entry writes
-		// only happens when the entry has been moved to background segment
-		// processing, and compacted.
-		b.metrics.entryReconcilingDuplicates.Inc(1)
-		md.OnIndexSeries.TryReconcileDuplicates()
-	}
 
 	var (
 		inBlock                bool

@@ -216,6 +216,16 @@ func TestIndexBlockOrphanedIndexValuesUpdatedAcrossTimes(t *testing.T) {
 		interval time.Duration
 	}{
 		{
+			name:     "4 series every 100 nanos",
+			numIDs:   4,
+			interval: 100,
+		},
+		{
+			name:     "4 series every block",
+			numIDs:   4,
+			interval: blockSize,
+		},
+		{
 			name:     "12 series every 100 nanos",
 			numIDs:   12,
 			interval: 100,
@@ -260,7 +270,7 @@ func testIndexBlockOrphanedIndexValuesUpdatedAcrossTimes(
 		retention       = blockSize * time.Duration(1+writesPerWorker)
 
 		seed = time.Now().UnixNano()
-		rng  = rand.New(rand.NewSource(seed))
+		rng  = rand.New(rand.NewSource(seed)) // nolint:gosec
 	)
 
 	retOpts := DefaultIntegrationTestRetentionOpts.SetRetentionPeriod(retention)
