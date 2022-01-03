@@ -25,8 +25,6 @@ import (
 	"io"
 	"sort"
 
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -38,7 +36,6 @@ type builderFromSegments struct {
 	docs           []doc.Metadata
 	idSet          *IDsMap
 	filter         segment.DocumentsFilter
-	filterCount    tally.Counter
 	segments       []segmentMetadata
 	termsIter      *termsIterFromSegments
 	segmentsOffset postings.ID
@@ -95,10 +92,8 @@ func (b *builderFromSegments) Reset() {
 
 func (b *builderFromSegments) SetFilter(
 	filter segment.DocumentsFilter,
-	filterCount tally.Counter,
 ) {
 	b.filter = filter
-	b.filterCount = filterCount
 }
 
 func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
@@ -150,31 +145,23 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 			d := iter.Current()
 			negativeOffsets = append(negativeOffsets, currOffset)
 			if b.idSet.Contains(d.ID) {
-				if d.OnIndexSeries != nil {
-					// NB: it is important to ensure duplicate entries get reconciled, as
-					// an entry being duplicated here may indicate that it is not the same
-					// entry as that stored in the shard's index map. Without this step,
-					// situations can arise when an entry may not be correctly indexed in
-					// all blocks, as the full index range for this entry may be split
-					// between the entry in the shard index map that would be persited,
-					// and this duplicated entry which will eventually expire and never
-					// get written to disk. Reconciling merges the full index ranges into
-					// the entry persisted in the shard index map.
-					d.OnIndexSeries.TryReconcileDuplicates()
-				}
-
 				// Skip duplicates.
 				negativeOffsets[len(negativeOffsets)-1] = -1
 				currOffset++
+				if b.filter != nil {
+					// Callback for when duplicate doc encountered and we filter
+					// out the document from the resulting segment.
+					b.filter.OnDuplicateDoc(d)
+				}
 				continue
 			}
-			if b.filter != nil && !b.filter.Contains(d) {
+			if b.filter != nil && !b.filter.ContainsDoc(d) {
 				// Actively filtering and ID is not contained.
 				negativeOffsets[len(negativeOffsets)-1] = -1
 				currOffset++
-				if b.filterCount != nil {
-					b.filterCount.Inc(1)
-				}
+				// Callback for when contains doc has returned false and we have
+				// filtered out the document from the resulting segment.
+				b.filter.OnNotContainsDoc(d)
 				continue
 			}
 			b.idSet.SetUnsafe(d.ID, struct{}{}, IDsMapSetUnsafeOptions{
