@@ -59,3 +59,10 @@ limits:
     maxFetchedSeries: 12000
     maxFetchedDocs: 11000
     requireExhaustive: true
+
+query:
+  prometheus:
+    convert:
+      resolutionThresholdForCounterNormalization: 10m
+      valueDecreaseTolerance: 0.0000000001
+      valueDecreaseToleranceUntil: 2022-01-01T00:00:00Z
