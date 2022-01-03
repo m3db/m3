@@ -48,8 +48,8 @@ type results struct {
 	totalDocsCount int
 
 	// Utilization stats, do not reset:
-	maxObservedSize        int
-	underutilizedRunLength int
+	resultsMapCapacity            int
+	consecutiveTimesUnderCapacity int
 
 	idPool ident.Pool
 	pool   QueryResultsPool
@@ -180,25 +180,23 @@ func (r *results) TotalDocsCount() int {
 func (r *results) Finalize() {
 	r.Lock()
 
-	if r.totalDocsCount < r.maxObservedSize {
-		r.underutilizedRunLength++
+	if r.totalDocsCount < r.resultsMapCapacity {
+		r.consecutiveTimesUnderCapacity++
 	} else {
-		r.maxObservedSize = r.totalDocsCount
-		r.underutilizedRunLength = 0
+		r.resultsMapCapacity = r.totalDocsCount
+		r.consecutiveTimesUnderCapacity = 0
 	}
 
 	// If the size of reusable result object is not fully utilized for a long enough time,
 	// we want to drop it from the pool and prevent holding on to excessive memory indefinitely.
-	putBackToPool := r.underutilizedRunLength < 10
+	putBackToPool := r.consecutiveTimesUnderCapacity < 10
 
 	r.Unlock()
 
 	// Reset locks so cannot hold onto lock for call to Finalize.
 	r.Reset(nil, QueryResultsOptions{})
 
-	if r.pool == nil || !putBackToPool {
-		return
+	if r.pool != nil && putBackToPool {
+		r.pool.Put(r)
 	}
-
-	r.pool.Put(r)
 }
