@@ -23,11 +23,14 @@ package config
 import (
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/m3db/m3/src/query/storage"
+	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/validator.v2"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/models"
@@ -102,6 +105,15 @@ func TestConfigLoading(t *testing.T) {
 	}, &cfg.Limits)
 
 	assert.Equal(t, HTTPConfiguration{EnableH2C: true}, cfg.HTTP)
+
+	expectedTimestamp, err := time.Parse(time.RFC3339, "2022-01-01T00:00:00Z")
+	require.NoError(t, err)
+	expectedPromConvertOptions := storage.NewPromConvertOptions().
+		SetResolutionThresholdForCounterNormalization(10 * time.Minute).
+		SetValueDecreaseTolerance(0.0000000001).
+		SetValueDecreaseToleranceUntil(xtime.UnixNano(expectedTimestamp.UnixNano()))
+	actualPromConvertOptions := cfg.Query.Prometheus.ConvertOptionsOrDefault()
+	assert.Equal(t, expectedPromConvertOptions, actualPromConvertOptions)
 
 	// TODO: assert on more fields here.
 }

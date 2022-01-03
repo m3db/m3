@@ -364,7 +364,12 @@ type PrometheusQueryConfiguration struct {
 // ConvertOptionsOrDefault creates storage.PromConvertOptions based on the given configuration.
 func (c PrometheusQueryConfiguration) ConvertOptionsOrDefault() storage.PromConvertOptions {
 	opts := storage.NewPromConvertOptions()
+
 	if v := c.Convert; v != nil {
+		if value := v.ResolutionThresholdForCounterNormalization; value != nil {
+			opts = opts.SetResolutionThresholdForCounterNormalization(*value)
+		}
+
 		opts = opts.SetValueDecreaseTolerance(v.ValueDecreaseTolerance)
 
 		// Default to max time so that it's always applicable if value
@@ -381,6 +386,11 @@ func (c PrometheusQueryConfiguration) ConvertOptionsOrDefault() storage.PromConv
 
 // PrometheusConvertConfiguration configures Prometheus time series conversions.
 type PrometheusConvertConfiguration struct {
+	// ResolutionThresholdForCounterNormalization sets the resolution threshold starting from which
+	// Prometheus counter normalization is performed in order to avoid Prometheus counter
+	// extrapolation artifacts.
+	ResolutionThresholdForCounterNormalization *time.Duration `yaml:"resolutionThresholdForCounterNormalization"`
+
 	// ValueDecreaseTolerance allows for setting a specific amount of tolerance
 	// to avoid returning a decrease if it's below a certain tolerance.
 	// This is useful for applications that have precision issues emitting
