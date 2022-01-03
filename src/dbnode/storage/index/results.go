@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
 )
 
 var (
@@ -52,10 +51,8 @@ type results struct {
 	maxObservedSize        int
 	underutilizedRunLength int
 
-	idPool    ident.Pool
-	bytesPool pool.CheckedBytesPool
-
-	pool QueryResultsPool
+	idPool ident.Pool
+	pool   QueryResultsPool
 }
 
 // NewQueryResults returns a new query results object.
@@ -69,7 +66,6 @@ func NewQueryResults(
 		opts:       opts,
 		resultsMap: newResultsMap(),
 		idPool:     indexOpts.IdentifierPool(),
-		bytesPool:  indexOpts.CheckedBytesPool(),
 		pool:       indexOpts.QueryResultsPool(),
 		reusableID: ident.NewReusableBytesID(),
 	}
@@ -193,7 +189,7 @@ func (r *results) Finalize() {
 
 	// If the size of reusable result object is not fully utilized for a long enough time,
 	// we want to drop it from the pool and prevent holding on to excessive memory indefinitely.
-	putBackToPool := r.underutilizedRunLength < 100
+	putBackToPool := r.underutilizedRunLength < 10
 
 	r.Unlock()
 
