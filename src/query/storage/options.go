@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	defaultResolutionThresholdForCounterNormalization = time.Hour
+	defaultResolutionThresholdForCounterNormalization = 5 * time.Minute
 )
 
 type promConvertOptions struct {
