@@ -25,16 +25,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	xconfig "github.com/m3db/m3/src/x/config"
 	xtime "github.com/m3db/m3/src/x/time"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/validator.v2"
 	"gopkg.in/yaml.v2"
-
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/query/models"
-	xconfig "github.com/m3db/m3/src/x/config"
 )
 
 const testConfigFile = "./testdata/config.yml"
