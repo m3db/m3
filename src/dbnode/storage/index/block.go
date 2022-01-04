@@ -639,7 +639,7 @@ func (b *block) addQueryResults(
 	batch []doc.Document,
 	source []byte,
 ) ([]doc.Document, int, int, error) {
-	// update recently queried docs to monitor memory.
+	// updateAndCheck recently queried docs to monitor memory.
 	if results.EnforceLimits() {
 		if err := b.fetchDocsLimit.Inc(len(batch), source); err != nil {
 			return batch, 0, 0, err
@@ -970,7 +970,7 @@ func (b *block) addAggregateResults(
 		aggDocs += len(batch[i].Terms)
 	}
 
-	// update recently queried docs to monitor memory.
+	// updateAndCheck recently queried docs to monitor memory.
 	if results.EnforceLimits() {
 		if err := b.aggDocsLimit.Inc(aggDocs, source); err != nil {
 			return batch, 0, 0, err
