@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -35,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -66,7 +64,7 @@ type FilteredBlocksMetadataIter interface {
 	// Current returns the current id and block metadata
 	Current() (ident.ID, Metadata)
 
-	//  Error returns an error if encountered
+	// Err returns an error if encountered
 	Err() error
 }
 
@@ -104,7 +102,7 @@ type FetchBlockMetadataResults interface {
 	// Results returns the result slice
 	Results() []FetchBlockMetadataResult
 
-	// SortByTimeAscending sorts the results in time ascending order
+	// Sort sorts the results in time ascending order
 	Sort()
 
 	// Reset resets the results
@@ -268,34 +266,6 @@ func (fn OnRetrieveBlockFn) OnRetrieveBlock(
 	fn(id, tags, startTime, segment, nsCtx)
 }
 
-// RetrievableBlockMetadata describes a retrievable block.
-type RetrievableBlockMetadata struct {
-	ID       ident.ID
-	Length   int
-	Checksum uint32
-}
-
-// StreamedWideEntry yields a xio.WideEntry value asynchronously,
-// and any errors encountered during execution.
-type StreamedWideEntry interface {
-	resource.Finalizer
-
-	// RetrieveWideEntry retrieves the collected wide entry.
-	RetrieveWideEntry() (xio.WideEntry, error)
-}
-
-type emptyWideEntry struct{}
-
-func (emptyWideEntry) RetrieveWideEntry() (xio.WideEntry, error) {
-	return xio.WideEntry{}, nil
-}
-
-func (emptyWideEntry) Finalize() {
-}
-
-// EmptyStreamedWideEntry is an empty streamed wide entry.
-var EmptyStreamedWideEntry StreamedWideEntry = emptyWideEntry{}
-
 // DatabaseBlockRetriever is a block retriever.
 type DatabaseBlockRetriever interface {
 	io.Closer
@@ -314,17 +284,6 @@ type DatabaseBlockRetriever interface {
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 
-	// StreamWideEntry will stream the wide entry for a given ID within
-	// a block, yielding a wide entry if it is available in the shard.
-	StreamWideEntry(
-		ctx context.Context,
-		shard uint32,
-		id ident.ID,
-		blockStart xtime.UnixNano,
-		filter schema.WideEntryFilter,
-		nsCtx namespace.Context,
-	) (StreamedWideEntry, error)
-
 	// AssignShardSet assigns the given shard set to this retriever.
 	AssignShardSet(shardSet sharding.ShardSet)
 }
@@ -339,16 +298,6 @@ type DatabaseShardBlockRetriever interface {
 		onRetrieve OnRetrieveBlock,
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
-
-	// StreamWideEntry will stream the wide entry for a given ID within
-	// a block, yielding a wide entry if available.
-	StreamWideEntry(
-		ctx context.Context,
-		id ident.ID,
-		blockStart xtime.UnixNano,
-		filter schema.WideEntryFilter,
-		nsCtx namespace.Context,
-	) (StreamedWideEntry, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers

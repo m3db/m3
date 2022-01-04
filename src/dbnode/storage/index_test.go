@@ -701,14 +701,6 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, aggResult.Exhaustive)
 	assert.Equal(t, 0, aggResult.Results.Size())
-
-	// Wide query on the non-overlapping range
-	err = idx.WideQuery(ctx, query, make(chan *ident.IDBatch),
-		index.WideQueryOptions{
-			StartInclusive: start,
-			EndExclusive:   end,
-		})
-	require.NoError(t, err)
 }
 
 func TestNamespaceIndexQueryTimeout(t *testing.T) {

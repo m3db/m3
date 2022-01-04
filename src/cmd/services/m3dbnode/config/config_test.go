@@ -751,7 +751,6 @@ func TestConfiguration(t *testing.T) {
     maxOutstandingRepairedBytes: 0
     maxEncodersPerBlock: 0
     writeNewSeriesPerSecond: 0
-  wide: null
   tchannel: null
   debug:
     mutexProfileFraction: 0

@@ -320,48 +320,6 @@ func TestNamespaceReadEncodedShardOwned(t *testing.T) {
 	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))
 }
 
-func TestNamespaceFetchWideEntryShardNotOwned(t *testing.T) {
-	ctx := context.NewBackground()
-	defer ctx.Close()
-
-	ns, closer := newTestNamespace(t)
-	defer closer()
-
-	for i := range ns.shards {
-		ns.shards[i] = nil
-	}
-	_, err := ns.FetchWideEntry(ctx, ident.StringID("foo"), xtime.Now(), nil)
-	require.Error(t, err)
-}
-
-func TestNamespaceFetchWideEntryShardOwned(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.NewBackground()
-	defer ctx.Close()
-
-	id := ident.StringID("foo")
-	start := xtime.Now()
-
-	ns, closer := newTestNamespace(t)
-	defer closer()
-
-	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().FetchWideEntry(ctx, id, start, gomock.Any(), gomock.Any()).Return(nil, nil)
-	ns.shards[testShardIDs[0].ID()] = shard
-
-	shard.EXPECT().IsBootstrapped().Return(true)
-	_, err := ns.FetchWideEntry(ctx, id, start, nil)
-	require.NoError(t, err)
-
-	shard.EXPECT().IsBootstrapped().Return(false)
-	_, err = ns.FetchWideEntry(ctx, id, start, nil)
-	require.Error(t, err)
-	require.True(t, xerrors.IsRetryableError(err))
-	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))
-}
-
 func TestNamespaceFetchBlocksShardNotOwned(t *testing.T) {
 	ctx := context.NewBackground()
 	defer ctx.Close()
@@ -1440,45 +1398,6 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	require.Len(t, spans, 2)
 	assert.Equal(t, tracepoint.NSQueryIDs, spans[0].OperationName)
 	assert.Equal(t, "root", spans[1].OperationName)
-}
-
-func TestNamespaceIndexWideQuery(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	idx := NewMockNamespaceIndex(ctrl)
-	idx.EXPECT().Bootstrapped().Return(true)
-
-	ns, closer := newTestNamespaceWithIndex(t, idx)
-	defer closer()
-
-	ctx := context.NewBackground()
-	mtr := mocktracer.New()
-	sp := mtr.StartSpan("root")
-	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
-
-	query := index.Query{
-		Query: xidx.NewTermQuery([]byte("foo"), []byte("bar")),
-	}
-	opts := index.WideQueryOptions{}
-
-	ch := make(chan *ident.IDBatch)
-	idx.EXPECT().WideQuery(gomock.Any(), query, ch, opts)
-	err := ns.WideQueryIDs(ctx, query, ch, opts)
-	require.NoError(t, err)
-
-	sp.Finish()
-	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 2)
-	assert.Equal(t, tracepoint.NSWideQueryIDs, spans[0].OperationName)
-	assert.Equal(t, "root", spans[1].OperationName)
-
-	// NB: assert no panic occurs without an index.
-	noIdxNs, noIdxCloser := newTestNamespaceWithIndex(t, nil)
-	err = noIdxNs.WideQueryIDs(ctx, query, ch, opts)
-	assert.EqualError(t, err, errNamespaceIndexingDisabled.Error())
-	noIdxCloser()
-	close(ch)
 }
 
 func TestNamespaceAggregateQuery(t *testing.T) {

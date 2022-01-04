@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -230,14 +229,6 @@ type DataFileSetSeeker interface {
 	// to prevent duplicate index lookups.
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
-	// SeekWideEntry seeks in a manner similar to SeekIndexEntry, but
-	// instead yields a wide entry checksum of the series.
-	SeekWideEntry(
-		id ident.ID,
-		filter schema.WideEntryFilter,
-		resources ReusableSeekerResources,
-	) (xio.WideEntry, error)
-
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range
 
@@ -272,13 +263,6 @@ type ConcurrentDataFileSetSeeker interface {
 
 	// SeekIndexEntry is the same as in DataFileSetSeeker.
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
-
-	// SeekWideEntry is the same as in DataFileSetSeeker.
-	SeekWideEntry(
-		id ident.ID,
-		filter schema.WideEntryFilter,
-		resources ReusableSeekerResources,
-	) (xio.WideEntry, error)
 
 	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker.
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter

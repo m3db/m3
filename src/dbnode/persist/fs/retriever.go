@@ -41,7 +41,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
@@ -61,7 +60,6 @@ var (
 	errBlockRetrieverAlreadyOpenOrClosed = errors.New("block retriever already open or is closed")
 	errBlockRetrieverAlreadyClosed       = errors.New("block retriever already closed")
 	errNoSeekerMgr                       = errors.New("there is no open seeker manager")
-	errUnsetRequestType                  = errors.New("request type unset")
 )
 
 type streamReqType uint8
@@ -71,7 +69,6 @@ const (
 
 	streamInvalidReq streamReqType = iota
 	streamDataReq
-	streamWideEntryReq
 )
 
 type blockRetrieverStatus int
@@ -304,71 +301,6 @@ func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 	r.fetchLoopsHaveShutdownCh <- struct{}{}
 }
 
-// filterAndCompleteWideReqs completes all wide operation retrieve requests,
-// returning a list of requests that need to be processed by other means.
-func (r *blockRetriever) filterAndCompleteWideReqs(
-	reqs []*retrieveRequest,
-	seeker ConcurrentDataFileSetSeeker,
-	seekerResources ReusableSeekerResources,
-	retrieverResources *reusableRetrieverResources,
-) []*retrieveRequest {
-	retrieverResources.resetDataReqs()
-	retrieverResources.resetWideEntryReqs()
-	for _, req := range reqs {
-		switch req.streamReqType {
-		case streamDataReq:
-			// NB: filter out stream requests; these are handled outside of
-			// wide logic functions.
-			retrieverResources.dataReqs = append(retrieverResources.dataReqs, req)
-
-		case streamWideEntryReq:
-			entry, err := seeker.SeekWideEntry(req.id, req.wideFilter, seekerResources)
-			if err != nil {
-				if errors.Is(err, errSeekIDNotFound) {
-					// Missing, return empty result, successful lookup.
-					req.wideEntry = xio.WideEntry{}
-					req.success = true
-				} else {
-					req.err = err
-				}
-
-				continue
-			}
-
-			// Enqueue for fetch in batch in offset ascending order.
-			req.wideEntry = entry
-			req.wideEntry.Shard = req.shard
-			retrieverResources.appendWideEntryReq(req)
-
-		default:
-			req.err = errUnsetRequestType
-		}
-	}
-
-	// Fulfill the wide entry data fetches in batch offset ascending.
-	sortByOffsetAsc := retrieveRequestByWideEntryOffsetAsc(retrieverResources.wideEntryReqs)
-	sort.Sort(sortByOffsetAsc)
-	for _, req := range retrieverResources.wideEntryReqs {
-		entry := IndexEntry{
-			Size:         uint32(req.wideEntry.Size),
-			DataChecksum: uint32(req.wideEntry.DataChecksum),
-			Offset:       req.wideEntry.Offset,
-		}
-		data, err := seeker.SeekByIndexEntry(entry, seekerResources)
-		if err != nil {
-			req.err = err
-			continue
-		}
-
-		// Success, inc ref so on finalize can decref and finalize.
-		req.wideEntry.Data = data
-		req.wideEntry.Data.IncRef()
-		req.success = true
-	}
-
-	return retrieverResources.dataReqs
-}
-
 func (r *blockRetriever) fetchBatch(
 	seekerMgr DataFileSetSeekerManager,
 	shard uint32,
@@ -430,11 +362,9 @@ func (r *blockRetriever) fetchBatch(
 		return
 	}
 
-	// NB: filterAndCompleteWideReqs will complete any wide requests, returning
-	// a filtered list of requests that should be processed below. These wide
-	// requests must not take query limits into account.
-	reqs := r.filterAndCompleteWideReqs(allReqs, seeker, seekerResources,
-		retrieverResources)
+	retrieverResources.resetDataReqs()
+	retrieverResources.dataReqs = append(retrieverResources.dataReqs, allReqs...)
+	reqs := retrieverResources.dataReqs
 
 	var limitErr error
 	if err := r.queryLimits.AnyFetchExceeded(); err != nil {
@@ -697,42 +627,6 @@ func (r *blockRetriever) Stream(
 	return req.toBlock(), nil
 }
 
-func (r *blockRetriever) StreamWideEntry(
-	ctx context.Context,
-	shard uint32,
-	id ident.ID,
-	startTime xtime.UnixNano,
-	filter schema.WideEntryFilter,
-	nsCtx namespace.Context,
-) (block.StreamedWideEntry, error) {
-	found, err := r.seriesPresentInBloomFilter(id, shard, startTime)
-	if err != nil {
-		return block.EmptyStreamedWideEntry, err
-	}
-	// If the ID is not in the seeker's bloom filter, then it's definitely not on
-	// disk and we can return immediately.
-	if !found {
-		return block.EmptyStreamedWideEntry, nil
-	}
-
-	req := r.reqPool.Get()
-	req.streamReqType = streamWideEntryReq
-	req.wideFilter = filter
-
-	err = r.streamRequest(ctx, req, shard, id, startTime)
-	if err != nil {
-		req.resultWg.Done()
-		return block.EmptyStreamedWideEntry, err
-	}
-
-	// The request may not have completed yet, but it has an internal
-	// waitgroup which the caller will have to wait for before retrieving
-	// the data. This means that even though we're returning nil for error
-	// here, the caller may still encounter an error when they attempt to
-	// read the data.
-	return req, nil
-}
-
 func (r *blockRetriever) shardRequests(
 	shard uint32,
 ) (*shardRetrieveRequests, error) {
@@ -833,8 +727,6 @@ type retrieveRequest struct {
 
 	streamReqType streamReqType
 	indexEntry    IndexEntry
-	wideEntry     xio.WideEntry
-	wideFilter    schema.WideEntryFilter
 	reader        xio.SegmentReader
 
 	err error
@@ -847,15 +739,6 @@ type retrieveRequest struct {
 
 	notFound bool
 	success  bool
-}
-
-func (req *retrieveRequest) RetrieveWideEntry() (xio.WideEntry, error) {
-	req.resultWg.Wait()
-	if req.err != nil {
-		return xio.WideEntry{}, req.err
-	}
-
-	return req.wideEntry, nil
 }
 
 func (req *retrieveRequest) toBlock() xio.BlockReader {
@@ -928,23 +811,17 @@ func (req *retrieveRequest) onCallerOrRetrieverDone() {
 		return
 	}
 
-	switch req.streamReqType {
-	case streamWideEntryReq:
-		// All pooled elements are set on the wideEntry.
-		req.wideEntry.Finalize()
-	default:
-		if req.id != nil {
-			req.id.Finalize()
-			req.id = nil
-		}
-		if req.tags != nil {
-			req.tags.Close()
-			req.tags = ident.EmptyTagIterator
-		}
-		if req.reader != nil {
-			req.reader.Finalize()
-			req.reader = nil
-		}
+	if req.id != nil {
+		req.id.Finalize()
+		req.id = nil
+	}
+	if req.tags != nil {
+		req.tags.Close()
+		req.tags = ident.EmptyTagIterator
+	}
+	if req.reader != nil {
+		req.reader.Finalize()
+		req.reader = nil
 	}
 
 	req.pool.Put(req)
@@ -1019,8 +896,6 @@ func (req *retrieveRequest) resetForReuse() {
 	req.onRetrieve = nil
 	req.streamReqType = streamInvalidReq
 	req.indexEntry = IndexEntry{}
-	req.wideEntry = xio.WideEntry{}
-	req.wideFilter = nil
 	req.reader = nil
 	req.err = nil
 	req.notFound = false
@@ -1045,14 +920,6 @@ func (r retrieveRequestByIndexEntryOffsetAsc) Len() int      { return len(r) }
 func (r retrieveRequestByIndexEntryOffsetAsc) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 func (r retrieveRequestByIndexEntryOffsetAsc) Less(i, j int) bool {
 	return r[i].indexEntry.Offset < r[j].indexEntry.Offset
-}
-
-type retrieveRequestByWideEntryOffsetAsc []*retrieveRequest
-
-func (r retrieveRequestByWideEntryOffsetAsc) Len() int      { return len(r) }
-func (r retrieveRequestByWideEntryOffsetAsc) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
-func (r retrieveRequestByWideEntryOffsetAsc) Less(i, j int) bool {
-	return r[i].wideEntry.Offset < r[j].wideEntry.Offset
 }
 
 // RetrieveRequestPool is the retrieve request pool.
@@ -1103,8 +970,7 @@ func (p *reqPool) Put(req *retrieveRequest) {
 }
 
 type reusableRetrieverResources struct {
-	dataReqs      []*retrieveRequest
-	wideEntryReqs []*retrieveRequest
+	dataReqs []*retrieveRequest
 }
 
 func newReusableRetrieverResources() *reusableRetrieverResources {
@@ -1113,7 +979,6 @@ func newReusableRetrieverResources() *reusableRetrieverResources {
 
 func (r *reusableRetrieverResources) resetAll() {
 	r.resetDataReqs()
-	r.resetWideEntryReqs()
 }
 
 func (r *reusableRetrieverResources) resetDataReqs() {
@@ -1121,17 +986,4 @@ func (r *reusableRetrieverResources) resetDataReqs() {
 		r.dataReqs[i] = nil
 	}
 	r.dataReqs = r.dataReqs[:0]
-}
-
-func (r *reusableRetrieverResources) resetWideEntryReqs() {
-	for i := range r.wideEntryReqs {
-		r.wideEntryReqs[i] = nil
-	}
-	r.wideEntryReqs = r.wideEntryReqs[:0]
-}
-
-func (r *reusableRetrieverResources) appendWideEntryReq(
-	req *retrieveRequest,
-) {
-	r.wideEntryReqs = append(r.wideEntryReqs, req)
 }
