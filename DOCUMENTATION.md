@@ -83,7 +83,16 @@ M3 releases versions with some slight changes to documentation for each one whic
 
 Archiving a version of the documentation is a slightly complex process as Hugo doesn't natively support versioning and the documentation uses Hugo modules to accomplish this.
 
-1. Add the new version to the _config/production/config.toml_ file in the `[[module.imports.mounts]]` section.
+
+1. Add the new version to the _config/production/config.toml_ file in the `[[params.versions]]` section.
+
+    ```toml
+    [[params.versions]]
+    version = "v{VERSION_NUMBER}"
+    url = "/docs/v{VERSION_NUMBER}"
+    ```
+
+2. Add the new version to the _config/production/config.toml_ file in the `[[module.imports.mounts]]` section.
 
     ```toml
     [[module.imports.mounts]]
@@ -91,4 +100,4 @@ Archiving a version of the documentation is a slightly complex process as Hugo d
     target = "content/docs/v{VERSION_NUMBER}"
     ```
 
-2. Archive the current latest version of the documentation (which now becomes the new version) to the https://github.com/m3db/docs-archive repository, into a sub-folder of _content_ that matches the new version.
+3. Archive the current latest version of the documentation (which now becomes the new version) to the https://github.com/m3db/docs-archive repository, into a sub-folder of _content_ that matches the new version.
