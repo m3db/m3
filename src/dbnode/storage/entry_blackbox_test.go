@@ -420,3 +420,45 @@ func TestTryReconcileDuplicates(t *testing.T) {
 		"path":      "duplicate",
 	})
 }
+
+func TestMergeOnReconcile(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		shard  = NewMockShard(ctrl)
+		series = series.NewMockDatabaseSeries(ctrl)
+	)
+
+	series.EXPECT().ID().Return(id)
+	entry := NewEntry(NewEntryOptions{
+		Series: series,
+		Shard:  shard,
+	})
+
+	shard.EXPECT().TryRetrieveSeriesAndIncrementReaderWriterCount(id).DoAndReturn(
+		func(ident.ID) (*Entry, WritableSeriesOptions, error) {
+			// NB: TryRetrieveSeriesAndIncrementReaderWriterCount increments rw count
+			// so emulate this here.
+			entry.IncrementReaderWriterCount()
+			return entry, WritableSeriesOptions{}, nil
+		})
+
+	onIndexed, closer, needsReconcile := entry.ReconciledOnIndexSeries()
+	require.Equal(t, entry, onIndexed)
+	require.True(t, needsReconcile)
+	closer.Close()
+
+	states := doc.EntryIndexBlockStates{1: doc.EntryIndexBlockState{}}
+	entry.reverseIndex = entryIndexState{states: states}
+	otherEntry := &Entry{reverseIndex: newEntryIndexState()}
+	shard.EXPECT().TryRetrieveSeriesAndIncrementReaderWriterCount(id).
+		Return(otherEntry, WritableSeriesOptions{}, nil)
+
+	onIndexed, closer, needsReconcile = entry.ReconciledOnIndexSeries()
+	require.True(t, needsReconcile)
+	e, ok := onIndexed.(*Entry)
+	require.True(t, ok)
+	require.Equal(t, states, e.reverseIndex.states)
+	closer.Close()
+}
