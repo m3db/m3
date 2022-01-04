@@ -1,9 +1,3 @@
-github.com/bep/hugotestmods/mymounts v1.2.0 h1:1Li0CppU5rsmxTDpFLxMOeOypOsCt0TO7/ELxJ5sfIQ=
-github.com/bep/hugotestmods/mymounts v1.2.0/go.mod h1:eEF3JU4Kta3g3O2mxuHs4fVq0qMuJoOrr0OCADn1Lm4=
-github.com/chronosphereio/victor v0.0.0-20210331101542-de36c9bd96dc h1:Z9qft3ALNYf2Gu1fsgASn7woE4Irgg+SDPC2y+cbY00=
-github.com/chronosphereio/victor v0.0.0-20210331101542-de36c9bd96dc/go.mod h1:wz1ngMsk+1D1ug2ObnI3zXs+/ZdBPrWLb6R1WQW3XNM=
-github.com/chronosphereio/victor v0.0.0-20211124133726-3434e71d049b h1:AUwhnHlHxzFpGmby6i1hr7jnvMZfzgPLD8RGYYGzQhg=
-github.com/chronosphereio/victor v0.0.0-20211124133726-3434e71d049b/go.mod h1:wz1ngMsk+1D1ug2ObnI3zXs+/ZdBPrWLb6R1WQW3XNM=
 github.com/chronosphereio/victor v0.0.0-20220104155843-b105d0cdebe2 h1:Z3e0MeSNx4ygadi6zpj+UxGkYwnaOcFzaoeFW+8mgmU=
 github.com/chronosphereio/victor v0.0.0-20220104155843-b105d0cdebe2/go.mod h1:wz1ngMsk+1D1ug2ObnI3zXs+/ZdBPrWLb6R1WQW3XNM=
 github.com/m3db/docs-archive v0.0.0-20211202095619-6fc91ad3f5f6 h1:/1oTxYPVUvI9Bokc1KPbSAxuRHYmCHqdXGXtvYTsoIw=
