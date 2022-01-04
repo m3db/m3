@@ -26,7 +26,6 @@ import (
 
 	"github.com/uber-go/tally"
 
-	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -44,11 +43,9 @@ type aggregatedResults struct {
 	// Utilization stats, do not reset.
 	resultsUtilizationStats resultsUtilizationStats
 
-	idPool ident.Pool
-
-	pool             AggregateResultsPool
-	valuesPool       AggregateValuesPool
-	encodedDocReader docs.EncodedDocumentReader
+	idPool     ident.Pool
+	pool       AggregateResultsPool
+	valuesPool AggregateValuesPool
 
 	iOpts instrument.Options
 }
