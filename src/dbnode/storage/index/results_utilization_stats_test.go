@@ -30,7 +30,7 @@ import (
 func TestResultsUtilizationStatsConstant(t *testing.T) {
 	r := resultsUtilizationStats{}
 	for i := 0; i < 2*consecutiveTimesUnderCapacityThreshold; i++ {
-		require.True(t, r.updateAndCheck(100))
+		require.True(t, r.updateAndCheck(100), strconv.Itoa(i))
 	}
 }
 
@@ -47,6 +47,15 @@ func TestResultsUtilizationStatsDecreasing(t *testing.T) {
 		require.True(t, r.updateAndCheck(i), strconv.Itoa(i))
 	}
 	require.False(t, r.updateAndCheck(0))
+}
+
+func TestResultsUtilizationStatsAllSmallerThanFirst(t *testing.T) {
+	r := resultsUtilizationStats{}
+	require.True(t, r.updateAndCheck(100))
+	for i := 1; i < consecutiveTimesUnderCapacityThreshold; i++ {
+		require.True(t, r.updateAndCheck(99), strconv.Itoa(i))
+	}
+	require.False(t, r.updateAndCheck(99))
 }
 
 func TestResultsUtilizationStatsAlternating(t *testing.T) {
