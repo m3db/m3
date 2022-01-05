@@ -237,12 +237,14 @@ func (m *mutableSegments) ContainsDoc(d doc.Metadata) bool {
 		return true
 	}
 
-	return !d.OnIndexSeries.TryMarkIndexGarbageCollected()
-}
+	gc := d.OnIndexSeries.TryMarkIndexGarbageCollected()
+	if gc {
+		// Track expired series filtered out from new index segment during compaction.
+		m.metrics.activeBlockGarbageCollectSeries.Inc(1)
+	}
 
-func (m *mutableSegments) OnNotContainsDoc(d doc.Metadata) {
-	// Track expired series filtered out from new index segment during compaction.
-	m.metrics.activeBlockGarbageCollectSeries.Inc(1)
+	// We only want the new segment to contain the doc if we didn't need to GC it.
+	return !gc
 }
 
 func (m *mutableSegments) OnDuplicateDoc(d doc.Metadata) {

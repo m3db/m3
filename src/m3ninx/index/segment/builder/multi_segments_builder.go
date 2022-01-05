@@ -159,9 +159,6 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 				// Actively filtering and ID is not contained.
 				negativeOffsets[len(negativeOffsets)-1] = -1
 				currOffset++
-				// Callback for when contains doc has returned false and we have
-				// filtered out the document from the resulting segment.
-				b.filter.OnNotContainsDoc(d)
 				continue
 			}
 			b.idSet.SetUnsafe(d.ID, struct{}{}, IDsMapSetUnsafeOptions{

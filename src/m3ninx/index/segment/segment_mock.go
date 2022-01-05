@@ -1907,15 +1907,3 @@ func (mr *MockDocumentsFilterMockRecorder) OnDuplicateDoc(d interface{}) *gomock
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnDuplicateDoc", reflect.TypeOf((*MockDocumentsFilter)(nil).OnDuplicateDoc), d)
 }
-
-// OnNotContainsDoc mocks base method.
-func (m *MockDocumentsFilter) OnNotContainsDoc(d doc.Metadata) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "OnNotContainsDoc", d)
-}
-
-// OnNotContainsDoc indicates an expected call of OnNotContainsDoc.
-func (mr *MockDocumentsFilterMockRecorder) OnNotContainsDoc(d interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnNotContainsDoc", reflect.TypeOf((*MockDocumentsFilter)(nil).OnNotContainsDoc), d)
-}

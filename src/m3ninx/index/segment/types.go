@@ -249,9 +249,6 @@ type SegmentsBuilderSegmentMetadata struct {
 type DocumentsFilter interface {
 	// Contains is true if the document passes the filter.
 	ContainsDoc(d doc.Metadata) bool
-	// OnNotContainsDoc is a callback for when a document is filtered out
-	// due to ContainsDoc returning false.
-	OnNotContainsDoc(d doc.Metadata)
 	// OnDuplicateDoc is a callback for when a duplicate document is
 	// encountered which is then removed from the resulting segment.
 	OnDuplicateDoc(d doc.Metadata)
