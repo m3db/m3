@@ -197,10 +197,11 @@ func snapshotCounterValue(
 }
 
 type mockCommitLogWriter struct {
-	openFn  func() (persist.CommitLogFile, error)
-	writeFn func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
-	flushFn func(sync bool) error
-	closeFn func() error
+	openFn     func() (persist.CommitLogFile, error)
+	writeFn    func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
+	flushFn    func(sync bool) error
+	closeFn    func() error
+	setOnFlushFn func(f func(err error))
 }
 
 func newMockCommitLogWriter() *mockCommitLogWriter {
@@ -216,6 +217,9 @@ func newMockCommitLogWriter() *mockCommitLogWriter {
 		},
 		closeFn: func() error {
 			return nil
+		},
+		setOnFlushFn: func (f func(err error)) {
+
 		},
 	}
 }
@@ -239,6 +243,10 @@ func (w *mockCommitLogWriter) Flush(sync bool) error {
 
 func (w *mockCommitLogWriter) Close() error {
 	return w.closeFn()
+}
+
+func (w *mockCommitLogWriter) setOnFlush(f func (err error)) {
+	w.setOnFlushFn(f)
 }
 
 func newTestCommitLog(t *testing.T, opts Options) *commitLog {

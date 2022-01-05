@@ -675,6 +675,20 @@ func (l *commitLog) openWriters() (persist.CommitLogFile, persist.CommitLogFile,
 	// This consumes the standby secondary writer, but a new one will be prepared asynchronously by
 	// resetting the formerly primary writer.
 	l.writerState.primary, l.writerState.secondary = l.writerState.secondary, l.writerState.primary
+
+	// This is necessary because of how the above swap works.
+	// We have 2 instances of asyncResettableWriter which are writeState.primary and
+	// writeState.secondary. We never recreate these instances, and they are embedded
+	// in the struct not pointers.
+	// primary.onFlush is a method value bound with primary as a receiver, similarly for secondary.
+	// We pass these method values (mPrimary and mSecondary for primary and secondary respectively)
+	// into the writer at initialization.
+	// When we swap, we copy all the pointers in the asyncResettableWriter over each other.
+	// However, the stored copies of these method values are not updated leaving
+	// primary with a reference to mSecondary and secondary with a reference to mPrimary.
+	l.writerState.primary.writer.setOnFlush(l.writerState.primary.onFlush)
+	l.writerState.secondary.writer.setOnFlush(l.writerState.secondary.onFlush)
+
 	l.startSecondaryWriterAsyncReset()
 
 	var (

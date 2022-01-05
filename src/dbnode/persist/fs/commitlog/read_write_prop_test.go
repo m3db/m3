@@ -715,3 +715,7 @@ func (c *corruptingChunkWriter) isOpen() bool {
 func (c *corruptingChunkWriter) sync() error {
 	return c.chunkWriter.sync()
 }
+
+func (c *corruptingChunkWriter) setOnFlush(f func(err error))  {
+	c.chunkWriter.setOnFlush(f)
+}
