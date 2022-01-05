@@ -188,9 +188,13 @@ func toPromConcurrently(
 	fastWorkerPool := readWorkerPool.FastContextCheck(100)
 	for i := 0; i < count; i++ {
 		i := i
+
 		iter, tags, err := fetchResult.IterTagsAtIndex(i, tagOptions)
 		if err != nil {
-			return PromResult{}, err
+			mu.Lock()
+			multiErr = multiErr.Add(err)
+			mu.Unlock()
+			break
 		}
 
 		wg.Add(1)
