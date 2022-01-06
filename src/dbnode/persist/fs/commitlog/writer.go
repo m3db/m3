@@ -79,6 +79,9 @@ type commitLogWriter interface {
 	// a new chunk to be created. Optionally forces the data to be FSync'd to disk.
 	Flush(sync bool) error
 
+	// setOnFlush will provide/override a callback that will be called after successful flush calls.
+	// Implementors MAY choose to not implement such a callback mechanism, however if
+	// such a mechanism is implemented they SHOULD properly implement this method.
 	setOnFlush(func (err error))
 
 	// Close the reader
