@@ -37,25 +37,14 @@ type seriesIteratorAccumulator struct {
 	start           xtime.UnixNano
 	end             xtime.UnixNano
 	iters           iterators
-	tagIterator     ident.TagIterator
 	seriesIterators []SeriesIterator
 	err             error
 	firstNext       bool
 	closed          bool
 }
 
-// SeriesAccumulatorOptions are options for a SeriesIteratorAccumulator.
-type SeriesAccumulatorOptions struct {
-	// RetainTags determines if tags should be preserved after the accumulator is
-	// exhausted. If set to true, the accumulator retains a copy of the tags.
-	RetainTags bool
-}
-
 // NewSeriesIteratorAccumulator creates a new series iterator.
-func NewSeriesIteratorAccumulator(
-	iter SeriesIterator,
-	opts SeriesAccumulatorOptions,
-) (SeriesIteratorAccumulator, error) {
+func NewSeriesIteratorAccumulator(iter SeriesIterator) (SeriesIteratorAccumulator, error) {
 	nsID := ""
 	if iter.Namespace() != nil {
 		nsID = iter.Namespace().String()
@@ -70,10 +59,6 @@ func NewSeriesIteratorAccumulator(
 	}
 
 	it.iters.reset()
-
-	if opts.RetainTags {
-		it.tagIterator = iter.Tags().Duplicate()
-	}
 
 	err := it.Add(iter)
 	if err != nil {
@@ -116,15 +101,15 @@ func (it *seriesIteratorAccumulator) Namespace() ident.ID {
 }
 
 func (it *seriesIteratorAccumulator) Tags() ident.TagIterator {
-	if iter := it.tagIterator; iter != nil {
-		return iter
-	}
-	if len(it.seriesIterators) == 0 {
-		return ident.EmptyTagIterator
-	}
 	// NB: the tags for each iterator must be the same, so it's valid to return
 	// from whichever iterator is available.
-	return it.seriesIterators[0].Tags()
+	for _, iter := range it.seriesIterators {
+		if tags := iter.Tags(); tags != nil {
+			return tags
+		}
+	}
+
+	return ident.EmptyTagIterator
 }
 
 func (it *seriesIteratorAccumulator) Start() xtime.UnixNano {
@@ -183,10 +168,6 @@ func (it *seriesIteratorAccumulator) Close() {
 	if it.nsID != nil {
 		it.nsID.Finalize()
 		it.nsID = nil
-	}
-	if it.tagIterator != nil {
-		it.tagIterator.Close()
-		it.tagIterator = nil
 	}
 	it.iters.reset()
 	it.firstNext = true
