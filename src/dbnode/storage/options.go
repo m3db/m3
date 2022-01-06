@@ -77,9 +77,6 @@ const (
 	defaultNumLoadedBytesLimit = 2 << 30
 
 	defaultMediatorTickInterval = 5 * time.Second
-
-	// defaultWideBatchSize is the default batch size for wide queries.
-	defaultWideBatchSize = 1024
 )
 
 var (
@@ -173,7 +170,6 @@ type options struct {
 	namespaceRuntimeOptsMgrRegistry namespace.RuntimeOptionsManagerRegistry
 	mediatorTickInterval            time.Duration
 	adminClient                     client.AdminClient
-	wideBatchSize                   int
 	newBackgroundProcessFns         []NewBackgroundProcessFn
 	namespaceHooks                  NamespaceHooks
 	tileAggregator                  TileAggregator
@@ -250,7 +246,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		memoryTracker:                   NewMemoryTracker(NewMemoryTrackerOptions(defaultNumLoadedBytesLimit)),
 		namespaceRuntimeOptsMgrRegistry: namespace.NewRuntimeOptionsManagerRegistry(),
 		mediatorTickInterval:            defaultMediatorTickInterval,
-		wideBatchSize:                   defaultWideBatchSize,
 		namespaceHooks:                  &noopNamespaceHooks{},
 		tileAggregator:                  &noopTileAggregator{},
 		permitsOptions:                  permits.NewOptions(),
@@ -875,16 +870,6 @@ func (o *options) SetAdminClient(value client.AdminClient) Options {
 
 func (o *options) AdminClient() client.AdminClient {
 	return o.adminClient
-}
-
-func (o *options) SetWideBatchSize(value int) Options {
-	opts := *o
-	opts.wideBatchSize = value
-	return &opts
-}
-
-func (o *options) WideBatchSize() int {
-	return o.wideBatchSize
 }
 
 func (o *options) SetBackgroundProcessFns(fns []NewBackgroundProcessFn) Options {

@@ -24,10 +24,6 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/digest"
-	"github.com/m3db/m3/src/x/pool"
-	xtest "github.com/m3db/m3/src/x/test"
-	xhash "github.com/m3db/m3/src/x/test/hash"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -297,76 +293,4 @@ func TestDecodeIndexEntryIncompleteFile(t *testing.T) {
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	_, err := dec.DecodeIndexEntry(nil)
 	require.EqualError(t, err, "decode index entry encountered error: EOF")
-}
-
-var decodeWideEntryTests = []struct {
-	id         string
-	exStatus   WideEntryLookupStatus
-	exChecksum int64
-}{
-	{id: "aaa", exStatus: NotFoundLookupStatus},
-	{id: "test100", exStatus: MatchedLookupStatus, exChecksum: testMetadataChecksum},
-	{id: "zzz", exStatus: MismatchLookupStatus},
-}
-
-func TestDecodeToWideEntry(t *testing.T) {
-	var (
-		enc = NewEncoder()
-		dec = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xhash.NewParsedIndexHasher(t)))
-	)
-
-	require.NoError(t, enc.EncodeIndexEntry(testWideEntry.IndexEntry))
-	data := enc.Bytes()
-
-	for _, tt := range decodeWideEntryTests {
-		t.Run(tt.id, func(t *testing.T) {
-			dec.Reset(NewByteDecoderStream(data))
-			res, status, err := dec.DecodeToWideEntry([]byte(tt.id), nil)
-			require.NoError(t, err)
-			require.Equal(t, tt.exStatus, status)
-			if tt.exStatus == MatchedLookupStatus {
-				require.Equal(t, tt.exChecksum, res.MetadataChecksum)
-			}
-		})
-	}
-}
-
-func TestDecodeToWideEntryPooled(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		enc = NewEncoder()
-		dec = NewDecoder(NewDecodingOptions().SetIndexEntryHasher(xhash.NewParsedIndexHasher(t)))
-	)
-
-	require.NoError(t, enc.EncodeIndexEntry(testWideEntry.IndexEntry))
-	data := enc.Bytes()
-
-	for _, tt := range decodeWideEntryTests {
-		t.Run(tt.id+"_pooled", func(t *testing.T) {
-			dec.Reset(NewByteDecoderStream(data))
-
-			bytePool := pool.NewMockBytesPool(ctrl)
-			idLength := len(testWideEntry.ID)
-			idBytes := make([]byte, idLength)
-			bytePool.EXPECT().Get(idLength).Return(idBytes)
-
-			tagLength := len(testWideEntry.EncodedTags)
-			tagBytes := make([]byte, tagLength)
-			bytePool.EXPECT().Get(tagLength).Return(tagBytes)
-
-			if tt.exStatus != MatchedLookupStatus {
-				bytePool.EXPECT().Put(idBytes)
-				bytePool.EXPECT().Put(tagBytes)
-			}
-
-			res, status, err := dec.DecodeToWideEntry([]byte(tt.id), bytePool)
-			require.NoError(t, err)
-			require.Equal(t, tt.exStatus, status)
-			if tt.exStatus == MatchedLookupStatus {
-				require.Equal(t, tt.exChecksum, res.MetadataChecksum)
-			}
-		})
-	}
 }

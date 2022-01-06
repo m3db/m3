@@ -36,7 +36,6 @@ import (
 type testAccumulatorSeries struct {
 	id          string
 	nsID        string
-	retainTag   bool
 	start       xtime.UnixNano
 	end         xtime.UnixNano
 	input       []accumulatorInput
@@ -53,18 +52,17 @@ type accumulatorInput struct {
 }
 
 func TestSeriesIteratorAccumulator(t *testing.T) {
-	testSeriesIteratorAccumulator(t, false)
-}
-
-func TestSeriesIteratorAccumulatorRetainTag(t *testing.T) {
-	testSeriesIteratorAccumulator(t, true)
-}
-
-func testSeriesIteratorAccumulator(t *testing.T, retain bool) {
 	start := xtime.Now().Truncate(time.Minute)
 	end := start.Add(time.Minute)
 
 	values := []accumulatorInput{
+		{
+			values: []testValue{
+				{1.0, start.Add(-1 * time.Second), xtime.Second, nil},
+				{2.0, start.Add(1 * time.Second), xtime.Second, nil},
+			},
+			id: "foo0",
+		},
 		{
 			values: []testValue{
 				{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
@@ -102,11 +100,10 @@ func testSeriesIteratorAccumulator(t *testing.T, retain bool) {
 	}
 
 	test := testAccumulatorSeries{
-		id:                      "foo1",
+		id:                      "foo0",
 		nsID:                    "bar",
 		start:                   start,
 		end:                     end,
-		retainTag:               retain,
 		input:                   values,
 		expected:                ex,
 		expectedFirstAnnotation: []byte{5},
@@ -179,9 +176,7 @@ func newTestSeriesAccumulatorIterator(
 
 		iters = append(iters, iter)
 		if acc == nil {
-			a, err := NewSeriesIteratorAccumulator(iter, SeriesAccumulatorOptions{
-				RetainTags: series.retainTag,
-			})
+			a, err := NewSeriesIteratorAccumulator(iter)
 			require.NoError(t, err)
 			acc = a
 		} else {
@@ -207,9 +202,7 @@ func assertTestSeriesAccumulatorIterator(
 
 	checkTags := func() {
 		tags := iter.Tags()
-		if tags == nil {
-			return
-		}
+		require.NotNil(t, tags)
 		require.True(t, tags.Next())
 		assert.True(t, tags.Current().Equal(ident.StringTag("foo", "bar")))
 		require.True(t, tags.Next())
@@ -242,7 +235,7 @@ func assertTestSeriesAccumulatorIterator(
 	}
 	// Ensure further calls to next false
 	for i := 0; i < 2; i++ {
-		assert.Equal(t, false, iter.Next())
+		assert.False(t, iter.Next())
 	}
 	if series.expectedErr == nil {
 		assert.NoError(t, iter.Err())
@@ -250,21 +243,14 @@ func assertTestSeriesAccumulatorIterator(
 		assert.Equal(t, series.expectedErr.err, iter.Err())
 	}
 
-	var tagIter ident.TagIterator
-	if series.retainTag {
-		checkTags()
-		tagIter = iter.Tags()
-	} else {
-		assert.Nil(t, iter.Tags())
-	}
-
 	assert.Equal(t, series.id, iter.id.String())
 	assert.Equal(t, series.nsID, iter.nsID.String())
 	iter.Close()
-	if series.retainTag {
-		// Check that the tag iterator was closed.
-		assert.False(t, tagIter.Next())
-	}
+
+	// Check that the tag iterator was closed.
+	tagIter := iter.Tags()
+	require.NotNil(t, tagIter)
+	assert.False(t, tagIter.Next())
 }
 
 func TestAccumulatorMocked(t *testing.T) {
@@ -285,7 +271,7 @@ func TestAccumulatorMocked(t *testing.T) {
 	base.EXPECT().Err().Return(nil).AnyTimes()
 	base.EXPECT().Close()
 
-	it, err := NewSeriesIteratorAccumulator(base, SeriesAccumulatorOptions{})
+	it, err := NewSeriesIteratorAccumulator(base)
 	require.NoError(t, err)
 
 	i := 0

@@ -29,7 +29,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -398,20 +397,6 @@ func (s *dbSeries) ReadEncoded(
 	iter, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.cachedBlocks, s.buffer, nsCtx)
 	s.RUnlock()
 	return iter, err
-}
-
-func (s *dbSeries) FetchWideEntry(
-	ctx context.Context,
-	blockStart xtime.UnixNano,
-	filter schema.WideEntryFilter,
-	nsCtx namespace.Context,
-) (block.StreamedWideEntry, error) {
-	s.RLock()
-	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
-	e, err := reader.FetchWideEntry(ctx, blockStart, filter, nsCtx)
-	s.RUnlock()
-
-	return e, err
 }
 
 func (s *dbSeries) FetchBlocksForColdFlush(

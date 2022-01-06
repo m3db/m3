@@ -26,7 +26,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -86,14 +85,6 @@ type DatabaseSeries interface {
 		nsCtx namespace.Context,
 	) (BlockReaderIter, error)
 
-	// FetchWideEntry reads wide entries from encoded blocks.
-	FetchWideEntry(
-		ctx context.Context,
-		blockStart xtime.UnixNano,
-		filter schema.WideEntryFilter,
-		nsCtx namespace.Context,
-	) (block.StreamedWideEntry, error)
-
 	// FetchBlocks returns data blocks given a list of block start times.
 	FetchBlocks(
 		ctx context.Context,
@@ -128,7 +119,7 @@ type DatabaseSeries interface {
 	// NumActiveBlocks returns the number of active blocks the series currently holds.
 	NumActiveBlocks() int
 
-	/// LoadBlock loads a single block into the series.
+	// LoadBlock loads a single block into the series.
 	LoadBlock(
 		block block.DatabaseBlock,
 		writeType WriteType,
