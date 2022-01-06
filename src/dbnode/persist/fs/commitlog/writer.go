@@ -82,7 +82,7 @@ type commitLogWriter interface {
 	// setOnFlush will provide/override a callback that will be called after successful flush calls.
 	// Implementors MAY choose to not implement such a callback mechanism, however if
 	// such a mechanism is implemented they SHOULD properly implement this method.
-	setOnFlush(func (err error))
+	setOnFlush(func(err error))
 
 	// Close the reader
 	Close() error
@@ -92,7 +92,7 @@ type chunkWriter interface {
 	io.Writer
 
 	reset(f xos.File)
-	setOnFlush(func (err error))
+	setOnFlush(func(err error))
 	close() error
 	isOpen() bool
 	sync() error
@@ -255,7 +255,7 @@ func (w *writer) Flush(sync bool) error {
 }
 
 func (w *writer) setOnFlush(f func(err error)) {
-   w.chunkWriter.setOnFlush(f)
+	w.chunkWriter.setOnFlush(f)
 }
 
 func (w *writer) sync() error {

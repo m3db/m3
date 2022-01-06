@@ -197,10 +197,10 @@ func snapshotCounterValue(
 }
 
 type mockCommitLogWriter struct {
-	openFn     func() (persist.CommitLogFile, error)
-	writeFn    func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
-	flushFn    func(sync bool) error
-	closeFn    func() error
+	openFn       func() (persist.CommitLogFile, error)
+	writeFn      func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
+	flushFn      func(sync bool) error
+	closeFn      func() error
 	setOnFlushFn func(f func(err error))
 }
 
@@ -218,8 +218,7 @@ func newMockCommitLogWriter() *mockCommitLogWriter {
 		closeFn: func() error {
 			return nil
 		},
-		setOnFlushFn: func (f func(err error)) {
-
+		setOnFlushFn: func(f func(err error)) {
 		},
 	}
 }
@@ -245,7 +244,7 @@ func (w *mockCommitLogWriter) Close() error {
 	return w.closeFn()
 }
 
-func (w *mockCommitLogWriter) setOnFlush(f func (err error)) {
+func (w *mockCommitLogWriter) setOnFlush(f func(err error)) {
 	w.setOnFlushFn(f)
 }
 
@@ -714,7 +713,7 @@ func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
 	nextCommitlogFilePath, _, err := NextFile(opts)
 	require.NoError(t, err)
 	err = ioutil.WriteFile(
-		nextCommitlogFilePath, []byte("not-a-valid-commitlog-file"), os.FileMode(0666))
+		nextCommitlogFilePath, []byte("not-a-valid-commitlog-file"), os.FileMode(0o666))
 	require.NoError(t, err)
 
 	// Make sure the corrupt file is visibile.

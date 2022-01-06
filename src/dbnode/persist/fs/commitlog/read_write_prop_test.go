@@ -716,6 +716,6 @@ func (c *corruptingChunkWriter) sync() error {
 	return c.chunkWriter.sync()
 }
 
-func (c *corruptingChunkWriter) setOnFlush(f func(err error))  {
+func (c *corruptingChunkWriter) setOnFlush(f func(err error)) {
 	c.chunkWriter.setOnFlush(f)
 }
