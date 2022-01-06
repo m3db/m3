@@ -25,23 +25,36 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	debugtest "github.com/m3db/m3/src/x/debug/test"
-	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestPlacementSource(t *testing.T) {
 	handlerOpts, _, _ := debugtest.NewTestHandlerOptsAndClient(t)
-	iOpts := instrument.NewOptions()
 	svcDefaults := handleroptions.ServiceNameAndDefaults{
 		ServiceName: "m3db",
 	}
-	p, err := NewPlacementInfoSource(svcDefaults, handlerOpts, iOpts)
+	p, err := NewPlacementInfoSource(svcDefaults, handlerOpts)
 	require.NoError(t, err)
 
 	buff := bytes.NewBuffer([]byte{})
-	p.Write(buff, &http.Request{})
+	require.NoError(t, p.Write(buff, &http.Request{}))
 	require.NotZero(t, buff.Len())
+}
+
+func TestNilPlacement(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	handlerOpts, _, _ := debugtest.NewTestHandlerOptsAndClientWithPlacement(t, ctrl, nil)
+	svcDefaults := handleroptions.ServiceNameAndDefaults{
+		ServiceName: "m3db",
+	}
+	p, err := NewPlacementInfoSource(svcDefaults, handlerOpts)
+	require.NoError(t, err)
+
+	buff := bytes.NewBuffer([]byte{})
+	require.NoError(t, p.Write(buff, &http.Request{}))
+	require.Equal(t, "{}", buff.String())
 }
