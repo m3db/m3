@@ -42,7 +42,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
-	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -1059,121 +1058,6 @@ func (d *db) ReadEncoded(
 	}
 
 	return n.ReadEncoded(ctx, id, start, end)
-}
-
-func (d *db) BatchProcessWideQuery(
-	ctx context.Context,
-	n Namespace,
-	query index.Query,
-	batchProcessor IDBatchProcessor,
-	opts index.WideQueryOptions,
-) error {
-	// Build collector
-	var (
-		collectorErr error
-
-		collector = make(chan *ident.IDBatch)
-		doneCh    = make(chan struct{})
-	)
-
-	// Setup consumer
-	go func() {
-		defer func() {
-			if collectorErr != nil {
-				for batch := range collector {
-					batch.Processed()
-				}
-			}
-
-			doneCh <- struct{}{}
-		}()
-
-		for batch := range collector {
-			collectorErr = batchProcessor(batch)
-			batch.Processed()
-		}
-	}()
-
-	err := n.WideQueryIDs(ctx, query, collector, opts)
-	if err != nil {
-		return err
-	}
-
-	<-doneCh
-	return collectorErr
-}
-
-func (d *db) WideQuery(
-	ctx context.Context,
-	namespace ident.ID,
-	query index.Query,
-	queryStart xtime.UnixNano,
-	shards []uint32,
-	iterOpts index.IterationOptions,
-) ([]xio.WideEntry, error) {
-	n, err := d.namespaceFor(namespace)
-	if err != nil {
-		d.metrics.unknownNamespaceRead.Inc(1)
-		return nil, err
-	}
-
-	var (
-		batchSize = d.opts.WideBatchSize()
-		blockSize = n.Options().IndexOptions().BlockSize()
-
-		collectedChecksums = make([]xio.WideEntry, 0, 10)
-	)
-
-	opts, err := index.NewWideQueryOptions(queryStart, batchSize, blockSize, shards, iterOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	start, end := opts.StartInclusive, opts.EndExclusive
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBWideQuery)
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("wideQuery", query.String()),
-			opentracinglog.String("namespace", namespace.String()),
-			opentracinglog.Int("batchSize", batchSize),
-			xopentracing.Time("start", start.ToTime()),
-			xopentracing.Time("end", end.ToTime()),
-		)
-	}
-
-	defer sp.Finish()
-
-	streamedWideEntries := make([]block.StreamedWideEntry, 0, batchSize)
-	indexChecksumProcessor := func(batch *ident.IDBatch) error {
-		streamedWideEntries = streamedWideEntries[:0]
-
-		for _, shardID := range batch.ShardIDs {
-			streamedWideEntry, err := n.FetchWideEntry(ctx, shardID.ID, start, nil)
-			if err != nil {
-				return err
-			}
-
-			streamedWideEntries = append(streamedWideEntries, streamedWideEntry)
-		}
-
-		for _, streamedWideEntry := range streamedWideEntries {
-			checksum, err := streamedWideEntry.RetrieveWideEntry()
-			if err != nil {
-				return err
-			}
-
-			collectedChecksums = append(collectedChecksums, checksum)
-		}
-
-		return nil
-	}
-
-	err = d.BatchProcessWideQuery(ctx, n, query, indexChecksumProcessor, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	return collectedChecksums, nil
 }
 
 func (d *db) FetchBlocks(

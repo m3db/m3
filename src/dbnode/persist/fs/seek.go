@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/digest"
 	xmsgpack "github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -462,105 +461,6 @@ func (s *seeker) SeekIndexEntry(
 		if comparison == 1 {
 			return IndexEntry{}, errSeekIDNotFound
 		}
-	}
-}
-
-// SeekWideEntry performs the following steps:
-//
-//     1. Go to the indexLookup and it will give us an offset that is a good starting
-//        point for scanning the index file.
-//     2. Reset an offsetFileReader with the index fd and an offset (so that calls to Read() will
-//        begin at the offset provided by the offset lookup).
-//     3. Reset a decoder with fileDecoderStream (offsetFileReader wrapped in a bufio.Reader).
-//     4. Call DecodeToWideEntry in a tight loop (which will advance our position in the
-//        offsetFileReader internally) until we've either found the entry we're looking for or gone so
-//        far we know it does not exist.
-func (s *seeker) SeekWideEntry(
-	id ident.ID,
-	filter schema.WideEntryFilter,
-	resources ReusableSeekerResources,
-) (xio.WideEntry, error) {
-	offset, err := s.indexLookup.getNearestIndexFileOffset(id, resources)
-	// Should never happen, either something is really wrong with the code or
-	// the file on disk was corrupted.
-	if err != nil {
-		return xio.WideEntry{}, err
-	}
-
-	resources.offsetFileReader.reset(s.indexFd, offset)
-	resources.fileDecoderStream.Reset(resources.offsetFileReader)
-	resources.xmsgpackDecoder.Reset(resources.fileDecoderStream)
-
-	idBytes := id.Bytes()
-	for {
-		entry, status, err := resources.xmsgpackDecoder.
-			DecodeToWideEntry(idBytes, resources.decodeIndexEntryBytesPool)
-		if err != nil {
-			// No longer being used so we can return to the pool.
-			resources.decodeIndexEntryBytesPool.Put(entry.ID)
-			resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
-
-			if err == io.EOF {
-				// Reached the end of the file without finding the ID.
-				return xio.WideEntry{}, errSeekIDNotFound
-			}
-			// Should never happen, either something is really wrong with the code or
-			// the file on disk was corrupted.
-			return xio.WideEntry{}, instrument.InvariantErrorf(err.Error())
-		}
-
-		if filter != nil {
-			filtered, err := filter(entry)
-			if err != nil || filtered {
-				// NB: this entry is not being taken, can free memory.
-				resources.decodeIndexEntryBytesPool.Put(entry.ID)
-				resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
-				return xio.WideEntry{}, err
-			}
-		}
-
-		if status != xmsgpack.MatchedLookupStatus {
-			// No longer being used so we can return to the pool.
-			resources.decodeIndexEntryBytesPool.Put(entry.ID)
-			resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
-
-			if status == xmsgpack.NotFoundLookupStatus {
-				// a `NotFound` status for the wide entry decode indicates that the
-				// current seek has passed the point in the file where this ID could have
-				// appeared; short-circuit here as the ID does not exist in the file.
-				return xio.WideEntry{}, errSeekIDNotFound
-			} else if status == xmsgpack.MismatchLookupStatus {
-				// a `Mismatch` status for the wide entry decode indicates that the
-				// current seek does not match the ID, but that it may still appear in
-				// the file.
-				continue
-			} else if status == xmsgpack.ErrorLookupStatus {
-				return xio.WideEntry{}, errors.New("unknown index lookup error")
-			}
-		}
-
-		// If it's a match, we need to copy the tags into a checked bytes
-		// so they can be passed along. We use the "real" bytes pool here
-		// because we're passing ownership of the bytes to the entry / caller.
-		var checkedEncodedTags checked.Bytes
-		if tags := entry.EncodedTags; len(tags) > 0 {
-			checkedEncodedTags = s.opts.bytesPool.Get(len(tags))
-			checkedEncodedTags.IncRef()
-			checkedEncodedTags.AppendAll(tags)
-		}
-
-		// No longer being used so we can return to the pool.
-		resources.decodeIndexEntryBytesPool.Put(entry.ID)
-		resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
-
-		return xio.WideEntry{
-			ID:               id,
-			Size:             entry.Size,
-			Offset:           entry.Offset,
-			DataChecksum:     entry.DataChecksum,
-			EncodedTags:      checkedEncodedTags,
-			MetadataChecksum: entry.MetadataChecksum,
-		}, nil
 	}
 }
 

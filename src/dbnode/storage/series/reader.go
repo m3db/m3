@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -296,45 +295,6 @@ func (r *Reader) readersWithBlocksMapAndBufferAligned(
 			cached:    cached,
 		},
 	}, nil
-}
-
-// FetchWideEntry reads wide entries using just a block retriever.
-func (r *Reader) FetchWideEntry(
-	ctx context.Context,
-	blockStart xtime.UnixNano,
-	filter schema.WideEntryFilter,
-	nsCtx namespace.Context,
-) (block.StreamedWideEntry, error) {
-	var (
-		nowFn = r.opts.ClockOptions().NowFn()
-		now   = xtime.ToUnixNano(nowFn())
-		ropts = r.opts.RetentionOptions()
-	)
-
-	earliest := retention.FlushTimeStart(ropts, now)
-	if blockStart.Before(earliest) {
-		// NB: this block is falling out of retention; return empty result rather
-		// than iterating over it.
-		return block.EmptyStreamedWideEntry, nil
-	}
-
-	if r.retriever == nil {
-		return block.EmptyStreamedWideEntry, nil
-	}
-	// Try to stream from disk
-	isRetrievable, err := r.retriever.IsBlockRetrievable(blockStart)
-	if err != nil {
-		return block.EmptyStreamedWideEntry, err
-	} else if !isRetrievable {
-		return block.EmptyStreamedWideEntry, nil
-	}
-	streamedEntry, err := r.retriever.StreamWideEntry(ctx,
-		r.id, blockStart, filter, nsCtx)
-	if err != nil {
-		return block.EmptyStreamedWideEntry, err
-	}
-
-	return streamedEntry, nil
 }
 
 // FetchBlocks returns data blocks given a list of block start times using

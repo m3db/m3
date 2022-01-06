@@ -92,22 +92,6 @@ type QueryOptions struct {
 	Source []byte
 }
 
-// WideQueryOptions enables users to specify constraints and
-// preferences on wide query execution.
-type WideQueryOptions struct {
-	// StartInclusive is the start time for the query.
-	StartInclusive xtime.UnixNano
-	// EndExclusive is the exclusive end for the query.
-	EndExclusive xtime.UnixNano
-	// BatchSize controls wide query batch size.
-	BatchSize int
-	// ShardsQueried are the shards to query. These must be in ascending order.
-	// If empty, all shards are queried.
-	ShardsQueried []uint32
-	// IterationOptions controls additional iteration methods.
-	IterationOptions IterationOptions
-}
-
 // IterationOptions enables users to specify iteration preferences.
 type IterationOptions struct {
 	// SeriesIteratorConsolidator provides additional series consolidations.
@@ -232,8 +216,6 @@ type QueryResultsOptions struct {
 	// NB(r): This is used to filter out results from shards the DB node
 	// node no longer owns but is still included in index segments.
 	FilterID func(id ident.ID) bool
-	// IndexBatchCollector collects ID batches in an asynchronous fashion.
-	IndexBatchCollector chan<- ident.IDBatch
 }
 
 // QueryResultsAllocator allocates QueryResults types.

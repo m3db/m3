@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -359,18 +358,6 @@ func (s *dbShard) Stream(
 ) (xio.BlockReader, error) {
 	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id,
 		blockStart, onRetrieve, nsCtx)
-}
-
-// StreamWideEntry implements series.QueryableBlockRetriever
-func (s *dbShard) StreamWideEntry(
-	ctx context.Context,
-	id ident.ID,
-	blockStart xtime.UnixNano,
-	filter schema.WideEntryFilter,
-	nsCtx namespace.Context,
-) (block.StreamedWideEntry, error) {
-	return s.DatabaseBlockRetriever.StreamWideEntry(ctx, s.shard, id,
-		blockStart, filter, nsCtx)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
@@ -1124,20 +1111,6 @@ func (s *dbShard) ReadEncoded(
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, nil, opts)
 	return reader.ReadEncoded(ctx, start, end, nsCtx)
-}
-
-func (s *dbShard) FetchWideEntry(
-	ctx context.Context,
-	id ident.ID,
-	blockStart xtime.UnixNano,
-	filter schema.WideEntryFilter,
-	nsCtx namespace.Context,
-) (block.StreamedWideEntry, error) {
-	retriever := s.seriesBlockRetriever
-	opts := s.seriesOpts
-	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
-
-	return reader.FetchWideEntry(ctx, blockStart, filter, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
