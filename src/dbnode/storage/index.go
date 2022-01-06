@@ -1523,47 +1523,6 @@ func (i *nsIndex) Query(
 	}, nil
 }
 
-func (i *nsIndex) WideQuery(
-	ctx context.Context,
-	query index.Query,
-	collector chan *ident.IDBatch,
-	opts index.WideQueryOptions,
-) error {
-	logFields := []opentracinglog.Field{
-		opentracinglog.String("wideQuery", query.String()),
-		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
-		opentracinglog.Int("batchSize", opts.BatchSize),
-		xopentracing.Time("queryStart", opts.StartInclusive.ToTime()),
-		xopentracing.Time("queryEnd", opts.EndExclusive.ToTime()),
-	}
-
-	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxWideQuery)
-	sp.LogFields(logFields...)
-	defer sp.Finish()
-
-	results := index.NewWideQueryResults(
-		i.nsMetadata.ID(),
-		i.opts.IdentifierPool(),
-		i.shardForID(),
-		collector,
-		opts,
-	)
-
-	// NB: result should be finalized here, regardless of outcome
-	// to prevent deadlocking while waiting on channel close.
-	defer results.Finalize()
-	queryOpts := opts.ToQueryOptions()
-
-	_, err := i.query(ctx, query, results, queryOpts, i.execBlockWideQueryFn,
-		i.newBlockQueryIterFn, logFields)
-	if err != nil {
-		sp.LogFields(opentracinglog.Error(err))
-		return err
-	}
-
-	return nil
-}
-
 func (i *nsIndex) AggregateQuery(
 	ctx context.Context,
 	query index.Query,
@@ -1931,56 +1890,6 @@ func (i *nsIndex) execBlockQueryFn(
 		// possible this block may get closed if it slides out of retention, in
 		// that case those results are no longer considered valid and outside of
 		// retention regardless, so this is a non-issue.
-		err = nil
-	}
-
-	if err != nil {
-		sp.LogFields(opentracinglog.Error(err))
-		state.addErr(err)
-	}
-}
-
-func (i *nsIndex) execBlockWideQueryFn(
-	ctx context.Context,
-	block index.Block,
-	permit permits.Permit,
-	iter index.ResultIterator,
-	opts index.QueryOptions,
-	state *asyncQueryExecState,
-	results index.BaseResults,
-	logFields []opentracinglog.Field,
-) {
-	logFields = append(logFields,
-		xopentracing.Time("blockStart", block.StartTime().ToTime()),
-		xopentracing.Time("blockEnd", block.EndTime().ToTime()),
-	)
-
-	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxBlockQuery)
-	sp.LogFields(logFields...)
-	defer sp.Finish()
-
-	docResults, ok := results.(index.DocumentResults)
-	if !ok { // should never happen
-		state.addErr(fmt.Errorf("unknown results type [%T] received during wide query", results))
-		return
-	}
-	queryIter, ok := iter.(index.QueryIterator)
-	if !ok { // should never happen
-		state.addErr(fmt.Errorf("unknown results type [%T] received during query", iter))
-		return
-	}
-
-	deadline := time.Now().Add(time.Duration(permit.AllowedQuota()))
-	err := block.QueryWithIter(ctx, opts, queryIter, docResults, deadline, logFields)
-	if err == index.ErrUnableToQueryBlockClosed {
-		// NB(r): Because we query this block outside of the results lock, it's
-		// possible this block may get closed if it slides out of retention, in
-		// that case those results are no longer considered valid and outside of
-		// retention regardless, so this is a non-issue.
-		err = nil
-	} else if err == index.ErrWideQueryResultsExhausted {
-		// NB: this error indicates a wide query short-circuit, so it is expected
-		// after the queried shard set is exhausted.
 		err = nil
 	}
 

@@ -80,6 +80,8 @@ const (
 	maxForegroundCompactorAge = time.Hour * 1
 )
 
+var _ segment.DocumentsFilter = (*mutableSegments)(nil)
+
 // nolint: maligned
 type mutableSegments struct {
 	sync.RWMutex
@@ -99,8 +101,6 @@ type mutableSegments struct {
 	writeIndexingConcurrency int
 	cachedSearchesWorkers    xsync.WorkerPool
 
-	seriesActiveFn segment.DocumentsFilter
-
 	metrics mutableSegmentsMetrics
 	logger  *zap.Logger
 
@@ -116,6 +116,7 @@ type mutableSegmentsMetrics struct {
 	activeBlockIndexNew                                         tally.Counter
 	activeBlockGarbageCollectSegment                            tally.Counter
 	activeBlockGarbageCollectSeries                             tally.Counter
+	activeBlockGarbageCollectDuplicate                          tally.Counter
 	activeBlockGarbageCollectEmptySegment                       tally.Counter
 	activeBlockGarbageCollectCachedSearchesDisabled             tally.Counter
 	activeBlockGarbageCollectCachedSearchesInRegistry           tally.Counter
@@ -144,6 +145,7 @@ func newMutableSegmentsMetrics(s tally.Scope) mutableSegmentsMetrics {
 		}).Counter("index-result"),
 		activeBlockGarbageCollectSegment:                activeBlockScope.Counter("gc-segment"),
 		activeBlockGarbageCollectSeries:                 activeBlockScope.Counter("gc-series"),
+		activeBlockGarbageCollectDuplicate:              activeBlockScope.Counter("gc-duplicate"),
 		activeBlockGarbageCollectEmptySegment:           backgroundScope.Counter("gc-empty-segment"),
 		activeBlockGarbageCollectCachedSearchesDisabled: backgroundScope.Counter("gc-cached-searches-disabled"),
 		activeBlockGarbageCollectCachedSearchesInRegistry: backgroundScope.Tagged(map[string]string{
@@ -199,7 +201,6 @@ func newMutableSegments(
 		metrics:               newMutableSegmentsMetrics(iopts.MetricsScope()),
 		logger:                iopts.Logger(),
 	}
-	m.seriesActiveFn = segment.DocumentsFilterFn(m.seriesActive)
 	m.optsListener = namespaceRuntimeOptsMgr.RegisterListener(m)
 	return m
 }
@@ -226,7 +227,7 @@ func (m *mutableSegments) SetNamespaceRuntimeOptions(opts namespace.RuntimeOptio
 	builder.SetSortConcurrency(m.writeIndexingConcurrency)
 }
 
-func (m *mutableSegments) seriesActive(d doc.Metadata) bool {
+func (m *mutableSegments) ContainsDoc(d doc.Metadata) bool {
 	// Filter out any documents that only were indexed for
 	// sealed blocks.
 	if d.OnIndexSeries == nil {
@@ -236,7 +237,37 @@ func (m *mutableSegments) seriesActive(d doc.Metadata) bool {
 		return true
 	}
 
-	return !d.OnIndexSeries.TryMarkIndexGarbageCollected()
+	gc := d.OnIndexSeries.TryMarkIndexGarbageCollected()
+	if gc {
+		// Track expired series filtered out from new index segment during compaction.
+		m.metrics.activeBlockGarbageCollectSeries.Inc(1)
+	}
+
+	// We only want the new segment to contain the doc if we didn't need to GC it.
+	return !gc
+}
+
+func (m *mutableSegments) OnDuplicateDoc(d doc.Metadata) {
+	// NB: it is important to ensure duplicate entries get reconciled, as
+	// an entry being duplicated here may indicate that it is not the same
+	// entry as that stored in the shard's index map. Without this step,
+	// situations can arise when an entry may not be correctly indexed in
+	// all blocks, as the full index range for this entry may be split
+	// between the entry in the shard index map that would be persited,
+	// and this duplicated entry which will eventually expire and never
+	// get written to disk. Reconciling merges the full index ranges into
+	// the entry persisted in the shard index map.
+	if d.OnIndexSeries == nil {
+		instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+			l.Error("unexpected nil for document index entry for background compact")
+		})
+		return
+	}
+
+	d.OnIndexSeries.TryReconcileDuplicates()
+
+	// Track duplicate filtered out from new index segment during compaction.
+	m.metrics.activeBlockGarbageCollectDuplicate.Inc(1)
 }
 
 func (m *mutableSegments) WriteBatch(inserts *WriteBatch) (MutableSegmentsStats, error) {
@@ -761,12 +792,11 @@ func (m *mutableSegments) backgroundCompactWithTask(
 	var documentsFilter segment.DocumentsFilter
 	if gcRequired {
 		// Only actively filter out documents if GC is required.
-		documentsFilter = m.seriesActiveFn
+		documentsFilter = segment.DocumentsFilter(m)
 	}
 
 	start := time.Now()
 	compactResult, err := compactor.Compact(segments, documentsFilter,
-		m.metrics.activeBlockGarbageCollectSeries,
 		mmap.ReporterOptions{
 			Context: mmap.Context{
 				Name: mmapIndexBlockName,
