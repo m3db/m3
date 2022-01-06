@@ -34,7 +34,6 @@ package fs
 import (
 	stdctx "context"
 	"errors"
-	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -62,13 +61,8 @@ var (
 	errNoSeekerMgr                       = errors.New("there is no open seeker manager")
 )
 
-type streamReqType uint8
-
 const (
 	defaultRetrieveRequestQueueCapacity = 4096
-
-	streamInvalidReq streamReqType = iota
-	streamDataReq
 )
 
 type blockRetrieverStatus int
@@ -413,13 +407,6 @@ func (r *blockRetriever) fetchBatch(
 
 	// Seek and execute all requests
 	for _, req := range reqs {
-		// Should always be a data request by this point.
-		if req.streamReqType != streamDataReq {
-			req.err = fmt.Errorf("wrong stream req type: expect=%d, actual=%d",
-				streamDataReq, req.streamReqType)
-			continue
-		}
-
 		if req.err != nil {
 			// Skip requests with error, will already get appropriate callback.
 			continue
@@ -607,7 +594,6 @@ func (r *blockRetriever) Stream(
 	// only save the go ctx to ensure we don't accidentally use the m3 ctx after it's been closed by the caller.
 	req.stdCtx = ctx.GoContext()
 	req.onRetrieve = onRetrieve
-	req.streamReqType = streamDataReq
 
 	if source, ok := req.stdCtx.Value(limits.SourceContextKey).([]byte); ok {
 		req.source = source
@@ -725,9 +711,8 @@ type retrieveRequest struct {
 	source     []byte
 	stdCtx     stdctx.Context
 
-	streamReqType streamReqType
-	indexEntry    IndexEntry
-	reader        xio.SegmentReader
+	indexEntry IndexEntry
+	reader     xio.SegmentReader
 
 	err error
 
@@ -756,9 +741,8 @@ func (req *retrieveRequest) onRetrieved(segment ts.Segment, nsCtx namespace.Cont
 
 func (req *retrieveRequest) onDone() {
 	var (
-		err           = req.err
-		success       = req.success
-		streamReqType = req.streamReqType
+		err     = req.err
+		success = req.success
 	)
 
 	if err == nil && !success {
@@ -772,22 +756,14 @@ func (req *retrieveRequest) onDone() {
 
 	req.resultWg.Done()
 
-	switch streamReqType {
-	case streamDataReq:
-		// Do not call onCallerOrRetrieverDone since the OnRetrieveCallback
-		// code path will call req.onCallerOrRetrieverDone() when it's done.
-		// If encountered an error though, should call it since not waiting for
-		// callback to finish or even if not waiting for callback to finish
-		// the happy path that calls this pre-emptively has not executed either.
-		// That is if-and-only-if request is data request and is successful and
-		// will req.onCallerOrRetrieverDone() be called in a deferred manner.
-		if !success {
-			req.onCallerOrRetrieverDone()
-		}
-	default:
-		// All other requests will use this to increment the finalize count by
-		// one and the actual req.Finalize() by the final one to make count of
-		// two and actually return the request to the pool.
+	// Do not call onCallerOrRetrieverDone since the OnRetrieveCallback
+	// code path will call req.onCallerOrRetrieverDone() when it's done.
+	// If encountered an error though, should call it since not waiting for
+	// callback to finish or even if not waiting for callback to finish
+	// the happy path that calls this pre-emptively has not executed either.
+	// That is if-and-only-if request is data request and is successful and
+	// will req.onCallerOrRetrieverDone() be called in a deferred manner.
+	if !success {
 		req.onCallerOrRetrieverDone()
 	}
 }
@@ -894,7 +870,6 @@ func (req *retrieveRequest) resetForReuse() {
 	req.start = 0
 	req.blockSize = 0
 	req.onRetrieve = nil
-	req.streamReqType = streamInvalidReq
 	req.indexEntry = IndexEntry{}
 	req.reader = nil
 	req.err = nil
