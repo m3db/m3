@@ -21,7 +21,6 @@
 package msgpack
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -38,7 +37,6 @@ var (
 	emptyIndexSummariesInfo     schema.IndexSummariesInfo
 	emptyIndexBloomFilterInfo   schema.IndexBloomFilterInfo
 	emptyIndexEntry             schema.IndexEntry
-	emptyWideEntry              schema.WideEntry
 	emptyIndexSummary           schema.IndexSummary
 	emptyIndexSummaryToken      IndexSummaryToken
 	emptyLogInfo                schema.LogInfo
@@ -49,22 +47,6 @@ var (
 	errorUnableToDetermineNumFieldsToSkip          = errors.New("unable to determine num fields to skip")
 	errorCalledDecodeBytesWithoutByteStreamDecoder = errors.New("called decodeBytes without byte stream decoder")
 	errorIndexEntryChecksumMismatch                = errors.New("decode index entry encountered checksum mismatch")
-)
-
-// WideEntryLookupStatus is the status for a wide entry lookup.
-type WideEntryLookupStatus byte
-
-const (
-	// ErrorLookupStatus indicates an error state.
-	ErrorLookupStatus WideEntryLookupStatus = iota
-	// MatchedLookupStatus indicates the current entry ID matches the requested ID.
-	MatchedLookupStatus
-	// MismatchLookupStatus indicates the current entry ID preceeds the requested ID.
-	MismatchLookupStatus
-	// NotFoundLookupStatus indicates the current entry ID is lexicographically larger than
-	// the requested ID; since the index file is in sorted order, this means the
-	// ID does does not exist in the file.
-	NotFoundLookupStatus
 )
 
 // Decoder decodes persisted msgpack-encoded data
@@ -150,26 +132,6 @@ func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool) (schema.IndexEntr
 		return emptyIndexEntry, dec.err
 	}
 	return indexEntry, nil
-}
-
-// DecodeToWideEntry decodes an index entry into a wide entry.
-func (dec *Decoder) DecodeToWideEntry(
-	compareID []byte,
-	bytesPool pool.BytesPool,
-) (schema.WideEntry, WideEntryLookupStatus, error) {
-	if dec.err != nil {
-		return emptyWideEntry, NotFoundLookupStatus, dec.err
-	}
-	dec.readerWithDigest.setDigestReaderEnabled(true)
-	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
-	entry, status := dec.decodeWideEntry(compareID, bytesPool)
-	dec.readerWithDigest.setDigestReaderEnabled(false)
-	dec.skip(numFieldsToSkip)
-	if status != MatchedLookupStatus || dec.err != nil {
-		return emptyWideEntry, status, dec.err
-	}
-
-	return entry, status, nil
 }
 
 // DecodeIndexSummary decodes index summary.
@@ -481,50 +443,6 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 	}
 
 	return indexEntry
-}
-
-func (dec *Decoder) decodeWideEntry(
-	compareID []byte,
-	bytesPool pool.BytesPool,
-) (schema.WideEntry, WideEntryLookupStatus) {
-	entry := dec.decodeIndexEntry(bytesPool)
-	if dec.err != nil {
-		return emptyWideEntry, ErrorLookupStatus
-	}
-
-	if entry.EncodedTags == nil {
-		if bytesPool != nil {
-			bytesPool.Put(entry.ID)
-		}
-
-		dec.err = fmt.Errorf("decode wide index requires files V1+")
-		return emptyWideEntry, ErrorLookupStatus
-	}
-
-	compare := bytes.Compare(compareID, entry.ID)
-	var checksum int64
-	if compare == 0 {
-		// NB: need to compute hash before freeing entry bytes.
-		checksum = dec.hasher.HashIndexEntry(entry.ID, entry.EncodedTags, entry.DataChecksum)
-		return schema.WideEntry{
-			IndexEntry:       entry,
-			MetadataChecksum: checksum,
-		}, MatchedLookupStatus
-	}
-
-	if bytesPool != nil {
-		bytesPool.Put(entry.ID)
-		bytesPool.Put(entry.EncodedTags)
-	}
-
-	if compare > 0 {
-		// compareID can still exist after the current entry.ID
-		return emptyWideEntry, MismatchLookupStatus
-	}
-
-	// compareID must have been before the current entry.ID, so this
-	// ID will not be matched.
-	return emptyWideEntry, NotFoundLookupStatus
 }
 
 func (dec *Decoder) decodeIndexSummary() (schema.IndexSummary, IndexSummaryToken) {

@@ -77,19 +77,6 @@ type IndexEntry struct {
 	IndexChecksum int64
 }
 
-// WideEntry extends IndexEntry for use with queries, by providing
-// an additional metadata checksum field.
-type WideEntry struct {
-	// WideEntry embeds IndexEntry.
-	IndexEntry
-	// MetadataChecksum is the computed index metadata checksum.
-	// NB: built from ID, DataChecksum, and tags.
-	MetadataChecksum int64
-}
-
-// WideEntryFilter provides a filter for wide entries.
-type WideEntryFilter func(entry WideEntry) (bool, error)
-
 // IndexEntryHasher hashes an index entry.
 type IndexEntryHasher interface {
 	// HashIndexEntry computes a hash value for this index entry using its ID, tags,

@@ -228,11 +228,6 @@ type DBConfiguration struct {
 	// of applying back-pressure or protecting the db nodes.
 	Limits LimitsConfiguration `yaml:"limits"`
 
-	// WideConfig contains some limits for wide operations. These operations
-	// differ from regular paths by optimizing for query completeness across
-	// arbitary query ranges rather than speed.
-	WideConfig *WideConfiguration `yaml:"wide"`
-
 	// TChannel exposes TChannel config options.
 	TChannel *TChannelConfiguration `yaml:"tchannel"`
 
@@ -651,16 +646,6 @@ type ProtoConfiguration struct {
 	SchemaRegistry map[string]NamespaceProtoSchema `yaml:"schema_registry"`
 }
 
-// WideConfiguration contains configuration for wide operations. These
-// differ from regular paths by optimizing for query completeness across
-// arbitary query ranges rather than speed.
-type WideConfiguration struct {
-	// BatchSize represents batch size for wide operations. This size corresponds
-	// to how many series are processed within a single "chunk"; larger batch
-	// sizes will complete the query faster, but increase memory consumption.
-	BatchSize int `yaml:"batchSize"`
-}
-
 // NamespaceProtoSchema is the namespace protobuf schema.
 type NamespaceProtoSchema struct {
 	// For application m3db client integration test convenience (where a local dbnode is started as a docker container),
@@ -784,7 +769,7 @@ func convertToURLsWithDefault(urlStrs []string, def ...string) ([]url.URL, error
 		return nil, err
 	}
 
-	return []url.URL(urls), nil
+	return urls, nil
 }
 
 func initialClusterString(initialCluster []environment.SeedNode) string {

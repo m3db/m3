@@ -26,8 +26,6 @@ import (
 	"io"
 	"sync"
 
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -117,7 +115,6 @@ type CompactResult struct {
 func (c *Compactor) Compact(
 	segs []segment.Segment,
 	filter segment.DocumentsFilter,
-	filterCounter tally.Counter,
 	reporterOptions mmap.ReporterOptions,
 ) (CompactResult, error) {
 	c.Lock()
@@ -128,7 +125,7 @@ func (c *Compactor) Compact(
 	}
 
 	c.builder.Reset()
-	c.builder.SetFilter(filter, filterCounter)
+	c.builder.SetFilter(filter)
 	if err := c.builder.AddSegments(segs); err != nil {
 		return CompactResult{}, err
 	}

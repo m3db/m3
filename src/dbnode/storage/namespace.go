@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -174,7 +173,6 @@ type databaseNamespaceMetrics struct {
 	fetchBlocks         instrument.MethodMetrics
 	fetchBlocksMetadata instrument.MethodMetrics
 	queryIDs            instrument.MethodMetrics
-	wideQuery           instrument.MethodMetrics
 	aggregateQuery      instrument.MethodMetrics
 
 	unfulfilled             tally.Counter
@@ -264,7 +262,6 @@ func newDatabaseNamespaceMetrics(
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
 		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
 		queryIDs:            instrument.NewMethodMetrics(scope, "queryIDs", opts),
-		wideQuery:           instrument.NewMethodMetrics(scope, "wideQuery", opts),
 		aggregateQuery:      instrument.NewMethodMetrics(scope, "aggregateQuery", opts),
 
 		unfulfilled:             bootstrapScope.Counter("unfulfilled"),
@@ -844,48 +841,6 @@ func (n *dbNamespace) QueryIDs(
 	return res, err
 }
 
-func (n *dbNamespace) WideQueryIDs(
-	ctx context.Context,
-	query index.Query,
-	collector chan *ident.IDBatch,
-	opts index.WideQueryOptions,
-) error {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.NSWideQueryIDs)
-	if sampled {
-		sp.LogFields(
-			opentracinglog.String("query", query.String()),
-			opentracinglog.String("namespace", n.ID().String()),
-			opentracinglog.Int("batchSize", opts.BatchSize),
-			xopentracing.Time("start", opts.StartInclusive.ToTime()),
-			xopentracing.Time("end", opts.EndExclusive.ToTime()),
-		)
-	}
-	defer sp.Finish()
-
-	callStart := n.nowFn()
-	if n.reverseIndex == nil {
-		n.metrics.wideQuery.ReportError(n.nowFn().Sub(callStart))
-		err := errNamespaceIndexingDisabled
-		sp.LogFields(opentracinglog.Error(err))
-		return err
-	}
-
-	if !n.reverseIndex.Bootstrapped() {
-		// Similar to reading shard data, return not bootstrapped
-		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
-		err := errIndexNotBootstrappedToRead
-		sp.LogFields(opentracinglog.Error(err))
-		return xerrors.NewRetryableError(err)
-	}
-
-	err := n.reverseIndex.WideQuery(ctx, query, collector, opts)
-	if err != nil {
-		sp.LogFields(opentracinglog.Error(err))
-	}
-	n.metrics.queryIDs.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return err
-}
-
 func (n *dbNamespace) AggregateQuery(
 	ctx context.Context,
 	query index.Query,
@@ -960,26 +915,6 @@ func (n *dbNamespace) ReadEncoded(
 	}
 	res, err := shard.ReadEncoded(ctx, id, start, end, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return res, err
-}
-
-func (n *dbNamespace) FetchWideEntry(
-	ctx context.Context,
-	id ident.ID,
-	blockStart xtime.UnixNano,
-	filter schema.WideEntryFilter,
-) (block.StreamedWideEntry, error) {
-	callStart := n.nowFn()
-	shard, nsCtx, err := n.readableShardFor(id)
-	if err != nil {
-		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
-
-		return block.EmptyStreamedWideEntry, err
-	}
-
-	res, err := shard.FetchWideEntry(ctx, id, blockStart, filter, nsCtx)
-	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-
 	return res, err
 }
 
