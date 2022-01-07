@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-
 	// needed for pprof handler registration
 	_ "net/http/pprof"
 	"time"
@@ -367,21 +366,11 @@ func (h *Handler) RegisterRoutes() error {
 		config                = h.options.Config()
 	)
 
-	var placementServices []handleroptions.ServiceNameAndDefaults
-	for _, serviceName := range h.options.PlacementServiceNames() {
-		service := handleroptions.ServiceNameAndDefaults{
-			ServiceName: serviceName,
-			Defaults:    serviceOptionDefaults,
-		}
-
-		placementServices = append(placementServices, service)
-	}
-
 	debugWriter, err := extdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
 		h.options.CPUProfileDuration(),
 		clusterClient,
 		placementOpts,
-		placementServices,
+		nil,
 		instrumentOpts)
 	if err != nil {
 		return fmt.Errorf("unable to create debug writer: %v", err)
