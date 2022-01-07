@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"time"
 
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -131,7 +132,7 @@ func (i *zipWriter) WriteZip(w io.Writer, r *http.Request) error {
 		}
 		err = p.Write(fw, r)
 		if err != nil {
-			return err
+			return xerrors.Wrapf(err, "error writing '%v'", filename)
 		}
 	}
 	return nil

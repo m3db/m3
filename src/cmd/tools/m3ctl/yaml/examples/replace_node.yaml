@@ -1,5 +1,6 @@
 ---
 operation: replaceNode
+service: m3db
 request:
   leavingInstanceIDs:
   - oldnodeid1
