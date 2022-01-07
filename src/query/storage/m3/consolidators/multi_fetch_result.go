@@ -100,8 +100,8 @@ func (r *multiResult) Close() error {
 			iters.Close()
 		}
 	}
-
 	r.seenIters = nil
+
 	if r.mergedIterators != nil {
 		// NB(r): Since all the series iterators in the final result are held onto
 		// by the original iters in the seenIters slice we allow those iterators
@@ -122,7 +122,10 @@ func (r *multiResult) Close() error {
 func (r *multiResult) FinalResultWithAttrs() (
 	SeriesFetchResult, []storagemetadata.Attributes, error,
 ) {
-	result, err := r.FinalResult()
+	r.Lock()
+	defer r.Unlock()
+
+	result, err := r.finalResultWithLock()
 	if err != nil {
 		return result, nil, err
 	}
@@ -150,6 +153,10 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 	r.Lock()
 	defer r.Unlock()
 
+	return r.finalResultWithLock()
+}
+
+func (r *multiResult) finalResultWithLock() (SeriesFetchResult, error) {
 	err := r.err.LastError()
 	if err != nil {
 		return NewEmptyFetchResult(r.metadata), err
