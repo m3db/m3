@@ -36,6 +36,7 @@ import (
 func peeker(data []byte) (string, proto.Message, error) {
 	type peeker struct {
 		Operation string
+		Service   string
 	}
 	peek := &peeker{}
 
@@ -48,6 +49,11 @@ func peeker(data []byte) (string, proto.Message, error) {
 
 	// now the payload is of known type
 	// unmarshal it and return the proto.Message
+	if peek.Service == "" {
+		peek.Service = "m3db"
+	}
+	placementPath := placements.DefaultPath + peek.Service + "/placement"
+
 	switch peek.Operation {
 	case opCreate:
 		payload := struct{ Request admin.DatabaseCreateRequest }{}
@@ -60,21 +66,21 @@ func peeker(data []byte) (string, proto.Message, error) {
 		if err := yaml.Unmarshal(data, &payload); err != nil {
 			return "", nil, err
 		}
-		return fmt.Sprintf("%s/init", placements.DefaultPath), &payload.Request, nil
+		return fmt.Sprintf("%s/init", placementPath), &payload.Request, nil
 	case opReplace:
 		payload := struct{ Request admin.PlacementReplaceRequest }{}
 		if err := yaml.Unmarshal(data, &payload); err != nil {
 			return "", nil, err
 		}
-		return fmt.Sprintf("%s/replace", placements.DefaultPath), &payload.Request, nil
+		return fmt.Sprintf("%s/replace", placementPath), &payload.Request, nil
 	case opNewNode:
 		payload := struct{ Request admin.PlacementInitRequest }{}
 		if err := yaml.Unmarshal(data, &payload); err != nil {
 			return "", nil, err
 		}
-		return fmt.Sprintf("%s", placements.DefaultPath), &payload.Request, nil
+		return placementPath, &payload.Request, nil
 	default:
-		return "", nil, fmt.Errorf("Unknown operation specified in the yaml\n")
+		return "", nil, fmt.Errorf("unknown operation specified in the yaml")
 	}
 
 }
