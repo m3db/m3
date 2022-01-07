@@ -324,7 +324,15 @@ func (l *commitLog) Open() error {
 	}
 
 	l.commitLogFailFn = func(err error) {
-		l.log.Fatal("fatal commit log error", zap.Error(err))
+		isFatal := l.opts.FailureStrategy() == FailureStrategyPanic
+		if l.opts.FailureStrategy() == FailureStrategyCallback && !l.opts.FailureCallback()(err) {
+			isFatal = true
+		}
+		if isFatal {
+			l.log.Fatal("fatal commit log error", zap.Error(err))
+		} else {
+			l.log.Error("commit log error", zap.Error(err))
+		}
 	}
 
 	// Asynchronously write
@@ -466,7 +474,7 @@ func (l *commitLog) write() {
 	// We use these to make the batch and non-batched write paths the same
 	// by turning non-batched writes into a batch of size one while avoiding
 	// any allocations.
-	var singleBatch = make([]writes.BatchWrite, 1)
+	singleBatch := make([]writes.BatchWrite, 1)
 	var batch []writes.BatchWrite
 
 	for write := range l.writes {
@@ -666,7 +674,8 @@ func (l *commitLog) openWriters() (persist.CommitLogFile, persist.CommitLogFile,
 		l.writerState.activeFiles = persist.CommitLogFiles{primaryFile, secondaryFile}
 		l.writerState.writers = []commitLogWriter{
 			l.writerState.primary.writer,
-			l.writerState.secondary.writer}
+			l.writerState.secondary.writer,
+		}
 
 		return primaryFile, secondaryFile, nil
 	}
