@@ -167,7 +167,7 @@ func combineIters(first, second encoding.SeriesIterator) (encoding.SeriesIterato
 	acc, ok := first.(encoding.SeriesIteratorAccumulator)
 	if !ok {
 		var err error
-		acc, err = encoding.NewSeriesIteratorAccumulator(first, encoding.SeriesAccumulatorOptions{})
+		acc, err = encoding.NewSeriesIteratorAccumulator(first)
 		if err != nil {
 			return nil, err
 		}
