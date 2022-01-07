@@ -21,6 +21,7 @@
 package httpd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -29,7 +30,13 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/query/block"
+	parserpromql "github.com/m3db/m3/src/query/parser/promql"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
+	"github.com/m3db/m3/src/query/test"
 	"github.com/prometheus/prometheus/promql"
+	parser2 "github.com/prometheus/prometheus/promql/parser"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -68,6 +75,76 @@ var (
 		},
 	}
 )
+
+type str struct {
+}
+
+func (s str) FetchProm(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.PromResult, error) {
+	panic("implement me")
+}
+
+func (s str) FetchBlocks(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
+	fmt.Printf("query: %s, %s. \n", query.Raw, query.TagMatchers.String())
+	return block.Result{
+		Blocks: []block.Block{test.NewBlockFromValues(models.Bounds{StepSize: time.Second, Duration: time.Second}, [][]float64{{1.0}})},
+	}, nil
+}
+
+func (s str) FetchCompressed(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (consolidators.MultiFetchResult, error) {
+	panic("implement me")
+}
+
+func (s str) SearchSeries(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {
+	panic("implement me")
+}
+
+func (s str) CompleteTags(ctx context.Context, query *storage.CompleteTagsQuery, options *storage.FetchOptions) (*consolidators.CompleteTagsResult, error) {
+	panic("implement me")
+}
+
+func (s str) QueryStorageMetadataAttributes(ctx context.Context, queryStart, queryEnd time.Time, opts *storage.FetchOptions) ([]storagemetadata.Attributes, error) {
+	panic("implement me")
+}
+
+func (s str) Write(ctx context.Context, query *storage.WriteQuery) error {
+	panic("implement me")
+}
+
+func (s str) Type() storage.Type {
+	panic("implement me")
+}
+
+func (s str) Close() error {
+	panic("implement me")
+}
+
+func (s str) ErrorBehavior() storage.ErrorBehavior {
+	panic("implement me")
+}
+
+func (s str) Name() string {
+	panic("implement me")
+}
+
+func TestStuff(t *testing.T) {
+	parser2.Functions["m3_count"] = &parser2.Function{
+		Name:       "m3_count",
+		ArgTypes:   []parser2.ValueType{parser2.ValueTypeVector},
+		ReturnType: parser2.ValueTypeVector,
+	}
+	var s storage.Storage = &str{}
+	eng := newEngine(s, time.Second*60, instrument.NewOptions())
+
+	parser, err := parserpromql.Parse("m3_count(ambassador_process_cpu_seconds_total{})", time.Second, models.NewTagOptions(), parserpromql.NewParseOptions())
+	require.NoError(t, err)
+
+	bl, err := eng.ExecuteExpr(context.Background(), parser, &executor.QueryOptions{}, &storage.FetchOptions{Step: time.Second}, models.RequestParams{Step: time.Second})
+	require.NoError(t, err)
+	it, err := bl.StepIter()
+	require.NoError(t, err)
+	println("next")
+	println("next", it.Next(), it.Current().Values()[0])
+}
 
 func makeTagOptions() models.TagOptions {
 	return models.NewTagOptions().SetMetricName([]byte("some_name"))

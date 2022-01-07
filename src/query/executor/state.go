@@ -105,6 +105,7 @@ func GenerateExecutionState(
 		return nil, fmt.Errorf("incorrect parent reference in result node, "+
 			"parentId: %s", result.Parent)
 	}
+	fmt.Printf("transform: %v \n", step.Transform)
 
 	options, err := transform.NewOptions(transform.OptionsParams{
 		FetchOptions:      fetchOpts,
@@ -122,6 +123,7 @@ func GenerateExecutionState(
 		return nil, err
 	}
 
+	fmt.Printf("sources: %v \n", state.sources[0])
 	if len(state.sources) == 0 {
 		return nil, errors.New("empty sources for the execution state")
 	}
@@ -141,6 +143,7 @@ func (s *ExecutionState) createNode(
 	// TODO: consider using a registry instead of casting to an interface.
 	sourceParams, ok := step.Transform.Op.(SourceParams)
 	if ok {
+		fmt.Printf("srouceParams: %s \n", sourceParams.String())
 		source, controller := CreateSource(step.ID(), sourceParams,
 			s.storage, options)
 		s.sources = append(s.sources, source)
@@ -183,6 +186,7 @@ func (s *ExecutionState) createNode(
 func (s *ExecutionState) Execute(queryCtx *models.QueryContext) error {
 	requests := make([]execution.Request, 0, len(s.sources))
 	for _, source := range s.sources {
+		fmt.Printf("executing state %v \n", source)
 		requests = append(requests, sourceRequest{
 			source:   source,
 			queryCtx: queryCtx,

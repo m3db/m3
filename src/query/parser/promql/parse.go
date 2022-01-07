@@ -178,8 +178,10 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 	}
 
+
 	switch n := node.(type) {
 	case *pql.AggregateExpr:
+		fmt.Printf("AggregateExpr node2 %v \n", node)
 		err := p.walk(n.Expr)
 		if err != nil {
 			return err
@@ -200,6 +202,7 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.MatrixSelector:
+		fmt.Printf("MatrixSelector node2 %v \n", node)
 		// Align offset to stepSize.
 		vectorSelector := n.VectorSelector.(*pql.VectorSelector)
 		vectorSelector.Offset = adjustOffset(vectorSelector.OriginalOffset, p.stepSize)
@@ -215,6 +218,7 @@ func (p *parseState) walk(node pql.Node) error {
 		return p.addLazyOffsetTransform(vectorSelector.OriginalOffset)
 
 	case *pql.VectorSelector:
+		fmt.Printf("VectorSelector node2 %v \n", node)
 		// Align offset to stepSize.
 		n.Offset = adjustOffset(n.OriginalOffset, p.stepSize)
 		operation, err := NewSelectorFromVector(n, p.tagOpts)
@@ -333,6 +337,7 @@ func (p *parseState) walk(node pql.Node) error {
 		if err != nil {
 			return err
 		}
+		fmt.Printf("parseFunctionExpr: %v \n", op)
 
 		if !ok {
 			return nil

@@ -46,6 +46,7 @@ func NewSelectorFromVector(
 	n *promql.VectorSelector,
 	tagOpts models.TagOptions,
 ) (parser.Params, error) {
+	fmt.Printf("newSelectorFromVector %v \n", n)
 	matchers, err := LabelMatchersToModelMatcher(n.LabelMatchers, tagOpts)
 	if err != nil {
 		return nil, err
@@ -242,7 +243,9 @@ func NewFunctionExpr(
 	case aggregation.AbsentType:
 		p = aggregation.NewAbsentOp()
 		return p, true, err
-
+	case aggregation.M3CountType:
+		p = aggregation.NewM3CountOp()
+		return p, true, err
 	case linear.ClampMinType, linear.ClampMaxType:
 		p, err = linear.NewClampOp(argValues, name)
 		return p, true, err

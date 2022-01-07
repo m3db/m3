@@ -115,6 +115,7 @@ func (n *FetchNode) fetch(queryCtx *models.QueryContext) (block.Result, error) {
 	}
 
 	offset := n.op.Offset
+	fmt.Printf("name: %s \n", n.op.Name)
 	return n.storage.FetchBlocks(ctx, &storage.FetchQuery{
 		Start:       startTime.Add(-1 * offset).ToTime(),
 		End:         endTime.Add(-1 * offset).ToTime(),
