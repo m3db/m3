@@ -31,7 +31,7 @@ func NewSeriesIterators(
 	iters []SeriesIterator,
 	pool MutableSeriesIteratorsPool,
 ) MutableSeriesIterators {
-	return &seriesIterators{iters: iters}
+	return &seriesIterators{iters: iters, pool: pool}
 }
 
 func (iters *seriesIterators) Iters() []SeriesIterator {
