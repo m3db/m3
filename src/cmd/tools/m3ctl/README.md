@@ -52,6 +52,7 @@ Here's one to initialize a topology:
 ```yaml
 ---
 operation: init
+service: m3db
 num_shards: 64
 replication_factor: 1
 instances:
