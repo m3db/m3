@@ -21,6 +21,7 @@
 package extdebug
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -59,10 +60,7 @@ func (p *placementInfoSource) Write(w io.Writer, httpReq *http.Request) error {
 	}
 
 	if placement == nil {
-		if _, err := w.Write([]byte("{}")); err != nil {
-			return err
-		}
-		return nil
+		return errors.New("placement does not exist")
 	}
 
 	placementProto, err := placement.Proto()

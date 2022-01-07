@@ -55,6 +55,5 @@ func TestNilPlacement(t *testing.T) {
 	require.NoError(t, err)
 
 	buff := bytes.NewBuffer([]byte{})
-	require.NoError(t, p.Write(buff, &http.Request{}))
-	require.Equal(t, "{}", buff.String())
+	require.Error(t, p.Write(buff, &http.Request{}))
 }
