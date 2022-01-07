@@ -1,5 +1,6 @@
 ---
 operation: newNode
+service: m3db
 request:
   instances:
     - id: node1

@@ -26,10 +26,8 @@ import (
 
 	"github.com/uber-go/tally"
 
-	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/pool"
 )
 
 type aggregatedResults struct {
@@ -42,12 +40,12 @@ type aggregatedResults struct {
 	size           int
 	totalDocsCount int
 
-	idPool    ident.Pool
-	bytesPool pool.CheckedBytesPool
+	// Utilization stats, do not reset.
+	resultsUtilizationStats resultsUtilizationStats
 
-	pool             AggregateResultsPool
-	valuesPool       AggregateValuesPool
-	encodedDocReader docs.EncodedDocumentReader
+	idPool     ident.Pool
+	pool       AggregateResultsPool
+	valuesPool AggregateValuesPool
 
 	iOpts instrument.Options
 }
@@ -137,7 +135,6 @@ func NewAggregateResults(
 		iOpts:         opts.InstrumentOptions(),
 		resultsMap:    newAggregateResultsMap(opts.IdentifierPool()),
 		idPool:        opts.IdentifierPool(),
-		bytesPool:     opts.CheckedBytesPool(),
 		pool:          opts.AggregateResultsPool(),
 		valuesPool:    opts.AggregateValuesPool(),
 	}
@@ -331,10 +328,13 @@ func (r *aggregatedResults) TotalDocsCount() int {
 }
 
 func (r *aggregatedResults) Finalize() {
-	r.Reset(nil, AggregateResultsOptions{})
-	if r.pool == nil {
-		return
-	}
+	r.Lock()
+	returnToPool := r.resultsUtilizationStats.updateAndCheck(r.totalDocsCount)
+	r.Unlock()
 
-	r.pool.Put(r)
+	r.Reset(nil, AggregateResultsOptions{})
+
+	if r.pool != nil && returnToPool {
+		r.pool.Put(r)
+	}
 }

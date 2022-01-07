@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
 )
 
 var (
@@ -48,10 +47,11 @@ type results struct {
 	resultsMap     *ResultsMap
 	totalDocsCount int
 
-	idPool    ident.Pool
-	bytesPool pool.CheckedBytesPool
+	// Utilization stats, do not reset.
+	resultsUtilizationStats resultsUtilizationStats
 
-	pool QueryResultsPool
+	idPool ident.Pool
+	pool   QueryResultsPool
 }
 
 // NewQueryResults returns a new query results object.
@@ -65,7 +65,6 @@ func NewQueryResults(
 		opts:       opts,
 		resultsMap: newResultsMap(),
 		idPool:     indexOpts.IdentifierPool(),
-		bytesPool:  indexOpts.CheckedBytesPool(),
 		pool:       indexOpts.QueryResultsPool(),
 		reusableID: ident.NewReusableBytesID(),
 	}
@@ -178,11 +177,14 @@ func (r *results) TotalDocsCount() int {
 }
 
 func (r *results) Finalize() {
+	r.Lock()
+	returnToPool := r.resultsUtilizationStats.updateAndCheck(r.totalDocsCount)
+	r.Unlock()
+
 	// Reset locks so cannot hold onto lock for call to Finalize.
 	r.Reset(nil, QueryResultsOptions{})
 
-	if r.pool == nil {
-		return
+	if r.pool != nil && returnToPool {
+		r.pool.Put(r)
 	}
-	r.pool.Put(r)
 }

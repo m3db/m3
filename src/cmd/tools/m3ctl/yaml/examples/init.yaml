@@ -1,5 +1,6 @@
 ---
 operation: init
+service: m3db
 request:
   num_shards: 64
   replication_factor: 1
