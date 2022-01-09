@@ -95,13 +95,8 @@ func (r *multiResult) Close() error {
 	r.Lock()
 	defer r.Unlock()
 
-	//for _, iters := range r.seenIters {
-	//	if iters != nil {
-	//		iters.Close()
-	//	}
-	//}
-
 	r.seenIters = nil
+
 	if r.mergedIterators != nil {
 		// NB(r): Since all the series iterators in the final result are held onto
 		// by the original iters in the seenIters slice we allow those iterators
@@ -122,7 +117,10 @@ func (r *multiResult) Close() error {
 func (r *multiResult) FinalResultWithAttrs() (
 	SeriesFetchResult, []storagemetadata.Attributes, error,
 ) {
-	result, err := r.FinalResult()
+	r.Lock()
+	defer r.Unlock()
+
+	result, dedupedList, err := r.finalResultWithLock()
 	if err != nil {
 		return result, nil, err
 	}
@@ -137,7 +135,7 @@ func (r *multiResult) FinalResultWithAttrs() (
 				attrs = append(attrs, r.seenFirstAttrs)
 			}
 		} else {
-			for _, res := range r.dedupeMap.list() {
+			for _, res := range dedupedList {
 				attrs = append(attrs, res.attrs)
 			}
 		}
@@ -150,17 +148,25 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 	r.Lock()
 	defer r.Unlock()
 
+	res, _, err := r.finalResultWithLock()
+
+	return res, err
+}
+
+func (r *multiResult) finalResultWithLock() (SeriesFetchResult, []multiResultSeries, error) {
 	err := r.err.LastError()
 	if err != nil {
-		return NewEmptyFetchResult(r.metadata), err
+		return NewEmptyFetchResult(r.metadata), nil, err
 	}
 
 	if r.mergedIterators != nil {
-		return NewSeriesFetchResult(r.mergedIterators, nil, r.metadata)
+		res, err := NewSeriesFetchResult(r.mergedIterators, nil, r.metadata)
+		return res, nil, err
 	}
 
 	if len(r.seenIters) == 0 {
-		return NewSeriesFetchResult(encoding.EmptySeriesIterators, nil, r.metadata)
+		res, err := NewSeriesFetchResult(encoding.EmptySeriesIterators, nil, r.metadata)
+		return res, nil, err
 	}
 
 	// otherwise have to create a new seriesiters
@@ -186,7 +192,9 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 		r.mergedTags[i] = &dedupedList[i].tags
 	}
 
-	return NewSeriesFetchResult(r.mergedIterators, r.mergedTags, r.metadata)
+	res, err := NewSeriesFetchResult(r.mergedIterators, r.mergedTags, r.metadata)
+
+	return res, dedupedList, err
 }
 
 func (r *multiResult) Results() []MultiFetchResults {

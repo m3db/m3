@@ -59,8 +59,7 @@ func NewPlacementAndNamespaceZipWriterWithDefaultSources(
 		}
 
 		for _, service := range services {
-			placementInfoSource, err := NewPlacementInfoSource(service,
-				placementsOpts, instrumentOpts)
+			placementInfoSource, err := NewPlacementInfoSource(service, placementsOpts)
 			if err != nil {
 				return nil, fmt.Errorf("unable to create placementInfoSource: %w", err)
 			}
