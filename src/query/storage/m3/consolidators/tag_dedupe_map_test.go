@@ -89,7 +89,7 @@ func it(
 		}, xtime.Second, nil).AnyTimes()
 	it.EXPECT().Next().Return(false)
 	it.EXPECT().Err().Return(nil).AnyTimes()
-	it.EXPECT().Close().MinTimes(1)
+	it.EXPECT().Close()
 
 	return it
 }
@@ -111,7 +111,7 @@ func notReadIt(
 	it.EXPECT().Tags().Return(tagIter).AnyTimes()
 
 	it.EXPECT().Err().Return(nil).AnyTimes()
-	it.EXPECT().Close().MinTimes(1)
+	it.EXPECT().Close()
 
 	return it
 }
