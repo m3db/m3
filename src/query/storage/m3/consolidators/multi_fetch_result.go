@@ -231,6 +231,7 @@ func (r *multiResult) Add(add MultiFetchResults) {
 
 	// the series limit was reached within this namespace.
 	if !metadata.Exhaustive && r.limitOpts.RequireExhaustive {
+		newIterators.Close()
 		r.err = r.err.Add(NewLimitError(fmt.Sprintf("series limit exceeded for namespace %s", nsID)))
 		return
 	}
@@ -241,6 +242,7 @@ func (r *multiResult) Add(add MultiFetchResults) {
 	} else if !r.metadata.Exhaustive {
 		// a previous namespace result already hit the limit, so bail. this handles the case of RequireExhaustive=false
 		// and there is no error to short circuit.
+		newIterators.Close()
 		return
 	}
 
@@ -285,6 +287,9 @@ func (r *multiResult) Add(add MultiFetchResults) {
 	if !added && r.err.Empty() {
 		r.metadata.Exhaustive = false
 		if r.limitOpts.RequireExhaustive {
+			for _, series := range r.dedupeMap.list() {
+				series.iter.Close()
+			}
 			r.err = r.err.Add(
 				NewLimitError(fmt.Sprintf("series limit exceeded adding namespace %s to results", nsID)))
 		}
@@ -317,7 +322,7 @@ func (r *multiResult) addOrUpdateDedupeMap(
 		}
 
 		if shouldFilter {
-			// NB: skip here, the closer will free the series iterator regardless.
+			iter.Close()
 			continue
 		}
 
