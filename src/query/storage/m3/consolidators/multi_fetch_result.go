@@ -95,11 +95,11 @@ func (r *multiResult) Close() error {
 	r.Lock()
 	defer r.Unlock()
 
-	for _, iters := range r.seenIters {
-		if iters != nil {
-			iters.Close()
-		}
-	}
+	//for _, iters := range r.seenIters {
+	//	if iters != nil {
+	//		iters.Close()
+	//	}
+	//}
 
 	r.seenIters = nil
 	if r.mergedIterators != nil {
