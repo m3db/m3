@@ -103,7 +103,7 @@ func (r *multiResult) Close() error {
 		// to free iterators held onto by final result, and reset the slice for
 		// the final result to zero so we avoid double returning the iterators
 		// themselves.
-		r.mergedIterators.Reset(0)
+		//r.mergedIterators.Reset(0)
 		r.mergedIterators.Close()
 		r.mergedIterators = nil
 	}

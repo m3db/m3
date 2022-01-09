@@ -70,6 +70,7 @@ func (m *tagDedupeMap) update(
 	}
 	existing, exists := m.mapWrapper.get(tags)
 	if !exists {
+		iter.Close()
 		return false, nil
 	}
 	return true, m.doUpdate(existing, tags, iter, attrs)

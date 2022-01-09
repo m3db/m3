@@ -71,6 +71,7 @@ func (m *idDedupeMap) update(
 	id := iter.ID().String()
 	existing, exists := m.series[id]
 	if !exists {
+		iter.Close()
 		return false, nil
 	}
 	tags, err := FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
