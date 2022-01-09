@@ -96,6 +96,7 @@ func (it *seriesIterator) FirstAnnotation() ts.Annotation {
 
 func (it *seriesIterator) Close() {
 	if it.isClosed() {
+		panic("double seriesIterator.Close")
 		return
 	}
 	it.closed = true
