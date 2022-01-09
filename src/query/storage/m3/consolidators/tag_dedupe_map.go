@@ -149,6 +149,7 @@ func (m *tagDedupeMap) doUpdate(
 
 	if existsBetter {
 		// Existing result is already better
+		iter.Close()
 		return nil
 	}
 

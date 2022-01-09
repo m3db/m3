@@ -136,10 +136,12 @@ func (m *idDedupeMap) doUpdate(
 	}
 	if existsBetter {
 		// Existing result is already better
+		iter.Close()
 		return nil
 	}
 
 	// Override
+	existing.iter.Close()
 	m.series[id] = multiResultSeries{
 		attrs: attrs,
 		iter:  iter,
