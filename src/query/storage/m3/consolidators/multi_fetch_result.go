@@ -98,12 +98,6 @@ func (r *multiResult) Close() error {
 	r.seenIters = nil
 
 	if r.mergedIterators != nil {
-		// NB(r): Since all the series iterators in the final result are held onto
-		// by the original iters in the seenIters slice we allow those iterators
-		// to free iterators held onto by final result, and reset the slice for
-		// the final result to zero so we avoid double returning the iterators
-		// themselves.
-		//r.mergedIterators.Reset(0)
 		r.mergedIterators.Close()
 		r.mergedIterators = nil
 	}
