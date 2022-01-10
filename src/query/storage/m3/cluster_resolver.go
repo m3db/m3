@@ -23,6 +23,7 @@ package m3
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -357,8 +358,7 @@ func aggregatedNamespaces(
 
 		var (
 			dataLatency        = nsOpts.DataLatency()
-			resolution         = nsOpts.Attributes().Resolution
-			dataAvailableUntil = now.Add(-dataLatency).Truncate(resolution)
+			dataAvailableUntil = now.Add(-dataLatency).Truncate(2 * time.Hour)
 		)
 		if dataLatency > 0 && end.After(dataAvailableUntil) {
 			resolvedNs.narrowing.end = dataAvailableUntil
