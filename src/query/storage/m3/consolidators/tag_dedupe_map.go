@@ -103,7 +103,7 @@ func (m *tagDedupeMap) doUpdate(
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
 ) error {
-	if stitched, ok, err := stitchIfNeeded(existing, tags, iter, attrs); err != nil {
+	if stitched, ok, err := stitchIfNeeded(existing, iter, attrs); err != nil {
 		return err
 	} else if ok {
 		m.mapWrapper.set(tags, stitched)
@@ -182,34 +182,20 @@ func combineIters(first, second encoding.SeriesIterator) (encoding.SeriesIterato
 
 func stitchIfNeeded(
 	existing multiResultSeries,
-	tags models.Tags,
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
 ) (multiResultSeries, bool, error) {
 	// Stitching based on matching start/end.
-	if iter.Start().Equal(existing.iter.End()) {
+	if iter.Start().Equal(existing.iter.End()) || iter.End().Equal(existing.iter.Start()) {
 		combinedIter, err := combineIters(existing.iter, iter)
 		if err != nil {
 			return multiResultSeries{}, false, err
 		}
 
 		return multiResultSeries{
-			attrs: existing.attrs,
+			attrs: existing.attrs.CombinedWith(attrs),
 			iter:  combinedIter,
 			tags:  existing.tags,
-		}, true, nil
-	}
-
-	if iter.End().Equal(existing.iter.Start()) {
-		combinedIter, err := combineIters(iter, existing.iter)
-		if err != nil {
-			return multiResultSeries{}, false, err
-		}
-
-		return multiResultSeries{
-			attrs: attrs,
-			iter:  combinedIter,
-			tags:  tags,
 		}, true, nil
 	}
 

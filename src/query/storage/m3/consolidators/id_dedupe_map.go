@@ -111,7 +111,7 @@ func (m *idDedupeMap) doUpdate(
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
 ) error {
-	if stitched, ok, err := stitchIfNeeded(existing, tags, iter, attrs); err != nil {
+	if stitched, ok, err := stitchIfNeeded(existing, iter, attrs); err != nil {
 		return err
 	} else if ok {
 		m.series[id] = stitched
