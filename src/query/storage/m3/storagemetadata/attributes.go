@@ -69,7 +69,7 @@ func (a Attributes) String() string {
 func (a Attributes) CombinedWith(other Attributes) Attributes {
 	metricType := a.MetricsType
 	if other.MetricsType == AggregatedMetricsType {
-		metricType = other.MetricsType
+		metricType = AggregatedMetricsType
 	}
 
 	maxResolution := a.Resolution
