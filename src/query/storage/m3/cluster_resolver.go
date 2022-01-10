@@ -357,7 +357,7 @@ func aggregatedNamespaces(
 
 		var (
 			dataLatency        = nsOpts.DataLatency()
-			dataAvailableUntil = now.Add(-dataLatency)
+			dataAvailableUntil = now.Add(-dataLatency).Truncate(nsOpts.Attributes().Resolution)
 		)
 		if dataLatency > 0 && end.After(dataAvailableUntil) {
 			resolvedNs.narrowing.end = dataAvailableUntil
