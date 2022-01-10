@@ -52,7 +52,6 @@ import (
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	xdebug "github.com/m3db/m3/src/x/debug"
-	extdebug "github.com/m3db/m3/src/x/debug/ext"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
@@ -366,11 +365,8 @@ func (h *Handler) RegisterRoutes() error {
 		config                = h.options.Config()
 	)
 
-	debugWriter, err := extdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
+	debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
 		h.options.CPUProfileDuration(),
-		clusterClient,
-		placementOpts,
-		nil,
 		instrumentOpts)
 	if err != nil {
 		return fmt.Errorf("unable to create debug writer: %v", err)
