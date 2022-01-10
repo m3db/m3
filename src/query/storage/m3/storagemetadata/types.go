@@ -64,3 +64,26 @@ func (a Attributes) String() string {
 		a.Retention.String(),
 		a.Resolution.String())
 }
+
+func (a Attributes) CombinedWith(other Attributes) Attributes {
+	metricType := a.MetricsType
+	if other.MetricsType == AggregatedMetricsType {
+		metricType = other.MetricsType
+	}
+
+	maxResolution := a.Resolution
+	if other.Resolution > maxResolution {
+		maxResolution = other.Resolution
+	}
+
+	maxRetention := a.Retention
+	if other.Retention > maxRetention {
+		maxRetention = other.Retention
+	}
+
+	return Attributes{
+		MetricsType: metricType,
+		Resolution:  maxResolution,
+		Retention:   maxRetention,
+	}
+}
