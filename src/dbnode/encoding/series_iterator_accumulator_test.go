@@ -58,7 +58,7 @@ func TestSeriesIteratorAccumulator(t *testing.T) {
 	values := []accumulatorInput{
 		{
 			values: []testValue{
-				{1.0, start.Add(-1 * time.Second), xtime.Second, []byte{5}},
+				{1.0, start.Add(-1 * time.Second), xtime.Second, []byte{4}},
 				{2.0, start.Add(1 * time.Second), xtime.Second, nil},
 			},
 			id: "foo0",
@@ -106,7 +106,7 @@ func TestSeriesIteratorAccumulator(t *testing.T) {
 		end:                     end,
 		input:                   values,
 		expected:                ex,
-		expectedFirstAnnotation: []byte{5},
+		expectedFirstAnnotation: []byte{4},
 	}
 
 	assertTestSeriesAccumulatorIterator(t, test)
