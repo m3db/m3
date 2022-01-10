@@ -710,7 +710,7 @@ func TestResolveNamespaceWithDataLatency(t *testing.T) {
 		actualNamespaces[c.NamespaceID().String()] = c.narrowing
 	}
 
-	stitchAt := now.Add(-dataLatency)
+	stitchAt := now.Add(-dataLatency).Truncate(10 * time.Minute)
 	expectedNamespaces := map[string]narrowing{
 		"default":        {start: stitchAt},
 		"aggregated_60d": {end: stitchAt},
