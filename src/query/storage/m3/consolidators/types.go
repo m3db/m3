@@ -73,7 +73,7 @@ func (t QueryFanoutType) String() string {
 	}
 }
 
-// MultiFetchResults is a deduping accumalator for series iterators
+// MultiFetchResults is a deduping accumulator for series iterators
 // that allows merging using a given strategy.
 type MultiFetchResults struct {
 	SeriesIterators encoding.SeriesIterators
@@ -82,7 +82,7 @@ type MultiFetchResults struct {
 	Err             error
 }
 
-// MultiFetchResult is a deduping accumalator for series iterators
+// MultiFetchResult is a deduping accumulator for series iterators
 // that allows merging using a given strategy.
 type MultiFetchResult interface {
 	// Add appends series fetch results to the accumulator.
@@ -130,7 +130,7 @@ type TagResult struct {
 	Tags []MultiTagResult
 }
 
-// MultiFetchTagsResult is a deduping accumalator for tag iterators.
+// MultiFetchTagsResult is a deduping accumulator for tag iterators.
 type MultiFetchTagsResult interface {
 	// Add adds tagged ID iterators to the accumulator.
 	Add(
