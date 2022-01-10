@@ -47,7 +47,7 @@ type multiResult struct {
 	fanout         QueryFanoutType
 	seenFirstAttrs storagemetadata.Attributes
 
-	seenIters       []encoding.SeriesIterators // track known iterators to avoid leaking
+	seenItersCount  int
 	mergedIterators encoding.MutableSeriesIterators
 	mergedTags      []*models.Tags
 	dedupeMap       fetchDedupeMap
@@ -95,7 +95,7 @@ func (r *multiResult) Close() error {
 	r.Lock()
 	defer r.Unlock()
 
-	r.seenIters = nil
+	r.seenItersCount = 0
 
 	if r.mergedIterators != nil {
 		r.mergedIterators.Close()
@@ -158,7 +158,7 @@ func (r *multiResult) finalResultWithLock() (SeriesFetchResult, []multiResultSer
 		return res, nil, err
 	}
 
-	if len(r.seenIters) == 0 {
+	if r.seenItersCount == 0 {
 		res, err := NewSeriesFetchResult(encoding.EmptySeriesIterators, nil, r.metadata)
 		return res, nil, err
 	}
@@ -230,7 +230,7 @@ func (r *multiResult) Add(add MultiFetchResults) {
 		return
 	}
 
-	if len(r.seenIters) == 0 {
+	if r.seenItersCount == 0 {
 		// store the first attributes seen
 		r.seenFirstAttrs = attrs
 	} else if !r.metadata.Exhaustive {
@@ -247,7 +247,8 @@ func (r *multiResult) Add(add MultiFetchResults) {
 	// then must be combined before first result is ever set.
 	r.metadata = r.metadata.CombineMetadata(metadata)
 
-	r.seenIters = append(r.seenIters, newIterators)
+	r.seenItersCount++
+
 	// Need to check the error to bail early after accumulating the iterators
 	// otherwise when we close the the multi fetch result
 	if !r.err.Empty() {
@@ -256,12 +257,11 @@ func (r *multiResult) Add(add MultiFetchResults) {
 	}
 
 	var added bool
-	if len(r.seenIters) == 1 {
+	if r.seenItersCount == 1 {
 		// need to backfill the dedupe map from the first result first
-		first := r.seenIters[0]
 		opts := dedupeMapOpts{
 			fanout:  r.fanout,
-			size:    first.Len(),
+			size:    newIterators.Len(),
 			tagOpts: r.tagOpts,
 		}
 
@@ -271,7 +271,7 @@ func (r *multiResult) Add(add MultiFetchResults) {
 			r.dedupeMap = newTagDedupeMap(opts)
 		}
 
-		added = r.addOrUpdateDedupeMap(r.seenFirstAttrs, first)
+		added = r.addOrUpdateDedupeMap(r.seenFirstAttrs, newIterators)
 	} else {
 		// Now de-duplicate
 		added = r.addOrUpdateDedupeMap(attrs, newIterators)
