@@ -77,7 +77,8 @@ func TestAttributes_CombinedWith(t *testing.T) {
 			given: Attributes{
 				MetricsType: AggregatedMetricsType,
 				Retention:   12 * time.Hour,
-				Resolution:  5 * time.Minute},
+				Resolution:  5 * time.Minute,
+			},
 			with: Attributes{
 				MetricsType: AggregatedMetricsType,
 				Retention:   3 * time.Hour,
