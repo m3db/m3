@@ -104,7 +104,7 @@ func (m *tagDedupeMap) doUpdate(
 	iter encoding.SeriesIterator,
 	attrs storagemetadata.Attributes,
 ) error {
-	if stitched, ok, err := stitchIfNeeded(existing, iter); err != nil {
+	if stitched, ok, err := stitchIfNeeded(existing, iter, attrs); err != nil {
 		return err
 	} else if ok {
 		m.mapWrapper.set(tags, stitched)
@@ -185,6 +185,7 @@ func combineIters(first, second encoding.SeriesIterator) (encoding.SeriesIterato
 func stitchIfNeeded(
 	existing multiResultSeries,
 	iter encoding.SeriesIterator,
+	attrs storagemetadata.Attributes,
 ) (multiResultSeries, bool, error) {
 	// Stitching based on matching start/end.
 	if iter.Start().Equal(existing.iter.End()) || iter.End().Equal(existing.iter.Start()) {
@@ -194,7 +195,7 @@ func stitchIfNeeded(
 		}
 
 		return multiResultSeries{
-			attrs: existing.attrs,
+			attrs: existing.attrs.CombinedWith(attrs),
 			iter:  combinedIter,
 			tags:  existing.tags,
 		}, true, nil
