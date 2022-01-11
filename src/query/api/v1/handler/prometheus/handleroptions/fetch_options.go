@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/storage"
@@ -332,6 +333,13 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	}
 
 	fetchOpts.RequireNoWait = requireNoWait
+
+	readConsistencyLevel, err := ParseLimit(req, headers.ReadConsistencyLevelHeader,
+		"readConsistencyLevel", int(topology.ReadConsistencyLevelNone))
+	if err != nil {
+		return nil, nil, err
+	}
+	fetchOpts.ReadConsistencyLevel = topology.ReadConsistencyLevel(readConsistencyLevel)
 
 	var (
 		metricsTypeHeaderFound          bool

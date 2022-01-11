@@ -28,6 +28,7 @@ import (
 
 	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -145,6 +146,8 @@ type FetchOptions struct {
 	Timeout time.Duration
 	// Source is the source for the query.
 	Source []byte
+	// ReadConsistencyLevel defines the read consistency for the fetch.
+	ReadConsistencyLevel topology.ReadConsistencyLevel
 
 	RelatedQueryOptions *RelatedQueryOptions
 }

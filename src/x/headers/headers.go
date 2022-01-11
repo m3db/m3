@@ -89,6 +89,9 @@ const (
 	// incoming write requests. See `MapTagsOptions` for structure.
 	MapTagsByJSONHeader = M3HeaderPrefix + "Map-Tags-JSON"
 
+	// ReadConsistencyLevelHeader defines the read consistency enforced for a query.
+	ReadConsistencyLevelHeader = M3HeaderPrefix + "Read-Consistency-Level"
+
 	// LimitMaxSeriesHeader is the M3 limit timeseries header that limits
 	// the number of time series returned by each storage node.
 	LimitMaxSeriesHeader = M3HeaderPrefix + "Limit-Max-Series"
