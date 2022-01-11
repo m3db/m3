@@ -71,7 +71,6 @@ func (m *idDedupeMap) update(
 	id := iter.ID().String()
 	existing, exists := m.series[id]
 	if !exists {
-		iter.Close()
 		return false, nil
 	}
 	tags, err := FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
@@ -135,14 +134,13 @@ func (m *idDedupeMap) doUpdate(
 	default:
 		return fmt.Errorf("unknown query fanout type: %d", m.fanout)
 	}
+
 	if existsBetter {
 		// Existing result is already better
-		iter.Close()
 		return nil
 	}
 
 	// Override
-	existing.iter.Close()
 	m.series[id] = multiResultSeries{
 		attrs: attrs,
 		iter:  iter,

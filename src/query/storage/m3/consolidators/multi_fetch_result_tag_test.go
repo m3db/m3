@@ -131,7 +131,6 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 			exErr:   nil,
 			exAttrs: []storagemetadata.Attributes{unaggHr},
 		},
-
 		{
 			name: "different tags, same ids",
 			entries: []insertEntry{
@@ -159,7 +158,6 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 			exErr:   nil,
 			exAttrs: []storagemetadata.Attributes{unaggHr, unaggHr},
 		},
-
 		{
 			name: "limit",
 			entries: []insertEntry{

@@ -20,6 +20,8 @@
 
 package encoding
 
+import "fmt"
+
 type seriesIterators struct {
 	iters  []SeriesIterator
 	closed bool
@@ -40,6 +42,7 @@ func (iters *seriesIterators) Iters() []SeriesIterator {
 
 func (iters *seriesIterators) Close() {
 	if iters.closed {
+		panic(fmt.Sprintf("double seriesIterators.Close (pooled: %t)", iters.pool != nil))
 		return
 	}
 	iters.closed = true

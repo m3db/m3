@@ -54,6 +54,7 @@ func NewMultiReaderIterator(
 	pool MultiReaderIteratorPool,
 ) MultiReaderIterator {
 	it := &multiReaderIterator{pool: pool, iteratorAlloc: iteratorAlloc}
+	it.iters.closeIters = true
 	it.Reset(nil, 0, 0, nil)
 	return it
 }

@@ -70,7 +70,6 @@ func (m *tagDedupeMap) update(
 	}
 	existing, exists := m.mapWrapper.get(tags)
 	if !exists {
-		iter.Close()
 		return false, nil
 	}
 	return true, m.doUpdate(existing, tags, iter, attrs)
@@ -150,12 +149,10 @@ func (m *tagDedupeMap) doUpdate(
 
 	if existsBetter {
 		// Existing result is already better
-		iter.Close()
 		return nil
 	}
 
 	// Override
-	existing.iter.Close()
 	m.mapWrapper.set(tags, multiResultSeries{
 		iter:  iter,
 		attrs: attrs,

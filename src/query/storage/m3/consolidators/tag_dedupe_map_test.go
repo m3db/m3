@@ -134,40 +134,42 @@ func TestTagDedupeMap(t *testing.T) {
 		Resolution:  time.Hour,
 	}
 
-	err := dedupeMap.add(it(ctrl, dp{t: start, val: 14},
+	var allIters []encoding.SeriesIterator
+
+	addIter := func(iter encoding.SeriesIterator, attrs storagemetadata.Attributes) {
+		err := dedupeMap.add(iter, attrs)
+		require.NoError(t, err)
+		allIters = append(allIters, iter)
+	}
+
+	addIter(it(ctrl, dp{t: start, val: 14},
 		"id1", "foo", "bar", "qux", "quail"), attrs)
-	require.NoError(t, err)
 
 	verifyDedupeMap(t, dedupeMap, ts.Datapoint{TimestampNanos: start, Value: 14})
 
-	// Lower resolution must override.
+	// Higher resolution must override.
 	attrs.Resolution = time.Minute
 
-	err = dedupeMap.add(it(ctrl, dp{t: start.Add(time.Minute), val: 10},
+	addIter(it(ctrl, dp{t: start.Add(time.Minute), val: 10},
 		"id1", "foo", "bar", "qux", "quail"), attrs)
-	require.NoError(t, err)
 
-	err = dedupeMap.add(it(ctrl, dp{t: start.Add(time.Minute * 2), val: 12},
+	addIter(it(ctrl, dp{t: start.Add(time.Minute * 2), val: 12},
 		"id2", "foo", "bar", "qux", "quail"), attrs)
-	require.NoError(t, err)
 
 	verifyDedupeMap(t, dedupeMap,
 		ts.Datapoint{TimestampNanos: start.Add(time.Minute), Value: 10},
 		ts.Datapoint{TimestampNanos: start.Add(time.Minute * 2), Value: 12})
 
-	// Lower resolution must override.
+	// Higher resolution must override.
 	attrs.Resolution = time.Second
 
-	err = dedupeMap.add(it(ctrl, dp{t: start, val: 100},
+	addIter(it(ctrl, dp{t: start, val: 100},
 		"id1", "foo", "bar", "qux", "quail"), attrs)
-	require.NoError(t, err)
 
 	verifyDedupeMap(t, dedupeMap, ts.Datapoint{TimestampNanos: start, Value: 100})
 
-	for _, it := range dedupeMap.list() {
-		iter := it.iter
-		require.NoError(t, iter.Err())
-		iter.Close()
+	for _, iter := range allIters {
+		checkAndClose(t, iter)
 	}
 }
 
@@ -197,52 +199,52 @@ func TestTagDedupeMapWithStitching(t *testing.T) {
 			Resolution:  5 * time.Minute,
 			Retention:   24 * time.Hour,
 		}
+
+		allIters []encoding.SeriesIterator
+
+		addIter = func(iter encoding.SeriesIterator, attrs storagemetadata.Attributes) {
+			err := dedupeMap.add(iter, attrs)
+			require.NoError(t, err)
+			allIters = append(allIters, iter)
+		}
 	)
 
-	err := dedupeMap.add(
+	addIter(
 		rangeIt(ctrl, dp{t: start, val: 14}, "id1", start, stitchAt,
 			"foo", "bar", "qux", "quail"), aggAttrs)
-	require.NoError(t, err)
 	assert.Equal(t, dedupeMap.len(), 1)
 
-	err = dedupeMap.add(
+	addIter(
 		rangeIt(ctrl, dp{t: start.Add(time.Minute), val: 10}, "id1", stitchAt, end,
 			"foo", "bar", "qux", "quail"), unaggAttrs)
-	require.NoError(t, err)
 	assert.Equal(t, dedupeMap.len(), 1)
 
 	verifyDedupeMap(t, dedupeMap,
 		ts.Datapoint{TimestampNanos: start, Value: 14},
 		ts.Datapoint{TimestampNanos: start.Add(time.Minute), Value: 10})
 
-	err = dedupeMap.add(
+	addIter(
 		rangeIt(ctrl, dp{t: start.Add(time.Minute * 2), val: 12}, "id2", stitchAt, end, "tag", "2"), unaggAttrs)
-	require.NoError(t, err)
 	assert.Equal(t, dedupeMap.len(), 2)
 
-	err = dedupeMap.add(
+	addIter(
 		rangeIt(ctrl, dp{t: start, val: 100}, "id2", start, stitchAt, "tag", "2"), aggAttrs)
-	require.NoError(t, err)
 	assert.Equal(t, dedupeMap.len(), 2)
 
-	err = dedupeMap.add(
+	addIter(
 		rangeIt(ctrl, dp{t: start.Add(time.Minute * 2), val: 12}, "id3", start, stitchAt, "tag", "3"), aggAttrs)
-	require.NoError(t, err)
 	assert.Equal(t, dedupeMap.len(), 3)
 
-	err = dedupeMap.add(
+	addIter(
 		rangeIt(ctrl, dp{t: start.Add(time.Minute * 2), val: 12}, "id4", stitchAt, end, "tag", "4"), aggAttrs)
-	require.NoError(t, err)
 	assert.Equal(t, dedupeMap.len(), 4)
 
-	err = dedupeMap.add(
+	addIter(
 		rangeIt(ctrl, dp{t: start.Add(time.Minute * 2), val: 5}, "id5", start, end, "tag", "5"), aggAttrs)
-	require.NoError(t, err)
 	assert.Equal(t, dedupeMap.len(), 5)
 
-	err = dedupeMap.add(
+	addIter(
 		rangeIt(ctrl, dp{t: start.Add(time.Minute * 3), val: 6}, "id5", start, end, "tag", "5"), aggAttrs)
-	require.NoError(t, err)
 	assert.Equal(t, dedupeMap.len(), 5)
 
 	actual := map[string]startEnd{}
@@ -253,9 +255,11 @@ func TestTagDedupeMapWithStitching(t *testing.T) {
 			start: iter.Start(),
 			end:   iter.End(),
 		}
-		require.NoError(t, iter.Err())
-		iter.Close()
 		assert.Equal(t, aggAttrs, series.attrs, id)
+	}
+
+	for _, iter := range allIters {
+		checkAndClose(t, iter)
 	}
 
 	expected := map[string]startEnd{
@@ -266,4 +270,9 @@ func TestTagDedupeMapWithStitching(t *testing.T) {
 		"id5": {start, end},
 	}
 	assert.Equal(t, expected, actual)
+}
+
+func checkAndClose(t *testing.T, iter encoding.SeriesIterator) {
+	require.NoError(t, iter.Err())
+	iter.Close()
 }

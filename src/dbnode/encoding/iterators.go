@@ -48,6 +48,8 @@ type iterators struct {
 
 	// Used for caching reuse of value frequency lookup
 	valueFrequencies map[float64]int
+
+	closeIters bool
 }
 
 func (i *iterators) len() int {
@@ -177,7 +179,9 @@ func (i *iterators) moveToValidNext() (bool, error) {
 		}
 
 		// No next so swap tail in and shrink by one
-		iter.Close()
+		if i.closeIters {
+			iter.Close()
+		}
 		idx := -1
 		for i, curr := range i.values {
 			if curr == iter {
@@ -236,7 +240,9 @@ func (i *iterators) firstAnnotation() ts.Annotation {
 
 func (i *iterators) reset() {
 	for idx := range i.values {
-		i.values[idx].Close()
+		if i.closeIters {
+			i.values[idx].Close()
+		}
 		i.values[idx] = nil
 	}
 	i.values = i.values[:0]

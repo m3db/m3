@@ -47,7 +47,7 @@ type multiResult struct {
 	fanout         QueryFanoutType
 	seenFirstAttrs storagemetadata.Attributes
 
-	seenItersCount  int
+	seenIters       []encoding.SeriesIterators // track known iterators to avoid leaking
 	mergedIterators encoding.MutableSeriesIterators
 	mergedTags      []*models.Tags
 	dedupeMap       fetchDedupeMap
@@ -95,10 +95,14 @@ func (r *multiResult) Close() error {
 	r.Lock()
 	defer r.Unlock()
 
-	r.seenItersCount = 0
+	for _, iters := range r.seenIters {
+		if iters != nil {
+			iters.Close()
+		}
+	}
+	r.seenIters = nil
 
 	if r.mergedIterators != nil {
-		r.mergedIterators.Close()
 		r.mergedIterators = nil
 	}
 
@@ -158,7 +162,7 @@ func (r *multiResult) finalResultWithLock() (SeriesFetchResult, []multiResultSer
 		return res, nil, err
 	}
 
-	if r.seenItersCount == 0 {
+	if len(r.seenIters) == 0 {
 		res, err := NewSeriesFetchResult(encoding.EmptySeriesIterators, nil, r.metadata)
 		return res, nil, err
 	}
@@ -223,20 +227,20 @@ func (r *multiResult) Add(add MultiFetchResults) {
 		nsID = newIterators.Iters()[0].Namespace().String() // sometimes the namespace ID is empty
 	}
 
+	r.seenIters = append(r.seenIters, newIterators)
+
 	// the series limit was reached within this namespace.
 	if !metadata.Exhaustive && r.limitOpts.RequireExhaustive {
-		newIterators.Close()
 		r.err = r.err.Add(NewLimitError(fmt.Sprintf("series limit exceeded for namespace %s", nsID)))
 		return
 	}
 
-	if r.seenItersCount == 0 {
+	if len(r.seenIters) == 1 {
 		// store the first attributes seen
 		r.seenFirstAttrs = attrs
 	} else if !r.metadata.Exhaustive {
 		// a previous namespace result already hit the limit, so bail. this handles the case of RequireExhaustive=false
 		// and there is no error to short circuit.
-		newIterators.Close()
 		return
 	}
 
@@ -247,8 +251,6 @@ func (r *multiResult) Add(add MultiFetchResults) {
 	// then must be combined before first result is ever set.
 	r.metadata = r.metadata.CombineMetadata(metadata)
 
-	r.seenItersCount++
-
 	// Need to check the error to bail early after accumulating the iterators
 	// otherwise when we close the the multi fetch result
 	if !r.err.Empty() {
@@ -257,7 +259,7 @@ func (r *multiResult) Add(add MultiFetchResults) {
 	}
 
 	var added bool
-	if r.seenItersCount == 1 {
+	if len(r.seenIters) == 1 {
 		// need to backfill the dedupe map from the first result first
 		opts := dedupeMapOpts{
 			fanout:  r.fanout,
@@ -281,9 +283,6 @@ func (r *multiResult) Add(add MultiFetchResults) {
 	if !added && r.err.Empty() {
 		r.metadata.Exhaustive = false
 		if r.limitOpts.RequireExhaustive {
-			for _, series := range r.dedupeMap.list() {
-				series.iter.Close()
-			}
 			r.err = r.err.Add(
 				NewLimitError(fmt.Sprintf("series limit exceeded adding namespace %s to results", nsID)))
 		}
@@ -316,7 +315,7 @@ func (r *multiResult) addOrUpdateDedupeMap(
 		}
 
 		if shouldFilter {
-			iter.Close()
+			// NB: skip here, the closer will free the series iterator regardless.
 			continue
 		}
 
