@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
@@ -90,6 +91,9 @@ type QueryOptions struct {
 	IterationOptions IterationOptions
 	// Source is an optional query source.
 	Source []byte
+	// ReadConsistencyLevel defines the read consistency at the query level.
+	// Overrides the level defined by the database.
+	ReadConsistencyLevel topology.ReadConsistencyLevel
 }
 
 // IterationOptions enables users to specify iteration preferences.
