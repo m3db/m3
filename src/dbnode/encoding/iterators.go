@@ -49,6 +49,7 @@ type iterators struct {
 	// Used for caching reuse of value frequency lookup
 	valueFrequencies map[float64]int
 
+	// closeIters controls whether the iterators is responsible for closing the underlying iters.
 	closeIters bool
 }
 
