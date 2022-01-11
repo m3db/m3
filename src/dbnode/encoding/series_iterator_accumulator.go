@@ -32,15 +32,18 @@ import (
 var _ SeriesIteratorAccumulator = (*seriesIteratorAccumulator)(nil)
 
 type seriesIteratorAccumulator struct {
-	id              ident.ID
-	nsID            ident.ID
-	start           xtime.UnixNano
-	end             xtime.UnixNano
-	iters           iterators
-	seriesIterators []SeriesIterator
-	err             error
-	firstNext       bool
-	closed          bool
+	id    ident.ID
+	nsID  ident.ID
+	start xtime.UnixNano
+	end   xtime.UnixNano
+
+	iters                 iterators
+	seriesIterators       []SeriesIterator
+	firstAnnotationHolder annotationHolder
+
+	err       error
+	firstNext bool
+	closed    bool
 }
 
 // NewSeriesIteratorAccumulator creates a new series iterator.
@@ -73,14 +76,25 @@ func (it *seriesIteratorAccumulator) Add(iter SeriesIterator) error {
 		return it.err
 	}
 
-	if !iter.Next() || !it.iters.push(iter) {
+	if !iter.Next() {
+		err := iter.Err()
 		iter.Close()
-		return iter.Err()
+		return err
+	}
+
+	firstAnnotation := iter.FirstAnnotation()
+	if !it.iters.push(iter) {
+		err := iter.Err()
+		iter.Close()
+		return err
 	}
 
 	iterStart := iter.Start()
 	if start := it.start; start.IsZero() || iterStart.Before(start) {
 		it.start = iterStart
+		if len(firstAnnotation) > 0 {
+			it.firstAnnotationHolder.set(firstAnnotation)
+		}
 	}
 
 	iterEnd := iter.End()
@@ -153,7 +167,7 @@ func (it *seriesIteratorAccumulator) Err() error {
 }
 
 func (it *seriesIteratorAccumulator) FirstAnnotation() ts.Annotation {
-	return it.iters.firstAnnotation()
+	return it.firstAnnotationHolder.get()
 }
 
 func (it *seriesIteratorAccumulator) Close() {
@@ -170,6 +184,7 @@ func (it *seriesIteratorAccumulator) Close() {
 		it.nsID = nil
 	}
 	it.iters.reset()
+	it.firstAnnotationHolder.reset()
 	it.firstNext = true
 }
 

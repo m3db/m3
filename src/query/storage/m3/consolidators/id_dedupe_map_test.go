@@ -64,6 +64,7 @@ func idIt(
 	it.EXPECT().Namespace().Return(ident.StringID("ns")).AnyTimes()
 	it.EXPECT().Start().Return(dp.t).AnyTimes()
 	it.EXPECT().End().Return(dp.t.Add(time.Hour)).AnyTimes()
+	it.EXPECT().FirstAnnotation().Return(nil).AnyTimes()
 
 	tagIter := ident.MustNewTagStringsIterator(tags...)
 	it.EXPECT().Tags().Return(tagIter).AnyTimes()
@@ -92,6 +93,7 @@ func rangeIt(
 	it.EXPECT().Namespace().Return(ident.StringID("ns")).AnyTimes()
 	it.EXPECT().Start().Return(start).AnyTimes()
 	it.EXPECT().End().Return(end).AnyTimes()
+	it.EXPECT().FirstAnnotation().Return(nil).AnyTimes()
 	it.EXPECT().Next().Return(true).MaxTimes(1)
 
 	tagIter := ident.MustNewTagStringsIterator(tags...)
@@ -196,62 +198,72 @@ func TestIDDedupeMapWithStitching(t *testing.T) {
 		stitchAt = start.Add(12 * time.Hour)
 		end      = start.Add(20 * time.Hour)
 
-		attrs = storagemetadata.Attributes{
+		unaggAttrs = storagemetadata.Attributes{
 			MetricsType: storagemetadata.UnaggregatedMetricsType,
-			Resolution:  time.Hour,
+			Resolution:  time.Minute,
+			Retention:   12 * time.Hour,
+		}
+
+		aggAttrs = storagemetadata.Attributes{
+			MetricsType: storagemetadata.AggregatedMetricsType,
+			Resolution:  5 * time.Minute,
+			Retention:   24 * time.Hour,
 		}
 	)
 
 	err := dedupeMap.add(
-		rangeIt(ctrl, dp{t: start, val: 14}, "id1", start, stitchAt), attrs)
+		rangeIt(ctrl, dp{t: start, val: 14}, "id1", start, stitchAt), unaggAttrs)
 	require.NoError(t, err)
 	assert.Equal(t, dedupeMap.len(), 1)
 
 	err = dedupeMap.add(
-		rangeIt(ctrl, dp{t: start.Add(time.Minute), val: 10}, "id1", stitchAt, end), attrs)
+		rangeIt(ctrl, dp{t: start.Add(time.Minute), val: 10}, "id1", stitchAt, end), aggAttrs)
 	require.NoError(t, err)
 	assert.Equal(t, dedupeMap.len(), 1)
 
 	err = dedupeMap.add(
-		rangeIt(ctrl, dp{t: start.Add(time.Minute * 2), val: 12}, "id2", stitchAt, end), attrs)
+		rangeIt(ctrl, dp{t: start.Add(time.Minute * 2), val: 12}, "id2", stitchAt, end), aggAttrs)
 	require.NoError(t, err)
 	assert.Equal(t, dedupeMap.len(), 2)
 
 	err = dedupeMap.add(
-		rangeIt(ctrl, dp{t: start, val: 100}, "id2", start, stitchAt), attrs)
+		rangeIt(ctrl, dp{t: start, val: 100}, "id2", start, stitchAt), unaggAttrs)
 	require.NoError(t, err)
 	assert.Equal(t, dedupeMap.len(), 2)
 
 	err = dedupeMap.add(
-		rangeIt(ctrl, dp{t: start.Add(time.Minute * 2), val: 12}, "id3", start, stitchAt), attrs)
+		rangeIt(ctrl, dp{t: start.Add(time.Minute * 2), val: 12}, "id3", start, stitchAt), aggAttrs)
 	require.NoError(t, err)
 	assert.Equal(t, dedupeMap.len(), 3)
 
 	err = dedupeMap.add(
-		rangeIt(ctrl, dp{t: start.Add(time.Minute * 2), val: 12}, "id4", stitchAt, end), attrs)
+		rangeIt(ctrl, dp{t: start.Add(time.Minute * 2), val: 12}, "id4", stitchAt, end), aggAttrs)
 	require.NoError(t, err)
 	assert.Equal(t, dedupeMap.len(), 4)
 
 	err = dedupeMap.add(
-		rangeIt(ctrl, dp{t: start.Add(time.Minute * 2), val: 5}, "id5", start, end), attrs)
+		rangeIt(ctrl, dp{t: start.Add(time.Minute * 2), val: 5}, "id5", start, end), aggAttrs)
 	require.NoError(t, err)
 	assert.Equal(t, dedupeMap.len(), 5)
 
 	err = dedupeMap.add(
-		rangeIt(ctrl, dp{t: start.Add(time.Minute * 3), val: 6}, "id5", start, end), attrs)
+		rangeIt(ctrl, dp{t: start.Add(time.Minute * 3), val: 6}, "id5", start, end), aggAttrs)
 	require.NoError(t, err)
 	assert.Equal(t, dedupeMap.len(), 5)
 
 	actual := map[string]startEnd{}
-	for _, it := range dedupeMap.list() {
-		iter := it.iter
-		actual[iter.ID().String()] = startEnd{
+	for _, series := range dedupeMap.list() {
+		iter := series.iter
+		id := iter.ID().String()
+		actual[id] = startEnd{
 			start: iter.Start(),
 			end:   iter.End(),
 		}
 		require.NoError(t, iter.Err())
 		iter.Close()
+		assert.Equal(t, aggAttrs, series.attrs, id)
 	}
+
 	expected := map[string]startEnd{
 		"id1": {start, end},
 		"id2": {start, end},
