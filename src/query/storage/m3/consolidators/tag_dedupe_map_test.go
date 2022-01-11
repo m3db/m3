@@ -77,6 +77,7 @@ func it(
 	it.EXPECT().Namespace().Return(ident.StringID("ns")).AnyTimes()
 	it.EXPECT().Start().Return(dp.t).AnyTimes()
 	it.EXPECT().End().Return(dp.t.Add(time.Hour)).AnyTimes()
+	it.EXPECT().FirstAnnotation().Return(nil).AnyTimes()
 
 	tagIter := ident.MustNewTagStringsIterator(tags...)
 	it.EXPECT().Tags().Return(tagIter).AnyTimes()
@@ -106,6 +107,7 @@ func notReadIt(
 	it.EXPECT().Namespace().Return(ident.StringID("ns")).AnyTimes()
 	it.EXPECT().Start().Return(dp.t).AnyTimes()
 	it.EXPECT().End().Return(dp.t.Add(time.Hour)).AnyTimes()
+	it.EXPECT().FirstAnnotation().Return(nil).AnyTimes()
 
 	tagIter := ident.MustNewTagStringsIterator(tags...)
 	it.EXPECT().Tags().Return(tagIter).AnyTimes()
