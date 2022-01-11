@@ -668,7 +668,7 @@ func Run(runOpts RunOptions) RunResult {
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
 		tagOptions, engine, engineCache.Get, m3dbClusters, clusterClient, cfg,
 		runOpts.DBConfig, fetchOptsBuilder, graphiteFindFetchOptsBuilder, graphiteRenderFetchOptsBuilder,
-		queryCtxOpts, instrumentOptions, cpuProfileDuration, []string{handleroptions3.M3DBServiceName},
+		queryCtxOpts, instrumentOptions, cpuProfileDuration,
 		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter(),
 		graphiteStorageOpts, tsdbOpts, httpd.NewGraphiteRenderRouter(), httpd.NewGraphiteFindRouter(), lookbackDuration)
 	if err != nil {

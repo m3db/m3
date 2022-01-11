@@ -58,7 +58,7 @@ func TestSeriesIteratorAccumulator(t *testing.T) {
 	values := []accumulatorInput{
 		{
 			values: []testValue{
-				{1.0, start.Add(-1 * time.Second), xtime.Second, nil},
+				{1.0, start.Add(-1 * time.Second), xtime.Second, []byte{4}},
 				{2.0, start.Add(1 * time.Second), xtime.Second, nil},
 			},
 			id: "foo0",
@@ -106,7 +106,7 @@ func TestSeriesIteratorAccumulator(t *testing.T) {
 		end:                     end,
 		input:                   values,
 		expected:                ex,
-		expectedFirstAnnotation: []byte{5},
+		expectedFirstAnnotation: []byte{4},
 	}
 
 	assertTestSeriesAccumulatorIterator(t, test)
@@ -262,6 +262,7 @@ func TestAccumulatorMocked(t *testing.T) {
 	base := NewMockSeriesIterator(ctrl)
 	base.EXPECT().ID().Return(ident.StringID("base")).AnyTimes()
 	base.EXPECT().Namespace().Return(ident.StringID("ns")).AnyTimes()
+	base.EXPECT().FirstAnnotation().Return(annotation)
 	base.EXPECT().Next().Return(true)
 	dp := ts.Datapoint{TimestampNanos: start, Value: 88}
 	base.EXPECT().Current().Return(dp, xtime.Second, annotation).AnyTimes()
