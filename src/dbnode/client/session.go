@@ -136,11 +136,11 @@ type sessionState struct {
 	majority       int
 }
 
-func (s *sessionState) readConsistencyLevelWithRLock(override topology.ReadConsistencyLevel) topology.ReadConsistencyLevel {
-	if override == topology.ReadConsistencyLevelNone {
+func (s *sessionState) readConsistencyLevelWithRLock(override *topology.ReadConsistencyLevel) topology.ReadConsistencyLevel {
+	if override == nil {
 		return s.readLevel
 	}
-	return override
+	return *override
 }
 
 type session struct {
@@ -1645,8 +1645,14 @@ func (s *session) fetchTaggedAttempt(
 	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
+
+	iterOpts := s.opts.IterationOptions()
+	if opts.IterateEqualTimestampStrategy != nil {
+		iterOpts.IterateEqualTimestampStrategy = *opts.IterateEqualTimestampStrategy
+	}
+
 	iters, metadata, err := fetchState.asEncodingSeriesIterators(
-		s.pools, nsCtx.Schema, s.opts.IterationOptions(), opts.SeriesLimit)
+		s.pools, nsCtx.Schema, iterOpts, opts.SeriesLimit)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
@@ -1724,7 +1730,7 @@ type newFetchStateOpts struct {
 	stateType            fetchStateType
 	startInclusive       xtime.UnixNano
 	endExclusive         xtime.UnixNano
-	readConsistencyLevel topology.ReadConsistencyLevel
+	readConsistencyLevel *topology.ReadConsistencyLevel
 
 	// only valid if stateType == fetchTaggedFetchState
 	fetchTaggedRequest rpc.FetchTaggedRequest

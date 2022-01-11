@@ -82,15 +82,16 @@ func FetchOptionsToM3Options(
 	}
 
 	return index.QueryOptions{
-		SeriesLimit:          fetchOptions.SeriesLimit,
-		InstanceMultiple:     fetchOptions.InstanceMultiple,
-		DocsLimit:            fetchOptions.DocsLimit,
-		RequireExhaustive:    fetchOptions.RequireExhaustive,
-		RequireNoWait:        fetchOptions.RequireNoWait,
-		Source:               fetchOptions.Source,
-		ReadConsistencyLevel: fetchOptions.ReadConsistencyLevel,
-		StartInclusive:       xtime.ToUnixNano(start),
-		EndExclusive:         xtime.ToUnixNano(end),
+		SeriesLimit:                   fetchOptions.SeriesLimit,
+		InstanceMultiple:              fetchOptions.InstanceMultiple,
+		DocsLimit:                     fetchOptions.DocsLimit,
+		RequireExhaustive:             fetchOptions.RequireExhaustive,
+		RequireNoWait:                 fetchOptions.RequireNoWait,
+		ReadConsistencyLevel:          fetchOptions.ReadConsistencyLevel,
+		IterateEqualTimestampStrategy: fetchOptions.IterateEqualTimestampStrategy,
+		Source:                        fetchOptions.Source,
+		StartInclusive:                xtime.ToUnixNano(start),
+		EndExclusive:                  xtime.ToUnixNano(end),
 	}, nil
 }
 

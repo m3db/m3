@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/errors"
@@ -116,28 +117,40 @@ func NewFetchOptionsBuilder(
 }
 
 // ParseLimit parses request limit from either header or query string.
-func ParseLimit(req *http.Request, header, formValue string, defaultLimit int) (int, error) {
+func ParseValue(req *http.Request, header, formValue string, defaultValue int) (int, error) {
+	v, ok, err := TryParseValue(req, header, formValue)
+	if err != nil {
+		return 0, err
+	}
+	if ok {
+		return v, nil
+	}
+	return defaultValue, nil
+}
+
+// TryParseValue parses request limit from either header or query string.
+func TryParseValue(req *http.Request, header, formValue string) (int, bool, error) {
 	if str := req.Header.Get(header); str != "" {
 		n, err := strconv.Atoi(str)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse limit: input=%s, err=%v", str, err)
-			return 0, err
+				"could not parse value: input=%s, err=%v", str, err)
+			return 0, false, err
 		}
-		return n, nil
+		return n, true, nil
 	}
 
 	if str := req.FormValue(formValue); str != "" {
 		n, err := strconv.Atoi(str)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse limit: input=%s, err=%v", str, err)
-			return 0, err
+				"could not parse value: input=%s, err=%v", str, err)
+			return 0, false, err
 		}
-		return n, nil
+		return n, true, nil
 	}
 
-	return defaultLimit, nil
+	return 0, false, nil
 }
 
 // ParseDurationLimit parses request limit from either header or query string.
@@ -259,7 +272,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 		fetchOpts.Source = []byte(source)
 	}
 
-	seriesLimit, err := ParseLimit(req, headers.LimitMaxSeriesHeader,
+	seriesLimit, err := ParseValue(req, headers.LimitMaxSeriesHeader,
 		"limit", b.opts.Limits.SeriesLimit)
 	if err != nil {
 		return nil, nil, err
@@ -272,7 +285,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 	}
 	fetchOpts.InstanceMultiple = instanceMultiple
 
-	docsLimit, err := ParseLimit(req, headers.LimitMaxDocsHeader,
+	docsLimit, err := ParseValue(req, headers.LimitMaxDocsHeader,
 		"docsLimit", b.opts.Limits.DocsLimit)
 	if err != nil {
 		return nil, nil, err
@@ -288,7 +301,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 
 	fetchOpts.RangeLimit = rangeLimit
 
-	returnedSeriesLimit, err := ParseLimit(req, headers.LimitMaxReturnedSeriesHeader,
+	returnedSeriesLimit, err := ParseValue(req, headers.LimitMaxReturnedSeriesHeader,
 		"returnedSeriesLimit", b.opts.Limits.ReturnedSeriesLimit)
 	if err != nil {
 		return nil, nil, err
@@ -296,7 +309,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 
 	fetchOpts.ReturnedSeriesLimit = returnedSeriesLimit
 
-	returnedDatapointsLimit, err := ParseLimit(req, headers.LimitMaxReturnedDatapointsHeader,
+	returnedDatapointsLimit, err := ParseValue(req, headers.LimitMaxReturnedDatapointsHeader,
 		"returnedDatapointsLimit", b.opts.Limits.ReturnedDatapointsLimit)
 	if err != nil {
 		return nil, nil, err
@@ -304,7 +317,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 
 	fetchOpts.ReturnedDatapointsLimit = returnedDatapointsLimit
 
-	returnedSeriesMetadataLimit, err := ParseLimit(req, headers.LimitMaxReturnedSeriesMetadataHeader,
+	returnedSeriesMetadataLimit, err := ParseValue(req, headers.LimitMaxReturnedSeriesMetadataHeader,
 		"returnedSeriesMetadataLimit", b.opts.Limits.ReturnedSeriesMetadataLimit)
 	if err != nil {
 		return nil, nil, err
@@ -312,7 +325,7 @@ func (b fetchOptionsBuilder) newFetchOptions(
 
 	fetchOpts.ReturnedSeriesMetadataLimit = returnedSeriesMetadataLimit
 
-	returnedMaxMetricMetadataStats, err := ParseLimit(req, headers.LimitMaxMetricMetadataStatsHeader,
+	returnedMaxMetricMetadataStats, err := ParseValue(req, headers.LimitMaxMetricMetadataStatsHeader,
 		"returnedMaxMetricMetadataStats", b.opts.Limits.MaxMetricMetadataStats)
 	if err != nil {
 		return nil, nil, err
@@ -334,12 +347,25 @@ func (b fetchOptionsBuilder) newFetchOptions(
 
 	fetchOpts.RequireNoWait = requireNoWait
 
-	readConsistencyLevel, err := ParseLimit(req, headers.ReadConsistencyLevelHeader,
-		"readConsistencyLevel", int(topology.ReadConsistencyLevelNone))
+	v, ok, err := TryParseValue(req, headers.ReadConsistencyLevelHeader,
+		"readConsistencyLevel")
 	if err != nil {
 		return nil, nil, err
 	}
-	fetchOpts.ReadConsistencyLevel = topology.ReadConsistencyLevel(readConsistencyLevel)
+	if ok {
+		l := topology.ReadConsistencyLevel(v)
+		fetchOpts.ReadConsistencyLevel = &l
+	}
+
+	v, ok, err = TryParseValue(req, headers.IterateEqualTimestampStrategyHeader,
+		"iterateEqualTimestampStrategyHeader")
+	if err != nil {
+		return nil, nil, err
+	}
+	if ok {
+		l := encoding.IterateEqualTimestampStrategy(v)
+		fetchOpts.IterateEqualTimestampStrategy = &l
+	}
 
 	var (
 		metricsTypeHeaderFound          bool

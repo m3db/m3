@@ -87,13 +87,13 @@ type QueryOptions struct {
 	RequireExhaustive bool
 	// RequireNoWait requires queries to abort if execution must wait for permits.
 	RequireNoWait bool
-	// IterationOptions controls additional iteration methods.
-	IterationOptions IterationOptions
-	// Source is an optional query source.
-	Source []byte
 	// ReadConsistencyLevel defines the read consistency at the query level.
 	// Overrides the level defined by the database.
-	ReadConsistencyLevel topology.ReadConsistencyLevel
+	ReadConsistencyLevel *topology.ReadConsistencyLevel
+	// IterateEqualTimestampStrategy provides the conflict resolution strategy for the same timestamp.
+	IterateEqualTimestampStrategy *encoding.IterateEqualTimestampStrategy
+	// Source is an optional query source.
+	Source []byte
 }
 
 // IterationOptions enables users to specify iteration preferences.
