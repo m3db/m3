@@ -196,11 +196,6 @@ type HandlerOptions interface {
 	// SetCPUProfileDuration sets the cpu profile duration.
 	SetCPUProfileDuration(c time.Duration) HandlerOptions
 
-	// PlacementServiceNames returns the placement service names.
-	PlacementServiceNames() []string
-	// SetPlacementServiceNames sets the placement service names.
-	SetPlacementServiceNames(n []string) HandlerOptions
-
 	// ServiceOptionDefaults returns the service option defaults.
 	ServiceOptionDefaults() []placementhandleroptions.ServiceOptionsDefault
 	// SetServiceOptionDefaults sets the service option defaults.
@@ -306,7 +301,6 @@ type handlerOptions struct {
 	queryContextOptions               models.QueryContextOptions
 	instrumentOpts                    instrument.Options
 	cpuProfileDuration                time.Duration
-	placementServiceNames             []string
 	serviceOptionDefaults             []placementhandleroptions.ServiceOptionsDefault
 	nowFn                             clock.NowFn
 	queryRouter                       QueryRouter
@@ -349,7 +343,6 @@ func NewHandlerOptions(
 	queryContextOptions models.QueryContextOptions,
 	instrumentOpts instrument.Options,
 	cpuProfileDuration time.Duration,
-	placementServiceNames []string,
 	serviceOptionDefaults []placementhandleroptions.ServiceOptionsDefault,
 	queryRouter QueryRouter,
 	instantQueryRouter QueryRouter,
@@ -381,7 +374,6 @@ func NewHandlerOptions(
 		queryContextOptions:               queryContextOptions,
 		instrumentOpts:                    instrumentOpts,
 		cpuProfileDuration:                cpuProfileDuration,
-		placementServiceNames:             placementServiceNames,
 		serviceOptionDefaults:             serviceOptionDefaults,
 		nowFn:                             time.Now,
 		queryRouter:                       queryRouter,
@@ -524,17 +516,6 @@ func (o *handlerOptions) SetCPUProfileDuration(
 	c time.Duration) HandlerOptions {
 	opts := *o
 	opts.cpuProfileDuration = c
-	return &opts
-}
-
-func (o *handlerOptions) PlacementServiceNames() []string {
-	return o.placementServiceNames
-}
-
-func (o *handlerOptions) SetPlacementServiceNames(
-	n []string) HandlerOptions {
-	opts := *o
-	opts.placementServiceNames = n
 	return &opts
 }
 
