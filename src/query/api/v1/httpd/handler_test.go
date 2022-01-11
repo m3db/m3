@@ -61,7 +61,6 @@ var (
 	testM3DBOpts              = m3storage.NewOptions(encoding.NewOptions())
 	defaultLookbackDuration   = time.Minute
 	defaultCPUProfileduration = 5 * time.Second
-	defaultPlacementServices  = []string{"m3db"}
 	svcDefaultOptions         = []handleroptions3.ServiceOptionsDefault{
 		func(o handleroptions3.ServiceOptions) handleroptions3.ServiceOptions {
 			return o
@@ -118,7 +117,6 @@ func setupHandler(
 		models.QueryContextOptions{},
 		instrumentOpts,
 		defaultCPUProfileduration,
-		defaultPlacementServices,
 		svcDefaultOptions,
 		NewQueryRouter(),
 		NewQueryRouter(),
@@ -406,7 +404,7 @@ func TestCustomRoutes(t *testing.T) {
 		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil,
 		fetchOptsBuilder, fetchOptsBuilder, fetchOptsBuilder,
 		models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,
-		defaultPlacementServices, svcDefaultOptions, NewQueryRouter(), NewQueryRouter(),
+		svcDefaultOptions, NewQueryRouter(), NewQueryRouter(),
 		graphiteStorage.M3WrappedStorageOptions{}, testM3DBOpts, NewGraphiteRenderRouter(), NewGraphiteFindRouter(),
 		defaultLookbackDuration,
 	)

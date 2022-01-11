@@ -64,6 +64,7 @@ func idIt(
 	it.EXPECT().Namespace().Return(ident.StringID("ns")).AnyTimes()
 	it.EXPECT().Start().Return(dp.t).AnyTimes()
 	it.EXPECT().End().Return(dp.t.Add(time.Hour)).AnyTimes()
+	it.EXPECT().FirstAnnotation().Return(nil).AnyTimes()
 
 	tagIter := ident.MustNewTagStringsIterator(tags...)
 	it.EXPECT().Tags().Return(tagIter).AnyTimes()
@@ -92,6 +93,7 @@ func rangeIt(
 	it.EXPECT().Namespace().Return(ident.StringID("ns")).AnyTimes()
 	it.EXPECT().Start().Return(start).AnyTimes()
 	it.EXPECT().End().Return(end).AnyTimes()
+	it.EXPECT().FirstAnnotation().Return(nil).AnyTimes()
 	it.EXPECT().Next().Return(true).MaxTimes(1)
 
 	tagIter := ident.MustNewTagStringsIterator(tags...)

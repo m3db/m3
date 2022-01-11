@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-
 	// needed for pprof handler registration
 	_ "net/http/pprof"
 	"time"
@@ -53,7 +52,6 @@ import (
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	xdebug "github.com/m3db/m3/src/x/debug"
-	extdebug "github.com/m3db/m3/src/x/debug/ext"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
@@ -367,21 +365,8 @@ func (h *Handler) RegisterRoutes() error {
 		config                = h.options.Config()
 	)
 
-	var placementServices []handleroptions.ServiceNameAndDefaults
-	for _, serviceName := range h.options.PlacementServiceNames() {
-		service := handleroptions.ServiceNameAndDefaults{
-			ServiceName: serviceName,
-			Defaults:    serviceOptionDefaults,
-		}
-
-		placementServices = append(placementServices, service)
-	}
-
-	debugWriter, err := extdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
+	debugWriter, err := xdebug.NewZipWriterWithDefaultSources(
 		h.options.CPUProfileDuration(),
-		clusterClient,
-		placementOpts,
-		placementServices,
 		instrumentOpts)
 	if err != nil {
 		return fmt.Errorf("unable to create debug writer: %v", err)
