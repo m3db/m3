@@ -272,7 +272,9 @@ func TestSessionFetchIDsTrimsWindowsInTimeWindow(t *testing.T) {
 
 	result, err := session.Fetch(testOpts.nsID, ident.StringID(fetches[0].id), start, end)
 	assert.NoError(t, err)
-	assertion := assertFetchResults(t, start, end, fetches, seriesIterators(result), nil)
+
+	results := encoding.NewSeriesIterators([]encoding.SeriesIterator{result})
+	assertion := assertFetchResults(t, start, end, fetches, results, nil)
 	assert.Equal(t, 2, assertion.trimToTimeRange)
 
 	assert.NoError(t, session.Close())
@@ -612,7 +614,7 @@ func assertFetchResults(
 			assert.Equal(t, value.value, dp.Value)
 			assert.Equal(t, value.unit, unit)
 			if annEqual != nil {
-				annEqual(t, value.annotation, []byte(annotation))
+				annEqual(t, value.annotation, annotation)
 			} else {
 				assert.Equal(t, value.annotation, []byte(annotation))
 			}
@@ -624,8 +626,4 @@ func assertFetchResults(
 	results.Close()
 
 	return testFetchResultsAssertion{trimToTimeRange: trimToTimeRange}
-}
-
-func seriesIterators(iters ...encoding.SeriesIterator) encoding.SeriesIterators {
-	return encoding.NewSeriesIterators(iters, nil)
 }

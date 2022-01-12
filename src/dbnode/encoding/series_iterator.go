@@ -138,6 +138,7 @@ func (it *seriesIterator) Reset(opts SeriesIteratorOptions) {
 	it.firstNext = true
 	it.closed = false
 
+	it.iters.closeIters = true
 	it.iters.reset()
 	it.start = opts.StartInclusive
 	it.end = opts.EndExclusive

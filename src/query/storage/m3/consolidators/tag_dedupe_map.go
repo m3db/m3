@@ -153,7 +153,6 @@ func (m *tagDedupeMap) doUpdate(
 	}
 
 	// Override
-	existing.iter.Close()
 	m.mapWrapper.set(tags, multiResultSeries{
 		iter:  iter,
 		attrs: attrs,

@@ -1476,20 +1476,6 @@ func (m *MockMutableSeriesIterators) EXPECT() *MockMutableSeriesIteratorsMockRec
 	return m.recorder
 }
 
-// Cap mocks base method.
-func (m *MockMutableSeriesIterators) Cap() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Cap")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// Cap indicates an expected call of Cap.
-func (mr *MockMutableSeriesIteratorsMockRecorder) Cap() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cap", reflect.TypeOf((*MockMutableSeriesIterators)(nil).Cap))
-}
-
 // Close mocks base method.
 func (m *MockMutableSeriesIterators) Close() {
 	m.ctrl.T.Helper()
@@ -2005,67 +1991,6 @@ func (mr *MockSeriesIteratorPoolMockRecorder) Put(iter interface{}) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockSeriesIteratorPool)(nil).Put), iter)
 }
 
-// MockMutableSeriesIteratorsPool is a mock of MutableSeriesIteratorsPool interface.
-type MockMutableSeriesIteratorsPool struct {
-	ctrl     *gomock.Controller
-	recorder *MockMutableSeriesIteratorsPoolMockRecorder
-}
-
-// MockMutableSeriesIteratorsPoolMockRecorder is the mock recorder for MockMutableSeriesIteratorsPool.
-type MockMutableSeriesIteratorsPoolMockRecorder struct {
-	mock *MockMutableSeriesIteratorsPool
-}
-
-// NewMockMutableSeriesIteratorsPool creates a new mock instance.
-func NewMockMutableSeriesIteratorsPool(ctrl *gomock.Controller) *MockMutableSeriesIteratorsPool {
-	mock := &MockMutableSeriesIteratorsPool{ctrl: ctrl}
-	mock.recorder = &MockMutableSeriesIteratorsPoolMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockMutableSeriesIteratorsPool) EXPECT() *MockMutableSeriesIteratorsPoolMockRecorder {
-	return m.recorder
-}
-
-// Get mocks base method.
-func (m *MockMutableSeriesIteratorsPool) Get(size int) MutableSeriesIterators {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", size)
-	ret0, _ := ret[0].(MutableSeriesIterators)
-	return ret0
-}
-
-// Get indicates an expected call of Get.
-func (mr *MockMutableSeriesIteratorsPoolMockRecorder) Get(size interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockMutableSeriesIteratorsPool)(nil).Get), size)
-}
-
-// Init mocks base method.
-func (m *MockMutableSeriesIteratorsPool) Init() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Init")
-}
-
-// Init indicates an expected call of Init.
-func (mr *MockMutableSeriesIteratorsPoolMockRecorder) Init() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockMutableSeriesIteratorsPool)(nil).Init))
-}
-
-// Put mocks base method.
-func (m *MockMutableSeriesIteratorsPool) Put(iters MutableSeriesIterators) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Put", iters)
-}
-
-// Put indicates an expected call of Put.
-func (mr *MockMutableSeriesIteratorsPoolMockRecorder) Put(iters interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockMutableSeriesIteratorsPool)(nil).Put), iters)
-}
-
 // MockMultiReaderIteratorArrayPool is a mock of MultiReaderIteratorArrayPool interface.
 type MockMultiReaderIteratorArrayPool struct {
 	ctrl     *gomock.Controller
@@ -2204,20 +2129,6 @@ func (m *MockIteratorPools) MultiReaderIteratorArray() MultiReaderIteratorArrayP
 func (mr *MockIteratorPoolsMockRecorder) MultiReaderIteratorArray() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MultiReaderIteratorArray", reflect.TypeOf((*MockIteratorPools)(nil).MultiReaderIteratorArray))
-}
-
-// MutableSeriesIterators mocks base method.
-func (m *MockIteratorPools) MutableSeriesIterators() MutableSeriesIteratorsPool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MutableSeriesIterators")
-	ret0, _ := ret[0].(MutableSeriesIteratorsPool)
-	return ret0
-}
-
-// MutableSeriesIterators indicates an expected call of MutableSeriesIterators.
-func (mr *MockIteratorPoolsMockRecorder) MutableSeriesIterators() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MutableSeriesIterators", reflect.TypeOf((*MockIteratorPools)(nil).MutableSeriesIterators))
 }
 
 // SeriesIterator mocks base method.

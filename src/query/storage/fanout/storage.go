@@ -127,15 +127,18 @@ func (s *fanoutStorage) FetchProm(
 
 	wg.Add(len(stores))
 
-	fanout := consolidators.NamespaceCoversAllQueryRange
-	pools := s.opts.IteratorPools()
-	matchOpts := s.opts.SeriesConsolidationMatchOptions()
-	tagOpts := s.opts.TagOptions()
-	limitOpts := consolidators.LimitOptions{
-		Limit:             options.SeriesLimit,
-		RequireExhaustive: options.RequireExhaustive,
-	}
-	accumulator := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts, limitOpts)
+	var (
+		fanout    = consolidators.NamespaceCoversAllQueryRange
+		matchOpts = s.opts.SeriesConsolidationMatchOptions()
+		tagOpts   = s.opts.TagOptions()
+		limitOpts = consolidators.LimitOptions{
+			Limit:             options.SeriesLimit,
+			RequireExhaustive: options.RequireExhaustive,
+		}
+
+		accumulator = consolidators.NewMultiFetchResult(fanout, matchOpts, tagOpts, limitOpts)
+	)
+
 	defer func() {
 		_ = accumulator.Close()
 	}()
@@ -230,15 +233,18 @@ func (s *fanoutStorage) FetchCompressed(
 
 	wg.Add(len(stores))
 
-	fanout := consolidators.NamespaceCoversAllQueryRange
-	pools := s.opts.IteratorPools()
-	matchOpts := s.opts.SeriesConsolidationMatchOptions()
-	tagOpts := s.opts.TagOptions()
-	limitOpts := consolidators.LimitOptions{
-		Limit:             options.SeriesLimit,
-		RequireExhaustive: options.RequireExhaustive,
-	}
-	accumulator := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts, limitOpts)
+	var (
+		fanout    = consolidators.NamespaceCoversAllQueryRange
+		matchOpts = s.opts.SeriesConsolidationMatchOptions()
+		tagOpts   = s.opts.TagOptions()
+		limitOpts = consolidators.LimitOptions{
+			Limit:             options.SeriesLimit,
+			RequireExhaustive: options.RequireExhaustive,
+		}
+
+		accumulator = consolidators.NewMultiFetchResult(fanout, matchOpts, tagOpts, limitOpts)
+	)
+
 	defer func() {
 		_ = accumulator.Close()
 	}()

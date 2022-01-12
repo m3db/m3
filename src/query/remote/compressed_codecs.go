@@ -357,13 +357,10 @@ func DecodeCompressedFetchResponse(
 	}
 
 	var (
-		seriesIteratorPool = iteratorPools.MutableSeriesIterators()
-		rpcSeries          = fetchResult.GetSeries()
-		numSeries          = len(rpcSeries)
+		rpcSeries = fetchResult.GetSeries()
+		numSeries = len(rpcSeries)
+		iters     = encoding.NewSizedSeriesIterators(numSeries)
 	)
-
-	iters := seriesIteratorPool.Get(numSeries)
-	iters.Reset(numSeries)
 
 	for i, series := range rpcSeries {
 		compressed := series.GetCompressed()

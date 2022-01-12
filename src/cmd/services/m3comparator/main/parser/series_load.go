@@ -161,10 +161,7 @@ func (l *seriesReader) SeriesIterators(name string) (encoding.SeriesIterators, e
 		}
 	}
 
-	return encoding.NewSeriesIterators(
-		iters,
-		l.iterOpts.IteratorPools.MutableSeriesIterators(),
-	), nil
+	return encoding.NewSeriesIterators(iters), nil
 }
 
 func calculateSeriesRange(seriesList []Series) (time.Time, time.Time) {

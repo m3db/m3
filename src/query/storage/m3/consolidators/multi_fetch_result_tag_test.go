@@ -31,7 +31,6 @@ import (
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -95,7 +94,7 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 					iter: encoding.NewSeriesIterators([]encoding.SeriesIterator{
 						it(ctrl, dp{t: step(1), val: 1}, "id1", "foo", "bar"),
 						it(ctrl, dp{t: step(5), val: 6}, "id1", "foo", "bar"),
-					}, nil),
+					}),
 				},
 			},
 			expected: []expectedSeries{
@@ -118,7 +117,7 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 					iter: encoding.NewSeriesIterators([]encoding.SeriesIterator{
 						it(ctrl, dp{t: step(1), val: 1}, "id1", "foo", "bar"),
 						it(ctrl, dp{t: step(5), val: 6}, "id2", "foo", "bar"),
-					}, nil),
+					}),
 				},
 			},
 			expected: []expectedSeries{
@@ -142,7 +141,7 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 					iter: encoding.NewSeriesIterators([]encoding.SeriesIterator{
 						it(ctrl, dp{t: step(1), val: 1}, "id1", "foo", "bar"),
 						it(ctrl, dp{t: step(5), val: 6}, "id1", "foo", "baz"),
-					}, nil),
+					}),
 				},
 			},
 			expected: []expectedSeries{
@@ -170,7 +169,7 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 					iter: encoding.NewSeriesIterators([]encoding.SeriesIterator{
 						it(ctrl, dp{t: step(1), val: 1}, "id1", "foo", "bar"),
 						notReadIt(ctrl, dp{t: step(2), val: 2}, "id1", "foo", "baz"),
-					}, nil),
+					}),
 				},
 			},
 			limit: 1,
@@ -196,7 +195,7 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 						it(ctrl, dp{t: step(1), val: 1}, "id1", "foo", "bar"),
 						it(ctrl, dp{t: step(1), val: 2}, "id1", "foo", "bar"),
 						notReadIt(ctrl, dp{t: step(2), val: 2}, "id1", "foo", "baz"),
-					}, nil),
+					}),
 				},
 			},
 			limit: 1,
@@ -228,7 +227,7 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 						// Same tags same IDs.
 						it(ctrl, dp{t: step(1), val: 5}, "id4", "foo", "bar", "qux", "queen"),
 						it(ctrl, dp{t: step(2), val: 6}, "id4", "foo", "bar", "qux", "queen"),
-					}, nil),
+					}),
 				},
 			},
 			expected: []expectedSeries{
@@ -264,7 +263,7 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 					iter: encoding.NewSeriesIterators([]encoding.SeriesIterator{
 						it(ctrl, dp{t: step(1), val: 1}, "id1", "foo", "bar", "qux", "quail"),
 						it(ctrl, dp{t: step(2), val: 2}, "id2", "foo", "bar", "qux", "quail"),
-					}, nil),
+					}),
 				},
 				{
 					attr: unaggHr,
@@ -273,7 +272,7 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 					iter: encoding.NewSeriesIterators([]encoding.SeriesIterator{
 						it(ctrl, dp{t: step(1), val: 3}, "id3", "foo", "bar", "qux", "quart"),
 						it(ctrl, dp{t: step(2), val: 4}, "id3", "foo", "bar", "qux", "quz"),
-					}, nil),
+					}),
 				},
 				{
 					attr: unaggHr,
@@ -282,7 +281,7 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 					iter: encoding.NewSeriesIterators([]encoding.SeriesIterator{
 						it(ctrl, dp{t: step(1), val: 5}, "id4", "foo", "bar", "qux", "queen"),
 						it(ctrl, dp{t: step(2), val: 6}, "id4", "foo", "bar", "qux", "queen"),
-					}, nil),
+					}),
 				},
 			},
 			expected: []expectedSeries{
@@ -311,21 +310,19 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testMultiFetchResultTagDedupeMap(t, ctrl, tt, models.NewTagOptions())
+			testMultiFetchResultTagDedupeMap(t, tt, models.NewTagOptions())
 		})
 	}
 }
 
 func testMultiFetchResultTagDedupeMap(
 	t *testing.T,
-	ctrl *gomock.Controller,
 	test dedupeTest,
 	tagOptions models.TagOptions,
 ) {
 	require.True(t, len(test.entries) > 0,
 		"must have more than 1 iterator in testMultiFetchResultTagDedupeMap")
 
-	pools := generateIteratorPools(ctrl)
 	opts := MatchOptions{
 		MatchType: MatchTags,
 	}
@@ -334,7 +331,7 @@ func testMultiFetchResultTagDedupeMap(
 	if test.limit > 0 {
 		limitOpts.Limit = test.limit
 	}
-	r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools, opts, tagOptions, limitOpts)
+	r := NewMultiFetchResult(NamespaceCoversAllQueryRange, opts, tagOptions, limitOpts)
 
 	for _, entry := range test.entries {
 		r.Add(MultiFetchResults{
@@ -410,7 +407,7 @@ func TestFilteredInsert(t *testing.T) {
 				iter: encoding.NewSeriesIterators([]encoding.SeriesIterator{
 					it(ctrl, dp{t: step(1), val: 1}, "id1", "foo", "bar"),
 					notReadIt(ctrl, dp{t: step(5), val: 6}, "id1", "foo", "baz"),
-				}, nil),
+				}),
 			},
 		},
 		expected: []expectedSeries{
@@ -428,5 +425,5 @@ func TestFilteredInsert(t *testing.T) {
 		models.Filter{Name: b("foo"), Values: [][]byte{b("baz")}},
 	})
 
-	testMultiFetchResultTagDedupeMap(t, ctrl, dedupe, opts)
+	testMultiFetchResultTagDedupeMap(t, dedupe, opts)
 }

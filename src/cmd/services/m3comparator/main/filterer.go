@@ -39,7 +39,7 @@ func filter(series encoding.SeriesIterators, tagMatchers models.Matchers) encodi
 		}
 	}
 
-	return encoding.NewSeriesIterators(filtered, nil)
+	return encoding.NewSeriesIterators(filtered)
 }
 
 func matchesAll(tagMatchers models.Matchers, tagsIter ident.TagIterator) bool {
