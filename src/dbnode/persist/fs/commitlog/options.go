@@ -37,6 +37,9 @@ const (
 	// defaultStrategy is the default commit log write strategy
 	defaultStrategy = StrategyWriteBehind
 
+	// defaultFailureStrategy is the default commit log failure strategy
+	defaultFailureStrategy = FailureStrategyPanic
+
 	// defaultFlushInterval is the default commit log flush interval
 	defaultFlushInterval = time.Second
 
@@ -66,7 +69,13 @@ var (
 	errFlushIntervalNonNegative = errors.New("flush interval must be non-negative")
 	errBlockSizePositive        = errors.New("block size must be a positive duration")
 	errReadConcurrencyPositive  = errors.New("read concurrency must be a positive integer")
+	errMissingFailureCallback   = errors.New("failure callback must be non-nil if FailureStrategyCallback is used")
 )
+
+// FailureCallback is used in the FailureStrategyCallback failure mode.
+// If this function returns false, the error will be treated as fatal.
+// This function MUST exit quickly
+type FailureCallback func(err error) bool
 
 type options struct {
 	clockOpts               clock.Options
@@ -81,6 +90,8 @@ type options struct {
 	bytesPool               pool.CheckedBytesPool
 	identPool               ident.Pool
 	readConcurrency         int
+	failureMode             FailureStrategy
+	failureCallback         FailureCallback
 }
 
 // NewOptions creates new commit log options
@@ -91,6 +102,7 @@ func NewOptions() Options {
 		blockSize:               defaultBlockSize,
 		fsOpts:                  fs.NewOptions(),
 		strategy:                defaultStrategy,
+		failureMode:             defaultFailureStrategy,
 		flushSize:               defaultFlushSize,
 		flushInterval:           defaultFlushInterval,
 		backlogQueueSize:        defaultBacklogQueueSize,
@@ -99,6 +111,7 @@ func NewOptions() Options {
 			return pool.NewBytesPool(s, nil)
 		}),
 		readConcurrency: defaultReadConcurrency,
+		failureCallback: nil,
 	}
 	o.bytesPool.Init()
 	o.identPool = ident.NewPool(o.bytesPool, ident.PoolOptions{})
@@ -122,6 +135,10 @@ func (o *options) Validate() error {
 		return fmt.Errorf(
 			"BacklogQueueSize / BacklogQueueChannelSize ratio must be at most: %f, but was: %f",
 			MaximumQueueSizeQueueChannelSizeRatio, float64(o.BacklogQueueSize())/float64(o.BacklogQueueChannelSize()))
+	}
+
+	if o.FailureStrategy() == FailureStrategyCallback && o.FailureCallback() == nil {
+		return errMissingFailureCallback
 	}
 
 	return nil
@@ -245,4 +262,24 @@ func (o *options) SetIdentifierPool(value ident.Pool) Options {
 
 func (o *options) IdentifierPool() ident.Pool {
 	return o.identPool
+}
+
+func (o *options) SetFailureStrategy(value FailureStrategy) Options {
+	opts := *o
+	opts.failureMode = value
+	return &opts
+}
+
+func (o *options) FailureStrategy() FailureStrategy {
+	return o.failureMode
+}
+
+func (o *options) SetFailureCallback(value FailureCallback) Options {
+	opts := *o
+	opts.failureCallback = value
+	return &opts
+}
+
+func (o *options) FailureCallback() FailureCallback {
+	return o.failureCallback
 }
