@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xerror "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -126,7 +125,6 @@ func applySessionTestOptions(opts Options) Options {
 		SetWriteRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))).
 		SetFetchRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))).
 		SetSeriesIteratorPoolSize(0).
-		SetSeriesIteratorArrayPoolBuckets([]pool.Bucket{}).
 		SetWriteOpPoolSize(0).
 		SetWriteTaggedOpPoolSize(0).
 		SetFetchBatchOpPoolSize(0).
@@ -243,7 +241,6 @@ func TestIteratorPools(t *testing.T) {
 
 	multiReaderIteratorArray := encoding.NewMultiReaderIteratorArrayPool(nil)
 	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
-	mutableSeriesIteratorPool := encoding.NewMutableSeriesIteratorsPool(nil)
 	seriesIteratorPool := encoding.NewSeriesIteratorPool(nil)
 	checkedBytesWrapperPool := xpool.NewCheckedBytesWrapperPool(nil)
 	idPool := ident.NewPool(nil, ident.PoolOptions{})
@@ -253,7 +250,6 @@ func TestIteratorPools(t *testing.T) {
 	s.pools = sessionPools{
 		multiReaderIteratorArray: multiReaderIteratorArray,
 		multiReaderIterator:      multiReaderIteratorPool,
-		seriesIterators:          mutableSeriesIteratorPool,
 		seriesIterator:           seriesIteratorPool,
 		checkedBytesWrapper:      checkedBytesWrapperPool,
 		id:                       idPool,
@@ -272,7 +268,6 @@ func TestIteratorPools(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, multiReaderIteratorArray, itPool.MultiReaderIteratorArray())
 	assert.Equal(t, multiReaderIteratorPool, itPool.MultiReaderIterator())
-	assert.Equal(t, mutableSeriesIteratorPool, itPool.MutableSeriesIterators())
 	assert.Equal(t, seriesIteratorPool, itPool.SeriesIterator())
 	assert.Equal(t, checkedBytesWrapperPool, itPool.CheckedBytesWrapper())
 	assert.Equal(t, encoderPool, itPool.TagEncoder())

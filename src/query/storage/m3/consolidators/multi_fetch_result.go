@@ -47,6 +47,7 @@ type multiResult struct {
 	fanout         QueryFanoutType
 	seenFirstAttrs storagemetadata.Attributes
 
+	all             []MultiFetchResults
 	seenIters       []encoding.SeriesIterators // track known iterators to avoid leaking
 	mergedIterators encoding.MutableSeriesIterators
 	mergedTags      []*models.Tags
@@ -55,10 +56,6 @@ type multiResult struct {
 	matchOpts       MatchOptions
 	tagOpts         models.TagOptions
 	limitOpts       LimitOptions
-
-	all []MultiFetchResults
-
-	pools encoding.IteratorPools
 }
 
 // LimitOptions specifies the limits when accumulating results in consolidators.
@@ -70,7 +67,6 @@ type LimitOptions struct {
 // NewMultiFetchResult builds a new multi fetch result.
 func NewMultiFetchResult(
 	fanout QueryFanoutType,
-	pools encoding.IteratorPools,
 	opts MatchOptions,
 	tagOpts models.TagOptions,
 	limitOpts LimitOptions,
@@ -78,7 +74,6 @@ func NewMultiFetchResult(
 	return &multiResult{
 		metadata:  block.NewResultMetadata(),
 		fanout:    fanout,
-		pools:     pools,
 		matchOpts: opts,
 		tagOpts:   tagOpts,
 		limitOpts: limitOpts,
@@ -177,8 +172,7 @@ func (r *multiResult) finalResultWithLock() (SeriesFetchResult, []multiResultSer
 	// otherwise have to create a new seriesiters
 	dedupedList := r.dedupeMap.list()
 	numSeries := len(dedupedList)
-	r.mergedIterators = r.pools.MutableSeriesIterators().Get(numSeries)
-	r.mergedIterators.Reset(numSeries)
+	r.mergedIterators = encoding.NewSizedSeriesIterators(numSeries)
 	if r.mergedTags == nil {
 		r.mergedTags = make([]*models.Tags, numSeries)
 	}

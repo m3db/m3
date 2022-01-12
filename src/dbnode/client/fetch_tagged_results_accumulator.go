@@ -344,8 +344,7 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 		return numElements < limit
 	})
 
-	result := pools.MutableSeriesIterators().Get(numElements)
-	result.Reset(numElements)
+	result := encoding.NewSizedSeriesIterators(numElements)
 	count := 0
 	moreElems := false
 	accum.fetchResponses.forEachID(func(elems fetchTaggedIDResults, hasMore bool) bool {

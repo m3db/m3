@@ -275,9 +275,6 @@ func initTestFetchTaggedPools() *testFetchTaggedPools {
 	pools.seriesIter = encoding.NewSeriesIteratorPool(opts)
 	pools.seriesIter.Init()
 
-	pools.mutableSeriesIter = encoding.NewMutableSeriesIteratorsPool(nil)
-	pools.mutableSeriesIter.Init()
-
 	pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool(nil)
 	pools.multiReaderIteratorArray.Init()
 
@@ -305,7 +302,6 @@ type testFetchTaggedPools struct {
 	readerSlices             *readerSliceOfSlicesIteratorPool
 	multiReader              encoding.MultiReaderIteratorPool
 	seriesIter               encoding.SeriesIteratorPool
-	mutableSeriesIter        encoding.MutableSeriesIteratorsPool
 	multiReaderIteratorArray encoding.MultiReaderIteratorArrayPool
 	id                       ident.Pool
 	checkedBytesWrapper      xpool.CheckedBytesWrapperPool
@@ -322,10 +318,6 @@ func (p testFetchTaggedPools) MultiReaderIterator() encoding.MultiReaderIterator
 
 func (p testFetchTaggedPools) SeriesIterator() encoding.SeriesIteratorPool {
 	return p.seriesIter
-}
-
-func (p testFetchTaggedPools) MutableSeriesIterators() encoding.MutableSeriesIteratorsPool {
-	return p.mutableSeriesIter
 }
 
 func (p testFetchTaggedPools) MultiReaderIteratorArray() encoding.MultiReaderIteratorArrayPool {

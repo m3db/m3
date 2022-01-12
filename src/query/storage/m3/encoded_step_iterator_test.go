@@ -428,9 +428,8 @@ func newTestOpts() Options {
 func iterToFetchResult(
 	iters []encoding.SeriesIterator,
 ) (consolidators.SeriesFetchResult, error) {
-	iterators := encoding.NewSeriesIterators(iters, nil)
 	return consolidators.NewSeriesFetchResult(
-		iterators,
+		encoding.NewSeriesIterators(iters),
 		nil,
 		block.NewResultMetadata(),
 	)

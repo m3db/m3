@@ -21,17 +21,19 @@
 package encoding
 
 type seriesIterators struct {
-	iters  []SeriesIterator
-	closed bool
-	pool   MutableSeriesIteratorsPool
+	iters []SeriesIterator
 }
 
-// NewSeriesIterators creates a new series iterators collection
-func NewSeriesIterators(
-	iters []SeriesIterator,
-	pool MutableSeriesIteratorsPool,
-) MutableSeriesIterators {
+// NewSeriesIterators creates a new series iterators collection with given SeriesIterator.
+func NewSeriesIterators(iters []SeriesIterator) MutableSeriesIterators {
 	return &seriesIterators{iters: iters}
+}
+
+// NewSizedSeriesIterators creates a new MutableSeriesIterators for a given number of iterators.
+func NewSizedSeriesIterators(numSeries int) MutableSeriesIterators {
+	return &seriesIterators{
+		iters: make([]SeriesIterator, numSeries),
+	}
 }
 
 func (iters *seriesIterators) Iters() []SeriesIterator {
@@ -39,27 +41,16 @@ func (iters *seriesIterators) Iters() []SeriesIterator {
 }
 
 func (iters *seriesIterators) Close() {
-	if iters.closed {
-		return
-	}
-	iters.closed = true
 	for i := range iters.iters {
 		if iters.iters[i] != nil {
 			iters.iters[i].Close()
 			iters.iters[i] = nil
 		}
 	}
-	if iters.pool != nil {
-		iters.pool.Put(iters)
-	}
 }
 
 func (iters *seriesIterators) Len() int {
 	return len(iters.iters)
-}
-
-func (iters *seriesIterators) Cap() int {
-	return cap(iters.iters)
 }
 
 func (iters *seriesIterators) SetAt(idx int, iter SeriesIterator) {
