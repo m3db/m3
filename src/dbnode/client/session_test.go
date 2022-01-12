@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xerror "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -126,7 +125,6 @@ func applySessionTestOptions(opts Options) Options {
 		SetWriteRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))).
 		SetFetchRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))).
 		SetSeriesIteratorPoolSize(0).
-		SetSeriesIteratorArrayPoolBuckets([]pool.Bucket{}).
 		SetWriteOpPoolSize(0).
 		SetWriteTaggedOpPoolSize(0).
 		SetFetchBatchOpPoolSize(0).
