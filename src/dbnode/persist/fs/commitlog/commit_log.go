@@ -324,7 +324,16 @@ func (l *commitLog) Open() error {
 	}
 
 	l.commitLogFailFn = func(err error) {
-		l.log.Fatal("fatal commit log error", zap.Error(err))
+		strategy := l.opts.FailureStrategy()
+		fatal := strategy == FailureStrategyPanic
+		if strategy == FailureStrategyCallback && !l.opts.FailureCallback()(err) {
+			fatal = true
+		}
+		if fatal {
+			l.log.Fatal("fatal commit log write error", zap.Error(err))
+		} else {
+			l.log.Error("commit log write error", zap.Error(err))
+		}
 	}
 
 	// Asynchronously write
