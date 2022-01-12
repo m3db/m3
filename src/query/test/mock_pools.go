@@ -43,7 +43,7 @@ func MakeMockIteratorPool() *MockIteratorPool {
 
 // MockIteratorPool is an iterator pool used for testing
 type MockIteratorPool struct {
-	MriPoolUsed, SiPoolUsed, MsiPoolUsed, MriaPoolUsed,
+	MriPoolUsed, SiPoolUsed, MriaPoolUsed,
 	CbwPoolUsed, IdentPoolUsed, EncodePoolUsed, DecodePoolUsed bool
 }
 

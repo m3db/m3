@@ -218,8 +218,6 @@ func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
 	assert.True(t, ip.IdentPoolUsed)
 	assert.True(t, ip.EncodePoolUsed)
 	assert.True(t, ip.DecodePoolUsed)
-	// Should not be using mutable series iterator pool
-	assert.False(t, ip.MsiPoolUsed)
 }
 
 func TestEncodeToCompressedFetchResult(t *testing.T) {
@@ -250,7 +248,6 @@ func TestEncodeToCompressedFetchResult(t *testing.T) {
 	assert.False(t, ip.CbwPoolUsed)
 	assert.False(t, ip.IdentPoolUsed)
 	assert.False(t, ip.DecodePoolUsed)
-	assert.False(t, ip.MsiPoolUsed)
 }
 
 func TestDecodeCompressedFetchResult(t *testing.T) {
@@ -318,7 +315,6 @@ func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
 	assert.True(t, ip.IdentPoolUsed)
 	assert.True(t, ip.EncodePoolUsed)
 	assert.True(t, ip.DecodePoolUsed)
-	assert.True(t, ip.MsiPoolUsed)
 }
 
 // NB: make sure that SeriesIterator is not closed during conversion, or bytes will be empty
