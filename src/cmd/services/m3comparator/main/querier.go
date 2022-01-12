@@ -197,7 +197,6 @@ func (q *querier) FetchCompressedResult(
 
 		cleanup := func() error {
 			iters.Close()
-			filteredIters.Close()
 			return nil
 		}
 
