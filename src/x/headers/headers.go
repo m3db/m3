@@ -92,7 +92,7 @@ const (
 	// ReadConsistencyLevelHeader defines the read consistency enforced for a query.
 	ReadConsistencyLevelHeader = M3HeaderPrefix + "Read-Consistency-Level"
 
-	// IterateEqualTimestampStrategy defines the timestamp equality strategy for a query.
+	// IterateEqualTimestampStrategyHeader defines the timestamp equality strategy for a query.
 	IterateEqualTimestampStrategyHeader = M3HeaderPrefix + "Iterate-Equal-Timestamp-Strategy"
 
 	// LimitMaxSeriesHeader is the M3 limit timeseries header that limits

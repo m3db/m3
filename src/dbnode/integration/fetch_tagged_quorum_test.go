@@ -218,7 +218,10 @@ func TestFetchTaggedQuorumAddNodeAllUp(t *testing.T) {
 	testFetch.assertFailsTaggedResult(t, topology.ReadConsistencyLevelAll)
 }
 
-type testFetchFn func(asOption topology.ReadConsistencyLevel, asArg *topology.ReadConsistencyLevel) (encoding.SeriesIterators, bool, error)
+type testFetchFn func(
+	asOption topology.ReadConsistencyLevel,
+	asArg *topology.ReadConsistencyLevel,
+) (encoding.SeriesIterators, bool, error)
 
 func (fn testFetchFn) assertContainsTaggedResult(t *testing.T, lvls ...topology.ReadConsistencyLevel) {
 	checkFn := func(asOption topology.ReadConsistencyLevel, asArg *topology.ReadConsistencyLevel) {
@@ -239,6 +242,7 @@ func (fn testFetchFn) assertContainsTaggedResult(t *testing.T, lvls ...topology.
 	}
 
 	for _, lvl := range lvls {
+		lvl := lvl
 		// Check with level set in options.
 		checkFn(lvl, nil)
 		// Check with level set as argument.
@@ -252,6 +256,7 @@ func (fn testFetchFn) assertFailsTaggedResult(t *testing.T, lvls ...topology.Rea
 		assert.Error(t, err)
 	}
 	for _, lvl := range lvls {
+		lvl := lvl
 		// Check with level set in options.
 		checkFn(lvl, nil)
 		// Check with level set as argument.
@@ -297,9 +302,12 @@ func makeTestFetchTagged(
 	instances []services.ServiceInstance,
 ) (testSetups, closeFn, testFetchFn) {
 	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, false, instances)
-	testFetch := func(asOption topology.ReadConsistencyLevel, asArg *topology.ReadConsistencyLevel) (encoding.SeriesIterators, bool, error) {
-		clientopts := clientopts.SetReadConsistencyLevel(asOption)
-		c, err := client.NewClient(clientopts)
+	testFetch := func(
+		asOption topology.ReadConsistencyLevel,
+		asArg *topology.ReadConsistencyLevel,
+	) (encoding.SeriesIterators, bool, error) {
+		co := clientopts.SetReadConsistencyLevel(asOption)
+		c, err := client.NewClient(co)
 		require.NoError(t, err)
 
 		s, err := c.NewSession()

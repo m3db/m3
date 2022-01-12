@@ -136,7 +136,9 @@ type sessionState struct {
 	majority       int
 }
 
-func (s *sessionState) readConsistencyLevelWithRLock(override *topology.ReadConsistencyLevel) topology.ReadConsistencyLevel {
+func (s *sessionState) readConsistencyLevelWithRLock(
+	override *topology.ReadConsistencyLevel,
+) topology.ReadConsistencyLevel {
 	if override == nil {
 		return s.readLevel
 	}

@@ -134,7 +134,7 @@ func TryParseValue(req *http.Request, header, formValue string) (int, bool, erro
 		n, err := strconv.Atoi(str)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse value: input=%s, err=%v", str, err)
+				"could not parse value: input=%s, err=%w", str, err)
 			return 0, false, err
 		}
 		return n, true, nil
@@ -144,7 +144,7 @@ func TryParseValue(req *http.Request, header, formValue string) (int, bool, erro
 		n, err := strconv.Atoi(str)
 		if err != nil {
 			err = fmt.Errorf(
-				"could not parse value: input=%s, err=%v", str, err)
+				"could not parse value: input=%s, err=%w", str, err)
 			return 0, false, err
 		}
 		return n, true, nil
