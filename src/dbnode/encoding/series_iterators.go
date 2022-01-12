@@ -29,13 +29,11 @@ func NewSeriesIterators(iters []SeriesIterator) MutableSeriesIterators {
 	return &seriesIterators{iters: iters}
 }
 
-// NewSizedSeriesIterators creates a new series iterators for a given number of iterators.
+// NewSizedSeriesIterators creates a new MutableSeriesIterators for a given number of iterators.
 func NewSizedSeriesIterators(numSeries int) MutableSeriesIterators {
-	iters := &seriesIterators{
-		iters: make([]SeriesIterator, 0, numSeries),
+	return &seriesIterators{
+		iters: make([]SeriesIterator, numSeries),
 	}
-	iters.Reset(numSeries)
-	return iters
 }
 
 func (iters *seriesIterators) Iters() []SeriesIterator {
@@ -53,10 +51,6 @@ func (iters *seriesIterators) Close() {
 
 func (iters *seriesIterators) Len() int {
 	return len(iters.iters)
-}
-
-func (iters *seriesIterators) Cap() int {
-	return cap(iters.iters)
 }
 
 func (iters *seriesIterators) SetAt(idx int, iter SeriesIterator) {

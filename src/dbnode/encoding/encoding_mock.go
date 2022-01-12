@@ -1448,20 +1448,6 @@ func (m *MockMutableSeriesIterators) EXPECT() *MockMutableSeriesIteratorsMockRec
 	return m.recorder
 }
 
-// Cap mocks base method.
-func (m *MockMutableSeriesIterators) Cap() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Cap")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// Cap indicates an expected call of Cap.
-func (mr *MockMutableSeriesIteratorsMockRecorder) Cap() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cap", reflect.TypeOf((*MockMutableSeriesIterators)(nil).Cap))
-}
-
 // Close mocks base method.
 func (m *MockMutableSeriesIterators) Close() {
 	m.ctrl.T.Helper()

@@ -328,9 +328,6 @@ type MutableSeriesIterators interface {
 	// Reset the iters collection to a size for reuse.
 	Reset(size int)
 
-	// Cap returns the capacity of the iters.
-	Cap() int
-
 	// SetAt sets a SeriesIterator to the given index.
 	SetAt(idx int, iter SeriesIterator)
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2022 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -36,11 +35,6 @@ var (
 	poolOpts = pool.NewObjectPoolOptions().SetSize(1)
 	mu       sync.Mutex
 )
-
-// MakeMockPoolWrapper builds a pool wrapper wrapping a mock iterator
-func MakeMockPoolWrapper() *pools.PoolWrapper {
-	return pools.NewPoolsWrapper(MakeMockIteratorPool())
-}
 
 // MakeMockIteratorPool builds a mock iterator pool
 func MakeMockIteratorPool() *MockIteratorPool {
