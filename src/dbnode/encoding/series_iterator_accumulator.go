@@ -78,14 +78,12 @@ func (it *seriesIteratorAccumulator) Add(iter SeriesIterator) error {
 
 	if !iter.Next() {
 		err := iter.Err()
-		iter.Close()
 		return err
 	}
 
 	firstAnnotation := iter.FirstAnnotation()
 	if !it.iters.push(iter) {
 		err := iter.Err()
-		iter.Close()
 		return err
 	}
 

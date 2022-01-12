@@ -64,7 +64,7 @@ func generateSeriesIterators(ctrl *gomock.Controller, ns string) encoding.Series
 	iter.EXPECT().Tags().Return(ident.EmptyTagIterator).AnyTimes()
 	iter.EXPECT().Start().Return(start).AnyTimes()
 	iter.EXPECT().End().Return(end).AnyTimes()
-	iter.EXPECT().Close().AnyTimes()
+	iter.EXPECT().Close()
 
 	unique := encoding.NewMockSeriesIterator(ctrl)
 	unique.EXPECT().ID().Return(ident.StringID(ns)).MinTimes(1)
@@ -72,27 +72,21 @@ func generateSeriesIterators(ctrl *gomock.Controller, ns string) encoding.Series
 	unique.EXPECT().Tags().Return(ident.EmptyTagIterator).AnyTimes()
 	unique.EXPECT().Start().Return(start).AnyTimes()
 	unique.EXPECT().End().Return(end).AnyTimes()
-	unique.EXPECT().Close().AnyTimes()
+	unique.EXPECT().Close()
 
-	iters := encoding.NewMockSeriesIterators(ctrl)
-	iters.EXPECT().Close().MinTimes(1)
-	iters.EXPECT().Len().Return(1).AnyTimes()
-	iters.EXPECT().Iters().Return([]encoding.SeriesIterator{iter, unique}).AnyTimes()
-
-	return iters
+	return encoding.NewSeriesIterators([]encoding.SeriesIterator{iter, unique}, nil)
 }
 
 func generateUnreadSeriesIterators(ctrl *gomock.Controller, ns string) encoding.SeriesIterators {
 	iter := encoding.NewMockSeriesIterator(ctrl)
 	iter.EXPECT().Namespace().Return(ident.StringID(ns)).AnyTimes()
+	iter.EXPECT().Close()
 
 	unique := encoding.NewMockSeriesIterator(ctrl)
 	unique.EXPECT().Namespace().Return(ident.StringID(ns)).AnyTimes()
+	unique.EXPECT().Close()
 
-	iters := encoding.NewMockSeriesIterators(ctrl)
-	iters.EXPECT().Len().Return(1).AnyTimes()
-	iters.EXPECT().Iters().Return([]encoding.SeriesIterator{iter, unique}).AnyTimes()
-	return iters
+	return encoding.NewSeriesIterators([]encoding.SeriesIterator{iter, unique}, nil)
 }
 
 func generateIteratorPools(ctrl *gomock.Controller) encoding.IteratorPools {
