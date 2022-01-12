@@ -21,8 +21,7 @@
 package encoding
 
 type seriesIterators struct {
-	iters  []SeriesIterator
-	closed bool
+	iters []SeriesIterator
 }
 
 // NewSeriesIterators creates a new series iterators collection with given SeriesIterator.
@@ -44,10 +43,6 @@ func (iters *seriesIterators) Iters() []SeriesIterator {
 }
 
 func (iters *seriesIterators) Close() {
-	if iters.closed {
-		return
-	}
-	iters.closed = true
 	for i := range iters.iters {
 		if iters.iters[i] != nil {
 			iters.iters[i].Close()
