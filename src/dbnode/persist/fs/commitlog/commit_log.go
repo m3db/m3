@@ -324,14 +324,15 @@ func (l *commitLog) Open() error {
 	}
 
 	l.commitLogFailFn = func(err error) {
-		isFatal := l.opts.FailureStrategy() == FailureStrategyPanic
-		if l.opts.FailureStrategy() == FailureStrategyCallback && !l.opts.FailureCallback()(err) {
-			isFatal = true
+		strategy := l.opts.FailureStrategy()
+		fatal := strategy == FailureStrategyPanic
+		if strategy == FailureStrategyCallback && !l.opts.FailureCallback()(err) {
+			fatal = true
 		}
-		if isFatal {
-			l.log.Fatal("fatal commit log error", zap.Error(err))
+		if fatal {
+			l.log.Fatal("fatal commit log write error", zap.Error(err))
 		} else {
-			l.log.Error("commit log error", zap.Error(err))
+			l.log.Error("commit log write error", zap.Error(err))
 		}
 	}
 
