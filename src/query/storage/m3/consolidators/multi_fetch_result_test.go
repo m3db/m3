@@ -89,23 +89,6 @@ func generateUnreadSeriesIterators(ctrl *gomock.Controller, ns string) encoding.
 	return encoding.NewSeriesIterators([]encoding.SeriesIterator{iter, unique}, nil)
 }
 
-func generateIteratorPools(ctrl *gomock.Controller) encoding.IteratorPools {
-	pools := encoding.NewMockIteratorPools(ctrl)
-
-	mutablePool := encoding.NewMockMutableSeriesIteratorsPool(ctrl)
-	mutablePool.EXPECT().
-		Get(gomock.Any()).
-		DoAndReturn(func(size int) encoding.MutableSeriesIterators {
-			return encoding.NewSeriesIterators(make([]encoding.SeriesIterator, 0, size), mutablePool)
-		}).
-		AnyTimes()
-	mutablePool.EXPECT().Put(gomock.Any()).AnyTimes()
-
-	pools.EXPECT().MutableSeriesIterators().Return(mutablePool).AnyTimes()
-
-	return pools
-}
-
 var namespaces = []struct {
 	attrs storagemetadata.Attributes
 	ns    string
@@ -147,8 +130,7 @@ func TestMultiResultAllQueryRange(t *testing.T) {
 func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) {
 	ctrl := xtest.NewController(t)
 
-	pools := generateIteratorPools(ctrl)
-	r := NewMultiFetchResult(fanoutType, pools,
+	r := NewMultiFetchResult(fanoutType,
 		defaultTestOpts, models.NewTagOptions(), LimitOptions{Limit: 1000})
 
 	meta := block.NewResultMetadata()
@@ -192,8 +174,7 @@ func TestLimit(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	pools := generateIteratorPools(ctrl)
-	r := NewMultiFetchResult(NamespaceCoversPartialQueryRange, pools,
+	r := NewMultiFetchResult(NamespaceCoversPartialQueryRange,
 		defaultTestOpts, models.NewTagOptions(), LimitOptions{
 			Limit:             2,
 			RequireExhaustive: false,
@@ -243,8 +224,7 @@ func TestLimitRequireExhaustive(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	pools := generateIteratorPools(ctrl)
-	r := NewMultiFetchResult(NamespaceCoversPartialQueryRange, pools,
+	r := NewMultiFetchResult(NamespaceCoversPartialQueryRange,
 		defaultTestOpts, models.NewTagOptions(), LimitOptions{
 			Limit:             2,
 			RequireExhaustive: true,
@@ -292,10 +272,9 @@ func TestExhaustiveMerge(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	pools := generateIteratorPools(ctrl)
 	for _, tt := range exhaustTests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools,
+			r := NewMultiFetchResult(NamespaceCoversAllQueryRange,
 				defaultTestOpts, models.NewTagOptions(), LimitOptions{Limit: 1000})
 			for i, ex := range tt.exhaustives {
 				iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{
@@ -303,7 +282,7 @@ func TestExhaustiveMerge(t *testing.T) {
 						ID:        ident.StringID(fmt.Sprint(i)),
 						Namespace: ident.StringID("ns"),
 					}, nil),
-				}, nil)
+				})
 
 				meta := block.NewResultMetadata()
 				meta.Exhaustive = ex
@@ -328,8 +307,7 @@ func TestAddWarningsPreservedFollowedByAdd(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	pools := generateIteratorPools(ctrl)
-	r := NewMultiFetchResult(NamespaceCoversPartialQueryRange, pools,
+	r := NewMultiFetchResult(NamespaceCoversPartialQueryRange,
 		defaultTestOpts, models.NewTagOptions(), LimitOptions{
 			Limit:             100,
 			RequireExhaustive: true,
@@ -350,7 +328,7 @@ func TestAddWarningsPreservedFollowedByAdd(t *testing.T) {
 				ID:        ident.StringID(fmt.Sprintf("series-%d", i)),
 				Namespace: ident.StringID(fmt.Sprintf("ns-%d", i)),
 			}, nil),
-		}, nil)
+		})
 
 		meta := block.NewResultMetadata()
 		meta.Exhaustive = true

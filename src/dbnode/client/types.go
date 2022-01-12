@@ -205,7 +205,7 @@ type TaggedIDsIterator interface {
 type AdminClient interface {
 	Client
 
-	// NewSession creates a new session.
+	// NewAdminSession creates a new admin session.
 	NewAdminSession() (AdminSession, error)
 
 	// DefaultAdminSession creates a default admin session that gets reused.
@@ -394,7 +394,7 @@ type Options interface {
 	// SetReadConsistencyLevel sets the read consistency level.
 	SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options
 
-	// topology.ReadConsistencyLevel returns the read consistency level.
+	// ReadConsistencyLevel returns the read consistency level.
 	ReadConsistencyLevel() topology.ReadConsistencyLevel
 
 	// SetWriteConsistencyLevel sets the write consistency level.
@@ -629,7 +629,7 @@ type Options interface {
 	// IdentifierPool returns the identifier pool.
 	IdentifierPool() ident.Pool
 
-	// HostQueueOpsArrayPoolSize sets the hostQueueOpsArrayPoolSize.
+	// SetHostQueueOpsArrayPoolSize sets the hostQueueOpsArrayPoolSize.
 	SetHostQueueOpsArrayPoolSize(value pool.Size) Options
 
 	// HostQueueOpsArrayPoolSize returns the hostQueueOpsArrayPoolSize.
@@ -652,12 +652,6 @@ type Options interface {
 
 	// SeriesIteratorPoolSize returns the seriesIteratorPoolSize.
 	SeriesIteratorPoolSize() pool.Size
-
-	// SetSeriesIteratorArrayPoolBuckets sets the seriesIteratorArrayPoolBuckets.
-	SetSeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options
-
-	// SeriesIteratorArrayPoolBuckets returns the seriesIteratorArrayPoolBuckets.
-	SeriesIteratorArrayPoolBuckets() []pool.Bucket
 
 	// SetReaderIteratorAllocate sets the readerIteratorAllocate.
 	SetReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options

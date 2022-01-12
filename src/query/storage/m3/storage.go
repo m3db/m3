@@ -424,11 +424,6 @@ func (s *m3storage) fetchCompressed(
 		return nil, index.Query{}, errNoNamespacesConfigured
 	}
 
-	pools, err := namespaces[0].Session().IteratorPools()
-	if err != nil {
-		return nil, index.Query{}, fmt.Errorf("unable to retrieve iterator pools: %v", err)
-	}
-
 	matchOpts := s.opts.SeriesConsolidationMatchOptions()
 	tagOpts := s.opts.TagOptions()
 	limitOpts := consolidators.LimitOptions{
@@ -438,7 +433,7 @@ func (s *m3storage) fetchCompressed(
 		// default, this can be removed.
 		RequireExhaustive: queryOptions.InstanceMultiple > 0 && options.RequireExhaustive,
 	}
-	result := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts, limitOpts)
+	result := consolidators.NewMultiFetchResult(fanout, matchOpts, tagOpts, limitOpts)
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
 

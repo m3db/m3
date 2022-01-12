@@ -61,14 +61,6 @@ func (ip *MockIteratorPool) MultiReaderIterator() encoding.MultiReaderIteratorPo
 	return mriPool
 }
 
-// MutableSeriesIterators exposes the session's MutableSeriesIteratorsPool
-func (ip *MockIteratorPool) MutableSeriesIterators() encoding.MutableSeriesIteratorsPool {
-	ip.MsiPoolUsed = true
-	msiPool := encoding.NewMutableSeriesIteratorsPool(buckets)
-	msiPool.Init()
-	return msiPool
-}
-
 // SeriesIterator exposes the session's SeriesIteratorPool
 func (ip *MockIteratorPool) SeriesIterator() encoding.SeriesIteratorPool {
 	ip.SiPoolUsed = true

@@ -94,7 +94,6 @@ func BuildWorkerPools(
 type sessionPools struct {
 	multiReaderIteratorArray encoding.MultiReaderIteratorArrayPool
 	multiReaderIterator      encoding.MultiReaderIteratorPool
-	seriesIterators          encoding.MutableSeriesIteratorsPool
 	seriesIterator           encoding.SeriesIteratorPool
 	checkedBytesWrapper      xpool.CheckedBytesWrapperPool
 	id                       ident.Pool
@@ -108,10 +107,6 @@ func (s sessionPools) MultiReaderIteratorArray() encoding.MultiReaderIteratorArr
 
 func (s sessionPools) MultiReaderIterator() encoding.MultiReaderIteratorPool {
 	return s.multiReaderIterator
-}
-
-func (s sessionPools) MutableSeriesIterators() encoding.MutableSeriesIteratorsPool {
-	return s.seriesIterators
 }
 
 func (s sessionPools) SeriesIterator() encoding.SeriesIteratorPool {
@@ -222,9 +217,6 @@ func BuildIteratorPools(
 
 	pools.seriesIterator = encoding.NewSeriesIteratorPool(defaultPerSeriesPoolOpts)
 	pools.seriesIterator.Init()
-
-	pools.seriesIterators = encoding.NewMutableSeriesIteratorsPool(defaultPerSeriesIteratorsBuckets)
-	pools.seriesIterators.Init()
 
 	wrapperPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(opts.CheckedBytesWrapperPoolSizeOrDefault())

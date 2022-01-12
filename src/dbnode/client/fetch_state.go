@@ -274,7 +274,6 @@ func (f *fetchState) asAggregatedTagsIterator(pools fetchTaggedPools, limit int)
 type fetchTaggedPools interface {
 	MultiReaderIteratorArray() encoding.MultiReaderIteratorArrayPool
 	MultiReaderIterator() encoding.MultiReaderIteratorPool
-	MutableSeriesIterators() encoding.MutableSeriesIteratorsPool
 	SeriesIterator() encoding.SeriesIteratorPool
 	CheckedBytesWrapper() xpool.CheckedBytesWrapperPool
 	ID() ident.Pool

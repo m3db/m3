@@ -45,7 +45,6 @@ type sessionPools struct {
 	readerSliceOfSlicesIterator *readerSliceOfSlicesIteratorPool
 	multiReaderIterator         encoding.MultiReaderIteratorPool
 	seriesIterator              encoding.SeriesIteratorPool
-	seriesIterators             encoding.MutableSeriesIteratorsPool
 	writeAttempt                *writeAttemptPool
 	writeState                  *writeStatePool
 	fetchAttempt                *fetchAttemptPool
@@ -88,8 +87,4 @@ func (s sessionPools) MultiReaderIterator() encoding.MultiReaderIteratorPool {
 
 func (s sessionPools) CheckedBytesWrapper() xpool.CheckedBytesWrapperPool {
 	return s.checkedBytesWrapper
-}
-
-func (s sessionPools) MutableSeriesIterators() encoding.MutableSeriesIteratorsPool {
-	return s.seriesIterators
 }

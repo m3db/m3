@@ -23,15 +23,20 @@ package encoding
 type seriesIterators struct {
 	iters  []SeriesIterator
 	closed bool
-	pool   MutableSeriesIteratorsPool
 }
 
-// NewSeriesIterators creates a new series iterators collection
-func NewSeriesIterators(
-	iters []SeriesIterator,
-	pool MutableSeriesIteratorsPool,
-) MutableSeriesIterators {
+// NewSeriesIterators creates a new series iterators collection with given SeriesIterator.
+func NewSeriesIterators(iters []SeriesIterator) MutableSeriesIterators {
 	return &seriesIterators{iters: iters}
+}
+
+// NewSizedSeriesIterators creates a new series iterators for a given number of iterators.
+func NewSizedSeriesIterators(numSeries int) MutableSeriesIterators {
+	iters := &seriesIterators{
+		iters: make([]SeriesIterator, 0, numSeries),
+	}
+	iters.Reset(numSeries)
+	return iters
 }
 
 func (iters *seriesIterators) Iters() []SeriesIterator {
@@ -48,9 +53,6 @@ func (iters *seriesIterators) Close() {
 			iters.iters[i].Close()
 			iters.iters[i] = nil
 		}
-	}
-	if iters.pool != nil {
-		iters.pool.Put(iters)
 	}
 }
 

@@ -243,7 +243,6 @@ func TestIteratorPools(t *testing.T) {
 
 	multiReaderIteratorArray := encoding.NewMultiReaderIteratorArrayPool(nil)
 	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
-	mutableSeriesIteratorPool := encoding.NewMutableSeriesIteratorsPool(nil)
 	seriesIteratorPool := encoding.NewSeriesIteratorPool(nil)
 	checkedBytesWrapperPool := xpool.NewCheckedBytesWrapperPool(nil)
 	idPool := ident.NewPool(nil, ident.PoolOptions{})
@@ -253,7 +252,6 @@ func TestIteratorPools(t *testing.T) {
 	s.pools = sessionPools{
 		multiReaderIteratorArray: multiReaderIteratorArray,
 		multiReaderIterator:      multiReaderIteratorPool,
-		seriesIterators:          mutableSeriesIteratorPool,
 		seriesIterator:           seriesIteratorPool,
 		checkedBytesWrapper:      checkedBytesWrapperPool,
 		id:                       idPool,
@@ -272,7 +270,6 @@ func TestIteratorPools(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, multiReaderIteratorArray, itPool.MultiReaderIteratorArray())
 	assert.Equal(t, multiReaderIteratorPool, itPool.MultiReaderIterator())
-	assert.Equal(t, mutableSeriesIteratorPool, itPool.MutableSeriesIterators())
 	assert.Equal(t, seriesIteratorPool, itPool.SeriesIterator())
 	assert.Equal(t, checkedBytesWrapperPool, itPool.CheckedBytesWrapper())
 	assert.Equal(t, encoderPool, itPool.TagEncoder())
