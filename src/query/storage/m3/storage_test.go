@@ -397,8 +397,6 @@ func TestLocalRead(t *testing.T) {
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 2),
 			testFetchResponseMetadata, nil)
-	session.EXPECT().IteratorPools().
-		Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	searchReq := newFetchReq()
 	results, err := store.FetchProm(context.TODO(), searchReq, buildFetchOpts())
@@ -416,8 +414,6 @@ func TestLocalReadExceedsRetention(t *testing.T) {
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2),
 			testFetchResponseMetadata, nil)
-	session.EXPECT().IteratorPools().
-		Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	searchReq := newFetchReq()
 	searchReq.Start = time.Now().Add(-2 * testLongestRetention)
@@ -474,7 +470,6 @@ func TestFetchPromWithNamespaceStitching(t *testing.T) {
 			unaggQueryOpts = opts
 			return seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2), testFetchResponseMetadata, nil
 		})
-	unaggSession.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	aggSession.EXPECT().FetchTagged(gomock.Any(), aggNamespaceID, gomock.Any(), gomock.Any()).
 		DoAndReturn(func(
@@ -486,7 +481,6 @@ func TestFetchPromWithNamespaceStitching(t *testing.T) {
 			aggQueryOpts = opts
 			return seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2), testFetchResponseMetadata, nil
 		})
-	aggSession.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	var (
 		fetchOpts = buildFetchOpts()
@@ -591,13 +585,11 @@ func TestLocalReadExceedsUnaggregatedRetentionWithinAggregatedRetention(t *testi
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2),
 			testFetchResponseMetadata, nil)
-	session.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	session = sessions.aggregatedPartial6MonthRetention1MinuteResolution
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(encoding.EmptySeriesIterators,
 			testFetchResponseMetadata, nil)
-	session.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	// Test searching between 1month and 3 months (so 2 months) to hit multiple aggregated
 	// namespaces that we need to choose from
@@ -637,13 +629,11 @@ func TestLocalReadExceedsAggregatedButNotUnaggregatedAndPartialAggregated(t *tes
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2),
 			testFetchResponseMetadata, nil)
-	session.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	session = aggregatedPartial6MonthRetention1MinuteResolution
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(encoding.EmptySeriesIterators,
 			testFetchResponseMetadata, nil)
-	session.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	// Test searching past unaggregated namespace and verify that we fan out to both
 	// the unaggregated namespaces and the partial aggregated namespace
@@ -689,13 +679,11 @@ func TestLocalReadExceedsAggregatedAndPartialAggregated(t *testing.T) {
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2),
 			testFetchResponseMetadata, nil)
-	session.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	session = aggregatedPartial6MonthRetention1MinuteResolution
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(encoding.EmptySeriesIterators,
 			testFetchResponseMetadata, nil)
-	session.EXPECT().IteratorPools().Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	// Test searching past aggregated and partially aggregated namespace, fan out to both
 	searchReq := newFetchReq()
@@ -824,23 +812,6 @@ func TestLocalSearchSuccess(t *testing.T) {
 			Name: []byte(expected.tagName), Value: []byte(expected.tagValue),
 		}}, actual.Tags.Tags)
 	}
-}
-
-func newTestIteratorPools(ctrl *gomock.Controller) encoding.IteratorPools {
-	pools := encoding.NewMockIteratorPools(ctrl)
-
-	mutablePool := encoding.NewMockMutableSeriesIteratorsPool(ctrl)
-	mutablePool.EXPECT().
-		Get(gomock.Any()).
-		DoAndReturn(func(size int) encoding.MutableSeriesIterators {
-			return encoding.NewSeriesIterators(make([]encoding.SeriesIterator, 0, size), mutablePool)
-		}).
-		AnyTimes()
-	mutablePool.EXPECT().Put(gomock.Any()).AnyTimes()
-
-	pools.EXPECT().MutableSeriesIterators().Return(mutablePool).AnyTimes()
-
-	return pools
 }
 
 func newCompleteTagsReq() *storage.CompleteTagsQuery {
