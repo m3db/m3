@@ -432,6 +432,25 @@ func (t Tag) String() string {
 	return fmt.Sprintf("%s: %s", t.Name, t.Value)
 }
 
+func (t Tag) GetName() []byte {
+	if t.Name != nil {
+		return t.Name
+	}
+	return nil
+}
+
+func (t Tag) GetValue() []byte {
+	if t.Value != nil {
+		return t.Value
+	}
+	return nil
+}
+
+type Series interface {
+	GetName() []byte
+	GetValue() []byte
+}
+
 // Equals returns a boolean indicating whether the provided tags are equal.
 //
 // NB: does not check that compared tags have the same underlying bytes.

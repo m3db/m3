@@ -222,14 +222,14 @@ type Options interface {
 // RateLimiter rate limits write requests to the db nodes.
 type RateLimiter interface {
 	// Limit returns a boolean indicating whether or not the storage write may proceed.
-	Limit(ClusterNamespace, queryts.Datapoints, []models.Tag) bool
+	Limit(context.Context, ClusterNamespace, queryts.Datapoints, []models.Tag) bool
 }
 
 // noopRateLimiter skips rate limiting.
 type noopRateLimiter struct{}
 
 // Limit ignores rate limiting by always returning true.
-func (f *noopRateLimiter) Limit(ClusterNamespace, queryts.Datapoints, []models.Tag) bool {
+func (f *noopRateLimiter) Limit(context.Context, ClusterNamespace, queryts.Datapoints, []models.Tag) bool {
 	return true
 }
 
