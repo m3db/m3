@@ -59,7 +59,17 @@ func TestIteratorsIterateEqualTimestampStrategy(t *testing.T) {
 	iters := &iterators{equalTimesStrategy: IterateLastPushed}
 	iters.reset()
 
-	assertIteratorsValues(t, iters, testValues, lastTestValues, firstAnnotation)
+	assertIteratorsValues(t, iters, testValues, lastTestValues, firstAnnotation, true)
+}
+
+func TestIteratorsNoCloseIters(t *testing.T) {
+	testValues := commonTestValues
+	lastTestValues := commonTestValues[len(commonTestValues)-1]
+
+	iters := &iterators{equalTimesStrategy: IterateLastPushed}
+	iters.reset()
+
+	assertIteratorsValues(t, iters, testValues, lastTestValues, firstAnnotation, false)
 }
 
 func TestIteratorsIterateHighestValue(t *testing.T) {
@@ -73,7 +83,7 @@ func TestIteratorsIterateHighestValue(t *testing.T) {
 	iters := &iterators{equalTimesStrategy: IterateHighestValue}
 	iters.reset()
 
-	assertIteratorsValues(t, iters, testValues, lastTestValues, firstAnnotation)
+	assertIteratorsValues(t, iters, testValues, lastTestValues, firstAnnotation, true)
 }
 
 func TestIteratorsIterateLowestValue(t *testing.T) {
@@ -87,7 +97,7 @@ func TestIteratorsIterateLowestValue(t *testing.T) {
 	iters := &iterators{equalTimesStrategy: IterateLowestValue}
 	iters.reset()
 
-	assertIteratorsValues(t, iters, testValues, lastTestValues, firstAnnotation)
+	assertIteratorsValues(t, iters, testValues, lastTestValues, firstAnnotation, true)
 }
 
 func TestIteratorsIterateHighestFrequencyValue(t *testing.T) {
@@ -121,7 +131,7 @@ func TestIteratorsIterateHighestFrequencyValue(t *testing.T) {
 	iters := &iterators{equalTimesStrategy: IterateHighestFrequencyValue}
 	iters.reset()
 
-	assertIteratorsValues(t, iters, testValues, lastTestValues, nil)
+	assertIteratorsValues(t, iters, testValues, lastTestValues, nil, true)
 }
 
 func TestIteratorsReuse(t *testing.T) {
@@ -141,9 +151,9 @@ func TestIteratorsReuse(t *testing.T) {
 	iters := &iterators{equalTimesStrategy: IterateLastPushed}
 	iters.reset()
 
-	assertIteratorsValues(t, iters, testValues1, testValues1[0], []byte{1})
+	assertIteratorsValues(t, iters, testValues1, testValues1[0], []byte{1}, true)
 	iters.reset()
-	assertIteratorsValues(t, iters, testValues2, testValues2[0], nil)
+	assertIteratorsValues(t, iters, testValues2, testValues2[0], nil, true)
 }
 
 func assertIteratorsValues(
@@ -152,7 +162,9 @@ func assertIteratorsValues(
 	testValues [][]testValue,
 	expectedValues []testValue,
 	expectedFirstAnnotation ts.Annotation,
+	closeIters bool,
 ) {
+	iters.closeIters = closeIters
 	require.Equal(t, 0, len(iters.values))
 
 	var testIters []Iterator
@@ -179,4 +191,8 @@ func assertIteratorsValues(
 	ok, err := iters.moveToValidNext()
 	require.NoError(t, err)
 	require.False(t, ok)
+
+	for _, testIter := range testIters {
+		require.Equal(t, closeIters, testIter.(*testIterator).closed)
+	}
 }

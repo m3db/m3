@@ -245,7 +245,11 @@ func assertTestSeriesAccumulatorIterator(
 
 	assert.Equal(t, series.id, iter.id.String())
 	assert.Equal(t, series.nsID, iter.nsID.String())
+
 	iter.Close()
+	for _, seriesIter := range newSeriesIter.seriesIters {
+		seriesIter.Close()
+	}
 
 	// Check that the tag iterator was closed.
 	tagIter := iter.Tags()
@@ -270,7 +274,6 @@ func TestAccumulatorMocked(t *testing.T) {
 	base.EXPECT().Start().Return(start)
 	base.EXPECT().End().Return(start.Add(time.Hour))
 	base.EXPECT().Err().Return(nil).AnyTimes()
-	base.EXPECT().Close()
 
 	it, err := NewSeriesIteratorAccumulator(base)
 	require.NoError(t, err)

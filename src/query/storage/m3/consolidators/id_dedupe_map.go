@@ -134,6 +134,7 @@ func (m *idDedupeMap) doUpdate(
 	default:
 		return fmt.Errorf("unknown query fanout type: %d", m.fanout)
 	}
+
 	if existsBetter {
 		// Existing result is already better
 		return nil
