@@ -168,6 +168,10 @@ func (it *seriesIterator) Reset(opts SeriesIteratorOptions) {
 	}
 }
 
+func (it *seriesIterator) IterateEqualTimestampStrategy() IterateEqualTimestampStrategy {
+	return it.iters.equalTimesStrategy
+}
+
 func (it *seriesIterator) SetIterateEqualTimestampStrategy(strategy IterateEqualTimestampStrategy) {
 	it.iters.equalTimesStrategy = strategy
 }

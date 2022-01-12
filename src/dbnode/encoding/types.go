@@ -265,6 +265,9 @@ type SeriesIterator interface {
 	// includes calling `id.Finalize()` upon iter.Close().
 	Reset(opts SeriesIteratorOptions)
 
+	// IterateEqualTimestampStrategy returns the current strategy.
+	IterateEqualTimestampStrategy() IterateEqualTimestampStrategy
+
 	// SetIterateEqualTimestampStrategy sets the equal timestamp strategy of how
 	// to select a value when the timestamp matches differing values with the same
 	// timestamp from different replicas.

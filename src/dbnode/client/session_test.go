@@ -402,6 +402,53 @@ func TestSeriesLimit_Aggregate(t *testing.T) {
 	require.NoError(t, sess.Close())
 }
 
+func TestIterationStrategy_FetchTagged(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// mock the host queue to return a result with a single series, this results in 3 series total, one per shard.
+	sess := setupMultipleInstanceCluster(t, ctrl, func(op op, host topology.Host) {
+		fOp := op.(*fetchTaggedOp)
+		assert.Equal(t, int64(2), *fOp.request.SeriesLimit)
+		shardID := strings.Split(host.ID(), "-")[2]
+		op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+			host: host,
+			response: &rpc.FetchTaggedResult_{
+				Exhaustive: true,
+				Elements: []*rpc.FetchTaggedIDResult_{
+					{
+						// use shard id for the metric id so it's stable across replicas.
+						ID: []byte(shardID),
+					},
+				},
+			},
+		}, nil)
+	})
+
+	stategy := encoding.IterateHighestFrequencyValue
+	iters, meta, err := sess.fetchTaggedAttempt(context.TODO(), ident.StringID("ns"),
+		index.Query{Query: idx.NewAllQuery()},
+		index.QueryOptions{
+			// set to 6 so we can test the instance series limit is 2 (6 /3 instances per replica * InstanceMultiple)
+			SeriesLimit:                   6,
+			InstanceMultiple:              1,
+			IterateEqualTimestampStrategy: &stategy,
+		})
+	require.NoError(t, err)
+	require.NotNil(t, iters)
+
+	// expect a series per shard.
+	require.Equal(t, 3, iters.Len())
+
+	// Confirm propagated strategy.
+	for _, i := range iters.Iters() {
+		require.Equal(t, stategy, i.IterateEqualTimestampStrategy())
+	}
+
+	require.True(t, meta.Exhaustive)
+	require.NoError(t, sess.Close())
+}
+
 func TestSessionClusterConnectConsistencyLevelAny(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

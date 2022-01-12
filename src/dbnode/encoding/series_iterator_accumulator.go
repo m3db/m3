@@ -200,7 +200,10 @@ func (it *seriesIteratorAccumulator) Reset(SeriesIteratorOptions) {
 	if it.err == nil {
 		it.err = errors.New("cannot reset a series accumulator")
 	}
-	return
+}
+
+func (it *seriesIteratorAccumulator) IterateEqualTimestampStrategy() IterateEqualTimestampStrategy {
+	return it.iters.equalTimesStrategy
 }
 
 func (it *seriesIteratorAccumulator) SetIterateEqualTimestampStrategy(
