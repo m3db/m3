@@ -74,7 +74,7 @@ func generateSeriesIterators(ctrl *gomock.Controller, ns string) encoding.Series
 	unique.EXPECT().End().Return(end).AnyTimes()
 	unique.EXPECT().Close()
 
-	return encoding.NewSeriesIterators([]encoding.SeriesIterator{iter, unique}, nil)
+	return encoding.NewSeriesIterators([]encoding.SeriesIterator{iter, unique})
 }
 
 func generateUnreadSeriesIterators(ctrl *gomock.Controller, ns string) encoding.SeriesIterators {
@@ -86,7 +86,7 @@ func generateUnreadSeriesIterators(ctrl *gomock.Controller, ns string) encoding.
 	unique.EXPECT().Namespace().Return(ident.StringID(ns)).AnyTimes()
 	unique.EXPECT().Close()
 
-	return encoding.NewSeriesIterators([]encoding.SeriesIterator{iter, unique}, nil)
+	return encoding.NewSeriesIterators([]encoding.SeriesIterator{iter, unique})
 }
 
 var namespaces = []struct {

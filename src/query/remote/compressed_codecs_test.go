@@ -223,9 +223,10 @@ func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
 }
 
 func TestEncodeToCompressedFetchResult(t *testing.T) {
-	iters := encoding.NewSeriesIterators(
-		[]encoding.SeriesIterator{buildTestSeriesIterator(t),
-			buildTestSeriesIterator(t)}, nil)
+	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{
+		buildTestSeriesIterator(t),
+		buildTestSeriesIterator(t),
+	})
 	ip := test.MakeMockIteratorPool()
 	result, err := consolidators.NewSeriesFetchResult(
 		iters,
@@ -253,9 +254,10 @@ func TestEncodeToCompressedFetchResult(t *testing.T) {
 }
 
 func TestDecodeCompressedFetchResult(t *testing.T) {
-	iters := encoding.NewSeriesIterators(
-		[]encoding.SeriesIterator{buildTestSeriesIterator(t),
-			buildTestSeriesIterator(t)}, nil)
+	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{
+		buildTestSeriesIterator(t),
+		buildTestSeriesIterator(t),
+	})
 	result, err := consolidators.NewSeriesFetchResult(
 		iters,
 		nil,
@@ -270,9 +272,10 @@ func TestDecodeCompressedFetchResult(t *testing.T) {
 
 func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
 	ip := test.MakeMockIteratorPool()
-	iters := encoding.NewSeriesIterators(
-		[]encoding.SeriesIterator{buildTestSeriesIterator(t),
-			buildTestSeriesIterator(t)}, nil)
+	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{
+		buildTestSeriesIterator(t),
+		buildTestSeriesIterator(t),
+	})
 
 	result, err := consolidators.NewSeriesFetchResult(
 		iters,
