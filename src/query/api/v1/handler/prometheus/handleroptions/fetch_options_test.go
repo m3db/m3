@@ -309,10 +309,10 @@ func TestFetchOptionsBuilder(t *testing.T) {
 		{
 			name: "read overrides",
 			headers: map[string]string{
-				headers.ReadConsistencyLevelHeader:          "2",
-				headers.IterateEqualTimestampStrategyHeader: "2",
+				headers.ReadConsistencyLevelHeader:          "all",
+				headers.IterateEqualTimestampStrategyHeader: "iterate_lowest_value",
 			},
-			expectedReadConsistencyLevel:          &topology.ValidReadConsistencyLevels()[2],
+			expectedReadConsistencyLevel:          &topology.ValidReadConsistencyLevels()[5],
 			expectedIterateEqualTimestampStrategy: &encoding.ValidIterateEqualTimestampStrategies()[2],
 		},
 	}

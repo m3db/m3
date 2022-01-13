@@ -138,7 +138,7 @@ func ParseValue(req *http.Request, header, formValue string, defaultValue int) (
 		return n, nil
 	}
 
-	return 0, nil
+	return defaultValue, nil
 }
 
 // ParseReadConsistencyLevel parses the ReadConsistencyLevel from either header or query string.
