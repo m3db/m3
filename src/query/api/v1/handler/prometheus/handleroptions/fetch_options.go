@@ -118,26 +118,14 @@ func NewFetchOptionsBuilder(
 
 // ParseLimit parses request limit from either header or query string.
 func ParseValue(req *http.Request, header, formValue string, defaultValue int) (int, error) {
-	v, ok, err := TryParseValue(req, header, formValue)
-	if err != nil {
-		return 0, err
-	}
-	if ok {
-		return v, nil
-	}
-	return defaultValue, nil
-}
-
-// TryParseValue parses request limit from either header or query string.
-func TryParseValue(req *http.Request, header, formValue string) (int, bool, error) {
 	if str := req.Header.Get(header); str != "" {
 		n, err := strconv.Atoi(str)
 		if err != nil {
 			err = fmt.Errorf(
 				"could not parse value: input=%s, err=%w", str, err)
-			return 0, false, err
+			return 0, err
 		}
-		return n, true, nil
+		return n, nil
 	}
 
 	if str := req.FormValue(formValue); str != "" {
@@ -145,12 +133,58 @@ func TryParseValue(req *http.Request, header, formValue string) (int, bool, erro
 		if err != nil {
 			err = fmt.Errorf(
 				"could not parse value: input=%s, err=%w", str, err)
-			return 0, false, err
+			return 0, err
 		}
-		return n, true, nil
+		return n, nil
 	}
 
-	return 0, false, nil
+	return 0, nil
+}
+
+// ParseReadConsistencyLevel parses the ReadConsistencyLevel from either header or query string.
+func ParseReadConsistencyLevel(
+	req *http.Request, header, formValue string,
+) (*topology.ReadConsistencyLevel, error) {
+	if str := req.Header.Get(header); str != "" {
+		v, err := topology.ParseReadConsistencyLevel(str)
+		if err != nil {
+			return nil, err
+		}
+		return &v, nil
+	}
+
+	if str := req.FormValue(formValue); str != "" {
+		v, err := topology.ParseReadConsistencyLevel(str)
+		if err != nil {
+			return nil, err
+		}
+		return &v, nil
+	}
+
+	return nil, nil
+}
+
+// ParseIterateEqualTimestampStrategy parses the IterateEqualTimestampStrategy from either header or query string.
+func ParseIterateEqualTimestampStrategy(
+	req *http.Request, header, formValue string,
+) (*encoding.IterateEqualTimestampStrategy, error) {
+	if str := req.Header.Get(header); str != "" {
+		v, err := encoding.ParseIterateEqualTimestampStrategy(str)
+		if err != nil {
+			return nil, err
+		}
+		return &v, nil
+	}
+
+	if str := req.FormValue(formValue); str != "" {
+		v, err := encoding.ParseIterateEqualTimestampStrategy(str)
+		if err != nil {
+			return nil, err
+		}
+		return &v, nil
+	}
+
+	return nil, nil
 }
 
 // ParseDurationLimit parses request limit from either header or query string.
@@ -347,24 +381,22 @@ func (b fetchOptionsBuilder) newFetchOptions(
 
 	fetchOpts.RequireNoWait = requireNoWait
 
-	v, ok, err := TryParseValue(req, headers.ReadConsistencyLevelHeader,
+	readConsistencyLevel, err := ParseReadConsistencyLevel(req, headers.ReadConsistencyLevelHeader,
 		"readConsistencyLevel")
 	if err != nil {
 		return nil, nil, err
 	}
-	if ok {
-		l := topology.ReadConsistencyLevel(v)
-		fetchOpts.ReadConsistencyLevel = &l
+	if readConsistencyLevel != nil {
+		fetchOpts.ReadConsistencyLevel = readConsistencyLevel
 	}
 
-	v, ok, err = TryParseValue(req, headers.IterateEqualTimestampStrategyHeader,
+	iterateStrategy, err := ParseIterateEqualTimestampStrategy(req, headers.IterateEqualTimestampStrategyHeader,
 		"iterateEqualTimestampStrategyHeader")
 	if err != nil {
 		return nil, nil, err
 	}
-	if ok {
-		l := encoding.IterateEqualTimestampStrategy(v)
-		fetchOpts.IterateEqualTimestampStrategy = &l
+	if iterateStrategy != nil {
+		fetchOpts.IterateEqualTimestampStrategy = iterateStrategy
 	}
 
 	var (

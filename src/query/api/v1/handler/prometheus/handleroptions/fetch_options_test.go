@@ -485,6 +485,8 @@ func TestFetchOptionsWithHeader(t *testing.T) {
 			],
 			"strip":["foo"]
 		}`,
+		headers.ReadConsistencyLevelHeader:          "all",
+		headers.IterateEqualTimestampStrategyHeader: "iterate_lowest_value",
 	}
 
 	builder, err := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{
@@ -522,6 +524,8 @@ func TestFetchOptionsWithHeader(t *testing.T) {
 	}
 
 	require.Equal(t, ex, opts.RestrictQueryOptions)
+	require.Equal(t, topology.ReadConsistencyLevelAll, *opts.ReadConsistencyLevel)
+	require.Equal(t, encoding.IterateLowestValue, *opts.IterateEqualTimestampStrategy)
 }
 
 func stripSpace(str string) string {
