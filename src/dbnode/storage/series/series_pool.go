@@ -29,8 +29,9 @@ type databaseSeriesPool struct {
 // NewDatabaseSeriesPool creates a new database series pool
 func NewDatabaseSeriesPool(opts pool.ObjectPoolOptions) DatabaseSeriesPool {
 	p := &databaseSeriesPool{pool: pool.NewObjectPool(opts)}
+	upsertCounter := opts.InstrumentOptions().MetricsScope().Counter("upsert_count")
 	p.pool.Init(func() interface{} {
-		return newPooledDatabaseSeries(p)
+		return newPooledDatabaseSeries(p, upsertCounter)
 	})
 	return p
 }

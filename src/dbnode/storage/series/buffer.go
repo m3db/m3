@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/uber-go/tally"
 
 	"github.com/cespare/xxhash/v2"
 	"go.uber.org/zap"
@@ -234,16 +235,17 @@ type dbBuffer struct {
 	bucketVersionsPool *BufferBucketVersionsPool
 	bucketPool         *BufferBucketPool
 	blockRetriever     QueryableBlockRetriever
+	upsertCounter      tally.Counter
 }
 
 // NB(prateek): databaseBuffer.Reset(...) must be called upon the returned
 // object prior to use.
-func newDatabaseBuffer() databaseBuffer {
-	b := &dbBuffer{
+func newDatabaseBuffer(upsertCounter tally.Counter) databaseBuffer {
+	return &dbBuffer{
 		bucketsMap:         make(map[xtime.UnixNano]*BufferBucketVersions),
 		inOrderBlockStarts: make([]xtime.UnixNano, 0, bucketsCacheSize),
+		upsertCounter:      upsertCounter,
 	}
-	return b
 }
 
 func (b *dbBuffer) Reset(opts databaseBufferResetOptions) {
@@ -510,7 +512,7 @@ func (b *dbBuffer) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 
 		// Once we've evicted all eligible buckets, we merge duplicate encoders
 		// in the remaining ones to try and reclaim memory.
-		merges, err := buckets.merge(WarmWrite, nsCtx)
+		merges, err := buckets.merge(WarmWrite, nsCtx, b.upsertCounter)
 		if err != nil {
 			log := b.opts.InstrumentOptions().Logger()
 			log.Error("buffer merge encode error", zap.Error(err))
@@ -554,7 +556,10 @@ func (b *dbBuffer) Snapshot(
 	// Snapshot must take both cold and warm writes because cold flushes don't
 	// happen for the current block (since cold flushes can't happen before a
 	// warm flush has happened).
-	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: false, nsCtx: nsCtx})
+	streams, err := buckets.mergeToStreams(
+		ctx,
+		streamsOptions{filterWriteType: false, nsCtx: nsCtx},
+		b.upsertCounter)
 	if err != nil {
 		return result, err
 	}
@@ -591,7 +596,8 @@ func (b *dbBuffer) Snapshot(
 			}
 			iter.Close()
 		}()
-		iter.Reset(sr, blockStart, b.opts.RetentionOptions().BlockSize(), nsCtx.Schema)
+		iter.Reset(sr, blockStart,
+			b.opts.RetentionOptions().BlockSize(), nsCtx.Schema, b.upsertCounter)
 
 		for iter.Next() {
 			dp, unit, annotation := iter.Current()
@@ -645,7 +651,11 @@ func (b *dbBuffer) WarmFlush(
 
 	// Flush only deals with WarmWrites. ColdWrites get persisted to disk via
 	// the compaction cycle.
-	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: true, writeType: WarmWrite, nsCtx: nsCtx})
+	streams, err := buckets.mergeToStreams(
+		ctx,
+		streamsOptions{filterWriteType: true, writeType: WarmWrite, nsCtx: nsCtx},
+		b.upsertCounter,
+	)
 	if err != nil {
 		return FlushOutcomeErr, err
 	}
@@ -663,7 +673,7 @@ func (b *dbBuffer) WarmFlush(
 		// there be buckets for previous versions. In this case, we need to try
 		// to flush them again, so we merge them together to one stream and
 		// persist it.
-		encoder, _, err := mergeStreamsToEncoder(blockStart, streams, b.opts, nsCtx)
+		encoder, _, err := mergeStreamsToEncoder(blockStart, streams, b.opts, nsCtx, b.upsertCounter)
 		if err != nil {
 			return FlushOutcomeErr, err
 		}
@@ -1091,12 +1101,16 @@ func (b *BufferBucketVersions) write(
 	return b.writableBucketCreate(writeType).write(timestamp, value, unit, annotation, schema)
 }
 
-func (b *BufferBucketVersions) merge(writeType WriteType, nsCtx namespace.Context) (int, error) {
+func (b *BufferBucketVersions) merge(
+	writeType WriteType,
+	nsCtx namespace.Context,
+	upsertCounter tally.Counter,
+) (int, error) {
 	res := 0
 	for _, bucket := range b.buckets {
 		// Only makes sense to merge buckets that are writable.
 		if bucket.version == writableBucketVersion && writeType == bucket.writeType {
-			merges, err := bucket.merge(nsCtx)
+			merges, err := bucket.merge(nsCtx, upsertCounter)
 			if err != nil {
 				return 0, err
 			}
@@ -1165,7 +1179,11 @@ func (b *BufferBucketVersions) writableBucketCreate(writeType WriteType) *Buffer
 
 // mergeToStreams merges each buffer bucket version's streams into one, then
 // returns a single stream for each buffer bucket version.
-func (b *BufferBucketVersions) mergeToStreams(ctx context.Context, opts streamsOptions) ([]xio.SegmentReader, error) {
+func (b *BufferBucketVersions) mergeToStreams(
+	ctx context.Context,
+	opts streamsOptions,
+	upsertCounter tally.Counter,
+) ([]xio.SegmentReader, error) {
 	buckets := b.buckets
 	res := make([]xio.SegmentReader, 0, len(buckets))
 
@@ -1173,7 +1191,7 @@ func (b *BufferBucketVersions) mergeToStreams(ctx context.Context, opts streamsO
 		if opts.filterWriteType && bucket.writeType != opts.writeType {
 			continue
 		}
-		stream, ok, err := bucket.mergeToStream(ctx, opts.nsCtx)
+		stream, ok, err := bucket.mergeToStream(ctx, opts.nsCtx, upsertCounter)
 		if err != nil {
 			return nil, err
 		}
@@ -1455,7 +1473,10 @@ func (b *BufferBucket) hasJustSingleLoadedBlock() bool {
 	return encodersEmpty && len(b.loadedBlocks) == 1
 }
 
-func (b *BufferBucket) merge(nsCtx namespace.Context) (int, error) {
+func (b *BufferBucket) merge(
+	nsCtx namespace.Context,
+	upsertCounter tally.Counter,
+) (int, error) {
 	if !b.needsMerge() {
 		// Save unnecessary work
 		return 0, nil
@@ -1496,7 +1517,8 @@ func (b *BufferBucket) merge(nsCtx namespace.Context) (int, error) {
 		}
 	}
 
-	encoder, lastWriteAt, err := mergeStreamsToEncoder(start, readers, b.opts, nsCtx)
+	encoder, lastWriteAt, err := mergeStreamsToEncoder(start, readers,
+		b.opts, nsCtx, upsertCounter)
 	if err != nil {
 		return 0, err
 	}
@@ -1520,6 +1542,7 @@ func mergeStreamsToEncoder(
 	streams []xio.SegmentReader,
 	opts Options,
 	nsCtx namespace.Context,
+	upsertCounter tally.Counter,
 ) (encoding.Encoder, xtime.UnixNano, error) {
 	bopts := opts.DatabaseBlockOptions()
 	encoder := opts.EncoderPool().Get()
@@ -1528,7 +1551,8 @@ func mergeStreamsToEncoder(
 	defer iter.Close()
 
 	var lastWriteAt xtime.UnixNano
-	iter.Reset(streams, blockStart, opts.RetentionOptions().BlockSize(), nsCtx.Schema)
+	iter.Reset(streams, blockStart, opts.RetentionOptions().BlockSize(),
+		nsCtx.Schema, upsertCounter)
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
 		if err := encoder.Encode(dp, unit, annotation); err != nil {
@@ -1547,7 +1571,11 @@ func mergeStreamsToEncoder(
 
 // mergeToStream merges all streams in this BufferBucket into one stream and
 // returns it.
-func (b *BufferBucket) mergeToStream(ctx context.Context, nsCtx namespace.Context) (xio.SegmentReader, bool, error) {
+func (b *BufferBucket) mergeToStream(
+	ctx context.Context,
+	nsCtx namespace.Context,
+	upsertCounter tally.Counter,
+) (xio.SegmentReader, bool, error) {
 	if b.hasJustSingleEncoder() {
 		b.resetLoadedBlocks()
 		// Already merged as a single encoder.
@@ -1570,7 +1598,7 @@ func (b *BufferBucket) mergeToStream(ctx context.Context, nsCtx namespace.Contex
 		return stream, true, nil
 	}
 
-	_, err := b.merge(nsCtx)
+	_, err := b.merge(nsCtx, upsertCounter)
 	if err != nil {
 		b.resetEncoders()
 		b.resetLoadedBlocks()

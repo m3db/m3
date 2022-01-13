@@ -28,11 +28,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/uber-go/tally"
 )
 
-var (
-	errOutOfOrderIterator = errors.New("values are out of order from inner iterator")
-)
+var errOutOfOrderIterator = errors.New("values are out of order from inner iterator")
 
 // multiReaderIterator is an iterator that iterates in order over a list of sets of
 // internally ordered but not collectively in order readers, it also deduplicates datapoints.
@@ -46,6 +45,7 @@ type multiReaderIterator struct {
 	err              error
 	firstNext        bool
 	closed           bool
+	upsertCounter    tally.Counter
 }
 
 // NewMultiReaderIterator creates a new multi-reader iterator.
@@ -55,7 +55,7 @@ func NewMultiReaderIterator(
 ) MultiReaderIterator {
 	it := &multiReaderIterator{pool: pool, iteratorAlloc: iteratorAlloc}
 	it.iters.closeIters = true
-	it.Reset(nil, 0, 0, nil)
+	it.Reset(nil, 0, 0, nil, nil)
 	return it
 }
 
@@ -72,7 +72,7 @@ func (it *multiReaderIterator) Next() bool {
 }
 
 func (it *multiReaderIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
-	return it.iters.current()
+	return it.iters.current(it.upsertCounter)
 }
 
 func (it *multiReaderIterator) hasError() bool {
@@ -167,12 +167,14 @@ func (it *multiReaderIterator) Reset(
 	start xtime.UnixNano,
 	blockSize time.Duration,
 	descr namespace.SchemaDescr,
+	upsertCounter tally.Counter,
 ) {
 	it.singleSlicesIter.readers = blocks
 	it.singleSlicesIter.firstNext = true
 	it.singleSlicesIter.closed = false
 	it.singleSlicesIter.start = start
 	it.singleSlicesIter.blockSize = blockSize
+	it.upsertCounter = upsertCounter
 	it.ResetSliceOfSlices(&it.singleSlicesIter, descr)
 }
 

@@ -84,10 +84,8 @@ const (
 	resultTypeRaw                      = "raw"
 )
 
-var (
-	errUnknownWriteAttemptType = errors.New(
-		"unknown write attempt type specified, internal error")
-)
+var errUnknownWriteAttemptType = errors.New(
+	"unknown write attempt type specified, internal error")
 
 var (
 	// ErrClusterConnectTimeout is raised when connecting to the cluster and
@@ -3698,7 +3696,7 @@ func (b *baseBlocksResult) mergeReaders(
 	start xtime.UnixNano, blockSize time.Duration, readers []xio.SegmentReader,
 ) (encoding.Encoder, error) {
 	iter := b.multiReaderIteratorPool.Get()
-	iter.Reset(readers, start, blockSize, b.nsCtx.Schema)
+	iter.Reset(readers, start, blockSize, b.nsCtx.Schema, nil)
 	defer iter.Close()
 
 	encoder := b.encoderPool.Get()
@@ -3978,7 +3976,6 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 		blockSize := currReader.BlockSize
 
 		encoder, err := r.mergeReaders(start, blockSize, readers)
-
 		if err != nil {
 			return err
 		}
@@ -4292,9 +4289,11 @@ type receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc []receivedBlockMetad
 func (arr receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc) Len() int {
 	return len(arr)
 }
+
 func (arr receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc) Swap(i, j int) {
 	arr[i], arr[j] = arr[j], arr[i]
 }
+
 func (arr receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc) Less(i, j int) bool {
 	peerI := arr[i].queue.peer
 	peerJ := arr[j].queue.peer

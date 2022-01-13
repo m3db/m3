@@ -26,12 +26,11 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/uber-go/tally"
 )
 
-var (
-	// UnixNano is an int64, so the max time is the max of that type.
-	timeMaxNanos = xtime.UnixNano(math.MaxInt64)
-)
+// UnixNano is an int64, so the max time is the max of that type.
+var timeMaxNanos = xtime.UnixNano(math.MaxInt64)
 
 // iterators is a collection of iterators, and allows for reading in order values
 // from the underlying iterators that are separately in order themselves.
@@ -57,7 +56,7 @@ func (i *iterators) len() int {
 	return len(i.values)
 }
 
-func (i *iterators) current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
+func (i *iterators) current(maybeUpsertCounter tally.Counter) (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	numIters := len(i.earliest)
 
 	switch i.equalTimesStrategy {
@@ -103,6 +102,10 @@ func (i *iterators) current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 		// IterateLastPushed or unknown strategy code path, don't panic on unknown
 		// as this is an internal data structure and this option is validated at a
 		// layer above.
+	}
+
+	if maybeUpsertCounter != nil && len(i.earliest) > 1 {
+		maybeUpsertCounter.Inc(int64(len(i.earliest) - 1))
 	}
 
 	return i.earliest[numIters-1].Current()

@@ -397,8 +397,10 @@ func (t iterType) name(name string) string {
 	return fmt.Sprintf("%s_%s", n, name)
 }
 
-type reset func()
-type stop func()
+type (
+	reset func()
+	stop  func()
+)
 
 // newTestOptions provides options with very small/non-existent pools
 // so that memory profiles don't get cluttered with pooled allocated objects.
@@ -485,7 +487,7 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 			}
 
 			iter := encoding.NewMultiReaderIterator(iterAlloc, nil)
-			iter.Reset(readers, start, window, nil)
+			iter.Reset(readers, start, window, nil, nil)
 			replicas[j].iter = iter
 
 			replicasIters[j] = iter
@@ -505,7 +507,7 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 				for _, reader := range replica.readers {
 					reader.Reset(data)
 				}
-				replica.iter.Reset(replica.readers, start, window, nil)
+				replica.iter.Reset(replica.readers, start, window, nil, nil)
 			}
 			// Reset the series iterator.
 			iter.Reset(encoding.SeriesIteratorOptions{
@@ -659,9 +661,7 @@ type profileTakenKey struct {
 	iterations int
 }
 
-var (
-	profilesTaken = make(map[profileTakenKey]int)
-)
+var profilesTaken = make(map[profileTakenKey]int)
 
 /*
 	$ go test -v -run none -bench BenchmarkNextIteration

@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -75,6 +76,7 @@ type dbSeries struct {
 	onRetrieveBlock             block.OnRetrieveBlock
 	blockOnEvictedFromWiredList block.OnEvictedFromWiredList
 	pool                        DatabaseSeriesPool
+	upsertCounter               tally.Counter
 }
 
 type dbSeriesBootstrap struct {
@@ -87,25 +89,26 @@ type dbSeriesBootstrap struct {
 
 // NewDatabaseSeries creates a new database series.
 func NewDatabaseSeries(opts DatabaseSeriesOptions) DatabaseSeries {
-	s := newDatabaseSeries()
+	s := newDatabaseSeries(nil)
 	s.Reset(opts)
 	return s
 }
 
 // newPooledDatabaseSeries creates a new pooled database series.
-func newPooledDatabaseSeries(pool DatabaseSeriesPool) DatabaseSeries {
-	series := newDatabaseSeries()
+func newPooledDatabaseSeries(pool DatabaseSeriesPool, upsertCounter tally.Counter) DatabaseSeries {
+	series := newDatabaseSeries(upsertCounter)
 	series.pool = pool
 	return series
 }
 
 // NB(prateek): dbSeries.Reset(...) must be called upon the returned
 // object prior to use.
-func newDatabaseSeries() *dbSeries {
+func newDatabaseSeries(upsertCounter tally.Counter) *dbSeries {
 	series := &dbSeries{
-		cachedBlocks: block.NewDatabaseSeriesBlocks(0),
+		cachedBlocks:  block.NewDatabaseSeriesBlocks(0),
+		upsertCounter: upsertCounter,
 	}
-	series.buffer = newDatabaseBuffer()
+	series.buffer = newDatabaseBuffer(upsertCounter)
 	return series
 }
 
@@ -362,7 +365,7 @@ func (s *dbSeries) bootstrapWrite(
 
 		// If buffer still nil then set it.
 		if s.bootstrap.buffer == nil {
-			s.bootstrap.buffer = newDatabaseBuffer()
+			s.bootstrap.buffer = newDatabaseBuffer(s.upsertCounter)
 			s.bootstrap.buffer.Reset(resetOpts)
 		}
 	}

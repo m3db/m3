@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//TODO(arnikola) convert to example
+// TODO(arnikola) convert to example
 package encoding_test
 
 import (
@@ -79,7 +79,7 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 	reader := xio.NewSegmentReader(segment)
 
 	multiReader := encoding.NewMultiReaderIterator(iterAlloc, nil)
-	multiReader.Reset([]xio.SegmentReader{reader}, blockStart, blockSize, nil)
+	multiReader.Reset([]xio.SegmentReader{reader}, blockStart, blockSize, nil, nil)
 
 	orig := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
 		ID:             ident.StringID("foo"),
@@ -118,7 +118,7 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 			}
 
 			iter := encoding.NewMultiReaderIterator(iterAlloc, nil)
-			iter.Reset(readers, start, bs, nil)
+			iter.Reset(readers, start, bs, nil, nil)
 
 			inserted := false
 			for i := range series.Blocks {

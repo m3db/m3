@@ -130,7 +130,6 @@ func convertM3DBSegmentedBlockIterators(
 			pools,
 			checkedPools,
 		)
-
 		if err != nil {
 			return nil, err
 		}
@@ -192,7 +191,7 @@ func blockReplicasFromSeriesIterator(
 
 			iter := pool.Get()
 			// TODO [haijun] query assumes schemaless iterators.
-			iter.Reset(readers, start, bs, nil)
+			iter.Reset(readers, start, bs, nil, nil)
 			inserted := false
 			for _, bl := range blocks {
 				if bl.blockStart == start {

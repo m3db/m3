@@ -120,7 +120,7 @@ func TestBufferWriteTooFuture(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr.ToTime()
 	}))
-	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
@@ -145,7 +145,7 @@ func TestBufferWriteTooPast(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr.ToTime()
 	}))
-	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
@@ -179,7 +179,7 @@ func TestBufferWriteColdTooFutureRetention(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr.ToTime()
 	}))
-	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
@@ -206,7 +206,7 @@ func TestBufferWriteColdTooPastRetention(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr.ToTime()
 	}))
-	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
@@ -233,7 +233,7 @@ func TestBufferWriteError(t *testing.T) {
 		rops   = opts.RetentionOptions()
 		curr   = xtime.Now().Truncate(rops.BlockSize())
 		ctx    = context.NewBackground()
-		buffer = newDatabaseBuffer().(*dbBuffer)
+		buffer = newDatabaseBuffer(nil).(*dbBuffer)
 	)
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr.ToTime()
@@ -261,7 +261,7 @@ func testBufferWriteRead(t *testing.T, opts Options, setAnn setAnnotation) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr.ToTime()
 	}))
-	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
@@ -299,7 +299,7 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr.ToTime()
 	}))
-	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
@@ -341,7 +341,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr.ToTime()
 	}))
-	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
@@ -486,7 +486,7 @@ func newTestBufferWithCustomData(
 	opts Options,
 	setAnn setAnnotation,
 ) (*dbBuffer, map[xtime.UnixNano][]DecodedTestValue) {
-	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
@@ -517,7 +517,7 @@ func testBufferBucketMerge(t *testing.T, opts Options, setAnn setAnnotation) {
 	if setAnn != nil {
 		nsCtx.Schema = testSchemaDesc
 	}
-	sr, ok, err := b.mergeToStream(ctx, nsCtx)
+	sr, ok, err := b.mergeToStream(ctx, nsCtx, nil)
 
 	require.NoError(t, err)
 	require.True(t, ok)
@@ -561,7 +561,7 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 
-	mergeRes, err := b.merge(namespace.Context{})
+	mergeRes, err := b.merge(namespace.Context{}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 1, mergeRes)
 	assert.Equal(t, 1, len(b.encoders))
@@ -628,7 +628,7 @@ func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 	requireReaderValuesEqual(t, expected, results, opts, namespace.Context{})
 
 	// Now assert that mergeToStream() returns same expected result.
-	stream, ok, err := b.mergeToStream(ctx, namespace.Context{})
+	stream, ok, err := b.mergeToStream(ctx, namespace.Context{}, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
 	requireSegmentValuesEqual(t, expected, []xio.SegmentReader{stream}, opts, namespace.Context{})
@@ -698,7 +698,7 @@ func TestBufferBucketDuplicatePointsNotWrittenButUpserted(t *testing.T) {
 	requireReaderValuesEqual(t, expected, results, opts, namespace.Context{})
 
 	// Now assert that mergeToStream() returns same expected result.
-	stream, ok, err := b.mergeToStream(ctx, namespace.Context{})
+	stream, ok, err := b.mergeToStream(ctx, namespace.Context{}, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
 	requireSegmentValuesEqual(t, expected, []xio.SegmentReader{stream}, opts, namespace.Context{})
@@ -711,7 +711,7 @@ func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr.ToTime()
 	}))
-	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
@@ -765,7 +765,7 @@ func testBufferFetchBlocks(t *testing.T, opts Options, setAnn setAnnotation) {
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
-	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
@@ -849,7 +849,7 @@ func TestBufferFetchBlocksOneResultPerBlock(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
-	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
@@ -877,7 +877,7 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 	start := b.start.Add(-time.Second)
 	end := b.start.Add(time.Second)
 
-	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
@@ -927,7 +927,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr.ToTime()
 	}))
-	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
@@ -1017,7 +1017,7 @@ func TestBufferRemoveBucket(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr.ToTime()
 	}))
-	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	buffer.Reset(databaseBufferResetOptions{
 		Options: opts,
 	})
@@ -1083,7 +1083,7 @@ func testBuffertoStream(t *testing.T, opts Options, setAnn setAnnotation) {
 	assert.Len(t, bucket.encoders, 4)
 	assert.Len(t, bucket.loadedBlocks, 0)
 
-	stream, err := b.mergeToStreams(ctx, streamsOptions{filterWriteType: false, nsCtx: nsCtx})
+	stream, err := b.mergeToStreams(ctx, streamsOptions{filterWriteType: false, nsCtx: nsCtx}, nil)
 	require.NoError(t, err)
 	requireSegmentValuesEqual(t, expected, stream, opts, nsCtx)
 }
@@ -1110,7 +1110,7 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 		blockSize = rops.BlockSize()
 		curr      = xtime.Now().Truncate(blockSize)
 		start     = curr
-		buffer    = newDatabaseBuffer().(*dbBuffer)
+		buffer    = newDatabaseBuffer(nil).(*dbBuffer)
 	)
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr.ToTime()
@@ -1184,7 +1184,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 		blockSize = rops.BlockSize()
 		curr      = xtime.Now().Truncate(blockSize)
 		start     = curr
-		buffer    = newDatabaseBuffer().(*dbBuffer)
+		buffer    = newDatabaseBuffer(nil).(*dbBuffer)
 		nsCtx     namespace.Context
 	)
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
@@ -1294,7 +1294,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 		blockSize = rops.BlockSize()
 		curr      = xtime.Now().Truncate(blockSize)
 		start     = curr
-		buffer    = newDatabaseBuffer().(*dbBuffer)
+		buffer    = newDatabaseBuffer(nil).(*dbBuffer)
 		nsCtx     namespace.Context
 	)
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
@@ -1459,7 +1459,7 @@ func mustGetLastEncoded(t *testing.T, entry inOrderEncoder) ts.Datapoint {
 }
 
 func TestInOrderUnixNanosAddRemove(t *testing.T) {
-	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	assertTimeSlicesEqual(t, []xtime.UnixNano{}, buffer.inOrderBlockStarts)
 
 	t3 := xtime.FromSeconds(3)
@@ -1768,7 +1768,7 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 func TestBufferLoadWarmWrite(t *testing.T) {
 	var (
 		opts      = newBufferTestOptions()
-		buffer    = newDatabaseBuffer()
+		buffer    = newDatabaseBuffer(nil)
 		blockSize = opts.RetentionOptions().BlockSize()
 		curr      = xtime.Now().Truncate(blockSize)
 		nsCtx     = namespace.Context{}
@@ -1801,7 +1801,7 @@ func TestBufferLoadWarmWrite(t *testing.T) {
 func TestBufferLoadColdWrite(t *testing.T) {
 	var (
 		opts      = newBufferTestOptions()
-		buffer    = newDatabaseBuffer()
+		buffer    = newDatabaseBuffer(nil)
 		blockSize = opts.RetentionOptions().BlockSize()
 		curr      = xtime.Now().Truncate(blockSize)
 		nsCtx     = namespace.Context{}
@@ -1927,7 +1927,7 @@ func TestUpsertProto(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			buffer := newDatabaseBuffer().(*dbBuffer)
+			buffer := newDatabaseBuffer(nil).(*dbBuffer)
 			buffer.Reset(databaseBufferResetOptions{
 				Options: opts,
 			})
@@ -2167,7 +2167,7 @@ func TestEncoderLimit(t *testing.T) {
 			newRuntimeOpts := runtimeOptsMgr.Get().
 				SetEncodersPerBlockLimit(test.encodersPerBlockLimit)
 			runtimeOptsMgr.Update(newRuntimeOpts)
-			buffer := newDatabaseBuffer().(*dbBuffer)
+			buffer := newDatabaseBuffer(nil).(*dbBuffer)
 			buffer.Reset(databaseBufferResetOptions{Options: opts})
 			ctx := context.NewBackground()
 			defer ctx.Close()

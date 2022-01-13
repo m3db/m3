@@ -181,7 +181,7 @@ func assertIteratorsValues(
 		require.NoError(t, err)
 		require.True(t, ok)
 
-		dp, unit, annotation := iters.current()
+		dp, unit, annotation := iters.current(nil)
 		require.Equal(t, expectedValue.t, dp.TimestampNanos)
 		require.Equal(t, expectedValue.value, dp.Value)
 		require.Equal(t, expectedValue.unit, unit)

@@ -337,7 +337,7 @@ func persistIter(
 	persistFn persist.DataFn,
 ) error {
 	it := ir.multiIter
-	it.Reset(segReaders, ir.blockStart, ir.blockSize, ir.schema)
+	it.Reset(segReaders, ir.blockStart, ir.blockSize, ir.schema, nil)
 	encoder := ir.encoderPool.Get()
 	encoder.Reset(ir.blockStart, ir.blockAllocSize, ir.schema)
 	for it.Next() {

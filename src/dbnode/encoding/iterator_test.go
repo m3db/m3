@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/uber-go/tally"
 )
 
 type testValue struct {
@@ -140,7 +141,7 @@ func (it *testMultiIterator) Close() {
 }
 
 func (it *testMultiIterator) Reset(r []xio.SegmentReader, _ xtime.UnixNano,
-	_ time.Duration, _ namespace.SchemaDescr) {
+	_ time.Duration, _ namespace.SchemaDescr, _ tally.Counter) {
 	for _, reader := range r {
 		it.onReset(reader)
 	}

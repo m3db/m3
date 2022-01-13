@@ -718,7 +718,7 @@ func datapointsFromSegment(t *testing.T, seg ts.Segment) []ts.Datapoint {
 	segReader := srPool.Get()
 	segReader.Reset(seg)
 	iter := multiIterPool.Get()
-	iter.Reset([]xio.SegmentReader{segReader}, startTime, blockSize, nil)
+	iter.Reset([]xio.SegmentReader{segReader}, startTime, blockSize, nil, nil)
 	defer iter.Close()
 
 	var dps []ts.Datapoint

@@ -74,7 +74,7 @@ func DecodeSegmentValues(
 	iter encoding.MultiReaderIterator,
 	schema namespace.SchemaDescr,
 ) ([]DecodedTestValue, error) {
-	iter.Reset(results, 0, time.Duration(0), schema)
+	iter.Reset(results, 0, time.Duration(0), schema, nil)
 	defer iter.Close()
 
 	var all []DecodedTestValue

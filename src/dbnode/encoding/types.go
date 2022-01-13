@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/uber-go/tally"
 )
 
 // Encoder is the generic interface for different types of encoders.
@@ -208,7 +209,7 @@ type MultiReaderIterator interface {
 	// Reset resets the iterator to read from a slice of readers
 	// with a new schema (for schema aware iterators).
 	Reset(readers []xio.SegmentReader, start xtime.UnixNano,
-		blockSize time.Duration, schema namespace.SchemaDescr)
+		blockSize time.Duration, schema namespace.SchemaDescr, upsertCounter tally.Counter)
 
 	// ResetSliceOfSlices resets the iterator to read from a slice of slice readers
 	// with a new schema (for schema aware iterators).

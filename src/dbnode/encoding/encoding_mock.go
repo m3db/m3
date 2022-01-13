@@ -40,6 +40,7 @@ import (
 	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/uber-go/tally"
 )
 
 // MockEncoder is a mock of Encoder interface.
@@ -839,15 +840,15 @@ func (mr *MockMultiReaderIteratorMockRecorder) Readers() *gomock.Call {
 }
 
 // Reset mocks base method.
-func (m *MockMultiReaderIterator) Reset(readers []xio.SegmentReader, start time0.UnixNano, blockSize time.Duration, schema namespace.SchemaDescr) {
+func (m *MockMultiReaderIterator) Reset(readers []xio.SegmentReader, start time0.UnixNano, blockSize time.Duration, schema namespace.SchemaDescr, upsertCounter tally.Counter) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", readers, start, blockSize, schema)
+	m.ctrl.Call(m, "Reset", readers, start, blockSize, schema, upsertCounter)
 }
 
 // Reset indicates an expected call of Reset.
-func (mr *MockMultiReaderIteratorMockRecorder) Reset(readers, start, blockSize, schema interface{}) *gomock.Call {
+func (mr *MockMultiReaderIteratorMockRecorder) Reset(readers, start, blockSize, schema, upsertCounter interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMultiReaderIterator)(nil).Reset), readers, start, blockSize, schema)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMultiReaderIterator)(nil).Reset), readers, start, blockSize, schema, upsertCounter)
 }
 
 // ResetSliceOfSlices mocks base method.

@@ -146,7 +146,7 @@ func (it *seriesIteratorAccumulator) Next() bool {
 }
 
 func (it *seriesIteratorAccumulator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
-	return it.iters.current()
+	return it.iters.current(nil)
 }
 
 func (it *seriesIteratorAccumulator) Err() error {

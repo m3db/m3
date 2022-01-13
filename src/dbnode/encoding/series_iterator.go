@@ -83,7 +83,7 @@ func (it *seriesIterator) Next() bool {
 }
 
 func (it *seriesIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
-	return it.iters.current()
+	return it.iters.current(nil)
 }
 
 func (it *seriesIterator) Err() error {
