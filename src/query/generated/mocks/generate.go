@@ -21,7 +21,7 @@
 // mockgen rules for generating mocks for exported interfaces (reflection mode).
 //go:generate sh -c "mockgen -package=downsample $PACKAGE/src/cmd/services/m3coordinator/downsample Downsampler,MetricsAppender,SamplesAppender | genclean -pkg $PACKAGE/src/cmd/services/m3coordinator/downsample -out $GOPATH/src/$PACKAGE/src/cmd/services/m3coordinator/downsample/downsample_mock.go"
 //go:generate sh -c "mockgen -package=storage -destination=$GOPATH/src/$PACKAGE/src/query/storage/storage_mock.go $PACKAGE/src/query/storage Storage"
-//go:generate sh -c "mockgen -package=m3 -destination=$GOPATH/src/$PACKAGE/src/query/storage/m3/m3_mock.go $PACKAGE/src/query/storage/m3 Storage,ClusterNamespace"
+//go:generate sh -c "mockgen -package=m3 -destination=$GOPATH/src/$PACKAGE/src/query/storage/m3/m3_mock.go $PACKAGE/src/query/storage/m3 Storage,ClusterNamespace,Clusters"
 //go:generate sh -c "mockgen -package=ts -destination=$GOPATH/src/$PACKAGE/src/query/ts/ts_mock.go $PACKAGE/src/query/ts Values"
 //go:generate sh -c "mockgen -package=block -destination=$GOPATH/src/$PACKAGE/src/query/block/block_mock.go $PACKAGE/src/query/block Block,StepIter,Builder,Step,SeriesIter"
 //go:generate sh -c "mockgen -package=ingest -destination=$GOPATH/src/$PACKAGE/src/cmd/services/m3coordinator/ingest/write_mock.go $PACKAGE/src/cmd/services/m3coordinator/ingest DownsamplerAndWriter"
