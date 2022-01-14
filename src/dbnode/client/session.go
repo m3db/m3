@@ -136,6 +136,15 @@ type sessionState struct {
 	majority       int
 }
 
+func (s *sessionState) readConsistencyLevelWithRLock(
+	override *topology.ReadConsistencyLevel,
+) topology.ReadConsistencyLevel {
+	if override == nil {
+		return s.readLevel
+	}
+	return *override
+}
+
 type session struct {
 	state                                sessionState
 	opts                                 Options
@@ -1514,10 +1523,11 @@ func (s *session) aggregateAttempt(
 	}
 
 	fetchState, err := s.newFetchStateWithRLock(ctx, nsClone, newFetchStateOpts{
-		stateType:        aggregateFetchState,
-		aggregateRequest: req,
-		startInclusive:   opts.StartInclusive,
-		endExclusive:     opts.EndExclusive,
+		stateType:            aggregateFetchState,
+		aggregateRequest:     req,
+		startInclusive:       opts.StartInclusive,
+		endExclusive:         opts.EndExclusive,
+		readConsistencyLevel: opts.ReadConsistencyLevel,
 	})
 	s.state.RUnlock()
 
@@ -1616,10 +1626,11 @@ func (s *session) fetchTaggedAttempt(
 	}
 
 	fetchState, err := s.newFetchStateWithRLock(ctx, nsClone, newFetchStateOpts{
-		stateType:          fetchTaggedFetchState,
-		fetchTaggedRequest: req,
-		startInclusive:     opts.StartInclusive,
-		endExclusive:       opts.EndExclusive,
+		stateType:            fetchTaggedFetchState,
+		fetchTaggedRequest:   req,
+		startInclusive:       opts.StartInclusive,
+		endExclusive:         opts.EndExclusive,
+		readConsistencyLevel: opts.ReadConsistencyLevel,
 	})
 	s.state.RUnlock()
 
@@ -1634,8 +1645,14 @@ func (s *session) fetchTaggedAttempt(
 	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
+
+	iterOpts := s.opts.IterationOptions()
+	if opts.IterateEqualTimestampStrategy != nil {
+		iterOpts.IterateEqualTimestampStrategy = *opts.IterateEqualTimestampStrategy
+	}
+
 	iters, metadata, err := fetchState.asEncodingSeriesIterators(
-		s.pools, nsCtx.Schema, s.opts.IterationOptions(), opts.SeriesLimit)
+		s.pools, nsCtx.Schema, iterOpts, opts.SeriesLimit)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
@@ -1681,10 +1698,11 @@ func (s *session) fetchTaggedIDsAttempt(
 	}
 
 	fetchState, err := s.newFetchStateWithRLock(ctx, nsClone, newFetchStateOpts{
-		stateType:          fetchTaggedFetchState,
-		fetchTaggedRequest: req,
-		startInclusive:     opts.StartInclusive,
-		endExclusive:       opts.EndExclusive,
+		stateType:            fetchTaggedFetchState,
+		fetchTaggedRequest:   req,
+		startInclusive:       opts.StartInclusive,
+		endExclusive:         opts.EndExclusive,
+		readConsistencyLevel: opts.ReadConsistencyLevel,
 	})
 	s.state.RUnlock()
 
@@ -1709,9 +1727,10 @@ func (s *session) fetchTaggedIDsAttempt(
 }
 
 type newFetchStateOpts struct {
-	stateType      fetchStateType
-	startInclusive xtime.UnixNano
-	endExclusive   xtime.UnixNano
+	stateType            fetchStateType
+	startInclusive       xtime.UnixNano
+	endExclusive         xtime.UnixNano
+	readConsistencyLevel *topology.ReadConsistencyLevel
 
 	// only valid if stateType == fetchTaggedFetchState
 	fetchTaggedRequest rpc.FetchTaggedRequest
@@ -1736,6 +1755,8 @@ func (s *session) newFetchStateWithRLock(
 	fetchState.nsID = ns // transfer ownership to `fetchState`
 	fetchState.incRef()  // indicate current go-routine has a reference to the fetchState
 
+	readLevel := s.state.readConsistencyLevelWithRLock(opts.readConsistencyLevel)
+
 	// wire up the operation based on the opts specified
 	var (
 		op     op
@@ -1748,7 +1769,7 @@ func (s *session) newFetchStateWithRLock(
 		closer = fetchOp.decRef // release the ref for the current go-routine
 		fetchOp.update(ctx, opts.fetchTaggedRequest, fetchState.completionFn)
 		fetchState.ResetFetchTagged(opts.startInclusive, opts.endExclusive,
-			fetchOp, topoMap, s.state.majority, s.state.readLevel)
+			fetchOp, topoMap, s.state.majority, readLevel)
 		op = fetchOp
 
 	case aggregateFetchState:
@@ -1757,7 +1778,7 @@ func (s *session) newFetchStateWithRLock(
 		closer = aggOp.decRef // release the ref for the current go-routine
 		aggOp.update(ctx, opts.aggregateRequest, fetchState.completionFn)
 		fetchState.ResetAggregate(opts.startInclusive, opts.endExclusive,
-			aggOp, topoMap, s.state.majority, s.state.readLevel)
+			aggOp, topoMap, s.state.majority, readLevel)
 		op = aggOp
 
 	default:
@@ -1814,7 +1835,7 @@ func (s *session) fetchIDsAttempt(
 		resultErrs             int32
 		majority               int32
 		numReplicas            int32
-		consistencyLevel       topology.ReadConsistencyLevel
+		readLevel              topology.ReadConsistencyLevel
 		fetchBatchOpsByHostIdx [][]*fetchBatchOp
 		success                = false
 		startFetchAttempt      = s.nowFn()
@@ -1862,7 +1883,7 @@ func (s *session) fetchIDsAttempt(
 	// while it is filling.
 	fetchBatchOpsByHostIdx = s.pools.fetchBatchOpArrayArray.Get()
 
-	consistencyLevel = s.state.readLevel
+	readLevel = s.state.readLevel
 	majority = int32(s.state.majority)
 	numReplicas = int32(s.state.replicas)
 
@@ -1909,7 +1930,7 @@ func (s *session) fetchIDsAttempt(
 				resultErrLock.RUnlock()
 			}
 			responded := enqueued - atomic.LoadInt32(&pending)
-			err := s.readConsistencyResult(consistencyLevel, majority, enqueued,
+			err := s.readConsistencyResult(readLevel, majority, enqueued,
 				responded, errsLen, reportErrors)
 			s.recordFetchMetrics(err, errsLen, startFetchAttempt)
 			if err != nil {
@@ -1922,7 +1943,7 @@ func (s *session) fetchIDsAttempt(
 			} else {
 				resultsLock.RLock()
 				numItersToInclude := int(success)
-				numDesired := topology.NumDesiredForReadConsistency(consistencyLevel, int(numReplicas), int(majority))
+				numDesired := topology.NumDesiredForReadConsistency(readLevel, int(numReplicas), int(majority))
 				if numDesired < numItersToInclude {
 					// Avoid decoding more data than is required to satisfy the consistency guarantees.
 					numItersToInclude = numDesired
@@ -1996,7 +2017,7 @@ func (s *session) fetchIDsAttempt(
 			// which would cause a nil pointer exception.
 			remaining := atomic.AddInt32(&pending, -1)
 			shouldTerminate := topology.ReadConsistencyTermination(
-				s.state.readLevel, majority, remaining, snapshotSuccess,
+				readLevel, majority, remaining, snapshotSuccess,
 			)
 			if shouldTerminate && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
 				allCompletionFn()

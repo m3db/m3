@@ -997,6 +997,20 @@ func (mr *MockSeriesIteratorAccumulatorMockRecorder) ID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).ID))
 }
 
+// IterateEqualTimestampStrategy mocks base method.
+func (m *MockSeriesIteratorAccumulator) IterateEqualTimestampStrategy() IterateEqualTimestampStrategy {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IterateEqualTimestampStrategy")
+	ret0, _ := ret[0].(IterateEqualTimestampStrategy)
+	return ret0
+}
+
+// IterateEqualTimestampStrategy indicates an expected call of IterateEqualTimestampStrategy.
+func (mr *MockSeriesIteratorAccumulatorMockRecorder) IterateEqualTimestampStrategy() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterateEqualTimestampStrategy", reflect.TypeOf((*MockSeriesIteratorAccumulator)(nil).IterateEqualTimestampStrategy))
+}
+
 // Namespace mocks base method.
 func (m *MockSeriesIteratorAccumulator) Namespace() ident.ID {
 	m.ctrl.T.Helper()
@@ -1212,6 +1226,20 @@ func (m *MockSeriesIterator) ID() ident.ID {
 func (mr *MockSeriesIteratorMockRecorder) ID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockSeriesIterator)(nil).ID))
+}
+
+// IterateEqualTimestampStrategy mocks base method.
+func (m *MockSeriesIterator) IterateEqualTimestampStrategy() IterateEqualTimestampStrategy {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IterateEqualTimestampStrategy")
+	ret0, _ := ret[0].(IterateEqualTimestampStrategy)
+	return ret0
+}
+
+// IterateEqualTimestampStrategy indicates an expected call of IterateEqualTimestampStrategy.
+func (mr *MockSeriesIteratorMockRecorder) IterateEqualTimestampStrategy() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterateEqualTimestampStrategy", reflect.TypeOf((*MockSeriesIterator)(nil).IterateEqualTimestampStrategy))
 }
 
 // Namespace mocks base method.
