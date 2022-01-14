@@ -104,6 +104,9 @@ func NewMockSeriesIteratorFromBase(
 	mockIter.EXPECT().Namespace().Return(ident.StringID("foo")).AnyTimes()
 	mockIter.EXPECT().ID().Return(ident.StringID("bar")).AnyTimes()
 	mockIter.EXPECT().Tags().Return(tags).AnyTimes()
+	mockIter.EXPECT().Start().Return(now.Add(-time.Hour)).AnyTimes()
+	mockIter.EXPECT().End().Return(now).AnyTimes()
+	mockIter.EXPECT().FirstAnnotation().Return(nil).AnyTimes()
 	mockIter.EXPECT().Close().Do(func() {
 		// Make sure to close the tags generated when closing the iter
 		tags.Close()

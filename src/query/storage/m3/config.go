@@ -53,7 +53,7 @@ type NewClientFromConfig func(
 
 // ClusterStaticConfiguration is a static cluster configuration.
 type ClusterStaticConfiguration struct {
-	NewClientFromConfig NewClientFromConfig
+	NewClientFromConfig NewClientFromConfig                   `yaml:"-"`
 	Namespaces          []ClusterStaticNamespaceConfiguration `yaml:"namespaces"`
 	Client              client.Configuration                  `yaml:"client"`
 }
@@ -87,6 +87,12 @@ type ClusterStaticNamespaceConfiguration struct {
 	// Downsample is the configuration for downsampling options to use with
 	// the namespace.
 	Downsample *DownsampleClusterStaticNamespaceConfiguration `yaml:"downsample"`
+
+	// ReadOnly prevents any writes to this namespace.
+	ReadOnly bool `yaml:"readOnly"`
+
+	// DataLatency is the duration after which the data is available in this namespace.
+	DataLatency time.Duration `yaml:"dataLatency"`
 }
 
 func (c ClusterStaticNamespaceConfiguration) metricsType() (storagemetadata.MetricsType, error) {
@@ -296,6 +302,8 @@ func (c ClustersStaticConfiguration) NewStaticClusters(
 				Retention:   n.Retention,
 				Resolution:  n.Resolution,
 				Downsample:  &downsampleOpts,
+				ReadOnly:    n.ReadOnly,
+				DataLatency: n.DataLatency,
 			}
 			aggregatedClusterNamespaces = append(aggregatedClusterNamespaces, def)
 		}

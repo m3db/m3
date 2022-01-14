@@ -226,6 +226,8 @@ func seriesAttributesForGraphiteSource(series prompb.TimeSeries) (ts.SeriesAttri
 		promMetricType = ts.PromMetricTypeCounter
 	case prompb.M3Type_M3_GAUGE:
 		promMetricType = ts.PromMetricTypeGauge
+	case prompb.M3Type_M3_TIMER:
+		promMetricType = ts.PromMetricTypeUnknown
 	}
 
 	return ts.SeriesAttributes{
@@ -252,42 +254,50 @@ func convertM3Type(m3Type prompb.M3Type) (ts.M3MetricType, error) {
 	}
 }
 
+var (
+	promMetricTypeToProto = map[ts.PromMetricType]annotation.OpenMetricsFamilyType{
+		ts.PromMetricTypeUnknown:        annotation.OpenMetricsFamilyType_UNKNOWN,
+		ts.PromMetricTypeCounter:        annotation.OpenMetricsFamilyType_COUNTER,
+		ts.PromMetricTypeGauge:          annotation.OpenMetricsFamilyType_GAUGE,
+		ts.PromMetricTypeHistogram:      annotation.OpenMetricsFamilyType_HISTOGRAM,
+		ts.PromMetricTypeGaugeHistogram: annotation.OpenMetricsFamilyType_GAUGE_HISTOGRAM,
+		ts.PromMetricTypeSummary:        annotation.OpenMetricsFamilyType_SUMMARY,
+		ts.PromMetricTypeInfo:           annotation.OpenMetricsFamilyType_INFO,
+		ts.PromMetricTypeStateSet:       annotation.OpenMetricsFamilyType_STATESET,
+	}
+
+	graphiteMetricTypeToProto = map[ts.M3MetricType]annotation.GraphiteType{
+		ts.M3MetricTypeGauge:   annotation.GraphiteType_GRAPHITE_GAUGE,
+		ts.M3MetricTypeCounter: annotation.GraphiteType_GRAPHITE_COUNTER,
+		ts.M3MetricTypeTimer:   annotation.GraphiteType_GRAPHITE_TIMER,
+	}
+)
+
 // SeriesAttributesToAnnotationPayload converts ts.SeriesAttributes into an annotation.Payload.
 func SeriesAttributesToAnnotationPayload(seriesAttributes ts.SeriesAttributes) (annotation.Payload, error) {
-	var metricType annotation.MetricType
+	if seriesAttributes.Source == ts.SourceTypeGraphite {
+		metricType, ok := graphiteMetricTypeToProto[seriesAttributes.M3Type]
+		if !ok {
+			return annotation.Payload{}, fmt.Errorf(
+				"invalid Graphite metric type %d", seriesAttributes.M3Type)
+		}
 
-	switch seriesAttributes.PromType {
-	case ts.PromMetricTypeUnknown:
-		metricType = annotation.MetricType_UNKNOWN
+		return annotation.Payload{
+			SourceFormat: annotation.SourceFormat_GRAPHITE,
+			GraphiteType: metricType,
+		}, nil
+	}
 
-	case ts.PromMetricTypeCounter:
-		metricType = annotation.MetricType_COUNTER
-
-	case ts.PromMetricTypeGauge:
-		metricType = annotation.MetricType_GAUGE
-
-	case ts.PromMetricTypeHistogram:
-		metricType = annotation.MetricType_HISTOGRAM
-
-	case ts.PromMetricTypeGaugeHistogram:
-		metricType = annotation.MetricType_GAUGE_HISTOGRAM
-
-	case ts.PromMetricTypeSummary:
-		metricType = annotation.MetricType_SUMMARY
-
-	case ts.PromMetricTypeInfo:
-		metricType = annotation.MetricType_INFO
-
-	case ts.PromMetricTypeStateSet:
-		metricType = annotation.MetricType_STATESET
-
-	default:
-		return annotation.Payload{}, fmt.Errorf("invalid Prometheus metric type %v", seriesAttributes.PromType)
+	metricType, ok := promMetricTypeToProto[seriesAttributes.PromType]
+	if !ok {
+		return annotation.Payload{}, fmt.Errorf(
+			"invalid Prometheus metric type %d", seriesAttributes.PromType)
 	}
 
 	return annotation.Payload{
-		MetricType:        metricType,
-		HandleValueResets: seriesAttributes.HandleValueResets,
+		SourceFormat:                 annotation.SourceFormat_OPEN_METRICS,
+		OpenMetricsFamilyType:        metricType,
+		OpenMetricsHandleValueResets: seriesAttributes.HandleValueResets,
 	}, nil
 }
 

@@ -23,18 +23,14 @@ package segment
 import (
 	"errors"
 
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
-var (
-	// ErrClosed is the error returned when attempting to perform operations on a
-	// segment that has already been closed.
-	ErrClosed = errors.New("segment has been closed")
-)
+// ErrClosed is the error returned when attempting to perform operations on a
+// segment that has already been closed.
+var ErrClosed = errors.New("segment has been closed")
 
 // Segment is a sub-collection of documents within an index.
 type Segment interface {
@@ -224,7 +220,7 @@ type SegmentsBuilder interface {
 
 	// SetFilter sets a filter on which documents to retain
 	// when building the segment.
-	SetFilter(keep DocumentsFilter, filterCount tally.Counter)
+	SetFilter(keep DocumentsFilter)
 
 	// AddSegments adds segments to build from.
 	AddSegments(segments []Segment) error
@@ -251,15 +247,9 @@ type SegmentsBuilderSegmentMetadata struct {
 
 // DocumentsFilter is a documents filter.
 type DocumentsFilter interface {
-	Contains(d doc.Metadata) bool
-}
-
-// DocumentsFilterFn implements DocumentsFilter.
-type DocumentsFilterFn func(d doc.Metadata) bool
-
-var _ DocumentsFilter = DocumentsFilterFn(nil)
-
-// Contains implements the DocumentsFilter interface.
-func (f DocumentsFilterFn) Contains(d doc.Metadata) bool {
-	return f(d)
+	// Contains is true if the document passes the filter.
+	ContainsDoc(d doc.Metadata) bool
+	// OnDuplicateDoc is a callback for when a duplicate document is
+	// encountered which is then removed from the resulting segment.
+	OnDuplicateDoc(d doc.Metadata)
 }

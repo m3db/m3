@@ -161,8 +161,5 @@ func BuildSeriesIterators(
 		iters = append(iters, iter)
 	}
 
-	return encoding.NewSeriesIterators(
-		iters,
-		opts.IteratorPools.MutableSeriesIterators(),
-	), nil
+	return encoding.NewSeriesIterators(iters), nil
 }

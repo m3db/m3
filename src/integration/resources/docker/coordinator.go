@@ -78,6 +78,10 @@ func newDockerHTTPCoordinator(
 	}, nil
 }
 
+func (c *coordinator) Start() {
+	// noop as docker container should already be started
+}
+
 func (c *coordinator) HostDetails() (*resources.InstanceInfo, error) {
 	// TODO: add implementation
 	return nil, errors.New("not implemented")

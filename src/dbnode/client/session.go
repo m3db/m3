@@ -623,8 +623,6 @@ func (s *session) Open() error {
 		))
 	s.pools.seriesIterator = encoding.NewSeriesIteratorPool(seriesIteratorPoolOpts)
 	s.pools.seriesIterator.Init()
-	s.pools.seriesIterators = encoding.NewMutableSeriesIteratorsPool(s.opts.SeriesIteratorArrayPoolBuckets())
-	s.pools.seriesIterators.Init()
 	s.state.status = statusOpen
 	s.state.Unlock()
 
@@ -785,6 +783,7 @@ func (s *session) DedicatedConnection(
 		}
 
 		if err := s.healthCheckNewConnFn(client, s.opts, opts.BootstrappedNodesOnly); err != nil {
+			channel.Close()
 			multiErr = multiErr.Add(err)
 			return
 		}
@@ -1845,8 +1844,7 @@ func (s *session) fetchIDsAttempt(
 		return nil, errSessionStatusNotOpen
 	}
 
-	iters := s.pools.seriesIterators.Get(ids.Remaining())
-	iters.Reset(ids.Remaining())
+	iters := encoding.NewSizedSeriesIterators(ids.Remaining())
 
 	defer func() {
 		// NB(r): Ensure we cover all edge cases and close the iters in any case

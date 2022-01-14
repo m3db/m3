@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xerror "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -126,7 +125,6 @@ func applySessionTestOptions(opts Options) Options {
 		SetWriteRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))).
 		SetFetchRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))).
 		SetSeriesIteratorPoolSize(0).
-		SetSeriesIteratorArrayPoolBuckets([]pool.Bucket{}).
 		SetWriteOpPoolSize(0).
 		SetWriteTaggedOpPoolSize(0).
 		SetFetchBatchOpPoolSize(0).
@@ -243,7 +241,6 @@ func TestIteratorPools(t *testing.T) {
 
 	multiReaderIteratorArray := encoding.NewMultiReaderIteratorArrayPool(nil)
 	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
-	mutableSeriesIteratorPool := encoding.NewMutableSeriesIteratorsPool(nil)
 	seriesIteratorPool := encoding.NewSeriesIteratorPool(nil)
 	checkedBytesWrapperPool := xpool.NewCheckedBytesWrapperPool(nil)
 	idPool := ident.NewPool(nil, ident.PoolOptions{})
@@ -253,7 +250,6 @@ func TestIteratorPools(t *testing.T) {
 	s.pools = sessionPools{
 		multiReaderIteratorArray: multiReaderIteratorArray,
 		multiReaderIterator:      multiReaderIteratorPool,
-		seriesIterators:          mutableSeriesIteratorPool,
 		seriesIterator:           seriesIteratorPool,
 		checkedBytesWrapper:      checkedBytesWrapperPool,
 		id:                       idPool,
@@ -272,7 +268,6 @@ func TestIteratorPools(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, multiReaderIteratorArray, itPool.MultiReaderIteratorArray())
 	assert.Equal(t, multiReaderIteratorPool, itPool.MultiReaderIterator())
-	assert.Equal(t, mutableSeriesIteratorPool, itPool.MutableSeriesIterators())
 	assert.Equal(t, seriesIteratorPool, itPool.SeriesIterator())
 	assert.Equal(t, checkedBytesWrapperPool, itPool.CheckedBytesWrapper())
 	assert.Equal(t, encoderPool, itPool.TagEncoder())
@@ -445,25 +440,35 @@ func TestDedicatedConnection(t *testing.T) {
 
 	_, ch, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
 	require.NoError(t, err)
-	assert.Equal(t, &noopPooledChannel{"remote1"}, ch)
+	assert.Equal(t, "remote1", asNoopPooledChannel(ch).address)
 
 	_, ch2, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{ShardStateFilter: shard.Available})
 	require.NoError(t, err)
-	assert.Equal(t, &noopPooledChannel{"remote2"}, ch2)
+	assert.Equal(t, "remote2", asNoopPooledChannel(ch2).address)
 
 	s.healthCheckNewConnFn = testHealthCheck(nil, true)
 	_, ch3, err := s.DedicatedConnection(shardID, DedicatedConnectionOptions{BootstrappedNodesOnly: true})
 	require.NoError(t, err)
-	assert.Equal(t, &noopPooledChannel{"remote1"}, ch3)
+	assert.Equal(t, "remote1", asNoopPooledChannel(ch3).address)
 
 	healthErr := errors.New("unhealthy")
 	s.healthCheckNewConnFn = testHealthCheck(healthErr, false)
 
+	var channels []*noopPooledChannel
+	s.opts = NewOptions().SetNewConnectionFn(func(_ string, _ string, _ Options) (Channel, rpc.TChanNode, error) {
+		c := &noopPooledChannel{"test", 0}
+		channels = append(channels, c)
+		return c, nil, nil
+	})
 	_, _, err = s.DedicatedConnection(shardID, DedicatedConnectionOptions{})
 	require.NotNil(t, err)
 	multiErr, ok := err.(xerror.MultiError) // nolint: errorlint
 	assert.True(t, ok, "expecting MultiError")
 	assert.True(t, multiErr.Contains(healthErr))
+	// 2 because of 2 remote hosts failing health check
+	assert.Len(t, channels, 2)
+	assert.Equal(t, 1, channels[0].CloseCount())
+	assert.Equal(t, 1, channels[1].CloseCount())
 }
 
 func testSessionClusterConnectConsistencyLevel(
@@ -621,9 +626,9 @@ func testHealthCheck(err error, bootstrappedNodesOnly bool) func(rpc.TChanNode, 
 }
 
 func noopNewConnection(
-	channelName string,
+	_ string,
 	addr string,
-	opts Options,
+	_ Options,
 ) (Channel, rpc.TChanNode, error) {
-	return &noopPooledChannel{addr}, nil, nil
+	return &noopPooledChannel{addr, 0}, nil, nil
 }

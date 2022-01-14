@@ -96,7 +96,7 @@ func TestCompactorSingleMutableSegment(t *testing.T) {
 
 	result, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg),
-	}, nil, nil, mmap.ReporterOptions{})
+	}, nil, mmap.ReporterOptions{})
 	require.NoError(t, err)
 
 	assertContents(t, result.Compacted, testDocuments)
@@ -122,7 +122,7 @@ func TestCompactorSingleMutableSegmentWithMmapDocsData(t *testing.T) {
 
 	result, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg),
-	}, nil, nil, mmap.ReporterOptions{})
+	}, nil, mmap.ReporterOptions{})
 	require.NoError(t, err)
 
 	assertContents(t, result.Compacted, testDocuments)
@@ -150,7 +150,7 @@ func TestCompactorManySegments(t *testing.T) {
 	result, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg1),
 		mustSeal(t, seg2),
-	}, nil, nil, mmap.ReporterOptions{})
+	}, nil, mmap.ReporterOptions{})
 	require.NoError(t, err)
 
 	assertContents(t, result.Compacted, testDocuments)
@@ -181,7 +181,7 @@ func TestCompactorCompactDuplicateIDsNoError(t *testing.T) {
 	result, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg1),
 		mustSeal(t, seg2),
-	}, nil, nil, mmap.ReporterOptions{})
+	}, nil, mmap.ReporterOptions{})
 	require.NoError(t, err)
 
 	assertContents(t, result.Compacted, testDocuments)

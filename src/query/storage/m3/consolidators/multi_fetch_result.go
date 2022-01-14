@@ -43,9 +43,11 @@ type fetchDedupeMap interface {
 
 type multiResult struct {
 	sync.Mutex
-	metadata        block.ResultMetadata
-	fanout          QueryFanoutType
-	seenFirstAttrs  storagemetadata.Attributes
+	metadata       block.ResultMetadata
+	fanout         QueryFanoutType
+	seenFirstAttrs storagemetadata.Attributes
+
+	all             []MultiFetchResults
 	seenIters       []encoding.SeriesIterators // track known iterators to avoid leaking
 	mergedIterators encoding.MutableSeriesIterators
 	mergedTags      []*models.Tags
@@ -54,10 +56,6 @@ type multiResult struct {
 	matchOpts       MatchOptions
 	tagOpts         models.TagOptions
 	limitOpts       LimitOptions
-
-	all []MultiFetchResults
-
-	pools encoding.IteratorPools
 }
 
 // LimitOptions specifies the limits when accumulating results in consolidators.
@@ -69,7 +67,6 @@ type LimitOptions struct {
 // NewMultiFetchResult builds a new multi fetch result.
 func NewMultiFetchResult(
 	fanout QueryFanoutType,
-	pools encoding.IteratorPools,
 	opts MatchOptions,
 	tagOpts models.TagOptions,
 	limitOpts LimitOptions,
@@ -77,7 +74,6 @@ func NewMultiFetchResult(
 	return &multiResult{
 		metadata:  block.NewResultMetadata(),
 		fanout:    fanout,
-		pools:     pools,
 		matchOpts: opts,
 		tagOpts:   tagOpts,
 		limitOpts: limitOpts,
@@ -99,8 +95,8 @@ func (r *multiResult) Close() error {
 			iters.Close()
 		}
 	}
-
 	r.seenIters = nil
+
 	if r.mergedIterators != nil {
 		// NB(r): Since all the series iterators in the final result are held onto
 		// by the original iters in the seenIters slice we allow those iterators
@@ -121,7 +117,10 @@ func (r *multiResult) Close() error {
 func (r *multiResult) FinalResultWithAttrs() (
 	SeriesFetchResult, []storagemetadata.Attributes, error,
 ) {
-	result, err := r.FinalResult()
+	r.Lock()
+	defer r.Unlock()
+
+	result, dedupedList, err := r.finalResultWithLock()
 	if err != nil {
 		return result, nil, err
 	}
@@ -136,7 +135,7 @@ func (r *multiResult) FinalResultWithAttrs() (
 				attrs = append(attrs, r.seenFirstAttrs)
 			}
 		} else {
-			for _, res := range r.dedupeMap.list() {
+			for _, res := range dedupedList {
 				attrs = append(attrs, res.attrs)
 			}
 		}
@@ -149,24 +148,31 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 	r.Lock()
 	defer r.Unlock()
 
+	res, _, err := r.finalResultWithLock()
+
+	return res, err
+}
+
+func (r *multiResult) finalResultWithLock() (SeriesFetchResult, []multiResultSeries, error) {
 	err := r.err.LastError()
 	if err != nil {
-		return NewEmptyFetchResult(r.metadata), err
+		return NewEmptyFetchResult(r.metadata), nil, err
 	}
 
 	if r.mergedIterators != nil {
-		return NewSeriesFetchResult(r.mergedIterators, nil, r.metadata)
+		res, err := NewSeriesFetchResult(r.mergedIterators, nil, r.metadata)
+		return res, nil, err
 	}
 
 	if len(r.seenIters) == 0 {
-		return NewSeriesFetchResult(encoding.EmptySeriesIterators, nil, r.metadata)
+		res, err := NewSeriesFetchResult(encoding.EmptySeriesIterators, nil, r.metadata)
+		return res, nil, err
 	}
 
 	// otherwise have to create a new seriesiters
 	dedupedList := r.dedupeMap.list()
 	numSeries := len(dedupedList)
-	r.mergedIterators = r.pools.MutableSeriesIterators().Get(numSeries)
-	r.mergedIterators.Reset(numSeries)
+	r.mergedIterators = encoding.NewSizedSeriesIterators(numSeries)
 	if r.mergedTags == nil {
 		r.mergedTags = make([]*models.Tags, numSeries)
 	}
@@ -185,7 +191,9 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 		r.mergedTags[i] = &dedupedList[i].tags
 	}
 
-	return NewSeriesFetchResult(r.mergedIterators, r.mergedTags, r.metadata)
+	res, err := NewSeriesFetchResult(r.mergedIterators, r.mergedTags, r.metadata)
+
+	return res, dedupedList, err
 }
 
 func (r *multiResult) Results() []MultiFetchResults {
@@ -195,9 +203,11 @@ func (r *multiResult) Results() []MultiFetchResults {
 }
 
 func (r *multiResult) Add(add MultiFetchResults) {
-	newIterators := add.SeriesIterators
-	metadata := add.Metadata
-	attrs := add.Attrs
+	var (
+		newIterators = add.SeriesIterators
+		metadata     = add.Metadata
+		attrs        = add.Attrs
+	)
 
 	r.Lock()
 	defer r.Unlock()
@@ -218,13 +228,15 @@ func (r *multiResult) Add(add MultiFetchResults) {
 		nsID = newIterators.Iters()[0].Namespace().String() // sometimes the namespace ID is empty
 	}
 
+	r.seenIters = append(r.seenIters, newIterators)
+
 	// the series limit was reached within this namespace.
 	if !metadata.Exhaustive && r.limitOpts.RequireExhaustive {
 		r.err = r.err.Add(NewLimitError(fmt.Sprintf("series limit exceeded for namespace %s", nsID)))
 		return
 	}
 
-	if len(r.seenIters) == 0 {
+	if len(r.seenIters) == 1 {
 		// store the first attributes seen
 		r.seenFirstAttrs = attrs
 	} else if !r.metadata.Exhaustive {
@@ -240,7 +252,6 @@ func (r *multiResult) Add(add MultiFetchResults) {
 	// then must be combined before first result is ever set.
 	r.metadata = r.metadata.CombineMetadata(metadata)
 
-	r.seenIters = append(r.seenIters, newIterators)
 	// Need to check the error to bail early after accumulating the iterators
 	// otherwise when we close the the multi fetch result
 	if !r.err.Empty() {
@@ -251,10 +262,9 @@ func (r *multiResult) Add(add MultiFetchResults) {
 	var added bool
 	if len(r.seenIters) == 1 {
 		// need to backfill the dedupe map from the first result first
-		first := r.seenIters[0]
-		opts := tagMapOpts{
+		opts := dedupeMapOpts{
 			fanout:  r.fanout,
-			size:    first.Len(),
+			size:    newIterators.Len(),
 			tagOpts: r.tagOpts,
 		}
 
@@ -264,7 +274,7 @@ func (r *multiResult) Add(add MultiFetchResults) {
 			r.dedupeMap = newTagDedupeMap(opts)
 		}
 
-		added = r.addOrUpdateDedupeMap(r.seenFirstAttrs, first)
+		added = r.addOrUpdateDedupeMap(r.seenFirstAttrs, newIterators)
 	} else {
 		// Now de-duplicate
 		added = r.addOrUpdateDedupeMap(attrs, newIterators)

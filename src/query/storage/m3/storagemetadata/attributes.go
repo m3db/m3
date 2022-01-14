@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2022 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -63,4 +63,28 @@ func (a Attributes) String() string {
 		a.MetricsType.String(),
 		a.Retention.String(),
 		a.Resolution.String())
+}
+
+// CombinedWith returns these Attributes combined with other Attributes.
+func (a Attributes) CombinedWith(other Attributes) Attributes {
+	metricType := a.MetricsType
+	if other.MetricsType == AggregatedMetricsType {
+		metricType = AggregatedMetricsType
+	}
+
+	maxResolution := a.Resolution
+	if other.Resolution > maxResolution {
+		maxResolution = other.Resolution
+	}
+
+	maxRetention := a.Retention
+	if other.Retention > maxRetention {
+		maxRetention = other.Retention
+	}
+
+	return Attributes{
+		MetricsType: metricType,
+		Resolution:  maxResolution,
+		Retention:   maxRetention,
+	}
 }

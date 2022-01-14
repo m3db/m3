@@ -190,10 +190,7 @@ var (
 	// defaultFetchSeriesBlocksBatchConcurrency is the default fetch series blocks in batch parallel concurrency limit
 	defaultFetchSeriesBlocksBatchConcurrency = int(math.Max(1, float64(runtime.GOMAXPROCS(0))/2))
 
-	// defaultSeriesIteratorArrayPoolBuckets is the default pool buckets for the series iterator array pool
-	defaultSeriesIteratorArrayPoolBuckets = []pool.Bucket{}
-
-	// defaulWriteRetrier is the default write retrier for write attempts
+	// defaultWriteRetrier is the default write retrier for write attempts
 	defaultWriteRetrier = xretry.NewRetrier(
 		xretry.NewOptions().
 			SetInitialBackoff(500 * time.Millisecond).
@@ -279,7 +276,6 @@ type options struct {
 	hostQueueNewPooledWorkerFn              xsync.NewPooledWorkerFn
 	hostQueueEmitsHealthStatus              bool
 	seriesIteratorPoolSize                  pool.Size
-	seriesIteratorArrayPoolBuckets          []pool.Bucket
 	checkedBytesWrapperPoolSize             pool.Size
 	contextPool                             context.Pool
 	origin                                  topology.Host
@@ -435,7 +431,6 @@ func newOptions() *options {
 		hostQueueNewPooledWorkerFn:              hostQueueNewPooledWorkerFn,
 		hostQueueEmitsHealthStatus:              defaultHostQueueEmitsHealthStatus,
 		seriesIteratorPoolSize:                  defaultSeriesIteratorPoolSize,
-		seriesIteratorArrayPoolBuckets:          defaultSeriesIteratorArrayPoolBuckets,
 		checkedBytesWrapperPoolSize:             defaultCheckedBytesWrapperPoolSize,
 		contextPool:                             contextPool,
 		fetchSeriesBlocksMaxBlockRetries:        defaultFetchSeriesBlocksMaxBlockRetries,
@@ -987,16 +982,6 @@ func (o *options) SetSeriesIteratorPoolSize(value pool.Size) Options {
 
 func (o *options) SeriesIteratorPoolSize() pool.Size {
 	return o.seriesIteratorPoolSize
-}
-
-func (o *options) SetSeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options {
-	opts := *o
-	opts.seriesIteratorArrayPoolBuckets = value
-	return &opts
-}
-
-func (o *options) SeriesIteratorArrayPoolBuckets() []pool.Bucket {
-	return o.seriesIteratorArrayPoolBuckets
 }
 
 func (o *options) SetReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options {

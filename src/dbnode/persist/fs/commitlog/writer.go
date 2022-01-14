@@ -79,6 +79,11 @@ type commitLogWriter interface {
 	// a new chunk to be created. Optionally forces the data to be FSync'd to disk.
 	Flush(sync bool) error
 
+	// setOnFlush will provide/override a callback that will be called after successful flush calls.
+	// Implementors MAY choose to not implement such a callback mechanism, however if
+	// such a mechanism is implemented they SHOULD properly implement this method.
+	setOnFlush(func(err error))
+
 	// Close the reader
 	Close() error
 }
@@ -87,6 +92,7 @@ type chunkWriter interface {
 	io.Writer
 
 	reset(f xos.File)
+	setOnFlush(func(err error))
 	close() error
 	isOpen() bool
 	sync() error
@@ -248,6 +254,10 @@ func (w *writer) Flush(sync bool) error {
 	return w.sync()
 }
 
+func (w *writer) setOnFlush(f func(err error)) {
+	w.chunkWriter.setOnFlush(f)
+}
+
 func (w *writer) sync() error {
 	return w.chunkWriter.sync()
 }
@@ -306,6 +316,10 @@ func newChunkWriter(flushFn flushFn, fsync bool) chunkWriter {
 
 func (w *fsChunkWriter) reset(f xos.File) {
 	w.fd = f
+}
+
+func (w *fsChunkWriter) setOnFlush(f func(err error)) {
+	w.flushFn = f
 }
 
 func (w *fsChunkWriter) close() error {

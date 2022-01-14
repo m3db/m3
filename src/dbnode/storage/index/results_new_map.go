@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	defaultInitialResultsMapSize = 10
+	defaultInitialResultsMapSize = 64
 )
 
 func newResultsMap() *ResultsMap {

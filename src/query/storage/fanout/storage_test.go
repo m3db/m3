@@ -75,29 +75,12 @@ func fakeIterator(t *testing.T) encoding.SeriesIterators {
 			Tags: seriesiter.GenerateSingleSampleTagIterator(
 				xtest.NewController(t), seriesiter.GenerateTag()),
 		}, nil),
-	}, nil)
+	})
 }
 
 type fetchResponse struct {
 	result encoding.SeriesIterators
 	err    error
-}
-
-func newTestIteratorPools(ctrl *gomock.Controller) encoding.IteratorPools {
-	pools := encoding.NewMockIteratorPools(ctrl)
-
-	mutablePool := encoding.NewMockMutableSeriesIteratorsPool(ctrl)
-	mutablePool.EXPECT().
-		Get(gomock.Any()).
-		DoAndReturn(func(size int) encoding.MutableSeriesIterators {
-			return encoding.NewSeriesIterators(make([]encoding.SeriesIterator, 0, size), mutablePool)
-		}).
-		AnyTimes()
-	mutablePool.EXPECT().Put(gomock.Any()).AnyTimes()
-
-	pools.EXPECT().MutableSeriesIterators().Return(mutablePool).AnyTimes()
-
-	return pools
 }
 
 func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) storage.Storage {
@@ -108,7 +91,6 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 	ctrl := xtest.NewController(t)
 	store1, session1 := m3.NewStorageAndSession(t, ctrl)
 	store2, session2 := m3.NewStorageAndSession(t, ctrl)
-	pools := newTestIteratorPools(ctrl)
 	session1.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(response[0].result, client.FetchResponseMetadata{Exhaustive: true}, response[0].err)
 	session2.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -117,10 +99,6 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 		Return(nil, client.FetchResponseMetadata{Exhaustive: false}, errs.ErrNotImplemented)
 	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, client.FetchResponseMetadata{Exhaustive: false}, errs.ErrNotImplemented)
-	session1.EXPECT().IteratorPools().
-		Return(pools, nil).AnyTimes()
-	session2.EXPECT().IteratorPools().
-		Return(pools, nil).AnyTimes()
 
 	stores := []storage.Storage{
 		store1, store2,
@@ -159,6 +137,51 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 		filterCompleteTagsFunc(output), models.NewTagOptions(),
 		storagem3.NewOptions(encoding.NewOptions()), instrument.NewOptions())
 	return store
+}
+
+func TestCompleteTags_RestrictOptionsWorks_SingleStore(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	store := storage.NewMockStorage(ctrl)
+
+	meta := block.NewResultMetadata()
+	meta.Exhaustive = false
+	fullResult := &consolidators.CompleteTagsResult{
+		CompleteNameOnly: false,
+		CompletedTags: []consolidators.CompletedTag{
+			{Name: []byte("bar"), Values: xtest.BytesArray("zulu", "quail")},
+			{Name: []byte("foo"), Values: xtest.BytesArray("quail")},
+		},
+
+		Metadata: meta,
+	}
+
+	store.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).Return(fullResult, nil)
+
+	stores := []storage.Storage{store}
+	fanoutStorage := NewStorage(stores, filterFunc(false), filterFunc(false),
+		filterCompleteTagsFunc(true), models.NewTagOptions(),
+		storagem3.NewOptions(encoding.NewOptions()), instrument.NewOptions())
+
+	fetchOptions := storage.NewFetchOptions()
+	fetchOptions.RestrictQueryOptions = &storage.RestrictQueryOptions{
+		RestrictByTag: &storage.RestrictByTag{
+			Strip: xtest.BytesArray("bar"),
+		},
+	}
+
+	completeTagsResult, err := fanoutStorage.CompleteTags(
+		context.TODO(),
+		&storage.CompleteTagsQuery{
+			CompleteNameOnly: true,
+			TagMatchers:      models.Matchers{},
+		},
+		fetchOptions)
+
+	require.NoError(t, err)
+
+	actualTags := completeTagsResult.CompletedTags
+	require.Len(t, actualTags, 1)
+	require.Equal(t, []byte("foo"), actualTags[0].Name)
 }
 
 func TestQueryStorageMetadataAttributes(t *testing.T) {
@@ -555,10 +578,9 @@ func TestFanoutFetchErrorContinues(t *testing.T) {
 
 func fetchResult(name string) consolidators.MultiFetchResult {
 	it, _ := test.BuildTestSeriesIterator(name)
-	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{it}, nil)
+	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{it})
 	result := consolidators.NewMultiFetchResult(
 		consolidators.NamespaceCoversAllQueryRange,
-		nil,
 		consolidators.MatchOptions{MatchType: consolidators.MatchTags},
 		models.NewTagOptions(),
 		consolidators.LimitOptions{

@@ -77,7 +77,6 @@ var (
 	errOptionsAggResultsEntryPoolUnspecified = errors.New("aggregate results entry array pool is unset")
 	errIDGenerationDisabled                  = errors.New("id generation is disabled")
 	errPostingsListCacheUnspecified          = errors.New("postings list cache is unset")
-	errOptionsQueryLimitsUnspecified         = errors.New("query limits is unset")
 
 	defaultForegroundCompactionOpts compaction.PlannerOptions
 	defaultBackgroundCompactionOpts compaction.PlannerOptions

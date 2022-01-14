@@ -37,7 +37,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 )
 
-// NewTestHandlerOptsAndClient returns a new test handler
+// NewTestHandlerOptsAndClient returns a new test handler.
 func NewTestHandlerOptsAndClient(
 	t *testing.T,
 ) (
@@ -45,6 +45,8 @@ func NewTestHandlerOptsAndClient(
 	*kv.MockStore,
 	*clusterclient.MockClient,
 ) {
+	ctrl := gomock.NewController(t)
+
 	placementProto := &placementpb.Placement{
 		Instances: map[string]*placementpb.Instance{
 			"host1": {
@@ -68,9 +70,23 @@ func NewTestHandlerOptsAndClient(
 		},
 	}
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	mockPlacement := clusterplacement.NewMockPlacement(ctrl)
+	mockPlacement.EXPECT().Proto().Return(placementProto, nil).AnyTimes()
+	mockPlacement.EXPECT().Version().Return(0).AnyTimes()
 
+	return NewTestHandlerOptsAndClientWithPlacement(t, ctrl, mockPlacement)
+}
+
+// NewTestHandlerOptsAndClientWithPlacement returns a new test handler with supplied placement.
+func NewTestHandlerOptsAndClientWithPlacement(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	placement clusterplacement.Placement,
+) (
+	placementhandler.HandlerOptions,
+	*kv.MockStore,
+	*clusterclient.MockClient,
+) {
 	mockClient := clusterclient.NewMockClient(ctrl)
 	require.NotNil(t, mockClient)
 
@@ -80,16 +96,12 @@ func NewTestHandlerOptsAndClient(
 	mockServices := services.NewMockServices(ctrl)
 	require.NotNil(t, mockServices)
 
-	mockPlacement := clusterplacement.NewMockPlacement(ctrl)
-	mockPlacement.EXPECT().Proto().Return(placementProto, nil).AnyTimes()
-	mockPlacement.EXPECT().Version().Return(0).AnyTimes()
-
 	mockPlacementService := clusterplacement.NewMockService(ctrl)
 	require.NotNil(t, mockPlacementService)
 
 	mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil).AnyTimes()
 	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(mockPlacementService, nil).AnyTimes()
-	mockPlacementService.EXPECT().Placement().Return(mockPlacement, nil).AnyTimes()
+	mockPlacementService.EXPECT().Placement().Return(placement, nil).AnyTimes()
 
 	mockClient.EXPECT().KV().Return(mockKV, nil).AnyTimes()
 	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).AnyTimes()

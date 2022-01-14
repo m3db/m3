@@ -23,7 +23,6 @@ package ident
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/checked"
@@ -310,35 +309,4 @@ func (t Tags) Equal(other Tags) bool {
 		}
 	}
 	return true
-}
-
-// ShardID is a tuple of series ID and the shard it belongs to.
-type ShardID struct {
-	// Shard is the shard the series belongs to.
-	Shard uint32
-	// ID is the series ID.
-	ID ID
-}
-
-// IDBatch is a batch of ShardIDs that is consumed asynchronously.
-type IDBatch struct {
-	wg sync.WaitGroup
-
-	// ShardIDs are the ShardIDs for the batch.
-	ShardIDs []ShardID
-}
-
-// ReadyForProcessing indicates this batch is ready for processing.
-func (b *IDBatch) ReadyForProcessing() {
-	b.wg.Add(1)
-}
-
-// WaitUntilProcessed waits until the batch has been processed.
-func (b *IDBatch) WaitUntilProcessed() {
-	b.wg.Wait()
-}
-
-// Processed indicates that this batch has finished processing.
-func (b *IDBatch) Processed() {
-	b.wg.Done()
 }

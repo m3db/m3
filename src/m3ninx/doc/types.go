@@ -21,8 +21,6 @@
 package doc
 
 import (
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -83,6 +81,9 @@ type QueryDocIterator interface {
 // OnIndexSeries provides a set of callback hooks to allow the reverse index
 // to do lifecycle management of any resources retained during indexing.
 type OnIndexSeries interface {
+	// StringID returns the index series ID, as a string.
+	StringID() string
+
 	// OnIndexSuccess is executed when an entry is successfully indexed. The
 	// provided value for `blockStart` is the blockStart for which the write
 	// was indexed.
@@ -119,7 +120,7 @@ type OnIndexSeries interface {
 
 	// TryMarkIndexGarbageCollected checks if the entry is eligible to be garbage collected
 	// from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
-	TryMarkIndexGarbageCollected(reconciled, unreconciled tally.Counter) bool
+	TryMarkIndexGarbageCollected() bool
 
 	// NeedsIndexGarbageCollected returns if the entry is eligible to be garbage collected
 	// from the index.
@@ -141,4 +142,25 @@ type OnIndexSeries interface {
 	// Cleanup function must be called once done with the reconciled entry so that
 	// reader and writer counts are accurately updated.
 	ReconciledOnIndexSeries() (OnIndexSeries, resource.SimpleCloser, bool)
+
+	// MergeEntryIndexBlockStates merges the given states into the current
+	// indexed entry.
+	MergeEntryIndexBlockStates(states EntryIndexBlockStates)
+
+	// TryReconcileDuplicates attempts to reconcile the index states of this entry.
+	TryReconcileDuplicates()
+}
+
+// EntryIndexBlockStates captures the indexing for a single shard entry, across
+// all block starts.
+type EntryIndexBlockStates map[xtime.UnixNano]EntryIndexBlockState
+
+// EntryIndexBlockState is used to capture the state of indexing for a single shard
+// entry for a given index block start. It's used to prevent attempts at double indexing
+// for the same block start.
+type EntryIndexBlockState struct {
+	// Attempt indicates that indexing has been attempted.
+	Attempt bool
+	// Success indicates that indexing has succeeded.
+	Success bool
 }

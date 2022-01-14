@@ -349,14 +349,13 @@ func setupIndex(t *testing.T,
 		lifecycleFns = doc.NewMockOnIndexSeries(ctrl)
 	)
 
+	closer := &resource.NoopCloser{}
+	lifecycleFns.EXPECT().ReconciledOnIndexSeries().Return(lifecycleFns, closer, false).AnyTimes()
 	lifecycleFns.EXPECT().OnIndexFinalize(ts)
 	lifecycleFns.EXPECT().OnIndexSuccess(ts)
 	lifecycleFns.EXPECT().IfAlreadyIndexedMarkIndexSuccessAndFinalize(gomock.Any()).Return(false)
 
 	if !expectAggregateQuery {
-		lifecycleFns.EXPECT().ReconciledOnIndexSeries().Return(
-			lifecycleFns, resource.SimpleCloserFn(func() {}), false,
-		)
 		lifecycleFns.EXPECT().IndexedRange().Return(ts, ts)
 		lifecycleFns.EXPECT().IndexedForBlockStart(ts).Return(true)
 	}
@@ -440,90 +439,4 @@ func TestNamespaceIndexInsertAggregateQuery(t *testing.T) {
 	vMap := seenIters.Map()
 	require.Equal(t, 1, vMap.Len())
 	assert.True(t, vMap.Contains(ident.StringID("value")))
-}
-
-func TestNamespaceIndexInsertWideQuery(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-	defer leaktest.CheckTimeout(t, 5*time.Second)()
-
-	ctx := context.NewBackground()
-	defer ctx.Close()
-
-	now := xtime.Now()
-	idx := setupIndex(t, ctrl, now, false)
-	defer idx.Close()
-
-	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
-	assert.NoError(t, err)
-	doneCh := make(chan struct{})
-	collector := make(chan *ident.IDBatch)
-	blockSize := 2 * time.Hour
-	queryOpts, err := index.NewWideQueryOptions(xtime.Now().Truncate(blockSize),
-		5, blockSize, nil, index.IterationOptions{})
-	require.NoError(t, err)
-
-	expectedBatchIDs := [][]string{{"foo"}}
-	go func() {
-		i := 0
-		for b := range collector {
-			batchStr := make([]string, 0, len(b.ShardIDs))
-			for _, shardIDs := range b.ShardIDs {
-				batchStr = append(batchStr, shardIDs.ID.String())
-			}
-
-			withinIndex := i < len(expectedBatchIDs)
-			assert.True(t, withinIndex)
-			if withinIndex {
-				assert.Equal(t, expectedBatchIDs[i], batchStr)
-			}
-
-			b.Processed()
-			i++
-		}
-		doneCh <- struct{}{}
-	}()
-
-	err = idx.WideQuery(ctx, index.Query{Query: reQuery}, collector, queryOpts)
-	assert.NoError(t, err)
-	<-doneCh
-}
-
-func TestNamespaceIndexInsertWideQueryFilteredByShard(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-	defer leaktest.CheckTimeout(t, 5*time.Second)()
-
-	ctx := context.NewBackground()
-	defer ctx.Close()
-
-	now := xtime.Now()
-	idx := setupIndex(t, ctrl, now, false)
-	defer idx.Close()
-
-	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
-	assert.NoError(t, err)
-	doneCh := make(chan struct{})
-	collector := make(chan *ident.IDBatch)
-	shard := testShardSet.Lookup(ident.StringID("foo"))
-	offShard := shard + 1
-	blockSize := 2 * time.Hour
-	queryOpts, err := index.NewWideQueryOptions(xtime.Now().Truncate(blockSize),
-		5, blockSize, []uint32{offShard}, index.IterationOptions{})
-	require.NoError(t, err)
-
-	go func() {
-		i := 0
-		for b := range collector {
-			assert.Equal(t, 0, len(b.ShardIDs))
-			b.Processed()
-			i++
-		}
-		assert.Equal(t, 0, i)
-		doneCh <- struct{}{}
-	}()
-
-	err = idx.WideQuery(ctx, index.Query{Query: reQuery}, collector, queryOpts)
-	require.NoError(t, err)
-	<-doneCh
 }

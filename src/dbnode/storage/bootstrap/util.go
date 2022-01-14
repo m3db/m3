@@ -301,9 +301,7 @@ func (r *seriesStaticResolver) SeriesRef() (SeriesRef, error) {
 	return r.series, nil
 }
 
-func (r *seriesStaticResolver) ReleaseRef() error {
-	return nil
-}
+func (r *seriesStaticResolver) ReleaseRef() {}
 
 // Release is a no-op on the test accumulator.
 func (a *TestDataAccumulator) Release() {}

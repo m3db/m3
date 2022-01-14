@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -69,9 +68,6 @@ type PageToken []byte
 type IndexedErrorHandler interface {
 	HandleError(index int, err error)
 }
-
-// IDBatchProcessor is a function that processes a batch.
-type IDBatchProcessor func(batch *ident.IDBatch) error
 
 // Database is a time series database.
 type Database interface {
@@ -179,28 +175,6 @@ type Database interface {
 		start, end xtime.UnixNano,
 	) (series.BlockReaderIter, error)
 
-	// WideQuery performs a wide blockwise query that provides batched results
-	// that can exceed query limits.
-	WideQuery(
-		ctx context.Context,
-		namespace ident.ID,
-		query index.Query,
-		start xtime.UnixNano,
-		shards []uint32,
-		iterOpts index.IterationOptions,
-	) ([]xio.WideEntry, error) // FIXME: change when exact type known.
-
-	// BatchProcessWideQuery runs the given query against the namespace index,
-	// iterating in a batchwise fashion across all matching IDs, applying the given
-	// IDBatchProcessor batch processing function to each ID discovered.
-	BatchProcessWideQuery(
-		ctx context.Context,
-		n Namespace,
-		query index.Query,
-		batchProcessor IDBatchProcessor,
-		opts index.WideQueryOptions,
-	) error
-
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
 	FetchBlocks(
@@ -306,24 +280,6 @@ type Namespace interface {
 
 	// DocRef returns the doc if already present in a namespace shard.
 	DocRef(id ident.ID) (doc.Metadata, bool, error)
-
-	// WideQueryIDs resolves the given query into known IDs in s streaming
-	// fashion.
-	WideQueryIDs(
-		ctx context.Context,
-		query index.Query,
-		collector chan *ident.IDBatch,
-		opts index.WideQueryOptions,
-	) error
-
-	// FetchWideEntry retrieves the wide entry for an ID for the
-	// block at time start.
-	FetchWideEntry(
-		ctx context.Context,
-		id ident.ID,
-		blockStart xtime.UnixNano,
-		filter schema.WideEntryFilter,
-	) (block.StreamedWideEntry, error)
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID.
@@ -556,16 +512,6 @@ type databaseShard interface {
 		nsCtx namespace.Context,
 	) (series.BlockReaderIter, error)
 
-	// FetchWideEntry retrieves wide entry for an ID for the
-	// block at time start.
-	FetchWideEntry(
-		ctx context.Context,
-		id ident.ID,
-		blockStart xtime.UnixNano,
-		filter schema.WideEntryFilter,
-		nsCtx namespace.Context,
-	) (block.StreamedWideEntry, error)
-
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
 	FetchBlocks(
@@ -727,14 +673,6 @@ type NamespaceIndex interface {
 		query index.Query,
 		opts index.QueryOptions,
 	) (index.QueryResult, error)
-
-	// WideQuery resolves the given query into known IDs.
-	WideQuery(
-		ctx context.Context,
-		query index.Query,
-		collector chan *ident.IDBatch,
-		opts index.WideQueryOptions,
-	) error
 
 	// AggregateQuery resolves the given query into aggregated tags.
 	AggregateQuery(
@@ -1322,7 +1260,7 @@ type Options interface {
 	// SetForceColdWritesEnabled sets options for forcing cold writes.
 	SetForceColdWritesEnabled(value bool) Options
 
-	// SetForceColdWritesEnabled returns options for forcing cold writes.
+	// ForceColdWritesEnabled returns options for forcing cold writes.
 	ForceColdWritesEnabled() bool
 
 	// SetSourceLoggerBuilder sets the limit source logger builder.
@@ -1368,12 +1306,6 @@ type Options interface {
 
 	// AdminClient returns the admin client.
 	AdminClient() client.AdminClient
-
-	// SetWideBatchSize sets batch size for wide operations.
-	SetWideBatchSize(value int) Options
-
-	// WideBatchSize returns batch size for wide operations.
-	WideBatchSize() int
 
 	// SetBackgroundProcessFns sets the list of functions that create background processes for the database.
 	SetBackgroundProcessFns([]NewBackgroundProcessFn) Options

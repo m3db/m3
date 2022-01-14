@@ -25,8 +25,6 @@ import (
 	"io"
 	"sort"
 
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -38,7 +36,6 @@ type builderFromSegments struct {
 	docs           []doc.Metadata
 	idSet          *IDsMap
 	filter         segment.DocumentsFilter
-	filterCount    tally.Counter
 	segments       []segmentMetadata
 	termsIter      *termsIterFromSegments
 	segmentsOffset postings.ID
@@ -93,9 +90,10 @@ func (b *builderFromSegments) Reset() {
 	b.termsIter.clear()
 }
 
-func (b *builderFromSegments) SetFilter(filter segment.DocumentsFilter, filterCount tally.Counter) {
+func (b *builderFromSegments) SetFilter(
+	filter segment.DocumentsFilter,
+) {
 	b.filter = filter
-	b.filterCount = filterCount
 }
 
 func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
@@ -150,15 +148,17 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 				// Skip duplicates.
 				negativeOffsets[len(negativeOffsets)-1] = -1
 				currOffset++
+				if b.filter != nil {
+					// Callback for when duplicate doc encountered and we filter
+					// out the document from the resulting segment.
+					b.filter.OnDuplicateDoc(d)
+				}
 				continue
 			}
-			if b.filter != nil && !b.filter.Contains(d) {
+			if b.filter != nil && !b.filter.ContainsDoc(d) {
 				// Actively filtering and ID is not contained.
 				negativeOffsets[len(negativeOffsets)-1] = -1
 				currOffset++
-				if b.filterCount != nil {
-					b.filterCount.Inc(1)
-				}
 				continue
 			}
 			b.idSet.SetUnsafe(d.ID, struct{}{}, IDsMapSetUnsafeOptions{

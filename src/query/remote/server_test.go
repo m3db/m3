@@ -98,10 +98,7 @@ func newMockStorage(
 		if iters == nil {
 			it, err := test.BuildTestSeriesIterator(seriesID)
 			require.NoError(t, err)
-			iters = encoding.NewSeriesIterators(
-				[]encoding.SeriesIterator{it},
-				nil,
-			)
+			iters = encoding.NewSeriesIterators([]encoding.SeriesIterator{it})
 		}
 
 		res, err := consolidators.NewSeriesFetchResult(
@@ -395,7 +392,7 @@ func TestBatchedFetch(t *testing.T) {
 		}
 
 		store := newMockStorage(t, ctrl, mockStorageOptions{
-			iters: encoding.NewSeriesIterators(iters, nil),
+			iters: encoding.NewSeriesIterators(iters),
 			cleanup: func() error {
 				require.False(t, cleaned, msg)
 				cleaned = true
@@ -538,10 +535,9 @@ func TestBatchedCompleteTags(t *testing.T) {
 				CompleteNameOnly: nameOnly,
 				CompletedTags:    tags,
 				Metadata: block.ResultMetadata{
-					Exhaustive:     false,
-					LocalOnly:      true,
-					Warnings:       []block.Warning{{Name: "foo", Message: "bar"}},
-					MetadataByName: make(map[string]*block.ResultMetricMetadata),
+					Exhaustive: false,
+					LocalOnly:  true,
+					Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
 				},
 			}
 

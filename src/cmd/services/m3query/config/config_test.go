@@ -23,14 +23,18 @@ package config
 import (
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
 	xconfig "github.com/m3db/m3/src/x/config"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/validator.v2"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 )
 
 const testConfigFile = "./testdata/config.yml"
@@ -102,7 +106,28 @@ func TestConfigLoading(t *testing.T) {
 
 	assert.Equal(t, HTTPConfiguration{EnableH2C: true}, cfg.HTTP)
 
+	expectedTimestamp, err := time.Parse(time.RFC3339, "2022-01-01T00:00:00Z")
+	require.NoError(t, err)
+	expectedPromConvertOptions := storage.NewPromConvertOptions().
+		SetResolutionThresholdForCounterNormalization(10 * time.Minute).
+		SetValueDecreaseTolerance(0.0000000001).
+		SetValueDecreaseToleranceUntil(xtime.UnixNano(expectedTimestamp.UnixNano()))
+	actualPromConvertOptions := cfg.Query.Prometheus.ConvertOptionsOrDefault()
+	assert.Equal(t, expectedPromConvertOptions, actualPromConvertOptions)
+
 	// TODO: assert on more fields here.
+}
+
+func TestDefaultAsFetchOptionsBuilderLimitsOptions(t *testing.T) {
+	limits := LimitsConfiguration{}
+	assert.Equal(t, handleroptions.FetchOptionsBuilderLimitsOptions{
+		SeriesLimit:            defaultStorageQuerySeriesLimit,
+		InstanceMultiple:       float32(0),
+		DocsLimit:              defaultStorageQueryDocsLimit,
+		RangeLimit:             0,
+		RequireExhaustive:      defaultRequireExhaustive,
+		MaxMetricMetadataStats: defaultMaxMetricMetadataStats,
+	}, limits.PerQuery.AsFetchOptionsBuilderLimitsOptions())
 }
 
 func TestConfigValidation(t *testing.T) {

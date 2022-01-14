@@ -24,7 +24,6 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
@@ -111,17 +110,6 @@ func (r *shardBlockRetriever) Stream(
 ) (xio.BlockReader, error) {
 	return r.DatabaseBlockRetriever.Stream(ctx, r.shard, id,
 		blockStart, onRetrieve, nsCtx)
-}
-
-func (r *shardBlockRetriever) StreamWideEntry(
-	ctx context.Context,
-	id ident.ID,
-	blockStart xtime.UnixNano,
-	filter schema.WideEntryFilter,
-	nsCtx namespace.Context,
-) (StreamedWideEntry, error) {
-	return r.DatabaseBlockRetriever.StreamWideEntry(ctx, r.shard, id,
-		blockStart, filter, nsCtx)
 }
 
 type shardBlockRetrieverManager struct {

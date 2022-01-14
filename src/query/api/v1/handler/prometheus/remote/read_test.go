@@ -266,8 +266,6 @@ func TestReadErrorMetricsCount(t *testing.T) {
 	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, client.FetchResponseMetadata{Exhaustive: true}, fmt.Errorf("unable to get data"))
-	session.EXPECT().IteratorPools().
-		Return(nil, nil)
 
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
@@ -317,10 +315,9 @@ func TestMultipleRead(t *testing.T) {
 			},
 		},
 		Metadata: block.ResultMetadata{
-			Exhaustive:     true,
-			LocalOnly:      true,
-			Warnings:       []block.Warning{{Name: "foo", Message: "bar"}},
-			MetadataByName: make(map[string]*block.ResultMetricMetadata),
+			Exhaustive: true,
+			LocalOnly:  true,
+			Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
 		},
 	}
 
@@ -334,10 +331,9 @@ func TestMultipleRead(t *testing.T) {
 			},
 		},
 		Metadata: block.ResultMetadata{
-			Exhaustive:     false,
-			LocalOnly:      true,
-			Warnings:       []block.Warning{},
-			MetadataByName: make(map[string]*block.ResultMetricMetadata),
+			Exhaustive: false,
+			LocalOnly:  true,
+			Warnings:   []block.Warning{},
 		},
 	}
 

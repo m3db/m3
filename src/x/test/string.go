@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,54 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xio
+package test
 
-import (
-	"github.com/m3db/m3/src/x/checked"
-	"github.com/m3db/m3/src/x/ident"
-)
-
-// WideEntry is an entry from the index file which can be passed to
-// SeekUsingIndexEntry to seek to the data for that entry.
-type WideEntry struct {
-	finalized bool
-
-	Shard            uint32
-	ID               ident.ID
-	Size             int64
-	Offset           int64
-	DataChecksum     int64
-	EncodedTags      checked.Bytes
-	MetadataChecksum int64
-	Data             checked.Bytes
-}
-
-// Empty returns whether the wide entry is empty and not found.
-func (c *WideEntry) Empty() bool {
-	return *c == WideEntry{}
-}
-
-// Finalize finalizes the wide entry.
-func (c *WideEntry) Finalize() {
-	if c.Empty() || c.finalized {
-		return
+// BytesArray converts a variable length string arguments (array of strings)
+// into an array of byte arrays
+func BytesArray(strings ...string) [][]byte {
+	stringBytesArray := make([][]byte, len(strings))
+	for i, v := range strings {
+		stringBytesArray[i] = []byte(v)
 	}
-
-	c.finalized = true
-	if c.EncodedTags != nil {
-		c.EncodedTags.DecRef()
-		c.EncodedTags.Finalize()
-		c.EncodedTags = nil
-	}
-
-	if c.ID != nil {
-		c.ID.Finalize()
-		c.ID = nil
-	}
-
-	if c.Data != nil {
-		c.Data.DecRef()
-		c.Data.Finalize()
-		c.Data = nil
-	}
+	return stringBytesArray
 }

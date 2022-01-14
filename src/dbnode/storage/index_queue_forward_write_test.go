@@ -46,7 +46,6 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -228,61 +227,6 @@ func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
 		vMap := seenIters.Map()
 		require.Equal(t, 1, vMap.Len())
 		require.True(t, vMap.Contains(ident.StringID("value")))
-	}
-}
-
-func TestNamespaceForwardIndexWideQuery(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-	defer leaktest.CheckTimeout(t, 5*time.Second)()
-
-	ctx := context.NewBackground()
-	defer ctx.Close()
-
-	idx, now, blockSize := setupForwardIndex(t, ctrl, false)
-	defer idx.Close()
-
-	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
-	require.NoError(t, err)
-
-	// NB: query both the current and the next index block to ensure that the
-	// write was correctly indexed to both.
-	nextBlockTime := now.Add(blockSize)
-	queryTimes := []xtime.UnixNano{
-		now.Truncate(blockSize),
-		nextBlockTime.Truncate(blockSize),
-	}
-	for _, ts := range queryTimes {
-		collector := make(chan *ident.IDBatch)
-		doneCh := make(chan struct{})
-		expectedBatchIDs := [][]string{{"foo"}}
-		go func() {
-			i := 0
-			for b := range collector {
-				batchStr := make([]string, 0, len(b.ShardIDs))
-				for _, shardID := range b.ShardIDs {
-					batchStr = append(batchStr, shardID.ID.String())
-				}
-
-				withinIndex := i < len(expectedBatchIDs)
-				assert.True(t, withinIndex)
-				if withinIndex {
-					assert.Equal(t, expectedBatchIDs[i], batchStr)
-				}
-
-				b.Processed()
-				i++
-			}
-			doneCh <- struct{}{}
-		}()
-
-		opts, err := index.NewWideQueryOptions(
-			ts, 5, time.Hour*2, nil, index.IterationOptions{})
-		require.NoError(t, err)
-
-		err = idx.WideQuery(ctx, index.Query{Query: reQuery}, collector, opts)
-		assert.NoError(t, err)
-		<-doneCh
 	}
 }
 

@@ -37,6 +37,12 @@ func TestWrap(t *testing.T) {
 	assert.Equal(t, "context about params error: detailed error message", wrappedErr.Error())
 	assert.True(t, IsInvalidParams(wrappedErr))
 
+	err = NewResourceExhaustedError(inner)
+	wrappedErr = Wrap(err, "context about resource exhausted error")
+	assert.Error(t, wrappedErr)
+	assert.Equal(t, "context about resource exhausted error: detailed error message", wrappedErr.Error())
+	assert.True(t, IsResourceExhausted(wrappedErr))
+
 	err = NewRetryableError(inner)
 	wrappedErr = Wrap(err, "context about retryable error")
 	assert.Error(t, wrappedErr)
@@ -57,6 +63,12 @@ func TestWrapf(t *testing.T) {
 	assert.Error(t, wrappedErr)
 	assert.Equal(t, "context about params error: detailed error message", wrappedErr.Error())
 	assert.True(t, IsInvalidParams(wrappedErr))
+
+	err = NewResourceExhaustedError(inner)
+	wrappedErr = Wrapf(err, "context about %s error", "resource exhausted")
+	assert.Error(t, wrappedErr)
+	assert.Equal(t, "context about resource exhausted error: detailed error message", wrappedErr.Error())
+	assert.True(t, IsResourceExhausted(wrappedErr))
 
 	err = NewRetryableError(inner)
 	wrappedErr = Wrapf(err, "context about %s error", "retryable")

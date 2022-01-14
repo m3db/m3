@@ -45,12 +45,6 @@ import (
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 )
 
-var (
-	// ReservedFieldNameID is the field name used to index the ID in the
-	// m3ninx subsytem.
-	ReservedFieldNameID = doc.IDReservedFieldName
-)
-
 // InsertMode specifies whether inserts are synchronous or asynchronous.
 type InsertMode byte
 
@@ -96,22 +90,6 @@ type QueryOptions struct {
 	IterationOptions IterationOptions
 	// Source is an optional query source.
 	Source []byte
-}
-
-// WideQueryOptions enables users to specify constraints and
-// preferences on wide query execution.
-type WideQueryOptions struct {
-	// StartInclusive is the start time for the query.
-	StartInclusive xtime.UnixNano
-	// EndExclusive is the exclusive end for the query.
-	EndExclusive xtime.UnixNano
-	// BatchSize controls wide query batch size.
-	BatchSize int
-	// ShardsQueried are the shards to query. These must be in ascending order.
-	// If empty, all shards are queried.
-	ShardsQueried []uint32
-	// IterationOptions controls additional iteration methods.
-	IterationOptions IterationOptions
 }
 
 // IterationOptions enables users to specify iteration preferences.
@@ -183,6 +161,7 @@ type DocumentResults interface {
 	// modified after this function returns without affecting the results map.
 	// TODO(r): We will need to change this behavior once index fields are
 	// mutable and the most recent need to shadow older entries.
+
 	AddDocuments(batch []doc.Document) (size, docsCount int, err error)
 }
 
@@ -237,8 +216,6 @@ type QueryResultsOptions struct {
 	// NB(r): This is used to filter out results from shards the DB node
 	// node no longer owns but is still included in index segments.
 	FilterID func(id ident.ID) bool
-	// IndexBatchCollector collects ID batches in an asynchronous fashion.
-	IndexBatchCollector chan<- ident.IDBatch
 }
 
 // QueryResultsAllocator allocates QueryResults types.
@@ -436,11 +413,11 @@ type Block interface {
 	// data the mutable segments should have held at this time.
 	EvictMutableSegments() error
 
-	// NeedsMutableSegmentsEvicted returns whether this block has any cold mutable segments
+	// NeedsColdMutableSegmentsEvicted returns whether this block has any cold mutable segments
 	// that are not-empty and sealed.
 	NeedsColdMutableSegmentsEvicted() bool
 
-	// EvictMutableSegments closes any stale cold mutable segments up to the currently active
+	// EvictColdMutableSegments closes any stale cold mutable segments up to the currently active
 	// cold mutable segment (the one we are actively writing to).
 	EvictColdMutableSegments() error
 
@@ -988,10 +965,10 @@ type Options interface {
 	// Validate validates assumptions baked into the code.
 	Validate() error
 
-	// SetIndexInsertMode sets the index insert mode (sync/async).
+	// SetInsertMode sets the index insert mode (sync/async).
 	SetInsertMode(value InsertMode) Options
 
-	// IndexInsertMode returns the index's insert mode (sync/async).
+	// InsertMode returns the index's insert mode (sync/async).
 	InsertMode() InsertMode
 
 	// SetClockOptions sets the clock options.
@@ -1039,7 +1016,7 @@ type Options interface {
 	// SetQueryResultsPool updates the query results pool.
 	SetQueryResultsPool(values QueryResultsPool) Options
 
-	// ResultsPool returns the results pool.
+	// QueryResultsPool returns the results pool.
 	QueryResultsPool() QueryResultsPool
 
 	// SetAggregateResultsPool updates the aggregate results pool.
@@ -1108,11 +1085,11 @@ type Options interface {
 	// ForwardIndexProbability returns the probability chance for forward writes.
 	ForwardIndexProbability() float64
 
-	// SetForwardIndexProbability sets the threshold for forward writes as a
+	// SetForwardIndexThreshold sets the threshold for forward writes as a
 	// fraction of the bufferFuture.
 	SetForwardIndexThreshold(value float64) Options
 
-	// ForwardIndexProbability returns the threshold for forward writes.
+	// ForwardIndexThreshold returns the threshold for forward writes.
 	ForwardIndexThreshold() float64
 
 	// SetMmapReporter sets the mmap reporter.

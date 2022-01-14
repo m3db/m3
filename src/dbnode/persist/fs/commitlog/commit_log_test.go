@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/m3db/bitset"
+
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -196,10 +197,11 @@ func snapshotCounterValue(
 }
 
 type mockCommitLogWriter struct {
-	openFn  func() (persist.CommitLogFile, error)
-	writeFn func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
-	flushFn func(sync bool) error
-	closeFn func() error
+	openFn       func() (persist.CommitLogFile, error)
+	writeFn      func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
+	flushFn      func(sync bool) error
+	closeFn      func() error
+	setOnFlushFn func(f func(err error))
 }
 
 func newMockCommitLogWriter() *mockCommitLogWriter {
@@ -215,6 +217,8 @@ func newMockCommitLogWriter() *mockCommitLogWriter {
 		},
 		closeFn: func() error {
 			return nil
+		},
+		setOnFlushFn: func(f func(err error)) {
 		},
 	}
 }
@@ -240,8 +244,16 @@ func (w *mockCommitLogWriter) Close() error {
 	return w.closeFn()
 }
 
+func (w *mockCommitLogWriter) setOnFlush(f func(err error)) {
+	w.setOnFlushFn(f)
+}
+
 func newTestCommitLog(t *testing.T, opts Options) *commitLog {
-	commitLogI, err := NewCommitLog(opts)
+	return newTestCommitLogWithOpts(t, opts, testOnlyOpts{})
+}
+
+func newTestCommitLogWithOpts(t *testing.T, opts Options, testOpts testOnlyOpts) *commitLog {
+	commitLogI, err := newCommitLog(opts, testOpts)
 	require.NoError(t, err)
 	commitLog := commitLogI.(*commitLog)
 	require.NoError(t, commitLog.Open())
@@ -701,7 +713,7 @@ func TestCommitLogIteratorUsesPredicateFilterForCorruptFiles(t *testing.T) {
 	nextCommitlogFilePath, _, err := NextFile(opts)
 	require.NoError(t, err)
 	err = ioutil.WriteFile(
-		nextCommitlogFilePath, []byte("not-a-valid-commitlog-file"), os.FileMode(0666))
+		nextCommitlogFilePath, []byte("not-a-valid-commitlog-file"), os.FileMode(0o666))
 	require.NoError(t, err)
 
 	// Make sure the corrupt file is visibile.
@@ -799,8 +811,16 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 		strategy:         StrategyWriteBehind,
 	})
 	defer cleanup(t, opts)
+	var wg sync.WaitGroup
+	wg.Add(1)
 
-	commitLog := newTestCommitLog(t, opts)
+	commitLog := newTestCommitLogWithOpts(t, opts, testOnlyOpts{
+		beforeAsyncWriteFn: func() {
+			// block the background writer from running until after all the commit log entries have been added to
+			// avoid flakes in checking the queue size.
+			wg.Wait()
+		},
+	})
 
 	// Test filling queue
 	var writes []testWrite
@@ -824,6 +844,7 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 		dp.TimestampNanos = dp.TimestampNanos.Add(time.Second)
 		dp.Value += 1.0
 	}
+	wg.Done()
 
 	// Close and consequently flush.
 	require.NoError(t, commitLog.Close())
@@ -842,8 +863,16 @@ func TestCommitLogQueueLength(t *testing.T) {
 		strategy:         StrategyWriteBehind,
 	})
 	defer cleanup(t, opts)
+	var wg sync.WaitGroup
+	wg.Add(1)
 
-	commitLog := newTestCommitLog(t, opts)
+	commitLog := newTestCommitLogWithOpts(t, opts, testOnlyOpts{
+		beforeAsyncWriteFn: func() {
+			// block the background writer from running until after all the commit log entries have been added to
+			// avoid flakes in checking the queue size.
+			wg.Wait()
+		},
+	})
 	defer commitLog.Close()
 
 	var (
@@ -866,6 +895,7 @@ func TestCommitLogQueueLength(t *testing.T) {
 		dp.TimestampNanos = dp.TimestampNanos.Add(time.Second)
 		dp.Value += 1.0
 	}
+	wg.Done()
 }
 
 func TestCommitLogFailOnWriteError(t *testing.T) {

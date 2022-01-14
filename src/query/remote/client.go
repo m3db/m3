@@ -259,7 +259,8 @@ func (c *grpcClient) FetchProm(
 		result,
 		c.opts.ReadWorkerPool(),
 		c.opts.TagOptions(),
-		c.opts.PromConvertOptions())
+		c.opts.PromConvertOptions(),
+		options)
 }
 
 func (c *grpcClient) fetchRaw(
@@ -307,14 +308,18 @@ func (c *grpcClient) FetchCompressed(
 
 	defer fetchClient.CloseSend()
 
-	fanout := consolidators.NamespaceCoversAllQueryRange
-	matchOpts := c.opts.SeriesConsolidationMatchOptions()
-	tagOpts := c.opts.TagOptions()
-	limitOpts := consolidators.LimitOptions{
-		Limit:             options.SeriesLimit,
-		RequireExhaustive: options.RequireExhaustive,
-	}
-	result := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts, limitOpts)
+	var (
+		fanout    = consolidators.NamespaceCoversAllQueryRange
+		matchOpts = c.opts.SeriesConsolidationMatchOptions()
+		tagOpts   = c.opts.TagOptions()
+		limitOpts = consolidators.LimitOptions{
+			Limit:             options.SeriesLimit,
+			RequireExhaustive: options.RequireExhaustive,
+		}
+
+		result = consolidators.NewMultiFetchResult(fanout, matchOpts, tagOpts, limitOpts)
+	)
+
 	for {
 		select {
 		// If query is killed during gRPC streaming, close the channel

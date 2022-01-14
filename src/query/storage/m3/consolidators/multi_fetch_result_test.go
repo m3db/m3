@@ -25,17 +25,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var defaultTestOpts = MatchOptions{
@@ -52,54 +52,41 @@ const (
 // NB: Each seriesIterators has two seriesIterator; one with a constant ID which
 // will be overwritten as necessary by multi_fetch_result, and one per namespace
 // which should not be overwritten and should appear in the results.
-func generateSeriesIterators(
-	ctrl *gomock.Controller, ns string) encoding.SeriesIterators {
+func generateSeriesIterators(ctrl *gomock.Controller, ns string) encoding.SeriesIterators {
+	var (
+		end   = xtime.Now().Truncate(time.Hour)
+		start = end.Add(-24 * time.Hour)
+	)
+
 	iter := encoding.NewMockSeriesIterator(ctrl)
 	iter.EXPECT().ID().Return(ident.StringID(common)).MinTimes(1)
 	iter.EXPECT().Namespace().Return(ident.StringID(ns)).AnyTimes()
 	iter.EXPECT().Tags().Return(ident.EmptyTagIterator).AnyTimes()
+	iter.EXPECT().Start().Return(start).AnyTimes()
+	iter.EXPECT().End().Return(end).AnyTimes()
+	iter.EXPECT().Close()
 
 	unique := encoding.NewMockSeriesIterator(ctrl)
 	unique.EXPECT().ID().Return(ident.StringID(ns)).MinTimes(1)
 	unique.EXPECT().Namespace().Return(ident.StringID(ns)).AnyTimes()
 	unique.EXPECT().Tags().Return(ident.EmptyTagIterator).AnyTimes()
+	unique.EXPECT().Start().Return(start).AnyTimes()
+	unique.EXPECT().End().Return(end).AnyTimes()
+	unique.EXPECT().Close()
 
-	iters := encoding.NewMockSeriesIterators(ctrl)
-	iters.EXPECT().Close().Return().Times(1)
-	iters.EXPECT().Len().Return(1).AnyTimes()
-	iters.EXPECT().Iters().Return([]encoding.SeriesIterator{iter, unique}).AnyTimes()
-
-	return iters
+	return encoding.NewSeriesIterators([]encoding.SeriesIterator{iter, unique})
 }
 
 func generateUnreadSeriesIterators(ctrl *gomock.Controller, ns string) encoding.SeriesIterators {
 	iter := encoding.NewMockSeriesIterator(ctrl)
 	iter.EXPECT().Namespace().Return(ident.StringID(ns)).AnyTimes()
+	iter.EXPECT().Close()
 
 	unique := encoding.NewMockSeriesIterator(ctrl)
 	unique.EXPECT().Namespace().Return(ident.StringID(ns)).AnyTimes()
+	unique.EXPECT().Close()
 
-	iters := encoding.NewMockSeriesIterators(ctrl)
-	iters.EXPECT().Len().Return(1).AnyTimes()
-	iters.EXPECT().Iters().Return([]encoding.SeriesIterator{iter, unique}).AnyTimes()
-	return iters
-}
-
-func generateIteratorPools(ctrl *gomock.Controller) encoding.IteratorPools {
-	pools := encoding.NewMockIteratorPools(ctrl)
-
-	mutablePool := encoding.NewMockMutableSeriesIteratorsPool(ctrl)
-	mutablePool.EXPECT().
-		Get(gomock.Any()).
-		DoAndReturn(func(size int) encoding.MutableSeriesIterators {
-			return encoding.NewSeriesIterators(make([]encoding.SeriesIterator, 0, size), mutablePool)
-		}).
-		AnyTimes()
-	mutablePool.EXPECT().Put(gomock.Any()).AnyTimes()
-
-	pools.EXPECT().MutableSeriesIterators().Return(mutablePool).AnyTimes()
-
-	return pools
+	return encoding.NewSeriesIterators([]encoding.SeriesIterator{iter, unique})
 }
 
 var namespaces = []struct {
@@ -132,16 +119,18 @@ var namespaces = []struct {
 	},
 }
 
-func TestMultiResult(t *testing.T) {
+func TestMultiResultPartialQueryRange(t *testing.T) {
 	testMultiResult(t, NamespaceCoversPartialQueryRange, long)
+}
+
+func TestMultiResultAllQueryRange(t *testing.T) {
 	testMultiResult(t, NamespaceCoversAllQueryRange, unaggregated)
 }
 
 func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) {
 	ctrl := xtest.NewController(t)
 
-	pools := generateIteratorPools(ctrl)
-	r := NewMultiFetchResult(fanoutType, pools,
+	r := NewMultiFetchResult(fanoutType,
 		defaultTestOpts, models.NewTagOptions(), LimitOptions{Limit: 1000})
 
 	meta := block.NewResultMetadata()
@@ -185,8 +174,7 @@ func TestLimit(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	pools := generateIteratorPools(ctrl)
-	r := NewMultiFetchResult(NamespaceCoversPartialQueryRange, pools,
+	r := NewMultiFetchResult(NamespaceCoversPartialQueryRange,
 		defaultTestOpts, models.NewTagOptions(), LimitOptions{
 			Limit:             2,
 			RequireExhaustive: false,
@@ -236,8 +224,7 @@ func TestLimitRequireExhaustive(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	pools := generateIteratorPools(ctrl)
-	r := NewMultiFetchResult(NamespaceCoversPartialQueryRange, pools,
+	r := NewMultiFetchResult(NamespaceCoversPartialQueryRange,
 		defaultTestOpts, models.NewTagOptions(), LimitOptions{
 			Limit:             2,
 			RequireExhaustive: true,
@@ -285,10 +272,9 @@ func TestExhaustiveMerge(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	pools := generateIteratorPools(ctrl)
 	for _, tt := range exhaustTests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools,
+			r := NewMultiFetchResult(NamespaceCoversAllQueryRange,
 				defaultTestOpts, models.NewTagOptions(), LimitOptions{Limit: 1000})
 			for i, ex := range tt.exhaustives {
 				iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{
@@ -296,7 +282,7 @@ func TestExhaustiveMerge(t *testing.T) {
 						ID:        ident.StringID(fmt.Sprint(i)),
 						Namespace: ident.StringID("ns"),
 					}, nil),
-				}, nil)
+				})
 
 				meta := block.NewResultMetadata()
 				meta.Exhaustive = ex
@@ -321,8 +307,7 @@ func TestAddWarningsPreservedFollowedByAdd(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	pools := generateIteratorPools(ctrl)
-	r := NewMultiFetchResult(NamespaceCoversPartialQueryRange, pools,
+	r := NewMultiFetchResult(NamespaceCoversPartialQueryRange,
 		defaultTestOpts, models.NewTagOptions(), LimitOptions{
 			Limit:             100,
 			RequireExhaustive: true,
@@ -343,7 +328,7 @@ func TestAddWarningsPreservedFollowedByAdd(t *testing.T) {
 				ID:        ident.StringID(fmt.Sprintf("series-%d", i)),
 				Namespace: ident.StringID(fmt.Sprintf("ns-%d", i)),
 			}, nil),
-		}, nil)
+		})
 
 		meta := block.NewResultMetadata()
 		meta.Exhaustive = true

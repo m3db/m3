@@ -55,6 +55,39 @@ type IndexWriter interface {
 	) xtime.UnixNano
 }
 
+// EntryMetrics are metrics for an entry.
+type EntryMetrics struct {
+	gcNoReconcile    tally.Counter
+	gcNeedsReconcile tally.Counter
+
+	duplicateNoReconcile    tally.Counter
+	duplicateNeedsReconcile tally.Counter
+}
+
+// NewEntryMetrics builds an entry metrics.
+func NewEntryMetrics(scope tally.Scope) *EntryMetrics {
+	return &EntryMetrics{
+		gcNoReconcile: scope.Tagged(map[string]string{
+			"reconcile": "no_reconcile",
+			"path":      "gc",
+		}).Counter("count"),
+		gcNeedsReconcile: scope.Tagged(map[string]string{
+			"reconcile": "needs_reconcile",
+			"path":      "gc",
+		}).Counter("count"),
+
+		duplicateNoReconcile: scope.Tagged(map[string]string{
+			"reconcile": "no_reconcile",
+			"path":      "duplicate",
+		}).Counter("count"),
+
+		duplicateNeedsReconcile: scope.Tagged(map[string]string{
+			"reconcile": "needs_reconcile",
+			"path":      "duplicate",
+		}).Counter("count"),
+	}
+}
+
 // Entry is the entry in the shard ident.ID -> series map. It has additional
 // members to track lifecycle and minimize indexing overhead.
 // NB: users are expected to use `NewEntry` to construct these objects.
@@ -69,6 +102,7 @@ type Entry struct {
 	curReadWriters           int32
 	reverseIndex             entryIndexState
 	nowFn                    clock.NowFn
+	metrics                  *EntryMetrics
 	pendingIndexBatchSizeOne []writes.PendingIndexInsert
 }
 
@@ -83,11 +117,12 @@ var _ bootstrap.SeriesRefResolver = &Entry{}
 
 // NewEntryOptions supplies options for a new entry.
 type NewEntryOptions struct {
-	Shard       Shard
-	Series      series.DatabaseSeries
-	Index       uint64
-	IndexWriter IndexWriter
-	NowFn       clock.NowFn
+	Shard        Shard
+	Series       series.DatabaseSeries
+	Index        uint64
+	IndexWriter  IndexWriter
+	NowFn        clock.NowFn
+	EntryMetrics *EntryMetrics
 }
 
 // NewEntry returns a new Entry.
@@ -107,8 +142,14 @@ func NewEntry(opts NewEntryOptions) *Entry {
 		nowFn:                    nowFn,
 		pendingIndexBatchSizeOne: make([]writes.PendingIndexInsert, 1),
 		reverseIndex:             newEntryIndexState(),
+		metrics:                  opts.EntryMetrics,
 	}
 	return entry
+}
+
+// StringID returns the index series ID, as a string.
+func (entry *Entry) StringID() string {
+	return entry.ID.String()
 }
 
 // ReaderWriterCount returns the current ref count on the Entry.
@@ -168,9 +209,50 @@ func (entry *Entry) ReconciledOnIndexSeries() (doc.OnIndexSeries, resource.Simpl
 		return entry, resource.SimpleCloserFn(func() {}), false
 	}
 
+	// NB: attempt to merge the index series here, to ensure the returned
+	// reconciled series will have each index block marked from both this and the
+	// reconciliated series.
+	entry.mergeInto(e)
+
 	return e, resource.SimpleCloserFn(func() {
 		e.DecrementReaderWriterCount()
 	}), true
+}
+
+// MergeEntryIndexBlockStates merges the given states into the current
+// indexed entry.
+func (entry *Entry) MergeEntryIndexBlockStates(states doc.EntryIndexBlockStates) {
+	entry.reverseIndex.Lock()
+	for t, state := range states {
+		set := false
+		if state.Success {
+			set = true
+			entry.reverseIndex.setSuccessWithWLock(t)
+		} else {
+			// NB: setSuccessWithWLock(t) will perform the logic to determine if
+			// minIndexedT/maxIndexedT need to be updated; if this is not being called
+			// these should be updated.
+			if entry.reverseIndex.maxIndexedT < t {
+				entry.reverseIndex.maxIndexedT = t
+			}
+			if entry.reverseIndex.minIndexedT > t {
+				entry.reverseIndex.minIndexedT = t
+			}
+		}
+
+		if state.Attempt {
+			set = true
+			entry.reverseIndex.setAttemptWithWLock(t, false)
+		}
+
+		if !set {
+			// NB: if not set through the above methods, need to create an index block
+			// state at the given timestamp.
+			entry.reverseIndex.states[t] = doc.EntryIndexBlockState{}
+		}
+	}
+
+	entry.reverseIndex.Unlock()
 }
 
 // NeedsIndexUpdate returns a bool to indicate if the Entry needs to be indexed
@@ -246,7 +328,7 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 	successAlready := false
 	entry.reverseIndex.Lock()
 	for _, state := range entry.reverseIndex.states {
-		if state.success {
+		if state.Success {
 			successAlready = true
 			break
 		}
@@ -265,7 +347,7 @@ func (entry *Entry) IfAlreadyIndexedMarkIndexSuccessAndFinalize(
 
 // TryMarkIndexGarbageCollected checks if the entry is eligible to be garbage collected
 // from the index. If so, it marks the entry as GCed and returns true. Otherwise returns false.
-func (entry *Entry) TryMarkIndexGarbageCollected(reconciled, unreconciled tally.Counter) bool {
+func (entry *Entry) TryMarkIndexGarbageCollected() bool {
 	// Since series insertions + index insertions are done separately async, it is possible for
 	// a series to be in the index but not have data written yet, and so any series not in the
 	// lookup yet we cannot yet consider empty.
@@ -273,7 +355,17 @@ func (entry *Entry) TryMarkIndexGarbageCollected(reconciled, unreconciled tally.
 	if err != nil || e == nil {
 		return false
 	}
+
 	defer e.DecrementReaderWriterCount()
+
+	// Was reconciled if the entry retrieved from the shard differs from the current.
+	if e != entry {
+		// If this entry needs further reconciliation, merge this entry's index
+		// states into the
+		entry.reverseIndex.RLock()
+		e.MergeEntryIndexBlockStates(entry.reverseIndex.states)
+		entry.reverseIndex.RUnlock()
+	}
 
 	// Consider non-empty if the entry is still being held since this could indicate
 	// another thread holding a new series prior to writing to it.
@@ -292,14 +384,45 @@ func (entry *Entry) TryMarkIndexGarbageCollected(reconciled, unreconciled tally.
 	// marks this GCed bool.
 	e.IndexGarbageCollected.Store(true)
 
-	// Was reconciled if the entry retrieved from the shard differs from the current.
 	if e != entry {
-		reconciled.Inc(1)
+		entry.metrics.gcNeedsReconcile.Inc(1)
 	} else {
-		unreconciled.Inc(1)
+		entry.metrics.gcNoReconcile.Inc(1)
 	}
 
 	return true
+}
+
+// mergeInto merges this entry index blocks into the provided index series.
+func (entry *Entry) mergeInto(indexSeries doc.OnIndexSeries) {
+	if entry == indexSeries {
+		// NB: short circuit if attempting to merge an entry into itself.
+		return
+	}
+
+	entry.reverseIndex.RLock()
+	indexSeries.MergeEntryIndexBlockStates(entry.reverseIndex.states)
+	entry.reverseIndex.RUnlock()
+}
+
+// TryReconcileDuplicates attempts to reconcile the index states of this entry.
+func (entry *Entry) TryReconcileDuplicates() {
+	// Since series insertions + index insertions are done separately async, it is possible for
+	// a series to be in the index but not have data written yet, and so any series not in the
+	// lookup yet we cannot yet consider empty.
+	e, _, err := entry.Shard.TryRetrieveSeriesAndIncrementReaderWriterCount(entry.ID)
+	if err != nil || e == nil {
+		return
+	}
+
+	if e != entry {
+		entry.mergeInto(e)
+		entry.metrics.duplicateNeedsReconcile.Inc(1)
+	} else {
+		entry.metrics.duplicateNoReconcile.Inc(1)
+	}
+
+	e.DecrementReaderWriterCount()
 }
 
 // NeedsIndexGarbageCollected checks if the entry is eligible to be garbage collected
@@ -390,9 +513,8 @@ func (entry *Entry) SeriesRef() (bootstrap.SeriesRef, error) {
 // ReleaseRef must be called after using the series ref
 // to release the reference count to the series so it can
 // be expired by the owning shard eventually.
-func (entry *Entry) ReleaseRef() error {
+func (entry *Entry) ReleaseRef() {
 	entry.DecrementReaderWriterCount()
-	return nil
 }
 
 // entryIndexState is used to capture the state of indexing for a single shard
@@ -406,21 +528,13 @@ func (entry *Entry) ReleaseRef() error {
 // have a write for the 12-2p block from the 2-4p block, or we'd drop the late write.
 type entryIndexState struct {
 	sync.RWMutex
-	states                   map[xtime.UnixNano]entryIndexBlockState
+	states                   doc.EntryIndexBlockStates
 	minIndexedT, maxIndexedT xtime.UnixNano
-}
-
-// entryIndexBlockState is used to capture the state of indexing for a single shard
-// entry for a given index block start. It's used to prevent attempts at double indexing
-// for the same block start.
-type entryIndexBlockState struct {
-	attempt bool
-	success bool
 }
 
 func newEntryIndexState() entryIndexState {
 	return entryIndexState{
-		states: make(map[xtime.UnixNano]entryIndexBlockState, 4),
+		states: make(doc.EntryIndexBlockStates, 4),
 	}
 }
 
@@ -431,7 +545,7 @@ func (s *entryIndexState) indexedRangeWithRLock() (xtime.UnixNano, xtime.UnixNan
 func (s *entryIndexState) indexedWithRLock(t xtime.UnixNano) bool {
 	v, ok := s.states[t]
 	if ok {
-		return v.success
+		return v.Success
 	}
 	return false
 }
@@ -439,7 +553,7 @@ func (s *entryIndexState) indexedWithRLock(t xtime.UnixNano) bool {
 func (s *entryIndexState) indexedOrAttemptedWithRLock(t xtime.UnixNano) bool {
 	v, ok := s.states[t]
 	if ok {
-		return v.success || v.attempt
+		return v.Success || v.Attempt
 	}
 	return false
 }
@@ -452,8 +566,8 @@ func (s *entryIndexState) setSuccessWithWLock(t xtime.UnixNano) {
 	// NB(r): If not inserted state yet that means we need to make an insertion,
 	// this will happen if synchronously indexing and we haven't called
 	// NeedIndexUpdate before we indexed the series.
-	s.states[t] = entryIndexBlockState{
-		success: true,
+	s.states[t] = doc.EntryIndexBlockState{
+		Success: true,
 	}
 
 	if t > s.maxIndexedT {
@@ -467,15 +581,15 @@ func (s *entryIndexState) setSuccessWithWLock(t xtime.UnixNano) {
 func (s *entryIndexState) setAttemptWithWLock(t xtime.UnixNano, attempt bool) {
 	v, ok := s.states[t]
 	if ok {
-		if v.success {
+		if v.Success {
 			return // Attempt is not relevant if success.
 		}
-		v.attempt = attempt
+		v.Attempt = attempt
 		s.states[t] = v
 		return
 	}
 
-	s.states[t] = entryIndexBlockState{
-		attempt: attempt,
+	s.states[t] = doc.EntryIndexBlockState{
+		Attempt: attempt,
 	}
 }

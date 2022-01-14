@@ -21,17 +21,17 @@
 package extdebug
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/gogo/protobuf/jsonpb"
 
 	"github.com/m3db/m3/src/cluster/placementhandler"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/x/debug"
-	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/gogo/protobuf/jsonpb"
 )
 
 type placementInfoSource struct {
@@ -43,7 +43,6 @@ type placementInfoSource struct {
 func NewPlacementInfoSource(
 	service handleroptions.ServiceNameAndDefaults,
 	placementOpts placementhandler.HandlerOptions,
-	iopts instrument.Options,
 ) (debug.Source, error) {
 	handler := placementhandler.NewGetHandler(placementOpts)
 	return &placementInfoSource{
@@ -58,6 +57,10 @@ func (p *placementInfoSource) Write(w io.Writer, httpReq *http.Request) error {
 	placement, err := p.getHandler.Get(p.service, httpReq)
 	if err != nil {
 		return err
+	}
+
+	if placement == nil {
+		return errors.New("placement does not exist")
 	}
 
 	placementProto, err := placement.Proto()

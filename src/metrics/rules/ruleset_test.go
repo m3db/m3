@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
+	"github.com/m3db/m3/src/metrics/matcher/namespace"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/id"
@@ -2248,4 +2249,8 @@ type testMatchInput struct {
 	forExistingIDResult   metadata.StagedMetadatas
 	forNewRollupIDsResult []IDWithMetadatas
 	keepOriginal          bool
+}
+
+func (t testMatchInput) ID() id.ID {
+	return namespace.NewTestID(t.id, "ns")
 }

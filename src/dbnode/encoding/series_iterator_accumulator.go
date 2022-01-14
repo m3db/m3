@@ -32,30 +32,22 @@ import (
 var _ SeriesIteratorAccumulator = (*seriesIteratorAccumulator)(nil)
 
 type seriesIteratorAccumulator struct {
-	id              ident.ID
-	nsID            ident.ID
-	start           xtime.UnixNano
-	end             xtime.UnixNano
-	iters           iterators
-	tagIterator     ident.TagIterator
-	seriesIterators []SeriesIterator
-	err             error
-	firstNext       bool
-	closed          bool
-}
+	id    ident.ID
+	nsID  ident.ID
+	start xtime.UnixNano
+	end   xtime.UnixNano
 
-// SeriesAccumulatorOptions are options for a SeriesIteratorAccumulator.
-type SeriesAccumulatorOptions struct {
-	// RetainTags determines if tags should be preserved after the accumulator is
-	// exhausted. If set to true, the accumulator retains a copy of the tags.
-	RetainTags bool
+	iters                 iterators
+	seriesIterators       []SeriesIterator
+	firstAnnotationHolder annotationHolder
+
+	err       error
+	firstNext bool
+	closed    bool
 }
 
 // NewSeriesIteratorAccumulator creates a new series iterator.
-func NewSeriesIteratorAccumulator(
-	iter SeriesIterator,
-	opts SeriesAccumulatorOptions,
-) (SeriesIteratorAccumulator, error) {
+func NewSeriesIteratorAccumulator(iter SeriesIterator) (SeriesIteratorAccumulator, error) {
 	nsID := ""
 	if iter.Namespace() != nil {
 		nsID = iter.Namespace().String()
@@ -71,10 +63,6 @@ func NewSeriesIteratorAccumulator(
 
 	it.iters.reset()
 
-	if opts.RetainTags {
-		it.tagIterator = iter.Tags().Duplicate()
-	}
-
 	err := it.Add(iter)
 	if err != nil {
 		return nil, err
@@ -88,14 +76,23 @@ func (it *seriesIteratorAccumulator) Add(iter SeriesIterator) error {
 		return it.err
 	}
 
-	if !iter.Next() || !it.iters.push(iter) {
-		iter.Close()
-		return iter.Err()
+	if !iter.Next() {
+		err := iter.Err()
+		return err
+	}
+
+	firstAnnotation := iter.FirstAnnotation()
+	if !it.iters.push(iter) {
+		err := iter.Err()
+		return err
 	}
 
 	iterStart := iter.Start()
 	if start := it.start; start.IsZero() || iterStart.Before(start) {
 		it.start = iterStart
+		if len(firstAnnotation) > 0 {
+			it.firstAnnotationHolder.set(firstAnnotation)
+		}
 	}
 
 	iterEnd := iter.End()
@@ -116,15 +113,15 @@ func (it *seriesIteratorAccumulator) Namespace() ident.ID {
 }
 
 func (it *seriesIteratorAccumulator) Tags() ident.TagIterator {
-	if iter := it.tagIterator; iter != nil {
-		return iter
-	}
-	if len(it.seriesIterators) == 0 {
-		return ident.EmptyTagIterator
-	}
 	// NB: the tags for each iterator must be the same, so it's valid to return
 	// from whichever iterator is available.
-	return it.seriesIterators[0].Tags()
+	for _, iter := range it.seriesIterators {
+		if tags := iter.Tags(); tags != nil {
+			return tags
+		}
+	}
+
+	return ident.EmptyTagIterator
 }
 
 func (it *seriesIteratorAccumulator) Start() xtime.UnixNano {
@@ -168,7 +165,7 @@ func (it *seriesIteratorAccumulator) Err() error {
 }
 
 func (it *seriesIteratorAccumulator) FirstAnnotation() ts.Annotation {
-	return it.iters.firstAnnotation()
+	return it.firstAnnotationHolder.get()
 }
 
 func (it *seriesIteratorAccumulator) Close() {
@@ -184,11 +181,8 @@ func (it *seriesIteratorAccumulator) Close() {
 		it.nsID.Finalize()
 		it.nsID = nil
 	}
-	if it.tagIterator != nil {
-		it.tagIterator.Close()
-		it.tagIterator = nil
-	}
 	it.iters.reset()
+	it.firstAnnotationHolder.reset()
 	it.firstNext = true
 }
 

@@ -291,7 +291,7 @@ func TestPromWriteAggregatedMetricsWithHeader(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
-func TestPromWriteMetricsTypes(t *testing.T) {
+func TestPromWriteOpenMetricsTypes(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -324,16 +324,16 @@ func TestPromWriteMetricsTypes(t *testing.T) {
 
 	executeWriteRequest(t, opts, promReq)
 
-	firstValue := verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, false)
-	secondValue := verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER, true)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, false)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, false)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_SUMMARY, false)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_HISTOGRAM, true)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE_HISTOGRAM, false)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_INFO, false)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_STATESET, false)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, false)
+	firstValue := verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_UNKNOWN, false)
+	secondValue := verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_COUNTER, true)
+	verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_GAUGE, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_GAUGE, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_SUMMARY, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_HISTOGRAM, true)
+	verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_GAUGE_HISTOGRAM, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_INFO, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_STATESET, false)
+	verifyIterValueAnnotation(t, capturedIter, annotation.OpenMetricsFamilyType_UNKNOWN, false)
 
 	require.False(t, capturedIter.Next())
 	require.NoError(t, capturedIter.Error())
@@ -342,8 +342,8 @@ func TestPromWriteMetricsTypes(t *testing.T) {
 
 	secondAnnotationPayload := unmarshalAnnotation(t, secondValue.Annotation)
 	assert.Equal(t, annotation.Payload{
-		MetricType:        annotation.MetricType_COUNTER,
-		HandleValueResets: true,
+		OpenMetricsFamilyType:        annotation.OpenMetricsFamilyType_COUNTER,
+		OpenMetricsHandleValueResets: true,
 	}, secondAnnotationPayload, "second annotation invalidated")
 }
 
@@ -370,18 +370,18 @@ func TestPromWriteGraphiteMetricsTypes(t *testing.T) {
 			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_GAUGE},
 			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_GAUGE},
 			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_TIMER},
-			{},
+			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_COUNTER},
 		},
 	}
 
 	executeWriteRequest(t, opts, promReq)
 
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, false)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER, false)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, false)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE, false)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, false)
-	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN, false)
+	verifyIterValueAnnotationGraphite(t, capturedIter, annotation.GraphiteType_GRAPHITE_TIMER)
+	verifyIterValueAnnotationGraphite(t, capturedIter, annotation.GraphiteType_GRAPHITE_COUNTER)
+	verifyIterValueAnnotationGraphite(t, capturedIter, annotation.GraphiteType_GRAPHITE_GAUGE)
+	verifyIterValueAnnotationGraphite(t, capturedIter, annotation.GraphiteType_GRAPHITE_GAUGE)
+	verifyIterValueAnnotationGraphite(t, capturedIter, annotation.GraphiteType_GRAPHITE_TIMER)
+	verifyIterValueAnnotationGraphite(t, capturedIter, annotation.GraphiteType_GRAPHITE_COUNTER)
 
 	require.False(t, capturedIter.Next())
 	require.NoError(t, capturedIter.Error())
@@ -478,16 +478,35 @@ func BenchmarkWriteDatapoints(b *testing.B) {
 func verifyIterValueAnnotation(
 	t *testing.T,
 	iter ingest.DownsampleAndWriteIter,
-	expectedMetricType annotation.MetricType,
+	expectedMetricType annotation.OpenMetricsFamilyType,
 	expectedHandleValueResets bool,
 ) ingest.IterValue {
 	require.True(t, iter.Next())
 	value := iter.Current()
 
-	expectedPayload := annotation.Payload{MetricType: expectedMetricType, HandleValueResets: expectedHandleValueResets}
+	expectedPayload := annotation.Payload{
+		SourceFormat:                 annotation.SourceFormat_OPEN_METRICS,
+		OpenMetricsFamilyType:        expectedMetricType,
+		OpenMetricsHandleValueResets: expectedHandleValueResets,
+	}
 	assert.Equal(t, expectedPayload, unmarshalAnnotation(t, value.Annotation))
 
 	return value
+}
+
+func verifyIterValueAnnotationGraphite(
+	t *testing.T,
+	iter ingest.DownsampleAndWriteIter,
+	expectedMetricType annotation.GraphiteType,
+) {
+	require.True(t, iter.Next())
+	value := iter.Current()
+
+	expectedPayload := annotation.Payload{
+		SourceFormat: annotation.SourceFormat_GRAPHITE,
+		GraphiteType: expectedMetricType,
+	}
+	assert.Equal(t, expectedPayload, unmarshalAnnotation(t, value.Annotation))
 }
 
 func verifyIterValueNoAnnotation(t *testing.T, iter ingest.DownsampleAndWriteIter) {
