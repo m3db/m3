@@ -107,6 +107,7 @@ type metricsAppender struct {
 	tagIter      serialize.MetricTagsIterator
 	tagIterFn    id.SortedTagIteratorFn
 	nameTagFn    id.NameAndTagsFn
+	nameTag      []byte
 }
 
 // metricsAppenderOptions will have one of agg or clientRemote set.
@@ -151,6 +152,7 @@ func newMetricsAppender(
 			tags := id
 			return name, tags, nil
 		},
+		nameTag: nameTag,
 	}
 }
 
@@ -243,7 +245,9 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	// namespace tag to determine the ruleset for the namespace. then the ruleset matcher reuses the tag iterator for
 	// every match computation.
 	matchResult, err := a.matcher.ForwardMatch(a.tagIter, fromNanos, toNanos, rules.MatchOptions{
+		DecodedTags:         tags,
 		NameAndTagsFn:       a.nameTagFn,
+		NameTag:             a.nameTag,
 		SortedTagIteratorFn: a.tagIterFn,
 	})
 	if err != nil {

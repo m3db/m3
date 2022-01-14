@@ -26,17 +26,16 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/x/ident"
 )
 
-var (
-	// EmptyMatchResult is the result when no matches were found.
-	EmptyMatchResult = NewMatchResult(
-		kv.UninitializedVersion,
-		timeNanosMax,
-		metadata.DefaultStagedMetadatas,
-		nil,
-		false,
-	)
+// EmptyMatchResult is the result when no matches were found.
+var EmptyMatchResult = NewMatchResult(
+	kv.UninitializedVersion,
+	timeNanosMax,
+	metadata.DefaultStagedMetadatas,
+	nil,
+	false,
 )
 
 // IDWithMetadatas is a pair of metric ID and the associated staged metadatas.
@@ -71,7 +70,9 @@ type MatchResult struct {
 
 // MatchOptions are request level options for each Match.
 type MatchOptions struct {
+	DecodedTags         ident.TagIterator
 	NameAndTagsFn       id.NameAndTagsFn
+	NameTag             []byte
 	SortedTagIteratorFn id.SortedTagIteratorFn
 }
 

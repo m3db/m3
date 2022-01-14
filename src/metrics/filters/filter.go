@@ -25,7 +25,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/x/ident"
 )
 
 var (
@@ -63,9 +63,7 @@ const (
 	invalidNestedChars   = "?[{"
 )
 
-var (
-	multiRangeSplit = []byte(",")
-)
+var multiRangeSplit = []byte(",")
 
 // FilterValue contains the filter pattern and a boolean flag indicating
 // whether the filter should be negated.
@@ -89,13 +87,11 @@ type TagsFilter interface {
 
 // TagMatchOptions are the options for a TagsFilter match.
 type TagMatchOptions struct {
-	// Function to extract name and tags from an id.
-	NameAndTagsFn id.NameAndTagsFn
+	// TODO
+	NameTag []byte
 
-	// Function to get a sorted tag iterator from id tags.
-	// The caller of Matches is the owner of the Iterator and is responsible for closing it, this allows reusing the
-	// same Iterator across many Matches.
-	SortedTagIteratorFn id.SortedTagIteratorFn
+	// TODO
+	DecodedTags ident.TagIterator
 }
 
 type filter interface {

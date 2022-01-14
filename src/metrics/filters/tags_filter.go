@@ -179,16 +179,23 @@ func (f *tagsFilter) String() string {
 	return buf.String()
 }
 
-func (f *tagsFilter) Matches(id []byte, opts TagMatchOptions) (bool, error) {
+func (f *tagsFilter) Matches(_ []byte, opts TagMatchOptions) (bool, error) {
 	if f.nameFilter == nil && len(f.tagFilters) == 0 {
 		return true, nil
 	}
 
-	name, tags, err := opts.NameAndTagsFn(id)
-	if err != nil {
-		return false, err
-	}
+	iter := opts.DecodedTags
+	iter.Rewind()
+
+	var name []byte
 	if f.nameFilter != nil {
+		for iter.Next() {
+			currTag := iter.Current()
+			if bytes.Equal(opts.NameTag, currTag.Name.Bytes()) {
+				name = currTag.Value.Bytes()
+				break
+			}
+		}
 		match := f.nameFilter.Matches(name)
 		if match && f.op == Disjunction {
 			return true, nil
@@ -198,13 +205,15 @@ func (f *tagsFilter) Matches(id []byte, opts TagMatchOptions) (bool, error) {
 		}
 	}
 
-	iter := opts.SortedTagIteratorFn(tags)
+	iter.Rewind()
 
 	currIdx := 0
 
 	// Iterate over each of the metric's tags and rule's tag filters. They're both in sorted order.
 	for iter.Next() && currIdx < len(f.tagFilters) {
-		name, value := iter.Current()
+		currTag := iter.Current()
+		name := currTag.Name.Bytes()
+		value := currTag.Value.Bytes()
 
 		// Check if the current metric tag matches the current tag filter
 		comparison := bytes.Compare(name, f.tagFilters[currIdx].name)

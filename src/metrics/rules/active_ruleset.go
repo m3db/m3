@@ -190,8 +190,8 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 			continue
 		}
 		matches, err := snapshot.filter.Matches(id, filters.TagMatchOptions{
-			SortedTagIteratorFn: matchOpts.SortedTagIteratorFn,
-			NameAndTagsFn:       matchOpts.NameAndTagsFn,
+			DecodedTags: matchOpts.DecodedTags,
+			NameTag:     matchOpts.NameTag,
 		})
 		if err != nil {
 			return mappingResults{}, err
@@ -265,8 +265,8 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64, matchOpts 
 			continue
 		}
 		match, err := snapshot.filter.Matches(id, filters.TagMatchOptions{
-			NameAndTagsFn:       matchOpts.NameAndTagsFn,
-			SortedTagIteratorFn: matchOpts.SortedTagIteratorFn,
+			DecodedTags: matchOpts.DecodedTags,
+			NameTag:     matchOpts.NameTag,
 		})
 		if err != nil {
 			return rollupResults{}, err

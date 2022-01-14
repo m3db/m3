@@ -36,14 +36,14 @@ var (
 		"tagname5=tagvalue5,name=my.test.metric.name,tagname7=tagvalue7")
 
 	testTagsFilterMapOne = map[string]FilterValue{
-		"tagname1": FilterValue{Pattern: "tagvalue1"},
+		"tagname1": {Pattern: "tagvalue1"},
 	}
 
 	testTagsFilterMapThree = map[string]FilterValue{
-		"tagname1":    FilterValue{Pattern: "tagvalue1"},
-		"tagname2":    FilterValue{Pattern: "tagvalue2"},
-		"tagname3":    FilterValue{Pattern: "tagvalue3"},
-		"faketagname": FilterValue{Pattern: "faketagvalue"},
+		"tagname1":    {Pattern: "tagvalue1"},
+		"tagname2":    {Pattern: "tagvalue2"},
+		"tagname3":    {Pattern: "tagvalue3"},
+		"faketagname": {Pattern: "faketagvalue"},
 	}
 )
 
@@ -211,7 +211,7 @@ func benchRangeFilterRange(b *testing.B, pattern, val []byte, expectedMatch bool
 
 func benchTagsFilter(b *testing.B, id []byte, tagsFilter TagsFilter) {
 	for n := 0; n < b.N; n++ {
-		_, err := tagsFilter.Matches(id, testTagsMatchOptions())
+		_, err := tagsFilter.Matches(id, testTagsMatchOptions(string(id)))
 		require.NoError(b, err)
 	}
 }
