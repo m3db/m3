@@ -28,6 +28,8 @@ import (
 
 	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -143,6 +145,10 @@ type FetchOptions struct {
 	Scope tally.Scope
 	// Timeout is the timeout for the request.
 	Timeout time.Duration
+	// ReadConsistencyLevel defines the read consistency for the fetch.
+	ReadConsistencyLevel *topology.ReadConsistencyLevel
+	// IterateEqualTimestampStrategy provides the conflict resolution strategy for the same timestamp.
+	IterateEqualTimestampStrategy *encoding.IterateEqualTimestampStrategy
 	// Source is the source for the query.
 	Source []byte
 

@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
@@ -86,8 +87,11 @@ type QueryOptions struct {
 	RequireExhaustive bool
 	// RequireNoWait requires queries to abort if execution must wait for permits.
 	RequireNoWait bool
-	// IterationOptions controls additional iteration methods.
-	IterationOptions IterationOptions
+	// ReadConsistencyLevel defines the read consistency at the query level.
+	// Overrides the level defined by the database.
+	ReadConsistencyLevel *topology.ReadConsistencyLevel
+	// IterateEqualTimestampStrategy provides the conflict resolution strategy for the same timestamp.
+	IterateEqualTimestampStrategy *encoding.IterateEqualTimestampStrategy
 	// Source is an optional query source.
 	Source []byte
 }
