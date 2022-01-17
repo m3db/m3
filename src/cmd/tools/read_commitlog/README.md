@@ -7,11 +7,16 @@
 $ git clone git@github.com:m3db/m3.git
 $ make read_commitlog
 $ ./bin/read_commitlog
-Usage: read_commitlog [-p value] [-f value]
- -p, --path=value
-       Commitlog file path [e.g. /var/lib/m3db/commitlogs/commitlog-0-161023.db]
+Usage: read_commitlog [-a value] [-f value] [-p value] [-s value] [-t value] [parameters ...]
+ -a, --action=value
+                   Action [print,summary]. Defaults to 'print'
  -f, --id-filter=value
-       ID Contains Filter [e.g. xyz]
+                   ID Contains Filter (optional)
+ -p, --path=value  file path [e.g.
+                   /var/lib/m3db/commitlogs/commitlog-0-161023.db]
+ -s, --id-size-filter=value
+                   ID Size (bytes) Filter (optional)
+ -t, --top=value   Print out only top N IDs
 
 # Examples.
 
