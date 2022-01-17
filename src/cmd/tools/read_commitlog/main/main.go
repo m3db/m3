@@ -147,7 +147,7 @@ func summaryAction(reader *filteringReader, top *int) {
 	if *top > 0 {
 		limit = *top
 	}
-	fmt.Printf("ID datapoint count: \n") // nolint: forbidigo
+	fmt.Printf("ID datapoint counts: \n") // nolint: forbidigo
 	for i := 0; i < limit; i++ {
 		pair := datapointCountArr[i]
 		fmt.Printf("%-10d %s\n", pair.Value, pair.ID.String()) // nolint: forbidigo
