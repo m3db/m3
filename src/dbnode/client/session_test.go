@@ -173,7 +173,7 @@ func TestSessionShardID(t *testing.T) {
 
 	_, err = s.ShardID(ident.StringID("foo"))
 	assert.Error(t, err)
-	assert.Equal(t, errSessionStatusNotOpen, err)
+	assert.Equal(t, ErrSessionStatusNotOpen, err)
 
 	mockHostQueues(ctrl, s.(*session), sessionTestReplicas, nil)
 
@@ -236,7 +236,7 @@ func TestIteratorPools(t *testing.T) {
 	s := session{}
 	itPool, err := s.IteratorPools()
 
-	assert.EqualError(t, err, errSessionStatusNotOpen.Error())
+	assert.EqualError(t, err, ErrSessionStatusNotOpen.Error())
 	assert.Nil(t, itPool)
 
 	multiReaderIteratorArray := encoding.NewMultiReaderIteratorArrayPool(nil)
@@ -259,7 +259,7 @@ func TestIteratorPools(t *testing.T) {
 
 	// Error expected if state is not open
 	itPool, err = s.IteratorPools()
-	assert.EqualError(t, err, errSessionStatusNotOpen.Error())
+	assert.EqualError(t, err, ErrSessionStatusNotOpen.Error())
 	assert.Nil(t, itPool)
 
 	s.state.status = statusOpen

@@ -33,6 +33,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
@@ -1325,6 +1326,7 @@ func (d *db) AggregateTiles(
 			zap.String("targetNs", targetNsID.String()),
 			zap.Error(err),
 		)
+		reportAggregateTilesErrors(opts.InsOptions.MetricsScope(), err)
 	}
 
 	return processedTileCount, err
@@ -1415,4 +1417,12 @@ func NewAggregateTilesOptions(
 
 		InsOptions: insOpts,
 	}, nil
+}
+
+func reportAggregateTilesErrors(scope tally.Scope, err error) {
+	errorType := "not-categorized"
+	if xerrors.Is(err, client.ErrSessionStatusNotOpen) {
+		errorType = "connection-to-peer"
+	}
+	scope.Tagged(map[string]string{"error-type": errorType}).Counter("aggregate-tiles-failed").Inc(1)
 }

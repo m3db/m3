@@ -100,7 +100,7 @@ func TestSessionAggregateNotOpenError(t *testing.T) {
 	_, _, err = s.Aggregate(testContext(), ident.StringID("namespace"),
 		testSessionAggregateQuery, testSessionAggregateQueryOpts(t0, t0))
 	assert.Error(t, err)
-	assert.Equal(t, errSessionStatusNotOpen, err)
+	assert.Equal(t, ErrSessionStatusNotOpen, err)
 }
 
 func TestSessionAggregateGuardAgainstInvalidCall(t *testing.T) {

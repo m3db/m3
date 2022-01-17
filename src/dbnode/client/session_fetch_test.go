@@ -119,7 +119,7 @@ func TestSessionFetchNotOpenError(t *testing.T) {
 	now := xtime.Now()
 	_, err = s.Fetch(ident.StringID("namespace"), ident.StringID("foo"), now.Add(-time.Hour), now)
 	assert.Error(t, err)
-	assert.Equal(t, errSessionStatusNotOpen, err)
+	assert.Equal(t, ErrSessionStatusNotOpen, err)
 }
 
 func TestSessionFetchIDs(t *testing.T) {
