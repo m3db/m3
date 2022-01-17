@@ -28,10 +28,11 @@ import (
 	"sort"
 	"time"
 
-	"github.com/m3db/m3/src/x/ident"
-	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/pborman/getopt"
 	"go.uber.org/zap"
+
+	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 func main() {
@@ -117,7 +118,7 @@ func summaryAction(reader *filteringReader, top *int) {
 			oldestDatapoint = entry.Datapoint.TimestampNanos
 		}
 
-		datapointCount[series.ID] = datapointCount[series.ID] + 1
+		datapointCount[series.ID]++
 
 		entryCount++
 	}
@@ -128,20 +129,20 @@ func summaryAction(reader *filteringReader, top *int) {
 	fmt.Printf("%d entries read\n", entryCount)                                              // nolint: forbidigo
 	fmt.Printf("time range [%s:%s]\n", earliestDatapoint.String(), oldestDatapoint.String()) // nolint: forbidigo
 
-	datapointCountArr := IDPairList{}
-	sizeArr := IDPairList{}
+	datapointCountArr := idPairList{}
+	sizeArr := idPairList{}
 	for ID, count := range datapointCount {
 		IDSize := len(ID.Bytes())
 		totalIDSize += uint64(IDSize)
-		datapointCountArr = append(datapointCountArr, IDPair{ID: ID, Value: count})
-		sizeArr = append(sizeArr, IDPair{ID: ID, Value: uint32(IDSize)})
+		datapointCountArr = append(datapointCountArr, idPair{ID: ID, Value: count})
+		sizeArr = append(sizeArr, idPair{ID: ID, Value: uint32(IDSize)})
 	}
 
 	sort.Sort(sort.Reverse(datapointCountArr))
 	sort.Sort(sort.Reverse(sizeArr))
 
-	fmt.Printf("total ID size: %d bytes\n", totalIDSize)
-	fmt.Printf("total distinct number of IDs %d \n", len(datapointCount))
+	fmt.Printf("total ID size: %d bytes\n", totalIDSize)                  // nolint: forbidigo
+	fmt.Printf("total distinct number of IDs %d \n", len(datapointCount)) // nolint: forbidigo
 
 	limit := len(datapointCountArr)
 	if *top > 0 {
@@ -160,13 +161,13 @@ func summaryAction(reader *filteringReader, top *int) {
 	}
 }
 
-type IDPair struct {
+type idPair struct {
 	ID    ident.ID
 	Value uint32
 }
 
-type IDPairList []IDPair
+type idPairList []idPair
 
-func (p IDPairList) Len() int           { return len(p) }
-func (p IDPairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-func (p IDPairList) Less(i, j int) bool { return p[i].Value < p[j].Value }
+func (p idPairList) Len() int           { return len(p) }
+func (p idPairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p idPairList) Less(i, j int) bool { return p[i].Value < p[j].Value }
