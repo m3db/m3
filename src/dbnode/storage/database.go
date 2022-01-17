@@ -28,6 +28,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -49,10 +53,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 const (
@@ -97,9 +97,9 @@ type increasingIndex interface {
 
 type db struct {
 	sync.RWMutex
-	assignShardSetMutex sync.Mutex
-	opts                Options
-	nowFn               clock.NowFn
+	bootstrapMutex sync.Mutex
+	opts           Options
+	nowFn          clock.NowFn
 
 	nsWatch                namespace.NamespaceWatch
 	namespaces             *databaseNamespacesMap
@@ -272,6 +272,14 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	if newNamespaces == nil {
 		return nil
 	}
+	// NB: Use bootstrapMutex to protect from competing calls.
+	asyncUnlock := false
+	d.bootstrapMutex.Lock()
+	defer func() {
+		if !asyncUnlock {
+			d.bootstrapMutex.Unlock()
+		}
+	}()
 
 	// Always update schema registry before owned namespaces.
 	if err := namespace.UpdateSchemaRegistry(newNamespaces, d.opts.SchemaRegistry(), d.log); err != nil {
@@ -326,7 +334,8 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 			if d.bootstraps > 0 {
 				// If already bootstrapped before, enqueue another
 				// bootstrap (asynchronously, ok to trigger holding lock).
-				d.enqueueBootstrapAsync()
+				asyncUnlock = true
+				d.enqueueBootstrapAsync(d.bootstrapMutex.Unlock)
 			}
 
 			return nil
@@ -348,7 +357,12 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 		}
 
 		// Enqueue bootstrap and enable file ops when bootstrap is completed.
-		d.enqueueBootstrapAsyncWithLock(d.enableFileOps)
+		asyncUnlock = true
+		d.enqueueBootstrapAsyncWithLock(
+			func() {
+				d.enableFileOps()
+				d.bootstrapMutex.Unlock()
+			})
 	}
 	return nil
 }
@@ -503,13 +517,13 @@ func (d *db) Options() Options {
 }
 
 func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
-	// NB: Use assignShardSetMutex to protect from competing calls.
-	d.assignShardSetMutex.Lock()
+	// NB: Use bootstrapMutex to protect from competing calls.
+	d.bootstrapMutex.Lock()
 	asyncUnlock := false
 	defer func() {
 		if !asyncUnlock {
 			// Unlock only if asyncUnlock is not set. Otherwise, we will unlock asynchronously.
-			d.assignShardSetMutex.Unlock()
+			d.bootstrapMutex.Unlock()
 		}
 	}()
 	// NB: Can hold lock since all long running tasks are enqueued to run
@@ -535,7 +549,8 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 		if d.bootstraps > 0 {
 			// If already bootstrapped before, enqueue another
 			// bootstrap (asynchronously, ok to trigger holding lock).
-			d.enqueueBootstrapAsync()
+			asyncUnlock = true
+			d.enqueueBootstrapAsync(d.bootstrapMutex.Unlock)
 		}
 		return
 	}
@@ -553,7 +568,7 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 		asyncUnlock = true
 		d.enqueueBootstrapAsyncWithLock(func() {
 			d.enableFileOps()
-			d.assignShardSetMutex.Unlock()
+			d.bootstrapMutex.Unlock()
 		})
 	}
 }
@@ -633,9 +648,13 @@ func (d *db) ShardSet() sharding.ShardSet {
 	return shardSet
 }
 
-func (d *db) enqueueBootstrapAsync() {
+func (d *db) enqueueBootstrapAsync(onCompleteFn func()) {
 	d.log.Info("enqueuing bootstrap")
-	d.mediator.BootstrapEnqueue(BootstrapEnqueueOptions{})
+	d.mediator.BootstrapEnqueue(BootstrapEnqueueOptions{
+		OnCompleteFn: func(_ BootstrapResult) {
+			onCompleteFn()
+		},
+	})
 }
 
 func (d *db) enqueueBootstrapAsyncWithLock(onCompleteFn func()) {
@@ -1121,7 +1140,12 @@ func (d *db) Bootstrap() error {
 	d.Lock()
 	d.bootstraps++
 	d.Unlock()
+
+	// NB: We need to acquire bootstrapMutex to protect from receiving new shardSets or namespaces during
+	// bootstrapping.
+	d.bootstrapMutex.Lock()
 	_, err := d.mediator.Bootstrap()
+	d.bootstrapMutex.Unlock()
 	return err
 }
 

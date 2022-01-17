@@ -117,6 +117,9 @@ type Configuration struct {
 	// ShardsLeavingCountTowardsConsistency sets whether or not writes to leaving shards
 	// count towards consistency, by default they do not.
 	ShardsLeavingCountTowardsConsistency *bool `yaml:"shardsLeavingCountTowardsConsistency"`
+
+	// IterateEqualTimestampStrategy specifies the iterate equal timestamp strategy.
+	IterateEqualTimestampStrategy *encoding.IterateEqualTimestampStrategy `yaml:"iterateEqualTimestampStrategy"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -408,6 +411,12 @@ func (c Configuration) NewAdminClient(
 	}
 	if syncClientOverrides.HostQueueFlushInterval != nil {
 		v = v.SetHostQueueOpsFlushInterval(*syncClientOverrides.HostQueueFlushInterval)
+	}
+
+	if c.IterateEqualTimestampStrategy != nil {
+		o := v.IterationOptions()
+		o.IterateEqualTimestampStrategy = *c.IterateEqualTimestampStrategy
+		v = v.SetIterationOptions(o)
 	}
 
 	encodingOpts := params.EncodingOptions

@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/retry"
@@ -38,6 +39,7 @@ func TestConfiguration(t *testing.T) {
 	in := `
 writeConsistencyLevel: majority
 readConsistencyLevel: unstrict_majority
+iterateEqualTimestampStrategy: iterate_lowest_value
 connectConsistencyLevel: any
 writeTimeout: 10s
 fetchTimeout: 15s
@@ -84,6 +86,7 @@ proto:
 	var (
 		levelMajority        = topology.ConsistencyLevelMajority
 		readUnstrictMajority = topology.ReadConsistencyLevelUnstrictMajority
+		iterateLowestValue   = encoding.IterateLowestValue
 		connectAny           = topology.ConnectConsistencyLevelAny
 		second10             = 10 * time.Second
 		second15             = 15 * time.Second
@@ -94,12 +97,13 @@ proto:
 	)
 
 	expected := Configuration{
-		WriteConsistencyLevel:   &levelMajority,
-		ReadConsistencyLevel:    &readUnstrictMajority,
-		ConnectConsistencyLevel: &connectAny,
-		WriteTimeout:            &second10,
-		FetchTimeout:            &second15,
-		ConnectTimeout:          &second20,
+		WriteConsistencyLevel:         &levelMajority,
+		ReadConsistencyLevel:          &readUnstrictMajority,
+		IterateEqualTimestampStrategy: &iterateLowestValue,
+		ConnectConsistencyLevel:       &connectAny,
+		WriteTimeout:                  &second10,
+		FetchTimeout:                  &second15,
+		ConnectTimeout:                &second20,
 		WriteRetry: &retry.Configuration{
 			InitialBackoff: 500 * time.Millisecond,
 			BackoffFactor:  3,

@@ -33,6 +33,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -51,17 +53,19 @@ func TestFetchOptionsBuilder(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                 string
-		defaultLimit         int
-		defaultRangeLimit    time.Duration
-		defaultRestrictByTag *storage.RestrictByTag
-		headers              map[string]string
-		query                string
-		expectedLimit        int
-		expectedRangeLimit   time.Duration
-		expectedRestrict     *storage.RestrictQueryOptions
-		expectedLookback     *expectedLookback
-		expectedErr          bool
+		name                                  string
+		defaultLimit                          int
+		defaultRangeLimit                     time.Duration
+		defaultRestrictByTag                  *storage.RestrictByTag
+		headers                               map[string]string
+		query                                 string
+		expectedLimit                         int
+		expectedRangeLimit                    time.Duration
+		expectedRestrict                      *storage.RestrictQueryOptions
+		expectedLookback                      *expectedLookback
+		expectedReadConsistencyLevel          *topology.ReadConsistencyLevel
+		expectedIterateEqualTimestampStrategy *encoding.IterateEqualTimestampStrategy
+		expectedErr                           bool
 	}{
 		{
 			name:          "default limit with no headers",
@@ -302,6 +306,15 @@ func TestFetchOptionsBuilder(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "read overrides",
+			headers: map[string]string{
+				headers.ReadConsistencyLevelHeader:          "all",
+				headers.IterateEqualTimestampStrategyHeader: "iterate_lowest_value",
+			},
+			expectedReadConsistencyLevel:          &topology.ValidReadConsistencyLevels()[5],
+			expectedIterateEqualTimestampStrategy: &encoding.ValidIterateEqualTimestampStrategies()[2],
+		},
 	}
 
 	for _, test := range tests {
@@ -339,6 +352,18 @@ func TestFetchOptionsBuilder(t *testing.T) {
 				} else {
 					require.NotNil(t, opts.LookbackDuration)
 					require.Equal(t, test.expectedLookback.value, *opts.LookbackDuration)
+				}
+				if test.expectedReadConsistencyLevel == nil {
+					require.Nil(t, opts.ReadConsistencyLevel)
+				} else {
+					require.NotNil(t, opts.ReadConsistencyLevel)
+					require.Equal(t, *test.expectedReadConsistencyLevel, *opts.ReadConsistencyLevel)
+				}
+				if test.expectedIterateEqualTimestampStrategy == nil {
+					require.Nil(t, opts.IterateEqualTimestampStrategy)
+				} else {
+					require.NotNil(t, opts.IterateEqualTimestampStrategy)
+					require.Equal(t, *test.expectedIterateEqualTimestampStrategy, *opts.IterateEqualTimestampStrategy)
 				}
 				require.Equal(t, 10*time.Second, opts.Timeout)
 				// Check context has deadline and headers from
@@ -460,6 +485,8 @@ func TestFetchOptionsWithHeader(t *testing.T) {
 			],
 			"strip":["foo"]
 		}`,
+		headers.ReadConsistencyLevelHeader:          "all",
+		headers.IterateEqualTimestampStrategyHeader: "iterate_lowest_value",
 	}
 
 	builder, err := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{
@@ -497,6 +524,8 @@ func TestFetchOptionsWithHeader(t *testing.T) {
 	}
 
 	require.Equal(t, ex, opts.RestrictQueryOptions)
+	require.Equal(t, topology.ReadConsistencyLevelAll, *opts.ReadConsistencyLevel)
+	require.Equal(t, encoding.IterateLowestValue, *opts.IterateEqualTimestampStrategy)
 }
 
 func stripSpace(str string) string {
