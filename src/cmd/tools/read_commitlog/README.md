@@ -24,11 +24,11 @@ Usage: read_commitlog [-a value] [-f value] [-p value] [-s value] [-t value] [pa
 $ read_commitlog -p /var/lib/m3db/commitlogs/commitlog-0-161023.db -f 'metric-name' > /tmp/sample-data.out
 
 # get summary about commit log file
-$ read_commitlog -p ~/Code/commitlogs/square/commitlog-0-45740.db -a summary > /tmp/sample-data.out
+$ read_commitlog -p  /var/lib/m3db/commitlogs/commitlog-0-161023.db -a summary > /tmp/sample-data.out
 
 # get summary about commit log file including top 100 largest and most frequent IDs 
-$ read_commitlog -p ~/Code/commitlogs/square/commitlog-0-45740.db -a summary -t 100 > /tmp/sample-data.out
+$ read_commitlog -p  /var/lib/m3db/commitlogs/commitlog-0-161023.db -a summary -t 100 > /tmp/sample-data.out
 
 # get summary about commit log file including only IDs above 1000 bytes
-$ read_commitlog -p ~/Code/commitlogs/square/commitlog-0-45740.db -a summary -s 1000 > /tmp/sample-data.out
+$ read_commitlog -p  /var/lib/m3db/commitlogs/commitlog-0-161023.db -a summary -s 1000 > /tmp/sample-data.out
 ```
