@@ -40,7 +40,7 @@ func main() {
 		path         = getopt.StringLong("path", 'p', "", "file path [e.g. /var/lib/m3db/commitlogs/commitlog-0-161023.db]")
 		idFilter     = getopt.StringLong("id-filter", 'f', "", "ID Contains Filter (optional)")
 		idSizeFilter = getopt.IntLong("id-size-filter", 's', 0, "ID Size (bytes) Filter (optional)")
-		action       = getopt.StringLong("action", 'a', "", "Action [print,summary]. Defaults to 'print'")
+		mode         = getopt.StringLong("mode", 'm', "", "Action [print,summary]. Defaults to 'print'")
 		top          = getopt.IntLong("top", 't', 0, "Print out only top N IDs")
 	)
 	getopt.Parse()
@@ -62,22 +62,33 @@ func main() {
 	}
 	defer reader.Close()
 
-	switch *action {
+	switch *mode {
 	case "summary":
-		summaryAction(reader, top)
+		err = printSummary(reader, top)
 	default:
-		printAction(reader)
+		err = printMetrics(reader)
+	}
+	if err != nil {
+		logger.Fatalf("generic error: %v", err)
 	}
 }
 
-func printAction(reader *filteringReader) {
+func printMetrics(reader *filteringReader) error {
 	var (
 		entryCount          uint32
 		annotationSizeTotal uint64
 		start               = time.Now()
 	)
 
-	for entry, found := reader.Read(); found; entry, found = reader.Read() {
+	for {
+		entry, found, err := reader.Read()
+		if err != nil {
+			return err
+		}
+		if !found {
+			break
+		}
+
 		series := entry.Series
 		fmt.Printf("{id: %s, dp: %+v, ns: %s, shard: %d", // nolint: forbidigo
 			series.ID, entry.Datapoint, entry.Series.Namespace, entry.Series.Shard)
@@ -96,9 +107,10 @@ func printAction(reader *filteringReader) {
 	fmt.Printf("\nRunning time: %s\n", runTime)                          // nolint: forbidigo
 	fmt.Printf("%d entries read\n", entryCount)                          // nolint: forbidigo
 	fmt.Printf("Total annotation size: %d bytes\n", annotationSizeTotal) // nolint: forbidigo
+	return nil
 }
 
-func summaryAction(reader *filteringReader, top *int) {
+func printSummary(reader *filteringReader, top *int) error {
 	var (
 		entryCount        uint32
 		start             = time.Now()
@@ -108,17 +120,24 @@ func summaryAction(reader *filteringReader, top *int) {
 		oldestDatapoint   xtime.UnixNano
 	)
 
-	for entry, found := reader.Read(); found; entry, found = reader.Read() {
-		series := entry.Series
-
-		if earliestDatapoint == 0 || earliestDatapoint > entry.Datapoint.TimestampNanos {
-			earliestDatapoint = entry.Datapoint.TimestampNanos
+	for {
+		entry, found, err := reader.Read()
+		if err != nil {
+			return err
 		}
-		if oldestDatapoint == 0 || oldestDatapoint < entry.Datapoint.TimestampNanos {
-			oldestDatapoint = entry.Datapoint.TimestampNanos
+		if !found {
+			break
+		}
+		dp := entry.Datapoint
+
+		if earliestDatapoint == 0 || earliestDatapoint > dp.TimestampNanos {
+			earliestDatapoint = dp.TimestampNanos
+		}
+		if oldestDatapoint == 0 || oldestDatapoint < dp.TimestampNanos {
+			oldestDatapoint = dp.TimestampNanos
 		}
 
-		datapointCount[series.ID]++
+		datapointCount[entry.Series.ID]++
 
 		entryCount++
 	}
@@ -129,8 +148,8 @@ func summaryAction(reader *filteringReader, top *int) {
 	fmt.Printf("%d entries read\n", entryCount)                                              // nolint: forbidigo
 	fmt.Printf("time range [%s:%s]\n", earliestDatapoint.String(), oldestDatapoint.String()) // nolint: forbidigo
 
-	datapointCountArr := idPairList{}
-	sizeArr := idPairList{}
+	datapointCountArr := idPairs{}
+	sizeArr := idPairs{}
 	for ID, count := range datapointCount {
 		IDSize := len(ID.Bytes())
 		totalIDSize += uint64(IDSize)
@@ -146,7 +165,7 @@ func summaryAction(reader *filteringReader, top *int) {
 
 	limit := len(datapointCountArr)
 	if *top > 0 {
-		limit = *top
+		limit = min(*top, limit)
 	}
 	fmt.Printf("ID datapoint counts: \n") // nolint: forbidigo
 	for i := 0; i < limit; i++ {
@@ -159,6 +178,8 @@ func summaryAction(reader *filteringReader, top *int) {
 		pair := sizeArr[i]
 		fmt.Printf("%-10d %s\n", pair.Value, pair.ID.String()) // nolint: forbidigo
 	}
+
+	return nil
 }
 
 type idPair struct {
@@ -166,8 +187,15 @@ type idPair struct {
 	Value uint32
 }
 
-type idPairList []idPair
+type idPairs []idPair
 
-func (p idPairList) Len() int           { return len(p) }
-func (p idPairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-func (p idPairList) Less(i, j int) bool { return p[i].Value < p[j].Value }
+func (p idPairs) Len() int           { return len(p) }
+func (p idPairs) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p idPairs) Less(i, j int) bool { return p[i].Value < p[j].Value }
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
