@@ -432,6 +432,7 @@ func (t Tag) String() string {
 	return fmt.Sprintf("%s: %s", t.Name, t.Value)
 }
 
+// GetName returns the name of the tag.
 func (t Tag) GetName() []byte {
 	if t.Name != nil {
 		return t.Name
@@ -439,6 +440,7 @@ func (t Tag) GetName() []byte {
 	return nil
 }
 
+// GetValue returns the value of the tag.
 func (t Tag) GetValue() []byte {
 	if t.Value != nil {
 		return t.Value
@@ -451,6 +453,8 @@ type Label interface {
 	GetName() []byte
 	GetValue() []byte
 }
+
+var _ Label = (*Tag)(nil)
 
 // Equals returns a boolean indicating whether the provided tags are equal.
 //
