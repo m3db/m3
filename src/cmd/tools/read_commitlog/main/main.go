@@ -69,7 +69,7 @@ func main() {
 		err = printMetrics(reader)
 	}
 	if err != nil {
-		logger.Fatalf("generic error: %v", err)
+		logger.Fatalf("error while reading commitlog: %v", err)
 	}
 }
 
@@ -164,8 +164,8 @@ func printSummary(reader *filteringReader, top *int) error {
 	fmt.Printf("total distinct number of IDs %d \n", len(datapointCount)) // nolint: forbidigo
 
 	limit := len(datapointCountArr)
-	if *top > 0 {
-		limit = min(*top, limit)
+	if *top > 0 && *top < limit {
+		limit = *top
 	}
 	fmt.Printf("ID datapoint counts: \n") // nolint: forbidigo
 	for i := 0; i < limit; i++ {
@@ -192,10 +192,3 @@ type idPairs []idPair
 func (p idPairs) Len() int           { return len(p) }
 func (p idPairs) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 func (p idPairs) Less(i, j int) bool { return p[i].Value < p[j].Value }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
