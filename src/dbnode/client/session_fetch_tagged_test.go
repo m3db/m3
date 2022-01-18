@@ -98,12 +98,12 @@ func TestSessionFetchTaggedNotOpenError(t *testing.T) {
 	_, _, err = s.FetchTagged(testContext(), ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(t0, t0))
 	assert.Error(t, err)
-	assert.Equal(t, errSessionStatusNotOpen, err)
+	assert.Equal(t, ErrSessionStatusNotOpen, err)
 
 	_, _, err = s.FetchTaggedIDs(testContext(), ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(t0, t0))
 	assert.Error(t, err)
-	assert.Equal(t, errSessionStatusNotOpen, err)
+	assert.Equal(t, ErrSessionStatusNotOpen, err)
 }
 
 func TestSessionFetchTaggedIDsGuardAgainstInvalidCall(t *testing.T) {

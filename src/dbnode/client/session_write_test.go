@@ -53,7 +53,7 @@ func TestSessionWriteNotOpenError(t *testing.T) {
 
 	err := s.Write(ident.StringID("namespace"), ident.StringID("foo"), xtime.Now(),
 		1.337, xtime.Second, nil)
-	assert.Equal(t, errSessionStatusNotOpen, err)
+	assert.Equal(t, ErrSessionStatusNotOpen, err)
 }
 
 func TestSessionWrite(t *testing.T) {

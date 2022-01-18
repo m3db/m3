@@ -1418,6 +1418,13 @@ const (
 	AggregateTilesAPI
 )
 
+// AggregateTilesProcesses is a list of available AggregateTilesProcess values.
+var AggregateTilesProcesses = []AggregateTilesProcess{
+	AggregateTilesRegular,
+	AggregateTilesBackfill,
+	AggregateTilesAPI,
+}
+
 func (p AggregateTilesProcess) String() string {
 	switch p {
 	case AggregateTilesRegular:
