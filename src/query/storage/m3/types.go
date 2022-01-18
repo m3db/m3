@@ -228,9 +228,9 @@ type RateLimiter interface {
 // noopRateLimiter skips rate limiting.
 type noopRateLimiter struct{}
 
-// Limit ignores rate limiting by always returning true.
+// Limit ignores rate limiting by always returning false.
 func (f *noopRateLimiter) Limit(context.Context, ClusterNamespace, queryts.Datapoints, []models.Tag) bool {
-	return true
+	return false
 }
 
 // SeriesIteratorProcessor optionally defines methods to process series iterators.
