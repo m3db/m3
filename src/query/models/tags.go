@@ -446,7 +446,8 @@ func (t Tag) GetValue() []byte {
 	return nil
 }
 
-type Series interface {
+// Label is used to unify logic for prometheus and m3 style labels.
+type Label interface {
 	GetName() []byte
 	GetValue() []byte
 }
