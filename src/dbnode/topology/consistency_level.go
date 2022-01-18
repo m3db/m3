@@ -270,6 +270,25 @@ func ValidReadConsistencyLevels() []ReadConsistencyLevel {
 	return result
 }
 
+// ParseReadConsistencyLevel parses a ReadConsistencyLevel
+// from a string.
+func ParseReadConsistencyLevel(
+	str string,
+) (ReadConsistencyLevel, error) {
+	var r ReadConsistencyLevel
+	if str == "" {
+		return r, errConsistencyLevelUnspecified
+	}
+	for _, valid := range ValidReadConsistencyLevels() {
+		if str == valid.String() {
+			r = valid
+			return r, nil
+		}
+	}
+	return r, fmt.Errorf("invalid ReadConsistencyLevel '%s' valid types are: %v",
+		str, ValidReadConsistencyLevels())
+}
+
 // ValidateReadConsistencyLevel returns nil when consistency level is valid,
 // otherwise it returns an error
 func ValidateReadConsistencyLevel(v ReadConsistencyLevel) error {

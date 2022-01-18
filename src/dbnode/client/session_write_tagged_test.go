@@ -55,7 +55,7 @@ func TestSessionWriteTaggedNotOpenError(t *testing.T) {
 
 	err := s.WriteTagged(ident.StringID("namespace"), ident.StringID("foo"),
 		ident.EmptyTagIterator, xtime.Now(), 1.337, xtime.Second, nil)
-	assert.Equal(t, errSessionStatusNotOpen, err)
+	assert.Equal(t, ErrSessionStatusNotOpen, err)
 
 }
 

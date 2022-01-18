@@ -29,6 +29,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
+	"github.com/golang/mock/gomock"
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/mocktracer"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
@@ -41,6 +49,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/testdata/prototest"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -57,15 +66,6 @@ import (
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 	xwatch "github.com/m3db/m3/src/x/watch"
-
-	"github.com/fortytw2/leaktest"
-	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/testdata/prototest"
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/mocktracer"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 var (
@@ -423,7 +423,7 @@ func TestDatabaseAssignShardSetEnqueueBootstrapWhenMediatorClosed(t *testing.T) 
 
 	mockMediator := NewMockdatabaseMediator(ctrl)
 	mockMediator.EXPECT().IsOpen().Return(false)
-	mockMediator.EXPECT().BootstrapEnqueue(BootstrapEnqueueOptions{})
+	mockMediator.EXPECT().BootstrapEnqueue(gomock.Any())
 	d.mediator = mockMediator
 	d.bootstraps = 1
 
@@ -507,6 +507,119 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	d.AssignShardSet(shardSet)
 
 	wg.Wait()
+}
+
+func TestDatabaseAssignShardSetDuringBootstrap(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var wgBootstrap, wgAssignShards sync.WaitGroup
+	wgBootstrap.Add(3)
+	wgAssignShards.Add(1)
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+
+	newShards := append(sharding.NewShards([]uint32{0}, shard.Available),
+		shard.NewShard(1).SetState(shard.Leaving),
+		shard.NewShard(2).SetState(shard.Initializing))
+
+	newShardSet, err := sharding.NewShardSet(newShards, nil)
+	require.NoError(t, err)
+
+	ns.EXPECT().AssignShardSet(newShardSet)
+
+	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().IsOpen().Return(true).AnyTimes()
+	mediator.EXPECT().DisableFileOpsAndWait().AnyTimes()
+	mediator.EXPECT().EnableFileOps().AnyTimes()
+	mediator.EXPECT().
+		BootstrapEnqueue(gomock.Any()).
+		Do(func(_ BootstrapEnqueueOptions) {
+			wgBootstrap.Done()
+		})
+	mediator.EXPECT().Bootstrap().DoAndReturn(func() (BootstrapResult, error) {
+		go func() {
+			// make sure bootstrap not finished before assigning new shards.
+			wgAssignShards.Done()
+			d.AssignShardSet(newShardSet)
+			wgBootstrap.Done()
+		}()
+		wgAssignShards.Wait()
+		time.Sleep(time.Second)
+		// AssignShardSet should wait on lock and not update new shardset yet.
+		require.NotEqual(t, newShardSet, d.shardSet)
+		return BootstrapResult{}, nil
+	})
+	d.mediator = mediator
+
+	go func() {
+		require.NoError(t, d.Bootstrap())
+		wgBootstrap.Done()
+	}()
+	wgBootstrap.Wait()
+	require.Equal(t, newShardSet, d.shardSet)
+}
+
+func TestDatabaseUpdateOwnedNamespacesDuringBootstrap(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var wgBootstrap, wgUpdateNs sync.WaitGroup
+	wgBootstrap.Add(3)
+	wgUpdateNs.Add(1)
+
+	d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	// check initial namespaces
+	require.Len(t, d.Namespaces(), 2)
+
+	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
+	require.NoError(t, err)
+	md3, err := namespace.NewMetadata(ident.StringID("ns3"), defaultTestNs2Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2, md3})
+	require.NoError(t, err)
+
+	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().IsOpen().Return(true).AnyTimes()
+	mediator.EXPECT().DisableFileOpsAndWait().AnyTimes()
+	mediator.EXPECT().EnableFileOps().AnyTimes()
+	mediator.EXPECT().
+		BootstrapEnqueue(gomock.Any()).
+		Do(func(_ BootstrapEnqueueOptions) {
+			wgBootstrap.Done()
+		})
+	mediator.EXPECT().Bootstrap().DoAndReturn(func() (BootstrapResult, error) {
+		go func() {
+			// make sure bootstrap not finished before updating namespaces.
+			wgUpdateNs.Done()
+			require.NoError(t, d.UpdateOwnedNamespaces(nsMap))
+			wgBootstrap.Done()
+		}()
+		wgUpdateNs.Wait()
+		time.Sleep(time.Second)
+		// UpdateOwnedNamespaces should wait on lock and not update namespaces yet.
+		require.Len(t, d.Namespaces(), 2)
+		return BootstrapResult{}, nil
+	})
+	d.mediator = mediator
+
+	go func() {
+		require.NoError(t, d.Bootstrap())
+		wgBootstrap.Done()
+	}()
+	wgBootstrap.Wait()
+	require.Len(t, d.Namespaces(), 3)
 }
 
 func TestDatabaseRemoveNamespace(t *testing.T) {
@@ -724,7 +837,7 @@ func TestDatabaseAddNamespaceBootstrapEnqueueMediatorClosed(t *testing.T) {
 	d.opts = d.opts.SetNamespaceHooks(nsHooks)
 	mockMediator := NewMockdatabaseMediator(ctrl)
 	mockMediator.EXPECT().IsOpen().Return(false).AnyTimes()
-	mockMediator.EXPECT().BootstrapEnqueue(BootstrapEnqueueOptions{})
+	mockMediator.EXPECT().BootstrapEnqueue(gomock.Any())
 	d.mediator = mockMediator
 
 	// check initial namespaces
