@@ -432,6 +432,24 @@ func (t Tag) String() string {
 	return fmt.Sprintf("%s: %s", t.Name, t.Value)
 }
 
+// GetName returns the name of the tag.
+func (t Tag) GetName() []byte {
+	return t.Name
+}
+
+// GetValue returns the value of the tag.
+func (t Tag) GetValue() []byte {
+	return t.Value
+}
+
+// Label is used to unify logic for prometheus and m3 style labels.
+type Label interface {
+	GetName() []byte
+	GetValue() []byte
+}
+
+var _ Label = (*Tag)(nil)
+
 // Equals returns a boolean indicating whether the provided tags are equal.
 //
 // NB: does not check that compared tags have the same underlying bytes.
