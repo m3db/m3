@@ -434,18 +434,12 @@ func (t Tag) String() string {
 
 // GetName returns the name of the tag.
 func (t Tag) GetName() []byte {
-	if t.Name != nil {
-		return t.Name
-	}
-	return nil
+	return t.Name
 }
 
 // GetValue returns the value of the tag.
 func (t Tag) GetValue() []byte {
-	if t.Value != nil {
-		return t.Value
-	}
-	return nil
+	return t.Value
 }
 
 // Label is used to unify logic for prometheus and m3 style labels.
