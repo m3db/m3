@@ -227,24 +227,23 @@ func (m *flushManager) dataSnapshot(
 	)
 
 	for _, ns := range namespaces {
-		snapshotBlockStarts := m.namespaceSnapshotTimes(ns, startTime)
-		if len(snapshotBlockStarts) > maxBlocksSnapshottedByNamespace {
-			maxBlocksSnapshottedByNamespace = len(snapshotBlockStarts)
-		}
-		var (
-			nsStart         = m.nowFn()
-			longestDuration time.Duration
-			longestBlock    xtime.UnixNano
-		)
 		m.logger.Info("starting snapshot for namespace",
 			zap.Time("time", startTime.ToTime()),
 			zap.String("id", snapshotID.String()),
 			zap.String("namespace", ns.ID().String()),
 		)
+		var (
+			snapshotBlockStarts    = m.namespaceSnapshotTimes(ns, startTime)
+			namespaceSnapshotStart = m.nowFn()
+			slowestBlockDuration   time.Duration
+			slowestBlock           xtime.UnixNano
+		)
+		if len(snapshotBlockStarts) > maxBlocksSnapshottedByNamespace {
+			maxBlocksSnapshottedByNamespace = len(snapshotBlockStarts)
+		}
 		for _, snapshotBlockStart := range snapshotBlockStarts {
-			start := m.nowFn()
-			err := ns.Snapshot(
-				snapshotBlockStart, startTime, snapshotPersist)
+			blockSnapshotStart := m.nowFn()
+			err := ns.Snapshot(snapshotBlockStart, startTime, snapshotPersist)
 			if err != nil {
 				detailedErr := fmt.Errorf(
 					"namespace %s failed to snapshot data for blockStart %s: %v",
@@ -252,19 +251,19 @@ func (m *flushManager) dataSnapshot(
 				multiErr = multiErr.Add(detailedErr)
 				continue
 			}
-			dur := m.nowFn().Sub(start)
-			if dur > longestDuration {
-				longestDuration = dur
-				longestBlock = snapshotBlockStart
+			blockDuration := m.nowFn().Sub(blockSnapshotStart)
+			if blockDuration > slowestBlockDuration {
+				slowestBlockDuration = blockDuration
+				slowestBlock = snapshotBlockStart
 			}
 		}
 		m.logger.Info("completed snapshot for namespace",
 			zap.Time("time", startTime.ToTime()),
 			zap.String("id", snapshotID.String()),
 			zap.String("namespace", ns.ID().String()),
-			zap.Duration("slowestBlockDuration", longestDuration),
-			zap.Time("slowestBlock", longestBlock.ToTime()),
-			zap.Duration("overallDuration", m.nowFn().Sub(nsStart)))
+			zap.Duration("slowestBlockDuration", slowestBlockDuration),
+			zap.Time("slowestBlock", slowestBlock.ToTime()),
+			zap.Duration("overallDuration", m.nowFn().Sub(namespaceSnapshotStart)))
 	}
 	m.metrics.maxBlocksSnapshottedByNamespace.Update(float64(maxBlocksSnapshottedByNamespace))
 
