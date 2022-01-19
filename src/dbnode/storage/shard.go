@@ -2416,16 +2416,17 @@ func (s *dbShard) Snapshot(
 		zap.Time("blockStart", blockStart.ToTime()),
 		zap.Uint32("shardId", s.ID()),
 	)
-	if nsCtx.ID.String() == "aggregated_30d" || nsCtx.ID.String() == "aggregated_block_6h" {
-		return ShardSnapshotResult{}, nil
+	if s.nowFn().Sub(blockStart.ToTime()) > time.Hour * 24 && (nsCtx.ID.String() == "aggregated_30d" || nsCtx.ID.String() == "aggregated_block_6h") {
+		needsSnapshot = false
+	} else {
+		s.forEachShardEntry(func(entry *Entry) bool {
+			if !entry.Series.IsBufferEmptyAtBlockStart(blockStart) {
+				needsSnapshot = true
+				return false
+			}
+			return true
+		})
 	}
-	s.forEachShardEntry(func(entry *Entry) bool {
-		if !entry.Series.IsBufferEmptyAtBlockStart(blockStart) {
-			needsSnapshot = true
-			return false
-		}
-		return true
-	})
 	s.logger.Info("completed needs snapshot check",
 		zap.Time("time", snapshotTime.ToTime()),
 		zap.Time("blockStart", blockStart.ToTime()),
