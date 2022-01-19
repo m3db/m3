@@ -264,7 +264,7 @@ func (m *flushManager) dataSnapshot(
 			zap.String("namespace", ns.ID().String()),
 			zap.Duration("slowestBlockDuration", longestDuration),
 			zap.Time("slowestBlock", longestBlock.ToTime()),
-			zap.Duration("overallDuration", nsStart.Sub(m.nowFn())))
+			zap.Duration("overallDuration", m.nowFn().Sub(nsStart)))
 	}
 	m.metrics.maxBlocksSnapshottedByNamespace.Update(float64(maxBlocksSnapshottedByNamespace))
 
