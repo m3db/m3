@@ -1,5 +1,15 @@
 # Changelog
 
+# 1.4.2
+
+## Bug Fixes
+- **M3Coordinator**: Guard against duplicate __rollup__ tags in aggregation matching logic. ([#3950](https://github.com/m3db/m3/pull/3950))
+
+## Performance
+- **M3DB**: Improve index query performance by avoid cloning of roaring bitmap in conjunctionSearcher. ([#3948](https://github.com/m3db/m3/pull/3948))
+- **M3DB**: Improve bootstrapping memory profile by fixing entry leak in series ref resolver. ([#3980](https://github.com/m3db/m3/pull/3980))
+- **M3DB**: Provide better balanced shard placement by fixing unbalanced initial shard allocation. ([#4020](https://github.com/m3db/m3/pull/4020)
+
 # 1.4.1
 
 ## Bug Fixes
