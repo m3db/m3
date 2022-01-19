@@ -225,16 +225,24 @@ func (m *flushManager) dataSnapshot(
 		maxBlocksSnapshottedByNamespace = 0
 		multiErr                        = xerrors.NewMultiError()
 	)
-	var longestDuration time.Duration
-	var longestBlock xtime.UnixNano
+
 	for _, ns := range namespaces {
 		snapshotBlockStarts := m.namespaceSnapshotTimes(ns, startTime)
 		if len(snapshotBlockStarts) > maxBlocksSnapshottedByNamespace {
 			maxBlocksSnapshottedByNamespace = len(snapshotBlockStarts)
 		}
-		m.logger.Info("starting snapshot for namespace", zap.Time("time", startTime.ToTime()), zap.String("id", snapshotID.String()), zap.String("namespace", ns.ID().String()))
+		var (
+			nsStart         = m.nowFn()
+			longestDuration time.Duration
+			longestBlock    xtime.UnixNano
+		)
+		m.logger.Info("starting snapshot for namespace",
+			zap.Time("time", startTime.ToTime()),
+			zap.String("id", snapshotID.String()),
+			zap.String("namespace", ns.ID().String()),
+		)
 		for _, snapshotBlockStart := range snapshotBlockStarts {
-			start := xtime.Now()
+			start := m.nowFn()
 			err := ns.Snapshot(
 				snapshotBlockStart, startTime, snapshotPersist)
 			if err != nil {
@@ -244,13 +252,19 @@ func (m *flushManager) dataSnapshot(
 				multiErr = multiErr.Add(detailedErr)
 				continue
 			}
-			dur := xtime.Now().Sub(start)
+			dur := m.nowFn().Sub(start)
 			if dur > longestDuration {
 				longestDuration = dur
 				longestBlock = snapshotBlockStart
 			}
 		}
-		m.logger.Info("completed snapshot for namespace", zap.Time("time", startTime.ToTime()), zap.String("id", snapshotID.String()), zap.String("namespace", ns.ID().String()))
+		m.logger.Info("completed snapshot for namespace",
+			zap.Time("time", startTime.ToTime()),
+			zap.String("id", snapshotID.String()),
+			zap.String("namespace", ns.ID().String()),
+			zap.Duration("slowestBlockDuration", longestDuration),
+			zap.Time("slowestBlock", longestBlock.ToTime()),
+			zap.Duration("overallDuration", nsStart.Sub(m.nowFn())))
 	}
 	m.metrics.maxBlocksSnapshottedByNamespace.Update(float64(maxBlocksSnapshottedByNamespace))
 
@@ -265,8 +279,6 @@ func (m *flushManager) dataSnapshot(
 	m.logger.Info("completed snapshot",
 		zap.Time("time", startTime.ToTime()),
 		zap.String("id", snapshotID.String()),
-		zap.Duration("longestBlockDuration", longestDuration),
-		zap.Time("longestBlock", longestBlock.ToTime()),
 	)
 	return finalErr
 }

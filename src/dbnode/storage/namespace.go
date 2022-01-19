@@ -1347,6 +1347,11 @@ func (n *dbNamespace) Snapshot(
 	snapshotTime xtime.UnixNano,
 	snapshotPersist persist.SnapshotPreparer,
 ) error {
+	n.log.Info("starting snapshot for namespace block",
+		zap.Time("time", snapshotTime.ToTime()),
+		zap.Time("blockStart", blockStart.ToTime()),
+		zap.String("namespace", n.ID().String()),
+	)
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
 	callStart := n.nowFn()
@@ -1395,6 +1400,12 @@ func (n *dbNamespace) Snapshot(
 
 	res := multiErr.FinalError()
 	n.metrics.snapshot.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
+	n.log.Info("completed snapshot for namespace block",
+		zap.Time("time", snapshotTime.ToTime()),
+		zap.Time("blockStart", blockStart.ToTime()),
+		zap.String("namespace", n.ID().String()),
+		zap.Duration("duration", n.nowFn().Sub(callStart)),
+	)
 	return res
 }
 
