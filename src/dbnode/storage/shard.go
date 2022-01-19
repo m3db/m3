@@ -2410,30 +2410,14 @@ func (s *dbShard) Snapshot(
 
 	var needsSnapshot bool
 	checkNeedsSnapshotTimer := s.metrics.snapshotCheckNeedsSnapshotLatency.Start()
-	startNeedsSnapshot := s.nowFn()
-	s.logger.Info("started needs snapshot check",
-		zap.Time("time", snapshotTime.ToTime()),
-		zap.Time("blockStart", blockStart.ToTime()),
-		zap.Uint32("shardId", s.ID()),
-	)
-	if s.nowFn().Sub(blockStart.ToTime()) > time.Hour * 24 && (nsCtx.ID.String() == "aggregated_30d" || nsCtx.ID.String() == "aggregated_block_6h") {
-		needsSnapshot = false
-	} else {
-		s.forEachShardEntry(func(entry *Entry) bool {
-			if !entry.Series.IsBufferEmptyAtBlockStart(blockStart) {
-				needsSnapshot = true
-				return false
-			}
-			return true
-		})
-	}
-	s.logger.Info("completed needs snapshot check",
-		zap.Time("time", snapshotTime.ToTime()),
-		zap.Time("blockStart", blockStart.ToTime()),
-		zap.Uint32("shardId", s.ID()),
-		zap.Duration("duration", s.nowFn().Sub(startNeedsSnapshot)),
-		zap.Bool("needs", needsSnapshot),
-	)
+	s.forEachShardEntry(func(entry *Entry) bool {
+		if !entry.Series.IsBufferEmptyAtBlockStart(blockStart) {
+			needsSnapshot = true
+			return false
+		}
+		return true
+	})
+
 	checkNeedsSnapshotTimer.Stop()
 
 	if !needsSnapshot {
