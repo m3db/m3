@@ -146,6 +146,8 @@ func (m *cleanupManager) WarmFlushCleanup(t xtime.UnixNano) error {
 		m.Unlock()
 	}()
 
+	m.logger.Info("starting warm flush cleanup", zap.Time("time", t.ToTime()))
+
 	namespaces, err := m.database.OwnedNamespaces()
 	if err != nil {
 		return err
@@ -182,6 +184,8 @@ func (m *cleanupManager) WarmFlushCleanup(t xtime.UnixNano) error {
 			"encountered errors when cleaning up snapshot and commitlog files: %w", err))
 	}
 
+	m.logger.Info("completed warm flush cleanup", zap.Time("time", t.ToTime()))
+
 	return multiErr.FinalError()
 }
 
@@ -196,6 +200,7 @@ func (m *cleanupManager) ColdFlushCleanup(t xtime.UnixNano) error {
 		m.Unlock()
 	}()
 
+	m.logger.Info("starting cold flush cleanup", zap.Time("time", t.ToTime()))
 	namespaces, err := m.database.OwnedNamespaces()
 	if err != nil {
 		return err
@@ -212,6 +217,7 @@ func (m *cleanupManager) ColdFlushCleanup(t xtime.UnixNano) error {
 			"encountered errors when deleting inactive data files for %v: %v", t, err))
 	}
 
+	m.logger.Info("completed cold flush cleanup", zap.Time("time", t.ToTime()))
 	return multiErr.FinalError()
 }
 
@@ -235,6 +241,7 @@ func (m *cleanupManager) Report() {
 }
 
 func (m *cleanupManager) deleteInactiveNamespaceFiles(namespaces []databaseNamespace) error {
+	m.logger.Info("starting inactive namespace files cleanup")
 	var namespaceDirNames []string
 	filePathPrefix := m.database.Options().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	dataDirPath := fs.DataDirPath(filePathPrefix)
@@ -243,6 +250,7 @@ func (m *cleanupManager) deleteInactiveNamespaceFiles(namespaces []databaseNames
 		namespaceDirNames = append(namespaceDirNames, n.ID().String())
 	}
 
+	m.logger.Info("completed inactive namespace files cleanup")
 	return m.deleteInactiveDirectoriesFn(dataDirPath, namespaceDirNames)
 }
 
@@ -261,6 +269,7 @@ func (m *cleanupManager) deleteInactiveDataSnapshotFiles(namespaces []databaseNa
 func (m *cleanupManager) deleteInactiveDataFileSetFiles(
 	filesetFilesDirPathFn func(string, ident.ID) string, namespaces []databaseNamespace,
 ) error {
+	m.logger.Info("starting inactive data fileset files cleanup")
 	multiErr := xerrors.NewMultiError()
 	filePathPrefix := m.database.Options().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	for _, n := range namespaces {
@@ -274,11 +283,12 @@ func (m *cleanupManager) deleteInactiveDataFileSetFiles(
 		}
 		multiErr = multiErr.Add(m.deleteInactiveDirectoriesFn(namespaceDirPath, activeShards))
 	}
-
+	m.logger.Info("completed inactive data fileset files cleanup")
 	return multiErr.FinalError()
 }
 
 func (m *cleanupManager) cleanupDataFiles(t xtime.UnixNano, namespaces []databaseNamespace) error {
+	m.logger.Info("starting data files cleanup", zap.Time("time", t.ToTime()))
 	multiErr := xerrors.NewMultiError()
 	for _, n := range namespaces {
 		if !n.Options().CleanupEnabled() {
@@ -289,12 +299,14 @@ func (m *cleanupManager) cleanupDataFiles(t xtime.UnixNano, namespaces []databas
 		multiErr = multiErr.Add(m.cleanupExpiredNamespaceDataFiles(earliestToRetain, shards))
 		multiErr = multiErr.Add(m.cleanupCompactedNamespaceDataFiles(shards))
 	}
+	m.logger.Info("completed data files cleanup", zap.Time("time", t.ToTime()))
 	return multiErr.FinalError()
 }
 
 func (m *cleanupManager) cleanupExpiredIndexFiles(
 	t xtime.UnixNano, namespaces []databaseNamespace,
 ) error {
+	m.logger.Info("starting expired index file cleanup", zap.Time("time", t.ToTime()))
 	multiErr := xerrors.NewMultiError()
 	for _, n := range namespaces {
 		if !n.Options().CleanupEnabled() || !n.Options().IndexOptions().Enabled() {
@@ -307,10 +319,12 @@ func (m *cleanupManager) cleanupExpiredIndexFiles(
 		}
 		multiErr = multiErr.Add(idx.CleanupExpiredFileSets(t))
 	}
+	m.logger.Info("completed expired index file cleanup", zap.Time("time", t.ToTime()))
 	return multiErr.FinalError()
 }
 
 func (m *cleanupManager) cleanupCorruptedIndexFiles(namespaces []databaseNamespace) error {
+	m.logger.Info("starting corrupted index file cleanup")
 	multiErr := xerrors.NewMultiError()
 	for _, n := range namespaces {
 		if !n.Options().CleanupEnabled() || !n.Options().IndexOptions().Enabled() {
@@ -323,10 +337,12 @@ func (m *cleanupManager) cleanupCorruptedIndexFiles(namespaces []databaseNamespa
 		}
 		multiErr = multiErr.Add(idx.CleanupCorruptedFileSets())
 	}
+	m.logger.Info("completed corrupted index file cleanup")
 	return multiErr.FinalError()
 }
 
 func (m *cleanupManager) cleanupDuplicateIndexFiles(namespaces []databaseNamespace) error {
+	m.logger.Info("starting duplicate index file cleanup")
 	multiErr := xerrors.NewMultiError()
 	for _, n := range namespaces {
 		if !n.Options().CleanupEnabled() || !n.Options().IndexOptions().Enabled() {
@@ -343,6 +359,7 @@ func (m *cleanupManager) cleanupDuplicateIndexFiles(namespaces []databaseNamespa
 		}
 		multiErr = multiErr.Add(idx.CleanupDuplicateFileSets(activeShards))
 	}
+	m.logger.Info("completed duplicate index file cleanup")
 	return multiErr.FinalError()
 }
 
@@ -412,6 +429,7 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs(namespaces []databaseName
 		zap.String("comment",
 			"partial/corrupt files are expected as result of a restart (this is ok)"),
 	)
+	logger.Info("starting snapshots and commit logs cleanup")
 
 	fsOpts := m.opts.CommitLogOptions().FilesystemOptions()
 	snapshotMetadatas, snapshotMetadataErrorsWithPaths, err := m.snapshotMetadataFilesFn(fsOpts)
@@ -567,5 +585,6 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs(namespaces []databaseName
 		filesToDelete = append(filesToDelete, errorWithPath.Path())
 	}
 
+	logger.Info("completed snapshots and commit logs cleanup")
 	return finalErr
 }

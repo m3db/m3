@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
@@ -128,6 +129,7 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 
 	defer m.setState(flushManagerIdle)
 
+	m.logger.Info("starting flush", zap.Time("time", startTime.ToTime()))
 	namespaces, err := m.database.OwnedNamespaces()
 	if err != nil {
 		return err
@@ -162,6 +164,7 @@ func (m *flushManager) Flush(startTime xtime.UnixNano) error {
 	if err := m.indexFlush(namespaces); err != nil {
 		multiErr = multiErr.Add(err)
 	}
+	m.logger.Info("completed flush", zap.Time("time", startTime.ToTime()))
 
 	return multiErr.FinalError()
 }
@@ -170,6 +173,7 @@ func (m *flushManager) dataWarmFlush(
 	namespaces []databaseNamespace,
 	startTime xtime.UnixNano,
 ) error {
+	m.logger.Info("starting data warm flush", zap.Time("time", startTime.ToTime()))
 	flushPersist, err := m.pm.StartFlushPersist()
 	if err != nil {
 		return err
@@ -198,6 +202,7 @@ func (m *flushManager) dataWarmFlush(
 	}
 
 	m.metrics.dataWarmFlushDuration.Record(m.nowFn().Sub(start))
+	m.logger.Info("completed data warm flush", zap.Time("time", startTime.ToTime()))
 	return multiErr.FinalError()
 }
 
@@ -207,6 +212,7 @@ func (m *flushManager) dataSnapshot(
 	rotatedCommitlogID persist.CommitLogFile,
 ) error {
 	snapshotID := uuid.NewUUID()
+	m.logger.Info("starting snapshot", zap.Time("time", startTime.ToTime()), zap.String("id", snapshotID.String()))
 
 	snapshotPersist, err := m.pm.StartSnapshotPersist(snapshotID)
 	if err != nil {
@@ -219,15 +225,18 @@ func (m *flushManager) dataSnapshot(
 		maxBlocksSnapshottedByNamespace = 0
 		multiErr                        = xerrors.NewMultiError()
 	)
+	var longestDuration time.Duration
+	var longestBlock xtime.UnixNano
 	for _, ns := range namespaces {
 		snapshotBlockStarts := m.namespaceSnapshotTimes(ns, startTime)
 		if len(snapshotBlockStarts) > maxBlocksSnapshottedByNamespace {
 			maxBlocksSnapshottedByNamespace = len(snapshotBlockStarts)
 		}
+		m.logger.Info("starting snapshot for namespace", zap.Time("time", startTime.ToTime()), zap.String("id", snapshotID.String()), zap.String("namespace", ns.ID().String()))
 		for _, snapshotBlockStart := range snapshotBlockStarts {
+			start := xtime.Now()
 			err := ns.Snapshot(
 				snapshotBlockStart, startTime, snapshotPersist)
-
 			if err != nil {
 				detailedErr := fmt.Errorf(
 					"namespace %s failed to snapshot data for blockStart %s: %v",
@@ -235,7 +244,13 @@ func (m *flushManager) dataSnapshot(
 				multiErr = multiErr.Add(detailedErr)
 				continue
 			}
+			dur := xtime.Now().Sub(start)
+			if dur > longestDuration {
+				longestDuration = dur
+				longestBlock = snapshotBlockStart
+			}
 		}
+		m.logger.Info("completed snapshot for namespace", zap.Time("time", startTime.ToTime()), zap.String("id", snapshotID.String()), zap.String("namespace", ns.ID().String()))
 	}
 	m.metrics.maxBlocksSnapshottedByNamespace.Update(float64(maxBlocksSnapshottedByNamespace))
 
@@ -247,12 +262,19 @@ func (m *flushManager) dataSnapshot(
 		m.lastSuccessfulSnapshotStartTime.Store(int64(startTime))
 	}
 	m.metrics.dataSnapshotDuration.Record(m.nowFn().Sub(start))
+	m.logger.Info("completed snapshot",
+		zap.Time("time", startTime.ToTime()),
+		zap.String("id", snapshotID.String()),
+		zap.Duration("longestBlockDuration", longestDuration),
+		zap.Time("longestBlock", longestBlock.ToTime()),
+	)
 	return finalErr
 }
 
 func (m *flushManager) indexFlush(
 	namespaces []databaseNamespace,
 ) error {
+	m.logger.Info("starting index flush")
 	indexFlush, err := m.pm.StartIndexPersist()
 	if err != nil {
 		return err
@@ -279,6 +301,7 @@ func (m *flushManager) indexFlush(
 	multiErr = multiErr.Add(indexFlush.DoneIndex())
 
 	m.metrics.indexFlushDuration.Record(m.nowFn().Sub(start))
+	m.logger.Info("completed index flush")
 	return multiErr.FinalError()
 }
 

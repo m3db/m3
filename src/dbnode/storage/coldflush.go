@@ -30,7 +30,6 @@ import (
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type coldFlushManager struct {
@@ -108,11 +107,7 @@ func (m *coldFlushManager) Run(t xtime.UnixNano) bool {
 		m.Unlock()
 	}()
 
-	debugLog := m.log.Check(zapcore.DebugLevel, "cold flush run")
-	if debugLog != nil {
-		debugLog.Write(zap.String("status", "starting cold flush"), zap.Time("time", t.ToTime()))
-	}
-
+	m.log.Info("starting cold flush", zap.Time("time", t.ToTime()))
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	// NB(r): Use invariant here since flush errors were introduced
 	// and not caught in CI or integration tests.
@@ -133,10 +128,7 @@ func (m *coldFlushManager) Run(t xtime.UnixNano) bool {
 			})
 	}
 
-	if debugLog != nil {
-		debugLog.Write(zap.String("status", "completed cold flush"), zap.Time("time", t.ToTime()))
-	}
-
+	m.log.Info("completed cold flush", zap.Time("time", t.ToTime()))
 	return true
 }
 
@@ -164,6 +156,7 @@ func (m *coldFlushManager) trackedColdFlush() error {
 	memTracker := m.opts.MemoryTracker()
 	memTracker.MarkLoadedAsPending()
 
+	m.log.Info("starting tracked cold flush")
 	if err := m.coldFlush(); err != nil {
 		return err
 	}
@@ -171,6 +164,7 @@ func (m *coldFlushManager) trackedColdFlush() error {
 	// Only decrement if the cold flush was a success. In this case, the decrement will reduce the
 	// value by however many bytes had been tracked when the cold flush began.
 	memTracker.DecPendingLoadedBytes()
+	m.log.Info("completed tracked cold flush")
 	return nil
 }
 
