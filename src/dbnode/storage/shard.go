@@ -2416,6 +2416,9 @@ func (s *dbShard) Snapshot(
 		zap.Time("blockStart", blockStart.ToTime()),
 		zap.Uint32("shardId", s.ID()),
 	)
+	if nsCtx.ID.String() == "aggregated_30d" || nsCtx.ID.String() == "aggregated_block_6h" {
+		return ShardSnapshotResult{}, nil
+	}
 	s.forEachShardEntry(func(entry *Entry) bool {
 		if !entry.Series.IsBufferEmptyAtBlockStart(blockStart) {
 			needsSnapshot = true
