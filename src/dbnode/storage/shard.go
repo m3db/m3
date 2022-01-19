@@ -2417,7 +2417,6 @@ func (s *dbShard) Snapshot(
 		}
 		return true
 	})
-
 	checkNeedsSnapshotTimer.Stop()
 
 	if !needsSnapshot {

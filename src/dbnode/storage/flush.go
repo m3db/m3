@@ -275,10 +275,7 @@ func (m *flushManager) dataSnapshot(
 		m.lastSuccessfulSnapshotStartTime.Store(int64(startTime))
 	}
 	m.metrics.dataSnapshotDuration.Record(m.nowFn().Sub(start))
-	m.logger.Info("completed snapshot",
-		zap.Time("time", startTime.ToTime()),
-		zap.String("id", snapshotID.String()),
-	)
+	m.logger.Info("completed snapshot", zap.Time("time", startTime.ToTime()), zap.String("id", snapshotID.String()))
 	return finalErr
 }
 
