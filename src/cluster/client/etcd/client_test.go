@@ -23,14 +23,16 @@ package etcd
 import (
 	"os"
 	"testing"
-
-	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/cluster/services"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/integration"
+	"google.golang.org/grpc"
+
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/services"
 )
 
 func TestETCDClientGen(t *testing.T) {
@@ -366,6 +368,67 @@ func TestValidateNamespace(t *testing.T) {
 			require.Error(t, err)
 		}
 	}
+}
+
+func Test_newConfigFromCluster(t *testing.T) {
+	testRnd := func(n int64) (int64, error) {
+		return 10, nil
+	}
+
+	newFullConfig := func() ClusterConfig {
+		// Go all the way from config; might as well.
+		return ClusterConfig{
+			Zone:      "foo",
+			Endpoints: []string{"i1"},
+			KeepAlive: &KeepAliveConfig{
+				Enabled: true,
+				Period:  5 * time.Second,
+				Jitter:  6 * time.Second,
+				Timeout: 7 * time.Second,
+			},
+			TLS:              nil, // TODO: TLS config gets read eagerly here; test it separately.
+			AutoSyncInterval: 20 * time.Second,
+		}
+	}
+
+	t.Run("translates config options", func(t *testing.T) {
+		cfg, err := newConfigFromCluster(testRnd, newFullConfig().NewCluster())
+		require.NoError(t, err)
+
+		assert.Equal(t,
+			clientv3.Config{
+				Endpoints:            []string{"i1"},
+				AutoSyncInterval:     20000000000,
+				DialTimeout:          15000000000,
+				DialKeepAliveTime:    5000000010, // generated using fake rnd above
+				DialKeepAliveTimeout: 7000000000,
+				MaxCallSendMsgSize:   33554432,
+				MaxCallRecvMsgSize:   33554432,
+				RejectOldCluster:     false,
+				DialOptions:          []grpc.DialOption(nil),
+
+				PermitWithoutStream: true,
+			},
+			cfg,
+		)
+	})
+
+	// Separate test just because the assert.Equal won't work for functions.
+	t.Run("passes through dial options", func(t *testing.T) {
+		clusterCfg := newFullConfig()
+		clusterCfg.DialOptions = []grpc.DialOption{grpc.WithNoProxy()}
+		etcdCfg, err := newConfigFromCluster(testRnd, clusterCfg.NewCluster())
+		require.NoError(t, err)
+
+		assert.Len(t, etcdCfg.DialOptions, 1)
+	})
+}
+
+func Test_cryptoRandInt63n(t *testing.T) {
+	r, err := cryptoRandInt63n(185)
+	require.NoError(t, err)
+	// Real dumb sanity check. Doesn't flake on -test.count=10000, so probably ok.
+	assert.True(t, r >= 0 && r < 185)
 }
 
 func testOptions() Options {

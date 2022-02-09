@@ -30,6 +30,8 @@ import (
 	"os"
 	"time"
 
+	"google.golang.org/grpc"
+
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
@@ -418,6 +420,7 @@ type cluster struct {
 	tlsOpts          TLSOptions
 	autoSyncInterval time.Duration
 	dialTimeout      time.Duration
+	dialOptions      []grpc.DialOption
 }
 
 func (c cluster) Zone() string {
@@ -474,5 +477,14 @@ func (c cluster) DialTimeout() time.Duration {
 func (c cluster) SetDialTimeout(dialTimeout time.Duration) Cluster {
 	c.dialTimeout = dialTimeout
 
+	return c
+}
+
+func (c cluster) DialOptions() []grpc.DialOption {
+	return c.dialOptions
+}
+
+func (c cluster) SetDialOptions(opts []grpc.DialOption) Cluster {
+	c.dialOptions = opts
 	return c
 }
