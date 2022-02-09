@@ -21,9 +21,10 @@
 package etcd
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"os"
 	"path/filepath"
 	"sort"
@@ -325,13 +326,23 @@ func (c *csclient) Clients() []ZoneClient {
 }
 
 func newClient(cluster Cluster) (*clientv3.Client, error) {
-	tls, err := cluster.TLSOptions().Config()
+	cfg, err := newConfigFromCluster(cryptoRandInt63n, cluster)
 	if err != nil {
 		return nil, err
+	}
+	return clientv3.New(cfg)
+}
+
+// rnd is used to set a jitter on the keep alive.
+func newConfigFromCluster(rnd randInt63N, cluster Cluster) (clientv3.Config, error) {
+	tls, err := cluster.TLSOptions().Config()
+	if err != nil {
+		return clientv3.Config{}, err
 	}
 	cfg := clientv3.Config{
 		AutoSyncInterval:   cluster.AutoSyncInterval(),
 		DialTimeout:        cluster.DialTimeout(),
+		DialOptions:        cluster.DialOptions(),
 		Endpoints:          cluster.Endpoints(),
 		TLS:                tls,
 		MaxCallSendMsgSize: _grpcMaxSendRecvBufferSize,
@@ -341,8 +352,10 @@ func newClient(cluster Cluster) (*clientv3.Client, error) {
 	if opts := cluster.KeepAliveOptions(); opts.KeepAliveEnabled() {
 		keepAlivePeriod := opts.KeepAlivePeriod()
 		if maxJitter := opts.KeepAlivePeriodMaxJitter(); maxJitter > 0 {
-			rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-			jitter := rnd.Int63n(int64(maxJitter))
+			jitter, err := rnd(int64(maxJitter))
+			if err != nil {
+				return clientv3.Config{}, err
+			}
 			keepAlivePeriod += time.Duration(jitter)
 		}
 		cfg.DialKeepAliveTime = keepAlivePeriod
@@ -350,7 +363,7 @@ func newClient(cluster Cluster) (*clientv3.Client, error) {
 		cfg.PermitWithoutStream = true
 	}
 
-	return clientv3.New(cfg)
+	return cfg, nil
 }
 
 func (c *csclient) cacheFileFn(extraFields ...string) cacheFileForZoneFn {
@@ -429,4 +442,16 @@ func kvStoreCacheKey(zone string, namespaces ...string) string {
 		}
 	}
 	return strings.Join(parts, hierarchySeparator)
+}
+
+// We have a linter which dislikes math.Rand, as it's insecure in the general case. Our usage here is very unlikely
+// to have security implications, but it won't hurt to make the linter happy.
+type randInt63N func(n int64) (int64, error)
+
+func cryptoRandInt63n(n int64) (int64, error) {
+	r, err := rand.Int(rand.Reader, big.NewInt(n))
+	if err != nil {
+		return 0, err
+	}
+	return r.Int64(), nil
 }

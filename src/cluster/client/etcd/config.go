@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/uber-go/tally"
+	"google.golang.org/grpc"
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/services"
@@ -39,6 +40,8 @@ type ClusterConfig struct {
 	KeepAlive        *KeepAliveConfig `yaml:"keepAlive"`
 	TLS              *TLSConfig       `yaml:"tls"`
 	AutoSyncInterval time.Duration    `yaml:"autoSyncInterval"`
+
+	DialOptions []grpc.DialOption `yaml:"-"` // nonserializable
 }
 
 // NewCluster creates a new Cluster.
@@ -50,6 +53,7 @@ func (c ClusterConfig) NewCluster() Cluster {
 	return NewCluster().
 		SetZone(c.Zone).
 		SetEndpoints(c.Endpoints).
+		SetDialOptions(c.DialOptions).
 		SetKeepAliveOptions(keepAliveOpts).
 		SetTLSOptions(c.TLS.newOptions()).
 		SetAutoSyncInterval(c.AutoSyncInterval)

@@ -25,6 +25,8 @@ import (
 	"os"
 	"time"
 
+	"google.golang.org/grpc"
+
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/x/instrument"
@@ -161,6 +163,11 @@ type Cluster interface {
 
 	DialTimeout() time.Duration
 	SetDialTimeout(value time.Duration) Cluster
+
+	// DialOptions are used by the etcd client to connect to etcd peers. They can be used to customize
+	// the low level networking behavior of the client (e.g. to forward connections over a proxy).
+	DialOptions() []grpc.DialOption
+	SetDialOptions(opts []grpc.DialOption) Cluster
 }
 
 // Client is an etcd-backed m3cluster client.
