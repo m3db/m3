@@ -27,8 +27,10 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/util/runtime"
+	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/matcher/namespace"
+	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/metrics/rules/view"
@@ -196,6 +198,22 @@ func (n *namespaces) ForwardMatch(id id.ID, fromNanos, toNanos int64,
 		return rules.EmptyMatchResult, nil
 	}
 	return ruleSet.ForwardMatch(id, fromNanos, toNanos, opts)
+}
+
+func (n *namespaces) ReverseMatch(
+	id id.ID,
+	fromNanos, toNanos int64,
+	mt metric.Type,
+	at aggregation.Type,
+	isMultiAggregationTypesAllowed bool,
+	aggTypesOpts aggregation.TypesOptions,
+) (rules.MatchResult, error) {
+	namespace := n.nsResolver.Resolve(id)
+	ruleSet, exists := n.ruleSet(namespace)
+	if !exists {
+		return rules.EmptyMatchResult, nil
+	}
+	return ruleSet.ReverseMatch(id, fromNanos, toNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
 }
 
 func (n *namespaces) ruleSet(namespace []byte) (RuleSet, bool) {

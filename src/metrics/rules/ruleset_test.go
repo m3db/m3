@@ -63,6 +63,7 @@ var (
 		cmpopts.IgnoreTypes(
 			activeRuleSet{}.tagsFilterOpts,
 			activeRuleSet{}.newRollupIDFn,
+			activeRuleSet{}.isRollupIDFn,
 		),
 		cmpopts.IgnoreInterfaces(struct{ filters.TagsFilter }{}),
 		cmpopts.IgnoreInterfaces(struct{ aggregation.TypesOptions }{}),
@@ -76,6 +77,7 @@ var (
 		cmpopts.IgnoreTypes(
 			ruleSet{}.tagsFilterOpts,
 			ruleSet{}.newRollupIDFn,
+			ruleSet{}.isRollupIDFn,
 		),
 		cmpopts.IgnoreInterfaces(struct{ filters.TagsFilter }{}),
 		cmpopts.IgnoreInterfaces(struct{ aggregation.TypesOptions }{}),
@@ -200,6 +202,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 			input.expectedRollupRules,
 			rs.tagsFilterOpts,
 			rs.newRollupIDFn,
+			rs.isRollupIDFn,
 		)
 		require.True(t, cmp.Equal(expected, as, testActiveRuleSetCmpOpts...))
 	}
@@ -2206,6 +2209,14 @@ func testMatchOptions() MatchOptions {
 func testTagsFilterOptions() filters.TagsFilterOptions {
 	return filters.TagsFilterOptions{
 		NameTagKey: []byte("name"),
+		NameAndTagsFn: func(b []byte) ([]byte, []byte, error) {
+			idx := bytes.Index(b, []byte("|"))
+			if idx == -1 {
+				return nil, b, nil
+			}
+			return b[:idx], b[idx+1:], nil
+		},
+		SortedTagIteratorFn: filters.NewMockSortedTagIterator,
 	}
 }
 

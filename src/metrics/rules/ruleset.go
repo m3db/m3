@@ -28,9 +28,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/metrics/aggregation"
 	merrors "github.com/m3db/m3/src/metrics/errors"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
+	"github.com/m3db/m3/src/metrics/metric"
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/metrics/rules/view/changes"
@@ -66,10 +68,25 @@ type Fetcher interface {
 	LatestRollupRules(namespace []byte, timeNanos int64) ([]view.RollupRule, error)
 }
 
+// ReverseMatcher matches metrics against rules to determine applicable policies.
+type ReverseMatcher interface {
+	// ReverseMatch reverse matches the applicable policies for a metric id between [fromNanos, toNanos),
+	// with aware of the metric type and aggregation type for the given id.
+	ReverseMatch(
+		id metricid.ID,
+		fromNanos, toNanos int64,
+		mt metric.Type,
+		at aggregation.Type,
+		isMultiAggregationTypesAllowed bool,
+		aggTypesOpts aggregation.TypesOptions,
+	) (MatchResult, error)
+}
+
 // ActiveSet is the currently active RuleSet.
 type ActiveSet interface {
 	Matcher
 	Fetcher
+	ReverseMatcher
 }
 
 // RuleSet is a read-only set of rules associated with a namespace.
@@ -162,6 +179,7 @@ type ruleSet struct {
 	rollupRules        []*rollupRule
 	tagsFilterOpts     filters.TagsFilterOptions
 	newRollupIDFn      metricid.NewIDFn
+	isRollupIDFn       metricid.MatchIDFn
 }
 
 // NewRuleSetFromProto creates a new RuleSet from a proto object.
@@ -199,6 +217,7 @@ func NewRuleSetFromProto(version int, rs *rulepb.RuleSet, opts Options) (RuleSet
 		rollupRules:        rollupRules,
 		tagsFilterOpts:     tagsFilterOpts,
 		newRollupIDFn:      opts.NewRollupIDFn(),
+		isRollupIDFn:       opts.IsRollupIDFn(),
 	}, nil
 }
 
@@ -241,6 +260,7 @@ func (rs *ruleSet) ActiveSet(timeNanos int64) ActiveSet {
 		rollupRules,
 		rs.tagsFilterOpts,
 		rs.newRollupIDFn,
+		rs.isRollupIDFn,
 	)
 }
 
@@ -352,6 +372,7 @@ func (rs *ruleSet) Clone() MutableRuleSet {
 		rollupRules:        rollupRules,
 		tagsFilterOpts:     rs.tagsFilterOpts,
 		newRollupIDFn:      rs.newRollupIDFn,
+		isRollupIDFn:       rs.isRollupIDFn,
 	}
 }
 

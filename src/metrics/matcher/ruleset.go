@@ -28,7 +28,9 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/util/runtime"
+	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
+	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/metrics/rules/view"
@@ -174,6 +176,30 @@ func (r *ruleSet) ForwardMatch(id id.ID, fromNanos, toNanos int64, opts rules.Ma
 	r.RUnlock()
 	if err != nil {
 		return rules.EmptyMatchResult, err
+	}
+	r.metrics.match.ReportSuccess(r.nowFn().Sub(callStart))
+	return res, nil
+}
+
+func (r *ruleSet) ReverseMatch(
+	id id.ID,
+	fromNanos, toNanos int64,
+	mt metric.Type,
+	at aggregation.Type,
+	isMultiAggregationTypesAllowed bool,
+	aggTypesOpts aggregation.TypesOptions,
+) (rules.MatchResult, error) {
+	callStart := r.nowFn()
+	r.RLock()
+	if r.activeSet == nil {
+		r.RUnlock()
+		r.metrics.nilMatcher.Inc(1)
+		return rules.EmptyMatchResult, nil
+	}
+	res, err := r.activeSet.ReverseMatch(id, fromNanos, toNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
+	r.RUnlock()
+	if err != nil {
+		return rules.MatchResult{}, err
 	}
 	r.metrics.match.ReportSuccess(r.nowFn().Sub(callStart))
 	return res, nil
