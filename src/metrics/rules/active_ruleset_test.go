@@ -3208,6 +3208,7 @@ func TestActiveRuleSetReverseMatchWithMappingRulesForNonRollupID(t *testing.T) {
 		func([]byte, []byte) bool { return false },
 	)
 	for i, input := range inputs {
+		input := input
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
 			res, err := as.ReverseMatch(input.ID(), input.matchFrom, input.matchTo,
 				input.metricType, input.aggregationType, isMultiAggregationTypesAllowed, aggTypesOpts)
