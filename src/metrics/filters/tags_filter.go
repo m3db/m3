@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/m3db/m3/src/metrics/errors"
+	"github.com/m3db/m3/src/metrics/metric/id"
 )
 
 const (
@@ -116,6 +117,12 @@ func (tn tagFiltersByNameAsc) Less(i, j int) bool { return bytes.Compare(tn[i].n
 type TagsFilterOptions struct {
 	// Name of the name tag.
 	NameTagKey []byte
+
+	// Function to extract name and tags from an id.
+	NameAndTagsFn id.NameAndTagsFn
+
+	// Function to create a new sorted tag iterator from id tags.
+	SortedTagIteratorFn id.SortedTagIteratorFn
 }
 
 // tagsFilter contains a list of tag filters.

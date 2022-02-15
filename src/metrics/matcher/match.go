@@ -25,7 +25,9 @@ import (
 
 	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/matcher/cache"
+	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/metrics/rules/view"
@@ -98,6 +100,20 @@ func (m *matcher) ForwardMatch(
 	return m.cache.ForwardMatch(id, fromNanos, toNanos, opts)
 }
 
+func (m *matcher) ReverseMatch(
+	id id.ID,
+	fromNanos, toNanos int64,
+	mt metric.Type,
+	at aggregation.Type,
+	isMultiAggregationTypesAllowed bool,
+	aggTypesOpts aggregation.TypesOptions,
+) (rules.MatchResult, error) {
+	sw := m.metrics.matchLatency.Start()
+	defer sw.Stop()
+	// Cache does not support reverse matching.
+	return m.namespaces.ReverseMatch(id, fromNanos, toNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
+}
+
 func (m *matcher) Close() error {
 	m.namespaces.Close()
 	return m.cache.Close()
@@ -136,6 +152,19 @@ func (m *noCacheMatcher) ForwardMatch(
 	sw := m.metrics.matchLatency.Start()
 	defer sw.Stop()
 	return m.namespaces.ForwardMatch(id, fromNanos, toNanos, opts)
+}
+
+func (m *noCacheMatcher) ReverseMatch(
+	id id.ID,
+	fromNanos, toNanos int64,
+	mt metric.Type,
+	at aggregation.Type,
+	isMultiAggregationTypesAllowed bool,
+	aggTypesOpts aggregation.TypesOptions,
+) (rules.MatchResult, error) {
+	sw := m.metrics.matchLatency.Start()
+	defer sw.Stop()
+	return m.namespaces.ReverseMatch(id, fromNanos, toNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
 }
 
 func (m *noCacheMatcher) Close() error {

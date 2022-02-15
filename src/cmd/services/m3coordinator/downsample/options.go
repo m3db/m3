@@ -1060,6 +1060,10 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 		NameTagKey: nameTag,
 	}
 
+	isRollupIDFn := func(name []byte, tags []byte) bool {
+		return isRollupID(tags, pools.metricTagsIteratorPool)
+	}
+
 	newRollupIDProviderPool := newRollupIDProviderPool(pools.tagEncoderPool,
 		o.TagEncoderPoolOptions, ident.BytesID(nameTag))
 	newRollupIDProviderPool.Init()
@@ -1091,7 +1095,8 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 
 	return rules.NewOptions().
 		SetTagsFilterOptions(tagsFilterOpts).
-		SetNewRollupIDFn(newRollupIDFn)
+		SetNewRollupIDFn(newRollupIDFn).
+		SetIsRollupIDFn(isRollupIDFn)
 }
 
 func (o DownsamplerOptions) newAggregatorMatcher(
