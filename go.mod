@@ -114,8 +114,6 @@ replace gopkg.in/vmihailenco/msgpack.v2 => github.com/vmihailenco/msgpack v2.8.3
 
 replace github.com/stretchr/testify => github.com/stretchr/testify v1.1.4-0.20160305165446-6fe211e49392
 
-replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
-
 replace go.opentelemetry.io/proto/otlp => github.com/m3dbx/opentelemetry-proto-go/otlp v0.7.1-0.20210715190017-fe8722e59006
 
 replace github.com/google/flatbuffers => github.com/google/flatbuffers v1.12.1
