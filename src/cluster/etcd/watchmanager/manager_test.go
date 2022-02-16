@@ -30,8 +30,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/integration"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/tests/v3/framework/integration"
 	"golang.org/x/net/context"
 
 	"github.com/m3db/m3/src/x/clock"
@@ -128,8 +128,8 @@ func TestWatchRecreate(t *testing.T) {
 		SetWatchChanResetInterval(50 * time.Millisecond)
 
 	go func() {
-		ecluster.Members[0].DropConnections()
-		ecluster.Members[0].Blackhole()
+		ecluster.Members[0].Bridge().DropConnections()
+		ecluster.Members[0].Bridge().Blackhole()
 		wh.Watch("foo")
 	}()
 
@@ -143,7 +143,7 @@ func TestWatchRecreate(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	ecluster.Members[0].Unblackhole()
+	ecluster.Members[0].Bridge().Unblackhole()
 	// now we have retried failTotal times, give enough time for reset to happen
 	time.Sleep(3 * (wh.opts.WatchChanResetInterval()))
 
@@ -171,7 +171,8 @@ func TestWatchNoLeader(t *testing.T) {
 		watchCheckInterval     = 50 * time.Millisecond
 	)
 
-	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 3})
+	integration.BeforeTestExternal(t)
+	ecluster := integration.NewCluster(t, &integration.ClusterConfig{Size: 3})
 	defer ecluster.Terminate(t)
 
 	var (
@@ -319,13 +320,17 @@ func TestWatchCompactedRevision(t *testing.T) {
 
 func testCluster(t *testing.T) (
 	*manager,
-	*integration.ClusterV3,
+	*integration.Cluster,
 	*int32,
 	*int32,
 	chan struct{},
 	func(),
 ) {
-	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
+	integration.BeforeTestExternal(t)
+	ecluster := integration.NewCluster(t, &integration.ClusterConfig{
+		Size:      1,
+		UseBridge: true,
+	})
 
 	closer := func() {
 		ecluster.Terminate(t)
