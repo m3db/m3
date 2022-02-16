@@ -21,46 +21,51 @@
 package remote
 
 import (
-	"google.golang.org/grpc/naming"
+	"google.golang.org/grpc/resolver"
 )
 
-type staticResolver struct {
-	updates []*naming.Update
-}
+const _schema = "static"
 
-func newStaticResolver(addresses []string) naming.Resolver {
-	var updates []*naming.Update
-	for _, address := range addresses {
-		updates = append(updates, &naming.Update{
-			Op:       naming.Add,
-			Addr:     address,
-			Metadata: nil,
-		})
+type (
+	// staticResolverBuilder implements resolver.Builder
+	staticResolverBuilder struct {
+		addresses []string
 	}
-	return &staticResolver{
-		updates: updates,
+	// staticResolver implements resolver.Resolver
+	staticResolver struct {
+		target    resolver.Target
+		cc        resolver.ClientConn
+		addresses []resolver.Address
 	}
+)
+
+func (b *staticResolverBuilder) Build(
+	target resolver.Target,
+	cc resolver.ClientConn,
+	opts resolver.BuildOptions,
+) (resolver.Resolver, error) {
+	addrs := make([]resolver.Address, len(b.addresses))
+	for _, a := range b.addresses {
+		addrs = append(addrs, resolver.Address{Addr: a})
+	}
+	r := &staticResolver{
+		target:    target,
+		cc:        cc,
+		addresses: addrs,
+	}
+	r.cc.UpdateState(resolver.State{Addresses: addrs})
+	return r, nil
 }
 
-// Resolve creates a Watcher for target.
-func (r *staticResolver) Resolve(target string) (naming.Watcher, error) {
-	ch := make(chan []*naming.Update, 1)
-	ch <- r.updates
-	return &staticWatcher{
-		updates: ch,
-	}, nil
-}
+func (b *staticResolverBuilder) Scheme() string { return _schema }
 
-type staticWatcher struct {
-	updates chan []*naming.Update
-}
+func (r *staticResolver) ResolveNow(resolver.ResolveNowOptions) {}
 
-// Next returns the static address set
-func (w *staticWatcher) Next() ([]*naming.Update, error) {
-	return <-w.updates, nil
-}
+func (r *staticResolver) Close() {}
 
-// Close closes the watcher
-func (w *staticWatcher) Close() {
-	close(w.updates)
+func registerStaticResolver(addresses []string) {
+	b := &staticResolverBuilder{
+		addresses: addresses,
+	}
+	resolver.Register(b)
 }
