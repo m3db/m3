@@ -30,5 +30,7 @@ fi
 
 for t in ${TARGETS[@]}; do
   cat $COVERFILE | grep -E $(target_patterns $t) > ${t}.out
-  ${SUBMIT_COVER} -f ${t}.out -F ${t}
+  if [ -z "$(SKIP_CODECOV)" ]; then
+    ${SUBMIT_COVER} -f ${t}.out -F ${t}
+  fi
 done
