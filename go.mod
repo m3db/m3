@@ -77,7 +77,7 @@ require (
 	go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738
 	go.etcd.io/etcd/client/v3 v3.5.2
 	go.etcd.io/etcd/pkg/v3 v3.5.2 // indirect
-	go.etcd.io/etcd/server/v3 v3.0.0-00010101000000-000000000000
+	go.etcd.io/etcd/server/v3 v3.5.0-alpha.0.0.20220215220652-e814f6f78a12
 	go.opentelemetry.io/collector v0.30.1
 	go.opentelemetry.io/otel v1.4.1
 	go.opentelemetry.io/otel/bridge/opentracing v1.4.1
