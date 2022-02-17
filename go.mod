@@ -132,3 +132,5 @@ replace go.etcd.io/bbolt => go.etcd.io/bbolt v1.3.5
 // This overrides to 3.4.13. Note: we need to specify the version this way
 // because etcd go modules are completely broken before 3.5.0.
 // replace go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200824191128-ae9734ed278b
+
+replace go.etcd.io/etcd/server/v3 => go.etcd.io/etcd/server/v3 v3.5.0-alpha.0.0.20220215220652-e814f6f78a12
