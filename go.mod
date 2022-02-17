@@ -29,7 +29,7 @@ require (
 	github.com/hydrogen18/stalecucumber v0.0.0-20151102144322-9b38526d4bdf
 	github.com/influxdata/influxdb v1.9.2
 	github.com/jhump/protoreflect v1.6.1
-	github.com/jonboulle/clockwork v0.1.0
+	github.com/jonboulle/clockwork v0.2.2
 	github.com/json-iterator/go v1.1.11
 	github.com/klauspost/compress v1.13.1
 	github.com/leanovate/gopter v0.2.8
@@ -75,10 +75,15 @@ require (
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.10
 	go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738
-	go.etcd.io/etcd/client/v3 v3.5.2 // indirect
+	go.etcd.io/etcd/client/v3 v3.5.2
 	go.etcd.io/etcd/pkg/v3 v3.5.2 // indirect
+	go.etcd.io/etcd/server/v3 v3.0.0-00010101000000-000000000000
 	go.opentelemetry.io/collector v0.30.1
 	go.opentelemetry.io/otel v1.4.1
+	go.opentelemetry.io/otel/bridge/opentracing v1.4.1
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.4.1
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.4.1
+	go.opentelemetry.io/otel/sdk v1.4.1
 	// go.opentelemetry.io/otel/bridge/opentracing v1.0.0-RC2
 	// go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.0.0-RC2
 	// go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.0.0-RC2
@@ -86,14 +91,12 @@ require (
 	// go.opentelemetry.io/otel/sdk v1.0.0-RC2
 	go.uber.org/atomic v1.9.0
 	go.uber.org/config v1.4.0
-	go.uber.org/goleak v1.1.10
-	go.uber.org/multierr v1.7.0 // indirect
+	go.uber.org/goleak v1.1.12
 	go.uber.org/zap v1.19.0
-	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
+	golang.org/x/net v0.0.0-20220105145211-5b0dc2dfae98
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210819135213-f52c844e1c1c
-	golang.org/x/tools v0.1.5 // indirect
-	google.golang.org/grpc v1.40.1
+	golang.org/x/sys v0.0.0-20211123173158-ef496fb156ab
+	google.golang.org/grpc v1.44.0
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/go-playground/validator.v9 v9.29.1
 	gopkg.in/validator.v2 v2.0.0-20160201165114-3e4f037f12a1
@@ -136,3 +139,7 @@ replace go.etcd.io/bbolt => go.etcd.io/bbolt v1.3.5
 replace go.etcd.io/etcd/server/v3 => go.etcd.io/etcd/server/v3 v3.5.0-alpha.0.0.20220215220652-e814f6f78a12
 
 replace github.com/envoyproxy/go-control-plane => github.com/envoyproxy/go-control-plane v0.9.7
+
+replace go.etcd.io/etcd/pkg/v3 => go.etcd.io/etcd/pkg/v3 v3.5.0-alpha.0.0.20220215220652-e814f6f78a12
+
+replace google.golang.org/grpc => google.golang.org/grpc v1.40.1
