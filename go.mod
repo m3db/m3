@@ -22,7 +22,7 @@ require (
 	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.5.2
 	github.com/golang/snappy v0.0.4
-	github.com/google/go-cmp v0.5.6
+	github.com/google/go-cmp v0.5.7
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/hcl v1.0.1-0.20190611123218-cf7d376da96d // indirect
@@ -75,13 +75,15 @@ require (
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.10
 	go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738
+	go.etcd.io/etcd/client/v3 v3.5.2 // indirect
+	go.etcd.io/etcd/pkg/v3 v3.5.2 // indirect
 	go.opentelemetry.io/collector v0.30.1
-	go.opentelemetry.io/otel v1.0.0-RC2
-	go.opentelemetry.io/otel/bridge/opentracing v1.0.0-RC2
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.0.0-RC2
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.0.0-RC2
-	go.opentelemetry.io/otel/internal/metric v0.22.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.0.0-RC2
+	go.opentelemetry.io/otel v1.4.1
+	// go.opentelemetry.io/otel/bridge/opentracing v1.0.0-RC2
+	// go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.0.0-RC2
+	// go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.0.0-RC2
+	// go.opentelemetry.io/otel/internal/metric v0.22.0 // indirect
+	// go.opentelemetry.io/otel/sdk v1.0.0-RC2
 	go.uber.org/atomic v1.9.0
 	go.uber.org/config v1.4.0
 	go.uber.org/goleak v1.1.10
@@ -91,7 +93,7 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210819135213-f52c844e1c1c
 	golang.org/x/tools v0.1.5 // indirect
-	google.golang.org/grpc v1.39.0
+	google.golang.org/grpc v1.40.1
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/go-playground/validator.v9 v9.29.1
 	gopkg.in/validator.v2 v2.0.0-20160201165114-3e4f037f12a1
@@ -129,4 +131,4 @@ replace go.etcd.io/bbolt => go.etcd.io/bbolt v1.3.5
 
 // This overrides to 3.4.13. Note: we need to specify the version this way
 // because etcd go modules are completely broken before 3.5.0.
-replace go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200824191128-ae9734ed278b
+// replace go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200824191128-ae9734ed278b

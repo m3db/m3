@@ -30,9 +30,9 @@ import (
 	"time"
 
 	"github.com/m3dbx/vellum/regexp"
-	"go.etcd.io/etcd/embed"
 	"go.etcd.io/etcd/pkg/transport"
 	"go.etcd.io/etcd/pkg/types"
+	"go.etcd.io/etcd/server/v3/embed"
 	"gopkg.in/yaml.v2"
 
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
