@@ -30,8 +30,8 @@ import (
 	"time"
 
 	"github.com/m3dbx/vellum/regexp"
-	"go.etcd.io/etcd/pkg/transport"
-	"go.etcd.io/etcd/pkg/types"
+	"go.etcd.io/etcd/client/pkg/v3/transport"
+	"go.etcd.io/etcd/client/pkg/v3/types"
 	"go.etcd.io/etcd/server/v3/embed"
 	"gopkg.in/yaml.v2"
 
