@@ -94,13 +94,45 @@ type options struct {
 	failureCallback         FailureCallback
 }
 
+// the bools allow explicitly setting the field to nil
+type optionsInput struct {
+	fsOptions       fs.Options
+	fsOptionsSet    bool
+
+	identPoolOpts  ident.PoolOptions
+}
+type OptionSetter func(o *optionsInput)
+
+func WithFileSystemOptions(o fs.Options) OptionSetter {
+	return OptionSetter(func(input *optionsInput) {
+		input.fsOptions = o
+		input.fsOptionsSet = true
+	})
+}
+
+func WithIdentPoolOptions(o ident.PoolOptions) OptionSetter {
+	return OptionSetter(func(input *optionsInput) {
+		input.identPoolOpts = o
+	})
+}
+
+
 // NewOptions creates new commit log options
-func NewOptions() Options {
+func NewOptions(setters ...OptionSetter) Options {
+	input := optionsInput{}
+	for _, setter := range setters {
+		setter(&input)
+	}
+
+	if !input.fsOptionsSet && input.fsOptions == nil {
+		input.fsOptions = fs.NewOptions()
+	}
+
 	o := &options{
 		clockOpts:               clock.NewOptions(),
 		instrumentOpts:          instrument.NewOptions(),
 		blockSize:               defaultBlockSize,
-		fsOpts:                  fs.NewOptions(),
+		fsOpts:                  input.fsOptions,
 		strategy:                defaultStrategy,
 		failureMode:             defaultFailureStrategy,
 		flushSize:               defaultFlushSize,
@@ -113,8 +145,9 @@ func NewOptions() Options {
 		readConcurrency: defaultReadConcurrency,
 		failureCallback: nil,
 	}
+
 	o.bytesPool.Init()
-	o.identPool = ident.NewPool(o.bytesPool, ident.PoolOptions{})
+	o.identPool = ident.NewPool(o.bytesPool, input.identPoolOpts)
 	return o
 }
 
