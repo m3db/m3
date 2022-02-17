@@ -94,27 +94,72 @@ type options struct {
 	failureCallback         FailureCallback
 }
 
+type optionsInput struct {
+	fsOptions    fs.Options
+	// allows differentiating between explicitly nil and unset
+	fsOptionsSet bool
+
+	identPoolOpts   ident.PoolOptions
+	bytePoolOptions pool.ObjectPoolOptions
+}
+
+// OptionSetter is a function that modifies the behavior of NewOptions
+type OptionSetter func(o *optionsInput)
+
+// WithFileSystemOptions is an OptionsSetter that provides custom fs.Options
+// Passing nil will be equivalent to calling Options.SetFilesystemOptions(nil)
+func WithFileSystemOptions(o fs.Options) OptionSetter {
+	return func(input *optionsInput) {
+		input.fsOptions = o
+		input.fsOptionsSet = true
+	}
+}
+
+// WithIdentPoolOptions is an OptionsSetter that provides options to the IdentifierPool
+func WithIdentPoolOptions(o ident.PoolOptions) OptionSetter {
+	return func(input *optionsInput) {
+		input.identPoolOpts = o
+	}
+}
+
+// WithBytesPoolOptions is an OptionsSetter that provides options to BytesPool
+func WithBytesPoolOptions (o pool.ObjectPoolOptions) OptionSetter {
+	return func(input *optionsInput) {
+		input.bytePoolOptions = o
+	}
+}
+
 // NewOptions creates new commit log options
-func NewOptions() Options {
+func NewOptions(setters ...OptionSetter) Options {
+	presetOptions := optionsInput{}
+	for _, setter := range setters {
+		setter(&presetOptions)
+	}
+
+	if !presetOptions.fsOptionsSet && presetOptions.fsOptions == nil {
+		presetOptions.fsOptions = fs.NewOptions()
+	}
+
 	o := &options{
 		clockOpts:               clock.NewOptions(),
 		instrumentOpts:          instrument.NewOptions(),
 		blockSize:               defaultBlockSize,
-		fsOpts:                  fs.NewOptions(),
+		fsOpts:                  presetOptions.fsOptions,
 		strategy:                defaultStrategy,
 		failureMode:             defaultFailureStrategy,
 		flushSize:               defaultFlushSize,
 		flushInterval:           defaultFlushInterval,
 		backlogQueueSize:        defaultBacklogQueueSize,
 		backlogQueueChannelSize: defaultBacklogQueueChannelSize,
-		bytesPool: pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
-			return pool.NewBytesPool(s, nil)
+		bytesPool: pool.NewCheckedBytesPool(nil, presetOptions.bytePoolOptions, func(s []pool.Bucket) pool.BytesPool {
+			return pool.NewBytesPool(s,  presetOptions.bytePoolOptions)
 		}),
 		readConcurrency: defaultReadConcurrency,
 		failureCallback: nil,
 	}
+
 	o.bytesPool.Init()
-	o.identPool = ident.NewPool(o.bytesPool, ident.PoolOptions{})
+	o.identPool = ident.NewPool(o.bytesPool, presetOptions.identPoolOpts)
 	return o
 }
 

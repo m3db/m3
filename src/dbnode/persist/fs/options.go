@@ -110,17 +110,78 @@ type options struct {
 	indexReaderAutovalidateIndexSegments bool
 	encodingOptions                      msgpack.LegacyEncodingOptions
 }
+// the bools allow explicitly setting the field to nil
+type optionsInput struct {
+	tagEncoderPool       serialize.TagEncoderPool
+	tagEncoderPoolSet    bool
+
+	tagDecoderPool       serialize.TagDecoderPool
+	tagDecoderPoolSet    bool
+
+	fstOptions           fst.Options
+	fstOptionsSet        bool
+}
+
+// OptionSetter is a function that modifies the behavior of NewOptions
+type OptionSetter func(o *optionsInput)
+
+// WithTagEncoderPool is an OptionSetter that provides custom serialize.TagEncoderPool
+// Passing nil will be equivalent to calling Options.SetTagEncoderPool(nil)
+// on the result of NewOptions
+func WithTagEncoderPool(o serialize.TagEncoderPool) OptionSetter {
+	return func(input *optionsInput) {
+		input.tagEncoderPool = o
+		input.tagEncoderPoolSet = true
+	}
+}
+
+// WithTagDecodePool is an OptionSetter that provides custom serialize.TagDecoder
+// Passing nil will be equivalent to calling Options.SetTagDecoderPool(nil)
+// on the result of NewOptions
+func WithTagDecodePool(o serialize.TagDecoderPool) OptionSetter {
+	return func(input *optionsInput) {
+		input.tagDecoderPool = o
+		input.tagDecoderPoolSet = true
+	}
+}
+
+// WithFstOptions is an OptionSetter that provides custom fst.Options
+// Passing nil will be equivalent to calling Options.SetFSTOptions(nil)
+// on the result of NewOptions
+func WithFstOptions(o fst.Options) OptionSetter {
+	return func(input *optionsInput) {
+		input.fstOptions = o
+		input.fstOptionsSet = true
+	}
+}
 
 // NewOptions creates a new set of fs options
-func NewOptions() Options {
-	tagEncoderPool := serialize.NewTagEncoderPool(
-		serialize.NewTagEncoderOptions(), pool.NewObjectPoolOptions())
-	tagEncoderPool.Init()
-	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
-		pool.NewObjectPoolOptions())
-	tagDecoderPool.Init()
-	fstOptions := fst.NewOptions()
+func NewOptions(setters ...OptionSetter) Options {
+	input := optionsInput{}
+	for _, setter := range setters {
+		setter(&input)
+	}
+	if !input.tagEncoderPoolSet && input.tagEncoderPool == nil {
+		input.tagEncoderPool = serialize.NewTagEncoderPool(
+			serialize.NewTagEncoderOptions(), pool.NewObjectPoolOptions())
+	}
+
+	if !input.tagDecoderPoolSet && input.tagDecoderPool == nil {
+		input.tagDecoderPool = serialize.NewTagDecoderPool(
+			serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
+			pool.NewObjectPoolOptions())
+	}
+
+	if !input.fstOptionsSet && input.fstOptions == nil {
+		input.fstOptions = fst.NewOptions()
+	}
+
+	if input.tagEncoderPool != nil {
+		input.tagEncoderPool.Init()
+	}
+	if input.tagDecoderPool != nil {
+		input.tagDecoderPool.Init()
+	}
 
 	return &options{
 		clockOpts:                            clock.NewOptions(),
@@ -140,9 +201,9 @@ func NewOptions() Options {
 		seekReaderBufferSize:                 defaultSeekReaderBufferSize,
 		mmapEnableHugePages:                  defaultMmapEnableHugePages,
 		mmapHugePagesThreshold:               defaultMmapHugePagesThreshold,
-		tagEncoderPool:                       tagEncoderPool,
-		tagDecoderPool:                       tagDecoderPool,
-		fstOptions:                           fstOptions,
+		tagEncoderPool:                       input.tagEncoderPool,
+		tagDecoderPool:                       input.tagDecoderPool,
+		fstOptions:                           input.fstOptions,
 		fstWriterOptions:                     defaultFSTWriterOptions,
 		indexReaderAutovalidateIndexSegments: defaultIndexReaderAutovalidateIndexSegments,
 		encodingOptions:                      msgpack.DefaultLegacyEncodingOptions,
