@@ -79,8 +79,12 @@ require (
 	github.com/willf/bitset v1.1.10
 	go.etcd.io/etcd/api/v3 v3.5.2
 	go.etcd.io/etcd/client/pkg/v3 v3.5.2
-	go.etcd.io/etcd/client/v3 v3.5.0
-	go.etcd.io/etcd/server/v3 v3.0.0-00010101000000-000000000000
+	go.etcd.io/etcd/client/v2 v2.305.2 // indirect
+	go.etcd.io/etcd/client/v3 v3.5.2
+	go.etcd.io/etcd/pkg/v3 v3.5.2 // indirect
+	go.etcd.io/etcd/raft/v3 v3.5.2 // indirect
+	go.etcd.io/etcd/server/v3 v3.5.2
+	go.etcd.io/etcd/tests/v3 v3.5.0-alpha.0.0.20220215220652-e814f6f78a12
 	go.opentelemetry.io/collector v0.45.0
 	go.opentelemetry.io/otel v1.4.1
 	go.opentelemetry.io/otel/bridge/opentracing v1.4.1
@@ -146,3 +150,5 @@ replace go.etcd.io/etcd/client/v3 => go.etcd.io/etcd/client/v3 v3.5.0-alpha.0.0.
 replace go.etcd.io/etcd/api/v3 => go.etcd.io/etcd/api/v3 v3.5.0-alpha.0.0.20220215220652-e814f6f78a12
 
 replace go.etcd.io/etcd/client/pkg/v3 => go.etcd.io/etcd/client/pkg/v3 v3.0.0-20220215220652-e814f6f78a12
+
+replace go.etcd.io/etcd/tests/v3 => go.etcd.io/etcd/tests/v3 v3.5.0-alpha.0.0.20220215220652-e814f6f78a12

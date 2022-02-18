@@ -34,12 +34,12 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/retry"
-	"go.etcd.io/etcd/server/v3/embed"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/tests/v3/framework/integration"
 	"golang.org/x/net/context"
 )
 
@@ -513,7 +513,7 @@ func TestWatchNonBlocking(t *testing.T) {
 	ecluster, opts, closeFn := testCluster(t)
 	defer closeFn()
 
-	ec, err := newClientFromEmbedEtcd(ecluster)
+	ec := ecluster.Client(0)
 
 	opts = opts.SetWatchChanResetInterval(200 * time.Millisecond).SetWatchChanInitTimeout(500 * time.Millisecond)
 
@@ -524,23 +524,14 @@ func TestWatchNonBlocking(t *testing.T) {
 	_, err = c.Set("foo", genProto("bar1"))
 	require.NoError(t, err)
 
-	ecluster.Server.Stop()
-	select {
-	case <-ecluster.Server.StopNotify():
-	case <-time.After(5 * time.Second):
-		require.FailNow(t, "waiting for server to stop")
-	}
 	before := time.Now()
+	ecluster.Members[0].Bridge().Blackhole()
 	w1, err := c.Watch("foo")
-	require.WithinDuration(t, time.Now(), before, 200*time.Millisecond)
+	require.WithinDuration(t, time.Now(), before, 100*time.Millisecond)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(w1.C()))
-
-	//ecluster.Server.Start()
-	//fmt.Println("Waiting for server to start again")
-	//select {
-	//case <-ecluster.Server.ReadyNotify():
-	//}
+	ecluster.Members[0].Bridge().Unblackhole()
+	ecluster.Members[0].Bridge().DropConnections()
 
 	// watch channel will error out, but Get() will be tried
 	<-w1.C()
@@ -786,6 +777,7 @@ func TestDelete_TriggerWatch(t *testing.T) {
 }
 
 func TestStaleDelete__FromGet(t *testing.T) {
+	integration.BeforeTestExternal(t)
 	// in this test we ensure clients who did not receive a delete for a key in
 	// their caches, evict the value in their cache the next time they communicate
 	// with an etcd which is unaware of the key (e.g. it's been compacted).
@@ -794,7 +786,9 @@ func TestStaleDelete__FromGet(t *testing.T) {
 	serverCachePath, err := ioutil.TempDir("", "server-cache-dir")
 	require.NoError(t, err)
 	defer os.RemoveAll(serverCachePath)
-	ec, opts, closeFn := testStore(t)
+	ec, opts, closeFn := testStore(t, func(tc *testStoreOpts) {
+		tc.etcdBeforeTestExternal = false
+	})
 
 	setStore, err := NewStore(ec, opts.SetCacheFileFn(func(ns string) string {
 		return path.Join(serverCachePath, fmt.Sprintf("%s.json", ns))
@@ -842,7 +836,7 @@ func TestStaleDelete__FromGet(t *testing.T) {
 	}, time.Minute), "timed out waiting to flush new cache file")
 
 	// create new etcd cluster
-	ec2, opts, closeFn2 := testStore(t)
+	ec2, opts, closeFn2 := testStore(t, withNoEtcdBeforeTestExternal())
 	defer closeFn2()
 	getStore, err := NewStore(ec2, opts.SetCacheFileFn(func(ns string) string {
 		nsFile := path.Join(newServerCachePath, fmt.Sprintf("%s.json", ns))
@@ -869,6 +863,7 @@ func TestStaleDelete__FromGet(t *testing.T) {
 }
 
 func TestStaleDelete__FromWatch(t *testing.T) {
+	integration.BeforeTestExternal(t)
 	// in this test we ensure clients who did not receive a delete for a key in
 	// their caches, evict the value in their cache the next time they communicate
 	// with an etcd which is unaware of the key (e.g. it's been compacted).
@@ -876,7 +871,7 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 	serverCachePath, err := ioutil.TempDir("", "server-cache-dir")
 	require.NoError(t, err)
 	defer os.RemoveAll(serverCachePath)
-	ec, opts, closeFn := testStore(t)
+	ec, opts, closeFn := testStore(t, withNoEtcdBeforeTestExternal())
 
 	setStore, err := NewStore(ec, opts.SetCacheFileFn(func(ns string) string {
 		return path.Join(serverCachePath, fmt.Sprintf("%s.json", ns))
@@ -926,7 +921,7 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 	}, time.Minute), "timed out waiting to flush new cache file")
 
 	// create new etcd cluster
-	ec2, opts, closeFn2 := testStore(t)
+	ec2, opts, closeFn2 := testStore(t, withNoEtcdBeforeTestExternal())
 	defer closeFn2()
 	getStore, err := NewStore(ec2, opts.SetCacheFileFn(func(ns string) string {
 		nsFile := path.Join(newServerCachePath, fmt.Sprintf("%s.json", ns))
@@ -1169,22 +1164,22 @@ func genProto(msg string) proto.Message {
 	return &kvtest.Foo{Msg: msg}
 }
 
-func testCluster(t *testing.T) (*embed.Etcd, Options, func()) {
-	cfg := embed.NewConfig()
-
-	dir, err := ioutil.TempDir("", "etcd-data")
-	require.NoError(t, err)
-	cfg.Dir = dir
-	etcd, err := embed.StartEtcd(cfg)
-	require.NoError(t, err)
-
-	select {
-	case <-etcd.Server.ReadyNotify():
-	case <-time.After(30 * time.Second):
-		require.FailNow(t, "timeout waiting for etcd to start")
+func testCluster(t *testing.T, testOpts ...testStoreOption) (*integration.Cluster, Options, func()) {
+	cfg := testStoreOpts{etcdBeforeTestExternal: true}
+	for _, opt := range testOpts {
+		opt(&cfg)
 	}
+
+	if cfg.etcdBeforeTestExternal {
+		integration.BeforeTestExternal(t)
+	}
+
+	ecluster := integration.NewCluster(t, &integration.ClusterConfig{
+		Size:      1,
+		UseBridge: true,
+	})
 	closer := func() {
-		etcd.Close()
+		ecluster.Terminate(t)
 	}
 
 	opts := NewOptions().
@@ -1195,25 +1190,24 @@ func testCluster(t *testing.T) (*embed.Etcd, Options, func()) {
 		SetRetryOptions(retry.NewOptions().SetMaxRetries(1).SetMaxBackoff(0)).
 		SetPrefix("test")
 
-	return etcd, opts, closer
+	return ecluster, opts, closer
 }
 
-func testStore(t *testing.T) (*clientv3.Client, Options, func()) {
-	ecluster, opts, closer := testCluster(t)
-	cli, err := newClientFromEmbedEtcd(ecluster)
-	require.NoError(t, err)
-	return cli, opts, closer
+type testStoreOpts struct {
+	etcdBeforeTestExternal bool
 }
 
-func newClientFromEmbedEtcd(etcd *embed.Etcd) (*clientv3.Client, error) {
-	if len(etcd.Clients) < 1 {
-		return nil, fmt.Errorf("embed etcd must have at least one client address")
+type testStoreOption func(tc *testStoreOpts)
+
+func withNoEtcdBeforeTestExternal() testStoreOption {
+	return func(tc *testStoreOpts) {
+		tc.etcdBeforeTestExternal = false
 	}
+}
 
-	return clientv3.New(
-		clientv3.Config{
-			Endpoints: []string{etcd.Clients[0].Addr().String()},
-		})
+func testStore(t *testing.T, testOpts ...testStoreOption) (*clientv3.Client, Options, func()) {
+	ecluster, opts, closer := testCluster(t, testOpts...)
+	return ecluster.RandClient(), opts, closer
 }
 
 func readCacheJSONAndFilename(dirPath string) (string, []byte, error) {
