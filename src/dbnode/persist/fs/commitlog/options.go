@@ -95,7 +95,7 @@ type options struct {
 }
 
 type optionsInput struct {
-	fsOptions    fs.Options
+	fsOptions fs.Options
 	// allows differentiating between explicitly nil and unset
 	fsOptionsSet bool
 
@@ -123,7 +123,7 @@ func WithIdentPoolOptions(o ident.PoolOptions) OptionSetter {
 }
 
 // WithBytesPoolOptions is an OptionsSetter that provides options to BytesPool
-func WithBytesPoolOptions (o pool.ObjectPoolOptions) OptionSetter {
+func WithBytesPoolOptions(o pool.ObjectPoolOptions) OptionSetter {
 	return func(input *optionsInput) {
 		input.bytePoolOptions = o
 	}
@@ -152,7 +152,7 @@ func NewOptions(setters ...OptionSetter) Options {
 		backlogQueueSize:        defaultBacklogQueueSize,
 		backlogQueueChannelSize: defaultBacklogQueueChannelSize,
 		bytesPool: pool.NewCheckedBytesPool(nil, presetOptions.bytePoolOptions, func(s []pool.Bucket) pool.BytesPool {
-			return pool.NewBytesPool(s,  presetOptions.bytePoolOptions)
+			return pool.NewBytesPool(s, presetOptions.bytePoolOptions)
 		}),
 		readConcurrency: defaultReadConcurrency,
 		failureCallback: nil,

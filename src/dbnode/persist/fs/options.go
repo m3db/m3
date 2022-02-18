@@ -76,8 +76,8 @@ const (
 
 var (
 	defaultFilePathPrefix   = os.TempDir()
-	defaultNewFileMode      = os.FileMode(0666)
-	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0755)
+	defaultNewFileMode      = os.FileMode(0o666)
+	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0o755)
 	defaultFSTWriterOptions = fst.WriterOptions{}
 
 	errTagEncoderPoolNotSet = errors.New("tag encoder pool is not set")
@@ -110,16 +110,16 @@ type options struct {
 	indexReaderAutovalidateIndexSegments bool
 	encodingOptions                      msgpack.LegacyEncodingOptions
 }
-// the bools allow explicitly setting the field to nil
+
 type optionsInput struct {
-	tagEncoderPool       serialize.TagEncoderPool
-	tagEncoderPoolSet    bool
+	tagEncoderPool serialize.TagEncoderPool
+	tagDecoderPool serialize.TagDecoderPool
+	fstOptions     fst.Options
 
-	tagDecoderPool       serialize.TagDecoderPool
-	tagDecoderPoolSet    bool
-
-	fstOptions           fst.Options
-	fstOptionsSet        bool
+	// the bools allow explicitly setting the field to nil
+	tagEncoderPoolSet bool
+	tagDecoderPoolSet bool
+	fstOptionsSet     bool
 }
 
 // OptionSetter is a function that modifies the behavior of NewOptions
