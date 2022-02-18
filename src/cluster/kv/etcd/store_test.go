@@ -524,18 +524,23 @@ func TestWatchNonBlocking(t *testing.T) {
 	_, err = c.Set("foo", genProto("bar1"))
 	require.NoError(t, err)
 
+	ecluster.Server.Stop()
+	select {
+	case <-ecluster.Server.StopNotify():
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "waiting for server to stop")
+	}
 	before := time.Now()
-	ecluster.Server.HardStop()
 	w1, err := c.Watch("foo")
-	require.WithinDuration(t, time.Now(), before, 100*time.Millisecond)
+	require.WithinDuration(t, time.Now(), before, 200*time.Millisecond)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(w1.C()))
 
-	ecluster.Server.Start()
-	fmt.Println("Waiting for server to start again")
-	select {
-	case <-ecluster.Server.ReadyNotify():
-	}
+	//ecluster.Server.Start()
+	//fmt.Println("Waiting for server to start again")
+	//select {
+	//case <-ecluster.Server.ReadyNotify():
+	//}
 
 	// watch channel will error out, but Get() will be tried
 	<-w1.C()
@@ -1166,9 +1171,18 @@ func genProto(msg string) proto.Message {
 
 func testCluster(t *testing.T) (*embed.Etcd, Options, func()) {
 	cfg := embed.NewConfig()
+
+	dir, err := ioutil.TempDir("", "etcd-data")
+	require.NoError(t, err)
+	cfg.Dir = dir
 	etcd, err := embed.StartEtcd(cfg)
 	require.NoError(t, err)
 
+	select {
+	case <-etcd.Server.ReadyNotify():
+	case <-time.After(30 * time.Second):
+		require.FailNow(t, "timeout waiting for etcd to start")
+	}
 	closer := func() {
 		etcd.Close()
 	}
