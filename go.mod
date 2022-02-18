@@ -120,18 +120,11 @@ replace gopkg.in/vmihailenco/msgpack.v2 => github.com/vmihailenco/msgpack v2.8.3
 
 replace github.com/stretchr/testify => github.com/stretchr/testify v1.1.4-0.20160305165446-6fe211e49392
 
-replace go.opentelemetry.io/proto/otlp => github.com/m3dbx/opentelemetry-proto-go/otlp v0.7.1-0.20210715190017-fe8722e59006
-
 replace github.com/google/flatbuffers => github.com/google/flatbuffers v1.12.1
 
 // Fix legacy import path - https://github.com/uber-go/atomic/pull/60
 replace github.com/uber-go/atomic => github.com/uber-go/atomic v1.4.0
 
-// Pull in https://github.com/etcd-io/bbolt/pull/220, required for go 1.14 compatibility
-//
-// etcd 3.14.13 depends on v1.3.3, but everything before v1.3.5 has unsafe misuses, and fails hard on go 1.14
-// TODO: remove after etcd pulls in the change to a new release on 3.4 branch
-replace go.etcd.io/bbolt => go.etcd.io/bbolt v1.3.5
 
 // This overrides to 3.4.13. Note: we need to specify the version this way
 // because etcd go modules are completely broken before 3.5.0.
