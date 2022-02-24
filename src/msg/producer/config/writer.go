@@ -50,6 +50,9 @@ type ConnectionConfiguration struct {
 	FlushInterval   *time.Duration       `yaml:"flushInterval"`
 	WriteBufferSize *int                 `yaml:"writeBufferSize"`
 	ReadBufferSize  *int                 `yaml:"readBufferSize"`
+	// ContextDialer specifies a custom dialer to use when creating TCP connections to the consumer.
+	// See writer.ConnectionOptions.ContextDialer for details.
+	ContextDialer writer.ContextDialerFn `yaml:"-"` // not serializable
 }
 
 // NewOptions creates connection options.
@@ -57,6 +60,9 @@ func (c *ConnectionConfiguration) NewOptions(iOpts instrument.Options) writer.Co
 	opts := writer.NewConnectionOptions()
 	if c.NumConnections != nil {
 		opts = opts.SetNumConnections(*c.NumConnections)
+	}
+	if c.ContextDialer != nil {
+		opts = opts.SetContextDialer(c.ContextDialer)
 	}
 	if c.DialTimeout != nil {
 		opts = opts.SetDialTimeout(*c.DialTimeout)

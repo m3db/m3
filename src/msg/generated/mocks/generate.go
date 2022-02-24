@@ -28,5 +28,6 @@
 //go:generate sh -c "mockgen -package=writer -destination=$GOPATH/src/github.com/m3db/m3/src/msg/producer/writer/consumer_service_writer_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/msg/producer/writer/consumer_service_writer.go"
 //go:generate sh -c "mockgen -package=writer -destination=$GOPATH/src/github.com/m3db/m3/src/msg/producer/writer/router_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/msg/producer/writer/router.go"
 //go:generate sh -c "mockgen -package=writer -destination=$GOPATH/src/github.com/m3db/m3/src/msg/producer/writer/shard_writer_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/msg/producer/writer/shard_writer.go"
-
+//go:generate sh -c "mockgen -package=writer -destination=$GOPATH/src/github.com/m3db/m3/src/msg/producer/writer/context_dialer_mock_test.go -source=$GOPATH/src/github.com/m3db/m3/src/msg/producer/writer/consumer_writer_test.go contextDialer"
+//go:generate sh -c "mockgen -package=writer -destination=$GOPATH/src/github.com/m3db/m3/src/msg/producer/writer/keep_alivable_mock_test.go -source=$GOPATH/src/github.com/m3db/m3/src/msg/producer/writer/consumer_writer.go keepAlivable"
 package mocks
