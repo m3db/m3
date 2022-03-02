@@ -466,6 +466,12 @@ type Shard interface {
 	// This increments the reader/writer count and so should be decremented when the series
 	// is no longer held.
 	TryRetrieveSeriesAndIncrementReaderWriterCount(id ident.ID) (*Entry, WritableSeriesOptions, error)
+
+	// Close will release the shard resources and close the shard.
+	Close() error
+
+	// Closed indicates if shard was closed using Close.
+	Closed() bool
 }
 
 type databaseShard interface {
@@ -475,9 +481,6 @@ type databaseShard interface {
 	// it here because mockgen chokes on embedded interfaces sometimes:
 	// https://github.com/golang/mock/issues/10
 	OnEvictedFromWiredList(id ident.ID, blockStart xtime.UnixNano)
-
-	// Close will release the shard resources and close the shard.
-	Close() error
 
 	// Tick performs all async updates
 	Tick(c context.Cancellable, startTime xtime.UnixNano, nsCtx namespace.Context) (tickResult, error)

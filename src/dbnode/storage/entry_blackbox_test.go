@@ -160,8 +160,9 @@ func TestEntryTryMarkIndexGarbageCollectedAfterSeriesClose(t *testing.T) {
 	series.EXPECT().ID().Return(id)
 
 	entry := NewEntry(NewEntryOptions{
-		Shard:  shard,
-		Series: series,
+		Shard:        shard,
+		Series:       series,
+		EntryMetrics: NewEntryMetrics(tally.NewTestScope("test", nil)),
 	})
 
 	// Make sure when ID is returned nil to emulate series being closed
@@ -301,71 +302,221 @@ func TestMergeWithIndexSeries(t *testing.T) {
 }
 
 func TestEntryTryMarkIndexGarbageCollected(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
+	for _, tc := range []struct {
+		name           string
+		entry          *Entry
+		hasSeries      bool
+		indexed        bool
+		indexDuplicate bool
+		shardClosed    bool
+		hasReaders     bool
 
-	opts := DefaultTestOptions()
-	ctx := opts.ContextPool().Get()
-	defer ctx.Close()
+		expectCollected                   bool
+		expectedNeedsReconcileCounter     int64
+		expectedNoNeedsReconcileCounter   int64
+		expectedGcShardClosedCounter      int64
+		expectedGcEmptyCounter            int64
+		expectedNoGcNil                   int64
+		expectedNoGcNotEmptySeriesCounter int64
+		expectedNoGcHasReadersCounter     int64
+	}{
+		{
+			name:            "not indexed entry should not be collected",
+			expectCollected: false,
+			expectedNoGcNil: 1,
+		},
+		{
+			name:                            "indexed entry with empty series should be collected",
+			indexed:                         true,
+			hasSeries:                       false,
+			hasReaders:                      false,
+			shardClosed:                     false,
+			expectCollected:                 true,
+			expectedNoNeedsReconcileCounter: 1,
+			expectedGcEmptyCounter:          1,
+		},
+		{
+			name:                            "indexed 2 empty entries need reconcile",
+			indexed:                         true,
+			indexDuplicate:                  true,
+			hasSeries:                       false,
+			hasReaders:                      false,
+			shardClosed:                     false,
+			expectCollected:                 true,
+			expectedNoNeedsReconcileCounter: 0,
+			expectedNeedsReconcileCounter:   1,
+			expectedGcEmptyCounter:          1,
+		},
+		{
+			name:                              "indexed 2 non empty entries",
+			indexed:                           true,
+			indexDuplicate:                    true,
+			hasSeries:                         true,
+			hasReaders:                        false,
+			shardClosed:                       false,
+			expectCollected:                   false,
+			expectedNoGcNotEmptySeriesCounter: 1,
+		},
+		{
+			name:                              "indexed entry with series should not be collected",
+			indexed:                           true,
+			hasSeries:                         true,
+			hasReaders:                        false,
+			shardClosed:                       false,
+			expectCollected:                   false,
+			expectedNoGcNotEmptySeriesCounter: 1,
+		},
+		{
+			name:                          "empty indexed entry with readers should not be collected",
+			indexed:                       true,
+			hasSeries:                     false,
+			hasReaders:                    true,
+			shardClosed:                   false,
+			expectCollected:               false,
+			expectedNoGcHasReadersCounter: 1,
+		},
+		{
+			name:                          "indexed entry with readers and series should not be collected",
+			indexed:                       true,
+			hasSeries:                     true,
+			hasReaders:                    true,
+			shardClosed:                   false,
+			expectCollected:               false,
+			expectedNoGcHasReadersCounter: 1,
+		},
+		{
+			name:                         "indexed entry with non empty series should be collected when the shard is closed",
+			indexed:                      true,
+			hasSeries:                    true,
+			hasReaders:                   false,
+			shardClosed:                  true,
+			expectCollected:              true,
+			expectedGcShardClosedCounter: 1,
+		},
+		{
+			name:                         "indexed entry with readers should be collected when the shard is closed",
+			indexed:                      true,
+			hasSeries:                    false,
+			hasReaders:                   true,
+			shardClosed:                  true,
+			expectCollected:              true,
+			expectedGcShardClosedCounter: 1,
+		},
+		{
+			name:                         "indexed entry with readers and series should be collected when the shard is closed",
+			indexed:                      true,
+			hasSeries:                    true,
+			hasReaders:                   true,
+			shardClosed:                  true,
+			expectCollected:              true,
+			expectedGcShardClosedCounter: 1,
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := xtest.NewController(t)
+			defer ctrl.Finish()
 
-	shard := testDatabaseShard(t, opts)
-	defer func() {
-		require.NoError(t, shard.Close())
-	}()
+			opts := DefaultTestOptions()
+			ctx := opts.ContextPool().Get()
+			defer ctx.Close()
 
-	// Create entry with index 0 that's not inserted
-	s := series.NewMockDatabaseSeries(ctrl)
-	s.EXPECT().ID().Return(id).AnyTimes()
-	s.EXPECT().Close().Return()
+			shard := testDatabaseShard(t, opts)
+			if !tc.shardClosed {
+				defer func() {
+					require.NoError(t, shard.Close())
+				}()
+			}
 
-	scope := tally.NewTestScope("test", nil)
-	metrics := NewEntryMetrics(scope)
-	uncommittedEntry := NewEntry(NewEntryOptions{
-		Index:        0,
-		Shard:        shard,
-		Series:       s,
-		EntryMetrics: metrics,
-	})
-	committedEntry := NewEntry(NewEntryOptions{
-		Index:        1,
-		Shard:        shard,
-		Series:       s,
-		EntryMetrics: metrics,
-	})
-	shard.Lock()
-	shard.insertNewShardEntryWithLock(committedEntry)
-	shard.Unlock()
+			// Create entry with index 0 that's not inserted
+			s := series.NewMockDatabaseSeries(ctrl)
+			s.EXPECT().ID().Return(id).AnyTimes()
+			s.EXPECT().Close().Return().AnyTimes()
+			s.EXPECT().IsEmpty().Return(!tc.hasSeries).AnyTimes()
 
-	// reconciled := scope.Counter("reconciled")
-	// unreconciled := scope.Counter("unreconciled")
+			scope := tally.NewTestScope("test", nil)
+			metrics := NewEntryMetrics(scope)
+			entry := NewEntry(NewEntryOptions{
+				Index:        0,
+				Shard:        shard,
+				Series:       s,
+				EntryMetrics: metrics,
+			})
+			if tc.indexed {
+				shard.Lock()
+				shard.insertNewShardEntryWithLock(entry)
+				if tc.indexDuplicate {
+					shard.insertNewShardEntryWithLock(NewEntry(NewEntryOptions{
+						Index:        1,
+						Shard:        shard,
+						Series:       s,
+						EntryMetrics: metrics,
+					}))
+				}
+				shard.Unlock()
+			}
 
-	// Not eligible if not empty.
-	s.EXPECT().IsEmpty().Return(false)
-	collected := uncommittedEntry.TryMarkIndexGarbageCollected()
-	require.False(t, collected)
+			if tc.hasReaders {
+				entry.IncrementReaderWriterCount()
+			}
+			if tc.shardClosed {
+				require.NoError(t, shard.Close())
+			}
+			collected := entry.TryMarkIndexGarbageCollected()
+			require.Equal(t, tc.expectCollected, collected, "collected")
+			if tc.indexDuplicate {
+				assert.False(t, entry.IndexGarbageCollected.Load(), "IndexGarbageCollected")
+			} else {
+				assert.Equal(t, tc.expectCollected, entry.IndexGarbageCollected.Load(), "IndexGarbageCollected")
+			}
+			if tc.hasReaders {
+				entry.DecrementReaderWriterCount()
+			}
 
-	// Not eligible if held.
-	s.EXPECT().IsEmpty().Return(true).AnyTimes()
-	committedEntry.IncrementReaderWriterCount()
-	collected = uncommittedEntry.TryMarkIndexGarbageCollected()
-	require.False(t, collected)
+			tallytest.AssertCounterValue(t, tc.expectedNeedsReconcileCounter, scope.Snapshot(), "test.count",
+				map[string]string{
+					"reconcile": "needs_reconcile",
+					"path":      "gc",
+				})
+			tallytest.AssertCounterValue(t, tc.expectedNoNeedsReconcileCounter, scope.Snapshot(), "test.count",
+				map[string]string{
+					"reconcile": "no_reconcile",
+					"path":      "gc",
+				})
 
-	committedEntry.DecrementReaderWriterCount()
-	collected = uncommittedEntry.TryMarkIndexGarbageCollected()
-	require.True(t, collected)
+			tallytest.AssertCounterValue(t, tc.expectedGcShardClosedCounter, scope.Snapshot(), "test.gc_count",
+				map[string]string{
+					"reason": "shard_closed",
+					"path":   "gc",
+				})
+			tallytest.AssertCounterValue(t, tc.expectedGcEmptyCounter, scope.Snapshot(), "test.gc_count",
+				map[string]string{
+					"reason": "empty",
+					"path":   "gc",
+				})
 
-	tallytest.AssertCounterValue(t, 1, scope.Snapshot(), "test.count", map[string]string{
-		"reconcile": "needs_reconcile",
-		"path":      "gc",
-	})
-	tallytest.AssertCounterValue(t, 0, scope.Snapshot(), "test.count", map[string]string{
-		"reconcile": "no_reconcile",
-		"path":      "gc",
-	})
-
-	// Entry in the shard is the one marked for GC (not the one necessarily used for the call above).
-	require.True(t, committedEntry.IndexGarbageCollected.Load())
-	require.False(t, uncommittedEntry.IndexGarbageCollected.Load())
+			tallytest.AssertCounterValue(t, tc.expectedNoGcNil, scope.Snapshot(), "test.no_gc_count",
+				map[string]string{
+					"reason": "nil",
+					"path":   "gc",
+				})
+			tallytest.AssertCounterValue(t, 0, scope.Snapshot(), "test.no_gc_count",
+				map[string]string{
+					"reason": "error",
+					"path":   "gc",
+				})
+			tallytest.AssertCounterValue(t, tc.expectedNoGcHasReadersCounter, scope.Snapshot(), "test.no_gc_count",
+				map[string]string{
+					"reason": "has_readers",
+					"path":   "gc",
+				})
+			tallytest.AssertCounterValue(t, tc.expectedNoGcNotEmptySeriesCounter, scope.Snapshot(), "test.no_gc_count",
+				map[string]string{
+					"reason": "not_empty_series",
+					"path":   "gc",
+				})
+		})
+	}
 }
 
 func TestTryReconcileDuplicates(t *testing.T) {
