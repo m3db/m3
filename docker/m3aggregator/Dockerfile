@@ -12,7 +12,7 @@ ADD . /go/src/github.com/m3db/m3
 # Build m3dbnode binary
 RUN cd /go/src/github.com/m3db/m3/ && \
     git submodule update --init      && \
-    make m3aggregator-linux-amd64
+    make m3aggregator
 
 # stage 2: lightweight "release"
 FROM alpine:3.15
