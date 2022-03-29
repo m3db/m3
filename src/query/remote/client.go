@@ -28,11 +28,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
@@ -46,6 +41,11 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	xgrpc "github.com/m3db/m3/src/x/grpc"
 	"github.com/m3db/m3/src/x/instrument"
+
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 )
 
 const (
@@ -149,16 +149,18 @@ func NewGRPCClient(
 	scope := instrumentOpts.MetricsScope()
 	interceptorOpts := xgrpc.InterceptorInstrumentOptions{Scope: scope}
 
-	resolver := newStaticResolver(addresses)
-	balancer := grpc.RoundRobin(resolver)
 	dialOptions := append([]grpc.DialOption{
-		grpc.WithBalancer(balancer),
+		// N.B.: the static resolver also specifies the load balancing policy, which is
+		// round robin.
+		grpc.WithResolvers(newStaticResolverBuilder(addresses)),
 		grpc.WithInsecure(),
 		grpc.WithUnaryInterceptor(xgrpc.UnaryClientInterceptor(interceptorOpts)),
 		grpc.WithStreamInterceptor(xgrpc.StreamClientInterceptor(interceptorOpts)),
 	}, defaultDialOptions...)
 	dialOptions = append(dialOptions, additionalDialOpts...)
-	cc, err := grpc.Dial("", dialOptions...)
+
+	// The resolver handles routing correctly for us, which is why the "endpoint" here is static.
+	cc, err := grpc.Dial(_staticResolverURL, dialOptions...)
 	if err != nil {
 		return nil, err
 	}

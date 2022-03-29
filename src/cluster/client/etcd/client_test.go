@@ -27,8 +27,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/integration"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/tests/v3/framework/integration"
 	"google.golang.org/grpc"
 
 	"github.com/m3db/m3/src/cluster/kv"
@@ -450,7 +450,8 @@ func testOptions() Options {
 }
 
 func testNewETCDFn(t *testing.T) (newClientFn, func()) {
-	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
+	integration.BeforeTestExternal(t)
+	ecluster := integration.NewCluster(t, &integration.ClusterConfig{Size: 1})
 	ec := ecluster.RandClient()
 
 	newFn := func(Cluster) (*clientv3.Client, error) {
