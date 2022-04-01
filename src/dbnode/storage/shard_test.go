@@ -848,7 +848,10 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 		entry := series.NewMockDatabaseSeries(ctrl)
 		entry.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		entry.EXPECT().IsEmpty().Return(false).AnyTimes()
-		entry.EXPECT().IsBufferEmptyAtBlockStart(blockStart).Return(false).AnyTimes()
+		entry.EXPECT().MarkNonEmptyBlocks(blockStart).
+			DoAndReturn(func(nonEmptyBlockStarts map[xtime.UnixNano]struct{}) {
+				nonEmptyBlockStarts[blockStart] = struct{}{}
+			}).AnyTimes()
 		entry.EXPECT().
 			Snapshot(gomock.Any(), blockStart, gomock.Any(), gomock.Any()).
 			Do(func(context.Context, xtime.UnixNano, persist.DataFn, namespace.Context) {
@@ -2037,37 +2040,70 @@ func TestFilterBlocksNeedSnapshot(t *testing.T) {
 		name              string
 		blocks            []int
 		expectedSnapshots []int
-		writeToBlocks     []int
+		seriesWritten     [][]int
 		bootstrapState    *BootstrapState
 	}{
 		{
+			name:              "all blocks are empty",
+			seriesWritten:     [][]int{},
+			blocks:            []int{-2, -1, 0},
+			expectedSnapshots: []int{},
+		},
+		{
+			name:              "all blocks snapshotable",
+			seriesWritten:     [][]int{{-2, -1, 0}},
+			blocks:            []int{-2, -1, 0},
+			expectedSnapshots: []int{-2, -1, 0},
+		},
+		{
+			name:              "different series written to different blocks",
+			seriesWritten:     [][]int{{0}, {-1}, {-2}},
+			blocks:            []int{-2, -1, 0},
+			expectedSnapshots: []int{-2, -1, 0},
+		},
+		{
+			name:              "different series written to different blocks single block checked",
+			seriesWritten:     [][]int{{0}, {-1}, {-2}},
+			blocks:            []int{-1},
+			expectedSnapshots: []int{-1},
+		},
+		{
+			name: "requested blocks are satisfied only by single series",
+			seriesWritten: [][]int{
+				{-2, 0},
+				{-1},
+			},
+			blocks:            []int{-1},
+			expectedSnapshots: []int{-1},
+		},
+		{
 			name:              "current block is snapshotable",
-			writeToBlocks:     []int{0},
+			seriesWritten:     [][]int{{0}},
 			blocks:            []int{0},
 			expectedSnapshots: []int{0},
 		},
 		{
 			name:              "no blocks are snapshottable when not bootstrapped",
-			writeToBlocks:     []int{0},
+			seriesWritten:     [][]int{{0}},
 			blocks:            []int{0},
 			expectedSnapshots: []int{},
 			bootstrapState:    &bootstraping,
 		},
 		{
 			name:              "previous block is not snapshotable",
-			writeToBlocks:     []int{0},
+			seriesWritten:     [][]int{{0}},
 			blocks:            []int{-1, 0},
 			expectedSnapshots: []int{0},
 		},
 		{
 			name:              "cold write to a previous block",
-			writeToBlocks:     []int{-1},
+			seriesWritten:     [][]int{{-1}},
 			blocks:            []int{-1, 0},
 			expectedSnapshots: []int{-1},
 		},
 		{
 			name:              "order not lost after filtering",
-			writeToBlocks:     []int{0, -1, -2},
+			seriesWritten:     [][]int{{0, -1, -2}},
 			blocks:            []int{-1, -2, 0},
 			expectedSnapshots: []int{-1, -2, 0},
 		},
@@ -2100,95 +2136,22 @@ func TestFilterBlocksNeedSnapshot(t *testing.T) {
 				ctx.Close()
 			}()
 
-			for _, blockNum := range tc.writeToBlocks {
-				timestamp := getBlockStart(blockNum).Add(time.Second)
-				_, err := shard.Write(ctx, ident.StringID(fmt.Sprintf("foo.%d", 1)),
-					timestamp, 1.0, xtime.Second, nil, series.WriteOptions{},
-				)
-				require.NoError(t, err)
+			for idx, seriesWritten := range tc.seriesWritten {
+				for _, blockNum := range seriesWritten {
+					timestamp := getBlockStart(blockNum).Add(time.Second)
+					_, err := shard.Write(ctx, ident.StringID(fmt.Sprintf("foo.%d", idx)),
+						timestamp, 1.0, xtime.Second, nil, series.WriteOptions{},
+					)
+					require.NoError(t, err)
+				}
 			}
 
-			assert.Equal(t, toBlockStarts(tc.expectedSnapshots), shard.FilterBlocksNeedSnapshot(toBlockStarts(tc.blocks)))
-		})
-	}
-}
-
-func TestFilterBlocksRequiringSnapshot(t *testing.T) {
-	b1 := xtime.UnixNano(1)
-	b2 := xtime.UnixNano(2)
-	for _, tc := range []struct {
-		name           string
-		emptyBlocks    map[xtime.UnixNano]bool
-		continueSearch bool
-	}{
-		{
-			name:           "all blocks require snapshot",
-			emptyBlocks:    map[xtime.UnixNano]bool{b1: false, b2: false},
-			continueSearch: false,
-		},
-		{
-			name:           "only single block contained series so need to continue the search",
-			emptyBlocks:    map[xtime.UnixNano]bool{b1: true, b2: false},
-			continueSearch: true,
-		},
-		{
-			name:           "no blocks need a snapshot",
-			emptyBlocks:    map[xtime.UnixNano]bool{b1: true, b2: true},
-			continueSearch: true,
-		},
-	} {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			series := series.NewMockDatabaseSeries(ctrl)
-			series.EXPECT().ID().Return(ident.StringID("test")).AnyTimes()
-			entry := NewEntry(NewEntryOptions{Series: series})
-			var allBlocks []xtime.UnixNano
-			for b, empty := range tc.emptyBlocks {
-				series.EXPECT().IsBufferEmptyAtBlockStart(b).Return(empty)
-				allBlocks = append(allBlocks, b)
-			}
-
-			needs := map[xtime.UnixNano]struct{}{}
-			assert.Equal(t, tc.continueSearch, blocksNeedSnapshotFilter(allBlocks, needs)(entry))
-			for b, empty := range tc.emptyBlocks {
-				_, needsSnapshot := needs[b]
-				assert.Equal(t, !empty, needsSnapshot)
+			res := shard.FilterBlocksNeedSnapshot(toBlockStarts(tc.blocks))
+			if len(tc.expectedSnapshots) == 0 {
+				assert.Empty(t, res)
+			} else {
+				assert.Equal(t, toBlockStarts(tc.expectedSnapshots), shard.FilterBlocksNeedSnapshot(toBlockStarts(tc.blocks)))
 			}
 		})
 	}
-}
-
-func getMockReader(
-	ctrl *gomock.Controller,
-	t *testing.T,
-	shard *dbShard,
-	blockStart xtime.UnixNano,
-	openError error,
-) (*fs.MockDataFileSetReader, int) {
-	latestSourceVolume, err := shard.LatestVolume(blockStart)
-	require.NoError(t, err)
-
-	openOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   shard.namespace.ID(),
-			Shard:       shard.ID(),
-			BlockStart:  blockStart,
-			VolumeIndex: latestSourceVolume,
-		},
-		FileSetType:      persist.FileSetFlushType,
-		StreamingEnabled: true,
-	}
-
-	reader := fs.NewMockDataFileSetReader(ctrl)
-	if openError == nil {
-		reader.EXPECT().Open(openOpts).Return(nil)
-		reader.EXPECT().Close()
-	} else {
-		reader.EXPECT().Open(openOpts).Return(openError)
-	}
-
-	return reader, latestSourceVolume
 }

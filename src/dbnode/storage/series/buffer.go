@@ -133,7 +133,7 @@ type databaseBuffer interface {
 
 	IsEmpty() bool
 
-	IsEmptyAtBlockStart(xtime.UnixNano) bool
+	MarkNonEmptyBlocks(nonEmptyBlockStarts map[xtime.UnixNano]struct{})
 
 	ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes
 
@@ -419,12 +419,14 @@ func (b *dbBuffer) IsEmpty() bool {
 	return len(b.bucketsMap) == 0
 }
 
-func (b *dbBuffer) IsEmptyAtBlockStart(start xtime.UnixNano) bool {
-	bv, exists := b.bucketVersionsAt(start)
-	if !exists {
-		return true
+func (b *dbBuffer) MarkNonEmptyBlocks(nonEmptyBlockStarts map[xtime.UnixNano]struct{}) {
+	for blockStart, bv := range b.bucketsMap {
+		if _, ok := nonEmptyBlockStarts[blockStart]; !ok {
+			if !bv.streamsEmpty() {
+				nonEmptyBlockStarts[blockStart] = struct{}{}
+			}
+		}
 	}
-	return bv.streamsLen() == 0
 }
 
 func (b *dbBuffer) ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes {
@@ -1065,6 +1067,15 @@ func (b *BufferBucketVersions) firstWrite(opts streamsOptions) xtime.UnixNano {
 	return res
 }
 
+func (b *BufferBucketVersions) streamsEmpty() bool {
+	for _, bucket := range b.buckets {
+		if !bucket.streamsEmpty() {
+			return false
+		}
+	}
+	return true
+}
+
 func (b *BufferBucketVersions) streamsLen() int {
 	res := 0
 	for _, bucket := range b.buckets {
@@ -1377,6 +1388,20 @@ func (b *BufferBucket) streams(ctx context.Context) []xio.BlockReader {
 	}
 
 	return streams
+}
+
+func (b *BufferBucket) streamsEmpty() bool {
+	for i := range b.loadedBlocks {
+		if !b.loadedBlocks[i].Empty() {
+			return false
+		}
+	}
+	for i := range b.encoders {
+		if !b.encoders[i].encoder.Empty() {
+			return false
+		}
+	}
+	return true
 }
 
 func (b *BufferBucket) streamsLen() int {

@@ -483,6 +483,14 @@ func TestEncoderLenReturnsFinalStreamLength(t *testing.T) {
 	})
 }
 
+func TestEncoderEmpty(t *testing.T) {
+	testMultiplePasses(t, multiplePassesTest{
+		postEncodeAll: func(enc *encoder, numDatapointsEncoded int) {
+			assert.Equal(t, numDatapointsEncoded == 0, enc.Empty())
+		},
+	})
+}
+
 type testFinalizer struct {
 	t                *testing.T
 	numActiveStreams *atomic.Int32

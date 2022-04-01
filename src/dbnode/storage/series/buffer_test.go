@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -381,7 +382,8 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 }
 
 func newTestBufferBucketWithData(t *testing.T,
-	opts Options, setAnn setAnnotation) (*BufferBucket, []DecodedTestValue) {
+	opts Options, setAnn setAnnotation,
+) (*BufferBucket, []DecodedTestValue) {
 	rops := opts.RetentionOptions()
 	curr := xtime.Now().Truncate(rops.BlockSize())
 
@@ -456,7 +458,8 @@ func newTestBufferBucketWithCustomData(
 }
 
 func newTestBufferBucketsWithData(t *testing.T, opts Options,
-	setAnn setAnnotation) (*BufferBucketVersions, []DecodedTestValue) {
+	setAnn setAnnotation,
+) (*BufferBucketVersions, []DecodedTestValue) {
 	newBucket, vals := newTestBufferBucketWithData(t, opts, setAnn)
 	return &BufferBucketVersions{
 		buckets: []*BufferBucket{newBucket},
@@ -1947,6 +1950,67 @@ func TestUpsertProto(t *testing.T) {
 			requireReaderValuesEqual(t, test.expectedData, results, opts, nsCtx)
 		})
 	}
+}
+
+func TestMarkNonEmptyBlocks(t *testing.T) {
+	var (
+		now  = xtime.Now()
+		opts = newBufferTestOptions().
+			SetColdWritesEnabled(true).
+			SetClockOptions(clock.NewOptions().SetNowFn(func() time.Time { return now.ToTime() }))
+		rops        = opts.RetentionOptions()
+		blockSize   = rops.BlockSize()
+		blockStart4 = now.Truncate(blockSize)
+		blockStart3 = blockStart4.Add(-2 * blockSize)
+		blockStart2 = blockStart4.Add(-3 * blockSize)
+		blockStart1 = blockStart4.Add(-4 * blockSize)
+		bds         = []blockData{
+			{
+				start:     blockStart1,
+				writeType: ColdWrite,
+				data: [][]DecodedTestValue{
+					{
+						{blockStart1.Add(secs(1)), 1, xtime.Second, nil},
+					},
+				},
+			},
+			{
+				start:     blockStart2,
+				writeType: ColdWrite,
+				data:      [][]DecodedTestValue{},
+			},
+			{
+				start:     blockStart3,
+				writeType: ColdWrite,
+				data: [][]DecodedTestValue{
+					{
+						{blockStart3.Add(secs(1)), 1, xtime.Second, nil},
+					},
+				},
+			},
+			{
+				start:     blockStart4,
+				writeType: WarmWrite,
+				data: [][]DecodedTestValue{
+					{
+						{blockStart4.Add(secs(1)), 1, xtime.Second, nil},
+					},
+				},
+			},
+		}
+	)
+
+	buffer, _ := newTestBufferWithCustomData(t, bds, opts, nil)
+	ctx := context.NewBackground()
+	defer ctx.Close()
+
+	nonEmptyBlocks := map[xtime.UnixNano]struct{}{}
+	buffer.MarkNonEmptyBlocks(nonEmptyBlocks)
+	assert.Len(t, nonEmptyBlocks, 3)
+	assert.Contains(t, nonEmptyBlocks, blockStart1)
+	assert.NotContains(t, nonEmptyBlocks, blockStart2)
+	assert.Contains(t, nonEmptyBlocks, blockStart3)
+	assert.Contains(t, nonEmptyBlocks, blockStart4)
 }
 
 type writeAttempt struct {

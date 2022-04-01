@@ -2392,7 +2392,20 @@ func (s *dbShard) FilterBlocksNeedSnapshot(blockStarts []xtime.UnixNano) []xtime
 	}
 
 	needs := map[xtime.UnixNano]struct{}{}
-	s.forEachShardEntry(blocksNeedSnapshotFilter(blockStarts, needs))
+	s.forEachShardEntry(func(entry *Entry) bool {
+		entry.Series.MarkNonEmptyBlocks(needs)
+		if len(needs) < len(blockStarts) {
+			return true
+		}
+		// Note: entries.Series might have non empty blocks that are not contained in blockStarts.
+		// This prevents usage of len(needs) < len(blockStarts) as early exit criteria.
+		for _, bl := range blockStarts {
+			if _, ok := needs[bl]; !ok {
+				return true
+			}
+		}
+		return false
+	})
 
 	// Note: doing this to keep original ordering. Not sure if that matters though.
 	filtered := make([]xtime.UnixNano, 0, len(needs))
@@ -2402,25 +2415,6 @@ func (s *dbShard) FilterBlocksNeedSnapshot(blockStarts []xtime.UnixNano) []xtime
 		}
 	}
 	return filtered
-}
-
-func blocksNeedSnapshotFilter(
-	blockStarts []xtime.UnixNano,
-	needs map[xtime.UnixNano]struct{},
-) func(entry *Entry) bool {
-	return func(entry *Entry) bool {
-		for _, blockStart := range blockStarts {
-			if _, ok := needs[blockStart]; ok {
-				continue
-			}
-			if !entry.Series.IsBufferEmptyAtBlockStart(blockStart) {
-				needs[blockStart] = struct{}{}
-				continue
-			}
-		}
-
-		return len(needs) < len(blockStarts)
-	}
 }
 
 func (s *dbShard) Snapshot(

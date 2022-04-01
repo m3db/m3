@@ -359,6 +359,20 @@ func (mr *MockDatabaseBlockMockRecorder) Discard() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Discard", reflect.TypeOf((*MockDatabaseBlock)(nil).Discard))
 }
 
+// Empty mocks base method.
+func (m *MockDatabaseBlock) Empty() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Empty")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Empty indicates an expected call of Empty.
+func (mr *MockDatabaseBlockMockRecorder) Empty() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Empty", reflect.TypeOf((*MockDatabaseBlock)(nil).Empty))
+}
+
 // HasMergeTarget mocks base method.
 func (m *MockDatabaseBlock) HasMergeTarget() bool {
 	m.ctrl.T.Helper()
