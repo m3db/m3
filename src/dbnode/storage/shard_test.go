@@ -2037,6 +2037,136 @@ func TestShardScan(t *testing.T) {
 	require.NoError(t, shard.ScanData(start, processor))
 }
 
+func TestFilterBlocksNeedSnapshot(t *testing.T) {
+	bootstraping := Bootstrapping
+	for _, tc := range []struct {
+		name              string
+		blocks            []int
+		expectedSnapshots []int
+		writeToBlocks     []int
+		bootstrapState    *BootstrapState
+	}{
+		{
+			name:              "current block is snapshotable",
+			writeToBlocks:     []int{0},
+			blocks:            []int{0},
+			expectedSnapshots: []int{0},
+		},
+		{
+			name:              "no blocks are snapshottable when not bootstrapped",
+			writeToBlocks:     []int{0},
+			blocks:            []int{0},
+			expectedSnapshots: []int{},
+			bootstrapState:    &bootstraping,
+		},
+		{
+			name:              "previous block is not snapshotable",
+			writeToBlocks:     []int{0},
+			blocks:            []int{-1, 0},
+			expectedSnapshots: []int{0},
+		},
+		{
+			name:              "cold write to a previous block",
+			writeToBlocks:     []int{-1},
+			blocks:            []int{-1, 0},
+			expectedSnapshots: []int{-1},
+		},
+		{
+			name:              "order not lost after filtering",
+			writeToBlocks:     []int{0, -1, -2},
+			blocks:            []int{-1, -2, 0},
+			expectedSnapshots: []int{-1, -2, 0},
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				now           = xtime.Now()
+				opts          = DefaultTestOptions()
+				shard         = testDatabaseShardWithIndexFn(t, opts, nil, true)
+				ctx           = context.NewBackground()
+				blockSize     = shard.namespace.Options().RetentionOptions().BlockSize()
+				getBlockStart = func(idx int) xtime.UnixNano {
+					return now.Add(time.Duration(idx) * blockSize).Truncate(blockSize)
+				}
+				toBlockStarts = func(idxs []int) []xtime.UnixNano {
+					var r []xtime.UnixNano
+					for _, blockNum := range idxs {
+						r = append(r, getBlockStart(blockNum))
+					}
+					return r
+				}
+			)
+			shard.bootstrapState = Bootstrapped
+			if tc.bootstrapState != nil {
+				shard.bootstrapState = *tc.bootstrapState
+			}
+			defer func() {
+				require.NoError(t, shard.Close())
+				ctx.Close()
+			}()
+
+			for _, blockNum := range tc.writeToBlocks {
+				timestamp := getBlockStart(blockNum).Add(time.Second)
+				_, err := shard.Write(ctx, ident.StringID(fmt.Sprintf("foo.%d", 1)),
+					timestamp, 1.0, xtime.Second, nil, series.WriteOptions{},
+				)
+				require.NoError(t, err)
+			}
+
+			assert.Equal(t, toBlockStarts(tc.expectedSnapshots), shard.FilterBlocksNeedSnapshot(toBlockStarts(tc.blocks)))
+		})
+	}
+}
+
+func TestFilterBlocksRequiringSnapshot(t *testing.T) {
+	b1 := xtime.UnixNano(1)
+	b2 := xtime.UnixNano(2)
+	for _, tc := range []struct {
+		name           string
+		emptyBlocks    map[xtime.UnixNano]bool
+		continueSearch bool
+	}{
+		{
+			name:           "all blocks require snapshot",
+			emptyBlocks:    map[xtime.UnixNano]bool{b1: false, b2: false},
+			continueSearch: false,
+		},
+		{
+			name:           "only single block contained series so need to continue the search",
+			emptyBlocks:    map[xtime.UnixNano]bool{b1: true, b2: false},
+			continueSearch: true,
+		},
+		{
+			name:           "no blocks need a snapshot",
+			emptyBlocks:    map[xtime.UnixNano]bool{b1: true, b2: true},
+			continueSearch: true,
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			series := series.NewMockDatabaseSeries(ctrl)
+			series.EXPECT().ID().Return(ident.StringID("test")).AnyTimes()
+			entry := NewEntry(NewEntryOptions{Series: series})
+			var allBlocks []xtime.UnixNano
+			for b, empty := range tc.emptyBlocks {
+				series.EXPECT().IsBufferEmptyAtBlockStart(b).Return(empty)
+				allBlocks = append(allBlocks, b)
+			}
+
+			needs := map[xtime.UnixNano]struct{}{}
+			assert.Equal(t, tc.continueSearch, blocksNeedSnapshotFilter(allBlocks, needs)(entry))
+			for b, empty := range tc.emptyBlocks {
+				_, needsSnapshot := needs[b]
+				assert.Equal(t, !empty, needsSnapshot)
+			}
+		})
+	}
+}
+
 func getMockReader(
 	ctrl *gomock.Controller,
 	t *testing.T,

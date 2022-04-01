@@ -39,9 +39,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	errFlushOperationsInProgress = errors.New("flush operations already in progress")
-)
+var errFlushOperationsInProgress = errors.New("flush operations already in progress")
 
 type flushManagerState int
 
@@ -234,17 +232,17 @@ func (m *flushManager) dataSnapshot(
 		if len(snapshotBlockStarts) > maxBlocksSnapshottedByNamespace {
 			maxBlocksSnapshottedByNamespace = len(snapshotBlockStarts)
 		}
-		for _, snapshotBlockStart := range snapshotBlockStarts {
-			err := ns.Snapshot(
-				snapshotBlockStart, startTime, snapshotPersist)
 
-			if err != nil {
-				detailedErr := fmt.Errorf(
-					"namespace %s failed to snapshot data for blockStart %s: %v",
-					ns.ID().String(), snapshotBlockStart.String(), err)
-				multiErr = multiErr.Add(detailedErr)
-				continue
-			}
+		blockStarts := make([]xtime.UnixNano, 0, len(snapshotBlockStarts))
+		for _, blockStart := range snapshotBlockStarts {
+			blockStarts = append(blockStarts, xtime.ToUnixNano(blockStart))
+		}
+		if err := ns.Snapshot(blockStarts, xtime.ToUnixNano(startTime), snapshotPersist); err != nil {
+			detailedErr := fmt.Errorf(
+				"namespace %s failed to snapshot data for some blocks: %w",
+				ns.ID().String(), err)
+			multiErr = multiErr.Add(detailedErr)
+			continue
 		}
 	}
 	m.metrics.maxBlocksSnapshottedByNamespace.Update(float64(maxBlocksSnapshottedByNamespace))

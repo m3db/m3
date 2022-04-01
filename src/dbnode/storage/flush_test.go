@@ -543,12 +543,15 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 			ns.EXPECT().NeedsFlush(st, st).Return(false, nil)
 		}
 
-		snapshotEnd := now.Add(bufferFuture).Truncate(blockSize)
+		var (
+			snapshotEnd    = now.Add(bufferFuture).Truncate(blockSize)
+			snapshotBlocks []xtime.UnixNano
+		)
 		num = numIntervals(start, snapshotEnd, blockSize)
-		for i := 0; i < num; i++ {
-			st := start.Add(time.Duration(i) * blockSize)
-			ns.EXPECT().Snapshot(st, now, gomock.Any())
+		for i := num - 1; i >= 0; i-- {
+			snapshotBlocks = append(snapshotBlocks, start.Add(time.Duration(i)*blockSize))
 		}
+		ns.EXPECT().Snapshot(snapshotBlocks, now, gomock.Any())
 	}
 
 	require.NoError(t, fm.Flush(now))
