@@ -177,7 +177,6 @@ type dbShardMetrics struct {
 	insertAsyncWriteInvalidParamsErrors tally.Counter
 	insertAsyncIndexErrors              tally.Counter
 	snapshotTotalLatency                tally.Timer
-	snapshotCheckNeedsSnapshotLatency   tally.Timer
 	snapshotPrepareLatency              tally.Timer
 	snapshotMergeByBucketLatency        tally.Timer
 	snapshotMergeAcrossBucketsLatency   tally.Timer
@@ -216,7 +215,6 @@ func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 			"suberror_type": "write-batch-error",
 		}).Counter(insertErrorName),
 		snapshotTotalLatency:              snapshotScope.Timer("total-latency"),
-		snapshotCheckNeedsSnapshotLatency: snapshotScope.Timer("check-needs-snapshot-latency"),
 		snapshotPrepareLatency:            snapshotScope.Timer("prepare-latency"),
 		snapshotMergeByBucketLatency:      snapshotScope.Timer("merge-by-bucket-latency"),
 		snapshotMergeAcrossBucketsLatency: snapshotScope.Timer("merge-across-buckets-latency"),
@@ -2388,6 +2386,43 @@ func (s *dbShard) ColdFlush(
 	return flush, multiErr.FinalError()
 }
 
+func (s *dbShard) FilterBlocksNeedSnapshot(blockStarts []xtime.UnixNano) []xtime.UnixNano {
+	if !s.IsBootstrapped() {
+		return nil
+	}
+
+	needs := map[xtime.UnixNano]struct{}{}
+	s.forEachShardEntry(blocksNeedSnapshotFilter(blockStarts, needs))
+
+	// Note: doing this to keep original ordering. Not sure if that matters though.
+	filtered := make([]xtime.UnixNano, 0, len(needs))
+	for _, bl := range blockStarts {
+		if _, ok := needs[bl]; ok {
+			filtered = append(filtered, bl)
+		}
+	}
+	return filtered
+}
+
+func blocksNeedSnapshotFilter(
+	blockStarts []xtime.UnixNano,
+	needs map[xtime.UnixNano]struct{},
+) func(entry *Entry) bool {
+	return func(entry *Entry) bool {
+		for _, blockStart := range blockStarts {
+			if _, ok := needs[blockStart]; ok {
+				continue
+			}
+			if !entry.Series.IsBufferEmptyAtBlockStart(blockStart) {
+				needs[blockStart] = struct{}{}
+				continue
+			}
+		}
+
+		return len(needs) < len(blockStarts)
+	}
+}
+
 func (s *dbShard) Snapshot(
 	blockStart xtime.UnixNano,
 	snapshotTime xtime.UnixNano,
@@ -2395,33 +2430,14 @@ func (s *dbShard) Snapshot(
 	nsCtx namespace.Context,
 ) (ShardSnapshotResult, error) {
 	// We don't snapshot data when the shard is still bootstrapping
-	s.RLock()
-	if s.bootstrapState != Bootstrapped {
-		s.RUnlock()
+	if !s.IsBootstrapped() {
 		return ShardSnapshotResult{}, errShardNotBootstrappedToSnapshot
 	}
-
-	s.RUnlock()
 
 	// Record per-shard snapshot latency, not many shards so safe
 	// to use a timer.
 	totalTimer := s.metrics.snapshotTotalLatency.Start()
 	defer totalTimer.Stop()
-
-	var needsSnapshot bool
-	checkNeedsSnapshotTimer := s.metrics.snapshotCheckNeedsSnapshotLatency.Start()
-	s.forEachShardEntry(func(entry *Entry) bool {
-		if !entry.Series.IsBufferEmptyAtBlockStart(blockStart) {
-			needsSnapshot = true
-			return false
-		}
-		return true
-	})
-	checkNeedsSnapshotTimer.Stop()
-
-	if !needsSnapshot {
-		return ShardSnapshotResult{}, nil
-	}
 
 	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: s.namespace,
