@@ -136,7 +136,6 @@ type nsIndex struct {
 	forwardIndexDice forwardIndexDice
 
 	doNotIndexWithFields []doc.Field
-	shardSet             sharding.ShardSet
 
 	activeBlock index.Block
 }
@@ -384,7 +383,6 @@ func newNamespaceIndexWithOptions(
 		metrics:        newNamespaceIndexMetrics(indexOpts, instrumentOpts),
 
 		doNotIndexWithFields: doNotIndexWithFields,
-		shardSet:             shardSet,
 	}
 
 	activeBlock, err := idx.newBlockFn(xtime.UnixNano(0), idx.nsMetadata,
@@ -877,7 +875,7 @@ func (i *nsIndex) writeBatchForBlockStart(
 	}
 }
 
-// Bootstrap bootstraps the index with the provide blocks.
+// Bootstrap bootstraps the index with the provided blocks.
 func (i *nsIndex) Bootstrap(
 	bootstrapResults result.IndexResults,
 ) error {

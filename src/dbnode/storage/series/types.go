@@ -112,9 +112,8 @@ type DatabaseSeries interface {
 	// IsEmpty returns whether series is empty (includes both cached blocks and in-mem buffer data).
 	IsEmpty() bool
 
-	// IsBufferEmptyAtBlockStart returns whether the series buffer is empty at block start
-	// (only checks for in-mem buffer data).
-	IsBufferEmptyAtBlockStart(xtime.UnixNano) bool
+	// MarkNonEmptyBlocks marks blocks in a given map that are not empty.
+	MarkNonEmptyBlocks(nonEmptyBlockStarts map[xtime.UnixNano]struct{})
 
 	// NumActiveBlocks returns the number of active blocks the series currently holds.
 	NumActiveBlocks() int

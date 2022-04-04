@@ -387,17 +387,13 @@ type databaseNamespace interface {
 	WarmFlush(blockStart xtime.UnixNano, flush persist.FlushPreparer) error
 
 	// FlushIndex flushes in-memory index data.
-	FlushIndex(
-		flush persist.IndexFlush,
-	) error
+	FlushIndex(flush persist.IndexFlush) error
 
 	// ColdFlush flushes unflushed in-memory ColdWrites.
-	ColdFlush(
-		flush persist.FlushPreparer,
-	) error
+	ColdFlush(flush persist.FlushPreparer) error
 
-	// Snapshot snapshots unflushed in-memory WarmWrites.
-	Snapshot(blockStart, snapshotTime xtime.UnixNano, flush persist.SnapshotPreparer) error
+	// Snapshot snapshots unflushed in-memory warm and cold writes.
+	Snapshot(blockStarts []xtime.UnixNano, snapshotTime xtime.UnixNano, flush persist.SnapshotPreparer) error
 
 	// NeedsFlush returns true if the namespace needs a flush for the
 	// period: [start, end] (both inclusive).
@@ -466,6 +462,12 @@ type Shard interface {
 	// This increments the reader/writer count and so should be decremented when the series
 	// is no longer held.
 	TryRetrieveSeriesAndIncrementReaderWriterCount(id ident.ID) (*Entry, WritableSeriesOptions, error)
+
+	// Close will release the shard resources and close the shard.
+	Close() error
+
+	// Closed indicates if shard was closed using Close.
+	Closed() bool
 }
 
 type databaseShard interface {
@@ -475,9 +477,6 @@ type databaseShard interface {
 	// it here because mockgen chokes on embedded interfaces sometimes:
 	// https://github.com/golang/mock/issues/10
 	OnEvictedFromWiredList(id ident.ID, blockStart xtime.UnixNano)
-
-	// Close will release the shard resources and close the shard.
-	Close() error
 
 	// Tick performs all async updates
 	Tick(c context.Cancellable, startTime xtime.UnixNano, nsCtx namespace.Context) (tickResult, error)
@@ -576,6 +575,9 @@ type databaseShard interface {
 		nsCtx namespace.Context,
 		onFlush persist.OnFlushSeries,
 	) (ShardColdFlush, error)
+
+	// FilterBlocksNeedSnapshot computes which blocks require snapshots.
+	FilterBlocksNeedSnapshot(blockStarts []xtime.UnixNano) []xtime.UnixNano
 
 	// Snapshot snapshot's the unflushed WarmWrites in this shard.
 	Snapshot(

@@ -699,7 +699,7 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 
 	blockSize := ns.Options().RetentionOptions().BlockSize()
 	blockStart := xtime.Now().Truncate(blockSize)
-	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, blockStart, nil))
+	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot([]xtime.UnixNano{blockStart}, blockStart, nil))
 }
 
 func TestNamespaceSnapshotAllShardsSuccess(t *testing.T) {
@@ -763,6 +763,74 @@ func TestNamespaceSnapshotShardSkipNotBootstrapped(t *testing.T) {
 	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
 }
 
+func TestNamespaceSnapshotShardBlockFiltered(t *testing.T) {
+	var (
+		ctrl       = xtest.NewController(t)
+		ctx        = context.NewBackground()
+		now        = xtime.Now()
+		ns, closer = newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
+			namespace.NewOptions().SetSnapshotEnabled(true))
+	)
+	defer func() {
+		ctrl.Finish()
+		ctx.Close()
+		closer()
+	}()
+
+	var (
+		shardBootstrapStates = ShardBootstrapStates{}
+		blockSize            = ns.Options().RetentionOptions().BlockSize()
+		block1               = now.Truncate(blockSize)
+		block2               = block1.Truncate(blockSize)
+		blocks               = []xtime.UnixNano{block2, block1}
+		filteredBlocks       = []xtime.UnixNano{block1}
+	)
+
+	ns.bootstrapState = Bootstrapped
+	ns.nowFn = func() time.Time { return now.ToTime() }
+	shard := newTestShard(ctrl)
+	ns.shards[shard.ID()] = shard
+	shardBootstrapStates[shard.ID()] = Bootstrapped
+	shard.EXPECT().FilterBlocksNeedSnapshot(blocks).Return(filteredBlocks)
+	shard.EXPECT().
+		Snapshot(block1, now, gomock.Any(), gomock.Any()).
+		Return(ShardSnapshotResult{}, nil)
+
+	err := ns.Snapshot(blocks, now, nil)
+	require.NoError(t, err)
+}
+
+func TestNamespaceSnapshotShardBlockAllShardsFiltered(t *testing.T) {
+	var (
+		ctrl       = xtest.NewController(t)
+		ctx        = context.NewBackground()
+		now        = xtime.Now()
+		ns, closer = newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
+			namespace.NewOptions().SetSnapshotEnabled(true))
+	)
+	defer func() {
+		ctrl.Finish()
+		ctx.Close()
+		closer()
+	}()
+
+	var (
+		shardBootstrapStates = ShardBootstrapStates{}
+		blockSize            = ns.Options().RetentionOptions().BlockSize()
+		blocks               = []xtime.UnixNano{now.Truncate(blockSize)}
+	)
+
+	ns.bootstrapState = Bootstrapped
+	ns.nowFn = func() time.Time { return now.ToTime() }
+	shard := newTestShard(ctrl)
+	ns.shards[shard.ID()] = shard
+	shardBootstrapStates[shard.ID()] = Bootstrapped
+	shard.EXPECT().FilterBlocksNeedSnapshot(blocks).Return([]xtime.UnixNano{})
+
+	err := ns.Snapshot(blocks, now, nil)
+	require.NoError(t, err)
+}
+
 func testSnapshotWithShardSnapshotErrs(
 	t *testing.T,
 	shardMethodResults []snapshotTestCase,
@@ -796,6 +864,9 @@ func testSnapshotWithShardSnapshotErrs(
 		if !tc.isBootstrapped {
 			continue
 		}
+		shard.EXPECT().
+			FilterBlocksNeedSnapshot([]xtime.UnixNano{blockStart}).
+			Return([]xtime.UnixNano{blockStart})
 		if tc.expectSnapshot {
 			shard.EXPECT().
 				Snapshot(blockStart, now, gomock.Any(), gomock.Any()).
@@ -805,7 +876,7 @@ func testSnapshotWithShardSnapshotErrs(
 		shardBootstrapStates[shardID] = tc.shardBootstrapStateBeforeTick
 	}
 
-	return ns.Snapshot(blockStart, now, nil)
+	return ns.Snapshot([]xtime.UnixNano{blockStart}, now, nil)
 }
 
 func TestNamespaceTruncate(t *testing.T) {
@@ -1779,4 +1850,12 @@ func contains(c []uint32, x uint32) bool {
 		}
 	}
 	return false
+}
+
+func newTestShard(ctrl *gomock.Controller) *MockdatabaseShard {
+	s := NewMockdatabaseShard(ctrl)
+	shardID := testShardIDs[0].ID()
+	s.EXPECT().ID().Return(shardID).AnyTimes()
+	s.EXPECT().IsBootstrapped().Return(true)
+	return s
 }
