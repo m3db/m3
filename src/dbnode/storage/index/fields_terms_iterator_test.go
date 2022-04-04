@@ -356,6 +356,10 @@ type stubTermIterator struct {
 	points  []iterpoint
 }
 
+func (s *stubTermIterator) Empty() bool {
+	return len(s.points) == 0
+}
+
 func (s *stubTermIterator) Next() bool {
 	if len(s.points) == 0 {
 		return false

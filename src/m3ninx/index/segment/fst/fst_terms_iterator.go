@@ -114,6 +114,10 @@ func (f *fstTermsIter) CurrentOffset() uint64 {
 	return f.currentValue
 }
 
+func (f *fstTermsIter) Empty() bool {
+	return f.Len() == 0
+}
+
 func (f *fstTermsIter) Current() []byte {
 	return f.current
 }

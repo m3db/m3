@@ -100,7 +100,11 @@ func TestFieldPostingsListIterFromSegments(t *testing.T) {
 				Fields: []doc.Field{
 					{Name: []byte("delta"), Value: []byte("22")},
 					{Name: []byte("gamma"), Value: []byte("33")},
-					{Name: []byte("theta"), Value: []byte("44")},
+					// Test field that alphanumerically precedes the specialized
+					// IDReservedFieldName which is prefixed with _. The iterators
+					// here sort fields and so we want to make sure fields that
+					// precede that special field still work properly.
+					{Name: []byte("__snowflake"), Value: []byte("44")},
 				},
 			},
 		}),
@@ -113,18 +117,57 @@ func TestFieldPostingsListIterFromSegments(t *testing.T) {
 	require.NoError(t, builder.AddSegments(segments))
 	iter, err := b.FieldsPostingsList()
 	require.NoError(t, err)
-	// Perform both present/not present checks per field/field postings list.
+
+	// Confirm all posting list fields are present in docs.
 	for iter.Next() {
 		field, pl := iter.Current()
 		docIter, err := b.AllDocs()
 		require.NoError(t, err)
 		for docIter.Next() {
-			doc := docIter.Current()
+			d := docIter.Current()
 			pID := docIter.PostingsID()
-			found := checkIfFieldExistsInDoc(field, doc)
-			require.Equal(t, found, pl.Contains(pID))
+			found := checkIfFieldExistsInDoc(field, d)
+
+			// Special case ID field which is present in postings list
+			// for all indexes but not part of the doc itself.
+			if bytes.Equal(field, doc.IDReservedFieldName) {
+				require.Equal(t, found, false)
+				require.Equal(t, pl.Contains(pID), true)
+			} else {
+				require.Equal(t, found, pl.Contains(pID))
+			}
+		}
+		require.NoError(t, docIter.Err())
+		require.NoError(t, docIter.Close())
+	}
+	require.NoError(t, iter.Err())
+	require.NoError(t, iter.Close())
+
+	// Confirm all docs' fields are present in postings list.
+	docIter, err := b.AllDocs()
+	require.NoError(t, err)
+	for docIter.Next() {
+		doc := docIter.Current()
+
+		for _, f := range doc.Fields {
+			iter, err := b.FieldsPostingsList()
+			require.NoError(t, err)
+
+			present := false
+			for iter.Next() {
+				field, _ := iter.Current()
+				present = present || bytes.Equal(f.Name, field)
+				if present {
+					break
+				}
+			}
+			require.True(t, present)
+			require.NoError(t, iter.Err())
+			require.NoError(t, iter.Close())
 		}
 	}
+	require.NoError(t, docIter.Err())
+	require.NoError(t, docIter.Close())
 }
 
 func checkIfFieldExistsInDoc(
