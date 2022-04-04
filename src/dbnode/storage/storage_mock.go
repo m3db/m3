@@ -1776,6 +1776,34 @@ func (mr *MockShardMockRecorder) BootstrapState() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockShard)(nil).BootstrapState))
 }
 
+// Close mocks base method.
+func (m *MockShard) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockShardMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockShard)(nil).Close))
+}
+
+// Closed mocks base method.
+func (m *MockShard) Closed() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Closed")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Closed indicates an expected call of Closed.
+func (mr *MockShardMockRecorder) Closed() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Closed", reflect.TypeOf((*MockShard)(nil).Closed))
+}
+
 // ID mocks base method.
 func (m *MockShard) ID() uint32 {
 	m.ctrl.T.Helper()
@@ -1955,6 +1983,20 @@ func (m *MockdatabaseShard) Close() error {
 func (mr *MockdatabaseShardMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockdatabaseShard)(nil).Close))
+}
+
+// Closed mocks base method.
+func (m *MockdatabaseShard) Closed() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Closed")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Closed indicates an expected call of Closed.
+func (mr *MockdatabaseShardMockRecorder) Closed() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Closed", reflect.TypeOf((*MockdatabaseShard)(nil).Closed))
 }
 
 // ColdFlush mocks base method.

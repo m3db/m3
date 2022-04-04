@@ -655,6 +655,10 @@ func (s *dbShard) Close() error {
 	return err
 }
 
+func (s *dbShard) Closed() bool {
+	return s.isClosing()
+}
+
 func (s *dbShard) isClosing() bool {
 	s.RLock()
 	closing := s.isClosingWithLock()
