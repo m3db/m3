@@ -105,6 +105,20 @@ func (mr *MockEncoderMockRecorder) DiscardReset(t, capacity, schema interface{})
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiscardReset", reflect.TypeOf((*MockEncoder)(nil).DiscardReset), t, capacity, schema)
 }
 
+// Empty mocks base method.
+func (m *MockEncoder) Empty() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Empty")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Empty indicates an expected call of Empty.
+func (mr *MockEncoderMockRecorder) Empty() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Empty", reflect.TypeOf((*MockEncoder)(nil).Empty))
+}
+
 // Encode mocks base method.
 func (m *MockEncoder) Encode(dp ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
 	m.ctrl.T.Helper()

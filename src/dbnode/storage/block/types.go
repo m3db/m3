@@ -151,6 +151,9 @@ type DatabaseBlock interface {
 	// LastReadTime returns the last read time of the block.
 	LastReadTime() xtime.UnixNano
 
+	// Empty returns true iff block is empty.
+	Empty() bool
+
 	// Len returns the block length.
 	Len() int
 

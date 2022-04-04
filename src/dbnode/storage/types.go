@@ -387,17 +387,13 @@ type databaseNamespace interface {
 	WarmFlush(blockStart xtime.UnixNano, flush persist.FlushPreparer) error
 
 	// FlushIndex flushes in-memory index data.
-	FlushIndex(
-		flush persist.IndexFlush,
-	) error
+	FlushIndex(flush persist.IndexFlush) error
 
 	// ColdFlush flushes unflushed in-memory ColdWrites.
-	ColdFlush(
-		flush persist.FlushPreparer,
-	) error
+	ColdFlush(flush persist.FlushPreparer) error
 
-	// Snapshot snapshots unflushed in-memory WarmWrites.
-	Snapshot(blockStart, snapshotTime xtime.UnixNano, flush persist.SnapshotPreparer) error
+	// Snapshot snapshots unflushed in-memory warm and cold writes.
+	Snapshot(blockStarts []xtime.UnixNano, snapshotTime xtime.UnixNano, flush persist.SnapshotPreparer) error
 
 	// NeedsFlush returns true if the namespace needs a flush for the
 	// period: [start, end] (both inclusive).
@@ -576,6 +572,9 @@ type databaseShard interface {
 		nsCtx namespace.Context,
 		onFlush persist.OnFlushSeries,
 	) (ShardColdFlush, error)
+
+	// FilterBlocksNeedSnapshot computes which blocks require snapshots.
+	FilterBlocksNeedSnapshot(blockStarts []xtime.UnixNano) []xtime.UnixNano
 
 	// Snapshot snapshot's the unflushed WarmWrites in this shard.
 	Snapshot(

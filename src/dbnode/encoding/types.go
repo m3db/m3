@@ -69,6 +69,9 @@ type Encoder interface {
 	// an error is returned.
 	LastAnnotationChecksum() (uint64, error)
 
+	// Empty returns true when encoder is considered empty.
+	Empty() bool
+
 	// Len returns the length of the encoded stream as returned by a call to Stream().
 	Len() int
 

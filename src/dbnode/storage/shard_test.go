@@ -848,7 +848,10 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 		entry := series.NewMockDatabaseSeries(ctrl)
 		entry.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		entry.EXPECT().IsEmpty().Return(false).AnyTimes()
-		entry.EXPECT().IsBufferEmptyAtBlockStart(blockStart).Return(false).AnyTimes()
+		entry.EXPECT().MarkNonEmptyBlocks(blockStart).
+			DoAndReturn(func(nonEmptyBlockStarts map[xtime.UnixNano]struct{}) {
+				nonEmptyBlockStarts[blockStart] = struct{}{}
+			}).AnyTimes()
 		entry.EXPECT().
 			Snapshot(gomock.Any(), blockStart, gomock.Any(), gomock.Any()).
 			Do(func(context.Context, xtime.UnixNano, persist.DataFn, namespace.Context) {
@@ -2031,34 +2034,124 @@ func TestSeriesRefResolverAsync(t *testing.T) {
 	require.Equal(t, int32(0), entryInShard.ReaderWriterCount())
 }
 
-func getMockReader(
-	ctrl *gomock.Controller,
-	t *testing.T,
-	shard *dbShard,
-	blockStart xtime.UnixNano,
-	openError error,
-) (*fs.MockDataFileSetReader, int) {
-	latestSourceVolume, err := shard.LatestVolume(blockStart)
-	require.NoError(t, err)
-
-	openOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   shard.namespace.ID(),
-			Shard:       shard.ID(),
-			BlockStart:  blockStart,
-			VolumeIndex: latestSourceVolume,
+func TestFilterBlocksNeedSnapshot(t *testing.T) {
+	bootstraping := Bootstrapping
+	for _, tc := range []struct {
+		name              string
+		blocks            []int
+		expectedSnapshots []int
+		seriesWritten     [][]int
+		bootstrapState    *BootstrapState
+	}{
+		{
+			name:              "all blocks are empty",
+			seriesWritten:     [][]int{},
+			blocks:            []int{-2, -1, 0},
+			expectedSnapshots: []int{},
 		},
-		FileSetType:      persist.FileSetFlushType,
-		StreamingEnabled: true,
-	}
+		{
+			name:              "all blocks snapshotable",
+			seriesWritten:     [][]int{{-2, -1, 0}},
+			blocks:            []int{-2, -1, 0},
+			expectedSnapshots: []int{-2, -1, 0},
+		},
+		{
+			name:              "different series written to different blocks",
+			seriesWritten:     [][]int{{0}, {-1}, {-2}},
+			blocks:            []int{-2, -1, 0},
+			expectedSnapshots: []int{-2, -1, 0},
+		},
+		{
+			name:              "different series written to different blocks single block checked",
+			seriesWritten:     [][]int{{0}, {-1}, {-2}},
+			blocks:            []int{-1},
+			expectedSnapshots: []int{-1},
+		},
+		{
+			name: "requested blocks are satisfied only by single series",
+			seriesWritten: [][]int{
+				{-2, 0},
+				{-1},
+			},
+			blocks:            []int{-1},
+			expectedSnapshots: []int{-1},
+		},
+		{
+			name:              "current block is snapshotable",
+			seriesWritten:     [][]int{{0}},
+			blocks:            []int{0},
+			expectedSnapshots: []int{0},
+		},
+		{
+			name:              "no blocks are snapshottable when not bootstrapped",
+			seriesWritten:     [][]int{{0}},
+			blocks:            []int{0},
+			expectedSnapshots: []int{},
+			bootstrapState:    &bootstraping,
+		},
+		{
+			name:              "previous block is not snapshotable",
+			seriesWritten:     [][]int{{0}},
+			blocks:            []int{-1, 0},
+			expectedSnapshots: []int{0},
+		},
+		{
+			name:              "cold write to a previous block",
+			seriesWritten:     [][]int{{-1}},
+			blocks:            []int{-1, 0},
+			expectedSnapshots: []int{-1},
+		},
+		{
+			name:              "order not lost after filtering",
+			seriesWritten:     [][]int{{0, -1, -2}},
+			blocks:            []int{-1, -2, 0},
+			expectedSnapshots: []int{-1, -2, 0},
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				now           = xtime.Now()
+				opts          = DefaultTestOptions()
+				shard         = testDatabaseShardWithIndexFn(t, opts, nil, true)
+				ctx           = context.NewBackground()
+				blockSize     = shard.namespace.Options().RetentionOptions().BlockSize()
+				getBlockStart = func(idx int) xtime.UnixNano {
+					return now.Add(time.Duration(idx) * blockSize).Truncate(blockSize)
+				}
+				toBlockStarts = func(idxs []int) []xtime.UnixNano {
+					var r []xtime.UnixNano
+					for _, blockNum := range idxs {
+						r = append(r, getBlockStart(blockNum))
+					}
+					return r
+				}
+			)
+			shard.bootstrapState = Bootstrapped
+			if tc.bootstrapState != nil {
+				shard.bootstrapState = *tc.bootstrapState
+			}
+			defer func() {
+				require.NoError(t, shard.Close())
+				ctx.Close()
+			}()
 
-	reader := fs.NewMockDataFileSetReader(ctrl)
-	if openError == nil {
-		reader.EXPECT().Open(openOpts).Return(nil)
-		reader.EXPECT().Close()
-	} else {
-		reader.EXPECT().Open(openOpts).Return(openError)
-	}
+			for idx, seriesWritten := range tc.seriesWritten {
+				for _, blockNum := range seriesWritten {
+					timestamp := getBlockStart(blockNum).Add(time.Second)
+					_, err := shard.Write(ctx, ident.StringID(fmt.Sprintf("foo.%d", idx)),
+						timestamp, 1.0, xtime.Second, nil, series.WriteOptions{},
+					)
+					require.NoError(t, err)
+				}
+			}
 
-	return reader, latestSourceVolume
+			res := shard.FilterBlocksNeedSnapshot(toBlockStarts(tc.blocks))
+			if len(tc.expectedSnapshots) == 0 {
+				assert.Empty(t, res)
+			} else {
+				assert.Equal(t, toBlockStarts(tc.expectedSnapshots), shard.FilterBlocksNeedSnapshot(toBlockStarts(tc.blocks)))
+			}
+		})
+	}
 }

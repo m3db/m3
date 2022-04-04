@@ -297,7 +297,7 @@ func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 	return enc.lastEncodedDP, nil
 }
 
-// LastAnnotation returns the checksum of the last encoded annotation (which contain the bytes
+// LastAnnotationChecksum returns the checksum of the last encoded annotation (which contain the bytes
 // used for ProtoBuf data).
 func (enc *Encoder) LastAnnotationChecksum() (uint64, error) {
 	if enc.numEncoded == 0 {
@@ -310,6 +310,11 @@ func (enc *Encoder) LastAnnotationChecksum() (uint64, error) {
 // Len returns the length of the data stream.
 func (enc *Encoder) Len() int {
 	return enc.stream.Len()
+}
+
+// Empty returns true when underlying stream is empty.
+func (enc *Encoder) Empty() bool {
+	return enc.stream.Empty()
 }
 
 // Stats returns EncoderStats which contain statistics about the encoders compression

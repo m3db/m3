@@ -1625,17 +1625,17 @@ func (mr *MockdatabaseNamespaceMockRecorder) Shards() *gomock.Call {
 }
 
 // Snapshot mocks base method.
-func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time0.UnixNano, flush persist.SnapshotPreparer) error {
+func (m *MockdatabaseNamespace) Snapshot(blockStarts []time0.UnixNano, snapshotTime time0.UnixNano, flush persist.SnapshotPreparer) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotTime, flush)
+	ret := m.ctrl.Call(m, "Snapshot", blockStarts, snapshotTime, flush)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Snapshot indicates an expected call of Snapshot.
-func (mr *MockdatabaseNamespaceMockRecorder) Snapshot(blockStart, snapshotTime, flush interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) Snapshot(blockStarts, snapshotTime, flush interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseNamespace)(nil).Snapshot), blockStart, snapshotTime, flush)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseNamespace)(nil).Snapshot), blockStarts, snapshotTime, flush)
 }
 
 // StorageOptions mocks base method.
@@ -2032,6 +2032,20 @@ func (m *MockdatabaseShard) FetchBlocksMetadataV2(ctx context.Context, start, en
 func (mr *MockdatabaseShardMockRecorder) FetchBlocksMetadataV2(ctx, start, end, limit, pageToken, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataV2", reflect.TypeOf((*MockdatabaseShard)(nil).FetchBlocksMetadataV2), ctx, start, end, limit, pageToken, opts)
+}
+
+// FilterBlocksNeedSnapshot mocks base method.
+func (m *MockdatabaseShard) FilterBlocksNeedSnapshot(blockStarts []time0.UnixNano) []time0.UnixNano {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FilterBlocksNeedSnapshot", blockStarts)
+	ret0, _ := ret[0].([]time0.UnixNano)
+	return ret0
+}
+
+// FilterBlocksNeedSnapshot indicates an expected call of FilterBlocksNeedSnapshot.
+func (mr *MockdatabaseShardMockRecorder) FilterBlocksNeedSnapshot(blockStarts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilterBlocksNeedSnapshot", reflect.TypeOf((*MockdatabaseShard)(nil).FilterBlocksNeedSnapshot), blockStarts)
 }
 
 // FlushState mocks base method.
