@@ -162,20 +162,6 @@ func (mr *MockDatabaseSeriesMockRecorder) ID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockDatabaseSeries)(nil).ID))
 }
 
-// IsBufferEmptyAtBlockStart mocks base method.
-func (m *MockDatabaseSeries) IsBufferEmptyAtBlockStart(arg0 time.UnixNano) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsBufferEmptyAtBlockStart", arg0)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsBufferEmptyAtBlockStart indicates an expected call of IsBufferEmptyAtBlockStart.
-func (mr *MockDatabaseSeriesMockRecorder) IsBufferEmptyAtBlockStart(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBufferEmptyAtBlockStart", reflect.TypeOf((*MockDatabaseSeries)(nil).IsBufferEmptyAtBlockStart), arg0)
-}
-
 // IsEmpty mocks base method.
 func (m *MockDatabaseSeries) IsEmpty() bool {
 	m.ctrl.T.Helper()
@@ -202,6 +188,18 @@ func (m *MockDatabaseSeries) LoadBlock(arg0 block.DatabaseBlock, arg1 WriteType)
 func (mr *MockDatabaseSeriesMockRecorder) LoadBlock(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBlock", reflect.TypeOf((*MockDatabaseSeries)(nil).LoadBlock), arg0, arg1)
+}
+
+// MarkNonEmptyBlocks mocks base method.
+func (m *MockDatabaseSeries) MarkNonEmptyBlocks(arg0 map[time.UnixNano]struct{}) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "MarkNonEmptyBlocks", arg0)
+}
+
+// MarkNonEmptyBlocks indicates an expected call of MarkNonEmptyBlocks.
+func (mr *MockDatabaseSeriesMockRecorder) MarkNonEmptyBlocks(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkNonEmptyBlocks", reflect.TypeOf((*MockDatabaseSeries)(nil).MarkNonEmptyBlocks), arg0)
 }
 
 // Metadata mocks base method.

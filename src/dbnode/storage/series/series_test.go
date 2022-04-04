@@ -88,6 +88,9 @@ func TestSeriesEmpty(t *testing.T) {
 		Options: opts,
 	})
 	assert.True(t, series.IsEmpty())
+	nonEmptyBlocks := map[xtime.UnixNano]struct{}{}
+	series.MarkNonEmptyBlocks(nonEmptyBlocks)
+	assert.Empty(t, nonEmptyBlocks)
 }
 
 // Writes to series, verifying no error and that further writes should happen.
@@ -148,6 +151,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, streams, 1)
 	requireSegmentValuesEqual(t, data[:2], streams, opts, namespace.Context{})
+	requireBlockNotEmpty(t, series, start)
 }
 
 func TestSeriesSamePointDoesNotWrite(t *testing.T) {
@@ -388,6 +392,7 @@ func TestSeriesBootstrapAndLoad(t *testing.T) {
 
 				err := series.LoadBlock(dbBlock, writeType)
 				require.NoError(t, err)
+				requireBlockNotEmpty(t, series, blockStart)
 			}
 
 			t.Run("Data can be read", func(t *testing.T) {
@@ -1336,4 +1341,10 @@ func TestSeriesCloseCacheLRUPolicy(t *testing.T) {
 
 	series.cachedBlocks = blocks
 	series.Close()
+}
+
+func requireBlockNotEmpty(t *testing.T, series *dbSeries, blockStart xtime.UnixNano) {
+	nonEmptyBlocks := map[xtime.UnixNano]struct{}{}
+	series.MarkNonEmptyBlocks(nonEmptyBlocks)
+	assert.Contains(t, nonEmptyBlocks, blockStart)
 }

@@ -326,6 +326,11 @@ func (enc *encoder) LastAnnotationChecksum() (uint64, error) {
 	return enc.tsEncoderState.PrevAnnotationChecksum, nil
 }
 
+// Empty returns true when underlying stream is empty.
+func (enc *encoder) Empty() bool {
+	return enc.os.Empty()
+}
+
 // Len returns the length of the final data stream that would be generated
 // by a call to Stream().
 func (enc *encoder) Len() int {
