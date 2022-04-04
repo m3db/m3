@@ -27,6 +27,7 @@ var EmptyOrderedBytesIterator OrderedBytesIterator = emptyBytesIter{}
 
 type emptyBytesIter struct{}
 
+func (e emptyBytesIter) Empty() bool     { return true }
 func (e emptyBytesIter) Next() bool      { return false }
 func (e emptyBytesIter) Current() []byte { return nil }
 func (e emptyBytesIter) Err() error      { return nil }
@@ -38,6 +39,7 @@ var EmptyTermsIterator TermsIterator = emptyTermsIter{}
 
 type emptyTermsIter struct{}
 
+func (e emptyTermsIter) Empty() bool                      { return true }
 func (e emptyTermsIter) Next() bool                       { return false }
 func (e emptyTermsIter) Current() ([]byte, postings.List) { return nil, nil }
 func (e emptyTermsIter) Err() error                       { return nil }

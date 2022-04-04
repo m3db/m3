@@ -90,6 +90,10 @@ func (b *termsIter) Len() int {
 	return len(b.backingSlice)
 }
 
+func (b *termsIter) Empty() bool {
+	return len(b.backingSlice) == 0
+}
+
 func (b *termsIter) Close() error {
 	b.current = nil
 	b.opts.BytesSliceArrayPool().Put(b.backingSlice)

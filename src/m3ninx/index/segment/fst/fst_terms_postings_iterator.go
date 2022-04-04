@@ -79,6 +79,10 @@ func (f *fstTermsPostingsIter) reset(
 	f.termsIter = termsIter
 }
 
+func (f *fstTermsPostingsIter) Empty() bool {
+	return f.termsIter.Empty()
+}
+
 func (f *fstTermsPostingsIter) Next() bool {
 	if f.err != nil {
 		return false

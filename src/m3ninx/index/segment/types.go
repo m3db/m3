@@ -132,6 +132,9 @@ type FieldsIterator interface {
 	// Current returns the current field.
 	// NB: the field returned is only valid until the subsequent call to Next().
 	Current() []byte
+
+	// Empty returns true if there are no fields in the iterator.
+	Empty() bool
 }
 
 // TermsIterator iterates over all known terms for the provided field.
@@ -141,6 +144,9 @@ type TermsIterator interface {
 	// Current returns the current element.
 	// NB: the element returned is only valid until the subsequent call to Next().
 	Current() (term []byte, postings postings.List)
+
+	// Empty returns true if there are no terms.
+	Empty() bool
 }
 
 // Iterator holds common iterator methods.

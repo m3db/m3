@@ -45,6 +45,10 @@ func newTermsIter(
 	}
 }
 
+func (b *termsIter) Empty() bool {
+	return b.Len() == 0
+}
+
 func (b *termsIter) Next() bool {
 	if b.done || b.err != nil {
 		return false

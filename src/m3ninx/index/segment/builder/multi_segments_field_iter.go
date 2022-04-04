@@ -38,7 +38,7 @@ func newFieldIterFromSegments(
 		if err != nil {
 			return nil, err
 		}
-		if !iter.Next() {
+		if iter.Empty() {
 			// Don't consume this iterator if no results.
 			if err := xerrors.FirstError(iter.Err(), iter.Close()); err != nil {
 				return nil, err
