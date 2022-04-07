@@ -21,6 +21,7 @@
 package instrument
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"os"
@@ -80,7 +81,15 @@ func LogBuildInfo() {
 	LogBuildInfoWithLogger(log.Default())
 }
 
-// LogBuildInfoWithLogger logs the build information using the provided logger.
+// LogBuildInfoJSON logs the build information in JSON using the default logger.
+func LogBuildInfoJSON() {
+	err := LogBuildInfoWithLoggerJSON(log.Default(), json.Marshal)
+	if err != nil {
+		log.Default().Fatalf("Error converting build info to JSON %s", err.Error())
+	}
+}
+
+// LogBuildInfoWithLogger logs the build information using the provided logger
 func LogBuildInfoWithLogger(logger *log.Logger) {
 	logger.Printf("Go Runtime version: %s\n", goVersion)
 	logger.Printf("Build Version:      %s\n", Version)
@@ -88,6 +97,28 @@ func LogBuildInfoWithLogger(logger *log.Logger) {
 	logger.Printf("Build Branch:       %s\n", Branch)
 	logger.Printf("Build Date:         %s\n", BuildDate)
 	logger.Printf("Build TimeUnix:     %s\n", BuildTimeUnix)
+}
+
+// LogBuildInfoWithLoggerJSON logs the build information using the provided logger in JSON
+func LogBuildInfoWithLoggerJSON(logger *log.Logger, jsonMarshalFunc func(interface{}) ([]byte, error)) error {
+	buildMap := make(map[string]string)
+	buildMap["go_runtime_version"] = goVersion
+	buildMap["build_version"] = Version
+	buildMap["build_revision"] = Revision
+	buildMap["build_branch"] = Branch
+	buildMap["build_date"] = BuildDate
+	buildMap["build_time_unix"] = BuildTimeUnix
+
+	jsonOut, err := jsonMarshalFunc(buildMap)
+	if err != nil {
+		return err
+	}
+	// If we're logging in pure JSON, remove the timestamp flag since that's in plaintext. Set it back after
+	// emitting the Build Info.
+	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
+	logger.Printf(string(jsonOut))
+	log.SetFlags(log.LstdFlags)
+	return nil
 }
 
 func init() {
