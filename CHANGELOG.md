@@ -1,5 +1,16 @@
 # Changelog
 
+# 1.5.0
+
+## Features and Performance
+
+- **M3DB**: Optimize snapshotting by 30x or more which can speedup bootstrapping for workloads with large snapshots. ([#4093](https://github.com/m3db/m3/pull/4093))
+
+## Bug Fixes
+
+- **M3DB**: Fix multi-segment field iterator support of double underscore prefixed fields alphanumerically before `__m3ninx_id`. ([#4095](https://github.com/m3db/m3/pull/4095))
+- **M3DB**: Proactively GC Index entries belonging to a closed shard after cluster topology change. ([#4094](https://github.com/m3db/m3/pull/4094))
+
 # 1.4.2
 
 ## Bug Fixes
