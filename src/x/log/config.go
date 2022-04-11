@@ -53,6 +53,12 @@ type encoderConfig struct {
 
 // BuildLogger builds a new Logger based on the configuration.
 func (cfg Configuration) BuildLogger() (*zap.Logger, error) {
+	logger, _, err := cfg.BuildLoggerAndReturnConfig()
+	return logger, err
+}
+
+// BuildLoggerAndReturnConfig builds a new Logger based on the configuration and returns a zap.Config object.
+func (cfg Configuration) BuildLoggerAndReturnConfig() (*zap.Logger, *zap.Config, error) {
 	zc := zap.Config{
 		Level:             zap.NewAtomicLevelAt(zap.InfoLevel),
 		Development:       false,
@@ -77,12 +83,12 @@ func (cfg Configuration) BuildLogger() (*zap.Logger, error) {
 	if len(cfg.Level) != 0 {
 		var parsedLevel zap.AtomicLevel
 		if err := parsedLevel.UnmarshalText([]byte(cfg.Level)); err != nil {
-			return nil, fmt.Errorf("unable to parse log level %s: %v", cfg.Level, err)
+			return nil, nil, fmt.Errorf("unable to parse log level %s: %w", cfg.Level, err)
 		}
 		zc.Level = parsedLevel
 	}
-
-	return zc.Build()
+	logger, err := zc.Build()
+	return logger, &zc, err
 }
 
 func (cfg Configuration) newEncoderConfig() zapcore.EncoderConfig {
