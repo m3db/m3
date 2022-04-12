@@ -120,3 +120,42 @@ func TestLoggerEncoderConfiguraion(t *testing.T) {
 		})
 	}
 }
+
+func TestGettingLoggerZapConfig(t *testing.T) {
+	tmpfile, err := ioutil.TempFile("", "logtest")
+	require.NoError(t, err)
+
+	defer func() {
+		err = tmpfile.Close()
+		err = os.Remove(tmpfile.Name())
+	}()
+
+	cfg := Configuration{
+		Fields: map[string]interface{}{
+			"my-field": "my-val",
+		},
+		Level: "error",
+		File:  tmpfile.Name(),
+	}
+
+	log, zapConfig, err := cfg.BuildLoggerAndReturnConfig()
+	require.NoError(t, err)
+
+	log.Info("should not appear")
+	log.Warn("should not appear")
+	log.Error("this should appear")
+
+	zapConfig.Level.SetLevel(zapcore.InfoLevel)
+	log.Info("info should now appear")
+	log.Warn("warn should now appear")
+	b, err := ioutil.ReadAll(tmpfile)
+	require.NoError(t, err)
+
+	data := string(b)
+	require.Equal(t, 3, strings.Count(data, "\n"), data)
+	require.True(t, strings.Contains(data, `"msg":"this should appear"`))
+	require.True(t, strings.Contains(data, `"my-field":"my-val"`))
+	require.True(t, strings.Contains(data, `"level":"error"`))
+	require.True(t, strings.Contains(data, `"msg":"info should now appear"`))
+	require.True(t, strings.Contains(data, `"msg":"warn should now appear"`))
+}
