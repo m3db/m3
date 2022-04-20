@@ -25,18 +25,15 @@ import (
 
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/producer"
-	"github.com/m3db/m3/src/x/pool"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestMessagePool(t *testing.T) {
-	p := newMessagePool(pool.NewObjectPoolOptions().SetSize(1))
-	p.Init()
+	p := newMessagePool()
 
 	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Size().Return(3)
@@ -60,15 +57,4 @@ func TestMessagePool(t *testing.T) {
 	m.Close()
 	require.Nil(t, m.pb.Value)
 	p.Put(m)
-
-	m = p.Get()
-	require.Nil(t, m.pb.Value)
-	require.True(t, m.IsDroppedOrConsumed())
-	require.Equal(t, int64(500), m.InitNanos())
-
-	mm.EXPECT().Size().Return(3)
-	mm.EXPECT().Bytes().Return([]byte("foo"))
-	m.Set(metadata{}, producer.NewRefCountedMessage(mm, nil), 600)
-	require.False(t, m.IsDroppedOrConsumed())
-	require.Equal(t, int64(600), m.InitNanos())
 }

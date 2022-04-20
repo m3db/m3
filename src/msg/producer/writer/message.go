@@ -45,10 +45,7 @@ type message struct {
 }
 
 func newMessage() *message {
-	return &message{
-		retryAtNanos: 0,
-		retried:      0,
-	}
+	return &message{}
 }
 
 // Set sets the message.
@@ -61,6 +58,7 @@ func (m *message) Set(meta metadata, rm *producer.RefCountedMessage, initNanos i
 
 // Close resets the states of the message.
 func (m *message) Close() {
+	m.RefCountedMessage = nil
 	m.retryAtNanos = 0
 	m.retried = 0
 	m.isAcked.Store(false)

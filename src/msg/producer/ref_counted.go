@@ -103,13 +103,12 @@ func (rm *RefCountedMessage) IsDroppedOrConsumed() bool {
 }
 
 func (rm *RefCountedMessage) finalize(r FinalizeReason) bool {
+	if rm.isDroppedOrConsumed.Load() {
+		return false
+	}
 	// NB: This lock prevents the message from being finalized when its still
 	// being read.
 	rm.mu.Lock()
-	if rm.isDroppedOrConsumed.Load() {
-		rm.mu.Unlock()
-		return false
-	}
 	rm.isDroppedOrConsumed.Store(true)
 	rm.mu.Unlock()
 	if rm.onFinalizeFn != nil {
