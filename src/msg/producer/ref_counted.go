@@ -43,6 +43,10 @@ type RefCountedMessage struct {
 
 // NewRefCountedMessage creates RefCountedMessage.
 func NewRefCountedMessage(m Message, fn OnFinalizeFn) *RefCountedMessage {
+	if fn == nil {
+		// in non-test code the finalizer is always set.
+		fn = noopFinalizer
+	}
 	return &RefCountedMessage{
 		Message:      m,
 		size:         uint64(m.Size()),
@@ -103,17 +107,19 @@ func (rm *RefCountedMessage) IsDroppedOrConsumed() bool {
 }
 
 func (rm *RefCountedMessage) finalize(r FinalizeReason) bool {
-	if rm.isDroppedOrConsumed.Load() {
-		return false
-	}
 	// NB: This lock prevents the message from being finalized when its still
 	// being read.
 	rm.mu.Lock()
+	if rm.isDroppedOrConsumed.Load() {
+		rm.mu.Unlock()
+		return false
+	}
 	rm.isDroppedOrConsumed.Store(true)
 	rm.mu.Unlock()
-	if rm.onFinalizeFn != nil {
-		rm.onFinalizeFn(rm)
-	}
+
+	rm.onFinalizeFn(rm)
 	rm.Message.Finalize(r)
 	return true
 }
+
+func noopFinalizer(rm *RefCountedMessage) {}
