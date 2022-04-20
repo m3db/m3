@@ -230,7 +230,9 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 
 	router := newAckRouter(2).(*router)
 	opts := testOptions()
-	sw := newReplicatedShardWriter(1, 200, router, newMessagePool(), opts, testMessageWriterMetrics()).(*replicatedShardWriter)
+	sw := newReplicatedShardWriter(
+		1, 200, router, newMessagePool(), opts, testMessageWriterMetrics(),
+	).(*replicatedShardWriter)
 
 	lis1, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
