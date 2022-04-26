@@ -42,7 +42,7 @@ func BenchmarkScanMessageQueue(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		w := newMessageWriter(
 			200,
-			testMessagePool(opts),
+			newMessagePool(),
 			opts,
 			testMessageWriterMetrics(),
 		).(*messageWriterImpl)

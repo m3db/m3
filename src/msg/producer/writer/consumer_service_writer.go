@@ -165,12 +165,8 @@ func initShardWriters(
 			opts.InstrumentOptions().TimerOptions(),
 			opts.WithoutConsumerScope(),
 		)
-		mPool messagePool
+		mPool = newMessagePool()
 	)
-	if opts.MessagePoolOptions() != nil {
-		mPool = newMessagePool(opts.MessagePoolOptions())
-		mPool.Init()
-	}
 	for i := range sws {
 		switch ct {
 		case topic.Shared:

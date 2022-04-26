@@ -59,7 +59,7 @@ type sharedShardWriter struct {
 func newSharedShardWriter(
 	shard uint32,
 	router ackRouter,
-	mPool messagePool,
+	mPool *messagePool,
 	opts Options,
 	m messageWriterMetrics,
 ) shardWriter {
@@ -125,7 +125,7 @@ type replicatedShardWriter struct {
 
 	shard          uint32
 	numberOfShards uint32
-	mPool          messagePool
+	mPool          *messagePool
 	ackRouter      ackRouter
 	opts           Options
 	logger         *zap.Logger
@@ -140,7 +140,7 @@ type replicatedShardWriter struct {
 func newReplicatedShardWriter(
 	shard, numberOfShards uint32,
 	router ackRouter,
-	mPool messagePool,
+	mPool *messagePool,
 	opts Options,
 	m messageWriterMetrics,
 ) shardWriter {

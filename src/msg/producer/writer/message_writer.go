@@ -213,7 +213,7 @@ type messageWriterImpl struct {
 	sync.RWMutex
 
 	replicatedShardID   uint64
-	mPool               messagePool
+	mPool               *messagePool
 	opts                Options
 	nextRetryAfterNanos MessageRetryNanosFn
 	encoder             proto.Encoder
@@ -241,7 +241,7 @@ type messageWriterImpl struct {
 
 func newMessageWriter(
 	replicatedShardID uint64,
-	mPool messagePool,
+	mPool *messagePool,
 	opts Options,
 	m messageWriterMetrics,
 ) messageWriter {
@@ -711,10 +711,7 @@ func (w *messageWriterImpl) QueueSize() int {
 }
 
 func (w *messageWriterImpl) newMessage() *message {
-	if w.mPool != nil {
-		return w.mPool.Get()
-	}
-	return newMessage()
+	return w.mPool.Get()
 }
 
 func (w *messageWriterImpl) removeFromQueueWithLock(e *list.Element, m *message) {
@@ -724,10 +721,8 @@ func (w *messageWriterImpl) removeFromQueueWithLock(e *list.Element, m *message)
 }
 
 func (w *messageWriterImpl) close(m *message) {
-	if w.mPool != nil {
-		m.Close()
-		w.mPool.Put(m)
-	}
+	m.Close()
+	w.mPool.Put(m)
 }
 
 type acks struct {
