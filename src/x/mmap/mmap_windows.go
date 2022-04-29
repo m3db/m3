@@ -33,23 +33,23 @@ import "errors"
 
 // Fd mmaps a file (not implemented on Windows)
 func Fd(fd, offset, length int64, opts Options) (Descriptor, error) {
-  return Descriptor{}, errors.New("not implemented")
+	return Descriptor{}, errors.New("not implemented")
 }
 
 // Munmap munmaps a byte slice that is backed by an mmap
 // (not implemented on Windows)
 func Munmap(desc Descriptor) error {
-  return errors.New("not implemented")
+	return errors.New("not implemented")
 }
 
 // MadviseDontNeed frees mmapped memory.
 // (not implemented on Windows)
 func MadviseDontNeed(desc Descriptor) error {
-  return errors.New("not implemented")
+	return errors.New("not implemented")
 }
 
 // Bytes requests a private (non-shared) region of anonymous (not backed by a file) memory from the O.S
 // (not implemented on Windows)
 func Bytes(length int64, opts Options) (Descriptor, error) {
-  return Descriptor{}, errors.New("not implemented")
+	return Descriptor{}, errors.New("not implemented")
 }

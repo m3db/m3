@@ -1,4 +1,6 @@
+//go:build !linux
 // +build !linux
+
 //
 // Copyright (c) 2018 Uber Technologies, Inc.
 //

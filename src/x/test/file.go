@@ -42,9 +42,9 @@ func NewCorruptingFile(
 	seed int64,
 ) xos.File {
 	return &corruptingFile{
-		fd: fd,
+		fd:                    fd,
 		corruptionProbability: corruptionProbability,
-		rng: rand.New(rand.NewSource(seed)),
+		rng:                   rand.New(rand.NewSource(seed)),
 	}
 }
 

@@ -32,7 +32,7 @@ import (
 type mirroredCustomGroupSelector struct {
 	instanceIDToGroupID InstanceGroupIDFunc
 	logger              *zap.Logger
-	opts            placement.Options
+	opts                placement.Options
 }
 
 // InstanceGroupIDFunc maps an instance to its mirrored group.
@@ -94,7 +94,7 @@ func (e *mirroredCustomGroupSelector) SelectReplaceInstances(
 ) ([]placement.Instance, error) {
 	candidates, err := getValidCandidates(p, candidates, e.opts)
 	if err != nil {
-	    return nil, err
+		return nil, err
 	}
 
 	// find a replacement for each leaving instance.

@@ -331,8 +331,8 @@ func TestFlushOrderedWhenRandomInsertionOrderAndTakeNaNs(t *testing.T) {
 }
 
 func TestSortLesserWithNaNs(t *testing.T) {
-	actual := []float64{ 5.0, 4.1, math.NaN(), 8.6, 0.1 }
-	expected := []float64{ 0.1, 4.1, 5.0, 8.6, math.NaN() }
+	actual := []float64{5.0, 4.1, math.NaN(), 8.6, 0.1}
+	expected := []float64{0.1, 4.1, 5.0, 8.6, math.NaN()}
 
 	sort.Slice(actual, func(i, j int) bool {
 		return LesserWithNaNs(actual[i], actual[j])
@@ -342,8 +342,8 @@ func TestSortLesserWithNaNs(t *testing.T) {
 }
 
 func TestSortGreaterWithNaNs(t *testing.T) {
-	actual := []float64{ 5.0, 4.1, math.NaN(), 8.6, 0.1 }
-	expected := []float64{ 8.6, 5.0, 4.1, 0.1, math.NaN() }
+	actual := []float64{5.0, 4.1, math.NaN(), 8.6, 0.1}
+	expected := []float64{8.6, 5.0, 4.1, 0.1, math.NaN()}
 
 	sort.Slice(actual, func(i, j int) bool {
 		return GreaterWithNaNs(actual[i], actual[j])

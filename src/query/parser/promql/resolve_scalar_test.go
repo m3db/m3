@@ -114,4 +114,3 @@ func TestResolveStringWhenExprIsNil(t *testing.T) {
 	_, err := resolveStringArgument(nil)
 	require.Error(t, err)
 }
-
