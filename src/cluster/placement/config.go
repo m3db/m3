@@ -23,11 +23,11 @@ package placement
 import (
 	"time"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/x/instrument"
+
+	"gopkg.in/yaml.v2"
 )
 
 // Configuration is configuration for placement options.

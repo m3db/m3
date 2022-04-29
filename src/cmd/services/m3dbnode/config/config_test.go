@@ -1105,7 +1105,7 @@ db: {}
 				assert.NoError(t, os.Remove(fd.Name()))
 			}()
 
-			_, err = fd.Write([]byte(tt.conf))
+			_, err = fd.WriteString(tt.conf)
 			require.NoError(t, err)
 
 			var cfg Configuration

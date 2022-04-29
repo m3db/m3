@@ -1,5 +1,5 @@
 # stage 1: build
-FROM golang:1.16.5-alpine3.13 AS builder
+FROM golang:1.18-alpine3.15 AS builder
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 # Install deps
@@ -15,7 +15,7 @@ RUN cd /go/src/github.com/m3db/m3/ && \
     make m3aggregator-linux-amd64
 
 # stage 2: lightweight "release"
-FROM alpine:3.11
+FROM alpine:3.15
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 EXPOSE 5000/tcp 6000/tcp 6001/tcp

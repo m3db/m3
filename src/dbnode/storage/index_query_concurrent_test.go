@@ -30,12 +30,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fortytw2/leaktest"
-	"github.com/golang/mock/gomock"
-	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/limits/permits"
@@ -48,6 +42,12 @@ import (
 	"github.com/m3db/m3/src/x/resource"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/fortytw2/leaktest"
+	"github.com/golang/mock/gomock"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestNamespaceIndexHighConcurrentQueriesWithoutTimeouts(t *testing.T) {

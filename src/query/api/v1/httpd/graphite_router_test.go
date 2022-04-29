@@ -26,10 +26,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/m3db/m3/src/query/api/v1/options"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/m3db/m3/src/query/api/v1/options"
 )
 
 func TestGraphiteRenderHandler(t *testing.T) {

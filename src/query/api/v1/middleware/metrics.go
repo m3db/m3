@@ -26,14 +26,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/mux"
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/http"
 	"github.com/m3db/m3/src/x/instrument"
+
+	"github.com/gorilla/mux"
+	"github.com/uber-go/tally"
 )
 
 const (

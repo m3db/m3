@@ -23,11 +23,11 @@ package permits
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestLookbackLimitPermit(t *testing.T) {

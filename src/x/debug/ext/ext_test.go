@@ -28,12 +28,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	debugtest "github.com/m3db/m3/src/x/debug/test"
 	"github.com/m3db/m3/src/x/instrument"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDefaultSources(t *testing.T) {

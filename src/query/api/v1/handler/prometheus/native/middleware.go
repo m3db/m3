@@ -25,10 +25,10 @@ import (
 	"net/http"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/middleware"
+
+	"go.uber.org/zap"
 )
 
 // WithQueryParams adds the query request parameters to the middleware options.

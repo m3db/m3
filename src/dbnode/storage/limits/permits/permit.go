@@ -21,10 +21,10 @@
 package permits
 
 import (
+	"github.com/m3db/m3/src/x/instrument"
+
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
-
-	"github.com/m3db/m3/src/x/instrument"
 )
 
 // permit tracks the quota used by a caller and provides basic sanity checks that a caller

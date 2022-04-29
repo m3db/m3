@@ -22,7 +22,6 @@
 package generated
 
 import (
-
 	// https://github.com/golang/mock/issues/494
 	_ "github.com/golang/mock/mockgen/model"
 )

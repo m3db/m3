@@ -26,13 +26,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ory/dockertest/v3"
-	"github.com/prometheus/common/model"
-
 	"github.com/m3db/m3/src/integration/resources"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
+
+	"github.com/ory/dockertest/v3"
+	"github.com/prometheus/common/model"
 )
 
 const (

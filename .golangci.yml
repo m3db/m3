@@ -70,10 +70,6 @@ linters-settings:
   govet:
     # report about shadowed variables
     check-shadowing: true
-  goimports:
-    # put imports beginning with prefix after 3rd-party packages;
-    # it's a comma-separated list of prefixes
-    local-prefixes: github.com/m3db/m3
   maligned:
     # print struct with more effective memory layout or not, false by default
     suggest-new: true
@@ -161,15 +157,19 @@ linters-settings:
       - hugeParam
       - rangeValCopy
     enabled-checks:
-      - ruleguard
+      # temp disabled, something wrong on go 1.18
+      # - ruleguard
     settings: # settings passed to gocritic
       captLocal: # must be valid enabled check name
         paramsOnly: true
-      ruleguard:
-        rules: "src/cmd/tools/linter/gorules/rules.go"
+      # ruleguard:
+      #  rules: "src/cmd/tools/linter/gorules/rules.go"
   gci:
     # gci control golang package import order and make it always deterministic
-    local-prefixes: github.com/m3db/m3
+    sections:
+      - standard
+      - prefix(github.com/m3db/m3)
+      - default
 
 linters:
   enable:
@@ -180,7 +180,6 @@ linters:
     - gci
     - goconst
     - gocritic
-    - goimports
     - golint
     - gosimple
     - govet
@@ -216,16 +215,16 @@ linters:
     - interfacer
     # Valid use for not explicitly setting every field when they are optional nil/empty.
     - exhaustivestruct
-    # We allow cuddling assignment following conditions because there are valid 
+    # We allow cuddling assignment following conditions because there are valid
     # logical groupings for this use-case (e.g. when evaluating config values).
-    - wsl 
+    - wsl
     # Wrapcheck can cause errors until all callsites checking explicit error
     # types like io.EOF are converted to use errors.Is instead. Re-enable this
     # linter once all error checks are upgraded.
     - wrapcheck
     # godox prevents using TODOs or FIXMEs which can be useful for demarkation
     # of future work.
-    - godox 
+    - godox
     # New line required before return would require a large fraction of the
     # code base to need updating, it's not worth the perceived benefit.
     - nlreturn
@@ -237,6 +236,23 @@ linters:
     - gocyclo
     # Doesn't buy us much being super opinionated on how to name test functions.
     - thelper
+    # Useless, fails pretty much every file.
+    - varnamelen
+    # Accept interfaces, return structs is a geat mantra that's too late to adopt.
+    - ireturn
+    # Not a problem worthy enough to change lots of code. Also has a section named `What if I think it's bullshit?` in README.md
+    - nilnil
+    # Wants yaml tags to look like `perCpu` vs `perCPU`.
+    - tagliatelle
+    # There are valid uses for context in structs.
+    - containedctx
+    # These are new and flag a lot, need a separate evaluation:
+    - forcetypeassert
+    - errname
+    - promlinter
+    - gomoddirectives
+    - gofumpt
+    - ifshort
   disable-all: false
   presets:
     # bodyclose, errcheck, gosec, govet, scopelint, staticcheck, typecheck
@@ -280,6 +296,8 @@ issues:
     # The errcheck linter already checks for unhandled errors so we can disable the equivalent
     # lint by gosec.
     - "G104: Errors unhandled"
+    # Random numbers here are not used in a security-sensitive context.
+    - "G404: Use of weak random number generator (math/rand instead of crypto/rand)"
 
   # Excluding configuration per-path, per-linter, per-text and per-source
   exclude-rules:

@@ -27,13 +27,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	terrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
+	xerrors "github.com/m3db/m3/src/x/errors"
+
 	"github.com/prometheus/prometheus/promql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/tchannel-go"
-
-	terrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
-	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 func TestErrorStatus(t *testing.T) {

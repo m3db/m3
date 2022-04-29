@@ -27,16 +27,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/mux"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/tallytest"
+
+	"github.com/gorilla/mux"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestResponseMetrics(t *testing.T) {

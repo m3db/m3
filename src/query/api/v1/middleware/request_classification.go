@@ -26,14 +26,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/prometheus/promql/parser"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/x/headers"
+
+	"github.com/prometheus/prometheus/promql/parser"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 const (

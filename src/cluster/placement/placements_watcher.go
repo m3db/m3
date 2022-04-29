@@ -24,11 +24,11 @@ import (
 	"errors"
 	"sync"
 
-	"go.uber.org/atomic"
-
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/util/runtime"
+
+	"go.uber.org/atomic"
 )
 
 var (

@@ -26,10 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uber-go/tally"
-	"github.com/willf/bitset"
-	"go.uber.org/atomic"
-
 	raggregation "github.com/m3db/m3/src/aggregator/aggregation"
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
@@ -47,6 +43,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+	"github.com/willf/bitset"
+	"go.uber.org/atomic"
 )
 
 var (

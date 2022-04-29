@@ -114,7 +114,7 @@ func (w *writer) BeginObject() {
 	}
 
 	w.containers = append(w.containers, object)
-	_, w.err = w.w.WriteRune('{')
+	w.err = w.w.WriteByte('{')
 	w.state = writeBeforeFirstField
 }
 
@@ -143,7 +143,7 @@ func (w *writer) beginObjectFieldStart() error {
 	}
 
 	if w.state == writeBeforeNthField {
-		if _, err := w.w.WriteRune(','); err != nil {
+		if err := w.w.WriteByte(','); err != nil {
 			return err
 		}
 	}
@@ -152,7 +152,7 @@ func (w *writer) beginObjectFieldStart() error {
 }
 
 func (w *writer) beginObjectFieldEnd() error {
-	if _, err := w.w.WriteRune(':'); err != nil {
+	if err := w.w.WriteByte(':'); err != nil {
 		return err
 	}
 	w.state = writeBeforeFieldValue
@@ -179,7 +179,7 @@ func (w *writer) EndObject() {
 		return
 	}
 
-	_, w.err = w.w.WriteRune('}')
+	w.err = w.w.WriteByte('}')
 }
 
 // BeginArray begins a new array value
@@ -189,7 +189,7 @@ func (w *writer) BeginArray() {
 	}
 
 	w.containers = append(w.containers, array)
-	_, w.err = w.w.WriteRune('[')
+	w.err = w.w.WriteByte('[')
 	w.state = writeBeforeFirstArrayElement
 }
 
@@ -199,7 +199,7 @@ func (w *writer) EndArray() {
 		return
 	}
 
-	_, w.err = w.w.WriteRune(']')
+	w.err = w.w.WriteByte(']')
 }
 
 // endContainer finishes a container of the given type
@@ -290,7 +290,7 @@ func (w *writer) WriteString(s string) {
 }
 
 func (w *writer) writeString(s string) {
-	if _, w.err = w.w.WriteRune('"'); w.err != nil {
+	if w.err = w.w.WriteByte('"'); w.err != nil {
 		return
 	}
 
@@ -301,7 +301,7 @@ func (w *writer) writeString(s string) {
 		}
 	}
 
-	_, w.err = w.w.WriteRune('"')
+	w.err = w.w.WriteByte('"')
 }
 
 func (w *writer) WriteBytesString(s []byte) {
@@ -315,7 +315,7 @@ func (w *writer) WriteBytesString(s []byte) {
 }
 
 func (w *writer) writeBytesString(s []byte) {
-	if _, w.err = w.w.WriteRune('"'); w.err != nil {
+	if w.err = w.w.WriteByte('"'); w.err != nil {
 		return
 	}
 
@@ -334,35 +334,39 @@ func (w *writer) writeBytesString(s []byte) {
 		w.writeRune(c)
 	}
 
-	_, w.err = w.w.WriteRune('"')
+	w.err = w.w.WriteByte('"')
 }
 
 func (w *writer) writeRune(r rune) {
 	if r <= 31 || r == '"' || r == '\\' {
-		if _, w.err = w.w.WriteRune('\\'); w.err != nil {
+		if w.err = w.w.WriteByte('\\'); w.err != nil {
 			return
 		}
 
 		switch r {
-		case '"', '\\':
-			if _, w.err = w.w.WriteRune(r); w.err != nil {
+		case '"':
+			if w.err = w.w.WriteByte('"'); w.err != nil {
+				return
+			}
+		case '\\':
+			if w.err = w.w.WriteByte('\\'); w.err != nil {
 				return
 			}
 		case '\n':
-			if _, w.err = w.w.WriteRune('n'); w.err != nil {
+			if w.err = w.w.WriteByte('n'); w.err != nil {
 				return
 			}
 		case '\r':
-			if _, w.err = w.w.WriteRune('r'); w.err != nil {
+			if w.err = w.w.WriteByte('r'); w.err != nil {
 				return
 			}
 		case '\t':
-			if _, w.err = w.w.WriteRune('t'); w.err != nil {
+			if w.err = w.w.WriteByte('t'); w.err != nil {
 				return
 			}
 		default:
 			codePoint := fmt.Sprintf("%U", r)
-			if _, w.err = w.w.WriteRune('u'); w.err != nil {
+			if w.err = w.w.WriteByte('u'); w.err != nil {
 				return
 			}
 			if _, w.err = w.w.WriteString(codePoint[2:]); w.err != nil {
@@ -391,7 +395,7 @@ func (w *writer) beginValue() bool {
 	}
 
 	if w.state == writeBeforeNthArrayElement {
-		if _, w.err = w.w.WriteRune(','); w.err != nil {
+		if w.err = w.w.WriteByte(','); w.err != nil {
 			return false
 		}
 	}

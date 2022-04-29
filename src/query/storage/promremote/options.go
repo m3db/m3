@@ -25,13 +25,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 // NewOptions constructs Options based on the given config.

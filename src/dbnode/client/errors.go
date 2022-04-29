@@ -24,11 +24,11 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/uber/tchannel-go"
-
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	xerrors "github.com/m3db/m3/src/x/errors"
+
+	"github.com/uber/tchannel-go"
 )
 
 // IsInternalServerError determines if the error is an internal server error.

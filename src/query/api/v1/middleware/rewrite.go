@@ -29,17 +29,17 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gorilla/mux"
-	"github.com/prometheus/prometheus/promql"
-	"github.com/prometheus/prometheus/promql/parser"
-	promstorage "github.com/prometheus/prometheus/storage"
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/storage"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/gorilla/mux"
+	"github.com/prometheus/prometheus/promql"
+	"github.com/prometheus/prometheus/promql/parser"
+	promstorage "github.com/prometheus/prometheus/storage"
+	"go.uber.org/zap"
 )
 
 var errIgnorableQuerierError = errors.New("ignorable error")
