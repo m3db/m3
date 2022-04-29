@@ -67,6 +67,7 @@ import (
 
 	"github.com/m3db/bitset"
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
@@ -1788,6 +1789,10 @@ func (i *nsIndex) queryWithSpan(
 			break
 		}
 
+		// must not reuse logField slice as the last field will be mutated by concurrent goroutines.
+		blockLogFields := make([]log.Field, 0, len(logFields)+1)
+		blockLogFields = append(blockLogFields, logFields...)
+
 		wg.Add(1)
 		// kick off a go routine to process the entire iterator.
 		go func() {
@@ -1802,7 +1807,7 @@ func (i *nsIndex) queryWithSpan(
 						break
 					}
 				}
-				blockLogFields := append(logFields, xopentracing.Duration("permitWaitTime", waitTime))
+				blockLogFields = append(blockLogFields, xopentracing.Duration("permitWaitTime", waitTime))
 				first = false
 				startProcessing := time.Now()
 				execBlockFn(ctx, blockIter.block, permit, blockIter.iter, opts, state, results, blockLogFields)

@@ -157,11 +157,11 @@ linters-settings:
       - hugeParam
       - rangeValCopy
     enabled-checks:
-      - ruleguard
+      # temp disabled, something wrong on go 1.18
+      # - ruleguard
     settings: # settings passed to gocritic
       captLocal: # must be valid enabled check name
         paramsOnly: true
-      # temp disabled, something wrong on go 1.18
       # ruleguard:
       #  rules: "src/cmd/tools/linter/gorules/rules.go"
   gci:

@@ -47,7 +47,7 @@ func TestShard(t *testing.T) {
 
 func TestShardEquals(t *testing.T) {
 	s := NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoffNanos(1000).SetCutoverNanos(100)
-	assert.True(t, s.Equals(s))
+	assert.True(t, s.Equals(s)) //nolint
 	assert.False(t, s.Equals(NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoffNanos(1000)))
 	assert.False(t, s.Equals(NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoverNanos(100)))
 	assert.False(t, s.Equals(NewShard(1).SetState(Initializing).SetCutoffNanos(1000).SetCutoverNanos(100)))
@@ -58,7 +58,7 @@ func TestShardEquals(t *testing.T) {
 
 func TestShardEqualsWithRedirectShardID(t *testing.T) {
 	s := NewShard(1).SetRedirectToShardID(uint32Ptr(1))
-	assert.True(t, s.Equals(s))
+	assert.True(t, s.Equals(s)) //nolint
 	assert.False(t, s.Equals(NewShard(1).SetRedirectToShardID(nil)))
 	assert.False(t, NewShard(1).SetRedirectToShardID(nil).Equals(s))
 	assert.False(t, s.Equals(NewShard(1).SetRedirectToShardID(uint32Ptr(0))))
