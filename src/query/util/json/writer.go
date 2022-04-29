@@ -334,35 +334,39 @@ func (w *writer) writeBytesString(s []byte) {
 		w.writeRune(c)
 	}
 
-	_, w.err = w.w.WriteRune('"')
+	w.err = w.w.WriteByte('"')
 }
 
 func (w *writer) writeRune(r rune) {
 	if r <= 31 || r == '"' || r == '\\' {
-		if _, w.err = w.w.WriteRune('\\'); w.err != nil {
+		if w.err = w.w.WriteByte('\\'); w.err != nil {
 			return
 		}
 
 		switch r {
-		case '"', '\\':
-			if _, w.err = w.w.WriteRune(r); w.err != nil {
+		case '"':
+			if w.err = w.w.WriteByte('"'); w.err != nil {
+				return
+			}
+		case '\\':
+			if w.err = w.w.WriteByte('\\'); w.err != nil {
 				return
 			}
 		case '\n':
-			if _, w.err = w.w.WriteRune('n'); w.err != nil {
+			if w.err = w.w.WriteByte('n'); w.err != nil {
 				return
 			}
 		case '\r':
-			if _, w.err = w.w.WriteRune('r'); w.err != nil {
+			if w.err = w.w.WriteByte('r'); w.err != nil {
 				return
 			}
 		case '\t':
-			if _, w.err = w.w.WriteRune('t'); w.err != nil {
+			if w.err = w.w.WriteByte('t'); w.err != nil {
 				return
 			}
 		default:
 			codePoint := fmt.Sprintf("%U", r)
-			if _, w.err = w.w.WriteRune('u'); w.err != nil {
+			if w.err = w.w.WriteByte('u'); w.err != nil {
 				return
 			}
 			if _, w.err = w.w.WriteString(codePoint[2:]); w.err != nil {
