@@ -68,7 +68,6 @@ import (
 	"github.com/m3db/bitset"
 	"github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -1790,7 +1789,7 @@ func (i *nsIndex) queryWithSpan(
 		}
 
 		// must not reuse logField slice as the last field will be mutated by concurrent goroutines.
-		blockLogFields := make([]log.Field, 0, len(logFields)+1)
+		blockLogFields := make([]opentracinglog.Field, 0, len(logFields)+1)
 		blockLogFields = append(blockLogFields, logFields...)
 
 		wg.Add(1)

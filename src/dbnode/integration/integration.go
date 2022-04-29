@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -518,7 +517,7 @@ func writeTestIndexDataToDisk(
 ) error {
 	blockSize := md.Options().IndexOptions().BlockSize()
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
-	writer, err := fs.NewIndexWriter(fsOpts)
+	writer, err := persistfs.NewIndexWriter(fsOpts)
 	if err != nil {
 		return err
 	}
@@ -531,7 +530,7 @@ func writeTestIndexDataToDisk(
 	for _, shard := range shards {
 		shardsMap[shard] = struct{}{}
 	}
-	volumeIndex, err := fs.NextIndexFileSetVolumeIndex(
+	volumeIndex, err := persistfs.NextIndexFileSetVolumeIndex(
 		fsOpts.FilePathPrefix(),
 		md.ID(),
 		blockStart,
@@ -539,8 +538,8 @@ func writeTestIndexDataToDisk(
 	if err != nil {
 		return err
 	}
-	writerOpts := fs.IndexWriterOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
+	writerOpts := persistfs.IndexWriterOpenOptions{
+		Identifier: persistfs.FileSetFileIdentifier{
 			Namespace:   md.ID(),
 			BlockStart:  blockStart,
 			VolumeIndex: volumeIndex,
