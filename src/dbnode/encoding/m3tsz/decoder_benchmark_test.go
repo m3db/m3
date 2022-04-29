@@ -25,10 +25,10 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+
+	"github.com/stretchr/testify/require"
 )
 
 // BenchmarkM3TSZDecode-12    	   16867	     69272 ns/op

@@ -23,13 +23,13 @@ package namespace
 import (
 	"time"
 
-	protobuftypes "github.com/gogo/protobuf/types"
-
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xresource "github.com/m3db/m3/src/x/resource"
+
+	protobuftypes "github.com/gogo/protobuf/types"
 )
 
 // Options controls namespace behavior.

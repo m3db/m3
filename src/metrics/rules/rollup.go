@@ -24,14 +24,14 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/pborman/uuid"
-
 	merrors "github.com/m3db/m3/src/metrics/errors"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/query/models"
+
+	"github.com/pborman/uuid"
 )
 
 var (

@@ -22,14 +22,14 @@
 package promremote
 
 import (
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/ident"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 // Options for storage.

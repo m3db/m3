@@ -27,15 +27,15 @@ import (
 	"strconv"
 	"time"
 
-	protobuftypes "github.com/gogo/protobuf/types"
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/x/instrument"
+
+	protobuftypes "github.com/gogo/protobuf/types"
+	"go.uber.org/zap"
 )
 
 const (

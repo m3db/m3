@@ -67,8 +67,8 @@ import (
 
 	"github.com/m3db/bitset"
 	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/log"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"

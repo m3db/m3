@@ -26,10 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mauricelam/genny/generic"
-	"github.com/willf/bitset"
-	"go.uber.org/zap"
-
 	raggregation "github.com/m3db/m3/src/aggregator/aggregation"
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
@@ -39,6 +35,10 @@ import (
 	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/mauricelam/genny/generic"
+	"github.com/willf/bitset"
+	"go.uber.org/zap"
 )
 
 type typeSpecificAggregation interface {

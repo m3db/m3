@@ -27,10 +27,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/metric"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestMultiClientOneTypeWithStagedMetadatas(t *testing.T) {

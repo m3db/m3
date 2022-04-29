@@ -32,12 +32,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
-	"github.com/uber/tchannel-go"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -69,6 +63,12 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+	"github.com/uber/tchannel-go"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (

@@ -21,11 +21,11 @@
 package config
 
 import (
-	"gopkg.in/yaml.v2"
-
 	"github.com/m3db/m3/src/x/debug/config"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/log"
+
+	"gopkg.in/yaml.v2"
 )
 
 // Configuration contains top-level configuration.

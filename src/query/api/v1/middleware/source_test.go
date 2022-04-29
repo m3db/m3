@@ -27,16 +27,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/m3db/m3/src/query/source"
+	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/headers"
+	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
-
-	"github.com/m3db/m3/src/query/source"
-	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/headers"
-	"github.com/m3db/m3/src/x/instrument"
 )
 
 type testSource struct {

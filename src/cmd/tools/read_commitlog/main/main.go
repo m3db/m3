@@ -28,11 +28,11 @@ import (
 	"sort"
 	"time"
 
-	"github.com/pborman/getopt"
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/pborman/getopt"
+	"go.uber.org/zap"
 )
 
 func main() {

@@ -30,11 +30,11 @@ import (
 	"os"
 	"time"
 
-	"google.golang.org/grpc"
-
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
+
+	"google.golang.org/grpc"
 )
 
 const (

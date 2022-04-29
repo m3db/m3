@@ -30,10 +30,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
-
 	m3agg "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/server"
 	"github.com/m3db/m3/src/aggregator/tools/deploy"
@@ -42,6 +38,10 @@ import (
 	nettest "github.com/m3db/m3/src/integration/resources/net"
 	"github.com/m3db/m3/src/x/config/hostid"
 	xos "github.com/m3db/m3/src/x/os"
+
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 )
 
 var errAggregatorNotStarted = errors.New("aggregator instance has not started")

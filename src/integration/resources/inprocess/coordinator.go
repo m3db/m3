@@ -32,10 +32,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/prometheus/common/model"
-	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
-
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/integration/resources"
 	nettest "github.com/m3db/m3/src/integration/resources/net"
@@ -46,6 +42,10 @@ import (
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/headers"
 	xos "github.com/m3db/m3/src/x/os"
+
+	"github.com/prometheus/common/model"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 )
 
 const (

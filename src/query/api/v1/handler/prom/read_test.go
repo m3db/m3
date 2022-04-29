@@ -30,12 +30,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/prometheus/prometheus/promql"
-	promstorage "github.com/prometheus/prometheus/storage"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -44,6 +38,12 @@ import (
 	"github.com/m3db/m3/src/query/storage/prometheus"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
+
+	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/promql"
+	promstorage "github.com/prometheus/prometheus/storage"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 const promQuery = `http_requests_total{job="prometheus",group="canary"}`

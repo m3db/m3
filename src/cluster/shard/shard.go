@@ -27,9 +27,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gogo/protobuf/types"
-
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+
+	"github.com/gogo/protobuf/types"
 )
 
 var (

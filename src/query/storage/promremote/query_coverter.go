@@ -23,11 +23,11 @@ package promremote
 import (
 	"time"
 
+	"github.com/m3db/m3/src/query/storage"
+
 	"github.com/golang/snappy"
 	"github.com/pkg/errors"
 	"github.com/prometheus/prometheus/prompb"
-
-	"github.com/m3db/m3/src/query/storage"
 )
 
 var errNilQuery = errors.New("received nil query")

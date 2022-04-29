@@ -21,13 +21,13 @@
 package scalar
 
 import (
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/util/logging"
+
+	"go.uber.org/zap"
 )
 
 type timeOp struct {

@@ -26,9 +26,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/uber/tchannel-go"
-	"github.com/uber/tchannel-go/thrift"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
@@ -49,6 +46,9 @@ import (
 	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
+
+	"github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go/thrift"
 )
 
 const (
