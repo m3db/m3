@@ -166,7 +166,10 @@ linters-settings:
       #  rules: "src/cmd/tools/linter/gorules/rules.go"
   gci:
     # gci control golang package import order and make it always deterministic
-    local-prefixes: github.com/m3db/m3
+    sections:
+      - standard
+      - prefix(github.com/m3db/m3)
+      - default
 
 linters:
   enable:
