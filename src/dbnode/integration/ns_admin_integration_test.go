@@ -1,4 +1,3 @@
-//go:build integration
 // +build integration
 
 // Copyright (c) 2019 Uber Technologies, Inc.
@@ -72,7 +71,7 @@ func deployNamespace(t *testing.T) (kv.Store, kvadmin.NamespaceMetadataAdminServ
 	require.NoError(t, err)
 	// Must start the embedded server before closing.
 	require.NoError(t, kv.Start())
-	cleanup := func() { require.NoError(t, kv.Close()) }
+	cleanup := func() {require.NoError(t, kv.Close())}
 
 	c, err := kv.ConfigServiceClient()
 	require.NoError(t, err)
@@ -127,3 +126,4 @@ func TestNamespaceAdmin_LoadSchemaFromEtcd(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, deployID, actualDesc.DeployId())
 }
+

@@ -1,6 +1,4 @@
-//go:build darwin
 // +build darwin
-
 //
 // Copyright (c) 2021  Uber Technologies, Inc.
 //

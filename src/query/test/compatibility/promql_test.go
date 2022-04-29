@@ -1,4 +1,3 @@
-//go:build compatibility
 // +build compatibility
 
 // Copyright (c) 2020 Uber Technologies, Inc.

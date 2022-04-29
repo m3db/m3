@@ -1,6 +1,4 @@
-//go:build test_harness
 // +build test_harness
-
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy

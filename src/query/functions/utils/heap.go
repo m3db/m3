@@ -49,13 +49,13 @@ func minHeapLess(i, j ValueIndexPair) bool {
 }
 
 // Compares two floats for equality with NaNs taken into account.
-func equalWithNaNs(i, j float64) bool {
+func equalWithNaNs(i,j float64) bool {
 	return i == j || math.IsNaN(i) && math.IsNaN(j)
 }
 
 // Compares NaNs.
 // Basically, we do not want to add NaNs to the heap when it has reached it's cap so this fn should be used to prevent this.
-func lesserIfNaNs(i, j float64) bool {
+func lesserIfNaNs(i,j float64) bool {
 	return math.IsNaN(i) && !math.IsNaN(j)
 }
 

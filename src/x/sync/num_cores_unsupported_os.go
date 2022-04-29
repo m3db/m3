@@ -1,6 +1,4 @@
-//go:build !linux && !darwin
 // +build !linux,!darwin
-
 //
 // Copyright (c) 2021  Uber Technologies, Inc.
 //

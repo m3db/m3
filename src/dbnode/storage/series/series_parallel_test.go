@@ -1,6 +1,4 @@
-//go:build big
 // +build big
-
 //
 // Copyright (c) 2016 Uber Technologies, Inc.
 //

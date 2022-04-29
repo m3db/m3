@@ -1,6 +1,4 @@
-//go:build !amd64 && !linux
 // +build !amd64,!linux
-
 //
 // Copyright (c) 2020 Uber Technologies, Inc.
 //

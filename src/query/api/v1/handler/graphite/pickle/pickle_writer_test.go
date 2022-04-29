@@ -61,7 +61,7 @@ func TestWriteComplex(t *testing.T) {
 	w.WriteDictKey("step")
 	w.WriteInt(3494945)
 	w.WriteDictKey("pi")
-	w.WriteFloat64(3.45e10)
+	w.WriteFloat64(3.45E10)
 	w.WriteDictKey("none")
 	w.WriteNone()
 	w.WriteDictKey("noNumber")
@@ -92,7 +92,7 @@ func TestWriteComplex(t *testing.T) {
 
 	require.NoError(t, unpickle(buf.Bytes(), &s))
 	assert.Equal(t, 3494945, s.Step)
-	assert.Equal(t, 3.45e10, s.Pi)
+	assert.Equal(t, 3.45E10, s.Pi)
 	assert.Nil(t, s.NoNumber)
 	assert.Equal(t, "hello world", s.Skey)
 	assert.Equal(t, []interface{}{

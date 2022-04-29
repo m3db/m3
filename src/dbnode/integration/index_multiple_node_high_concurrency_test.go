@@ -1,6 +1,4 @@
-//go:build integration
 // +build integration
-
 //
 // Copyright (c) 2016 Uber Technologies, Inc.
 //

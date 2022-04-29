@@ -23,9 +23,9 @@ package client
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/serialize"
 
 	"github.com/stretchr/testify/require"
 )

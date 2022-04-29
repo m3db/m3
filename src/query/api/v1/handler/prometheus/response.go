@@ -41,7 +41,7 @@ type data struct {
 	// ResultType is the type of Result (matrix, vector, etc.).
 	ResultType string
 	// Result contains the query result (concrete type depends on ResultType).
-	Result result
+	Result     result
 }
 
 type result interface {

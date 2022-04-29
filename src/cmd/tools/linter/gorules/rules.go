@@ -1,4 +1,3 @@
-//go:build ignore
 // +build ignore
 
 // Copyright (c) 2020 Uber Technologies, Inc.

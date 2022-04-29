@@ -51,7 +51,7 @@ type handlerMetrics struct {
 func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 	messageScope := scope.SubScope("metric")
 	return handlerMetrics{
-		metricAccepted: messageScope.Counter("accepted"),
+		metricAccepted:   messageScope.Counter("accepted"),
 		droppedMetricDecodeError: messageScope.Tagged(map[string]string{
 			"reason": "decode-error",
 		}).Counter("dropped"),

@@ -1,4 +1,3 @@
-//go:build integration
 // +build integration
 
 // Copyright (c) 2019 Uber Technologies, Inc.
