@@ -41,7 +41,7 @@ LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
 GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v1.8.3
 GO_RELEASER_RELEASE_ARGS  ?= --rm-dist
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
-GOLANGCI_LINT_VERSION     := v1.37.0
+GOLANGCI_LINT_VERSION     := v1.45.2
 
 export NPROC := 2 # Maximum package concurrency for unit tests.
 
