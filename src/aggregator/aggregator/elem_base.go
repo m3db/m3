@@ -216,6 +216,25 @@ type consumeState struct {
 	resendEnabled bool
 }
 
+func (c *consumeState) reset() {
+	var (
+		annotation []byte
+		values     []float64
+	)
+
+	if c.annotation != nil {
+		annotation = c.annotation[:0]
+	}
+
+	if c.values != nil {
+		values = c.values[:0]
+	}
+
+	*c = consumeState{}
+	c.annotation = annotation
+	c.values = values
+}
+
 // mutable state for a timedAggregation that is local to the flusher. does not need to be synchronized.
 // this state is kept around for the lifetime of the timedAggregation.
 type flushState struct {

@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
+// Copyright (c) 2022 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -43,14 +43,14 @@ import (
 )
 
 type lockedTimerAggregation struct {
-	aggregation timerAggregation
-	sourcesSeen map[uint32]*bitset.BitSet
-	mtx         sync.Mutex
-	dirty       bool
+	aggregation   timerAggregation
+	sourcesSeen   map[uint32]*bitset.BitSet
+	mtx           sync.Mutex
+	lastUpdatedAt xtime.UnixNano
+	dirty         bool
 	// resendEnabled is allowed to change while an aggregation is open, so it must be behind the lock.
 	resendEnabled bool
 	closed        bool
-	lastUpdatedAt xtime.UnixNano
 }
 
 type timedTimer struct {
@@ -478,14 +478,18 @@ func (e *TimerElem) isFlushed(c consumeState) bool {
 func (e *TimerElem) appendConsumeStateWithLock(
 	agg timedTimer,
 	toConsume []consumeState,
-	includeFilter func(consumeState) bool) ([]consumeState, bool) {
-	// eagerly append a new element so we can try reusing memory already allocated in the slice.
-	toConsume = append(toConsume, consumeState{})
-	cState := toConsume[len(toConsume)-1]
-	if cState.values == nil {
-		cState.values = make([]float64, len(e.aggTypes))
+	includeFilter func(consumeState) bool,
+) ([]consumeState, bool) {
+	// try reusing memory already allocated in the slice.
+	if cap(toConsume) >= len(toConsume)+1 {
+		toConsume = toConsume[:len(toConsume)+1]
+	} else {
+		toConsume = append(toConsume, consumeState{
+			values: make([]float64, 0, len(e.aggTypes)),
+		})
 	}
-	cState.values = cState.values[:0]
+	cState := &toConsume[len(toConsume)-1]
+	cState.reset()
 	// copy the lockedAgg data while holding the lock.
 	agg.lockedAgg.mtx.Lock()
 	cState.dirty = agg.lockedAgg.dirty
@@ -494,8 +498,7 @@ func (e *TimerElem) appendConsumeStateWithLock(
 	for _, aggType := range e.aggTypes {
 		cState.values = append(cState.values, agg.lockedAgg.aggregation.ValueOf(aggType))
 	}
-	cState.annotation = raggregation.MaybeReplaceAnnotation(
-		cState.annotation, agg.lockedAgg.aggregation.Annotation())
+	cState.annotation = raggregation.MaybeReplaceAnnotation(cState.annotation, agg.lockedAgg.aggregation.Annotation())
 	agg.lockedAgg.dirty = false
 	agg.lockedAgg.mtx.Unlock()
 
@@ -507,13 +510,12 @@ func (e *TimerElem) appendConsumeStateWithLock(
 		cState.prevStartTime = 0
 	}
 	cState.startAt = agg.startAt
-	toConsume[len(toConsume)-1] = cState
 	// update the flush state with the latestResendEnabled since expireValuesWithLock needs it before actual processing.
 	fState := e.flushState[cState.startAt]
 	fState.latestResendEnabled = cState.resendEnabled
 	e.flushState[cState.startAt] = fState
 
-	if includeFilter != nil && !includeFilter(cState) {
+	if includeFilter != nil && !includeFilter(*cState) {
 		// since we eagerly appended, we need to remove if it should not be included.
 		toConsume = toConsume[0 : len(toConsume)-1]
 		return toConsume, false
