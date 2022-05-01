@@ -762,13 +762,24 @@ func lockedCounterAggregationFromPool(
 	aggregation counterAggregation,
 	sourcesSeen map[uint32]*bitset.BitSet,
 ) *lockedCounterAggregation {
-	return &lockedCounterAggregation{aggregation: aggregation, sourcesSeen: sourcesSeen}
+	l := lockedCounterAggregationPool.Get().(*lockedCounterAggregation)
+	l.aggregation = aggregation
+	l.sourcesSeen = sourcesSeen
+	l.lastUpdatedAt = 0
+	l.dirty = false
+	l.closed = false
+	l.resendEnabled = false
+	return l
 }
 
 func (l *lockedCounterAggregation) close() {
 	l.aggregation.Close()
 	l.aggregation = counterAggregation{}
 	l.sourcesSeen = nil
+	l.lastUpdatedAt = 0
+	l.dirty = false
+	l.closed = false
+	l.resendEnabled = false
 	lockedCounterAggregationPool.Put(l)
 }
 
@@ -778,13 +789,20 @@ func lockedGaugeAggregationFromPool(
 	aggregation gaugeAggregation,
 	sourcesSeen map[uint32]*bitset.BitSet,
 ) *lockedGaugeAggregation {
-	return &lockedGaugeAggregation{aggregation: aggregation, sourcesSeen: sourcesSeen}
+	l := lockedGaugeAggregationPool.Get().(*lockedGaugeAggregation)
+	l.aggregation = aggregation
+	l.sourcesSeen = sourcesSeen
+	return l
 }
 
 func (l *lockedGaugeAggregation) close() {
 	l.aggregation.Close()
 	l.aggregation = gaugeAggregation{}
 	l.sourcesSeen = nil
+	l.lastUpdatedAt = 0
+	l.dirty = false
+	l.closed = false
+	l.resendEnabled = false
 	lockedGaugeAggregationPool.Put(l)
 }
 
@@ -794,12 +812,19 @@ func lockedTimerAggregationFromPool(
 	aggregation timerAggregation,
 	sourcesSeen map[uint32]*bitset.BitSet,
 ) *lockedTimerAggregation {
-	return &lockedTimerAggregation{aggregation: aggregation, sourcesSeen: sourcesSeen}
+	l := lockedTimerAggregationPool.Get().(*lockedTimerAggregation)
+	l.aggregation = aggregation
+	l.sourcesSeen = sourcesSeen
+	return l
 }
 
 func (l *lockedTimerAggregation) close() {
 	l.aggregation.Close()
 	l.aggregation = timerAggregation{}
 	l.sourcesSeen = nil
+	l.lastUpdatedAt = 0
+	l.dirty = false
+	l.closed = false
+	l.resendEnabled = false
 	lockedTimerAggregationPool.Put(l)
 }
