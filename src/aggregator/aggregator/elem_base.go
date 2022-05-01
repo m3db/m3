@@ -739,3 +739,67 @@ func newParsedPipeline(pipeline applied.Pipeline) (parsedPipeline, error) {
 		Rollup:                 rollup,
 	}, nil
 }
+
+// placeholder to make compiler happy about generic elem base
+// NB: lockedAggregationFromPool and not newLockedAggregation to avoid yet another rename hack in makefile
+func lockedAggregationFromPool(
+	aggregation typeSpecificAggregation,
+	sourcesSeen map[uint32]*bitset.BitSet,
+) *lockedAggregation {
+	return &lockedAggregation{
+		aggregation: aggregation,
+		sourcesSeen: sourcesSeen,
+	}
+}
+
+func (l *lockedAggregation) close() {
+	l.aggregation.Close()
+}
+
+var lockedCounterAggregationPool = sync.Pool{New: func() interface{} { return &lockedCounterAggregation{} }}
+
+func lockedCounterAggregationFromPool(
+	aggregation counterAggregation,
+	sourcesSeen map[uint32]*bitset.BitSet,
+) *lockedCounterAggregation {
+	return &lockedCounterAggregation{aggregation: aggregation, sourcesSeen: sourcesSeen}
+}
+
+func (l *lockedCounterAggregation) close() {
+	l.aggregation.Close()
+	l.aggregation = counterAggregation{}
+	l.sourcesSeen = nil
+	lockedCounterAggregationPool.Put(l)
+}
+
+var lockedGaugeAggregationPool = sync.Pool{New: func() interface{} { return &lockedGaugeAggregation{} }}
+
+func lockedGaugeAggregationFromPool(
+	aggregation gaugeAggregation,
+	sourcesSeen map[uint32]*bitset.BitSet,
+) *lockedGaugeAggregation {
+	return &lockedGaugeAggregation{aggregation: aggregation, sourcesSeen: sourcesSeen}
+}
+
+func (l *lockedGaugeAggregation) close() {
+	l.aggregation.Close()
+	l.aggregation = gaugeAggregation{}
+	l.sourcesSeen = nil
+	lockedGaugeAggregationPool.Put(l)
+}
+
+var lockedTimerAggregationPool = sync.Pool{New: func() interface{} { return &lockedTimerAggregation{} }}
+
+func lockedTimerAggregationFromPool(
+	aggregation timerAggregation,
+	sourcesSeen map[uint32]*bitset.BitSet,
+) *lockedTimerAggregation {
+	return &lockedTimerAggregation{aggregation: aggregation, sourcesSeen: sourcesSeen}
+}
+
+func (l *lockedTimerAggregation) close() {
+	l.aggregation.Close()
+	l.aggregation = timerAggregation{}
+	l.sourcesSeen = nil
+	lockedTimerAggregationPool.Put(l)
+}

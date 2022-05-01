@@ -126,7 +126,7 @@ type timedAggregation struct {
 
 // close is called when the aggregation has been expired or the element is being closed.
 func (ta *timedAggregation) close() {
-	ta.lockedAgg.aggregation.Close()
+	ta.lockedAgg.close()
 	ta.lockedAgg = nil
 }
 
@@ -744,12 +744,13 @@ func (e *GenericElem) findOrCreate(
 			sourcesSeen = make(map[uint32]*bitset.BitSet)
 		}
 	}
+	// lockedAggregation will be returned to pool on timedAggregation close
 	timedAgg = timedAggregation{
 		startAt: alignedStart,
-		lockedAgg: &lockedAggregation{
-			sourcesSeen: sourcesSeen,
-			aggregation: e.NewAggregation(e.opts, e.aggOpts),
-		},
+		lockedAgg: lockedAggregationFromPool(
+			e.NewAggregation(e.opts, e.aggOpts),
+			sourcesSeen,
+		),
 		inDirtySet: true,
 	}
 
