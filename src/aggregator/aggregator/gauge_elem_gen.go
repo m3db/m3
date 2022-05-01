@@ -439,7 +439,7 @@ func (e *GaugeElem) dirtyToConsumeWithLock(targetNanos int64,
 		}
 
 		var dirty bool
-		e.toConsume, dirty = e.appendConsumeStateWithLock(agg, e.toConsume, isDirty)
+		e.toConsume, dirty = e.appendConsumeStateWithLock(agg, e.toConsume)
 		if !dirty {
 			// there is a race where the value was added to the dirty set, but the writer didn't actually update the
 			// value yet (by marking dirty). add back to the dirty set so it can be processed in the next round once

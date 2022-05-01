@@ -253,10 +253,6 @@ type flushState struct {
 	latestResendEnabled bool
 }
 
-var isDirty = func(state consumeState) bool {
-	return state.dirty
-}
-
 // close is called when the aggregation has expired and is no longer needed.
 func (f *flushState) close() {
 	f.consumedValues = f.consumedValues[:0]
