@@ -489,7 +489,7 @@ func (e *TimerElem) appendConsumeStateWithLock(
 		})
 	}
 	cState := &toConsume[len(toConsume)-1]
-	cState.reset()
+	cState.Reset()
 	// copy the lockedAgg data while holding the lock.
 	agg.lockedAgg.mtx.Lock()
 	cState.dirty = agg.lockedAgg.dirty

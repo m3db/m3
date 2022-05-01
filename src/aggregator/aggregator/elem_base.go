@@ -216,7 +216,8 @@ type consumeState struct {
 	resendEnabled bool
 }
 
-func (c *consumeState) reset() {
+// Reset resets the consume state for reuse.
+func (c *consumeState) Reset() {
 	var (
 		annotation []byte
 		values     []float64
