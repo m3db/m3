@@ -158,4 +158,7 @@ func (t *Timer) Annotation() []byte {
 }
 
 // Close closes the timer.
-func (t *Timer) Close() { t.stream.Close() }
+func (t *Timer) Close() {
+	t.annotation = nil
+	t.stream.Close()
+}

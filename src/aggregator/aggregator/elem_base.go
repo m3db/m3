@@ -740,7 +740,7 @@ func newParsedPipeline(pipeline applied.Pipeline) (parsedPipeline, error) {
 	}, nil
 }
 
-// placeholder to make compiler happy about generic elem base
+// Placeholder to make compiler happy about generic elem base.
 // NB: lockedAggregationFromPool and not newLockedAggregation to avoid yet another rename hack in makefile
 func lockedAggregationFromPool(
 	aggregation typeSpecificAggregation,
@@ -765,21 +765,13 @@ func lockedCounterAggregationFromPool(
 	l := lockedCounterAggregationPool.Get().(*lockedCounterAggregation)
 	l.aggregation = aggregation
 	l.sourcesSeen = sourcesSeen
-	l.lastUpdatedAt = 0
-	l.dirty = false
-	l.closed = false
-	l.resendEnabled = false
+
 	return l
 }
 
 func (l *lockedCounterAggregation) close() {
 	l.aggregation.Close()
-	l.aggregation = counterAggregation{}
-	l.sourcesSeen = nil
-	l.lastUpdatedAt = 0
-	l.dirty = false
-	l.closed = false
-	l.resendEnabled = false
+	*l = lockedCounterAggregation{}
 	lockedCounterAggregationPool.Put(l)
 }
 
@@ -792,17 +784,13 @@ func lockedGaugeAggregationFromPool(
 	l := lockedGaugeAggregationPool.Get().(*lockedGaugeAggregation)
 	l.aggregation = aggregation
 	l.sourcesSeen = sourcesSeen
+
 	return l
 }
 
 func (l *lockedGaugeAggregation) close() {
 	l.aggregation.Close()
-	l.aggregation = gaugeAggregation{}
-	l.sourcesSeen = nil
-	l.lastUpdatedAt = 0
-	l.dirty = false
-	l.closed = false
-	l.resendEnabled = false
+	*l = lockedGaugeAggregation{}
 	lockedGaugeAggregationPool.Put(l)
 }
 
@@ -815,16 +803,12 @@ func lockedTimerAggregationFromPool(
 	l := lockedTimerAggregationPool.Get().(*lockedTimerAggregation)
 	l.aggregation = aggregation
 	l.sourcesSeen = sourcesSeen
+
 	return l
 }
 
 func (l *lockedTimerAggregation) close() {
 	l.aggregation.Close()
-	l.aggregation = timerAggregation{}
-	l.sourcesSeen = nil
-	l.lastUpdatedAt = 0
-	l.dirty = false
-	l.closed = false
-	l.resendEnabled = false
+	*l = lockedTimerAggregation{}
 	lockedTimerAggregationPool.Put(l)
 }

@@ -744,7 +744,11 @@ func (e *GenericElem) findOrCreate(
 			sourcesSeen = make(map[uint32]*bitset.BitSet)
 		}
 	}
-	// lockedAggregation will be returned to pool on timedAggregation close
+	// NB(vytenis): lockedAggregation will be returned to pool on timedAggregation close.
+	// this is a bit different from regular pattern of using a pool object due to codegen with Genny limitations,
+	// so we can avoid writing more boilerplate.
+	// timedAggregation itself is always pass-by-value, but lockedAggregation incurs an expensive allocation on heap
+	// in the critical path (30%+, depending on workload as of 2020-05-01): see https://github.com/m3db/m3/pull/4109
 	timedAgg = timedAggregation{
 		startAt: alignedStart,
 		lockedAgg: lockedAggregationFromPool(
