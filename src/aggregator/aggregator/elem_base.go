@@ -741,3 +741,76 @@ func newParsedPipeline(pipeline applied.Pipeline) (parsedPipeline, error) {
 		Rollup:                 rollup,
 	}, nil
 }
+
+// Placeholder to make compiler happy about generic elem base.
+// NB: lockedAggregationFromPool and not newLockedAggregation to avoid yet another rename hack in makefile
+func lockedAggregationFromPool(
+	aggregation typeSpecificAggregation,
+	sourcesSeen map[uint32]*bitset.BitSet,
+) *lockedAggregation {
+	return &lockedAggregation{
+		aggregation: aggregation,
+		sourcesSeen: sourcesSeen,
+	}
+}
+
+func (l *lockedAggregation) close() {
+	l.aggregation.Close()
+}
+
+var lockedCounterAggregationPool = sync.Pool{New: func() interface{} { return &lockedCounterAggregation{} }}
+
+func lockedCounterAggregationFromPool(
+	aggregation counterAggregation,
+	sourcesSeen map[uint32]*bitset.BitSet,
+) *lockedCounterAggregation {
+	l := lockedCounterAggregationPool.Get().(*lockedCounterAggregation)
+	l.aggregation = aggregation
+	l.sourcesSeen = sourcesSeen
+
+	return l
+}
+
+func (l *lockedCounterAggregation) close() {
+	l.aggregation.Close()
+	*l = lockedCounterAggregation{}
+	lockedCounterAggregationPool.Put(l)
+}
+
+var lockedGaugeAggregationPool = sync.Pool{New: func() interface{} { return &lockedGaugeAggregation{} }}
+
+func lockedGaugeAggregationFromPool(
+	aggregation gaugeAggregation,
+	sourcesSeen map[uint32]*bitset.BitSet,
+) *lockedGaugeAggregation {
+	l := lockedGaugeAggregationPool.Get().(*lockedGaugeAggregation)
+	l.aggregation = aggregation
+	l.sourcesSeen = sourcesSeen
+
+	return l
+}
+
+func (l *lockedGaugeAggregation) close() {
+	l.aggregation.Close()
+	*l = lockedGaugeAggregation{}
+	lockedGaugeAggregationPool.Put(l)
+}
+
+var lockedTimerAggregationPool = sync.Pool{New: func() interface{} { return &lockedTimerAggregation{} }}
+
+func lockedTimerAggregationFromPool(
+	aggregation timerAggregation,
+	sourcesSeen map[uint32]*bitset.BitSet,
+) *lockedTimerAggregation {
+	l := lockedTimerAggregationPool.Get().(*lockedTimerAggregation)
+	l.aggregation = aggregation
+	l.sourcesSeen = sourcesSeen
+
+	return l
+}
+
+func (l *lockedTimerAggregation) close() {
+	l.aggregation.Close()
+	*l = lockedTimerAggregation{}
+	lockedTimerAggregationPool.Put(l)
+}

@@ -63,7 +63,7 @@ type timedTimer struct {
 
 // close is called when the aggregation has been expired or the element is being closed.
 func (ta *timedTimer) close() {
-	ta.lockedAgg.aggregation.Close()
+	ta.lockedAgg.close()
 	ta.lockedAgg = nil
 }
 
@@ -684,12 +684,17 @@ func (e *TimerElem) findOrCreate(
 			sourcesSeen = make(map[uint32]*bitset.BitSet)
 		}
 	}
+	// NB(vytenis): lockedTimerAggregation will be returned to pool on timedTimer close.
+	// this is a bit different from regular pattern of using a pool object due to codegen with Genny limitations,
+	// so we can avoid writing more boilerplate.
+	// timedTimer itself is always pass-by-value, but lockedTimerAggregation incurs an expensive allocation on heap
+	// in the critical path (30%+, depending on workload as of 2020-05-01): see https://github.com/m3db/m3/pull/4109
 	timedAgg = timedTimer{
 		startAt: alignedStart,
-		lockedAgg: &lockedTimerAggregation{
-			sourcesSeen: sourcesSeen,
-			aggregation: e.NewAggregation(e.opts, e.aggOpts),
-		},
+		lockedAgg: lockedTimerAggregationFromPool(
+			e.NewAggregation(e.opts, e.aggOpts),
+			sourcesSeen,
+		),
 		inDirtySet: true,
 	}
 
