@@ -786,6 +786,9 @@ const (
 	timedMetricListType
 )
 
+// keep in sync with metricListType values
+const numMetricListTypes = 3
+
 func (t metricListType) String() string {
 	switch t {
 	case standardMetricListType:
