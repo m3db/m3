@@ -218,22 +218,10 @@ type consumeState struct {
 
 // Reset resets the consume state for reuse.
 func (c *consumeState) Reset() {
-	var (
-		annotation []byte
-		values     []float64
-	)
-
-	if c.annotation != nil {
-		annotation = c.annotation[:0]
+	*c = consumeState{
+		annotation: c.annotation[:0],
+		values:     c.values[:0],
 	}
-
-	if c.values != nil {
-		values = c.values[:0]
-	}
-
-	*c = consumeState{}
-	c.annotation = annotation
-	c.values = values
 }
 
 // mutable state for a timedAggregation that is local to the flusher. does not need to be synchronized.
