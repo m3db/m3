@@ -1164,7 +1164,7 @@ func TestAddUntimed_ResendEnabledMigrationRaceWithFlusher(t *testing.T) {
 	require.NoError(t, e.addUntimed(mu, metadatas))
 
 	// continue consuming the aggregation
-	elem.expireValuesWithLock(int64(t2), isStandardMetricEarlierThan, flushMetrics{})
+	elem.expireValuesWithLock(int64(t2), isStandardMetricEarlierThan, newFlushMetrics(tally.NoopScope))
 
 	// target the aggregation being flushed again...it should still be open since it migrated to resendEnabled before
 	// closing.

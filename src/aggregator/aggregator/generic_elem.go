@@ -291,7 +291,9 @@ func (e *GenericElem) AddUnique(
 func (e *GenericElem) expireValuesWithLock(
 	targetNanos int64,
 	isEarlierThanFn isEarlierThanFn,
-	flushMetrics flushMetrics) {
+	flushMetrics *flushMetrics,
+) {
+	var expiredCount int64
 	e.flushStateToExpire = e.flushStateToExpire[:0]
 	if len(e.values) == 0 {
 		return
@@ -335,7 +337,7 @@ func (e *GenericElem) expireValuesWithLock(
 			e.flushStateToExpire = append(e.flushStateToExpire, e.minStartTime)
 			delete(e.values, e.minStartTime)
 			e.minStartTime = currAgg.startAt
-			flushMetrics.valuesExpired.Inc(1)
+			expiredCount++
 
 			// it's safe to access this outside the agg lock since it was closed in a previous iteration.
 			// This is to make sure there aren't too many cached source sets taking up
@@ -351,6 +353,7 @@ func (e *GenericElem) expireValuesWithLock(
 			break
 		}
 	}
+	flushMetrics.valuesExpired.Inc(expiredCount)
 }
 
 func (e *GenericElem) expireFlushState() {
@@ -800,7 +803,8 @@ func (e *GenericElem) processValue(
 	resolution time.Duration,
 	latenessAllowed time.Duration,
 	jitter time.Duration,
-	flushMetrics flushMetrics) {
+	flushMetrics *flushMetrics,
+) {
 	var (
 		transformations  = e.parsedPipeline.Transformations
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
@@ -816,7 +820,7 @@ func (e *GenericElem) processValue(
 			l.Error("reflushing aggregation without resendEnabled", zap.Any("consumeState", cState))
 		})
 	}
-	flushMetrics.valuesProcessed.Inc(1)
+
 	for aggTypeIdx, aggType := range e.aggTypes {
 		var extraDp transformation.Datapoint
 		value := cState.values[aggTypeIdx]
@@ -930,10 +934,11 @@ func (e *GenericElem) processValue(
 		// forward lag = current time - (agg timestamp + lateness allowed + jitter)
 		// use expectedProcessingTime instead of the aggregation timestamp since the aggregation timestamp could be
 		// in the past for updated aggregations (resendEnabled).
+		lag := xtime.Since(expectedProcessingTime.Add(latenessAllowed))
 		flushMetrics.forwardLag(forwardKey{fwdType: fwdType, jitter: false}).
-			RecordDuration(xtime.Since(expectedProcessingTime.Add(latenessAllowed + jitter)))
+			RecordDuration(lag)
 		flushMetrics.forwardLag(forwardKey{fwdType: fwdType, jitter: true}).
-			RecordDuration(xtime.Since(expectedProcessingTime.Add(latenessAllowed)))
+			RecordDuration(lag + jitter)
 	}
 	fState.flushed = true
 	e.flushState[cState.startAt] = fState

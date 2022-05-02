@@ -101,8 +101,10 @@ const (
 type forwardType int
 
 const (
+	// NB(vytenis): keep this zero-indexed
 	forwardTypeLocal forwardType = iota
 	forwardTypeRemote
+	forwardTypeInvalid // must be the last value in the list - used as a sentinel value for metric scope generation
 )
 
 // metricElem is the common interface for metric elements.
@@ -189,7 +191,7 @@ type elemBase struct {
 	// Mutable states.
 	cachedSourceSets []map[uint32]*bitset.BitSet // nolint: structcheck
 	// a cache of the flush metrics that don't require grabbing a lock to access.
-	flushMetricsCache     map[flushKey]flushMetrics
+	flushMetricsCache     map[flushKey]*flushMetrics
 	writeMetrics          writeMetrics
 	tombstoned            bool
 	closed                bool
@@ -251,11 +253,16 @@ func (f *flushState) close() {
 	f.emittedValues = f.emittedValues[:0]
 }
 
-type elemMetrics struct {
-	scope tally.Scope
-	write map[metricListType]writeMetrics
-	flush map[flushKey]flushMetrics
-	mtx   sync.RWMutex
+type writeMetrics struct {
+	writes        tally.Counter
+	updatedValues tally.Counter
+}
+
+func newWriteMetrics(scope tally.Scope) writeMetrics {
+	return writeMetrics{
+		updatedValues: scope.Counter("updated-values"),
+		writes:        scope.Counter("writes"),
+	}
 }
 
 // flushMetrics are the metrics produced by a flush task processing the metric element.
@@ -267,15 +274,11 @@ type flushMetrics struct {
 	// count of values expired.
 	valuesExpired tally.Counter
 	// the difference between actual and expected processing for a value.
-	forwardLags map[forwardKey]tally.Histogram
+	jitteredForwardLags    [int(forwardTypeInvalid)]tally.Histogram
+	nonJitteredForwardLags [int(forwardTypeInvalid)]tally.Histogram
 }
 
-type writeMetrics struct {
-	writes        tally.Counter
-	updatedValues tally.Counter
-}
-
-func newFlushMetrics(scope tally.Scope) flushMetrics {
+func newFlushMetrics(scope tally.Scope) *flushMetrics {
 	forwardLagBuckets := tally.DurationBuckets{
 		10 * time.Millisecond,
 		500 * time.Millisecond,
@@ -294,32 +297,31 @@ func newFlushMetrics(scope tally.Scope) flushMetrics {
 		90 * time.Second,
 		120 * time.Second,
 	}
-	jitterVals := []bool{true, false}
-	typeVals := []forwardType{forwardTypeRemote, forwardTypeLocal}
+
 	m := flushMetrics{
 		elemsScanned:    scope.Counter("elements-scanned"),
 		valuesProcessed: scope.Counter("values-processed"),
 		valuesExpired:   scope.Counter("values-expired"),
-		forwardLags:     make(map[forwardKey]tally.Histogram),
 	}
-	for _, jv := range jitterVals {
-		for _, tv := range typeVals {
-			key := forwardKey{jitter: jv, fwdType: tv}
-			m.forwardLags[key] = scope.Tagged(key.toTags()).Histogram("forward-lag", forwardLagBuckets)
-		}
+	// forwardTypeInvalid is a sentinel value, marking the maximum index for forwardMetricType consts
+	for i := 0; i < int(forwardTypeInvalid); i++ {
+		tv := forwardType(i)
+		m.jitteredForwardLags[i] = scope.
+			Tagged(forwardKey{fwdType: tv, jitter: true}.toTags()).
+			Histogram("forward-lag", forwardLagBuckets)
+		m.nonJitteredForwardLags[i] = scope.
+			Tagged(forwardKey{fwdType: tv, jitter: false}.toTags()).
+			Histogram("forward-lag", forwardLagBuckets)
 	}
-	return m
-}
-
-func newWriteMetrics(scope tally.Scope) writeMetrics {
-	return writeMetrics{
-		updatedValues: scope.Counter("updated-values"),
-		writes:        scope.Counter("writes"),
-	}
+	return &m
 }
 
 func (f flushMetrics) forwardLag(key forwardKey) tally.Histogram {
-	return f.forwardLags[key]
+	if key.jitter {
+		return f.jitteredForwardLags[key.fwdType]
+	}
+
+	return f.nonJitteredForwardLags[key.fwdType]
 }
 
 // flushKey identifies a flush task.
@@ -358,44 +360,48 @@ func (f flushKey) toTags() map[string]string {
 	}
 }
 
-func (e *elemMetrics) flushMetrics(key flushKey) flushMetrics {
+type elemMetrics struct {
+	scope tally.Scope
+	write [int(invalidMetricListType)]writeMetrics
+	flush map[flushKey]*flushMetrics
+	mtx   sync.RWMutex
+}
+
+func newElemMetrics(scope tally.Scope) *elemMetrics {
+	m := elemMetrics{
+		scope: scope,
+		flush: make(map[flushKey]*flushMetrics),
+	}
+	// invalidMetricListType is a sentinel value, marking the maximum index for metricListType consts
+	for i := 0; i < int(invalidMetricListType); i++ {
+		m.write[i] = newWriteMetrics(scope.Tagged(map[string]string{listTypeLabel: (metricListType)(i).String()}))
+	}
+	return &m
+}
+
+func (e *elemMetrics) flushMetrics(key flushKey) *flushMetrics {
 	e.mtx.RLock()
-	m, ok := e.flush[key]
-	if ok {
+	if m, ok := e.flush[key]; ok {
 		e.mtx.RUnlock()
 		return m
 	}
 	e.mtx.RUnlock()
+
 	e.mtx.Lock()
-	m, ok = e.flush[key]
-	if ok {
-		e.mtx.Unlock()
+	defer e.mtx.Unlock()
+
+	if m, ok := e.flush[key]; ok {
 		return m
 	}
-	m = newFlushMetrics(e.scope.Tagged(key.toTags()))
+
+	m := newFlushMetrics(e.scope.Tagged(key.toTags()))
 	e.flush[key] = m
-	e.mtx.Unlock()
+
 	return m
 }
 
 func (e *elemMetrics) writeMetrics(key metricListType) writeMetrics {
-	e.mtx.RLock()
-	m, ok := e.write[key]
-	if ok {
-		e.mtx.RUnlock()
-		return m
-	}
-	e.mtx.RUnlock()
-	e.mtx.Lock()
-	m, ok = e.write[key]
-	if ok {
-		e.mtx.Unlock()
-		return m
-	}
-	m = newWriteMetrics(e.scope.Tagged(map[string]string{listTypeLabel: key.String()}))
-	e.write[key] = m
-	e.mtx.Unlock()
-	return m
+	return e.write[key]
 }
 
 // ElemOptions are the parameters for constructing a new elemBase.
@@ -411,11 +417,7 @@ func NewElemOptions(aggregatorOpts Options) ElemOptions {
 	return ElemOptions{
 		aggregatorOpts:  aggregatorOpts,
 		aggregationOpts: raggregation.NewOptions(aggregatorOpts.InstrumentOptions()),
-		elemMetrics: &elemMetrics{
-			scope: scope,
-			write: make(map[metricListType]writeMetrics),
-			flush: make(map[flushKey]flushMetrics),
-		},
+		elemMetrics:     newElemMetrics(scope),
 	}
 }
 
@@ -426,11 +428,11 @@ func newElemBase(opts ElemOptions) elemBase {
 		aggOpts:                    opts.aggregationOpts,
 		metrics:                    opts.elemMetrics,
 		bufferForPastTimedMetricFn: opts.aggregatorOpts.BufferForPastTimedMetricFn(),
-		flushMetricsCache:          make(map[flushKey]flushMetrics),
+		flushMetricsCache:          make(map[flushKey]*flushMetrics),
 	}
 }
 
-func (e *elemBase) flushMetrics(resolution time.Duration, flushType flushType) flushMetrics {
+func (e *elemBase) flushMetrics(resolution time.Duration, flushType flushType) *flushMetrics {
 	key := flushKey{
 		resolution: resolution,
 		flushType:  flushType,
