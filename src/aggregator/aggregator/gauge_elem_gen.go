@@ -469,7 +469,7 @@ func (e *GaugeElem) dirtyToConsumeWithLock(targetNanos int64,
 	}
 }
 
-func (e *GaugeElem) isFlushed(c consumeState) bool {
+func (e *GaugeElem) isFlushed(c *consumeState) bool {
 	return e.flushState[c.startAt].flushed
 }
 
@@ -478,7 +478,7 @@ func (e *GaugeElem) isFlushed(c consumeState) bool {
 func (e *GaugeElem) appendConsumeStateWithLock(
 	agg timedGauge,
 	toConsume []consumeState,
-	includeFilter func(consumeState) bool,
+	includeFilter func(*consumeState) bool,
 ) ([]consumeState, bool) {
 	// try reusing memory already allocated in the slice.
 	if cap(toConsume) >= len(toConsume)+1 {
@@ -515,7 +515,7 @@ func (e *GaugeElem) appendConsumeStateWithLock(
 	fState.latestResendEnabled = cState.resendEnabled
 	e.flushState[cState.startAt] = fState
 
-	if includeFilter != nil && !includeFilter(*cState) {
+	if includeFilter != nil && !includeFilter(cState) {
 		// since we eagerly appended, we need to remove if it should not be included.
 		toConsume = toConsume[0 : len(toConsume)-1]
 		return toConsume, false

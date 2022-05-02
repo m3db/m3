@@ -253,7 +253,7 @@ type flushState struct {
 	latestResendEnabled bool
 }
 
-var isDirty = func(state consumeState) bool {
+var isDirty = func(state *consumeState) bool {
 	return state.dirty
 }
 
