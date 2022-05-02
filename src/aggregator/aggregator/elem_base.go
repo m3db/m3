@@ -101,12 +101,11 @@ const (
 type forwardType int
 
 const (
+	// NB(vytenis): keep this zero-indexed
 	forwardTypeLocal forwardType = iota
 	forwardTypeRemote
+	forwardTypeInvalid // must be the last value in the list - used as a sentinel value for metric scope generation
 )
-
-// keep in sync with type list above
-const numForwardTypes = 2
 
 // metricElem is the common interface for metric elements.
 type metricElem interface {
@@ -267,8 +266,8 @@ type flushMetrics struct {
 	// count of values expired.
 	valuesExpired tally.Counter
 	// the difference between actual and expected processing for a value.
-	jitteredForwardLags    [numForwardTypes]tally.Histogram
-	nonJitteredForwardLags [numForwardTypes]tally.Histogram
+	jitteredForwardLags    [int(forwardTypeInvalid)]tally.Histogram
+	nonJitteredForwardLags [int(forwardTypeInvalid)]tally.Histogram
 }
 
 func newFlushMetrics(scope tally.Scope) *flushMetrics {
@@ -296,7 +295,8 @@ func newFlushMetrics(scope tally.Scope) *flushMetrics {
 		valuesProcessed: scope.Counter("values-processed"),
 		valuesExpired:   scope.Counter("values-expired"),
 	}
-	for i := 0; i < numForwardTypes; i++ {
+	// forwardTypeInvalid is a sentinel value, marking the maximum index for forwardMetricType consts
+	for i := 0; i < int(forwardTypeInvalid); i++ {
 		tv := forwardType(i)
 		m.jitteredForwardLags[i] = scope.
 			Tagged(forwardKey{fwdType: tv, jitter: true}.toTags()).
@@ -354,7 +354,7 @@ func (f flushKey) toTags() map[string]string {
 
 type elemMetrics struct {
 	scope tally.Scope
-	write [numMetricListTypes]writeMetrics
+	write [int(invalidMetricListType)]writeMetrics
 	flush map[flushKey]*flushMetrics
 	mtx   sync.RWMutex
 }
@@ -364,7 +364,8 @@ func newElemMetrics(scope tally.Scope) *elemMetrics {
 		scope: scope,
 		flush: make(map[flushKey]*flushMetrics),
 	}
-	for i := 0; i < numMetricListTypes; i++ {
+	// invalidMetricListType is a sentinel value, marking the maximum index for metricListType consts
+	for i := 0; i < int(invalidMetricListType); i++ {
 		m.write[i] = newWriteMetrics(scope.Tagged(map[string]string{listTypeLabel: (metricListType)(i).String()}))
 	}
 	return &m
