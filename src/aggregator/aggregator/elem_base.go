@@ -216,6 +216,14 @@ type consumeState struct {
 	resendEnabled bool
 }
 
+// Reset resets the consume state for reuse.
+func (c *consumeState) Reset() {
+	*c = consumeState{
+		annotation: c.annotation[:0],
+		values:     c.values[:0],
+	}
+}
+
 // mutable state for a timedAggregation that is local to the flusher. does not need to be synchronized.
 // this state is kept around for the lifetime of the timedAggregation.
 type flushState struct {
@@ -233,7 +241,7 @@ type flushState struct {
 	latestResendEnabled bool
 }
 
-var isDirty = func(state consumeState) bool {
+var isDirty = func(state *consumeState) bool {
 	return state.dirty
 }
 
