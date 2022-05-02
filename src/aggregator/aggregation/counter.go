@@ -136,6 +136,4 @@ func (c *Counter) Annotation() []byte {
 }
 
 // Close closes the counter.
-func (c *Counter) Close() {
-	c.annotation = nil
-}
+func (c *Counter) Close() {}

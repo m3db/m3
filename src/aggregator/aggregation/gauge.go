@@ -170,6 +170,4 @@ func (g *Gauge) Annotation() []byte {
 }
 
 // Close closes the gauge.
-func (g *Gauge) Close() {
-	g.annotation = nil
-}
+func (g *Gauge) Close() {}
