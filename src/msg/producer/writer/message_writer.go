@@ -48,60 +48,6 @@ var (
 
 const _recordMessageDelayEvery = 4 // keep it a power of two value to keep modulo fast
 
-type messageWriter interface {
-	// Write writes a message, messages not acknowledged in time will be retried.
-	// New messages will be written in order, but retries could be out of order.
-	Write(rm *producer.RefCountedMessage)
-
-	// Ack acknowledges the metadata.
-	Ack(meta metadata) bool
-
-	// Init initialize the message writer.
-	Init()
-
-	// Close closes the writer.
-	// It should block until all buffered messages have been acknowledged.
-	Close()
-
-	// AddConsumerWriter adds a consumer writer.
-	AddConsumerWriter(cw consumerWriter)
-
-	// RemoveConsumerWriter removes the consumer writer for the given address.
-	RemoveConsumerWriter(addr string)
-
-	// Metrics returns the metrics
-	Metrics() messageWriterMetrics
-
-	// SetMetrics sets the metrics
-	//
-	// This allows changing the labels of the metrics when the downstream consumer instance changes.
-	SetMetrics(m messageWriterMetrics)
-
-	// ReplicatedShardID returns the replicated shard id.
-	ReplicatedShardID() uint64
-
-	// CutoverNanos returns the cutover nanoseconds.
-	CutoverNanos() int64
-
-	// SetCutoverNanos sets the cutover nanoseconds.
-	SetCutoverNanos(nanos int64)
-
-	// CutoffNanos returns the cutoff nanoseconds.
-	CutoffNanos() int64
-
-	// SetCutoffNanos sets the cutoff nanoseconds.
-	SetCutoffNanos(nanos int64)
-
-	// MessageTTLNanos returns the message ttl nanoseconds.
-	MessageTTLNanos() int64
-
-	// SetMessageTTLNanos sets the message ttl nanoseconds.
-	SetMessageTTLNanos(nanos int64)
-
-	// QueueSize returns the number of messages queued in the writer.
-	QueueSize() int
-}
-
 type messageWriterMetrics struct {
 	withoutConsumerScope     bool
 	scope                    tally.Scope
@@ -131,7 +77,7 @@ type messageWriterMetrics struct {
 	processedDrop            tally.Counter
 }
 
-func (m messageWriterMetrics) withConsumer(consumer string) messageWriterMetrics {
+func (m *messageWriterMetrics) withConsumer(consumer string) *messageWriterMetrics {
 	if m.withoutConsumerScope {
 		return m
 	}
@@ -142,7 +88,7 @@ func newMessageWriterMetrics(
 	scope tally.Scope,
 	opts instrument.TimerOptions,
 	withoutConsumerScope bool,
-) messageWriterMetrics {
+) *messageWriterMetrics {
 	return newMessageWriterMetricsWithConsumer(scope, opts, "unknown", withoutConsumerScope)
 }
 
@@ -150,12 +96,13 @@ func newMessageWriterMetricsWithConsumer(
 	scope tally.Scope,
 	opts instrument.TimerOptions,
 	consumer string,
-	withoutConsumerScope bool) messageWriterMetrics {
+	withoutConsumerScope bool,
+) *messageWriterMetrics {
 	consumerScope := scope
 	if !withoutConsumerScope {
 		consumerScope = scope.Tagged(map[string]string{"consumer": consumer})
 	}
-	return messageWriterMetrics{
+	return &messageWriterMetrics{
 		withoutConsumerScope:  withoutConsumerScope,
 		scope:                 scope,
 		opts:                  opts,
@@ -209,7 +156,7 @@ func newMessageWriterMetricsWithConsumer(
 	}
 }
 
-type messageWriterImpl struct {
+type messageWriter struct {
 	sync.RWMutex
 
 	replicatedShardID   uint64
@@ -243,13 +190,13 @@ func newMessageWriter(
 	replicatedShardID uint64,
 	mPool *messagePool,
 	opts Options,
-	m messageWriterMetrics,
-) messageWriter {
+	m *messageWriterMetrics,
+) *messageWriter {
 	if opts == nil {
 		opts = NewOptions()
 	}
 	nowFn := time.Now
-	return &messageWriterImpl{
+	return &messageWriter{
 		replicatedShardID:   replicatedShardID,
 		mPool:               mPool,
 		opts:                opts,
@@ -264,12 +211,14 @@ func newMessageWriter(
 		msgsToWrite:         make([]*message, 0, opts.MessageQueueScanBatchSize()),
 		isClosed:            false,
 		doneCh:              make(chan struct{}),
-		m:                   &m,
+		m:                   m,
 		nowFn:               nowFn,
 	}
 }
 
-func (w *messageWriterImpl) Write(rm *producer.RefCountedMessage) {
+// Write writes a message, messages not acknowledged in time will be retried.
+// New messages will be written in order, but retries could be out of order.
+func (w *messageWriter) Write(rm *producer.RefCountedMessage) {
 	var (
 		nowNanos = w.nowFn().UnixNano()
 		msg      = w.newMessage()
@@ -300,7 +249,7 @@ func (w *messageWriterImpl) Write(rm *producer.RefCountedMessage) {
 	w.Unlock()
 }
 
-func (w *messageWriterImpl) isValidWriteWithLock(nowNanos int64) bool {
+func (w *messageWriter) isValidWriteWithLock(nowNanos int64) bool {
 	if w.opts.IgnoreCutoffCutover() {
 		return true
 	}
@@ -317,7 +266,7 @@ func (w *messageWriterImpl) isValidWriteWithLock(nowNanos int64) bool {
 	return true
 }
 
-func (w *messageWriterImpl) write(
+func (w *messageWriter) write(
 	iterationIndexes []int,
 	consumerWriters []consumerWriter,
 	metrics *messageWriterMetrics,
@@ -367,15 +316,8 @@ func (w *messageWriterImpl) write(
 	return errFailAllConsumers
 }
 
-func randIndex(iterationIndexes []int, i int) int {
-	j := int(unsafe.Fastrandn(uint32(i + 1)))
-	// NB: we should only mutate the order in the iteration indexes and
-	// keep the order of consumer writers unchanged to prevent data race.
-	iterationIndexes[i], iterationIndexes[j] = iterationIndexes[j], iterationIndexes[i]
-	return iterationIndexes[i]
-}
-
-func (w *messageWriterImpl) Ack(meta metadata) bool {
+// Ack acknowledges the metadata.
+func (w *messageWriter) Ack(meta metadata) bool {
 	acked, expectedProcessNanos := w.acks.ack(meta)
 	if acked {
 		w.RLock()
@@ -387,7 +329,8 @@ func (w *messageWriterImpl) Ack(meta metadata) bool {
 	return false
 }
 
-func (w *messageWriterImpl) Init() {
+// Init initialize the message writer.
+func (w *messageWriter) Init() {
 	w.wg.Add(1)
 	go func() {
 		w.scanMessageQueueUntilClose()
@@ -395,7 +338,7 @@ func (w *messageWriterImpl) Init() {
 	}()
 }
 
-func (w *messageWriterImpl) scanMessageQueueUntilClose() {
+func (w *messageWriter) scanMessageQueueUntilClose() {
 	var (
 		interval = w.opts.MessageQueueNewWritesScanInterval()
 		jitter   = time.Duration(
@@ -419,7 +362,7 @@ func (w *messageWriterImpl) scanMessageQueueUntilClose() {
 	}
 }
 
-func (w *messageWriterImpl) scanMessageQueue() {
+func (w *messageWriter) scanMessageQueue() {
 	w.RLock()
 	e := w.queue.Front()
 	w.lastNewWrite = nil
@@ -471,7 +414,7 @@ func (w *messageWriterImpl) scanMessageQueue() {
 	}
 }
 
-func (w *messageWriterImpl) writeBatch(
+func (w *messageWriter) writeBatch(
 	iterationIndexes []int,
 	consumerWriters []consumerWriter,
 	metrics *messageWriterMetrics,
@@ -498,7 +441,7 @@ func (w *messageWriterImpl) writeBatch(
 // scanBatchWithLock iterates the message queue with a lock. It returns after
 // visited enough elements. So it holds the lock for less time and allows new
 // writes to be unblocked.
-func (w *messageWriterImpl) scanBatchWithLock(
+func (w *messageWriter) scanBatchWithLock(
 	start *list.Element,
 	nowNanos int64,
 	batchSize int,
@@ -582,7 +525,9 @@ func (w *messageWriterImpl) scanBatchWithLock(
 	return next, w.msgsToWrite
 }
 
-func (w *messageWriterImpl) Close() {
+// Close closes the writer.
+// It should block until all buffered messages have been acknowledged.
+func (w *messageWriter) Close() {
 	w.Lock()
 	if w.isClosed {
 		w.Unlock()
@@ -596,7 +541,7 @@ func (w *messageWriterImpl) Close() {
 	w.wg.Wait()
 }
 
-func (w *messageWriterImpl) waitUntilAllMessageRemoved() {
+func (w *messageWriter) waitUntilAllMessageRemoved() {
 	// The message writers are being closed sequentially, checking isEmpty()
 	// before always waiting for the first tick can speed up Close() a lot.
 	if w.isEmpty() {
@@ -612,57 +557,59 @@ func (w *messageWriterImpl) waitUntilAllMessageRemoved() {
 	}
 }
 
-func (w *messageWriterImpl) isEmpty() bool {
+func (w *messageWriter) isEmpty() bool {
 	w.RLock()
 	l := w.queue.Len()
 	w.RUnlock()
 	return l == 0
 }
 
-func (w *messageWriterImpl) ReplicatedShardID() uint64 {
+// ReplicatedShardID returns the replicated shard id.
+func (w *messageWriter) ReplicatedShardID() uint64 {
 	return w.replicatedShardID
 }
 
-func (w *messageWriterImpl) CutoffNanos() int64 {
+func (w *messageWriter) CutoffNanos() int64 {
 	w.RLock()
 	res := w.cutOffNanos
 	w.RUnlock()
 	return res
 }
 
-func (w *messageWriterImpl) SetCutoffNanos(nanos int64) {
+func (w *messageWriter) SetCutoffNanos(nanos int64) {
 	w.Lock()
 	w.cutOffNanos = nanos
 	w.Unlock()
 }
 
-func (w *messageWriterImpl) CutoverNanos() int64 {
+func (w *messageWriter) CutoverNanos() int64 {
 	w.RLock()
 	res := w.cutOverNanos
 	w.RUnlock()
 	return res
 }
 
-func (w *messageWriterImpl) SetCutoverNanos(nanos int64) {
+func (w *messageWriter) SetCutoverNanos(nanos int64) {
 	w.Lock()
 	w.cutOverNanos = nanos
 	w.Unlock()
 }
 
-func (w *messageWriterImpl) MessageTTLNanos() int64 {
+func (w *messageWriter) MessageTTLNanos() int64 {
 	w.RLock()
 	res := w.messageTTLNanos
 	w.RUnlock()
 	return res
 }
 
-func (w *messageWriterImpl) SetMessageTTLNanos(nanos int64) {
+func (w *messageWriter) SetMessageTTLNanos(nanos int64) {
 	w.Lock()
 	w.messageTTLNanos = nanos
 	w.Unlock()
 }
 
-func (w *messageWriterImpl) AddConsumerWriter(cw consumerWriter) {
+// AddConsumerWriter adds a consumer writer.
+func (w *messageWriter) AddConsumerWriter(cw consumerWriter) {
 	w.Lock()
 	newConsumerWriters := make([]consumerWriter, 0, len(w.consumerWriters)+1)
 	newConsumerWriters = append(newConsumerWriters, w.consumerWriters...)
@@ -676,7 +623,8 @@ func (w *messageWriterImpl) AddConsumerWriter(cw consumerWriter) {
 	w.Unlock()
 }
 
-func (w *messageWriterImpl) RemoveConsumerWriter(addr string) {
+// RemoveConsumerWriter removes the consumer writer for the given address.
+func (w *messageWriter) RemoveConsumerWriter(addr string) {
 	w.Lock()
 	newConsumerWriters := make([]consumerWriter, 0, len(w.consumerWriters)-1)
 	for _, cw := range w.consumerWriters {
@@ -694,33 +642,38 @@ func (w *messageWriterImpl) RemoveConsumerWriter(addr string) {
 	w.Unlock()
 }
 
-func (w *messageWriterImpl) Metrics() messageWriterMetrics {
+// Metrics returns the metrics. These are dynamic and change if downstream consumer instance changes.
+func (w *messageWriter) Metrics() *messageWriterMetrics {
 	w.RLock()
 	defer w.RUnlock()
-	return *w.m
+	return w.m
 }
 
-func (w *messageWriterImpl) SetMetrics(m messageWriterMetrics) {
+// SetMetrics sets the metrics
+//
+// This allows changing the labels of the metrics when the downstream consumer instance changes.
+func (w *messageWriter) SetMetrics(m *messageWriterMetrics) {
 	w.Lock()
-	w.m = &m
+	w.m = m
 	w.Unlock()
 }
 
-func (w *messageWriterImpl) QueueSize() int {
+// QueueSize returns the number of messages queued in the writer.
+func (w *messageWriter) QueueSize() int {
 	return w.acks.size()
 }
 
-func (w *messageWriterImpl) newMessage() *message {
+func (w *messageWriter) newMessage() *message {
 	return w.mPool.Get()
 }
 
-func (w *messageWriterImpl) removeFromQueueWithLock(e *list.Element, m *message) {
+func (w *messageWriter) removeFromQueueWithLock(e *list.Element, m *message) {
 	w.queue.Remove(e)
 	w.m.dequeuedMessages.Inc(1)
 	w.close(m)
 }
 
-func (w *messageWriterImpl) close(m *message) {
+func (w *messageWriter) close(m *message) {
 	m.Close()
 	w.mPool.Put(m)
 }
@@ -864,4 +817,12 @@ func StaticRetryNanosFn(backoffDurations []time.Duration) (MessageRetryNanosFn, 
 		}
 		return backoffInt64s[l-1]
 	}, nil
+}
+
+func randIndex(iterationIndexes []int, i int) int {
+	j := int(unsafe.Fastrandn(uint32(i + 1)))
+	// NB: we should only mutate the order in the iteration indexes and
+	// keep the order of consumer writers unchanged to prevent data race.
+	iterationIndexes[i], iterationIndexes[j] = iterationIndexes[j], iterationIndexes[i]
+	return iterationIndexes[i]
 }

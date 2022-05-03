@@ -45,7 +45,7 @@ func BenchmarkScanMessageQueue(b *testing.B) {
 			newMessagePool(),
 			opts,
 			testMessageWriterMetrics(),
-		).(*messageWriterImpl)
+		)
 
 		w.consumerWriters = append(w.consumerWriters, noopWriter{})
 
