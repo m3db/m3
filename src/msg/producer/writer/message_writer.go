@@ -318,12 +318,13 @@ func (w *messageWriter) write(
 
 // Ack acknowledges the metadata.
 func (w *messageWriter) Ack(meta metadata) bool {
-	acked, expectedProcessNanos := w.acks.ack(meta)
-	if acked {
+	if acked, expectedProcessNanos := w.acks.ack(meta); acked {
 		w.RLock()
-		defer w.RUnlock()
-		w.m.messageConsumeLatency.Record(time.Duration(w.nowFn().UnixNano() - expectedProcessNanos))
-		w.m.messageAcked.Inc(1)
+		m := w.m
+		w.RUnlock()
+
+		m.messageConsumeLatency.Record(time.Duration(w.nowFn().UnixNano() - expectedProcessNanos))
+		m.messageAcked.Inc(1)
 		return true
 	}
 	return false
@@ -679,52 +680,56 @@ func (w *messageWriter) close(m *message) {
 }
 
 type acks struct {
-	sync.Mutex
-
-	ackMap map[metadataKey]*message
+	mtx  sync.Mutex
+	acks map[uint64]*message
 }
 
 // nolint: unparam
 func newAckHelper(size int) *acks {
 	return &acks{
-		ackMap: make(map[metadataKey]*message, size),
+		acks: make(map[uint64]*message, size),
 	}
 }
 
 func (a *acks) add(meta metadata, m *message) {
-	a.Lock()
-	a.ackMap[meta.metadataKey] = m
-	a.Unlock()
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+
+	a.acks[meta.metadataKey.id] = m
 }
 
 func (a *acks) remove(meta metadata) {
-	a.Lock()
-	delete(a.ackMap, meta.metadataKey)
-	a.Unlock()
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+
+	delete(a.acks, meta.metadataKey.id)
 }
 
 // ack processes the ack. returns true if the message was not already acked. additionally returns the expected
 // processing time for lag calculations.
 func (a *acks) ack(meta metadata) (bool, int64) {
-	a.Lock()
-	m, ok := a.ackMap[meta.metadataKey]
+	a.mtx.Lock()
+	m, ok := a.acks[meta.metadataKey.id]
 	if !ok {
-		a.Unlock()
+		a.mtx.Unlock()
 		// Acking a message that is already acked, which is ok.
 		return false, 0
 	}
-	delete(a.ackMap, meta.metadataKey)
-	a.Unlock()
+
+	delete(a.acks, meta.metadataKey.id)
+	a.mtx.Unlock()
+
 	expectedProcessAtNanos := m.ExpectedProcessAtNanos()
 	m.Ack()
+
 	return true, expectedProcessAtNanos
 }
 
 func (a *acks) size() int {
-	a.Lock()
-	l := len(a.ackMap)
-	a.Unlock()
-	return l
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+
+	return len(a.acks)
 }
 
 type metricIdx byte

@@ -212,8 +212,11 @@ func TestMessageWriterRetry(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	_, ok := w.acks.ackMap[metadataKey{shard: 200, id: 1}]
+	require.Equal(t, 1, w.acks.size())
+	w.acks.mtx.Lock()
+	_, ok := w.acks.acks[uint64(1)]
 	require.True(t, ok)
+	w.acks.mtx.Unlock()
 
 	cw := newConsumerWriter(addr, a, opts, testConsumerWriterMetrics())
 	cw.Init()
@@ -758,9 +761,7 @@ func TestMessageWriter_WithoutConsumerScope(t *testing.T) {
 }
 
 func isEmptyWithLock(h *acks) bool {
-	h.Lock()
-	defer h.Unlock()
-	return len(h.ackMap) == 0
+	return h.size() == 0
 }
 
 func testMessageWriterMetrics() *messageWriterMetrics {
