@@ -89,7 +89,7 @@ func TestSharedShardWriter(t *testing.T) {
 
 	sw.Write(producer.NewRefCountedMessage(mm, nil))
 
-	mw := sw.(*sharedShardWriter).mw.(*messageWriterImpl)
+	mw := sw.(*sharedShardWriter).mw
 	mw.RLock()
 	require.Equal(t, 1, len(mw.consumerWriters))
 	require.Equal(t, 1, mw.queue.Len())
@@ -172,9 +172,9 @@ func TestReplicatedShardWriter(t *testing.T) {
 
 	sw.Write(producer.NewRefCountedMessage(mm, nil))
 
-	mw1 := sw.messageWriters[i1.Endpoint()].(*messageWriterImpl)
+	mw1 := sw.messageWriters[i1.Endpoint()]
 	require.Equal(t, 1, mw1.queue.Len())
-	mw3 := sw.messageWriters[i3.Endpoint()].(*messageWriterImpl)
+	mw3 := sw.messageWriters[i3.Endpoint()]
 	require.Equal(t, 1, mw3.queue.Len())
 
 	var wg sync.WaitGroup
@@ -219,7 +219,7 @@ func TestReplicatedShardWriter(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	mw2 := sw.messageWriters[i2.Endpoint()].(*messageWriterImpl)
+	mw2 := sw.messageWriters[i2.Endpoint()]
 	require.Equal(t, mw3, mw2)
 	_, ok := sw.messageWriters[i3.Endpoint()]
 	require.False(t, ok)
@@ -228,7 +228,7 @@ func TestReplicatedShardWriter(t *testing.T) {
 func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	router := newAckRouter(2).(*router)
+	router := newAckRouter(2)
 	opts := testOptions()
 	sw := newReplicatedShardWriter(
 		1, 200, router, newMessagePool(), opts, testMessageWriterMetrics(),
@@ -269,8 +269,8 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 
 	require.Equal(t, 2, len(sw.messageWriters))
 
-	mw1 := sw.messageWriters[i1.Endpoint()].(*messageWriterImpl)
-	mw2 := sw.messageWriters[i2.Endpoint()].(*messageWriterImpl)
+	mw1 := sw.messageWriters[i1.Endpoint()]
+	mw2 := sw.messageWriters[i2.Endpoint()]
 	require.Equal(t, 0, mw1.queue.Len())
 	require.Equal(t, 0, mw2.queue.Len())
 
@@ -410,9 +410,9 @@ func TestReplicatedShardWriterUpdate(t *testing.T) {
 	require.NotNil(t, sw.messageWriters[i3.Endpoint()])
 	require.Equal(t, 500, int(mw3.MessageTTLNanos()))
 	for {
-		mw2.(*messageWriterImpl).RLock()
-		isClosed := mw2.(*messageWriterImpl).isClosed
-		mw2.(*messageWriterImpl).RUnlock()
+		mw2.RLock()
+		isClosed := mw2.isClosed
+		mw2.RUnlock()
 		if isClosed {
 			break
 		}
