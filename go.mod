@@ -5,7 +5,6 @@ go 1.18
 require (
 	github.com/MichaelTJones/pcg v0.0.0-20180122055547-df440c6ed7ed
 	github.com/RoaringBitmap/roaring v0.4.21
-	github.com/apache/thrift v0.14.2
 	github.com/c2h5oh/datasize v0.0.0-20171227191756-4eba002a5eae
 	github.com/cenkalti/backoff/v3 v3.0.0
 	github.com/cespare/xxhash/v2 v2.1.2
@@ -57,7 +56,7 @@ require (
 	github.com/uber-go/tally v3.5.0+incompatible
 	github.com/uber/jaeger-client-go v2.29.1+incompatible
 	github.com/uber/jaeger-lib v2.4.1+incompatible
-	github.com/uber/tchannel-go v1.20.1
+	github.com/uber/tchannel-go v1.22.4-0.20220502094214-62d23642018d
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.11
 	// etcd is currently on an alpha version to accomodate a GRPC version upgrade. See
@@ -82,7 +81,11 @@ require (
 	go.uber.org/config v1.4.0
 	go.uber.org/goleak v1.1.12
 	go.uber.org/zap v1.21.0
+<<<<<<< HEAD
 	golang.org/x/net v0.0.0-20220225172249-27dd8689420f
+=======
+	golang.org/x/net v0.0.0-20220121210141-e204ce36a2ba
+>>>>>>> 5fbdef919 (Upgraded tchannel-go to vendor apache thrift version)
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20220422013727-9388b58f7150
 	google.golang.org/grpc v1.44.0
@@ -104,7 +107,6 @@ require (
 	github.com/aws/aws-sdk-go v1.41.7 // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/bmizerany/perks v0.0.0-20141205001514-d9a9656a3a4b // indirect
 	github.com/cenkalti/backoff/v4 v4.1.2 // indirect
 	github.com/containerd/continuity v0.1.0 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
@@ -156,7 +158,6 @@ require (
 	github.com/opencontainers/runc v1.0.2 // indirect
 	github.com/philhofer/fwd v1.0.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prashantv/protectmem v0.0.0-20171002184600-e20412882b3a // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common/sigv4 v0.1.0 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
@@ -166,8 +167,7 @@ require (
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25 // indirect
-	github.com/stretchr/objx v0.2.0 // indirect
+	github.com/stretchr/objx v0.3.0 // indirect
 	github.com/tinylib/msgp v1.1.0 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802 // indirect
 	github.com/twmb/murmur3 v1.1.6 // indirect
