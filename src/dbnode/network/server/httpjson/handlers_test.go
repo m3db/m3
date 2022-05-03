@@ -36,9 +36,9 @@ import (
 	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
 
-	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	apachethrift "github.com/uber/tchannel-go/thirdparty/github.com/apache/thrift/lib/go/thrift"
 	"golang.org/x/net/context"
 )
 
