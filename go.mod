@@ -196,9 +196,6 @@ require (
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
-// branch 0.9.3-patch
-replace github.com/apache/thrift => github.com/m3dbx/thrift v0.0.0-20210326170526-6e3eef8b4a26
-
 // NB(nate): upgrading to the latest msgpack is not backwards compatibile as msgpack will no longer attempt to automatically
 // write an integer into the smallest number of bytes it will fit in. We rely on this behavior by having helper methods
 // in at least two encoders (see below) take int64s and expect that msgpack will size them down accordingly. We'll have
