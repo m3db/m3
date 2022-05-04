@@ -33,7 +33,7 @@ func BenchmarkDecodeStoragePolicy(b *testing.B) {
 		dec = NewAggregatedDecoder(nil)
 		sp  policy.StoragePolicy
 	)
-	if err := enc.Encode(testAggregatedMetric1, 2000); err != nil {
+	if err := enc.Encode(testAggregatedMetric1); err != nil {
 		b.Fatal(err)
 	}
 
