@@ -298,6 +298,8 @@ issues:
     - "G104: Errors unhandled"
     # Random numbers here are not used in a security-sensitive context.
     - "G404: Use of weak random number generator (math/rand instead of crypto/rand)"
+    # Pointless, every time we'll just end up adding a //nolint comment on this.
+    - "G103: Use of unsafe calls should be audited"
 
   # Excluding configuration per-path, per-linter, per-text and per-source
   exclude-rules:
