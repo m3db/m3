@@ -212,8 +212,11 @@ func TestMessageWriterRetry(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	_, ok := w.acks.ackMap[metadataKey{shard: 200, id: 1}]
+	require.Equal(t, 1, w.acks.size())
+	w.acks.mtx.Lock()
+	_, ok := w.acks.acks[uint64(1)]
 	require.True(t, ok)
+	w.acks.mtx.Unlock()
 
 	cw := newConsumerWriter(addr, a, opts, testConsumerWriterMetrics())
 	cw.Init()
@@ -333,16 +336,17 @@ func TestMessageWriterCutoverCutoff(t *testing.T) {
 	w := newMessageWriter(200, newMessagePool(), nil, testMessageWriterMetrics())
 	now := time.Now()
 	w.nowFn = func() time.Time { return now }
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()))
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150))
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+250))
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+50))
+	met := w.Metrics()
+	require.True(t, w.isValidWriteWithLock(now.UnixNano(), met))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150, met))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+250, met))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+50, met))
 
 	w.SetCutoffNanos(now.UnixNano() + 200)
 	w.SetCutoverNanos(now.UnixNano() + 100)
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150))
-	require.False(t, w.isValidWriteWithLock(now.UnixNano()+250))
-	require.False(t, w.isValidWriteWithLock(now.UnixNano()+50))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150, met))
+	require.False(t, w.isValidWriteWithLock(now.UnixNano()+250, met))
+	require.False(t, w.isValidWriteWithLock(now.UnixNano()+50, met))
 	require.Equal(t, 0, w.queue.Len())
 
 	mm := producer.NewMockMessage(ctrl)
@@ -363,9 +367,10 @@ func TestMessageWriterIgnoreCutoverCutoff(t *testing.T) {
 
 	w.SetCutoffNanos(now.UnixNano() + 200)
 	w.SetCutoverNanos(now.UnixNano() + 100)
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150))
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+250))
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+50))
+	met := w.Metrics()
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150, met))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+250, met))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+50, met))
 	require.Equal(t, 0, w.queue.Len())
 
 	mm := producer.NewMockMessage(ctrl)
@@ -758,9 +763,7 @@ func TestMessageWriter_WithoutConsumerScope(t *testing.T) {
 }
 
 func isEmptyWithLock(h *acks) bool {
-	h.Lock()
-	defer h.Unlock()
-	return len(h.ackMap) == 0
+	return h.size() == 0
 }
 
 func testMessageWriterMetrics() *messageWriterMetrics {

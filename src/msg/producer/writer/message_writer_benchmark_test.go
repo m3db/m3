@@ -69,3 +69,12 @@ func (noopWriter) Address() string         { return "" }
 func (noopWriter) Write(int, []byte) error { return nil }
 func (noopWriter) Init()                   {}
 func (noopWriter) Close()                  {}
+
+func BenchmarkAck(b *testing.B) {
+	ack := newAckHelper(64)
+	for i := 0; i < b.N; i++ {
+		meta := metadata{metadataKey: metadataKey{200, uint64(b.N)}}
+		ack.add(meta, nil)
+		ack.remove(meta)
+	}
+}
