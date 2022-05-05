@@ -103,10 +103,9 @@ func (m *message) WriteTimes() int {
 	return m.retried
 }
 
-// IncWriteTimes increments the times the message has been written and returns the value.
-func (m *message) IncWriteTimes() int {
+// IncWriteTimes increments the times the message has been written.
+func (m *message) IncWriteTimes() {
 	m.retried++
-	return m.retried
 }
 
 // IsAcked returns true if the message has been acked.
