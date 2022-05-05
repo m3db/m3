@@ -692,16 +692,14 @@ func newAckHelper(size int) *acks {
 
 func (a *acks) add(meta metadata, m *message) {
 	a.mtx.Lock()
-	defer a.mtx.Unlock()
-
 	a.acks[meta.metadataKey.id] = m
+	a.mtx.Unlock()
 }
 
 func (a *acks) remove(meta metadata) {
 	a.mtx.Lock()
-	defer a.mtx.Unlock()
-
 	delete(a.acks, meta.metadataKey.id)
+	a.mtx.Unlock()
 }
 
 // ack processes the ack. returns true if the message was not already acked. additionally returns the expected
@@ -726,9 +724,9 @@ func (a *acks) ack(meta metadata) (bool, int64) {
 
 func (a *acks) size() int {
 	a.mtx.Lock()
-	defer a.mtx.Unlock()
-
-	return len(a.acks)
+	l := len(a.acks)
+	a.mtx.Unlock()
+	return l
 }
 
 type metricIdx byte
