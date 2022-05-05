@@ -47,7 +47,10 @@ var (
 	errNoWriters              = errors.New("no writers")
 )
 
-const _recordMessageDelayEvery = 4 // keep it a power of two value to keep modulo fast
+const (
+	_recordMessageDelayEvery  = 4   // keep it a power of two value to keep modulo fast
+	_resizeBuffersProbability = 250 // 1/250th chance
+)
 
 type messageWriterMetrics struct {
 	withoutConsumerScope     bool
@@ -166,17 +169,16 @@ type messageWriter struct {
 	nextRetryAfterNanos MessageRetryNanosFn
 	encoder             proto.Encoder
 	numConnections      int
-
-	msgID            uint64
-	consumerWriters  []consumerWriter
-	iterationIndexes []int
-	acks             *acks
-	cutOffNanos      int64
-	cutOverNanos     int64
-	messageTTLNanos  int64
-	isClosed         atomic.Bool
-	doneCh           chan struct{}
-	wg               sync.WaitGroup
+	msgID               atomic.Uint64
+	consumerWriters     []consumerWriter
+	iterationIndexes    []int
+	acks                *acks
+	cutOffNanos         int64
+	cutOverNanos        int64
+	messageTTLNanos     int64
+	isClosed            atomic.Bool
+	doneCh              chan struct{}
+	wg                  sync.WaitGroup
 	// metrics can be updated when a consumer instance changes, so must be guarded with RLock
 	metrics        atomic.UnsafePointer //  *messageWriterMetrics
 	batchBuf       []*message
@@ -224,18 +226,16 @@ func (w *messageWriter) Write(rm *producer.RefCountedMessage) {
 		msg      = w.newMessage()
 		metrics  = w.Metrics()
 	)
-	w.Lock()
+	w.RLock()
 	if !w.isValidWriteWithLock(nowNanos, metrics) {
-		w.Unlock()
+		w.RUnlock()
 		w.close(msg)
 		return
 	}
+	w.RUnlock()
 
 	rm.IncRef()
-	w.msgID++
-	msgID := w.msgID
-	w.Unlock()
-
+	msgID := w.msgID.Inc()
 	meta := metadata{
 		metadataKey: metadataKey{
 			shard: w.replicatedShardID,
@@ -394,27 +394,34 @@ func (w *messageWriter) scanMessageQueue(fullScan bool) {
 	w.scanMtx.Lock()
 	defer w.scanMtx.Unlock()
 
+	var realloc = unsafe.Fastrandn(_resizeBuffersProbability) == 0
+
 	w.queueMtx.Lock()
+	// copy new messages into scratch buffer
 	w.scanBuf = append(w.scanBuf, w.incomingMsgs...)
-	w.incomingMsgs = w.incomingMsgs[:0]
-	if fullScan {
-		// on full scan, we shrink incoming queue to release memory
+
+	if realloc {
 		w.incomingMsgs = make([]*message, 0, cap(w.incomingMsgs)/2)
+	} else {
+		w.incomingMsgs = zeroMsgBuf(w.incomingMsgs)
 	}
 	w.queueMtx.Unlock()
 
 	if fullScan {
-		// shrink all scratch buffers as well
 		w.scanBuf = append(w.scanBuf, w.processingMsgs...)
-		w.processingMsgs = make([]*message, 0, cap(w.processingMsgs)/2)
-		w.scanMessageQueueInner(w.scanBuf)
-		w.scanBuf = make([]*message, 0, cap(w.scanBuf)/2)
+		w.processingMsgs = zeroMsgBuf(w.processingMsgs)
 
+		w.scanMessageQueueInner(w.scanBuf)
+		if realloc {
+			// shrink all scratch buffers as well
+			w.processingMsgs = make([]*message, 0, cap(w.processingMsgs)/2)
+			w.scanBuf = make([]*message, 0, cap(w.scanBuf)/2)
+		}
 		return
 	}
 
 	w.scanMessageQueueInner(w.scanBuf)
-	w.scanBuf = w.scanBuf[:0]
+	w.scanBuf = zeroMsgBuf(w.scanBuf)
 }
 
 func (w *messageWriter) scanMessageQueueInner(queue []*message) {
@@ -558,8 +565,7 @@ func (w *messageWriter) scanBatch(
 			continue
 		}
 
-		m.IncWriteTimes()
-		writeTimes := m.WriteTimes()
+		writeTimes := m.IncWriteTimes()
 		m.SetRetryAtNanos(w.nextRetryAfterNanos(writeTimes) + nowNanos)
 		if writeTimes > 1 {
 			scanMetrics[_messageRetry]++
@@ -869,4 +875,12 @@ func randIndex(iterationIndexes []int, i int) int {
 	// keep the order of consumer writers unchanged to prevent data race.
 	iterationIndexes[i], iterationIndexes[j] = iterationIndexes[j], iterationIndexes[i]
 	return iterationIndexes[i]
+}
+
+func zeroMsgBuf(buf []*message) []*message {
+	for i := 0; i < len(buf); i++ {
+		buf[i] = nil
+	}
+
+	return buf[:0]
 }
