@@ -336,16 +336,17 @@ func TestMessageWriterCutoverCutoff(t *testing.T) {
 	w := newMessageWriter(200, newMessagePool(), nil, testMessageWriterMetrics())
 	now := time.Now()
 	w.nowFn = func() time.Time { return now }
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()))
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150))
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+250))
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+50))
+	met := w.Metrics()
+	require.True(t, w.isValidWriteWithLock(now.UnixNano(), met))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150, met))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+250, met))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+50, met))
 
 	w.SetCutoffNanos(now.UnixNano() + 200)
 	w.SetCutoverNanos(now.UnixNano() + 100)
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150))
-	require.False(t, w.isValidWriteWithLock(now.UnixNano()+250))
-	require.False(t, w.isValidWriteWithLock(now.UnixNano()+50))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150, met))
+	require.False(t, w.isValidWriteWithLock(now.UnixNano()+250, met))
+	require.False(t, w.isValidWriteWithLock(now.UnixNano()+50, met))
 	require.Equal(t, 0, w.queue.Len())
 
 	mm := producer.NewMockMessage(ctrl)
@@ -366,9 +367,10 @@ func TestMessageWriterIgnoreCutoverCutoff(t *testing.T) {
 
 	w.SetCutoffNanos(now.UnixNano() + 200)
 	w.SetCutoverNanos(now.UnixNano() + 100)
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150))
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+250))
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+50))
+	met := w.Metrics()
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150, met))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+250, met))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+50, met))
 	require.Equal(t, 0, w.queue.Len())
 
 	mm := producer.NewMockMessage(ctrl)
