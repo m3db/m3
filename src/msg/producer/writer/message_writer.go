@@ -21,7 +21,6 @@
 package writer
 
 import (
-	"container/list"
 	"errors"
 	"math"
 	"sync"
@@ -169,23 +168,25 @@ type messageWriter struct {
 	numConnections      int
 
 	msgID            uint64
-	queue            *list.List
 	consumerWriters  []consumerWriter
 	iterationIndexes []int
 	acks             *acks
 	cutOffNanos      int64
 	cutOverNanos     int64
 	messageTTLNanos  int64
-	msgsToWrite      []*message
-	isClosed         bool
+	isClosed         atomic.Bool
 	doneCh           chan struct{}
 	wg               sync.WaitGroup
 	// metrics can be updated when a consumer instance changes, so must be guarded with RLock
-	metrics      atomic.UnsafePointer //  *messageWriterMetrics
-	nextFullScan time.Time
-	lastNewWrite *list.Element
-
-	nowFn clock.NowFn
+	metrics        atomic.UnsafePointer //  *messageWriterMetrics
+	batchBuf       []*message
+	scanBuf        []*message
+	scanMtx        sync.RWMutex // scanMtx is held during any queue scan, but not acquired in Write()
+	queueMtx       sync.Mutex   // queueMtx applies only to new writes to incomingMsgs
+	incomingMsgs   []*message
+	processingMsgs []*message
+	nowFn          clock.NowFn
+	ignoreCutoffs  bool
 }
 
 func newMessageWriter(
@@ -205,15 +206,11 @@ func newMessageWriter(
 		nextRetryAfterNanos: opts.MessageRetryNanosFn(),
 		encoder:             proto.NewEncoder(opts.EncoderOptions()),
 		numConnections:      opts.ConnectionOptions().NumConnections(),
-		msgID:               0,
-		queue:               list.New(),
 		acks:                newAckHelper(opts.InitialAckMapSize()),
-		cutOffNanos:         0,
-		cutOverNanos:        0,
-		msgsToWrite:         make([]*message, 0, opts.MessageQueueScanBatchSize()),
-		isClosed:            false,
+		batchBuf:            make([]*message, 0, opts.MessageQueueScanBatchSize()),
 		doneCh:              make(chan struct{}),
 		nowFn:               nowFn,
+		ignoreCutoffs:       opts.IgnoreCutoffCutover(),
 	}
 	mw.metrics.Store(stdunsafe.Pointer(m))
 	return mw
@@ -233,28 +230,30 @@ func (w *messageWriter) Write(rm *producer.RefCountedMessage) {
 		w.close(msg)
 		return
 	}
+
 	rm.IncRef()
 	w.msgID++
+	msgID := w.msgID
+	w.Unlock()
+
 	meta := metadata{
 		metadataKey: metadataKey{
 			shard: w.replicatedShardID,
-			id:    w.msgID,
+			id:    msgID,
 		},
 	}
 	msg.Set(meta, rm, nowNanos)
 	w.acks.add(meta, msg)
-	// Make sure all the new writes are ordered in queue.
+
+	w.queueMtx.Lock()
+	w.incomingMsgs = append(w.incomingMsgs, msg)
+	w.queueMtx.Unlock()
+
 	metrics.enqueuedMessages.Inc(1)
-	if w.lastNewWrite != nil {
-		w.lastNewWrite = w.queue.InsertAfter(msg, w.lastNewWrite)
-	} else {
-		w.lastNewWrite = w.queue.PushFront(msg)
-	}
-	w.Unlock()
 }
 
 func (w *messageWriter) isValidWriteWithLock(nowNanos int64, metrics *messageWriterMetrics) bool {
-	if w.opts.IgnoreCutoffCutover() {
+	if w.ignoreCutoffs {
 		return true
 	}
 
@@ -354,66 +353,112 @@ func (w *messageWriter) scanMessageQueueUntilClose() {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
+	var nextFullScan = w.nowFn().Add(w.opts.MessageQueueFullScanInterval())
 	for {
 		select {
 		case <-ticker.C:
-			w.scanMessageQueue()
+			var fullScan = w.isClosed.Load() || w.nowFn().After(nextFullScan)
+			w.scanMessageQueue(fullScan)
+			if fullScan {
+				nextFullScan = w.nowFn().Add(w.opts.MessageQueueFullScanInterval())
+			}
 		case <-w.doneCh:
 			return
 		}
 	}
 }
 
-func (w *messageWriter) scanMessageQueue() {
-	w.RLock()
-	e := w.queue.Front()
-	w.lastNewWrite = nil
-	isClosed := w.isClosed
-	w.RUnlock()
+// scanMessageQueue is part of core processing loop and is called from the main ticker at NewWritesScanInterval.
+//
+// New write scans only consider incoming messages since last cycle, and does not perform retries on
+// previously scanned messages.
+// If the cycle is not a full scan:
+// - incomingMsgs are copied into a buffer and incomingMsgs queue is reset, releasing the lock for new writes
+// - only messages that came in to incomingMsgs queue since last NewWritesScanInterval are considered.
+// - all valid messages are moved into `processingMsgs` queue and `incomingMsg` queue is reset
+// If there's enough time passed since last full scan, the iteration will consider all messages instead.
+// On full scan:
+// - both incomingMsgs and processingMsgs are copied into a single buffer, and new writes are unblocked
+// - messages that are still pending (nextRetry > now) will be skipped
+// - messages that are due for a retry (nextRetry < now) will be retried
+// - messages that are dropped, acked or
+// - all remaining messages are copied back again into processingMsgs queue
+// In both cases, all valid (not dropped or expired between enqueue and scan) messages
+// are moved to `processingMsgs` queue.
 
+// This ensures write semantics are FIFO (except for retries), and that new messages are processed
+// without blocking new writes.
+// If the messages are dropped from the queue in Buffer, they'll be skipped over
+// and not written back into processingMsgs queue.
+func (w *messageWriter) scanMessageQueue(fullScan bool) {
+	w.scanMtx.Lock()
+	defer w.scanMtx.Unlock()
+
+	w.queueMtx.Lock()
+	w.scanBuf = append(w.scanBuf, w.incomingMsgs...)
+	w.incomingMsgs = w.incomingMsgs[:0]
+	if fullScan {
+		// on full scan, we shrink incoming queue to release memory
+		w.incomingMsgs = make([]*message, 0, cap(w.incomingMsgs)/2)
+	}
+	w.queueMtx.Unlock()
+
+	if fullScan {
+		// shrink all scratch buffers as well
+		w.scanBuf = append(w.scanBuf, w.processingMsgs...)
+		w.processingMsgs = make([]*message, 0, cap(w.processingMsgs)/2)
+		w.scanMessageQueueInner(w.scanBuf)
+		w.scanBuf = make([]*message, 0, cap(w.scanBuf)/2)
+
+		return
+	}
+
+	w.scanMessageQueueInner(w.scanBuf)
+	w.scanBuf = w.scanBuf[:0]
+}
+
+func (w *messageWriter) scanMessageQueueInner(queue []*message) {
 	var (
 		nowFn            = w.nowFn
-		msgsToWrite      []*message
-		beforeScan       = nowFn()
-		beforeBatchNanos = beforeScan.UnixNano()
+		beforeBatchNanos = nowFn().UnixNano()
 		batchSize        = w.opts.MessageQueueScanBatchSize()
+		toWrite          = batchSize
+		metrics          = w.Metrics()
 		consumerWriters  []consumerWriter
 		iterationIndexes []int
-		fullScan         = isClosed || beforeScan.After(w.nextFullScan)
-		m                = w.Metrics()
 		scanMetrics      scanBatchMetrics
 		skipWrites       bool
 	)
-	defer scanMetrics.record(m)
-	for e != nil {
-		w.Lock()
-		e, msgsToWrite = w.scanBatchWithLock(e, beforeBatchNanos, batchSize, fullScan, &scanMetrics)
+
+	defer scanMetrics.record(metrics)
+	defer metrics.scanTotalLatency.Start().Stop()
+
+	for len(queue) > 0 {
+		if toWrite > len(queue) {
+			toWrite = len(queue)
+		}
+
+		batch := w.scanBatch(queue[:toWrite], beforeBatchNanos, metrics, &scanMetrics)
+		if len(batch) == 0 || skipWrites {
+			// nothing to write, go straight to cleanup
+			goto next
+		}
+
+		w.RLock()
 		consumerWriters = w.consumerWriters
 		iterationIndexes = w.iterationIndexes
-		w.Unlock()
-		if !fullScan && len(msgsToWrite) == 0 {
-			m.scanBatchLatency.Record(time.Duration(nowFn().UnixNano() - beforeBatchNanos))
-			// If this is not a full scan, abort after the iteration batch
-			// that no new messages were found.
-			break
-		}
-		if skipWrites {
-			m.scanBatchLatency.Record(time.Duration(nowFn().UnixNano() - beforeBatchNanos))
-			continue
-		}
-		if err := w.writeBatch(iterationIndexes, consumerWriters, m, msgsToWrite); err != nil {
+		w.RUnlock()
+
+		if err := w.writeBatch(iterationIndexes, consumerWriters, metrics, batch); err != nil {
 			// When we can't write to any consumer writer, skip the writes in this scan
 			// to avoid meaningless attempts but continue to clean up the queue.
 			skipWrites = true
 		}
-		nowNanos := nowFn().UnixNano()
-		m.scanBatchLatency.Record(time.Duration(nowNanos - beforeBatchNanos))
-		beforeBatchNanos = nowNanos
-	}
-	afterScan := nowFn()
-	m.scanTotalLatency.Record(afterScan.Sub(beforeScan))
-	if fullScan {
-		w.nextFullScan = afterScan.Add(w.opts.MessageQueueFullScanInterval())
+		metrics.scanBatchLatency.Record(time.Duration(nowFn().UnixNano() - beforeBatchNanos))
+
+	next:
+		beforeBatchNanos = nowFn().UnixNano()
+		queue = queue[toWrite:]
 	}
 }
 
@@ -441,30 +486,22 @@ func (w *messageWriter) writeBatch(
 	return nil
 }
 
-// scanBatchWithLock iterates the message queue with a lock. It returns after
-// visited enough elements. So it holds the lock for less time and allows new
-// writes to be unblocked.
-func (w *messageWriter) scanBatchWithLock(
-	start *list.Element,
+func (w *messageWriter) scanBatch(
+	queue []*message,
 	nowNanos int64,
-	batchSize int,
-	fullScan bool,
+	metrics *messageWriterMetrics,
 	scanMetrics *scanBatchMetrics,
-) (*list.Element, []*message) {
+) []*message {
 	var (
-		iterated int
-		next     *list.Element
+		// check these values only once per batch
+		ttlNanos = w.MessageTTLNanos()
+		closed   = w.isClosed.Load()
+		dequed   int
 	)
-	metrics := w.Metrics()
-	w.msgsToWrite = w.msgsToWrite[:0]
-	for e := start; e != nil; e = next {
-		iterated++
-		if iterated > batchSize {
-			break
-		}
-		next = e.Next()
-		m := e.Value.(*message)
-		if w.isClosed {
+
+	w.batchBuf = w.batchBuf[:0]
+	for _, m := range queue {
+		if closed {
 			scanMetrics[_processedClosed]++
 			// Simply ack the messages here to mark them as consumed for this
 			// message writer, this is useful when user removes a consumer service
@@ -473,36 +510,38 @@ func (w *messageWriter) scanBatchWithLock(
 			// do not stay in memory forever.
 			// NB: The message must be added to the ack map to be acked here.
 			w.acks.ack(m.Metadata())
-			w.removeFromQueueWithLock(e, m, metrics)
+			w.close(m)
 			scanMetrics[_messageClosed]++
 			continue
 		}
+
 		if m.RetryAtNanos() >= nowNanos {
+			w.processingMsgs = append(w.processingMsgs, m)
 			scanMetrics[_processedNotReady]++
-			if !fullScan {
-				// If this is not a full scan, bail after the first element that
-				// is not a new write.
-				break
-			}
 			continue
 		}
 		// If the message exceeded its allowed ttl of the consumer service,
 		// remove it from the buffer.
-		if w.messageTTLNanos > 0 && m.InitNanos()+w.messageTTLNanos <= nowNanos {
+		if ttlNanos > 0 && m.InitNanos()+ttlNanos <= nowNanos {
 			scanMetrics[_processedTTL]++
 			// There is a chance the message was acked right before the ack is
 			// called, in which case just remove it from the queue.
+			// NB: message must always be acked before closing.
 			if acked, _ := w.acks.ack(m.Metadata()); acked {
 				scanMetrics[_messageDroppedTTLExpire]++
 			}
-			w.removeFromQueueWithLock(e, m, metrics)
+			w.close(m)
+			dequed++
 			continue
 		}
+
 		if m.IsAcked() {
+			w.close(m)
+			dequed++
 			scanMetrics[_processedAck]++
-			w.removeFromQueueWithLock(e, m, metrics)
 			continue
 		}
+
 		if m.IsDroppedOrConsumed() {
 			scanMetrics[_processedDrop]++
 			// There is a chance the message could be acked between m.Acked()
@@ -513,10 +552,12 @@ func (w *messageWriter) scanBatchWithLock(
 				continue
 			}
 			w.acks.remove(m.Metadata())
-			w.removeFromQueueWithLock(e, m, metrics)
+			w.close(m)
+			dequed++
 			scanMetrics[_messageDroppedBufferFull]++
 			continue
 		}
+
 		m.IncWriteTimes()
 		writeTimes := m.WriteTimes()
 		m.SetRetryAtNanos(w.nextRetryAfterNanos(writeTimes) + nowNanos)
@@ -524,21 +565,24 @@ func (w *messageWriter) scanBatchWithLock(
 			scanMetrics[_messageRetry]++
 		}
 		scanMetrics[_processedWrite]++
-		w.msgsToWrite = append(w.msgsToWrite, m)
+
+		w.batchBuf = append(w.batchBuf, m)
+		w.processingMsgs = append(w.processingMsgs, m)
 	}
-	return next, w.msgsToWrite
+
+	if dequed > 0 {
+		metrics.dequeuedMessages.Inc(int64(dequed))
+	}
+
+	return w.batchBuf
 }
 
 // Close closes the writer.
 // It should block until all buffered messages have been acknowledged.
 func (w *messageWriter) Close() {
-	w.Lock()
-	if w.isClosed {
-		w.Unlock()
+	if !w.isClosed.CAS(false, true) {
 		return
 	}
-	w.isClosed = true
-	w.Unlock()
 	// NB: Wait until all messages cleaned up then close.
 	w.waitUntilAllMessageRemoved()
 	close(w.doneCh)
@@ -562,10 +606,7 @@ func (w *messageWriter) waitUntilAllMessageRemoved() {
 }
 
 func (w *messageWriter) isEmpty() bool {
-	w.RLock()
-	l := w.queue.Len()
-	w.RUnlock()
-	return l == 0
+	return w.QueueSize() == 0
 }
 
 // ReplicatedShardID returns the replicated shard id.
@@ -658,19 +699,20 @@ func (w *messageWriter) SetMetrics(m *messageWriterMetrics) {
 	w.metrics.Store(stdunsafe.Pointer(m))
 }
 
-// QueueSize returns the number of messages queued in the writer.
+// QueueSize returns the number of messages already enqueued in the writer.
 func (w *messageWriter) QueueSize() int {
 	return w.acks.size()
 }
 
+// BufferSize returns the number of messages being processed in the writer.
+func (w *messageWriter) BufferSize() int {
+	w.scanMtx.RLock()
+	defer w.scanMtx.RUnlock()
+
+	return len(w.incomingMsgs) + len(w.processingMsgs)
+}
 func (w *messageWriter) newMessage() *message {
 	return w.mPool.Get()
-}
-
-func (w *messageWriter) removeFromQueueWithLock(e *list.Element, m *message, metrics *messageWriterMetrics) {
-	w.queue.Remove(e)
-	metrics.dequeuedMessages.Inc(1)
-	w.close(m)
 }
 
 func (w *messageWriter) close(m *message) {

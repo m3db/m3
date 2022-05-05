@@ -92,7 +92,7 @@ func TestSharedShardWriter(t *testing.T) {
 	mw := sw.(*sharedShardWriter).mw
 	mw.RLock()
 	require.Equal(t, 1, len(mw.consumerWriters))
-	require.Equal(t, 1, mw.queue.Len())
+	require.Equal(t, 1, mw.BufferSize())
 	mw.RUnlock()
 
 	sw.UpdateInstances(
@@ -104,7 +104,7 @@ func TestSharedShardWriter(t *testing.T) {
 	mw.RUnlock()
 	for {
 		mw.RLock()
-		l := mw.queue.Len()
+		l := mw.BufferSize()
 		mw.RUnlock()
 		if l == 0 {
 			break
@@ -173,9 +173,9 @@ func TestReplicatedShardWriter(t *testing.T) {
 	sw.Write(producer.NewRefCountedMessage(mm, nil))
 
 	mw1 := sw.messageWriters[i1.Endpoint()]
-	require.Equal(t, 1, mw1.queue.Len())
+	require.Equal(t, 1, mw1.BufferSize())
 	mw3 := sw.messageWriters[i3.Endpoint()]
-	require.Equal(t, 1, mw3.queue.Len())
+	require.Equal(t, 1, mw3.BufferSize())
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
@@ -188,14 +188,14 @@ func TestReplicatedShardWriter(t *testing.T) {
 
 	for {
 		mw1.RLock()
-		l := mw1.queue.Len()
+		l := mw1.BufferSize()
 		mw1.RUnlock()
 		if l == 0 {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	require.Equal(t, 1, mw3.queue.Len())
+	require.Equal(t, 1, mw3.BufferSize())
 
 	mm.EXPECT().Finalize(producer.Consumed)
 	sw.UpdateInstances(
@@ -211,7 +211,7 @@ func TestReplicatedShardWriter(t *testing.T) {
 
 	for {
 		mw3.RLock()
-		l := mw3.queue.Len()
+		l := mw3.BufferSize()
 		mw3.RUnlock()
 		if l == 0 {
 			break
@@ -271,8 +271,8 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 
 	mw1 := sw.messageWriters[i1.Endpoint()]
 	mw2 := sw.messageWriters[i2.Endpoint()]
-	require.Equal(t, 0, mw1.queue.Len())
-	require.Equal(t, 0, mw2.queue.Len())
+	require.Equal(t, 0, mw1.BufferSize())
+	require.Equal(t, 0, mw2.BufferSize())
 
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
@@ -282,8 +282,8 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 	mm.EXPECT().Bytes().Return([]byte("foo")).Times(2)
 
 	sw.Write(producer.NewRefCountedMessage(mm, nil))
-	require.Equal(t, 1, mw1.queue.Len())
-	require.Equal(t, 1, mw2.queue.Len())
+	require.Equal(t, 1, mw1.BufferSize())
+	require.Equal(t, 1, mw2.BufferSize())
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
@@ -296,7 +296,7 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 
 	for {
 		mw1.RLock()
-		l := mw1.queue.Len()
+		l := mw1.BufferSize()
 		mw1.RUnlock()
 		if l == 0 {
 			break
@@ -304,7 +304,7 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	require.Equal(t, 1, mw2.queue.Len())
+	require.Equal(t, 1, mw2.BufferSize())
 
 	conn, err := lis2.Accept()
 	require.NoError(t, err)
@@ -337,7 +337,7 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	mw2.RLock()
-	require.Equal(t, 0, mw2.queue.Len())
+	require.Equal(t, 0, mw2.BufferSize())
 	mw2.RUnlock()
 
 	sw.Close()
@@ -410,9 +410,7 @@ func TestReplicatedShardWriterUpdate(t *testing.T) {
 	require.NotNil(t, sw.messageWriters[i3.Endpoint()])
 	require.Equal(t, 500, int(mw3.MessageTTLNanos()))
 	for {
-		mw2.RLock()
-		isClosed := mw2.isClosed
-		mw2.RUnlock()
+		isClosed := mw2.isClosed.Load()
 		if isClosed {
 			break
 		}

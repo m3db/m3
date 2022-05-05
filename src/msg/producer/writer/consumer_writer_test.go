@@ -554,14 +554,15 @@ func testOptions() Options {
 			),
 		).
 		SetAckErrorRetryOptions(retry.NewOptions().SetInitialBackoff(200 * time.Millisecond).SetMaxBackoff(time.Second)).
-		SetConnectionOptions(testConnectionOptions())
+		SetConnectionOptions(testConnectionOptions()).
+		SetCloseCheckInterval(100 * time.Millisecond)
 }
 
 func testConnectionOptions() ConnectionOptions {
 	return NewConnectionOptions().
 		SetNumConnections(1).
 		SetRetryOptions(retry.NewOptions().SetInitialBackoff(200 * time.Millisecond).SetMaxBackoff(time.Second)).
-		SetFlushInterval(100 * time.Millisecond).
+		SetFlushInterval(10 * time.Millisecond).
 		SetResetDelay(100 * time.Millisecond)
 }
 
