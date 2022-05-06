@@ -31,23 +31,16 @@ import (
 )
 
 type message struct {
-	// isAcked and rm message could be accessed concurrently by the background thread in message writer
-	// and acked by consumer service writers.
-
 	// rm is *producer.RefCountedMessage wrapped as an atomic pointer.
-	// This is needed to prevent race detector from flagging Close/Ack() interaction,
-	// as calls Ack() are serialized and never called more than once, but while Close() is only called from one background
-	// threads, it is not using any locks.
-	rm           atomic.UnsafePointer
-	pb           msgpb.Message
-	meta         metadata
-	initNanos    int64
-	retryAtNanos int64
-	// updated by the writing goroutine and read by the acking goroutine.
+	// isAcked, expectedProcessAtNanos and rm have to be atomics, as operations on those are across different goroutines.
+	rm                     atomic.UnsafePointer
+	pb                     msgpb.Message
+	meta                   metadata
+	initNanos              int64
+	retryAtNanos           int64
 	expectedProcessAtNanos atomic.Int64
 	retried                int
-	// safe to store value inside struct, as message is never copied by value
-	isAcked atomic.Bool
+	isAcked                atomic.Bool
 }
 
 func newMessage() *message {
