@@ -411,19 +411,21 @@ func (w *messageWriter) scanMessageQueue(fullScan bool) {
 
 	if fullScan {
 		w.scanBuf = append(w.scanBuf, w.processingMsgs...)
-		w.processingMsgs = zeroMsgBuf(w.processingMsgs)
-
-		w.scanMessageQueueInner(w.scanBuf)
 		if realloc {
-			// shrink all scratch buffers as well
 			w.processingMsgs = make([]*message, 0, cap(w.processingMsgs)/2)
-			w.scanBuf = make([]*message, 0, cap(w.scanBuf)/2)
+		} else {
+			w.processingMsgs = zeroMsgBuf(w.processingMsgs)
 		}
-		return
 	}
 
 	w.scanMessageQueueInner(w.scanBuf)
-	w.scanBuf = zeroMsgBuf(w.scanBuf)
+
+	if realloc {
+		// shrink all scratch buffers as well
+		w.scanBuf = make([]*message, 0, cap(w.scanBuf)/2)
+	} else {
+		w.scanBuf = zeroMsgBuf(w.scanBuf)
+	}
 }
 
 func (w *messageWriter) scanMessageQueueInner(queue []*message) {
