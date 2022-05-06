@@ -169,7 +169,7 @@ type messageWriter struct {
 	nextRetryAfterNanos MessageRetryNanosFn
 	encoder             proto.Encoder
 	numConnections      int
-	msgID               atomic.Uint64
+	msgID               uint64
 	consumerWriters     []consumerWriter
 	iterationIndexes    []int
 	acks                *acks
@@ -226,16 +226,18 @@ func (w *messageWriter) Write(rm *producer.RefCountedMessage) {
 		msg      = w.newMessage()
 		metrics  = w.Metrics()
 	)
-	w.RLock()
+	w.Lock()
 	if !w.isValidWriteWithLock(nowNanos, metrics) {
-		w.RUnlock()
+		w.Unlock()
 		w.close(msg)
 		return
 	}
-	w.RUnlock()
 
 	rm.IncRef()
-	msgID := w.msgID.Inc()
+	w.msgID++
+	msgID := w.msgID
+	w.Unlock()
+
 	meta := metadata{
 		metadataKey: metadataKey{
 			shard: w.replicatedShardID,
