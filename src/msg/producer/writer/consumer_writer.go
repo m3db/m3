@@ -119,15 +119,15 @@ type consumerWriterImpl struct {
 type consumerWriterImplWriteState struct {
 	sync.RWMutex
 
-	closed     bool
-	validConns bool
-
 	// conns keeps active connections.
 	// Note: readers will take a reference to this slice with a lock
 	// then loop through it and call decode on decoders, so not safe
 	// to reuse.
 	conns          []*connection
 	lastResetNanos int64
+
+	closed     bool
+	validConns bool
 }
 
 type connection struct {

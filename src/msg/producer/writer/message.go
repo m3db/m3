@@ -90,11 +90,13 @@ func (m *message) RetryAtNanos() int64 {
 
 // SetRetryAtNanos sets the next retry nanos.
 func (m *message) SetRetryAtNanos(value int64) {
+	var val int64
 	if m.retryAtNanos > 0 {
-		m.expectedProcessAtNanos.Store(m.retryAtNanos)
+		val = m.retryAtNanos
 	} else {
-		m.expectedProcessAtNanos.Store(m.initNanos)
+		val = m.initNanos
 	}
+	m.expectedProcessAtNanos.Store(val)
 	m.retryAtNanos = value
 }
 
@@ -120,16 +122,9 @@ func (m *message) Ack() {
 	(*producer.RefCountedMessage)(m.rm.Load()).DecRef()
 }
 
-func (m *message) IncReads() {
-	(*producer.RefCountedMessage)(m.rm.Load()).IncReads()
-}
-
-func (m *message) DecReads() {
-	(*producer.RefCountedMessage)(m.rm.Load()).DecReads()
-}
-
-func (m *message) IsDroppedOrConsumed() bool {
-	return (*producer.RefCountedMessage)(m.rm.Load()).IsDroppedOrConsumed()
+// RefCounted returns the unwrapped RefCountedMessage
+func (m *message) RefCounted() *producer.RefCountedMessage {
+	return (*producer.RefCountedMessage)(m.rm.Load())
 }
 
 func (m *message) ShardID() uint64 {
@@ -148,7 +143,7 @@ func (m *message) SetSentAt(nanos int64) {
 
 // Marshaler returns the marshaler and a bool to indicate whether the marshaler is valid.
 func (m *message) Marshaler() (proto.Marshaler, bool) {
-	return &m.pb, !(*producer.RefCountedMessage)(m.rm.Load()).IsDroppedOrConsumed()
+	return &m.pb, !m.RefCounted().IsDroppedOrConsumed()
 }
 
 func (m *message) ToProto(pb *msgpb.Message) {

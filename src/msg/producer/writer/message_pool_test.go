@@ -52,7 +52,7 @@ func TestMessagePool(t *testing.T) {
 
 	mm.EXPECT().Finalize(producer.Consumed)
 	m.Ack()
-	require.True(t, m.IsDroppedOrConsumed())
+	require.True(t, m.RefCounted().IsDroppedOrConsumed())
 	require.NotNil(t, m.pb.Value)
 	m.Close()
 	require.Nil(t, m.pb.Value)

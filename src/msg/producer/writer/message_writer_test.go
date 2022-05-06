@@ -575,7 +575,7 @@ func validateMessages(t *testing.T, msgs []*producer.RefCountedMessage, w *messa
 	w.scanMtx.Unlock()
 
 	for i, val := range q {
-		assert.Equal(t, string(msgs[i].Bytes()), string((*producer.RefCountedMessage)(val.rm.Load()).Bytes()))
+		assert.Equal(t, string(msgs[i].Bytes()), string(val.RefCounted().Bytes()))
 	}
 
 	require.Equal(t, len(msgs), len(q))

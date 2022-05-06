@@ -163,32 +163,32 @@ func newMessageWriterMetricsWithConsumer(
 type messageWriter struct {
 	sync.RWMutex
 
-	replicatedShardID   uint64
-	mPool               *messagePool
+	mPool             *messagePool
+	replicatedShardID uint64
+	numConnections    int
+	consumerWriters   []consumerWriter
+	iterationIndexes  []int
+	acks              *acks
+	isClosed          atomic.Bool
+	msgID             atomic.Uint64
+	// metrics can be updated when a consumer instance changes, so must be guarded with RLock
+	metrics             atomic.UnsafePointer //  *messageWriterMetrics
+	batchBuf            []*message
+	scanBuf             []*message
+	scanMtx             sync.RWMutex // scanMtx is held during any queue scan, but not acquired in Write()
+	queueMtx            sync.Mutex   // queueMtx applies only to new writes to incomingMsgs
+	incomingMsgs        []*message
+	processingMsgs      []*message
+	nowFn               clock.NowFn
+	messageTTLNanos     int64
+	cutOffNanos         int64
+	cutOverNanos        int64
 	opts                Options
 	nextRetryAfterNanos MessageRetryNanosFn
 	encoder             proto.Encoder
-	numConnections      int
-	msgID               uint64
-	consumerWriters     []consumerWriter
-	iterationIndexes    []int
-	acks                *acks
-	cutOffNanos         int64
-	cutOverNanos        int64
-	messageTTLNanos     int64
-	isClosed            atomic.Bool
 	doneCh              chan struct{}
 	wg                  sync.WaitGroup
-	// metrics can be updated when a consumer instance changes, so must be guarded with RLock
-	metrics        atomic.UnsafePointer //  *messageWriterMetrics
-	batchBuf       []*message
-	scanBuf        []*message
-	scanMtx        sync.RWMutex // scanMtx is held during any queue scan, but not acquired in Write()
-	queueMtx       sync.Mutex   // queueMtx applies only to new writes to incomingMsgs
-	incomingMsgs   []*message
-	processingMsgs []*message
-	nowFn          clock.NowFn
-	ignoreCutoffs  bool
+	ignoreCutoffs       bool
 }
 
 func newMessageWriter(
@@ -226,17 +226,17 @@ func (w *messageWriter) Write(rm *producer.RefCountedMessage) {
 		msg      = w.newMessage()
 		metrics  = w.Metrics()
 	)
-	w.Lock()
-	if !w.isValidWriteWithLock(nowNanos, metrics) {
-		w.Unlock()
+	w.RLock()
+	isValidWrite := w.isValidWriteWithLock(nowNanos, metrics)
+	w.RUnlock()
+
+	if !isValidWrite {
 		w.close(msg)
 		return
 	}
 
 	rm.IncRef()
-	w.msgID++
-	msgID := w.msgID
-	w.Unlock()
+	msgID := w.msgID.Inc()
 
 	meta := metadata{
 		metadataKey: metadataKey{
@@ -275,50 +275,68 @@ func (w *messageWriter) write(
 	iterationIndexes []int,
 	consumerWriters []consumerWriter,
 	metrics *messageWriterMetrics,
-	m *message,
+	messages []*message,
 ) error {
-	m.IncReads()
-	m.SetSentAt(w.nowFn().UnixNano())
-	msg, isValid := m.Marshaler()
-	if !isValid {
-		m.DecReads()
-		return nil
-	}
-	// The write function is accessed through only one thread,
-	// so no lock is required for encoding.
-	err := w.encoder.Encode(msg)
-	m.DecReads()
-	if err != nil {
-		return err
-	}
 	var (
-		// NB(r): Always select the same connection index per shard.
-		connIndex   = int(w.replicatedShardID % uint64(w.numConnections))
-		writes      int64
-		writeErrors int64
+		delay          = metrics.messageWriteDelay
+		nowFn          = w.nowFn
+		msgsWritten    int64
+		recordMsgDelay int32
 	)
 
-	for i := len(iterationIndexes) - 1; i >= 0; i-- {
-		consumerWriter := consumerWriters[randIndex(iterationIndexes, i)]
-		if err := consumerWriter.Write(connIndex, w.encoder.Bytes()); err != nil {
-			writeErrors++
+	for _, m := range messages {
+		rf := m.RefCounted()
+		rf.IncReads()
+		m.SetSentAt(nowFn().UnixNano())
+		msg, isValid := m.Marshaler()
+		if !isValid {
+			rf.DecReads()
 			continue
 		}
-		writes++
-		break
+		// The write function is accessed through only one thread,
+		// so no lock is required for encoding.
+		err := w.encoder.Encode(msg)
+		rf.DecReads()
+		if err != nil {
+			return err
+		}
+		var (
+			// NB(r): Always select the same connection index per shard.
+			connIndex   = int(w.replicatedShardID % uint64(w.numConnections))
+			writes      int64
+			writeErrors int64
+		)
+
+		for i := len(iterationIndexes) - 1; i >= 0; i-- {
+			cw := consumerWriters[randIndex(iterationIndexes, i)]
+			if err := cw.Write(connIndex, w.encoder.Bytes()); err != nil {
+				writeErrors++
+				continue
+			}
+			writes++
+			break
+		}
+
+		if writeErrors > 0 {
+			metrics.oneConsumerWriteError.Inc(writeErrors)
+		}
+
+		if writes == 0 {
+			// Could not be written to any consumer, will retry later.
+			metrics.allConsumersWriteError.Inc(1)
+			return errFailAllConsumers
+		}
+
+		if recordMsgDelay == _recordMessageDelayEvery {
+			recordMsgDelay = 0
+			delay.Record(time.Duration(nowFn().UnixNano() - m.ExpectedProcessAtNanos()))
+		}
+		recordMsgDelay++
+		msgsWritten++
 	}
 
-	if writeErrors > 0 {
-		metrics.oneConsumerWriteError.Inc(writeErrors)
-	}
-
-	if writes > 0 {
-		metrics.writeSuccess.Inc(writes)
-		return nil
-	}
-	// Could not be written to any consumer, will retry later.
-	metrics.allConsumersWriteError.Inc(1)
-	return errFailAllConsumers
+	metrics.writeSuccess.Inc(msgsWritten)
+	return nil
 }
 
 // Ack acknowledges the metadata.
@@ -435,8 +453,6 @@ func (w *messageWriter) scanMessageQueueInner(queue []*message) {
 		batchSize        = w.opts.MessageQueueScanBatchSize()
 		toWrite          = batchSize
 		metrics          = w.Metrics()
-		consumerWriters  []consumerWriter
-		iterationIndexes []int
 		scanMetrics      scanBatchMetrics
 		skipWrites       bool
 	)
@@ -455,12 +471,7 @@ func (w *messageWriter) scanMessageQueueInner(queue []*message) {
 			goto next
 		}
 
-		w.RLock()
-		consumerWriters = w.consumerWriters
-		iterationIndexes = w.iterationIndexes
-		w.RUnlock()
-
-		if err := w.writeBatch(iterationIndexes, consumerWriters, metrics, batch); err != nil {
+		if err := w.writeBatch(batch, metrics); err != nil {
 			// When we can't write to any consumer writer, skip the writes in this scan
 			// to avoid meaningless attempts but continue to clean up the queue.
 			skipWrites = true
@@ -474,26 +485,24 @@ func (w *messageWriter) scanMessageQueueInner(queue []*message) {
 }
 
 func (w *messageWriter) writeBatch(
-	iterationIndexes []int,
-	consumerWriters []consumerWriter,
-	metrics *messageWriterMetrics,
 	messages []*message,
+	metrics *messageWriterMetrics,
 ) error {
+	w.RLock()
+	consumerWriters := w.consumerWriters
+	iterationIndexes := w.iterationIndexes
+	w.RUnlock()
+
 	if len(consumerWriters) == 0 {
 		// Not expected in a healthy/valid placement.
 		metrics.noWritersError.Inc(int64(len(messages)))
 		return errNoWriters
 	}
-	delay := metrics.messageWriteDelay
-	nowFn := w.nowFn
-	for i := range messages {
-		if err := w.write(iterationIndexes, consumerWriters, metrics, messages[i]); err != nil {
-			return err
-		}
-		if i%_recordMessageDelayEvery == 0 {
-			delay.Record(time.Duration(nowFn().UnixNano() - messages[i].ExpectedProcessAtNanos()))
-		}
+
+	if err := w.write(iterationIndexes, consumerWriters, metrics, messages); err != nil {
+		return err
 	}
+
 	return nil
 }
 
@@ -553,19 +562,19 @@ func (w *messageWriter) scanBatch(
 			continue
 		}
 
-		if m.IsDroppedOrConsumed() {
+		if m.RefCounted().IsDroppedOrConsumed() {
 			scanMetrics[_processedDrop]++
 			// There is a chance the message could be acked between m.Acked()
 			// and m.IsDroppedOrConsumed() check, in which case we should not
-			// mark it as dropped, just continue and next tick will remove it
-			// as acked.
+			// mark it as dropped.
 			if m.IsAcked() {
-				continue
+				scanMetrics[_processedAck]++
+			} else {
+				w.acks.remove(m.Metadata())
+				scanMetrics[_messageDroppedBufferFull]++
 			}
-			w.acks.remove(m.Metadata())
 			w.close(m)
 			dequed++
-			scanMetrics[_messageDroppedBufferFull]++
 			continue
 		}
 
