@@ -21,6 +21,7 @@
 package consumer
 
 import (
+	"errors"
 	"net"
 	"sync"
 	"time"
@@ -114,6 +115,7 @@ type consumer struct {
 	doneCh           chan struct{}
 	wg               sync.WaitGroup
 	m                metrics
+	logger           *zap.Logger
 	messageProcessor MessageProcessor
 }
 
@@ -145,6 +147,7 @@ func newConsumer(
 		closed:           false,
 		doneCh:           make(chan struct{}),
 		m:                m,
+		logger:           opts.InstrumentOptions().Logger(),
 		messageProcessor: mp,
 	}
 }
@@ -220,7 +223,7 @@ func (c *consumer) tryAckAndFlush() {
 // if acks fail to send the client will retry sending the messages.
 func (c *consumer) trySendAcksWithLock(ackLen int) {
 	err := c.encoder.Encode(&c.ackPb)
-	log := c.opts.InstrumentOptions().Logger()
+	log := c.logger
 	c.ackPb.Metadata = c.ackPb.Metadata[:0]
 	if err != nil {
 		c.m.ackEncodeError.Inc(1)
@@ -244,8 +247,8 @@ func (c *consumer) trySendAcksWithLock(ackLen int) {
 }
 
 func (c *consumer) tryCloseConn() {
-	if err := c.conn.Close(); err != nil {
-		c.opts.InstrumentOptions().Logger().Error("failed to close connection.", zap.Error(err))
+	if err := c.conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		c.logger.Error("failed to close connection.", zap.Error(err))
 	}
 }
 

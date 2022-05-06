@@ -58,7 +58,6 @@ func (m *message) Set(meta metadata, rm *producer.RefCountedMessage, initNanos i
 
 // Close resets the states of the message.
 func (m *message) Close() {
-	m.isAcked.Store(true)
 	m.rm.Store(nil)
 	m.retryAtNanos = 0
 	m.retried = 0
