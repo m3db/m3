@@ -454,7 +454,6 @@ func (w *messageWriter) scanMessageQueueInner(queue []*message) {
 		toWrite          = batchSize
 		metrics          = w.Metrics()
 		scanMetrics      scanBatchMetrics
-		skipWrites       bool
 	)
 
 	defer scanMetrics.record(metrics)
@@ -466,19 +465,15 @@ func (w *messageWriter) scanMessageQueueInner(queue []*message) {
 		}
 
 		batch := w.scanBatch(queue[:toWrite], beforeBatchNanos, metrics, &scanMetrics)
-		if len(batch) == 0 || skipWrites {
-			// nothing to write, go straight to cleanup
-			goto next
+		if len(batch) > 0 {
+			if err := w.writeBatch(batch, metrics); err != nil {
+				// When we can't write to any consumer writer, skip the writes in this scan
+				// to avoid meaningless attempts but continue to clean up the queue.
+				return
+			}
+			metrics.scanBatchLatency.Record(time.Duration(nowFn().UnixNano() - beforeBatchNanos))
 		}
 
-		if err := w.writeBatch(batch, metrics); err != nil {
-			// When we can't write to any consumer writer, skip the writes in this scan
-			// to avoid meaningless attempts but continue to clean up the queue.
-			skipWrites = true
-		}
-		metrics.scanBatchLatency.Record(time.Duration(nowFn().UnixNano() - beforeBatchNanos))
-
-	next:
 		beforeBatchNanos = nowFn().UnixNano()
 		queue = queue[toWrite:]
 	}
