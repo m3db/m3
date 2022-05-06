@@ -550,7 +550,7 @@ func testProducer(
 ) producer.Producer {
 	str := `
 buffer:
-  closeCheckInterval: 200ms
+  closeCheckInterval: 100ms
   cleanupRetry:
     initialBackoff: 100ms
     maxBackoff: 200ms
@@ -558,19 +558,17 @@ writer:
   topicName: topicName
   topicWatchInitTimeout: 100ms
   placementWatchInitTimeout: 100ms
-  # FIXME: Consumers sharing the same pool trigger false-positives in race detector
-  messagePool: ~
   messageRetry:
     initialBackoff: 20ms
     maxBackoff: 50ms
   messageQueueNewWritesScanInterval: 10ms
   messageQueueFullScanInterval: 50ms
-  closeCheckInterval: 200ms
+  closeCheckInterval: 10ms
   ackErrorRetry:
     initialBackoff: 20ms
     maxBackoff: 50ms
   connection:
-    dialTimeout: 500ms
+    dialTimeout: 200ms
     keepAlivePeriod: 2s
     retry:
       initialBackoff: 20ms

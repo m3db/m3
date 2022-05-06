@@ -23,12 +23,12 @@ package integration
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/msg/topic"
+	"github.com/m3db/m3/src/x/test"
+
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
-
-	"github.com/m3db/m3/src/msg/topic"
-	"github.com/m3db/m3/src/x/test"
 )
 
 const (
@@ -581,5 +581,6 @@ func TestAddConsumerService(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
+	// NB: this is flaky as messageWriters are stopped async by consumer writers
 	goleak.VerifyTestMain(m, goleak.IgnoreCurrent())
 }
