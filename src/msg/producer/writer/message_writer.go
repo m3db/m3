@@ -48,8 +48,8 @@ var (
 )
 
 const (
-	_recordMessageDelayEvery  = 4   // keep it a power of two value to keep modulo fast
-	_resizeBuffersProbability = 250 // 1/250th chance
+	_recordMessageDelayEvery  = 4  // keep it a power of two value to keep modulo fast
+	_resizeBuffersProbability = 50 // 1/50 chance
 )
 
 type messageWriterMetrics struct {
