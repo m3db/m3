@@ -226,12 +226,6 @@ func (w *consumerWriterImpl) Write(connIndex int, b []byte) error {
 }
 
 func (w *consumerWriterImpl) Init() {
-	w.wg.Add(1)
-	go func() {
-		w.resetConnectionUntilClose()
-		w.wg.Done()
-	}()
-
 	for i := 0; i < w.connOpts.NumConnections(); i++ {
 		idx := i
 		w.wg.Add(1)
@@ -266,15 +260,6 @@ func (w *consumerWriterImpl) flushUntilClose() {
 			// Hold onto the write state lock until done, since
 			// closing connections are done by acquiring the write state lock.
 			w.writeState.RUnlock()
-		case <-w.doneCh:
-			return
-		}
-	}
-}
-
-func (w *consumerWriterImpl) resetConnectionUntilClose() {
-	for {
-		select {
 		case <-w.resetCh:
 			// Avoid resetting too frequent.
 			if w.resetTooSoon() {

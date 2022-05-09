@@ -308,8 +308,12 @@ func (w *messageWriter) write(
 		)
 
 		for i := len(iterationIndexes) - 1; i >= 0; i-- {
-			cw := consumerWriters[randIndex(iterationIndexes, i)]
-			if err := cw.Write(connIndex, w.encoder.Bytes()); err != nil {
+			var idx int
+			if i != 0 {
+				// no point in swapping if i == 0, since it's the last/only element and randIndex is noop
+				idx = randIndex(iterationIndexes, i)
+			}
+			if err := consumerWriters[idx].Write(connIndex, w.encoder.Bytes()); err != nil {
 				writeErrors++
 				continue
 			}
