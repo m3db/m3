@@ -278,6 +278,8 @@ func (w *messageWriter) write(
 	messages []*message,
 ) error {
 	var (
+		// NB(r): Always select the same connection index per shard.
+		connIndex      = int(w.replicatedShardID % uint64(w.numConnections))
 		delay          = metrics.messageWriteDelay
 		nowFn          = w.nowFn
 		msgsWritten    int64
@@ -301,8 +303,6 @@ func (w *messageWriter) write(
 			return err
 		}
 		var (
-			// NB(r): Always select the same connection index per shard.
-			connIndex   = int(w.replicatedShardID % uint64(w.numConnections))
 			writes      int64
 			writeErrors int64
 		)
