@@ -56,7 +56,7 @@ require (
 	github.com/uber-go/tally v3.4.3+incompatible
 	github.com/uber/jaeger-client-go v2.29.1+incompatible
 	github.com/uber/jaeger-lib v2.4.1+incompatible
-	github.com/uber/tchannel-go v1.22.4-0.20220502094214-62d23642018d
+	github.com/uber/tchannel-go v1.31.1-0.20220504180658-be708aa1a97d
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.10
 	// etcd is currently on an alpha version to accomodate a GRPC version upgrade. See
