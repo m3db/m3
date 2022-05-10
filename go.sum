@@ -1515,10 +1515,15 @@ github.com/uber/jaeger-client-go v2.29.1+incompatible/go.mod h1:WVhlPFC8FDjOFMMW
 github.com/uber/jaeger-lib v2.2.0+incompatible/go.mod h1:ComeNDZlWwrWnDv8aPp0Ba6+uUTzImX/AauajbLI56U=
 github.com/uber/jaeger-lib v2.4.1+incompatible h1:td4jdvLcExb4cBISKIpHuGoVXh+dVKhn2Um6rjCsSsg=
 github.com/uber/jaeger-lib v2.4.1+incompatible/go.mod h1:ComeNDZlWwrWnDv8aPp0Ba6+uUTzImX/AauajbLI56U=
+<<<<<<< HEAD
 github.com/uber/tchannel-go v1.20.1 h1:lX+oiTaM1KV9DTaRZNox+uguJWh/tkAJO6b+BdywOTE=
 github.com/uber/tchannel-go v1.20.1/go.mod h1:Rrgz1eL8kMjW/nEzZos0t+Heq0O4LhnUJVA32OvWKHo=
 github.com/ugorji/go v1.1.4/go.mod h1:uQMGLiO92mf5W77hV/PUCpI3pbzQx3CRekS0kk+RGrc=
 github.com/ugorji/go v1.1.7/go.mod h1:kZn38zHttfInRq0xu/PH0az30d+z6vm202qpg1oXVMw=
+=======
+github.com/uber/tchannel-go v1.31.1-0.20220504180658-be708aa1a97d h1:xWkEgTV61XBeI1SO4IZ7GJVjTI8uViV2MD7qLZ4NIpI=
+github.com/uber/tchannel-go v1.31.1-0.20220504180658-be708aa1a97d/go.mod h1:dp6gGarNaT++Iq+0Wk4LYUbPKAEgDjhZADlV7Ulrn8c=
+>>>>>>> bd2fddbf4 (Updated Tchannel-go version to 1.31.0)
 github.com/ugorji/go/codec v0.0.0-20181204163529-d75b2dcb6bc8/go.mod h1:VFNgLljTbGfSG7qAOspJ7OScBnGdDN/yBr0sguwnwf0=
 github.com/ugorji/go/codec v1.1.7/go.mod h1:Ax+UKWsSmolVDwsd+7N3ZtXu+yMGCf907BLYF3GoBXY=
 github.com/urfave/cli v0.0.0-20171014202726-7bc6a0acffa5/go.mod h1:70zkFmudgCuE/ngEzBv17Jvp/497gISqfk5gWijbERA=
