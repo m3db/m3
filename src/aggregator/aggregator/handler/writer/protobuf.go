@@ -22,14 +22,12 @@ package writer
 
 import (
 	"errors"
-	"math/rand"
 
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/producer"
-	"github.com/m3db/m3/src/x/clock"
 
 	"github.com/uber-go/tally"
 )
@@ -38,44 +36,34 @@ var (
 	errWriterClosed = errors.New("writer is closed")
 )
 
-type randFn func() float64
-
 type protobufWriterMetrics struct {
-	writerClosed  tally.Counter
-	encodeSuccess tally.Counter
-	encodeErrors  tally.Counter
-	routeSuccess  tally.Counter
-	routeErrors   tally.Counter
+	writerClosed tally.Counter
+	encodeErrors tally.Counter
+	routeErrors  tally.Counter
 }
 
 func newProtobufWriterMetrics(scope tally.Scope) protobufWriterMetrics {
 	encodeScope := scope.SubScope("encode")
 	routeScope := scope.SubScope("route")
 	return protobufWriterMetrics{
-		writerClosed:  scope.Counter("writer-closed"),
-		encodeSuccess: encodeScope.Counter("success"),
-		encodeErrors:  encodeScope.Counter("errors"),
-		routeSuccess:  routeScope.Counter("success"),
-		routeErrors:   routeScope.Counter("errors"),
+		writerClosed: scope.Counter("writer-closed"),
+		encodeErrors: encodeScope.Counter("errors"),
+		routeErrors:  routeScope.Counter("errors"),
 	}
 }
 
 // protobufWriter encodes data and routes them to the backend.
 // protobufWriter is not thread safe.
 type protobufWriter struct {
-	encodingTimeSamplingRate float64
-	encoder                  protobuf.AggregatedEncoder
-	p                        producer.Producer
-	numShards                uint32
+	encoder   *protobuf.AggregatedEncoder
+	p         producer.Producer
+	numShards uint32
 
-	closed  bool
 	m       aggregated.MetricWithStoragePolicy
-	rand    *rand.Rand
 	metrics protobufWriterMetrics
 
-	nowFn   clock.NowFn
-	randFn  randFn
 	shardFn sharding.ShardFn
+	closed  bool
 }
 
 // NewProtobufWriter creates a writer that encodes metric in protobuf.
@@ -84,20 +72,15 @@ func NewProtobufWriter(
 	shardFn sharding.ShardFn,
 	opts Options,
 ) Writer {
-	nowFn := opts.ClockOptions().NowFn()
 	instrumentOpts := opts.InstrumentOptions()
 	w := &protobufWriter{
-		encodingTimeSamplingRate: opts.EncodingTimeSamplingRate(),
-		encoder:                  protobuf.NewAggregatedEncoder(opts.BytesPool()),
-		p:                        producer,
-		numShards:                producer.NumShards(),
-		closed:                   false,
-		rand:                     rand.New(rand.NewSource(nowFn().UnixNano())),
-		metrics:                  newProtobufWriterMetrics(instrumentOpts.MetricsScope()),
-		nowFn:                    nowFn,
-		shardFn:                  shardFn,
+		encoder:   protobuf.NewAggregatedEncoder(opts.BytesPool()),
+		p:         producer,
+		numShards: producer.NumShards(),
+		closed:    false,
+		metrics:   newProtobufWriterMetrics(instrumentOpts.MetricsScope()),
+		shardFn:   shardFn,
 	}
-	w.randFn = w.rand.Float64
 	return w
 }
 
@@ -106,22 +89,18 @@ func (w *protobufWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) err
 		w.metrics.writerClosed.Inc(1)
 		return errWriterClosed
 	}
-	var encodeNanos int64
-	if w.encodingTimeSamplingRate > 0 && w.randFn() < w.encodingTimeSamplingRate {
-		encodeNanos = w.nowFn().UnixNano()
-	}
+
 	m, shard := w.prepare(mp)
-	if err := w.encoder.Encode(m, encodeNanos); err != nil {
+	if err := w.encoder.Encode(m); err != nil {
 		w.metrics.encodeErrors.Inc(1)
 		return err
 	}
 
-	w.metrics.encodeSuccess.Inc(1)
 	if err := w.p.Produce(newMessage(shard, mp.StoragePolicy, w.encoder.Buffer())); err != nil {
 		w.metrics.routeErrors.Inc(1)
 		return err
 	}
-	w.metrics.routeSuccess.Inc(1)
+
 	return nil
 }
 
@@ -198,8 +177,8 @@ func (f storagePolicyFilter) Filter(m producer.Message) bool {
 	if !ok {
 		return true
 	}
-	for _, accepted := range f.acceptedStoragePolicies {
-		if accepted == msg.sp {
+	for i := 0; i < len(f.acceptedStoragePolicies); i++ {
+		if f.acceptedStoragePolicies[i].Equivalent(msg.sp) {
 			return true
 		}
 	}

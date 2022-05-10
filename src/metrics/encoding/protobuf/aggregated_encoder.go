@@ -27,38 +27,27 @@ import (
 )
 
 // AggregatedEncoder is an encoder for encoding aggregated metrics.
-type AggregatedEncoder interface {
-	// Encode encodes a metric with an applicable storage policy,
-	// alongside the time at which encoding happens.
-	Encode(m aggregated.MetricWithStoragePolicy, encodedAtNanos int64) error
-
-	// Buffer returns the encoded buffer.
-	Buffer() Buffer
-}
-
-type aggregatedEncoder struct {
+type AggregatedEncoder struct {
 	pool pool.BytesPool
 	buf  []byte
 	pb   metricpb.AggregatedMetric
 }
 
 // NewAggregatedEncoder creates a new aggregated encoder.
-func NewAggregatedEncoder(p pool.BytesPool) AggregatedEncoder {
-	e := &aggregatedEncoder{
+func NewAggregatedEncoder(p pool.BytesPool) *AggregatedEncoder {
+	return &AggregatedEncoder{
 		pool: p,
 	}
-	return e
 }
 
-func (enc *aggregatedEncoder) Encode(
+// Encode encodes a metric with an applicable storage policy.
+func (enc *AggregatedEncoder) Encode(
 	m aggregated.MetricWithStoragePolicy,
-	encodedAtNanos int64,
 ) error {
 	ReuseAggregatedMetricProto(&enc.pb)
 	if err := m.ToProto(&enc.pb.Metric); err != nil {
 		return err
 	}
-	enc.pb.EncodeNanos = encodedAtNanos
 	// Always allocate a new byte slice to avoid modifying the existing one which may still being used.
 	enc.buf = allocate(enc.pool, enc.pb.Size())
 	n, err := enc.pb.MarshalTo(enc.buf)
@@ -66,7 +55,8 @@ func (enc *aggregatedEncoder) Encode(
 	return err
 }
 
-func (enc *aggregatedEncoder) Buffer() Buffer {
+// Buffer returns the encoded buffer
+func (enc *AggregatedEncoder) Buffer() Buffer {
 	var fn PoolReleaseFn
 	if enc.pool != nil {
 		fn = enc.pool.Put

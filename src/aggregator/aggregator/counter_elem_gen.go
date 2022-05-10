@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
+// Copyright (c) 2022 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -43,14 +43,14 @@ import (
 )
 
 type lockedCounterAggregation struct {
-	aggregation counterAggregation
-	sourcesSeen map[uint32]*bitset.BitSet
-	mtx         sync.Mutex
-	dirty       bool
+	aggregation   counterAggregation
+	sourcesSeen   map[uint32]*bitset.BitSet
+	mtx           sync.Mutex
+	lastUpdatedAt xtime.UnixNano
+	dirty         bool
 	// resendEnabled is allowed to change while an aggregation is open, so it must be behind the lock.
 	resendEnabled bool
 	closed        bool
-	lastUpdatedAt xtime.UnixNano
 }
 
 type timedCounter struct {
@@ -63,7 +63,7 @@ type timedCounter struct {
 
 // close is called when the aggregation has been expired or the element is being closed.
 func (ta *timedCounter) close() {
-	ta.lockedAgg.aggregation.Close()
+	ta.lockedAgg.close()
 	ta.lockedAgg = nil
 }
 
@@ -228,7 +228,9 @@ func (e *CounterElem) AddUnique(
 func (e *CounterElem) expireValuesWithLock(
 	targetNanos int64,
 	isEarlierThanFn isEarlierThanFn,
-	flushMetrics flushMetrics) {
+	flushMetrics *flushMetrics,
+) {
+	var expiredCount int64
 	e.flushStateToExpire = e.flushStateToExpire[:0]
 	if len(e.values) == 0 {
 		return
@@ -272,7 +274,7 @@ func (e *CounterElem) expireValuesWithLock(
 			e.flushStateToExpire = append(e.flushStateToExpire, e.minStartTime)
 			delete(e.values, e.minStartTime)
 			e.minStartTime = currAgg.startAt
-			flushMetrics.valuesExpired.Inc(1)
+			expiredCount++
 
 			// it's safe to access this outside the agg lock since it was closed in a previous iteration.
 			// This is to make sure there aren't too many cached source sets taking up
@@ -288,6 +290,7 @@ func (e *CounterElem) expireValuesWithLock(
 			break
 		}
 	}
+	flushMetrics.valuesExpired.Inc(expiredCount)
 }
 
 func (e *CounterElem) expireFlushState() {
@@ -469,7 +472,7 @@ func (e *CounterElem) dirtyToConsumeWithLock(targetNanos int64,
 	}
 }
 
-func (e *CounterElem) isFlushed(c consumeState) bool {
+func (e *CounterElem) isFlushed(c *consumeState) bool {
 	return e.flushState[c.startAt].flushed
 }
 
@@ -478,14 +481,18 @@ func (e *CounterElem) isFlushed(c consumeState) bool {
 func (e *CounterElem) appendConsumeStateWithLock(
 	agg timedCounter,
 	toConsume []consumeState,
-	includeFilter func(consumeState) bool) ([]consumeState, bool) {
-	// eagerly append a new element so we can try reusing memory already allocated in the slice.
-	toConsume = append(toConsume, consumeState{})
-	cState := toConsume[len(toConsume)-1]
-	if cState.values == nil {
-		cState.values = make([]float64, len(e.aggTypes))
+	includeFilter func(*consumeState) bool,
+) ([]consumeState, bool) {
+	// try reusing memory already allocated in the slice.
+	if cap(toConsume) >= len(toConsume)+1 {
+		toConsume = toConsume[:len(toConsume)+1]
+	} else {
+		toConsume = append(toConsume, consumeState{
+			values: make([]float64, 0, len(e.aggTypes)),
+		})
 	}
-	cState.values = cState.values[:0]
+	cState := &toConsume[len(toConsume)-1]
+	cState.Reset()
 	// copy the lockedAgg data while holding the lock.
 	agg.lockedAgg.mtx.Lock()
 	cState.dirty = agg.lockedAgg.dirty
@@ -494,8 +501,7 @@ func (e *CounterElem) appendConsumeStateWithLock(
 	for _, aggType := range e.aggTypes {
 		cState.values = append(cState.values, agg.lockedAgg.aggregation.ValueOf(aggType))
 	}
-	cState.annotation = raggregation.MaybeReplaceAnnotation(
-		cState.annotation, agg.lockedAgg.aggregation.Annotation())
+	cState.annotation = raggregation.MaybeReplaceAnnotation(cState.annotation, agg.lockedAgg.aggregation.Annotation())
 	agg.lockedAgg.dirty = false
 	agg.lockedAgg.mtx.Unlock()
 
@@ -507,7 +513,6 @@ func (e *CounterElem) appendConsumeStateWithLock(
 		cState.prevStartTime = 0
 	}
 	cState.startAt = agg.startAt
-	toConsume[len(toConsume)-1] = cState
 	// update the flush state with the latestResendEnabled since expireValuesWithLock needs it before actual processing.
 	fState := e.flushState[cState.startAt]
 	fState.latestResendEnabled = cState.resendEnabled
@@ -679,12 +684,17 @@ func (e *CounterElem) findOrCreate(
 			sourcesSeen = make(map[uint32]*bitset.BitSet)
 		}
 	}
+	// NB(vytenis): lockedCounterAggregation will be returned to pool on timedCounter close.
+	// this is a bit different from regular pattern of using a pool object due to codegen with Genny limitations,
+	// so we can avoid writing more boilerplate.
+	// timedCounter itself is always pass-by-value, but lockedCounterAggregation incurs an expensive allocation on heap
+	// in the critical path (30%+, depending on workload as of 2020-05-01): see https://github.com/m3db/m3/pull/4109
 	timedAgg = timedCounter{
 		startAt: alignedStart,
-		lockedAgg: &lockedCounterAggregation{
-			sourcesSeen: sourcesSeen,
-			aggregation: e.NewAggregation(e.opts, e.aggOpts),
-		},
+		lockedAgg: lockedCounterAggregationFromPool(
+			e.NewAggregation(e.opts, e.aggOpts),
+			sourcesSeen,
+		),
 		inDirtySet: true,
 	}
 
@@ -735,7 +745,8 @@ func (e *CounterElem) processValue(
 	resolution time.Duration,
 	latenessAllowed time.Duration,
 	jitter time.Duration,
-	flushMetrics flushMetrics) {
+	flushMetrics *flushMetrics,
+) {
 	var (
 		transformations  = e.parsedPipeline.Transformations
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
@@ -751,7 +762,7 @@ func (e *CounterElem) processValue(
 			l.Error("reflushing aggregation without resendEnabled", zap.Any("consumeState", cState))
 		})
 	}
-	flushMetrics.valuesProcessed.Inc(1)
+
 	for aggTypeIdx, aggType := range e.aggTypes {
 		var extraDp transformation.Datapoint
 		value := cState.values[aggTypeIdx]
@@ -865,10 +876,11 @@ func (e *CounterElem) processValue(
 		// forward lag = current time - (agg timestamp + lateness allowed + jitter)
 		// use expectedProcessingTime instead of the aggregation timestamp since the aggregation timestamp could be
 		// in the past for updated aggregations (resendEnabled).
+		lag := xtime.Since(expectedProcessingTime.Add(latenessAllowed))
 		flushMetrics.forwardLag(forwardKey{fwdType: fwdType, jitter: false}).
-			RecordDuration(xtime.Since(expectedProcessingTime.Add(latenessAllowed + jitter)))
+			RecordDuration(lag)
 		flushMetrics.forwardLag(forwardKey{fwdType: fwdType, jitter: true}).
-			RecordDuration(xtime.Since(expectedProcessingTime.Add(latenessAllowed)))
+			RecordDuration(lag + jitter)
 	}
 	fState.flushed = true
 	e.flushState[cState.startAt] = fState
