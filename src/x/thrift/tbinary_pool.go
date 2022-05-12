@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 // Package thrift code has been copied from https://github.com/m3dbx/thrift branch 0.9.3-patch
+// This provides support for multiple byte slice pools of different capacities.
 // see:https://github.com/m3dbx/thrift/blob/0.9.3-patch/lib/go/thrift/binary_protocol.go#L40
 package thrift
 
