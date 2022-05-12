@@ -47,7 +47,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/utils"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -60,6 +59,7 @@ import (
 	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
+	tbinarypool "github.com/m3db/m3/src/x/thrift"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
@@ -2782,7 +2782,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 			data.DecRef()
 			clonedID := idPool.BinaryID(data)
 			// Return thrift bytes to pool once the ID has been copied.
-			utils.BytesPoolPut(elem.ID)
+			tbinarypool.BytesPoolPut(elem.ID)
 
 			var encodedTags checked.Bytes
 			if tagBytes := elem.EncodedTags; len(tagBytes) != 0 {
@@ -2791,7 +2791,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 				encodedTags.AppendAll(tagBytes)
 				encodedTags.DecRef()
 				// Return thrift bytes to pool once the tags have been copied.
-				utils.BytesPoolPut(tagBytes)
+				tbinarypool.BytesPoolPut(tagBytes)
 			}
 
 			// Error occurred retrieving block metadata, use default values
