@@ -25,12 +25,12 @@ import (
 	"os"
 	"time"
 
-	"google.golang.org/grpc"
-
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
+
+	"google.golang.org/grpc"
 )
 
 // Options is the Options to create a config service client.

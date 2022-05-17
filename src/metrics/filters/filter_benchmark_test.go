@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3/src/metrics/metric/id"
+
+	"github.com/stretchr/testify/require"
 )
 
 var (

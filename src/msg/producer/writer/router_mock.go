@@ -68,7 +68,7 @@ func (mr *MockackRouterMockRecorder) Ack(ack interface{}) *gomock.Call {
 }
 
 // Register mocks base method.
-func (m *MockackRouter) Register(replicatedShardID uint64, mw messageWriter) {
+func (m *MockackRouter) Register(replicatedShardID uint64, mw *messageWriter) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Register", replicatedShardID, mw)
 }

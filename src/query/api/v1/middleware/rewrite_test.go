@@ -29,17 +29,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
+	"github.com/m3db/m3/src/query/storage/mock"
+	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/go-kit/kit/log"
 	kitlogzap "github.com/go-kit/kit/log/zap"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
-
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
-	"github.com/m3db/m3/src/query/storage/mock"
-	"github.com/m3db/m3/src/x/instrument"
 )
 
 func TestPrometheusRangeRewrite(t *testing.T) {

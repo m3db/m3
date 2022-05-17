@@ -24,9 +24,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/m3db/m3/src/dbnode/ts"
+
+	"github.com/stretchr/testify/assert"
 )
 
 var annotationHolderTests = []struct {

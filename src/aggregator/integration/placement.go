@@ -24,12 +24,12 @@ import (
 	"math"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
+
+	"github.com/stretchr/testify/require"
 )
 
 type placementInstanceConfig struct {

@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2018 Uber Technologies, Inc.
@@ -30,10 +31,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/aggregator/aggregation"
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/cluster/kv"
@@ -50,6 +47,10 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 //nolint:dupl

@@ -28,10 +28,6 @@ import (
 	_ "net/http/pprof"
 	"time"
 
-	"github.com/gorilla/mux"
-	"github.com/jonboulle/clockwork"
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/cluster/placementhandler"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -53,6 +49,10 @@ import (
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	xdebug "github.com/m3db/m3/src/x/debug"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+
+	"github.com/gorilla/mux"
+	"github.com/jonboulle/clockwork"
+	"go.uber.org/zap"
 )
 
 const (

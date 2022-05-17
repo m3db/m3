@@ -714,6 +714,20 @@ func (mr *MockFieldsIteratorMockRecorder) Current() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockFieldsIterator)(nil).Current))
 }
 
+// Empty mocks base method.
+func (m *MockFieldsIterator) Empty() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Empty")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Empty indicates an expected call of Empty.
+func (mr *MockFieldsIteratorMockRecorder) Empty() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Empty", reflect.TypeOf((*MockFieldsIterator)(nil).Empty))
+}
+
 // Err mocks base method.
 func (m *MockFieldsIterator) Err() error {
 	m.ctrl.T.Helper()
@@ -792,6 +806,20 @@ func (m *MockTermsIterator) Current() ([]byte, postings.List) {
 func (mr *MockTermsIteratorMockRecorder) Current() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockTermsIterator)(nil).Current))
+}
+
+// Empty mocks base method.
+func (m *MockTermsIterator) Empty() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Empty")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Empty indicates an expected call of Empty.
+func (mr *MockTermsIteratorMockRecorder) Empty() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Empty", reflect.TypeOf((*MockTermsIterator)(nil).Empty))
 }
 
 // Err mocks base method.

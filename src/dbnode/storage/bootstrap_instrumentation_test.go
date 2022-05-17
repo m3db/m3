@@ -25,11 +25,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	xerrors "github.com/m3db/m3/src/x/errors"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/uber-go/tally"
 )
 
 func TestBootstrapRetryMetricReason(t *testing.T) {

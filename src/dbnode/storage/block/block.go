@@ -128,6 +128,13 @@ func (b *dbBlock) LastReadTime() xtime.UnixNano {
 	return xtime.UnixNano(atomic.LoadInt64(&b.lastReadUnixNanos))
 }
 
+func (b *dbBlock) Empty() bool {
+	b.RLock()
+	empty := b.length == 0
+	b.RUnlock()
+	return empty
+}
+
 func (b *dbBlock) Len() int {
 	b.RLock()
 	length := b.length

@@ -34,15 +34,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pborman/getopt"
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/pborman/getopt"
+	"go.uber.org/zap"
 )
 
 var checkpointPattern = regexp.MustCompile(`/data/(\w+)/([0-9]+)/fileset-([0-9]+)-([0-9]+)-checkpoint.db$`)

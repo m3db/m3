@@ -24,9 +24,9 @@ package topics
 import (
 	"fmt"
 
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/client"
+
+	"go.uber.org/zap"
 )
 
 // DoDelete does the delete api calls for topics

@@ -24,8 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/sharding"
@@ -36,6 +34,8 @@ import (
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+
+	"github.com/stretchr/testify/require"
 )
 
 const (

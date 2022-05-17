@@ -24,14 +24,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
-
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/storage/m3"
-	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 )
 
 func TestNewFromConfiguration(t *testing.T) {

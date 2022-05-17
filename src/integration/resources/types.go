@@ -29,14 +29,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/common/model"
-
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/x/errors"
+
+	"github.com/prometheus/common/model"
 )
 
 // ResponseVerifier is a function that checks if the query response is valid.

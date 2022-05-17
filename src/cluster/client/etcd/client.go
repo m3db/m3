@@ -42,7 +42,7 @@ import (
 	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/uber-go/tally"
-	"go.etcd.io/etcd/clientv3"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 )
 

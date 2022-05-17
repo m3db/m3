@@ -26,12 +26,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/uber-go/tally"
-	"golang.org/x/sys/cpu"
-
 	"github.com/m3db/m3/src/cluster/placement"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xsync "github.com/m3db/m3/src/x/sync"
+
+	"github.com/uber-go/tally"
+	"golang.org/x/sys/cpu"
 )
 
 var (

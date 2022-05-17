@@ -32,9 +32,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pborman/getopt"
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -42,6 +39,9 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xos "github.com/m3db/m3/src/x/os"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/pborman/getopt"
+	"go.uber.org/zap"
 )
 
 var (

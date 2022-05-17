@@ -36,7 +36,6 @@ import (
 
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
-	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 	xtest "github.com/m3db/m3/src/x/test"
 )
@@ -545,7 +544,6 @@ func testOptions() Options {
 		SetTopicName("topicName").
 		SetTopicWatchInitTimeout(100 * time.Millisecond).
 		SetPlacementWatchInitTimeout(100 * time.Millisecond).
-		SetMessagePoolOptions(pool.NewObjectPoolOptions().SetSize(1)).
 		SetMessageQueueNewWritesScanInterval(100 * time.Millisecond).
 		SetMessageQueueFullScanInterval(200 * time.Millisecond).
 		SetMessageRetryNanosFn(

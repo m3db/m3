@@ -21,10 +21,10 @@
 package permits
 
 import (
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
+
+	"go.uber.org/zap"
 )
 
 type fixedPermits struct {

@@ -26,12 +26,12 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/shard"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
-
-	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
-	"github.com/m3db/m3/src/cluster/shard"
 )
 
 func TestMarshalAndUnmarshalPlacementProto(t *testing.T) {

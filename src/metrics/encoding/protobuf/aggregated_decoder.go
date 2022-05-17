@@ -72,7 +72,7 @@ func (d AggregatedDecoder) StoragePolicy() policy.StoragePolicy {
 	return d.sp
 }
 
-// EncodeNanos returns the decoded encodeNanos.
+// EncodeNanos is deprecated.
 func (d AggregatedDecoder) EncodeNanos() int64 {
 	return d.pb.EncodeNanos
 }

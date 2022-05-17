@@ -31,13 +31,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-	imodels "github.com/influxdata/influxdb/models"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/models"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/golang/mock/gomock"
+	imodels "github.com/influxdata/influxdb/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

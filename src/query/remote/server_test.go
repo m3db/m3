@@ -128,7 +128,8 @@ func checkRemoteFetch(t *testing.T, r storage.PromResult) {
 }
 
 func startServer(t *testing.T, ctrl *gomock.Controller,
-	store m3.Storage) net.Listener {
+	store m3.Storage,
+) net.Listener {
 	server := NewGRPCServer(store, models.QueryContextOptions{},
 		poolsWrapper, instrument.NewOptions())
 
@@ -143,7 +144,8 @@ func startServer(t *testing.T, ctrl *gomock.Controller,
 }
 
 func createCtxReadOpts(t *testing.T) (context.Context,
-	*storage.FetchQuery, *storage.FetchOptions) {
+	*storage.FetchQuery, *storage.FetchOptions,
+) {
 	ctx := context.Background()
 	read, _, _ := createStorageFetchQuery(t)
 	readOpts := storage.NewFetchOptions()
@@ -152,14 +154,16 @@ func createCtxReadOpts(t *testing.T) (context.Context,
 }
 
 func checkFetch(ctx context.Context, t *testing.T, client Client,
-	read *storage.FetchQuery, readOpts *storage.FetchOptions) {
+	read *storage.FetchQuery, readOpts *storage.FetchOptions,
+) {
 	fetch, err := client.FetchProm(ctx, read, readOpts)
 	require.NoError(t, err)
 	checkRemoteFetch(t, fetch)
 }
 
 func checkErrorFetch(ctx context.Context, t *testing.T, client Client,
-	read *storage.FetchQuery, readOpts *storage.FetchOptions) {
+	read *storage.FetchQuery, readOpts *storage.FetchOptions,
+) {
 	_, err := client.FetchProm(ctx, read, readOpts)
 	assert.Equal(t, errRead.Error(), grpc.ErrorDesc(err))
 }
@@ -175,13 +179,13 @@ func buildClient(t *testing.T, hosts []string) Client {
 		SetTagOptions(models.NewTagOptions())
 
 	client, err := NewGRPCClient(testName, hosts, poolsWrapper, opts,
-		instrument.NewTestOptions(t), grpc.WithBlock())
+		instrument.NewTestOptions(t))
 	require.NoError(t, err)
 	return client
 }
 
 func TestRpc(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController((*panicReporter)(t))
 	defer ctrl.Finish()
 
 	ctx, read, readOpts := createCtxReadOpts(t)
@@ -193,6 +197,18 @@ func TestRpc(t *testing.T) {
 	}()
 
 	checkFetch(ctx, t, client, read, readOpts)
+}
+
+// panicReporter is a workaround for the fact t.Fatalf calls in background threads
+// can cause hangs. panicReporter panics instead to fail the test early.
+type panicReporter testing.T
+
+func (t *panicReporter) Errorf(format string, args ...interface{}) {
+	(*testing.T)(t).Errorf(format, args...)
+}
+
+func (*panicReporter) Fatalf(format string, args ...interface{}) {
+	panic(fmt.Sprintf(format, args...))
 }
 
 func TestRpcHealth(t *testing.T) {

@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 )
 
@@ -313,12 +312,6 @@ type Options interface {
 	// SetPlacementWatchInitTimeout sets the timeout for placement watch initialization.
 	SetPlacementWatchInitTimeout(value time.Duration) Options
 
-	// MessagePoolOptions returns the options of pool for messages.
-	MessagePoolOptions() pool.ObjectPoolOptions
-
-	// SetMessagePoolOptions sets the options of pool for messages.
-	SetMessagePoolOptions(value pool.ObjectPoolOptions) Options
-
 	// MessageRetryNanosFn returns the MessageRetryNanosFn.
 	MessageRetryNanosFn() MessageRetryNanosFn
 
@@ -411,7 +404,6 @@ type writerOptions struct {
 	placementOpts                     placement.Options
 	placementWatchInitTimeout         time.Duration
 	messageRetryNanosFn               MessageRetryNanosFn
-	messagePoolOptions                pool.ObjectPoolOptions
 	messageQueueNewWritesScanInterval time.Duration
 	messageQueueFullScanInterval      time.Duration
 	messageQueueScanBatchSize         int
@@ -505,16 +497,6 @@ func (opts *writerOptions) PlacementWatchInitTimeout() time.Duration {
 func (opts *writerOptions) SetPlacementWatchInitTimeout(value time.Duration) Options {
 	o := *opts
 	o.placementWatchInitTimeout = value
-	return &o
-}
-
-func (opts *writerOptions) MessagePoolOptions() pool.ObjectPoolOptions {
-	return opts.messagePoolOptions
-}
-
-func (opts *writerOptions) SetMessagePoolOptions(value pool.ObjectPoolOptions) Options {
-	o := *opts
-	o.messagePoolOptions = value
 	return &o
 }
 

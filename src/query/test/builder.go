@@ -24,13 +24,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/prometheus/common/model"
-
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/prometheus/common/model"
 )
 
 // ValueMod can be used to modify provided values for testing.

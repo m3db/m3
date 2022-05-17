@@ -52,16 +52,16 @@ type shardWriter interface {
 
 type sharedShardWriter struct {
 	instances map[string]struct{}
-	mw        messageWriter
-	isClosed  *atomic.Bool
+	mw        *messageWriter
+	isClosed  atomic.Bool
 }
 
 func newSharedShardWriter(
 	shard uint32,
 	router ackRouter,
-	mPool messagePool,
+	mPool *messagePool,
 	opts Options,
-	m messageWriterMetrics,
+	m *messageWriterMetrics,
 ) shardWriter {
 	replicatedShardID := uint64(shard)
 	mw := newMessageWriter(replicatedShardID, mPool, opts, m)
@@ -70,7 +70,6 @@ func newSharedShardWriter(
 	return &sharedShardWriter{
 		instances: make(map[string]struct{}),
 		mw:        mw,
-		isClosed:  atomic.NewBool(false),
 	}
 }
 
@@ -125,13 +124,13 @@ type replicatedShardWriter struct {
 
 	shard          uint32
 	numberOfShards uint32
-	mPool          messagePool
+	mPool          *messagePool
 	ackRouter      ackRouter
 	opts           Options
 	logger         *zap.Logger
-	m              messageWriterMetrics
+	m              *messageWriterMetrics
 
-	messageWriters  map[string]messageWriter
+	messageWriters  map[string]*messageWriter
 	messageTTLNanos int64
 	replicaID       uint32
 	isClosed        bool
@@ -140,9 +139,9 @@ type replicatedShardWriter struct {
 func newReplicatedShardWriter(
 	shard, numberOfShards uint32,
 	router ackRouter,
-	mPool messagePool,
+	mPool *messagePool,
 	opts Options,
-	m messageWriterMetrics,
+	m *messageWriterMetrics,
 ) shardWriter {
 	return &replicatedShardWriter{
 		shard:          shard,
@@ -152,7 +151,7 @@ func newReplicatedShardWriter(
 		logger:         opts.InstrumentOptions().Logger(),
 		ackRouter:      router,
 		replicaID:      0,
-		messageWriters: make(map[string]messageWriter),
+		messageWriters: make(map[string]*messageWriter),
 		isClosed:       false,
 		m:              m,
 	}
@@ -181,8 +180,8 @@ func (w *replicatedShardWriter) UpdateInstances(
 	// are already cutoff. Otherwise it will wait until next placement change
 	// to clean up.
 	var (
-		newMessageWriters = make(map[string]messageWriter, len(instances))
-		toBeClosed        []messageWriter
+		newMessageWriters = make(map[string]*messageWriter, len(instances))
+		toBeClosed        []*messageWriter
 		toBeAdded         = make(map[placement.Instance]consumerWriter, len(instances))
 		oldMessageWriters = w.messageWriters
 	)
@@ -253,7 +252,7 @@ func (w *replicatedShardWriter) UpdateInstances(
 }
 
 func (w *replicatedShardWriter) updateCutoverCutoffNanos(
-	mw messageWriter,
+	mw *messageWriter,
 	instance placement.Instance,
 ) {
 	s, ok := instance.Shards().Shard(w.shard)

@@ -28,8 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
@@ -47,6 +45,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -1165,7 +1164,7 @@ func TestAddUntimed_ResendEnabledMigrationRaceWithFlusher(t *testing.T) {
 	require.NoError(t, e.addUntimed(mu, metadatas))
 
 	// continue consuming the aggregation
-	elem.expireValuesWithLock(int64(t2), isStandardMetricEarlierThan, flushMetrics{})
+	elem.expireValuesWithLock(int64(t2), isStandardMetricEarlierThan, newFlushMetrics(tally.NoopScope))
 
 	// target the aggregation being flushed again...it should still be open since it migrated to resendEnabled before
 	// closing.

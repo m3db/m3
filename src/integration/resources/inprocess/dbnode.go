@@ -31,10 +31,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
-
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/server"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -45,6 +41,10 @@ import (
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/hostid"
 	xos "github.com/m3db/m3/src/x/os"
+
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 )
 
 // TODO(nate): make configurable

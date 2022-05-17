@@ -24,13 +24,13 @@ package middleware
 import (
 	"net/http"
 
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/net/http/cors"
+
 	"github.com/gorilla/mux"
 	"github.com/jonboulle/clockwork"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/prometheus/util/httputil"
-
-	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/net/http/cors"
 )
 
 // Register is a func to build the set of middleware functions.

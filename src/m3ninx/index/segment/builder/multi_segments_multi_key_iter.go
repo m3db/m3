@@ -36,7 +36,6 @@ type keyIterator interface {
 var _ keyIterator = &multiKeyIterator{}
 
 type multiKeyIterator struct {
-	firstNext  bool
 	closeIters []keyIterator
 	iters      []keyIterator
 	currIters  []keyIterator
@@ -49,8 +48,6 @@ func newMultiKeyIterator() *multiKeyIterator {
 }
 
 func (i *multiKeyIterator) reset() {
-	i.firstNext = true
-
 	for j := range i.closeIters {
 		i.closeIters[j] = nil
 	}
@@ -73,14 +70,16 @@ func (i *multiKeyIterator) add(iter keyIterator) {
 	i.tryAddCurr(iter)
 }
 
+func (i *multiKeyIterator) Empty() bool {
+	// Use i.closeIters to indicate if any iters were added instead of
+	// i.iters or i.currIter since those are popped off during iteration,
+	// whereas i.closeIters are only removed on reset.
+	return len(i.closeIters) == 0
+}
+
 func (i *multiKeyIterator) Next() bool {
 	if len(i.iters) == 0 {
 		return false
-	}
-
-	if i.firstNext {
-		i.firstNext = false
-		return true
 	}
 
 	for _, currIter := range i.currIters {

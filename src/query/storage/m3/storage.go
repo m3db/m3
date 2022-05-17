@@ -28,11 +28,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opentracing/opentracing-go/log"
-	"github.com/prometheus/common/model"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-
 	coordmodel "github.com/m3db/m3/src/cmd/services/m3coordinator/model"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -50,6 +45,11 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/opentracing/opentracing-go/log"
+	"github.com/prometheus/common/model"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (

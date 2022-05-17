@@ -24,13 +24,13 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gorilla/mux"
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/query/source"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+
+	"github.com/gorilla/mux"
+	"go.uber.org/zap"
 )
 
 var errInvalidSourceHeader = xhttp.NewError(

@@ -21,10 +21,10 @@
 package placement
 
 import (
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/klauspost/compress/zstd"
-
-	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 )
 
 const _decoderInitialBufferSize = 131072

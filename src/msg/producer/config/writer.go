@@ -24,8 +24,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
@@ -37,6 +35,8 @@ import (
 	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
+
+	"github.com/uber-go/tally"
 )
 
 // ConnectionConfiguration configs the connection options.
@@ -93,22 +93,23 @@ func (c *ConnectionConfiguration) NewOptions(iOpts instrument.Options) writer.Co
 
 // WriterConfiguration configs the writer options.
 type WriterConfiguration struct {
-	TopicName                         string                         `yaml:"topicName" validate:"nonzero"`
-	TopicServiceOverride              kv.OverrideConfiguration       `yaml:"topicServiceOverride"`
-	TopicWatchInitTimeout             *time.Duration                 `yaml:"topicWatchInitTimeout"`
-	PlacementOptions                  placement.Configuration        `yaml:"placement"`
-	PlacementServiceOverride          services.OverrideConfiguration `yaml:"placementServiceOverride"`
-	PlacementWatchInitTimeout         *time.Duration                 `yaml:"placementWatchInitTimeout"`
-	MessagePool                       *pool.ObjectPoolConfiguration  `yaml:"messagePool"`
-	MessageQueueNewWritesScanInterval *time.Duration                 `yaml:"messageQueueNewWritesScanInterval"`
-	MessageQueueFullScanInterval      *time.Duration                 `yaml:"messageQueueFullScanInterval"`
-	MessageQueueScanBatchSize         *int                           `yaml:"messageQueueScanBatchSize"`
-	InitialAckMapSize                 *int                           `yaml:"initialAckMapSize"`
-	CloseCheckInterval                *time.Duration                 `yaml:"closeCheckInterval"`
-	AckErrorRetry                     *retry.Configuration           `yaml:"ackErrorRetry"`
-	Encoder                           *proto.Configuration           `yaml:"encoder"`
-	Decoder                           *proto.Configuration           `yaml:"decoder"`
-	Connection                        *ConnectionConfiguration       `yaml:"connection"`
+	TopicName                 string                         `yaml:"topicName" validate:"nonzero"`
+	TopicServiceOverride      kv.OverrideConfiguration       `yaml:"topicServiceOverride"`
+	TopicWatchInitTimeout     *time.Duration                 `yaml:"topicWatchInitTimeout"`
+	PlacementOptions          placement.Configuration        `yaml:"placement"`
+	PlacementServiceOverride  services.OverrideConfiguration `yaml:"placementServiceOverride"`
+	PlacementWatchInitTimeout *time.Duration                 `yaml:"placementWatchInitTimeout"`
+	// MessagePool configuration is deprecated for producer side.
+	MessagePool                       *pool.ObjectPoolConfiguration `yaml:"messagePool"`
+	MessageQueueNewWritesScanInterval *time.Duration                `yaml:"messageQueueNewWritesScanInterval"`
+	MessageQueueFullScanInterval      *time.Duration                `yaml:"messageQueueFullScanInterval"`
+	MessageQueueScanBatchSize         *int                          `yaml:"messageQueueScanBatchSize"`
+	InitialAckMapSize                 *int                          `yaml:"initialAckMapSize"`
+	CloseCheckInterval                *time.Duration                `yaml:"closeCheckInterval"`
+	AckErrorRetry                     *retry.Configuration          `yaml:"ackErrorRetry"`
+	Encoder                           *proto.Configuration          `yaml:"encoder"`
+	Decoder                           *proto.Configuration          `yaml:"decoder"`
+	Connection                        *ConnectionConfiguration      `yaml:"connection"`
 
 	// StaticMessageRetry configs a static message retry policy.
 	StaticMessageRetry *StaticMessageRetryConfiguration `yaml:"staticMessageRetry"`
@@ -169,9 +170,6 @@ func (c *WriterConfiguration) NewOptions(
 
 	if c.PlacementWatchInitTimeout != nil {
 		opts = opts.SetPlacementWatchInitTimeout(*c.PlacementWatchInitTimeout)
-	}
-	if c.MessagePool != nil {
-		opts = opts.SetMessagePoolOptions(c.MessagePool.NewObjectPoolOptions(iOpts))
 	}
 	opts, err = c.setRetryOptions(opts, iOpts)
 	if err != nil {

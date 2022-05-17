@@ -103,7 +103,7 @@ func (i *termsIterFromSegments) setField(field []byte) error {
 		if err != nil {
 			return err
 		}
-		if !iter.Next() {
+		if iter.Empty() {
 			// Don't consume this iterator if no results
 			if err := xerrors.FirstError(iter.Err(), iter.Close()); err != nil {
 				return err
@@ -118,6 +118,10 @@ func (i *termsIterFromSegments) setField(field []byte) error {
 	}
 
 	return nil
+}
+
+func (i *termsIterFromSegments) Empty() bool {
+	return i.keyIter.Empty()
 }
 
 func (i *termsIterFromSegments) Next() bool {

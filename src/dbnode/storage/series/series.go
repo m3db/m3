@@ -149,8 +149,7 @@ func (s *dbSeries) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 		return r, err
 	}
 	r.TickStatus = update.TickStatus
-	r.MadeExpiredBlocks, r.MadeUnwiredBlocks =
-		update.madeExpiredBlocks, update.madeUnwiredBlocks
+	r.MadeExpiredBlocks, r.MadeUnwiredBlocks = update.madeExpiredBlocks, update.madeUnwiredBlocks
 
 	s.Unlock()
 
@@ -294,11 +293,10 @@ func (s *dbSeries) IsEmpty() bool {
 	return false
 }
 
-func (s *dbSeries) IsBufferEmptyAtBlockStart(blockStart xtime.UnixNano) bool {
+func (s *dbSeries) MarkNonEmptyBlocks(nonEmptyBlockStarts map[xtime.UnixNano]struct{}) {
 	s.RLock()
-	bufferEmpty := s.buffer.IsEmptyAtBlockStart(blockStart)
+	s.buffer.MarkNonEmptyBlocks(nonEmptyBlockStarts)
 	s.RUnlock()
-	return bufferEmpty
 }
 
 func (s *dbSeries) NumActiveBlocks() int {

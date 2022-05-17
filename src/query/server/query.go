@@ -30,19 +30,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	kitlogzap "github.com/go-kit/kit/log/zap"
-	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
-	extprom "github.com/prometheus/client_golang/prometheus"
-	prometheuspromql "github.com/prometheus/prometheus/promql"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
-
 	"github.com/m3db/m3/src/aggregator/server"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
@@ -86,6 +73,19 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xserver "github.com/m3db/m3/src/x/server"
 	xsync "github.com/m3db/m3/src/x/sync"
+
+	"github.com/go-kit/kit/log"
+	kitlogzap "github.com/go-kit/kit/log/zap"
+	"github.com/opentracing/opentracing-go"
+	"github.com/pkg/errors"
+	extprom "github.com/prometheus/client_golang/prometheus"
+	prometheuspromql "github.com/prometheus/prometheus/promql"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 const (

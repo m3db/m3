@@ -29,10 +29,6 @@ import (
 	"sync"
 	"time"
 
-	opentracinglog "github.com/opentracing/opentracing-go/log"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -58,6 +54,10 @@ import (
 	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -1343,7 +1343,7 @@ func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) error {
 }
 
 func (n *dbNamespace) Snapshot(
-	blockStart xtime.UnixNano,
+	blockStarts []xtime.UnixNano,
 	snapshotTime xtime.UnixNano,
 	snapshotPersist persist.SnapshotPreparer,
 ) error {
@@ -1374,21 +1374,27 @@ func (n *dbNamespace) Snapshot(
 		seriesPersist int
 		multiErr      xerrors.MultiError
 	)
+
 	for _, shard := range n.OwnedShards() {
+		log := n.log.With(zap.Uint32("shard", shard.ID()))
 		if !shard.IsBootstrapped() {
-			n.log.
-				With(zap.Uint32("shard", shard.ID())).
-				Debug("skipping snapshot due to shard not bootstrapped yet")
+			log.Debug("skipping snapshot due to shard not bootstrapped yet")
 			continue
 		}
-		result, err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist, nsCtx)
-		if err != nil {
-			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
-			multiErr = multiErr.Add(detailedErr)
-			// Continue with remaining shards
+		snapshotBlockStarts := shard.FilterBlocksNeedSnapshot(blockStarts)
+		if len(snapshotBlockStarts) == 0 {
+			log.Debug("skipping shard snapshot since no blocks need it")
+			continue
 		}
-
-		seriesPersist += result.SeriesPersist
+		for _, blockStart := range snapshotBlockStarts {
+			snapshotResult, err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist, nsCtx)
+			if err != nil {
+				detailedErr := fmt.Errorf("shard %d failed to snapshot %v block: %w", shard.ID(), blockStart, err)
+				multiErr = multiErr.Add(detailedErr)
+				continue
+			}
+			seriesPersist += snapshotResult.SeriesPersist
+		}
 	}
 
 	n.metrics.snapshotSeriesPersist.Inc(int64(seriesPersist))

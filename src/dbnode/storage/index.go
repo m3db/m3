@@ -136,7 +136,6 @@ type nsIndex struct {
 	forwardIndexDice forwardIndexDice
 
 	doNotIndexWithFields []doc.Field
-	shardSet             sharding.ShardSet
 
 	activeBlock index.Block
 }
@@ -384,7 +383,6 @@ func newNamespaceIndexWithOptions(
 		metrics:        newNamespaceIndexMetrics(indexOpts, instrumentOpts),
 
 		doNotIndexWithFields: doNotIndexWithFields,
-		shardSet:             shardSet,
 	}
 
 	activeBlock, err := idx.newBlockFn(xtime.UnixNano(0), idx.nsMetadata,
@@ -877,7 +875,7 @@ func (i *nsIndex) writeBatchForBlockStart(
 	}
 }
 
-// Bootstrap bootstraps the index with the provide blocks.
+// Bootstrap bootstraps the index with the provided blocks.
 func (i *nsIndex) Bootstrap(
 	bootstrapResults result.IndexResults,
 ) error {
@@ -1790,6 +1788,10 @@ func (i *nsIndex) queryWithSpan(
 			break
 		}
 
+		// must not reuse logField slice as the last field will be mutated by concurrent goroutines.
+		blockLogFields := make([]opentracinglog.Field, 0, len(logFields)+1)
+		blockLogFields = append(blockLogFields, logFields...)
+
 		wg.Add(1)
 		// kick off a go routine to process the entire iterator.
 		go func() {
@@ -1804,7 +1806,7 @@ func (i *nsIndex) queryWithSpan(
 						break
 					}
 				}
-				blockLogFields := append(logFields, xopentracing.Duration("permitWaitTime", waitTime))
+				blockLogFields = append(blockLogFields, xopentracing.Duration("permitWaitTime", waitTime))
 				first = false
 				startProcessing := time.Now()
 				execBlockFn(ctx, blockIter.block, permit, blockIter.iter, opts, state, results, blockLogFields)

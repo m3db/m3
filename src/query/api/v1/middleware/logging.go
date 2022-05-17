@@ -25,15 +25,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
-	"github.com/opentracing/opentracing-go"
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/http"
 	"github.com/m3db/m3/src/x/instrument"
+
+	"github.com/gorilla/mux"
+	"github.com/opentracing/opentracing-go"
+	"go.uber.org/zap"
 )
 
 // RequestID populates the request scoped logger with a unique request ID.

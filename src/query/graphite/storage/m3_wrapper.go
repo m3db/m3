@@ -29,8 +29,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/query/block"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
@@ -44,6 +42,8 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"go.uber.org/zap"
 )
 
 var errSeriesNoResolution = errors.New("series has no resolution set")

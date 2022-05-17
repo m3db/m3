@@ -29,11 +29,6 @@ import (
 	"sync"
 	"time"
 
-	bitmap "github.com/m3dbx/pilosa/roaring"
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
-
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
@@ -56,6 +51,11 @@ import (
 	xresource "github.com/m3db/m3/src/x/resource"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	bitmap "github.com/m3dbx/pilosa/roaring"
+	"github.com/uber-go/tally"
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 var (

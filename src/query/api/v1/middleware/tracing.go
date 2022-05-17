@@ -25,15 +25,15 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
-
-	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Tracing applies OpenTracing compatible middleware, which will start a span

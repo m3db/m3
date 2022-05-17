@@ -48,6 +48,10 @@ func newBytesSliceIter(slice [][]byte, opts Options) *bytesSliceIter {
 	}
 }
 
+func (b *bytesSliceIter) Empty() bool {
+	return len(b.backingSlice) == 0
+}
+
 func (b *bytesSliceIter) Next() bool {
 	if b.done || b.err != nil {
 		return false

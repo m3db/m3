@@ -26,10 +26,6 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/google/uuid"
-	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
-
 	aggcfg "github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	dbcfg "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -43,6 +39,10 @@ import (
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/hostid"
 	xerrors "github.com/m3db/m3/src/x/errors"
+
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 )
 
 // ClusterConfigs contain the input config to use for components within

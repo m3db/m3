@@ -27,10 +27,10 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/prometheus/prometheus/promql"
-
 	"github.com/m3db/m3/src/dbnode/client"
 	xerrors "github.com/m3db/m3/src/x/errors"
+
+	"github.com/prometheus/prometheus/promql"
 )
 
 // ErrorRewriteFn is a function for rewriting response error.

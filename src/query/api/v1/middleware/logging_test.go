@@ -29,14 +29,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-
-	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/instrument"
 )
 
 type httpWriter struct {

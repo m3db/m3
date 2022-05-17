@@ -24,15 +24,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
-
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
 func TestConnectionConfiguration(t *testing.T) {
@@ -75,8 +75,6 @@ placementServiceOverride:
   namespaces:
     placement: n2
 placementWatchInitTimeout: 2s
-messagePool:
-  size: 5
 messageRetry:
   initialBackoff: 1ms
 messageQueueNewWritesScanInterval: 200ms
@@ -112,7 +110,6 @@ decoder:
 	require.Equal(t, "testTopic", wOpts.TopicName())
 	require.Equal(t, time.Second, wOpts.TopicWatchInitTimeout())
 	require.Equal(t, 2*time.Second, wOpts.PlacementWatchInitTimeout())
-	require.Equal(t, 5, wOpts.MessagePoolOptions().Size())
 	require.NotNil(t, wOpts.MessageRetryNanosFn())
 	require.Equal(t, 200*time.Millisecond, wOpts.MessageQueueNewWritesScanInterval())
 	require.Equal(t, 10*time.Second, wOpts.MessageQueueFullScanInterval())

@@ -25,13 +25,13 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/gorilla/mux"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+
+	"github.com/gorilla/mux"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var highPriority = zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {

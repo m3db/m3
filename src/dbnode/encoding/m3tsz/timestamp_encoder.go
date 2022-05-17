@@ -25,11 +25,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/cespare/xxhash/v2"
 )
 
 // TimestampEncoder encapsulates the state required for a logical stream of

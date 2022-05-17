@@ -27,11 +27,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/placement"
+
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
-
-	"github.com/m3db/m3/src/cluster/placement"
 )
 
 const minSuccessfulTests = 100

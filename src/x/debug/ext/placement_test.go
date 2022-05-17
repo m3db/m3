@@ -25,11 +25,11 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	debugtest "github.com/m3db/m3/src/x/debug/test"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPlacementSource(t *testing.T) {
