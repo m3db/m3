@@ -32,7 +32,6 @@ func (e emptyBytesIter) Next() bool      { return false }
 func (e emptyBytesIter) Current() []byte { return nil }
 func (e emptyBytesIter) Err() error      { return nil }
 func (e emptyBytesIter) Close() error    { return nil }
-func (e emptyBytesIter) Len() int        { return 0 }
 
 // EmptyTermsIterator is an empty EmptyTermsIterator.
 var EmptyTermsIterator TermsIterator = emptyTermsIter{}
@@ -44,4 +43,3 @@ func (e emptyTermsIter) Next() bool                       { return false }
 func (e emptyTermsIter) Current() ([]byte, postings.List) { return nil, nil }
 func (e emptyTermsIter) Err() error                       { return nil }
 func (e emptyTermsIter) Close() error                     { return nil }
-func (e emptyTermsIter) Len() int                         { return 0 }

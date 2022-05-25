@@ -440,6 +440,17 @@ type IndexConfiguration struct {
 	// block boundaries by eagerly writing the series to the next block
 	// preemptively.
 	ForwardIndexThreshold float64 `yaml:"forwardIndexThreshold" validate:"min=0.0,max=1.0"`
+
+	// AggregateFieldFilterRegexCompileEnabled enables compiling a regex to use
+	// to limit the search space of aggregate fields that are considered for
+	// completion for aggregate queries. While compiling the regex slows down
+	// the request, in clusters with a significantly large set of unique fields
+	// it ends up being fast than doing a bytes equal comparison against the
+	// specific field(s) being searched for aggregation term value completion.
+	AggregateFieldFilterRegexCompileEnabled bool `yaml:"aggregateFieldFilterRegexCompileEnabled"`
+
+	// GraphitePathIndexingEnabled enables indexing of graphite paths.
+	GraphitePathIndexingEnabled bool `yaml:"graphitePathIndexingEnabled"`
 }
 
 // RegexpDFALimitOrDefault returns the deterministic finite automaton states

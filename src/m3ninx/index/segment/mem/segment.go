@@ -22,6 +22,7 @@ package mem
 
 import (
 	"errors"
+	"fmt"
 	re "regexp"
 	"sync"
 
@@ -469,6 +470,15 @@ func (s *memSegment) FieldsPostingsList() (segment.FieldsPostingsListIterator, e
 	return s.termsDict.FieldsPostingsList(), nil
 }
 
+func (s *memSegment) FieldsPostingsListWithRegex(
+	compiled *index.CompiledRegex,
+) (segment.FieldsPostingsListIterator, error) {
+	s.state.RLock()
+	defer s.state.RUnlock()
+	// TODO: implement this.
+	return nil, fmt.Errorf("unimplemented")
+}
+
 func (s *memSegment) Terms(name []byte) (segment.TermsIterator, error) {
 	s.state.RLock()
 	defer s.state.RUnlock()
@@ -476,6 +486,16 @@ func (s *memSegment) Terms(name []byte) (segment.TermsIterator, error) {
 		return nil, err
 	}
 	return s.termsDict.Terms(name), nil
+}
+
+func (s *memSegment) TermsWithRegex(
+	field []byte,
+	compiled *index.CompiledRegex,
+) (segment.TermsIterator, error) {
+	s.state.RLock()
+	defer s.state.RUnlock()
+	// TODO: implement this.
+	return nil, fmt.Errorf("unimplemented")
 }
 
 func (s *memSegment) FieldsIterable() segment.FieldsIterable {

@@ -676,29 +676,19 @@ func (b *block) AggregateIter(ctx context.Context, aggOpts AggregateResultsOptio
 
 	iterateOpts := fieldsAndTermsIteratorOpts{
 		restrictByQuery: aggOpts.RestrictByQuery,
-		iterateTerms:    aggOpts.Type == AggregateTagNamesAndValues,
+		termsIterate:    aggOpts.Type == AggregateTagNamesAndValues,
+		termsRegex:      aggOpts.ValueFilterRegex,
 		allowFn: func(field []byte) bool {
-			// skip any field names that we shouldn't allow.
+			// Skip any field names that we shouldn't allow and should always
+			// be excluded.
 			if bytes.Equal(field, doc.IDReservedFieldName) {
 				return false
 			}
-			return aggOpts.FieldFilter.Allow(field)
+			// The field filter is applied as part of the filter fields iterator.
+			return true
 		},
 		fieldIterFn: func(r segment.Reader) (segment.FieldsPostingsListIterator, error) {
-			// NB(prateek): we default to using the regular (FST) fields iterator
-			// unless we have a predefined list of fields we know we need to restrict
-			// our search to, in which case we iterate that list and check if known values
-			// in the FST to restrict our search. This is going to be significantly faster
-			// while len(FieldsFilter) < 5-10 elements;
-			// but there will exist a ratio between the len(FieldFilter) v size(FST) after which
-			// iterating the entire FST is faster.
-			// Here, we chose to avoid factoring that in to our choice because almost all input
-			// to this function is expected to have (FieldsFilter) pretty small. If that changes
-			// in the future, we can revisit this.
-			if len(aggOpts.FieldFilter) == 0 {
-				return r.FieldsPostingsList()
-			}
-			return newFilterFieldsIterator(r, aggOpts.FieldFilter)
+			return newFilterFieldsIterator(r, aggOpts.FieldFilter, aggOpts.FieldFilterRegex)
 		},
 	}
 	readers, err := b.segmentReadersWithRLock()
@@ -835,7 +825,7 @@ func (b *block) aggregateWithSpan(
 		}
 
 		batch, fieldAppended, termAppended = b.appendFieldAndTermToBatch(batch, field, term,
-			iter.fieldsAndTermsIteratorOpts().iterateTerms)
+			iter.fieldsAndTermsIteratorOpts().termsIterate)
 		if fieldAppended {
 			currFields++
 		}

@@ -141,11 +141,13 @@ type closeFn func()
 func newDefaulTestResultOptions(
 	storageOpts storage.Options,
 ) result.Options {
+	builderAlloc := index.NewBootstrapResultDocumentsBuilderAllocator(storageOpts.IndexOptions())
 	return result.NewOptions().
 		SetClockOptions(storageOpts.ClockOptions()).
 		SetInstrumentOptions(storageOpts.InstrumentOptions()).
 		SetDatabaseBlockOptions(storageOpts.DatabaseBlockOptions()).
-		SetSeriesCachePolicy(storageOpts.SeriesCachePolicy())
+		SetSeriesCachePolicy(storageOpts.SeriesCachePolicy()).
+		SetIndexDocumentsBuilderAllocator(builderAlloc)
 }
 
 // NewDefaultBootstrappableTestSetups creates dbnode test setups.

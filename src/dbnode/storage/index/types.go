@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
@@ -109,6 +110,10 @@ type AggregationOptions struct {
 	QueryOptions
 	// FieldFilter filters aggregate queries by field.
 	FieldFilter AggregateFieldFilter
+	// FieldFilterRegex is a regex filter for fields.
+	FieldFilterRegex []byte
+	// ValueFilterRegex is a regex filter for values.
+	ValueFilterRegex []byte
 	// Type indicates the aggregation type.
 	Type AggregationType
 }
@@ -285,8 +290,14 @@ type AggregateResultsOptions struct {
 	// Type determines what result is required.
 	Type AggregationType
 
-	// FieldFilter is an optional param to filter aggregate values.
+	// FieldFilter is an optional param to filter aggregate fields.
 	FieldFilter AggregateFieldFilter
+
+	// FieldFilter is an optional param to filter aggregate fields by regex.
+	FieldFilterRegex *m3ninxindex.CompiledRegex
+
+	// ValueFilterRegex is an optional param to filter aggregate values by regex.
+	ValueFilterRegex *m3ninxindex.CompiledRegex
 
 	// RestrictByQuery is a query to restrict the set of documents that must
 	// be present for an aggregated term to be returned.
@@ -1095,6 +1106,22 @@ type Options interface {
 
 	// ForwardIndexThreshold returns the threshold for forward writes.
 	ForwardIndexThreshold() float64
+
+	// AggregateFieldFilterRegexCompileEnabled sets enabling compiling a regex to use
+	// to limit the search space of aggregate fields that are considered for
+	// completion for aggregate queries. While compiling the regex slows down
+	// the request, in clusters with a significantly large set of unique fields
+	// it ends up being fast than doing a bytes equal comparison against the
+	// specific field(s) being searched for aggregation term value completion.
+	SetAggregateFieldFilterRegexCompileEnabled(value bool) Options
+
+	// AggregateFieldFilterRegexCompileEnabled enables compiling a regex to use
+	// to limit the search space of aggregate fields that are considered for
+	// completion for aggregate queries. While compiling the regex slows down
+	// the request, in clusters with a significantly large set of unique fields
+	// it ends up being fast than doing a bytes equal comparison against the
+	// specific field(s) being searched for aggregation term value completion.
+	AggregateFieldFilterRegexCompileEnabled() bool
 
 	// SetMmapReporter sets the mmap reporter.
 	SetMmapReporter(mmapReporter mmap.Reporter) Options

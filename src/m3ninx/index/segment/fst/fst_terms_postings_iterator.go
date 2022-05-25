@@ -96,9 +96,11 @@ func (f *fstTermsPostingsIter) Next() bool {
 	f.currTerm = f.termsIter.Current()
 	currOffset := f.termsIter.CurrentOffset()
 
-	f.seg.RLock()
 	if f.termsIter.opts.fieldsFST {
 		var fieldsData fswriter.FieldData
+		// NB(rob): Only safe since callers that use this iterator extend
+		// the lifetime of the segment being finalized while the f.termsIter
+		// term iterator is open.
 		fieldsData, f.err = f.seg.unmarshalFieldDataNotClosedMaybeFinalizedWithRLock(currOffset)
 		currOffset = fieldsData.FieldPostingsListOffset
 	}
@@ -108,7 +110,6 @@ func (f *fstTermsPostingsIter) Next() bool {
 		f.err = f.seg.unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(f.bitmap,
 			currOffset)
 	}
-	f.seg.RUnlock()
 
 	return f.err == nil
 }

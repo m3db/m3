@@ -622,6 +622,7 @@ func Run(runOpts RunOptions) RunResult {
 			RenderSeriesAllNaNs:                        cfg.Carbon.RenderSeriesAllNaNs,
 			CompileEscapeAllNotOnlyQuotes:              cfg.Carbon.CompileEscapeAllNotOnlyQuotes,
 			FindResultsIncludeBothExpandableAndLeaf:    cfg.Carbon.FindResultsIncludeBothExpandableAndLeaf,
+			FindPathIndexingEnabled:                    cfg.Carbon.FindPathIndexingEnabled,
 		}
 		if limits := cfg.Carbon.LimitsFind; limits != nil {
 			fetchOptsBuilderLimitsOpts := limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()

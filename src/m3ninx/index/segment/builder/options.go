@@ -32,9 +32,7 @@ const (
 	defaultInitialCapacity = 128
 )
 
-var (
-	defaultConcurrency = runtime.GOMAXPROCS(0)
-)
+var defaultConcurrency = runtime.GOMAXPROCS(0)
 
 // Options is a collection of options for segment building.
 type Options interface {
@@ -61,13 +59,20 @@ type Options interface {
 
 	// Concurrency returns the indexing concurrency.
 	Concurrency() int
+
+	// SetGraphitePathIndexingEnabled sets whether to index graphite paths.
+	SetGraphitePathIndexingEnabled(value bool) Options
+
+	// GraphitePathIndexingEnabled returns whether to index graphite paths.
+	GraphitePathIndexingEnabled() bool
 }
 
 type opts struct {
-	newUUIDFn       util.NewUUIDFn
-	initialCapacity int
-	postingsPool    postings.Pool
-	concurrency     int
+	newUUIDFn                   util.NewUUIDFn
+	initialCapacity             int
+	postingsPool                postings.Pool
+	concurrency                 int
+	graphitePathIndexingEnabled bool
 }
 
 // NewOptions returns new options.
@@ -118,4 +123,14 @@ func (o *opts) SetConcurrency(v int) Options {
 
 func (o *opts) Concurrency() int {
 	return o.concurrency
+}
+
+func (o *opts) SetGraphitePathIndexingEnabled(v bool) Options {
+	opts := *o
+	opts.graphitePathIndexingEnabled = v
+	return &opts
+}
+
+func (o *opts) GraphitePathIndexingEnabled() bool {
+	return o.graphitePathIndexingEnabled
 }

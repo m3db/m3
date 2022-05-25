@@ -376,6 +376,14 @@ func FromRPCAggregateQueryRequest(
 		opts.FieldFilter = append(opts.FieldFilter, []byte(f))
 	}
 
+	if v := req.TagNameRegex; v != nil && len(*v) > 0 {
+		opts.FieldFilterRegex = []byte(*v)
+	}
+
+	if v := req.TagValueRegex; v != nil && len(*v) > 0 {
+		opts.ValueFilterRegex = []byte(*v)
+	}
+
 	if req.AggregateQueryType == rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME_VALUE {
 		opts.Type = index.AggregateTagNamesAndValues
 	} else {
@@ -430,6 +438,8 @@ func FromRPCAggregateQueryRawRequest(
 	}
 
 	opts.FieldFilter = index.AggregateFieldFilter(req.TagNameFilter)
+	opts.FieldFilterRegex = req.TagNameRegex
+	opts.ValueFilterRegex = req.TagValueRegex
 	if req.AggregateQueryType == rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME_VALUE {
 		opts.Type = index.AggregateTagNamesAndValues
 	} else {
@@ -509,6 +519,8 @@ func ToRPCAggregateQueryRawRequest(
 		filters = append(filters, copied)
 	}
 	request.TagNameFilter = filters
+	request.TagNameRegex = opts.FieldFilterRegex
+	request.TagValueRegex = opts.ValueFilterRegex
 
 	return request, nil
 }

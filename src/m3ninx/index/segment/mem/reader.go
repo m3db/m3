@@ -70,8 +70,21 @@ func (r *reader) Terms(field []byte) (sgmt.TermsIterator, error) {
 	return r.segment.Terms(field)
 }
 
+func (r *reader) TermsWithRegex(
+	field []byte,
+	compiled *index.CompiledRegex,
+) (sgmt.TermsIterator, error) {
+	return r.segment.TermsWithRegex(field, compiled)
+}
+
 func (r *reader) FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error) {
 	return r.segment.FieldsPostingsList()
+}
+
+func (r *reader) FieldsPostingsListWithRegex(
+	compiled *index.CompiledRegex,
+) (sgmt.FieldsPostingsListIterator, error) {
+	return r.segment.FieldsPostingsListWithRegex(compiled)
 }
 
 func (r *reader) MatchField(field []byte) (postings.List, error) {

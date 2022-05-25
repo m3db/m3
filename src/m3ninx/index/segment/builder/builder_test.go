@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/query/graphite/graphite"
 
 	"github.com/stretchr/testify/require"
 )
@@ -158,6 +159,88 @@ func TestBuilderInsertDuplicateReturnsErrDuplicateID(t *testing.T) {
 	_, err = builder.Insert(testDocuments[2])
 	require.Error(t, err)
 	require.Equal(t, index.ErrDuplicateID, err)
+}
+
+func TestBuilderIndexGraphiteDocs(t *testing.T) {
+	builder, err := NewBuilderFromDocuments(testOptions.SetGraphitePathIndexingEnabled(true))
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, builder.Close())
+	}()
+
+	graphiteDocs := []doc.Metadata{
+		{
+			Fields: []doc.Field{
+				{
+					Name:  []byte(graphite.TagName(0)),
+					Value: []byte("foo"),
+				},
+				{
+					Name:  []byte(graphite.TagName(1)),
+					Value: []byte("bar"),
+				},
+			},
+		},
+		{
+			Fields: []doc.Field{
+				{
+					Name:  []byte(graphite.TagName(0)),
+					Value: []byte("foo"),
+				},
+				{
+					Name:  []byte(graphite.TagName(1)),
+					Value: []byte("bar"),
+				},
+				{
+					Name:  []byte(graphite.TagName(2)),
+					Value: []byte("baz"),
+				},
+			},
+		},
+		{
+			Fields: []doc.Field{
+				{
+					Name:  []byte(graphite.TagName(0)),
+					Value: []byte("foo"),
+				},
+				{
+					Name:  []byte(graphite.TagName(1)),
+					Value: []byte("bar"),
+				},
+				{
+					Name:  []byte(graphite.TagName(2)),
+					Value: []byte("qux"),
+				},
+			},
+		},
+		{
+			Fields: []doc.Field{
+				{
+					Name:  []byte(graphite.TagName(0)),
+					Value: []byte("qaz"),
+				},
+			},
+		},
+		{
+			Fields: []doc.Field{
+				{
+					Name:  []byte(graphite.TagName(0)),
+					Value: []byte("foo"),
+				},
+				{
+					Name:  []byte(graphite.TagName(1)),
+					Value: []byte("jar"),
+				},
+			},
+		},
+	}
+
+	for _, d := range graphiteDocs {
+		_, err := builder.Insert(d)
+		require.NoError(t, err)
+	}
+
+	printBuilder(t, builder)
 }
 
 func toSlice(t *testing.T, iter segment.FieldsPostingsListIterator) [][]byte {

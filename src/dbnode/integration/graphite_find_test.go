@@ -65,25 +65,42 @@ const (
 type testGraphiteFindOptions struct {
 	checkConcurrency int
 	datasetSize      testGraphiteFindDatasetSize
+	findPathIndexing bool
 }
 
 func TestGraphiteFindSequential(t *testing.T) {
 	// NB(rob): We need to investigate why using high concurrency (and hence
 	// need to use small dataset size since otherwise verification takes
 	// forever) encounters errors running on CI.
-	testGraphiteFind(t, testGraphiteFindOptions{
-		checkConcurrency: 1,
-		datasetSize:      smallDatasetSize,
-	})
+	for _, findPathIndexing := range []bool{false, true} {
+		name := fmt.Sprintf("findPathIndexing=%v", findPathIndexing)
+		t.Run(name, func(t *testing.T) {
+			start := time.Now()
+			testGraphiteFind(t, testGraphiteFindOptions{
+				checkConcurrency: 1,
+				datasetSize:      smallDatasetSize,
+				findPathIndexing: findPathIndexing,
+			})
+			t.Logf("test name=%s took %v", name, time.Since(start))
+		})
+	}
 }
 
 func TestGraphiteFindParallel(t *testing.T) {
 	// Skip until investigation of why check concurrency encounters errors on CI.
-	t.SkipNow()
-	testGraphiteFind(t, testGraphiteFindOptions{
-		checkConcurrency: runtime.NumCPU(),
-		datasetSize:      largeDatasetSize,
-	})
+	// t.SkipNow()
+	for _, findPathIndexing := range []bool{false, true} {
+		name := fmt.Sprintf("findPathIndexing=%v", findPathIndexing)
+		t.Run(name, func(t *testing.T) {
+			start := time.Now()
+			testGraphiteFind(t, testGraphiteFindOptions{
+				checkConcurrency: runtime.NumCPU(),
+				datasetSize:      largeDatasetSize,
+				findPathIndexing: findPathIndexing,
+			})
+			t.Logf("test name=%s took %v", name, time.Since(start))
+		})
+	}
 }
 
 func testGraphiteFind(tt *testing.T, testOpts testGraphiteFindOptions) {
@@ -95,7 +112,7 @@ func testGraphiteFind(tt *testing.T, testOpts testGraphiteFindOptions) {
 	// by using a TestingT that panics when FailNow is called.
 	t := xtest.FailNowPanicsTestingT(tt)
 
-	const queryConfigYAML = `
+	queryConfigYAML := fmt.Sprintf(`
 listenAddress: 127.0.0.1:7201
 
 logging:
@@ -119,7 +136,10 @@ local:
       type: aggregated
       retention: 12h
       resolution: 1m
-`
+
+carbon:
+  findPathIndexingEnabled: %v
+`, testOpts.findPathIndexing)
 
 	var (
 		blockSize       = 2 * time.Hour
@@ -144,6 +164,13 @@ local:
 	setup, err := NewTestSetup(tt, opts, nil)
 	require.NoError(t, err)
 	defer setup.Close()
+
+	// Make sure DB node is using path indexing if set for test.
+	storageOpts := setup.StorageOpts()
+	indexOpts := storageOpts.IndexOptions()
+	segmentBuilderOpts := indexOpts.SegmentBuilderOptions().SetGraphitePathIndexingEnabled(testOpts.findPathIndexing)
+	storageOpts = storageOpts.SetIndexOptions(indexOpts.SetSegmentBuilderOptions(segmentBuilderOpts))
+	setup.SetStorageOpts(storageOpts)
 
 	log := setup.StorageOpts().InstrumentOptions().Logger().
 		With(zap.String("ns", ns.ID().String()))

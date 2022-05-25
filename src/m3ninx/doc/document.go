@@ -28,14 +28,19 @@ import (
 	"unicode/utf8"
 )
 
+const (
+	ReservedFieldPrefix    = "_m3ninx"
+	GraphitePathLeafPrefix = ReservedFieldPrefix + "_graphite_path_leaf:"
+	GraphitePathNodePrefix = ReservedFieldPrefix + "_graphite_path_node:"
+)
+
 var (
 	errReservedFieldName = fmt.Errorf("'%s' is a reserved field name", IDReservedFieldName)
 	// ErrEmptyDocument is an error for an empty document.
 	ErrEmptyDocument = errors.New("document cannot be empty")
 )
 
-// IDReservedFieldName is the field name reserved for IDs.
-var IDReservedFieldName = []byte("_m3ninx_id")
+var IDReservedFieldName = []byte(ReservedFieldPrefix + "_id")
 
 // Field represents a field in a document. It is composed of a name and a value.
 type Field struct {

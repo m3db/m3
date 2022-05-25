@@ -71,6 +71,7 @@ type M3WrappedStorageOptions struct {
 	RenderSeriesAllNaNs                        bool
 	CompileEscapeAllNotOnlyQuotes              bool
 	FindResultsIncludeBothExpandableAndLeaf    bool
+	FindPathIndexingEnabled                    bool
 }
 
 type seriesMetadata struct {

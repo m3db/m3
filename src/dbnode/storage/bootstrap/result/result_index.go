@@ -27,18 +27,9 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/persist"
 	xtime "github.com/m3db/m3/src/x/time"
 )
-
-// NewDefaultDocumentsBuilderAllocator returns a default mutable segment
-// allocator.
-func NewDefaultDocumentsBuilderAllocator() DocumentsBuilderAllocator {
-	return func() (segment.DocumentsBuilder, error) {
-		return builder.NewBuilderFromDocuments(builder.NewOptions())
-	}
-}
 
 type indexBootstrapResult struct {
 	results     IndexResults

@@ -410,6 +410,8 @@ struct AggregateQueryRawRequest {
 	10: optional i64 docsLimit
 	11: optional bool requireExhaustive
 	12: optional bool requireNoWait
+	13: optional binary tagNameRegex
+	14: optional binary tagValueRegex
 }
 
 struct AggregateQueryRawResult {
@@ -441,6 +443,8 @@ struct AggregateQueryRequest {
 	10: optional i64 docsLimit
 	11: optional bool requireExhaustive
 	12: optional bool requireNoWait
+	13: optional string tagNameRegex
+	14: optional string tagValueRegex
 }
 
 struct AggregateQueryResult {

@@ -137,7 +137,8 @@ func (h *grahiteFindHandler) ServeHTTP(
 	// provided matchers, and one which will match the provided matchers with at
 	// least one more child node. For further information, refer to the comment
 	// for parseFindParamsToQueries.
-	terminatedQuery, childQuery, raw, err := parseFindParamsToQueries(r)
+	terminatedQuery, childQuery, raw, err := parseFindParamsToQueries(r,
+		h.graphiteStorageOpts)
 	if err != nil {
 		xhttp.WriteError(w, err)
 		return
@@ -199,7 +200,7 @@ func (h *grahiteFindHandler) ServeHTTP(
 		return
 	}
 
-	// TODO: Support multiple result types
+	// TODO: Support multiple result types other than just JSON such as pickle.
 	resultOpts := findResultsOptions{
 		includeBothExpandableAndLeaf: h.graphiteStorageOpts.FindResultsIncludeBothExpandableAndLeaf,
 	}

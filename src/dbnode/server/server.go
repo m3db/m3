@@ -563,10 +563,10 @@ func Run(runOpts RunOptions) {
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
 	insertMode := index.InsertSync
-
 	if cfg.WriteNewSeriesAsyncOrDefault() {
 		insertMode = index.InsertAsync
 	}
+	pathIndexing := cfg.Index.GraphitePathIndexingEnabled
 	indexOpts = indexOpts.SetInsertMode(insertMode).
 		SetPostingsListCache(segmentPostingsListCache).
 		SetSearchPostingsListCache(searchPostingsListCache).
@@ -576,7 +576,9 @@ func Run(runOpts RunOptions) {
 			CacheSearches: plCacheConfig.CacheSearchOrDefault(),
 		}).
 		SetMmapReporter(mmapReporter).
-		SetQueryLimits(queryLimits)
+		SetQueryLimits(queryLimits).
+		SetSegmentBuilderOptions(indexOpts.SegmentBuilderOptions().
+			SetGraphitePathIndexingEnabled(pathIndexing))
 
 	opts = opts.SetIndexOptions(indexOpts)
 
@@ -1912,7 +1914,8 @@ func withEncodingAndPoolingOptions(
 		SetAggregateResultsPool(aggregateQueryResultsPool).
 		SetAggregateValuesPool(aggregateQueryValuesPool).
 		SetForwardIndexProbability(cfg.Index.ForwardIndexProbability).
-		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold)
+		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold).
+		SetAggregateFieldFilterRegexCompileEnabled(cfg.Index.AggregateFieldFilterRegexCompileEnabled)
 
 	queryResultsPool.Init(func() index.QueryResults {
 		// NB(r): Need to initialize after setting the index opts so

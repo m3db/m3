@@ -24,22 +24,27 @@ import (
 	"bytes"
 	"errors"
 
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
-var (
-	errNoFiltersSpecified = errors.New("no fields specified to filter upon")
-)
+var errNoFiltersSpecified = errors.New("no fields specified to filter upon")
 
 func newFilterFieldsIterator(
 	reader segment.Reader,
 	fields AggregateFieldFilter,
+	regex *index.CompiledRegex,
 ) (segment.FieldsPostingsListIterator, error) {
-	if len(fields) == 0 {
-		return nil, errNoFiltersSpecified
+	var (
+		fieldsIter segment.FieldsPostingsListIterator
+		err        error
+	)
+	if regex != nil {
+		fieldsIter, err = reader.FieldsPostingsListWithRegex(regex)
+	} else {
+		fieldsIter, err = reader.FieldsPostingsList()
 	}
-	fieldsIter, err := reader.FieldsPostingsList()
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +75,12 @@ func (f *filterFieldsIterator) Next() bool {
 	for f.fieldsIter.Next() {
 		field, _ := f.fieldsIter.Current()
 
+		if len(f.fields) == 0 {
+			// Filtering purely on regex or not at all.
+			return true
+		}
+
+		// Filtering to specific fields.
 		found := false
 		for _, f := range f.fields {
 			if bytes.Equal(field, f) {

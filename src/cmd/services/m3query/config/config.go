@@ -556,6 +556,12 @@ type CarbonConfiguration struct {
 	// node and a leaf node if there is a duplicate path node that is both an
 	// expandable node and a leaf node.
 	FindResultsIncludeBothExpandableAndLeaf bool `yaml:"findResultsIncludeBothExpandableAndLeaf"`
+	// FindPathIndexingEnabled will send find requests with path indexing
+	// queries and thus expects the DB node to have enabled path indexing.
+	// If path indexing is not enabled and indices have not been rebuilt since
+	// enabling the queries won't return data when they should (and this
+	// feature should not be enabled for the coordinators/query instances).
+	FindPathIndexingEnabled bool `yaml:"findPathIndexingEnabled"`
 }
 
 // MiddlewareConfiguration is middleware-specific configuration.

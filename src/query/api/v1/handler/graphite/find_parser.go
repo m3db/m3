@@ -24,9 +24,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	graphitestorage "github.com/m3db/m3/src/query/graphite/storage"
@@ -53,7 +53,10 @@ import (
 // As an example, given the query `a.b*`, and metrics `a.bar.c` and `a.biz`,
 // terminatedQuery will return only [biz], and childQuery will return only
 // [bar].
-func parseFindParamsToQueries(r *http.Request) (
+func parseFindParamsToQueries(
+	r *http.Request,
+	graphiteStorageOpts graphitestorage.M3WrappedStorageOptions,
+) (
 	_terminatedQuery *storage.CompleteTagsQuery,
 	_childQuery *storage.CompleteTagsQuery,
 	_rawQueryString string,
@@ -80,7 +83,6 @@ func parseFindParamsToQueries(r *http.Request) (
 		now,
 		tzOffsetForAbsoluteTime,
 	)
-
 	if err != nil {
 		return nil, nil, "",
 			xerrors.NewInvalidParamsError(fmt.Errorf("invalid 'from': %s", fromString))
@@ -91,10 +93,74 @@ func parseFindParamsToQueries(r *http.Request) (
 		now,
 		tzOffsetForAbsoluteTime,
 	)
-
 	if err != nil {
 		return nil, nil, "",
 			xerrors.NewInvalidParamsError(fmt.Errorf("invalid 'until': %s", untilString))
+	}
+
+	if graphiteStorageOpts.FindPathIndexingEnabled {
+		// When using find path indexing all that's required is to set the regex
+		// for the path to be set and the rest of this becomes more straight forward.
+		var (
+			metricParts                = graphite.CountMetricParts(query)
+			terminatedQueryFilterRegex []byte
+			childQueryFilterRegex      []byte
+			filterValueRegex           []byte
+		)
+		if metricParts == 0 {
+			// Empty query, return everything at top level.
+			terminatedQueryFilterRegex = []byte("^" + doc.GraphitePathLeafPrefix + "$")
+			childQueryFilterRegex = []byte("^" + doc.GraphitePathNodePrefix + "$")
+			filterValueRegex = []byte("^.*$")
+		} else if metricParts == 1 {
+			// Single node path query, use entire query for the term/value query.
+			terminatedQueryFilterRegex = []byte("^" + doc.GraphitePathLeafPrefix + "$")
+			childQueryFilterRegex = []byte("^" + doc.GraphitePathNodePrefix + "$")
+			filterValueRegex, err = graphitePatternRegex(query, graphite.GlobOptions{})
+			if err != nil {
+				return nil, nil, "",
+					xerrors.NewInvalidParamsError(fmt.Errorf("invalid 'query': %s", query))
+			}
+		} else {
+			// Drop the last metric part to form the path query.
+			queryPath := graphite.DropLastMetricPart(query)
+			// Allow ** for the path query.
+			pathRegexp, err := graphitePatternRegex(queryPath, graphite.GlobOptions{
+				AllowMatchAll: true,
+			})
+			if err != nil {
+				return nil, nil, "",
+					xerrors.NewInvalidParamsError(fmt.Errorf("invalid 'query': %s", query))
+			}
+			pathRegexpStr := string(pathRegexp)
+			terminatedQueryFilterRegex = []byte("^" + doc.GraphitePathLeafPrefix + pathRegexpStr + "$")
+			childQueryFilterRegex = []byte("^" + doc.GraphitePathNodePrefix + pathRegexpStr + "$")
+
+			// Now use the final metric part to form the term/value query.
+			queryLeaf := graphite.ExtractNthMetricPart(query, metricParts-1)
+			// Do not allow ** for the leaf/value query.
+			filterValueRegex, err = graphitePatternRegex(queryLeaf, graphite.GlobOptions{})
+			if err != nil {
+				return nil, nil, "",
+					xerrors.NewInvalidParamsError(fmt.Errorf("invalid 'query': %s", query))
+			}
+		}
+
+		terminatedQuery := &storage.CompleteTagsQuery{
+			CompleteNameOnly: false,
+			FilterNameRegex:  terminatedQueryFilterRegex,
+			FilterValueRegex: filterValueRegex,
+			Start:            xtime.ToUnixNano(from),
+			End:              xtime.ToUnixNano(until),
+		}
+		childQuery := &storage.CompleteTagsQuery{
+			CompleteNameOnly: false,
+			FilterNameRegex:  childQueryFilterRegex,
+			FilterValueRegex: filterValueRegex,
+			Start:            xtime.ToUnixNano(from),
+			End:              xtime.ToUnixNano(until),
+		}
+		return terminatedQuery, childQuery, query, nil
 	}
 
 	matchers, queryType, err := graphitestorage.TranslateQueryToMatchersWithTerminator(query)
@@ -114,16 +180,9 @@ func parseFindParamsToQueries(r *http.Request) (
 		// results, which is the only use case isLeaf/hasChildren is useful).
 		// Note: Filter to all graphite tags that appears at the last node
 		// or greater than that (we use 100 as an arbitrary upper bound).
-		maxPathIndexes := 100
-		filter := make([][]byte, 0, maxPathIndexes)
-		parts := 1 + strings.Count(query, ".")
-		firstPathIndex := parts - 1
-		for i := firstPathIndex; i < firstPathIndex+maxPathIndexes; i++ {
-			filter = append(filter, graphite.TagName(i))
-		}
 		childQuery := &storage.CompleteTagsQuery{
 			CompleteNameOnly: false,
-			FilterNameTags:   filter,
+			FilterNameRegex:  []byte("^__g[0-9]+__$"),
 			TagMatchers:      matchers,
 			Start:            xtime.ToUnixNano(from),
 			End:              xtime.ToUnixNano(until),
@@ -245,4 +304,15 @@ func writeFindResultJSON(
 	jw.WriteInt(1 - leaf)
 
 	jw.EndObject()
+}
+
+func graphitePatternRegex(
+	pattern string,
+	opts graphite.GlobOptions,
+) ([]byte, error) {
+	re, _, err := graphite.ExtendedGlobToRegexPattern(pattern, opts)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(re), nil
 }

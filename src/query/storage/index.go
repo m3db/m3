@@ -155,8 +155,10 @@ func FetchOptionsToAggregateOptions(
 			StartInclusive:    xtime.ToUnixNano(start),
 			EndExclusive:      xtime.ToUnixNano(end),
 		},
-		FieldFilter: tagQuery.FilterNameTags,
-		Type:        convertAggregateQueryType(tagQuery.CompleteNameOnly),
+		FieldFilter:      tagQuery.FilterNameTags,
+		FieldFilterRegex: tagQuery.FilterNameRegex,
+		ValueFilterRegex: tagQuery.FilterValueRegex,
+		Type:             convertAggregateQueryType(tagQuery.CompleteNameOnly),
 	}, nil
 }
 

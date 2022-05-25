@@ -85,10 +85,19 @@ type FieldsIterable interface {
 // FieldsPostingsListIterable can iterate over segment fields/postings lists, it is not by default
 // concurrency safe.
 type FieldsPostingsListIterable interface {
-	// Fields returns an iterator over the list of known fields, in order
-	// by name, it is not valid for reading after mutating the
-	// builder by inserting more documents.
+	// FieldsPostingsList returns an iterator over the list of known fields,
+	// in order by name, it is not valid for reading after mutating the
+	// builder by inserting more documents. Additionally it provides the
+	// corresponding postings list for each field returned.
 	FieldsPostingsList() (FieldsPostingsListIterator, error)
+	// FieldsPostingsListWithRegex returns an iterator over the list of known fields,
+	// in order by name, it is not valid for reading after mutating the
+	// builder by inserting more documents. Additionally it provides the
+	// corresponding postings list for each field returned and provides the
+	// ability to limit the fields returned with a regex.
+	FieldsPostingsListWithRegex(
+		compiledRegex *index.CompiledRegex,
+	) (FieldsPostingsListIterator, error)
 }
 
 // TermsIterable can iterate over segment terms, it is not by default
@@ -98,6 +107,14 @@ type TermsIterable interface {
 	// field, in order by name, it is not valid for reading after mutating the
 	// builder by inserting more documents.
 	Terms(field []byte) (TermsIterator, error)
+	// TermsWithRegex returns an iterator over the known terms values for the given
+	// field, in order by name, it is not valid for reading after mutating the
+	// builder by inserting more documents. Additionally it provides the ability
+	// to limit the terms returned with a regex.
+	TermsWithRegex(
+		field []byte,
+		compiledRegex *index.CompiledRegex,
+	) (TermsIterator, error)
 }
 
 // OrderedBytesIterator iterates over a collection of []bytes in lexicographical order.

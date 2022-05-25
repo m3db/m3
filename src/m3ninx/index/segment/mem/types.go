@@ -24,6 +24,7 @@ import (
 	re "regexp"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
@@ -72,7 +73,9 @@ type ReadableSegment interface {
 	Fields() (sgmt.FieldsIterator, error)
 	ContainsField(field []byte) (bool, error)
 	Terms(field []byte) (sgmt.TermsIterator, error)
+	TermsWithRegex(field []byte, re *index.CompiledRegex) (sgmt.TermsIterator, error)
 	FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error)
+	FieldsPostingsListWithRegex(re *index.CompiledRegex) (sgmt.FieldsPostingsListIterator, error)
 	matchTerm(field, term []byte) (postings.List, error)
 	matchRegexp(field []byte, compiled *re.Regexp) (postings.List, error)
 	getDoc(id postings.ID) (doc.Metadata, error)

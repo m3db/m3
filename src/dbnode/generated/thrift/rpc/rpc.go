@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
+// Copyright (c) 2022 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -9899,6 +9899,8 @@ func (p *HealthResult_) String() string {
 //  - DocsLimit
 //  - RequireExhaustive
 //  - RequireNoWait
+//  - TagNameRegex
+//  - TagValueRegex
 type AggregateQueryRawRequest struct {
 	Query              []byte             `thrift:"query,1,required" db:"query" json:"query"`
 	RangeStart         int64              `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
@@ -9912,6 +9914,8 @@ type AggregateQueryRawRequest struct {
 	DocsLimit          *int64             `thrift:"docsLimit,10" db:"docsLimit" json:"docsLimit,omitempty"`
 	RequireExhaustive  *bool              `thrift:"requireExhaustive,11" db:"requireExhaustive" json:"requireExhaustive,omitempty"`
 	RequireNoWait      *bool              `thrift:"requireNoWait,12" db:"requireNoWait" json:"requireNoWait,omitempty"`
+	TagNameRegex       []byte             `thrift:"tagNameRegex,13" db:"tagNameRegex" json:"tagNameRegex,omitempty"`
+	TagValueRegex      []byte             `thrift:"tagValueRegex,14" db:"tagValueRegex" json:"tagValueRegex,omitempty"`
 }
 
 func NewAggregateQueryRawRequest() *AggregateQueryRawRequest {
@@ -9997,6 +10001,18 @@ func (p *AggregateQueryRawRequest) GetRequireNoWait() bool {
 	}
 	return *p.RequireNoWait
 }
+
+var AggregateQueryRawRequest_TagNameRegex_DEFAULT []byte
+
+func (p *AggregateQueryRawRequest) GetTagNameRegex() []byte {
+	return p.TagNameRegex
+}
+
+var AggregateQueryRawRequest_TagValueRegex_DEFAULT []byte
+
+func (p *AggregateQueryRawRequest) GetTagValueRegex() []byte {
+	return p.TagValueRegex
+}
 func (p *AggregateQueryRawRequest) IsSetSeriesLimit() bool {
 	return p.SeriesLimit != nil
 }
@@ -10027,6 +10043,14 @@ func (p *AggregateQueryRawRequest) IsSetRequireExhaustive() bool {
 
 func (p *AggregateQueryRawRequest) IsSetRequireNoWait() bool {
 	return p.RequireNoWait != nil
+}
+
+func (p *AggregateQueryRawRequest) IsSetTagNameRegex() bool {
+	return p.TagNameRegex != nil
+}
+
+func (p *AggregateQueryRawRequest) IsSetTagValueRegex() bool {
+	return p.TagValueRegex != nil
 }
 
 func (p *AggregateQueryRawRequest) Read(iprot thrift.TProtocol) error {
@@ -10098,6 +10122,14 @@ func (p *AggregateQueryRawRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 12:
 			if err := p.ReadField12(iprot); err != nil {
+				return err
+			}
+		case 13:
+			if err := p.ReadField13(iprot); err != nil {
+				return err
+			}
+		case 14:
+			if err := p.ReadField14(iprot); err != nil {
 				return err
 			}
 		default:
@@ -10250,6 +10282,24 @@ func (p *AggregateQueryRawRequest) ReadField12(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *AggregateQueryRawRequest) ReadField13(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBinary(); err != nil {
+		return thrift.PrependError("error reading field 13: ", err)
+	} else {
+		p.TagNameRegex = v
+	}
+	return nil
+}
+
+func (p *AggregateQueryRawRequest) ReadField14(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBinary(); err != nil {
+		return thrift.PrependError("error reading field 14: ", err)
+	} else {
+		p.TagValueRegex = v
+	}
+	return nil
+}
+
 func (p *AggregateQueryRawRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("AggregateQueryRawRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -10289,6 +10339,12 @@ func (p *AggregateQueryRawRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField12(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField13(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField14(oprot); err != nil {
 			return err
 		}
 	}
@@ -10476,6 +10532,36 @@ func (p *AggregateQueryRawRequest) writeField12(oprot thrift.TProtocol) (err err
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 12:requireNoWait: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *AggregateQueryRawRequest) writeField13(oprot thrift.TProtocol) (err error) {
+	if p.IsSetTagNameRegex() {
+		if err := oprot.WriteFieldBegin("tagNameRegex", thrift.STRING, 13); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 13:tagNameRegex: ", p), err)
+		}
+		if err := oprot.WriteBinary(p.TagNameRegex); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.tagNameRegex (13) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 13:tagNameRegex: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *AggregateQueryRawRequest) writeField14(oprot thrift.TProtocol) (err error) {
+	if p.IsSetTagValueRegex() {
+		if err := oprot.WriteFieldBegin("tagValueRegex", thrift.STRING, 14); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 14:tagValueRegex: ", p), err)
+		}
+		if err := oprot.WriteBinary(p.TagValueRegex); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.tagValueRegex (14) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 14:tagValueRegex: ", p), err)
 		}
 	}
 	return err
@@ -10965,6 +11051,8 @@ func (p *AggregateQueryRawResultTagValueElement) String() string {
 //  - DocsLimit
 //  - RequireExhaustive
 //  - RequireNoWait
+//  - TagNameRegex
+//  - TagValueRegex
 type AggregateQueryRequest struct {
 	Query              *Query             `thrift:"query,1" db:"query" json:"query,omitempty"`
 	RangeStart         int64              `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
@@ -10978,6 +11066,8 @@ type AggregateQueryRequest struct {
 	DocsLimit          *int64             `thrift:"docsLimit,10" db:"docsLimit" json:"docsLimit,omitempty"`
 	RequireExhaustive  *bool              `thrift:"requireExhaustive,11" db:"requireExhaustive" json:"requireExhaustive,omitempty"`
 	RequireNoWait      *bool              `thrift:"requireNoWait,12" db:"requireNoWait" json:"requireNoWait,omitempty"`
+	TagNameRegex       *string            `thrift:"tagNameRegex,13" db:"tagNameRegex" json:"tagNameRegex,omitempty"`
+	TagValueRegex      *string            `thrift:"tagValueRegex,14" db:"tagValueRegex" json:"tagValueRegex,omitempty"`
 }
 
 func NewAggregateQueryRequest() *AggregateQueryRequest {
@@ -11068,6 +11158,24 @@ func (p *AggregateQueryRequest) GetRequireNoWait() bool {
 	}
 	return *p.RequireNoWait
 }
+
+var AggregateQueryRequest_TagNameRegex_DEFAULT string
+
+func (p *AggregateQueryRequest) GetTagNameRegex() string {
+	if !p.IsSetTagNameRegex() {
+		return AggregateQueryRequest_TagNameRegex_DEFAULT
+	}
+	return *p.TagNameRegex
+}
+
+var AggregateQueryRequest_TagValueRegex_DEFAULT string
+
+func (p *AggregateQueryRequest) GetTagValueRegex() string {
+	if !p.IsSetTagValueRegex() {
+		return AggregateQueryRequest_TagValueRegex_DEFAULT
+	}
+	return *p.TagValueRegex
+}
 func (p *AggregateQueryRequest) IsSetQuery() bool {
 	return p.Query != nil
 }
@@ -11102,6 +11210,14 @@ func (p *AggregateQueryRequest) IsSetRequireExhaustive() bool {
 
 func (p *AggregateQueryRequest) IsSetRequireNoWait() bool {
 	return p.RequireNoWait != nil
+}
+
+func (p *AggregateQueryRequest) IsSetTagNameRegex() bool {
+	return p.TagNameRegex != nil
+}
+
+func (p *AggregateQueryRequest) IsSetTagValueRegex() bool {
+	return p.TagValueRegex != nil
 }
 
 func (p *AggregateQueryRequest) Read(iprot thrift.TProtocol) error {
@@ -11171,6 +11287,14 @@ func (p *AggregateQueryRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 12:
 			if err := p.ReadField12(iprot); err != nil {
+				return err
+			}
+		case 13:
+			if err := p.ReadField13(iprot); err != nil {
+				return err
+			}
+		case 14:
+			if err := p.ReadField14(iprot); err != nil {
 				return err
 			}
 		default:
@@ -11319,6 +11443,24 @@ func (p *AggregateQueryRequest) ReadField12(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *AggregateQueryRequest) ReadField13(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadString(); err != nil {
+		return thrift.PrependError("error reading field 13: ", err)
+	} else {
+		p.TagNameRegex = &v
+	}
+	return nil
+}
+
+func (p *AggregateQueryRequest) ReadField14(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadString(); err != nil {
+		return thrift.PrependError("error reading field 14: ", err)
+	} else {
+		p.TagValueRegex = &v
+	}
+	return nil
+}
+
 func (p *AggregateQueryRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("AggregateQueryRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -11358,6 +11500,12 @@ func (p *AggregateQueryRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField12(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField13(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField14(oprot); err != nil {
 			return err
 		}
 	}
@@ -11547,6 +11695,36 @@ func (p *AggregateQueryRequest) writeField12(oprot thrift.TProtocol) (err error)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 12:requireNoWait: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *AggregateQueryRequest) writeField13(oprot thrift.TProtocol) (err error) {
+	if p.IsSetTagNameRegex() {
+		if err := oprot.WriteFieldBegin("tagNameRegex", thrift.STRING, 13); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 13:tagNameRegex: ", p), err)
+		}
+		if err := oprot.WriteString(string(*p.TagNameRegex)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.tagNameRegex (13) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 13:tagNameRegex: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *AggregateQueryRequest) writeField14(oprot thrift.TProtocol) (err error) {
+	if p.IsSetTagValueRegex() {
+		if err := oprot.WriteFieldBegin("tagValueRegex", thrift.STRING, 14); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 14:tagValueRegex: ", p), err)
+		}
+		if err := oprot.WriteString(string(*p.TagValueRegex)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.tagValueRegex (14) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 14:tagValueRegex: ", p), err)
 		}
 	}
 	return err
