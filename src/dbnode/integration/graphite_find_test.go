@@ -38,6 +38,7 @@ import (
 	"testing"
 	"time"
 
+	// nolint: gci
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -126,7 +127,8 @@ local:
 	// Create graphite node tree for tests.
 	var (
 		// nolint: gosec
-		randConstSeedSrc   = rand.NewSource(123456789)
+		randConstSeedSrc = rand.NewSource(123456789)
+		// nolint: gosec
 		randGen            = rand.New(randConstSeedSrc)
 		levels             = 5
 		entriesPerLevelMin = 6
