@@ -474,9 +474,10 @@ func Run(runOpts RunOptions) RunResult {
 	case "", config.M3DBStorageType:
 		// For m3db backend, we need to make connections to the m3db cluster
 		// which generates a session and use the storage with the session.
-		m3dbClusters, clusterNamespacesWatcher, m3dbPoolWrapper, err = initClusters(cfg,
-			runOpts.DBConfig, runOpts.DBClient, encodingOpts, runOpts.LocalSessionReadyCh,
-			instrumentOptions, tsdbOpts.CustomAdminOptions())
+		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBConfig,
+			clusterNamespacesWatcher, runOpts.DBClient, encodingOpts,
+			runOpts.LocalSessionReadyCh, instrumentOptions,
+			tsdbOpts.CustomAdminOptions())
 		if err != nil {
 			logger.Fatal("unable to init clusters", zap.Error(err))
 		}

@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2021 Uber Technologies, Inc.
@@ -23,6 +24,7 @@
 package integration
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -122,7 +124,7 @@ local:
 		levels             = 5
 		entriesPerLevelMin = 6
 		entriesPerLevelMax = 9
-		randConstSeedSrc   = rand.NewSource(123456789)
+		randConstSeedSrc   = rand.NewSource(123456789) // nolint: gosec
 		randGen            = rand.New(randConstSeedSrc)
 		rootNode           = &graphiteNode{}
 		buildNodes         func(node *graphiteNode, level int)
@@ -270,7 +272,8 @@ local:
 		url := fmt.Sprintf("http://%s%s?%s", setup.QueryAddress(),
 			graphitehandler.FindURL, params.Encode())
 
-		req, err := http.NewRequest(http.MethodGet, url, nil)
+		req, err := http.NewRequestWithContext(context.Background(),
+			http.MethodGet, url, nil)
 		require.NoError(t, err)
 
 		res, err := httpClient.Do(req)

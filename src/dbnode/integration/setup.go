@@ -861,8 +861,8 @@ func (ts *testSetup) StartQuery(configYAML string) error {
 		return fmt.Errorf("dbnode admin client not set")
 	}
 
-	configFile, close := newTestFile(ts.t, "config.yaml", configYAML)
-	defer close()
+	configFile, cleanup := newTestFile(ts.t, "config.yaml", configYAML)
+	defer cleanup()
 
 	var cfg queryconfig.Configuration
 	err := xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
