@@ -1266,7 +1266,7 @@ func newTestFile(t *testing.T, fileName, contents string) (*os.File, closeFn) {
 	tmpFile, err := ioutil.TempFile("", fileName)
 	require.NoError(t, err)
 
-	_, err = tmpFile.Write([]byte(contents))
+	_, err = tmpFile.WriteString(contents)
 	require.NoError(t, err)
 
 	return tmpFile, func() {

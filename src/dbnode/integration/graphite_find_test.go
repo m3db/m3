@@ -49,7 +49,7 @@ import (
 	graphitehandler "github.com/m3db/m3/src/query/api/v1/handler/graphite"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 )
@@ -125,11 +125,12 @@ local:
 
 	// Create graphite node tree for tests.
 	var (
+		// nolint: gosec
+		randConstSeedSrc   = rand.NewSource(123456789)
+		randGen            = rand.New(randConstSeedSrc)
 		levels             = 5
 		entriesPerLevelMin = 6
 		entriesPerLevelMax = 9
-		randConstSeedSrc   = rand.NewSource(123456789) // nolint: gosec
-		randGen            = rand.New(randConstSeedSrc)
 		rootNode           = &graphiteNode{}
 		buildNodes         func(node *graphiteNode, level int)
 		generateSeries     []generate.Series
