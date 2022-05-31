@@ -80,9 +80,13 @@ metrics:
 
 local:
   namespaces:
-    - namespace: testns
+    - namespace: default
       type: unaggregated
       retention: 12h
+    - namespace: testns
+      type: aggregated
+      retention: 12h
+      resolution: 1m
 `
 
 	var (
