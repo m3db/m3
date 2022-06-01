@@ -521,10 +521,10 @@ func Run(runOpts RunOptions) {
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
 	insertMode := index.InsertSync
-
 	if cfg.WriteNewSeriesAsyncOrDefault() {
 		insertMode = index.InsertAsync
 	}
+	pathIndexing := cfg.Index.GraphitePathIndexingEnabled
 	indexOpts = indexOpts.SetInsertMode(insertMode).
 		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{
 			CacheRegexp:   plCacheConfig.CacheRegexpOrDefault(),
@@ -532,7 +532,9 @@ func Run(runOpts RunOptions) {
 			CacheSearches: plCacheConfig.CacheSearchOrDefault(),
 		}).
 		SetMmapReporter(mmapReporter).
-		SetQueryLimits(queryLimits)
+		SetQueryLimits(queryLimits).
+		SetSegmentBuilderOptions(indexOpts.SegmentBuilderOptions().
+			SetGraphitePathIndexingEnabled(pathIndexing))
 
 	opts = opts.SetIndexOptions(indexOpts)
 

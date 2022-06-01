@@ -21,6 +21,7 @@
 package builder
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"runtime"
@@ -31,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/util"
+	"github.com/m3db/m3/src/query/graphite/graphite"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/twotwotwo/sorts"
@@ -55,6 +57,7 @@ var (
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
 	}
+	graphiteFirstTagName = graphite.TagName(0)
 )
 
 type indexWorkers struct {
@@ -137,8 +140,7 @@ func (w *indexWorkers) indexWorker(indexQueue <-chan indexJob) {
 					field:        entry.field.Name,
 					postingsList: terms.postingsListUnion,
 				}
-				job.shardedFields.uniqueFields[job.shard] =
-					append(job.shardedFields.uniqueFields[job.shard], newEntry)
+				job.shardedFields.uniqueFields[job.shard] = append(job.shardedFields.uniqueFields[job.shard], newEntry)
 			}
 		}
 
@@ -184,6 +186,10 @@ type builder struct {
 	shardedFields *shardedFields
 	concurrency   int
 
+	graphitePathIndexingEnabled bool
+	graphitePathLeaf            []byte
+	graphitePathNode            []byte
+
 	status builderStatus
 }
 
@@ -205,7 +211,8 @@ func NewBuilderFromDocuments(opts Options) (segment.CloseableDocumentsBuilder, e
 		idSet: NewIDsMap(IDsMapOptions{
 			InitialSize: opts.InitialCapacity(),
 		}),
-		shardedFields: &shardedFields{},
+		shardedFields:               &shardedFields{},
+		graphitePathIndexingEnabled: opts.GraphitePathIndexingEnabled(),
 	}
 	// Indiciate we need to spin up workers if we haven't already.
 	globalIndexWorkers.registerBuilder()
@@ -241,8 +248,7 @@ func (b *builder) SetIndexConcurrency(value int) {
 		}
 
 		shardUniqueFields := make([]uniqueField, 0, shardInitialCapacity)
-		b.shardedFields.uniqueFields =
-			append(b.shardedFields.uniqueFields, shardUniqueFields)
+		b.shardedFields.uniqueFields = append(b.shardedFields.uniqueFields, shardUniqueFields)
 	}
 
 	// Migrate data from existing unique fields.
@@ -253,8 +259,7 @@ func (b *builder) SetIndexConcurrency(value int) {
 				newShard := b.calculateShardWithRLock(field.field)
 
 				// Append to the correct shard.
-				b.shardedFields.uniqueFields[newShard] =
-					append(b.shardedFields.uniqueFields[newShard], field)
+				b.shardedFields.uniqueFields[newShard] = append(b.shardedFields.uniqueFields[newShard], field)
 			}
 		}
 	}
@@ -309,6 +314,9 @@ func (b *builder) Reset() {
 		}
 		b.shardedFields.uniqueFields[i] = shardUniqueFields[:0]
 	}
+
+	b.graphitePathLeaf = b.graphitePathLeaf[:0]
+	b.graphitePathNode = b.graphitePathNode[:0]
 }
 
 func (b *builder) Insert(d doc.Metadata) ([]byte, error) {
@@ -405,13 +413,60 @@ func (b *builder) insertBatchWithLock(batch index.Batch) *index.BatchPartialErro
 		b.docs = append(b.docs, d)
 
 		// Index the terms.
+		var graphiteDoc bool
 		for _, f := range d.Fields {
+			if !graphiteDoc && bytes.Equal(f.Name, graphiteFirstTagName) {
+				graphiteDoc = true
+			}
 			b.queueIndexJobEntryWithLock(wg, postings.ID(postingsListID), f, i, batchErr)
 		}
 		b.queueIndexJobEntryWithLock(wg, postings.ID(postingsListID), doc.Field{
 			Name:  doc.IDReservedFieldName,
 			Value: d.ID,
 		}, i, batchErr)
+
+		if graphiteDoc {
+			// Index the Graphite parent path for fast find lookup queries.
+			var (
+				i             = 0
+				piece, exists = d.Get(graphite.TagName(i))
+				lastPiece     []byte
+			)
+			b.graphitePathLeaf = append(b.graphitePathLeaf[:0], doc.GraphitePathLeafPrefix...)
+			b.graphitePathNode = append(b.graphitePathNode[:0], doc.GraphitePathNodePrefix...)
+			for exists {
+				if i > 0 {
+					if i > 1 {
+						b.graphitePathLeaf = append(b.graphitePathLeaf, byte('.'))
+						b.graphitePathNode = append(b.graphitePathNode, byte('.'))
+					}
+					b.graphitePathLeaf = append(b.graphitePathLeaf, lastPiece...)
+					b.graphitePathNode = append(b.graphitePathNode, lastPiece...)
+				}
+				lastPiece = piece
+				i++
+
+				// Get next piece.
+				piece, exists = d.Get(graphite.TagName(i))
+
+				// TODO: Check that if parentPath is pooled whether it's possible to actually
+				// enqueue and take a reference to it or not (probably isn't?... might
+				// need a copy here).
+				if exists {
+					// Next piece exists, this node has children.
+					b.queueIndexJobEntryWithLock(wg, postings.ID(postingsListID), doc.Field{
+						Name:  append(make([]byte, 0, len(b.graphitePathNode)), b.graphitePathNode...),
+						Value: append(make([]byte, 0, len(lastPiece)), lastPiece...),
+					}, i, batchErr)
+				} else {
+					// Next piece does not exist, this is the leaf node.
+					b.queueIndexJobEntryWithLock(wg, postings.ID(postingsListID), doc.Field{
+						Name:  append(make([]byte, 0, len(b.graphitePathLeaf)), b.graphitePathLeaf...),
+						Value: append(make([]byte, 0, len(lastPiece)), lastPiece...),
+					}, i, batchErr)
+				}
+			}
+		}
 	}
 
 	// Enqueue any partially filled sharded jobs.
@@ -521,6 +576,15 @@ func (b *builder) FieldsPostingsList() (segment.FieldsPostingsListIterator, erro
 	return newOrderedFieldsPostingsListIter(b.shardedFields.uniqueFields), nil
 }
 
+func (b *builder) FieldsPostingsListWithRegex(
+	compiled *index.CompiledRegex,
+) (segment.FieldsPostingsListIterator, error) {
+	b.status.Lock()
+	defer b.status.Unlock()
+	// TODO: implement this before merging.
+	return nil, fmt.Errorf("unimplemented")
+}
+
 func (b *builder) Terms(field []byte) (segment.TermsIterator, error) {
 	// NB(r): Need write lock since sort if required below
 	// and SetConcurrency causes sharded fields to change.
@@ -540,6 +604,16 @@ func (b *builder) Terms(field []byte) (segment.TermsIterator, error) {
 	return newTermsIter(terms.uniqueTerms), nil
 }
 
+func (b *builder) TermsWithRegex(
+	field []byte,
+	compiled *index.CompiledRegex,
+) (segment.TermsIterator, error) {
+	b.status.Lock()
+	defer b.status.Unlock()
+	// TODO: implement this before merging.
+	return nil, fmt.Errorf("unimplemented")
+}
+
 func (b *builder) Close() error {
 	b.status.Lock()
 	defer b.status.Unlock()
@@ -550,9 +624,7 @@ func (b *builder) Close() error {
 	return nil
 }
 
-var (
-	sortConcurrencyLock sync.RWMutex
-)
+var sortConcurrencyLock sync.RWMutex
 
 // SetSortConcurrency sets the sort concurrency for when
 // building segments, unfortunately this must be set globally

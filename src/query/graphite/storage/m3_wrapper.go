@@ -45,9 +45,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	errSeriesNoResolution = errors.New("series has no resolution set")
-)
+var errSeriesNoResolution = errors.New("series has no resolution set")
 
 type m3WrappedStore struct {
 	m3             storage.Storage
@@ -71,6 +69,8 @@ type M3WrappedStorageOptions struct {
 	RenderPartialEnd                           bool
 	RenderSeriesAllNaNs                        bool
 	CompileEscapeAllNotOnlyQuotes              bool
+	FindResultsIncludeBothExpandableAndLeaf    bool
+	FindPathIndexingEnabled                    bool
 }
 
 type seriesMetadata struct {

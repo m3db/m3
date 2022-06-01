@@ -254,9 +254,21 @@ type CompleteTagsQuery struct {
 	// CompleteNameOnly indicates if the query should return only tag names, or
 	// tag names and values.
 	CompleteNameOnly bool
-	// FilterNameTags is a list of tags to filter results by. If this is empty, no
-	// filtering is applied.
+	// FilterNameTags is a list of tags to filter results by. If this
+	// is empty, no filtering is applied.
 	FilterNameTags [][]byte
+	// FilterNameRegex is a regex of tags to filter results by. If this
+	// is empty, no filtering is applied.
+	FilterNameRegex []byte
+	// FilterValueRegex is a regex of tag values to filter results by. If this
+	// is empty, no filtering is applied.
+	// Note: this could also be accomplished by specifying a tag matcher that
+	// filters by the resulting tag that is looking to be completed, however
+	// if you want to apply a filter to all tags returned or just to use the
+	// higher efficiency of the regex being applied when searching the FST
+	// rather than testing the FST value postings list against the tag matchers
+	// then this parameter is better suited.
+	FilterValueRegex []byte
 	// TagMatchers is the search criteria for the query.
 	TagMatchers models.Matchers
 	// Start is the inclusive start for the query.

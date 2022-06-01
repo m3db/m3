@@ -465,6 +465,18 @@ func (i *termsIterable) Terms(field []byte) (sgmt.TermsIterator, error) {
 	return i.termsNotClosedMaybeFinalizedWithRLock(field)
 }
 
+func (i *termsIterable) TermsWithRegex(
+	field []byte,
+	compiled *index.CompiledRegex,
+) (sgmt.TermsIterator, error) {
+	i.r.RLock()
+	defer i.r.RUnlock()
+	if i.r.closed {
+		return nil, errReaderClosed
+	}
+	return i.termsWithRegexNotClosedMaybeFinalizedWithRLock(field, compiled)
+}
+
 func (i *termsIterable) fieldsNotClosedMaybeFinalizedWithRLock() (sgmt.FieldsPostingsListIterator, error) {
 	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
 	// calling match field after this segment is finalized.
@@ -477,6 +489,45 @@ func (i *termsIterable) fieldsNotClosedMaybeFinalizedWithRLock() (sgmt.FieldsPos
 		fst:         i.r.fieldsFST,
 		finalizeFST: false,
 	})
+	i.postingsIter.reset(i.r, i.fieldsIter, true)
+	return i.postingsIter, nil
+}
+
+func (i *termsIterable) fieldsWithRegexNotClosedMaybeFinalizedWithRLock(
+	compiled *index.CompiledRegex,
+) (sgmt.TermsIterator, error) {
+	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if i.r.finalized {
+		return nil, errReaderFinalized
+	}
+
+	if compiled == nil {
+		return nil, errReaderNilRegexp
+	}
+
+	// TODO: assess if actually need a finalizeable FST, don't think we do since
+	// we don't mutate the FST when we search it.
+	// NB(rob): Need to take a finalizeable FST since need to perform a FST
+	// search.
+	fieldsFST, err := i.r.retrieveFieldsFSTWithRLock()
+	if err != nil {
+		return nil, err
+	}
+
+	i.fieldsIter.reset(fstTermsIterOpts{
+		seg:         i.r,
+		fst:         fieldsFST,
+		fstSearch:   compiled,
+		finalizeFST: true,
+	})
+	// i.fieldsIter.reset(fstTermsIterOpts{
+	// 	seg:         i.r,
+	// 	fst:         i.r.fieldsFST,
+	// 	fstSearch:   compiled,
+	// 	finalizeFST: false,
+	// 	fieldsFST:   true,
+	// })
 	i.postingsIter.reset(i.r, i.fieldsIter, true)
 	return i.postingsIter, nil
 }
@@ -499,6 +550,31 @@ func (i *termsIterable) termsNotClosedMaybeFinalizedWithRLock(
 		seg:         i.r,
 		fst:         termsFST.fst,
 		finalizeFST: false,
+	})
+	i.postingsIter.reset(i.r, i.fieldsIter, false)
+	return i.postingsIter, nil
+}
+
+func (i *termsIterable) termsWithRegexNotClosedMaybeFinalizedWithRLock(
+	field []byte,
+	compiled *index.CompiledRegex,
+) (sgmt.TermsIterator, error) {
+	// NB(rob): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if i.r.finalized {
+		return nil, errReaderFinalized
+	}
+
+	termsFST, exists := i.r.retrieveTermsFSTWithRLock(field)
+	if !exists {
+		return sgmt.EmptyTermsIterator, nil
+	}
+
+	i.fieldsIter.reset(fstTermsIterOpts{
+		seg:         i.r,
+		fst:         termsFST.fst,
+		fstSearch:   compiled,
+		finalizeFST: true,
 	})
 	i.postingsIter.reset(i.r, i.fieldsIter, false)
 	return i.postingsIter, nil
@@ -908,6 +984,10 @@ func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (vellumFST, bool) {
 	return r.termFSTs.fstMap.Get(field)
 }
 
+func (r *fsSegment) retrieveFieldsFSTWithRLock() (*vellum.FST, error) {
+	return vellum.Load(r.data.FSTFieldsData.Bytes)
+}
+
 // retrieveTermsBytesWithRLock assumes the base []byte slice is a collection of
 // (protobuf payload, proto payload size, fst payload, fst payload size, magicNumber) tuples;
 // where all sizes/magicNumber are strictly uint64 (i.e. 8 bytes). It assumes the 8 bytes
@@ -1039,11 +1119,9 @@ var _ sgmt.Reader = (*fsSegmentReader)(nil)
 // fsSegmentReader is not thread safe for use and relies on the underlying
 // segment for synchronization.
 type fsSegmentReader struct {
-	closed         bool
-	ctx            context.Context
-	fsSegment      *fsSegment
-	fieldsIterable *termsIterable
-	termsIterable  *termsIterable
+	closed    bool
+	ctx       context.Context
+	fsSegment *fsSegment
 }
 
 func newReader(
@@ -1070,19 +1148,6 @@ func (sr *fsSegmentReader) Fields() (sgmt.FieldsIterator, error) {
 	return iter, nil
 }
 
-func (sr *fsSegmentReader) FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error) {
-	if sr.closed {
-		return nil, errReaderClosed
-	}
-	if sr.fieldsIterable == nil {
-		sr.fieldsIterable = newTermsIterable(sr.fsSegment)
-	}
-	sr.fsSegment.RLock()
-	iter, err := sr.fieldsIterable.fieldsNotClosedMaybeFinalizedWithRLock()
-	sr.fsSegment.RUnlock()
-	return iter, err
-}
-
 func (sr *fsSegmentReader) ContainsField(field []byte) (bool, error) {
 	if sr.closed {
 		return false, errReaderClosed
@@ -1097,15 +1162,51 @@ func (sr *fsSegmentReader) ContainsField(field []byte) (bool, error) {
 	return sr.fsSegment.fieldsFST.Contains(field)
 }
 
+func (sr *fsSegmentReader) FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error) {
+	if sr.closed {
+		return nil, errReaderClosed
+	}
+	iterable := newTermsIterable(sr.fsSegment)
+	sr.fsSegment.RLock()
+	iter, err := iterable.fieldsNotClosedMaybeFinalizedWithRLock()
+	sr.fsSegment.RUnlock()
+	return iter, err
+}
+
+func (sr *fsSegmentReader) FieldsPostingsListWithRegex(
+	compiled *index.CompiledRegex,
+) (sgmt.FieldsPostingsListIterator, error) {
+	if sr.closed {
+		return nil, errReaderClosed
+	}
+	iterable := newTermsIterable(sr.fsSegment)
+	sr.fsSegment.RLock()
+	iter, err := iterable.fieldsWithRegexNotClosedMaybeFinalizedWithRLock(compiled)
+	sr.fsSegment.RUnlock()
+	return iter, err
+}
+
 func (sr *fsSegmentReader) Terms(field []byte) (sgmt.TermsIterator, error) {
 	if sr.closed {
 		return nil, errReaderClosed
 	}
-	if sr.termsIterable == nil {
-		sr.termsIterable = newTermsIterable(sr.fsSegment)
-	}
+	iterable := newTermsIterable(sr.fsSegment)
 	sr.fsSegment.RLock()
-	iter, err := sr.termsIterable.termsNotClosedMaybeFinalizedWithRLock(field)
+	iter, err := iterable.termsNotClosedMaybeFinalizedWithRLock(field)
+	sr.fsSegment.RUnlock()
+	return iter, err
+}
+
+func (sr *fsSegmentReader) TermsWithRegex(
+	field []byte,
+	compiled *index.CompiledRegex,
+) (sgmt.TermsIterator, error) {
+	if sr.closed {
+		return nil, errReaderClosed
+	}
+	iterable := newTermsIterable(sr.fsSegment)
+	sr.fsSegment.RLock()
+	iter, err := iterable.termsWithRegexNotClosedMaybeFinalizedWithRLock(field, compiled)
 	sr.fsSegment.RUnlock()
 	return iter, err
 }

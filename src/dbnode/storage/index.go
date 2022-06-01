@@ -753,7 +753,8 @@ func (i *nsIndex) writeBatches(
 	// doc is valid. Add potential forward writes to the forwardWriteBatch.
 	batch.ForEach(
 		func(idx int, entry index.WriteBatchEntry,
-			d doc.Metadata, _ index.WriteBatchEntryResult) {
+			d doc.Metadata, _ index.WriteBatchEntryResult,
+		) {
 			total++
 
 			if len(i.doNotIndexWithFields) != 0 {
@@ -1536,9 +1537,10 @@ func (i *nsIndex) AggregateQuery(
 	query index.Query,
 	opts index.AggregationOptions,
 ) (index.AggregateQueryResult, error) {
+	id := i.nsMetadata.ID()
 	logFields := []opentracinglog.Field{
 		opentracinglog.String("query", query.String()),
-		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
+		opentracinglog.String("namespace", id.String()),
 		opentracinglog.Int("seriesLimit", opts.SeriesLimit),
 		opentracinglog.Int("docsLimit", opts.DocsLimit),
 		xopentracing.Time("queryStart", opts.StartInclusive),
@@ -1549,12 +1551,37 @@ func (i *nsIndex) AggregateQuery(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
+	// TODO: extract the building of this into helper function to reuse
+	// for both fields below.
+	var fieldFilterRegex *m3ninxindex.CompiledRegex
+	if v := opts.FieldFilterRegex; len(v) > 0 {
+		fieldFilterRegexCompiled, err := m3ninxindex.CompileRegex(v)
+		if err != nil {
+			return index.AggregateQueryResult{}, err
+		}
+		fieldFilterRegex = &fieldFilterRegexCompiled
+	}
+
+	var valueFilterRegex *m3ninxindex.CompiledRegex
+	if v := opts.ValueFilterRegex; len(v) > 0 {
+		valueFilterRegexCompiled, err := m3ninxindex.CompileRegex(v)
+		if err != nil {
+			return index.AggregateQueryResult{}, err
+		}
+		valueFilterRegex = &valueFilterRegexCompiled
+	}
+
+	metrics := index.NewAggregateUsageMetrics(id, i.opts.InstrumentOptions())
 	// Get results and set the filters, namespace ID and size limit.
 	results := i.aggregateResultsPool.Get()
 	aopts := index.AggregateResultsOptions{
-		SizeLimit:   opts.SeriesLimit,
-		FieldFilter: opts.FieldFilter,
-		Type:        opts.Type,
+		SizeLimit:             opts.SeriesLimit,
+		DocsLimit:             opts.DocsLimit,
+		FieldFilter:           opts.FieldFilter,
+		FieldFilterRegex:      fieldFilterRegex,
+		ValueFilterRegex:      valueFilterRegex,
+		Type:                  opts.Type,
+		AggregateUsageMetrics: metrics,
 	}
 	ctx.RegisterFinalizer(results)
 	// use appropriate fn to query underlying blocks.
@@ -1574,7 +1601,6 @@ func (i *nsIndex) AggregateQuery(
 	}
 	aopts.FieldFilter = aopts.FieldFilter.SortAndDedupe()
 
-	id := i.nsMetadata.ID()
 	results.Reset(id, aopts)
 	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions, fn,
 		i.newBlockAggregatorIterFn, logFields)

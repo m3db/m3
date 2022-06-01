@@ -246,11 +246,26 @@ func (b *builderFromSegments) FieldsPostingsList() (segment.FieldsPostingsListIt
 	return newFieldPostingsListIterFromSegments(b.segments)
 }
 
+func (b *builderFromSegments) FieldsPostingsListWithRegex(
+	compiled *index.CompiledRegex,
+) (segment.FieldsPostingsListIterator, error) {
+	// TODO: implement this before merging.
+	return nil, fmt.Errorf("unimplemented")
+}
+
 func (b *builderFromSegments) Terms(field []byte) (segment.TermsIterator, error) {
 	if err := b.termsIter.setField(field); err != nil {
 		return nil, err
 	}
 	return b.termsIter, nil
+}
+
+func (b *builderFromSegments) TermsWithRegex(
+	field []byte,
+	compiled *index.CompiledRegex,
+) (segment.TermsIterator, error) {
+	// TODO: implement this before merging.
+	return nil, fmt.Errorf("unimplemented")
 }
 
 func allDocsIter(seg segment.Segment) (index.IDDocIterator, io.Closer, error) {

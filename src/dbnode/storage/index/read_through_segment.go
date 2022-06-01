@@ -367,6 +367,13 @@ func (s *readThroughSegmentReader) FieldsPostingsList() (segment.FieldsPostingsL
 	return s.reader.FieldsPostingsList()
 }
 
+// FieldsPostingsListWithRegex is a pass through call.
+func (s *readThroughSegmentReader) FieldsPostingsListWithRegex(
+	compiled *index.CompiledRegex,
+) (segment.FieldsPostingsListIterator, error) {
+	return s.reader.FieldsPostingsListWithRegex(compiled)
+}
+
 // ContainsField is a pass through call.
 func (s *readThroughSegmentReader) ContainsField(field []byte) (bool, error) {
 	return s.reader.ContainsField(field)
@@ -375,6 +382,14 @@ func (s *readThroughSegmentReader) ContainsField(field []byte) (bool, error) {
 // Terms is a pass through call.
 func (s *readThroughSegmentReader) Terms(field []byte) (segment.TermsIterator, error) {
 	return s.reader.Terms(field)
+}
+
+// TermsWithRegex is a pass through call.
+func (s *readThroughSegmentReader) TermsWithRegex(
+	field []byte,
+	compiled *index.CompiledRegex,
+) (segment.TermsIterator, error) {
+	return s.reader.TermsWithRegex(field, compiled)
 }
 
 // Close is a pass through call.

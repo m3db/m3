@@ -34,18 +34,20 @@ import (
 	pilosaroaring "github.com/m3dbx/pilosa/roaring"
 )
 
-var (
-	errUnpackBitmapFromPostingsList = errors.New("unable to unpack bitmap from postings list")
-)
+var errUnpackBitmapFromPostingsList = errors.New("unable to unpack bitmap from postings list")
 
 // fieldsAndTermsIteratorOpts configures the fieldsAndTermsIterator.
 type fieldsAndTermsIteratorOpts struct {
 	restrictByQuery *Query
-	iterateTerms    bool
+	termsIterate    bool
+	termsRegex      *index.CompiledRegex
 	allowFn         allowFn
 	fieldIterFn     newFieldIterFn
 }
 
+// nit(rob): Can we get rid of these overrides? Are they ever used?
+// Might be better to make callers be explicit with their allowfn and
+// newfielditerfn rather than add extra level of indirection/complexity here.
 func (o fieldsAndTermsIteratorOpts) allow(f []byte) bool {
 	if o.allowFn == nil {
 		return true
@@ -53,6 +55,9 @@ func (o fieldsAndTermsIteratorOpts) allow(f []byte) bool {
 	return o.allowFn(f)
 }
 
+// nit(rob): Can we get rid of these overrides? Are they ever used?
+// Might be better to make callers be explicit with their allowfn and
+// newfielditerfn rather than add extra level of indirection/complexity here.
 func (o fieldsAndTermsIteratorOpts) newFieldIter(r segment.Reader) (segment.FieldsPostingsListIterator, error) {
 	if o.fieldIterFn == nil {
 		return r.FieldsPostingsList()
@@ -82,9 +87,7 @@ type fieldsAndTermsIter struct {
 	restrictByPostings       *roaring.ReadOnlyBitmap
 }
 
-var (
-	fieldsAndTermsIterZeroed fieldsAndTermsIter
-)
+var fieldsAndTermsIterZeroed fieldsAndTermsIter
 
 var _ fieldsAndTermsIterator = &fieldsAndTermsIter{}
 
@@ -344,7 +347,7 @@ func (fti *fieldsAndTermsIter) Next() bool {
 		return false
 	}
 	// if only need to iterate fields
-	if !fti.opts.iterateTerms {
+	if !fti.opts.termsIterate {
 		return fti.setNextField()
 	}
 	// iterating both fields and terms

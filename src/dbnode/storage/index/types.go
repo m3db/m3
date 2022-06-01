@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
@@ -46,11 +47,9 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-var (
-	// ReservedFieldNameID is the field name used to index the ID in the
-	// m3ninx subsytem.
-	ReservedFieldNameID = doc.IDReservedFieldName
-)
+// ReservedFieldNameID is the field name used to index the ID in the
+// m3ninx subsytem.
+var ReservedFieldNameID = doc.IDReservedFieldName
 
 // InsertMode specifies whether inserts are synchronous or asynchronous.
 type InsertMode byte
@@ -122,6 +121,10 @@ type AggregationOptions struct {
 	QueryOptions
 	// FieldFilter filters aggregate queries by field.
 	FieldFilter AggregateFieldFilter
+	// FieldFilterRegex is a regex filter for fields.
+	FieldFilterRegex []byte
+	// ValueFilterRegex is a regex filter for values.
+	ValueFilterRegex []byte
 	// Type indicates the aggregation type.
 	Type AggregationType
 }
@@ -271,8 +274,14 @@ type AggregateResultsOptions struct {
 	// Type determines what result is required.
 	Type AggregationType
 
-	// FieldFilter is an optional param to filter aggregate values.
+	// FieldFilter is an optional param to filter aggregate fields.
 	FieldFilter AggregateFieldFilter
+
+	// FieldFilter is an optional param to filter aggregate fields by regex.
+	FieldFilterRegex *m3ninxindex.CompiledRegex
+
+	// ValueFilterRegex is an optional param to filter aggregate values by regex.
+	ValueFilterRegex *m3ninxindex.CompiledRegex
 
 	// RestrictByQuery is a query to restrict the set of documents that must
 	// be present for an aggregated term to be returned.

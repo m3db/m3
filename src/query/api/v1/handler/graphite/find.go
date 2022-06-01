@@ -45,13 +45,12 @@ const (
 	FindURL = handler.RoutePrefixV1 + "/graphite/metrics/find"
 )
 
-var (
-	// FindHTTPMethods are the HTTP methods for this handler.
-	FindHTTPMethods = []string{http.MethodGet, http.MethodPost}
-)
+// FindHTTPMethods are the HTTP methods for this handler.
+var FindHTTPMethods = []string{http.MethodGet, http.MethodPost}
 
 type grahiteFindHandler struct {
 	storage             graphitestorage.Storage
+	graphiteStorageOpts graphitestorage.M3WrappedStorageOptions
 	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
 	instrumentOpts      instrument.Options
 }
@@ -62,6 +61,7 @@ func NewFindHandler(opts options.HandlerOptions) http.Handler {
 		opts.M3DBOptions(), opts.InstrumentOpts(), opts.GraphiteStorageOptions())
 	return &grahiteFindHandler{
 		storage:             wrappedStore,
+		graphiteStorageOpts: opts.GraphiteStorageOptions(),
 		fetchOptionsBuilder: opts.GraphiteFindFetchOptionsBuilder(),
 		instrumentOpts:      opts.InstrumentOpts(),
 	}
@@ -118,8 +118,9 @@ func (h *grahiteFindHandler) ServeHTTP(
 	// NB: need to run two separate queries, one of which will match only the
 	// provided matchers, and one which will match the provided matchers with at
 	// least one more child node. For further information, refer to the comment
-	// for parseFindParamsToQueries
-	terminatedQuery, childQuery, raw, err := parseFindParamsToQueries(r)
+	// for parseFindParamsToQueries.
+	terminatedQuery, childQuery, raw, err := parseFindParamsToQueries(r,
+		h.graphiteStorageOpts)
 	if err != nil {
 		xhttp.WriteError(w, err)
 		return
@@ -171,9 +172,9 @@ func (h *grahiteFindHandler) ServeHTTP(
 	}
 
 	handleroptions.AddResponseHeaders(w, meta, opts)
-	// TODO: Support multiple result types
-	if err = findResultsJSON(w, prefix, seenMap); err != nil {
-		logger.Error("unable to print find results", zap.Error(err))
-		xhttp.WriteError(w, err)
+
+	// TODO: Support multiple result types other than just JSON such as pickle.
+	if err := findResultsJSON(w, prefix, seenMap); err != nil {
+		logger.Error("unable to render find results", zap.Error(err))
 	}
 }
