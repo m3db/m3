@@ -21,10 +21,13 @@
 package client
 
 import (
+	"bytes"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	"gopkg.in/yaml.v2"
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
@@ -183,6 +186,25 @@ func TestInstanceQueueEnqueueSuccessWriteError(t *testing.T) {
 	<-done
 }
 
+func TestInstanceQueueDropAfterWriteError(t *testing.T) {
+	var writeCounter atomic.Int32
+	opts := testOptions()
+	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
+	queue.writeFn = func(data []byte) error {
+		writeCounter.Inc()
+		return errors.New("dummy error")
+	}
+
+	// write two payloads that will not be merged
+	require.NoError(t, queue.Enqueue(testNewBuffer(bytes.Repeat([]byte{0x42}, _queueMaxWriteBufSize+1))))
+	require.NoError(t, queue.Enqueue(testNewBuffer(bytes.Repeat([]byte{0x42}, _queueMaxWriteBufSize+1))))
+	queue.Flush()
+	require.Equal(t, int32(1), writeCounter.Load())
+	// next flush should not perform any writes
+	queue.Flush()
+	require.Equal(t, int32(1), writeCounter.Load())
+}
+
 func TestInstanceQueueCloseAlreadyClosed(t *testing.T) {
 	opts := testOptions()
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
@@ -213,7 +235,8 @@ func TestInstanceQueueSizeIsPowerOfTwo(t *testing.T) {
 	} {
 		opts := testOptions().SetInstanceQueueSize(tt.size)
 		q := newInstanceQueue(testPlacementInstance, opts).(*queue)
-		require.Equal(t, tt.expected, cap(q.buf.b))
+		require.Equal(t, tt.expected, cap(q.bufIncoming.b))
+		require.Equal(t, tt.expected, cap(q.bufProcessing.b))
 	}
 }
 

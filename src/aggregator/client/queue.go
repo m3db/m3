@@ -121,15 +121,17 @@ type instanceQueue interface {
 type writeFn func([]byte) error
 
 type queue struct {
-	metrics  queueMetrics
-	instance placement.Instance
-	conn     *connection
-	log      *zap.Logger
-	writeFn  writeFn
-	buf      qbuf
-	dropType DropType
-	closed   atomic.Bool
-	mtx      sync.Mutex
+	metrics       queueMetrics
+	instance      placement.Instance
+	conn          *connection
+	log           *zap.Logger
+	writeFn       writeFn
+	bufIncoming   qbuf
+	bufProcessing qbuf
+	dropType      DropType
+	closed        atomic.Bool
+	mtx           sync.Mutex
+	processingMtx sync.Mutex
 }
 
 func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
@@ -156,7 +158,10 @@ func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
 		metrics:  newQueueMetrics(iOpts.MetricsScope()),
 		instance: instance,
 		conn:     conn,
-		buf: qbuf{
+		bufIncoming: qbuf{
+			b: make([]protobuf.Buffer, int(qsize)),
+		},
+		bufProcessing: qbuf{
 			b: make([]protobuf.Buffer, int(qsize)),
 		},
 	}
@@ -178,7 +183,7 @@ func (q *queue) Enqueue(buf protobuf.Buffer) error {
 	q.mtx.Lock()
 	defer q.mtx.Unlock()
 
-	if full := q.buf.full(); full {
+	if full := q.bufIncoming.full(); full {
 		switch q.dropType {
 		case DropCurrent:
 			// Close the current buffer so it's resources are freed.
@@ -187,7 +192,7 @@ func (q *queue) Enqueue(buf protobuf.Buffer) error {
 			return errWriterQueueFull
 		case DropOldest:
 			// Consume oldest buffer instead.
-			oldest := q.buf.shift()
+			oldest := q.bufIncoming.shift()
 			oldest.Close()
 			q.metrics.enqueueOldestDropped.Inc(1)
 		default:
@@ -195,7 +200,7 @@ func (q *queue) Enqueue(buf protobuf.Buffer) error {
 		}
 	}
 
-	q.buf.push(buf)
+	q.bufIncoming.push(buf)
 	q.metrics.enqueueSuccesses.Inc(1)
 	return nil
 }
@@ -214,14 +219,25 @@ func (q *queue) Flush() {
 		n   int
 		err error
 	)
+	// ensure Flush is safe for concurrent use
+	q.processingMtx.Lock()
+	defer q.processingMtx.Unlock()
+
+	// replace incoming buffer with a fresh one, to have a snapshot of queue before flush and unblock new writes
+	q.mtx.Lock()
+	q.bufProcessing, q.bufIncoming = q.bufIncoming, q.bufProcessing
+	q.mtx.Unlock()
 
 	for err == nil {
 		// flush everything in batches, to make sure no single payload is too large,
 		// to prevent a) allocs and b) timeouts due to big buffer IO taking too long.
 		var processed int
-		processed, err = q.flush(buf)
+		processed, err = q.flush(&q.bufProcessing, buf)
 		n += processed
 	}
+
+	// drop any unconsumed messages
+	q.bufProcessing.reset()
 
 	if err != nil && !errors.Is(err, io.EOF) {
 		q.log.Error("error writing data",
@@ -240,38 +256,31 @@ func (q *queue) Flush() {
 	}
 }
 
-func (q *queue) flush(tmpWriteBuf *[]byte) (int, error) {
+func (q *queue) flush(buf *qbuf, tmpWriteBuf *[]byte) (int, error) {
 	var n int
 
-	q.mtx.Lock()
-
-	if q.buf.size() == 0 {
-		q.mtx.Unlock()
+	if buf.size() == 0 {
 		return n, io.EOF
 	}
 
 	*tmpWriteBuf = (*tmpWriteBuf)[:0]
-	for q.buf.size() > 0 {
-		protoBuffer := q.buf.peek()
+	for buf.size() > 0 {
+		protoBuffer := buf.peek()
 		bytes := protoBuffer.Bytes()
 
 		if n > 0 && len(bytes)+len(*tmpWriteBuf) >= _queueMaxWriteBufSize {
 			// only merge buffers that are smaller than _queueMaxWriteBufSize bytes
 			break
 		}
-		_ = q.buf.shift()
 
-		if len(bytes) == 0 {
-			continue
+		if len(bytes) > 0 {
+			*tmpWriteBuf = append(*tmpWriteBuf, bytes...)
+			n += len(bytes)
 		}
 
-		*tmpWriteBuf = append(*tmpWriteBuf, bytes...)
-		n += len(bytes)
 		protoBuffer.Close()
+		_ = buf.shift()
 	}
-
-	// mutex is not held while doing IO
-	q.mtx.Unlock()
 
 	if n == 0 {
 		return n, io.EOF
@@ -288,7 +297,10 @@ func (q *queue) flush(tmpWriteBuf *[]byte) (int, error) {
 }
 
 func (q *queue) Size() int {
-	return int(q.buf.size())
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
+
+	return int(q.bufIncoming.size())
 }
 
 type queueMetrics struct {
@@ -354,6 +366,13 @@ func (q *qbuf) shift() protobuf.Buffer {
 func (q *qbuf) peek() protobuf.Buffer {
 	idx := q.mask(q.r + 1)
 	return q.b[idx]
+}
+
+func (q *qbuf) reset() {
+	for q.size() > 0 {
+		val := q.shift()
+		val.Close()
+	}
 }
 
 func roundUpToPowerOfTwo(val int) int {
