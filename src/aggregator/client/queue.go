@@ -237,6 +237,9 @@ func (q *queue) Flush() {
 	}
 
 	// drop any unconsumed messages
+	if drops := q.bufProcessing.size(); drops > 0 {
+		q.metrics.flushErrorDropped.Inc(int64(drops))
+	}
 	q.bufProcessing.reset()
 
 	if err != nil && !errors.Is(err, io.EOF) {
@@ -308,6 +311,7 @@ type queueMetrics struct {
 	enqueueOldestDropped  tally.Counter
 	enqueueCurrentDropped tally.Counter
 	enqueueClosedErrors   tally.Counter
+	flushErrorDropped     tally.Counter
 	connWriteSuccesses    tally.Counter
 	connWriteErrors       tally.Counter
 }
@@ -315,6 +319,7 @@ type queueMetrics struct {
 func newQueueMetrics(s tally.Scope) queueMetrics {
 	enqueueScope := s.Tagged(map[string]string{"action": "enqueue"})
 	connWriteScope := s.Tagged(map[string]string{"action": "conn-write"})
+	flushScope := s.Tagged(map[string]string{"action": "flush"})
 	return queueMetrics{
 		enqueueSuccesses: enqueueScope.Counter("successes"),
 		enqueueOldestDropped: enqueueScope.Tagged(map[string]string{"drop-type": "oldest"}).
@@ -323,6 +328,8 @@ func newQueueMetrics(s tally.Scope) queueMetrics {
 			Counter("dropped"),
 		enqueueClosedErrors: enqueueScope.Tagged(map[string]string{"error-type": "queue-closed"}).
 			Counter("errors"),
+		flushErrorDropped: flushScope.Tagged(map[string]string{"drop-type": "flush-write-error"}).
+			Counter("dropped"),
 		connWriteSuccesses: connWriteScope.Counter("successes"),
 		connWriteErrors:    connWriteScope.Counter("errors"),
 	}
