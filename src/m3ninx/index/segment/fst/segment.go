@@ -873,10 +873,9 @@ var _ sgmt.Reader = (*fsSegmentReader)(nil)
 // fsSegmentReader is not thread safe for use and relies on the underlying
 // segment for synchronization.
 type fsSegmentReader struct {
-	closed        bool
-	ctx           context.Context
-	fsSegment     *fsSegment
-	termsIterable *termsIterable
+	closed    bool
+	ctx       context.Context
+	fsSegment *fsSegment
 }
 
 func newReader(
@@ -927,9 +926,9 @@ func (sr *fsSegmentReader) FieldsPostingsList() (sgmt.FieldsPostingsListIterator
 	if sr.closed {
 		return nil, errReaderClosed
 	}
-	fieldsIterable := newTermsIterable(sr.fsSegment)
+	iterable := newTermsIterable(sr.fsSegment)
 	sr.fsSegment.RLock()
-	iter, err := fieldsIterable.fieldsNotClosedMaybeFinalizedWithRLock()
+	iter, err := iterable.fieldsNotClosedMaybeFinalizedWithRLock()
 	sr.fsSegment.RUnlock()
 	return iter, err
 }
@@ -938,11 +937,9 @@ func (sr *fsSegmentReader) Terms(field []byte) (sgmt.TermsIterator, error) {
 	if sr.closed {
 		return nil, errReaderClosed
 	}
-	if sr.termsIterable == nil {
-		sr.termsIterable = newTermsIterable(sr.fsSegment)
-	}
+	iterable := newTermsIterable(sr.fsSegment)
 	sr.fsSegment.RLock()
-	iter, err := sr.termsIterable.termsNotClosedMaybeFinalizedWithRLock(field)
+	iter, err := iterable.termsNotClosedMaybeFinalizedWithRLock(field)
 	sr.fsSegment.RUnlock()
 	return iter, err
 }
