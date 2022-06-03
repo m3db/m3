@@ -310,12 +310,12 @@ local:
 		sortGraphiteFindResults(actual)
 		sortGraphiteFindResults(expected)
 
-		failMsg := fmt.Sprintf("invalid results: level=%d, parts=%d, query=%s",
-			level, len(node.pathParts), query)
-		failMsg += fmt.Sprintf("\n\ndiff:\n%s\n\n",
-			xtest.Diff(xtest.MustPrettyJSONObject(t, expected),
-				xtest.MustPrettyJSONObject(t, actual)))
 		if !reflect.DeepEqual(expected, actual) {
+			failMsg := fmt.Sprintf("invalid results: level=%d, parts=%d, query=%s",
+				level, len(node.pathParts), query)
+			failMsg += fmt.Sprintf("\n\ndiff:\n%s\n\n",
+				xtest.Diff(xtest.MustPrettyJSONObject(t, expected),
+					xtest.MustPrettyJSONObject(t, actual)))
 			// Bail parallel execution (failed require/assert won't stop execution).
 			if checkedSeriesAbort.CAS(false, true) {
 				// Assert an error result and log once.
