@@ -60,11 +60,11 @@ func (q *mockQuerier) Select(
 	return &mockSeriesSet{mockOptions: q.mockOptions}
 }
 
-func (*mockQuerier) LabelValues(name string, matchers ...*labels.Matcher) ([]string, promstorage.Warnings, error) {
+func (*mockQuerier) LabelValues(string, ...*labels.Matcher) ([]string, promstorage.Warnings, error) {
 	return nil, nil, errors.New("not implemented")
 }
 
-func (*mockQuerier) LabelNames() ([]string, promstorage.Warnings, error) {
+func (*mockQuerier) LabelNames(...*labels.Matcher) ([]string, promstorage.Warnings, error) {
 	return nil, nil, errors.New("not implemented")
 }
 
