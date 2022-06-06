@@ -23,7 +23,7 @@ package promql
 import (
 	"time"
 
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/model/labels"
 	pql "github.com/prometheus/prometheus/promql/parser"
 
 	"github.com/m3db/m3/src/query/models"
