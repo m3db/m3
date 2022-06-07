@@ -273,8 +273,16 @@ local:
 	}()
 
 	// Check each level of the tree can answer expected queries.
+	type checkResult struct {
+		leavesVerified int
+	}
+	type checkFailure struct {
+		expected graphiteFindResults
+		actual graphiteFindResults
+		failMsg string
+	}
 	var (
-		verifyFindQueries         func(node *graphiteNode, level int)
+		verifyFindQueries         func(node *graphiteNode, level int) (checkResult, *checkFailure, error)
 		parallelVerifyFindQueries func(node *graphiteNode, level int)
 		checkedSeriesAbort        = atomic.NewBool(false)
 		numSeriesChecking         = uint64(len(generateSeries))
@@ -288,10 +296,49 @@ local:
 	)
 	workerPool.Init()
 	parallelVerifyFindQueries = func(node *graphiteNode, level int) {
+		// Verify this node at level.
 		wg.Add(1)
 		workerPool.Go(func() {
-			verifyFindQueries(node, level)
-			wg.Done()
+			defer wg.Done()
+
+			if checkedSeriesAbort.Load() {
+				// Do not execute if aborted.
+				return
+			}
+
+			var (
+				result checkResult
+				failure = &checkFailure{}
+				err  = fmt.Errorf("initial error")
+			)
+			for attempt := 0; (failure != nil || err != nil) && attempt < 2; attempt++ {
+				if attempt > 0 {
+					// Retry transient errors (should add a strict mode for this test 
+					// avoid allowing transient errors too).
+					time.Sleep(5*time.Millsecond)
+				}
+				result, failure, err = verifyFindQueries(node, level)
+			}
+			if failure == nil && err == nil {
+				// Account for series checked (for progress report).
+				checkedSeries.Add(uint64(result.leavesVerified))
+				return
+			}
+
+			// Bail parallel execution (failed require/assert won't stop execution).
+			if checkedSeriesAbort.CAS(false, true) {
+				switch {
+				case failure != nil:
+					// Assert an error result and log once.
+					assert.Equal(t, failure.expected, failure.actual, failure.failMsg)
+					log.Error("aborting checks due to mismatch")
+				case err != nil:
+					assert.NoError(t, err)
+					log.Error("aborting checks due to error")
+				default:
+
+				}
+			}
 		})
 
 		// Verify children of children.
@@ -299,11 +346,8 @@ local:
 			parallelVerifyFindQueries(child, level+1)
 		}
 	}
-	verifyFindQueries = func(node *graphiteNode, level int) {
-		if checkedSeriesAbort.Load() {
-			// Do not execute if aborted.
-			return
-		}
+	verifyFindQueries = func(node *graphiteNode, level int) (checkResult, *checkFailure, error) {
+		var r checkResult
 
 		// Write progress report if progress made.
 		checked := checkedSeries.Load()
@@ -332,22 +376,28 @@ local:
 		require.NoError(t, err)
 
 		res, err := httpClient.Do(req)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, res.StatusCode)
+		if err != nil {
+			return r, nil, err
+		}
+		if res.StatusCode != http.StatusOK {
+			return r, nil, fmt.Errorf("bad response code: expected=%d, actual=%d", 
+				http.StatusOK, res.StatusCode)
+		}
 
 		defer res.Body.Close()
 
 		// Compare results.
 		var actual graphiteFindResults
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&actual))
+		if err := json.NewDecoder(res.Body).Decode(&actual); err != nil {
+			return r, nil, err
+		}
 
 		expected := make(graphiteFindResults, 0, len(node.children))
-		leaves := 0
 		for _, child := range node.children {
 			leaf := 0
 			if child.isLeaf {
 				leaf = 1
-				leaves++
+				r.leavesVerified++
 			}
 			expected = append(expected, graphiteFindResult{
 				Text: child.name,
@@ -364,17 +414,14 @@ local:
 			failMsg += fmt.Sprintf("\n\ndiff:\n%s\n\n",
 				xtest.Diff(xtest.MustPrettyJSONObject(t, expected),
 					xtest.MustPrettyJSONObject(t, actual)))
-			// Bail parallel execution (failed require/assert won't stop execution).
-			if checkedSeriesAbort.CAS(false, true) {
-				// Assert an error result and log once.
-				assert.Equal(t, expected, actual, failMsg)
-				log.Error("aborting checks")
-			}
-			return
+			return r, &checkFailure{
+				expected: expected,
+				actual: actual,
+				failMsg: failMsg,
+			}, nil
 		}
 
-		// Account for series checked (for progress report).
-		checkedSeries.Add(uint64(leaves))
+		return r, nil, nil
 	}
 
 	// Check all top level entries and recurse.

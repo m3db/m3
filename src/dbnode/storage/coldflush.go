@@ -108,9 +108,9 @@ func (m *coldFlushManager) Run(t xtime.UnixNano) bool {
 		m.Unlock()
 	}()
 
-	debugLog := m.log.Check(zapcore.DebugLevel, "cold flush run")
-	if debugLog != nil {
-		debugLog.Write(zap.String("status", "starting cold flush"), zap.Time("time", t.ToTime()))
+	
+	if log := m.log.Check(zapcore.DebugLevel, "cold flush run start"); log != nil {
+		log.Write(zap.Time("time", t.ToTime()))
 	}
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
@@ -132,9 +132,9 @@ func (m *coldFlushManager) Run(t xtime.UnixNano) bool {
 					zap.Time("time", t.ToTime()), zap.Error(err))
 			})
 	}
-
-	if debugLog != nil {
-		debugLog.Write(zap.String("status", "completed cold flush"), zap.Time("time", t.ToTime()))
+	
+	if log := m.log.Check(zapcore.DebugLevel, "cold flush run complete"); log != nil {
+		log.Write(zap.Time("time", t.ToTime()))
 	}
 
 	return true
