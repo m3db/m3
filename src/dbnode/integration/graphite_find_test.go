@@ -170,9 +170,9 @@ local:
 	)
 	switch testOpts.datasetSize {
 	case smallDatasetSize:
-		levels = 5
-		entriesPerLevelMin = 5
-		entriesPerLevelMax = 7
+		levels = 4
+		entriesPerLevelMin = 7
+		entriesPerLevelMax = 10
 	case largeDatasetSize:
 		// Ideally we'd always use a large dataset size, however you do need
 		// high concurrency to validate this entire dataset and CI can't seem
@@ -334,7 +334,8 @@ local:
 					assert.NoError(t, err)
 					log.Error("aborting checks due to error")
 				default:
-
+					require.FailNow(t, "unknown error condition")
+					log.Error("aborting checks due to unknown condition")
 				}
 			}
 		})

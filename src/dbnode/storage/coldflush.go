@@ -108,7 +108,6 @@ func (m *coldFlushManager) Run(t xtime.UnixNano) bool {
 		m.Unlock()
 	}()
 
-	
 	if log := m.log.Check(zapcore.DebugLevel, "cold flush run start"); log != nil {
 		log.Write(zap.Time("time", t.ToTime()))
 	}
@@ -132,7 +131,7 @@ func (m *coldFlushManager) Run(t xtime.UnixNano) bool {
 					zap.Time("time", t.ToTime()), zap.Error(err))
 			})
 	}
-	
+
 	if log := m.log.Check(zapcore.DebugLevel, "cold flush run complete"); log != nil {
 		log.Write(zap.Time("time", t.ToTime()))
 	}
