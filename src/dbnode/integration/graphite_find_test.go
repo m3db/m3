@@ -30,6 +30,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"reflect"
 	"runtime"
 	"sort"
@@ -137,6 +138,7 @@ local:
 	ns, err := namespace.NewMetadata(ident.StringID("testns"), nOpts)
 	require.NoError(t, err)
 
+	os.Setenv("TEST_DEBUG_LOG", "true")
 	opts := NewTestOptions(tt).
 		SetNamespaces([]namespace.Metadata{ns})
 
