@@ -51,7 +51,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/model/labels"
 	promql "github.com/prometheus/prometheus/promql/parser"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"

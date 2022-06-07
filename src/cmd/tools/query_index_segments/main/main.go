@@ -42,7 +42,7 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/pborman/getopt"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/model/labels"
 	"go.uber.org/zap"
 )
 
