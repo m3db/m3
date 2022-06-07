@@ -30,7 +30,6 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
-	"os"
 	"reflect"
 	"runtime"
 	"sort"
@@ -138,7 +137,6 @@ local:
 	ns, err := namespace.NewMetadata(ident.StringID("testns"), nOpts)
 	require.NoError(t, err)
 
-	os.Setenv("TEST_DEBUG_LOG", "true")
 	opts := NewTestOptions(tt).
 		SetNamespaces([]namespace.Metadata{ns})
 
@@ -278,8 +276,8 @@ local:
 	}
 	type checkFailure struct {
 		expected graphiteFindResults
-		actual graphiteFindResults
-		failMsg string
+		actual   graphiteFindResults
+		failMsg  string
 	}
 	var (
 		verifyFindQueries         func(node *graphiteNode, level int) (checkResult, *checkFailure, error)
@@ -307,15 +305,15 @@ local:
 			}
 
 			var (
-				result checkResult
+				result  checkResult
 				failure = &checkFailure{}
-				err  = fmt.Errorf("initial error")
+				err     = fmt.Errorf("initial error")
 			)
 			for attempt := 0; (failure != nil || err != nil) && attempt < 2; attempt++ {
 				if attempt > 0 {
-					// Retry transient errors (should add a strict mode for this test 
+					// Retry transient errors (should add a strict mode for this test
 					// avoid allowing transient errors too).
-					time.Sleep(5*time.Millsecond)
+					time.Sleep(5 * time.Millisecond)
 				}
 				result, failure, err = verifyFindQueries(node, level)
 			}
@@ -380,7 +378,7 @@ local:
 			return r, nil, err
 		}
 		if res.StatusCode != http.StatusOK {
-			return r, nil, fmt.Errorf("bad response code: expected=%d, actual=%d", 
+			return r, nil, fmt.Errorf("bad response code: expected=%d, actual=%d",
 				http.StatusOK, res.StatusCode)
 		}
 
@@ -416,8 +414,8 @@ local:
 					xtest.MustPrettyJSONObject(t, actual)))
 			return r, &checkFailure{
 				expected: expected,
-				actual: actual,
-				failMsg: failMsg,
+				actual:   actual,
+				failMsg:  failMsg,
 			}, nil
 		}
 
