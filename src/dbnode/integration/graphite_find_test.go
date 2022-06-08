@@ -309,11 +309,11 @@ local:
 				failure = &checkFailure{}
 				err     = fmt.Errorf("initial error")
 			)
-			for attempt := 0; (failure != nil || err != nil) && attempt < 2; attempt++ {
+			for attempt := 0; (failure != nil || err != nil) && attempt < 3; attempt++ {
 				if attempt > 0 {
 					// Retry transient errors (should add a strict mode for this test
 					// avoid allowing transient errors too).
-					time.Sleep(5 * time.Millisecond)
+					time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
 				}
 				result, failure, err = verifyFindQueries(node, level)
 			}
