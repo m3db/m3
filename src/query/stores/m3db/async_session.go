@@ -64,9 +64,7 @@ func NewAsyncSession(fn NewClientFn, done chan<- struct{}) *AsyncSession {
 
 	go func() {
 		if asyncSession.done != nil {
-			defer func() {
-				asyncSession.done <- struct{}{}
-			}()
+			defer close(asyncSession.done)
 		}
 
 		c, err := fn()
