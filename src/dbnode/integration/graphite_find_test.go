@@ -313,7 +313,8 @@ local:
 				if attempt > 0 {
 					// Retry transient errors (should add a strict mode for this test
 					// avoid allowing transient errors too).
-					time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+					seconds := 5 * attempt
+					time.Sleep(time.Duration(seconds) * time.Second)
 				}
 				result, failure, err = verifyFindQueries(node, level)
 			}
