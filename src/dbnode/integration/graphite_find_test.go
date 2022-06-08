@@ -171,8 +171,8 @@ local:
 	switch testOpts.datasetSize {
 	case smallDatasetSize:
 		levels = 4
-		entriesPerLevelMin = 7
-		entriesPerLevelMax = 10
+		entriesPerLevelMin = 5
+		entriesPerLevelMax = 7
 	case largeDatasetSize:
 		// Ideally we'd always use a large dataset size, however you do need
 		// high concurrency to validate this entire dataset and CI can't seem
