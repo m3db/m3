@@ -304,20 +304,7 @@ local:
 				return
 			}
 
-			var (
-				result  checkResult
-				failure = &checkFailure{}
-				err     = fmt.Errorf("initial error")
-			)
-			for attempt := 0; (failure != nil || err != nil) && attempt < 3; attempt++ {
-				if attempt > 0 {
-					// Retry transient errors (should add a strict mode for this test
-					// avoid allowing transient errors too).
-					seconds := 5 * attempt
-					time.Sleep(time.Duration(seconds) * time.Second)
-				}
-				result, failure, err = verifyFindQueries(node, level)
-			}
+			result, failure, err := verifyFindQueries(node, level)
 			if failure == nil && err == nil {
 				// Account for series checked (for progress report).
 				checkedSeries.Add(uint64(result.leavesVerified))
