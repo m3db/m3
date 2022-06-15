@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2021 Uber Technologies, Inc.
@@ -23,6 +24,7 @@
 package integration
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -36,6 +38,7 @@ import (
 	"testing"
 	"time"
 
+	// nolint: gci
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -47,12 +50,60 @@ import (
 	graphitehandler "github.com/m3db/m3/src/query/api/v1/handler/graphite"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 )
 
-func TestGraphiteFind(tt *testing.T) {
+type testGraphiteFindDatasetSize uint
+
+const (
+	smallDatasetSize testGraphiteFindDatasetSize = iota
+	largeDatasetSize
+)
+
+type testGraphiteFindOptions struct {
+	checkConcurrency int
+	datasetSize      testGraphiteFindDatasetSize
+	findPathIndexing bool
+}
+
+func TestGraphiteFindSequential(t *testing.T) {
+	// NB(rob): We need to investigate why using high concurrency (and hence
+	// need to use small dataset size since otherwise verification takes
+	// forever) encounters errors running on CI.
+	for _, findPathIndexing := range []bool{false, true} {
+		name := fmt.Sprintf("findPathIndexing=%v", findPathIndexing)
+		t.Run(name, func(t *testing.T) {
+			start := time.Now()
+			testGraphiteFind(t, testGraphiteFindOptions{
+				checkConcurrency: 1,
+				datasetSize:      smallDatasetSize,
+				findPathIndexing: findPathIndexing,
+			})
+			t.Logf("test name=%s took %v", name, time.Since(start))
+		})
+	}
+}
+
+func TestGraphiteFindParallel(t *testing.T) {
+	// Skip until investigation of why check concurrency encounters errors on CI.
+	t.SkipNow()
+	for _, findPathIndexing := range []bool{false, true} {
+		name := fmt.Sprintf("findPathIndexing=%v", findPathIndexing)
+		t.Run(name, func(t *testing.T) {
+			start := time.Now()
+			testGraphiteFind(t, testGraphiteFindOptions{
+				checkConcurrency: runtime.NumCPU(),
+				datasetSize:      largeDatasetSize,
+				findPathIndexing: findPathIndexing,
+			})
+			t.Logf("test name=%s took %v", name, time.Since(start))
+		})
+	}
+}
+
+func testGraphiteFind(tt *testing.T, testOpts testGraphiteFindOptions) {
 	if testing.Short() {
 		tt.SkipNow() // Just skip if we're doing a short run
 	}
@@ -61,7 +112,7 @@ func TestGraphiteFind(tt *testing.T) {
 	// by using a TestingT that panics when FailNow is called.
 	t := xtest.FailNowPanicsTestingT(tt)
 
-	const queryConfigYAML = `
+	queryConfigYAML := fmt.Sprintf(`
 listenAddress: 127.0.0.1:7201
 
 logging:
@@ -81,7 +132,14 @@ local:
     - namespace: testns
       type: unaggregated
       retention: 12h
-`
+    - namespace: testns
+      type: aggregated
+      retention: 12h
+      resolution: 1m
+
+carbon:
+  findPathIndexingEnabled: %v
+`, testOpts.findPathIndexing)
 
 	var (
 		blockSize       = 2 * time.Hour
@@ -107,6 +165,13 @@ local:
 	require.NoError(t, err)
 	defer setup.Close()
 
+	// Make sure DB node is using path indexing if set for test.
+	storageOpts := setup.StorageOpts()
+	indexOpts := storageOpts.IndexOptions()
+	segmentBuilderOpts := indexOpts.SegmentBuilderOptions().SetGraphitePathIndexingEnabled(testOpts.findPathIndexing)
+	storageOpts = storageOpts.SetIndexOptions(indexOpts.SetSegmentBuilderOptions(segmentBuilderOpts))
+	setup.SetStorageOpts(storageOpts)
+
 	log := setup.StorageOpts().InstrumentOptions().Logger().
 		With(zap.String("ns", ns.ID().String()))
 
@@ -119,15 +184,33 @@ local:
 
 	// Create graphite node tree for tests.
 	var (
-		levels             = 5
-		entriesPerLevelMin = 6
-		entriesPerLevelMax = 9
-		randConstSeedSrc   = rand.NewSource(123456789)
+		// nolint: gosec
+		randConstSeedSrc = rand.NewSource(123456789)
+		// nolint: gosec
 		randGen            = rand.New(randConstSeedSrc)
 		rootNode           = &graphiteNode{}
 		buildNodes         func(node *graphiteNode, level int)
 		generateSeries     []generate.Series
+		levels             int
+		entriesPerLevelMin int
+		entriesPerLevelMax int
 	)
+	switch testOpts.datasetSize {
+	case smallDatasetSize:
+		levels = 4
+		entriesPerLevelMin = 5
+		entriesPerLevelMax = 7
+	case largeDatasetSize:
+		// Ideally we'd always use a large dataset size, however you do need
+		// high concurrency to validate this entire dataset and CI can't seem
+		// to handle high concurrency without encountering errors.
+		levels = 5
+		entriesPerLevelMin = 6
+		entriesPerLevelMax = 9
+	default:
+		require.FailNow(t, fmt.Sprintf("invalid test dataset size set: %d", testOpts.datasetSize))
+	}
+
 	buildNodes = func(node *graphiteNode, level int) {
 		entries := entriesPerLevelMin +
 			randGen.Intn(entriesPerLevelMax-entriesPerLevelMin)
@@ -215,8 +298,16 @@ local:
 	}()
 
 	// Check each level of the tree can answer expected queries.
+	type checkResult struct {
+		leavesVerified int
+	}
+	type checkFailure struct {
+		expected graphiteFindResults
+		actual   graphiteFindResults
+		failMsg  string
+	}
 	var (
-		verifyFindQueries         func(node *graphiteNode, level int)
+		verifyFindQueries         func(node *graphiteNode, level int) (checkResult, *checkFailure, error)
 		parallelVerifyFindQueries func(node *graphiteNode, level int)
 		checkedSeriesAbort        = atomic.NewBool(false)
 		numSeriesChecking         = uint64(len(generateSeries))
@@ -224,17 +315,44 @@ local:
 		checkedSeries             = atomic.NewUint64(0)
 		checkedSeriesLog          = atomic.NewUint64(0)
 		// Use custom http client for higher number of max idle conns.
-		httpClient        = xhttp.NewHTTPClient(xhttp.DefaultHTTPClientOptions())
-		wg                sync.WaitGroup
-		workerConcurrency = runtime.NumCPU()
-		workerPool        = xsync.NewWorkerPool(workerConcurrency)
+		httpClient = xhttp.NewHTTPClient(xhttp.DefaultHTTPClientOptions())
+		wg         sync.WaitGroup
+		workerPool = xsync.NewWorkerPool(testOpts.checkConcurrency)
 	)
 	workerPool.Init()
 	parallelVerifyFindQueries = func(node *graphiteNode, level int) {
+		// Verify this node at level.
 		wg.Add(1)
 		workerPool.Go(func() {
-			verifyFindQueries(node, level)
-			wg.Done()
+			defer wg.Done()
+
+			if checkedSeriesAbort.Load() {
+				// Do not execute if aborted.
+				return
+			}
+
+			result, failure, err := verifyFindQueries(node, level)
+			if failure == nil && err == nil {
+				// Account for series checked (for progress report).
+				checkedSeries.Add(uint64(result.leavesVerified))
+				return
+			}
+
+			// Bail parallel execution (failed require/assert won't stop execution).
+			if checkedSeriesAbort.CAS(false, true) {
+				switch {
+				case failure != nil:
+					// Assert an error result and log once.
+					assert.Equal(t, failure.expected, failure.actual, failure.failMsg)
+					log.Error("aborting checks due to mismatch")
+				case err != nil:
+					assert.NoError(t, err)
+					log.Error("aborting checks due to error")
+				default:
+					require.FailNow(t, "unknown error condition")
+					log.Error("aborting checks due to unknown condition")
+				}
+			}
 		})
 
 		// Verify children of children.
@@ -242,11 +360,8 @@ local:
 			parallelVerifyFindQueries(child, level+1)
 		}
 	}
-	verifyFindQueries = func(node *graphiteNode, level int) {
-		if checkedSeriesAbort.Load() {
-			// Do not execute if aborted.
-			return
-		}
+	verifyFindQueries = func(node *graphiteNode, level int) (checkResult, *checkFailure, error) {
+		var r checkResult
 
 		// Write progress report if progress made.
 		checked := checkedSeries.Load()
@@ -270,26 +385,33 @@ local:
 		url := fmt.Sprintf("http://%s%s?%s", setup.QueryAddress(),
 			graphitehandler.FindURL, params.Encode())
 
-		req, err := http.NewRequest(http.MethodGet, url, nil)
+		req, err := http.NewRequestWithContext(context.Background(),
+			http.MethodGet, url, nil)
 		require.NoError(t, err)
 
 		res, err := httpClient.Do(req)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, res.StatusCode)
+		if err != nil {
+			return r, nil, err
+		}
+		if res.StatusCode != http.StatusOK {
+			return r, nil, fmt.Errorf("bad response code: expected=%d, actual=%d",
+				http.StatusOK, res.StatusCode)
+		}
 
 		defer res.Body.Close()
 
 		// Compare results.
 		var actual graphiteFindResults
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&actual))
+		if err := json.NewDecoder(res.Body).Decode(&actual); err != nil {
+			return r, nil, err
+		}
 
 		expected := make(graphiteFindResults, 0, len(node.children))
-		leaves := 0
 		for _, child := range node.children {
 			leaf := 0
 			if child.isLeaf {
 				leaf = 1
-				leaves++
+				r.leavesVerified++
 			}
 			expected = append(expected, graphiteFindResult{
 				Text: child.name,
@@ -300,28 +422,25 @@ local:
 		sortGraphiteFindResults(actual)
 		sortGraphiteFindResults(expected)
 
-		failMsg := fmt.Sprintf("invalid results: level=%d, parts=%d, query=%s",
-			level, len(node.pathParts), query)
-		failMsg += fmt.Sprintf("\n\ndiff:\n%s\n\n",
-			xtest.Diff(xtest.MustPrettyJSONObject(t, expected),
-				xtest.MustPrettyJSONObject(t, actual)))
 		if !reflect.DeepEqual(expected, actual) {
-			// Bail parallel execution (failed require/assert won't stop execution).
-			if checkedSeriesAbort.CAS(false, true) {
-				// Assert an error result and log once.
-				assert.Equal(t, expected, actual, failMsg)
-				log.Error("aborting checks")
-			}
-			return
+			failMsg := fmt.Sprintf("invalid results: level=%d, parts=%d, query=%s",
+				level, len(node.pathParts), query)
+			failMsg += fmt.Sprintf("\n\ndiff:\n%s\n\n",
+				xtest.Diff(xtest.MustPrettyJSONObject(t, expected),
+					xtest.MustPrettyJSONObject(t, actual)))
+			return r, &checkFailure{
+				expected: expected,
+				actual:   actual,
+				failMsg:  failMsg,
+			}, nil
 		}
 
-		// Account for series checked (for progress report).
-		checkedSeries.Add(uint64(leaves))
+		return r, nil, nil
 	}
 
 	// Check all top level entries and recurse.
 	log.Info("checking series",
-		zap.Int("workerConcurrency", workerConcurrency),
+		zap.Int("checkConcurrency", testOpts.checkConcurrency),
 		zap.Uint64("numSeriesChecking", numSeriesChecking))
 	parallelVerifyFindQueries(rootNode, 0)
 

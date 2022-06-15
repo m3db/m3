@@ -21,6 +21,8 @@
 package fst
 
 import (
+	"sync"
+
 	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -28,31 +30,25 @@ import (
 	"github.com/m3dbx/vellum"
 )
 
-type fstTermsIterOpts struct {
-	seg         *fsSegment
-	fst         *vellum.FST
-	fstSearch   *index.CompiledRegex
-	finalizeFST bool
+type newFSTTermsIterOptions struct {
+	onCloseUnlock sync.Locker
 }
 
-func (o fstTermsIterOpts) Close() error {
-	if o.finalizeFST && o.fst != nil {
-		return o.fst.Close()
-	}
-	return nil
-}
-
-func newFSTTermsIter() *fstTermsIter {
+func newFSTTermsIter(opts newFSTTermsIterOptions) *fstTermsIter {
 	iter := new(vellum.FSTIterator)
 	i := &fstTermsIter{
-		iter:              iter,
-		restoreReusedIter: iter,
+		newFSTTermsIterOptions: opts,
+		iter:                   iter,
+		restoreReusedIter:      iter,
 	}
 	i.clear()
 	return i
 }
 
+var _ sgmt.OrderedBytesIterator = &fstTermsIter{}
+
 type fstTermsIter struct {
+	newFSTTermsIterOptions
 	iter              *vellum.FSTIterator
 	restoreReusedIter *vellum.FSTIterator
 	opts              fstTermsIterOpts
@@ -64,7 +60,20 @@ type fstTermsIter struct {
 	currentValue      uint64
 }
 
-var _ sgmt.OrderedBytesIterator = &fstTermsIter{}
+type fstTermsIterOpts struct {
+	seg         *fsSegment
+	fst         *vellum.FST
+	fstSearch   *index.CompiledRegex
+	finalizeFST bool
+	fieldsFST   bool
+}
+
+func (o fstTermsIterOpts) Close() error {
+	if o.finalizeFST && o.fst != nil {
+		return o.fst.Close()
+	}
+	return nil
+}
 
 func (f *fstTermsIter) clear() {
 	// NB(rob): If we actually set an explicit iterator
@@ -126,13 +135,6 @@ func (f *fstTermsIter) Next() bool {
 		return false
 	}
 
-	f.opts.seg.RLock()
-	defer f.opts.seg.RUnlock()
-	if f.opts.seg.finalized {
-		f.err = errReaderFinalized
-		return false
-	}
-
 	if f.firstNext {
 		// Already progressed to first element.
 		f.firstNext = false
@@ -168,5 +170,8 @@ func (f *fstTermsIter) Close() error {
 	multiErr = multiErr.Add(f.iter.Close())
 	multiErr = multiErr.Add(f.opts.Close())
 	f.clear()
+	if f.onCloseUnlock != nil {
+		f.onCloseUnlock.Unlock()
+	}
 	return multiErr.FinalError()
 }

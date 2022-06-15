@@ -46,6 +46,8 @@ type termsIterFromSegments struct {
 
 	err        error
 	termsIters []*termsKeyIter
+
+	readOnlyBitmapIter roaring.ReadOnlyBitmapIterator
 }
 
 type segmentTermsMetadata struct {
@@ -54,11 +56,18 @@ type segmentTermsMetadata struct {
 }
 
 func newTermsIterFromSegments() *termsIterFromSegments {
-	b := bitmap.NewBitmapWithDefaultPooling(defaultBitmapContainerPooling)
+	var (
+		b                  = bitmap.NewBitmapWithDefaultPooling(defaultBitmapContainerPooling)
+		readOnlyBitmapIter roaring.ReadOnlyBitmapIterator
+	)
+	if index.MigrationReadOnlyPostings() {
+		readOnlyBitmapIter = roaring.NewReadOnlyBitmapIterator(nil)
+	}
 	return &termsIterFromSegments{
-		keyIter:          newMultiKeyIterator(),
-		currPostingsList: roaring.NewPostingsListFromBitmap(b),
-		bitmapIter:       &bitmap.Iterator{},
+		keyIter:            newMultiKeyIterator(),
+		currPostingsList:   roaring.NewPostingsListFromBitmap(b),
+		bitmapIter:         &bitmap.Iterator{},
+		readOnlyBitmapIter: readOnlyBitmapIter,
 	}
 }
 
@@ -91,7 +100,7 @@ func (i *termsIterFromSegments) reset(segments []segmentMetadata) {
 func (i *termsIterFromSegments) setField(field []byte) error {
 	i.clearTermIters()
 
-	// Alloc any required terms iter containers
+	// Alloc any required terms iter containers.
 	numTermsIterAlloc := len(i.segments) - len(i.termsIters)
 	for j := 0; j < numTermsIterAlloc; j++ {
 		i.termsIters = append(i.termsIters, &termsKeyIter{})
@@ -112,10 +121,10 @@ func (i *termsIterFromSegments) setField(field []byte) error {
 			continue
 		}
 
-		tersmKeyIter := i.termsIters[j]
-		tersmKeyIter.iter = iter
-		tersmKeyIter.segment = seg.segment
-		i.keyIter.add(tersmKeyIter)
+		termsKeyIter := i.termsIters[j]
+		termsKeyIter.iter = iter
+		termsKeyIter.segment = seg.segment
+		i.keyIter.add(termsKeyIter)
 	}
 
 	return nil
@@ -140,7 +149,9 @@ func (i *termsIterFromSegments) Next() bool {
 			// No offset, which means is first segment we are combining from
 			// so can just direct union.
 			if index.MigrationReadOnlyPostings() {
-				if err := i.currPostingsList.AddIterator(list.Iterator()); err != nil {
+				readOnlyBitmap := list.(*roaring.ReadOnlyBitmap)
+				i.readOnlyBitmapIter.Reset(readOnlyBitmap)
+				if err := i.currPostingsList.AddIterator(i.readOnlyBitmapIter); err != nil {
 					i.err = err
 					return false
 				}
@@ -155,9 +166,16 @@ func (i *termsIterFromSegments) Next() bool {
 
 		// We have to take into account offset and duplicates/skips.
 		var (
-			iter            = list.Iterator()
 			negativeOffsets = termsKeyIter.segment.negativeOffsets
+			iter            postings.Iterator
 		)
+		if index.MigrationReadOnlyPostings() {
+			readOnlyBitmap := list.(*roaring.ReadOnlyBitmap)
+			i.readOnlyBitmapIter.Reset(readOnlyBitmap)
+			iter = i.readOnlyBitmapIter
+		} else {
+			iter = list.Iterator()
+		}
 		for iter.Next() {
 			curr := iter.Current()
 			negativeOffset := negativeOffsets[curr]

@@ -73,7 +73,7 @@ func (t *terms) poolPut(v postings.MutableList) {
 	t.poolLocal = append(t.poolLocal, v)
 }
 
-func (t *terms) post(term []byte, id postings.ID) error {
+func (t *terms) post(term []byte, id postings.ID, opts indexJobEntryOptions) error {
 	postingsList, ok := t.postings.Get(term)
 	if !ok {
 		postingsList = t.poolGet()
@@ -86,11 +86,18 @@ func (t *terms) post(term []byte, id postings.ID) error {
 	// If empty posting list, track insertion of this key into the terms
 	// collection for correct response when retrieving all terms
 	newTerm := postingsList.IsEmpty()
-	if err := postingsList.Insert(id); err != nil {
-		return err
-	}
-	if err := t.postingsListUnion.Insert(id); err != nil {
-		return err
+	if (!opts.graphitePathNode && !opts.graphitePathLeaf) || newTerm {
+		// NB(rob): For graphite path indexing we don't actually associate
+		// all the timeseries that are associated to the actual graphite path
+		// since this adds a lot of indexing pressure.
+		// The graphite paths that are indexed are purely only used for find lookups
+		// so we don't need to actually need the correct postings list for each term.
+		if err := postingsList.Insert(id); err != nil {
+			return err
+		}
+		if err := t.postingsListUnion.Insert(id); err != nil {
+			return err
+		}
 	}
 	if newTerm {
 		t.uniqueTerms = append(t.uniqueTerms, termElem{

@@ -116,29 +116,30 @@ func init() {
 
 // nolint: maligned
 type opts struct {
-	forwardIndexThreshold           float64
-	forwardIndexProbability         float64
-	insertMode                      InsertMode
-	clockOpts                       clock.Options
-	instrumentOpts                  instrument.Options
-	builderOpts                     builder.Options
-	memOpts                         mem.Options
-	fstOpts                         fst.Options
-	idPool                          ident.Pool
-	bytesPool                       pool.CheckedBytesPool
-	resultsPool                     QueryResultsPool
-	aggResultsPool                  AggregateResultsPool
-	aggValuesPool                   AggregateValuesPool
-	docArrayPool                    doc.DocumentArrayPool
-	metadataArrayPool               doc.MetadataArrayPool
-	aggResultsEntryArrayPool        AggregateResultsEntryArrayPool
-	foregroundCompactionPlannerOpts compaction.PlannerOptions
-	backgroundCompactionPlannerOpts compaction.PlannerOptions
-	postingsListCache               *PostingsListCache
-	searchPostingsListCache         *PostingsListCache
-	readThroughSegmentOptions       ReadThroughSegmentOptions
-	mmapReporter                    mmap.Reporter
-	queryLimits                     limits.QueryLimits
+	forwardIndexThreshold                   float64
+	forwardIndexProbability                 float64
+	insertMode                              InsertMode
+	clockOpts                               clock.Options
+	instrumentOpts                          instrument.Options
+	builderOpts                             builder.Options
+	memOpts                                 mem.Options
+	fstOpts                                 fst.Options
+	idPool                                  ident.Pool
+	bytesPool                               pool.CheckedBytesPool
+	resultsPool                             QueryResultsPool
+	aggResultsPool                          AggregateResultsPool
+	aggValuesPool                           AggregateValuesPool
+	docArrayPool                            doc.DocumentArrayPool
+	metadataArrayPool                       doc.MetadataArrayPool
+	aggResultsEntryArrayPool                AggregateResultsEntryArrayPool
+	foregroundCompactionPlannerOpts         compaction.PlannerOptions
+	backgroundCompactionPlannerOpts         compaction.PlannerOptions
+	postingsListCache                       *PostingsListCache
+	searchPostingsListCache                 *PostingsListCache
+	readThroughSegmentOptions               ReadThroughSegmentOptions
+	aggregateFieldFilterRegexCompileEnabled bool
+	mmapReporter                            mmap.Reporter
+	queryLimits                             limits.QueryLimits
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -464,6 +465,16 @@ func (o *opts) SetForwardIndexThreshold(value float64) Options {
 
 func (o *opts) ForwardIndexThreshold() float64 {
 	return o.forwardIndexThreshold
+}
+
+func (o *opts) SetAggregateFieldFilterRegexCompileEnabled(value bool) Options {
+	opts := *o
+	opts.aggregateFieldFilterRegexCompileEnabled = value
+	return &opts
+}
+
+func (o *opts) AggregateFieldFilterRegexCompileEnabled() bool {
+	return o.aggregateFieldFilterRegexCompileEnabled
 }
 
 func (o *opts) SetMmapReporter(mmapReporter mmap.Reporter) Options {

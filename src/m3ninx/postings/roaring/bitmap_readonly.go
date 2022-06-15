@@ -89,8 +89,10 @@ func ReadOnlyBitmapFromPostingsList(pl postings.List) (*ReadOnlyBitmap, bool) {
 	return result, true
 }
 
-var _ postings.List = (*ReadOnlyBitmap)(nil)
-var _ readOnlyIterable = (*ReadOnlyBitmap)(nil)
+var (
+	_ postings.List    = (*ReadOnlyBitmap)(nil)
+	_ readOnlyIterable = (*ReadOnlyBitmap)(nil)
+)
 
 // ReadOnlyBitmap is a read only roaring Bitmap of
 // pilosa encoded roaring bitmaps, allocates very little on unmarshal
@@ -485,7 +487,7 @@ func (b *ReadOnlyBitmap) CountSlow() int {
 
 // Iterator returns a postings iterator.
 func (b *ReadOnlyBitmap) Iterator() postings.Iterator {
-	return newReadOnlyBitmapIterator(b)
+	return NewReadOnlyBitmapIterator(b)
 }
 
 // ContainerIterator returns a container iterator of the postings.
@@ -627,14 +629,27 @@ type readOnlyBitmapIteratorContainerState struct {
 	runsIndex        uint64
 }
 
-func newReadOnlyBitmapIterator(
+// ReadOnlyBitmapIterator is a re-useable read only bitmap iterator.
+type ReadOnlyBitmapIterator interface {
+	postings.Iterator
+	Reset(b *ReadOnlyBitmap)
+}
+
+// NewReadOnlyBitmapIterator creates a read only bitmap iterator that can be
+// reused.
+func NewReadOnlyBitmapIterator(
 	b *ReadOnlyBitmap,
 ) *readOnlyBitmapIterator {
-	return &readOnlyBitmapIterator{
-		b:                  b,
-		containerIndex:     -1,
-		containerExhausted: true,
-	}
+	iter := &readOnlyBitmapIterator{}
+	iter.Reset(b)
+	return iter
+}
+
+func (i *readOnlyBitmapIterator) Reset(b *ReadOnlyBitmap) {
+	*i = readOnlyBitmapIterator{}
+	i.b = b
+	i.containerIndex = -1
+	i.containerExhausted = true
 }
 
 func (i *readOnlyBitmapIterator) setContainer(c readOnlyContainer) {

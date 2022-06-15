@@ -1143,6 +1143,22 @@ type Options interface {
 	// ForwardIndexProbability returns the threshold for forward writes.
 	ForwardIndexThreshold() float64
 
+	// AggregateFieldFilterRegexCompileEnabled sets enabling compiling a regex to use
+	// to limit the search space of aggregate fields that are considered for
+	// completion for aggregate queries. While compiling the regex slows down
+	// the request, in clusters with a significantly large set of unique fields
+	// it ends up being fast than doing a bytes equal comparison against the
+	// specific field(s) being searched for aggregation term value completion.
+	SetAggregateFieldFilterRegexCompileEnabled(value bool) Options
+
+	// AggregateFieldFilterRegexCompileEnabled enables compiling a regex to use
+	// to limit the search space of aggregate fields that are considered for
+	// completion for aggregate queries. While compiling the regex slows down
+	// the request, in clusters with a significantly large set of unique fields
+	// it ends up being fast than doing a bytes equal comparison against the
+	// specific field(s) being searched for aggregation term value completion.
+	AggregateFieldFilterRegexCompileEnabled() bool
+
 	// SetMmapReporter sets the mmap reporter.
 	SetMmapReporter(mmapReporter mmap.Reporter) Options
 

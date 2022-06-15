@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/util"
 	"github.com/m3db/m3/src/query/graphite/graphite"
+	"github.com/m3db/m3x/instrument"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/twotwotwo/sorts"
@@ -50,13 +51,7 @@ const (
 )
 
 var (
-	globalIndexWorkers  = &indexWorkers{}
-	fieldsMapSetOptions = fieldsMapSetUnsafeOptions{
-		// Builder takes ownership of keys and docs so it's ok
-		// to avoid copying and finalizing keys.
-		NoCopyKey:     true,
-		NoFinalizeKey: true,
-	}
+	globalIndexWorkers   = &indexWorkers{}
 	graphiteFirstTagName = graphite.TagName(0)
 )
 
@@ -84,6 +79,12 @@ type indexJobEntry struct {
 	id     postings.ID
 	field  doc.Field
 	docIdx int
+	opts   indexJobEntryOptions
+}
+
+type indexJobEntryOptions struct {
+	graphitePathNode bool
+	graphitePathLeaf bool
 }
 
 func (w *indexWorkers) registerBuilder() {
@@ -116,28 +117,66 @@ func (w *indexWorkers) registerBuilder() {
 }
 
 func (w *indexWorkers) indexWorker(indexQueue <-chan indexJob) {
+	var fieldKeyBuffer []byte
 	for job := range indexQueue {
 		for i := 0; i < job.usedEntries; i++ {
+			// Reset vars.
+			fieldKeyBuffer = fieldKeyBuffer[:0]
+
+			// Entry and key.
 			entry := job.entries[i]
-			terms, ok := job.shardedFields.fields.ShardedGet(job.shard, entry.field.Name)
-			if !ok {
+			fieldKey := entry.field.Name
+			setFieldKeyOptions := fieldsMapSetUnsafeOptions{
+				// Builder takes ownership of keys and docs so it's ok
+				// to avoid copying and finalizing keys.
+				NoCopyKey:     true,
+				NoFinalizeKey: true,
+			}
+
+			// Check if a graphite node or leaf, if so we need to prefix
+			// the field name reusing our field key buffer.
+			graphiteNodeOrLeaf := entry.opts.graphitePathNode || entry.opts.graphitePathLeaf
+			if graphiteNodeOrLeaf {
+				switch {
+				case entry.opts.graphitePathNode:
+					fieldKeyBuffer = append(fieldKeyBuffer[:0], doc.GraphitePathNodePrefix...)
+				case entry.opts.graphitePathLeaf:
+					fieldKeyBuffer = append(fieldKeyBuffer[:0], doc.GraphitePathLeafPrefix...)
+				}
+				fieldKeyBuffer = append(fieldKeyBuffer, entry.field.Name...)
+				// Now take reference to the buffer we just built.
+				fieldKey = fieldKeyBuffer
+				// Ensure that we set keys correctly if we perform an insert here.
+				setFieldKeyOptions = fieldsMapSetUnsafeOptions{
+					// We re-use the field key buffer so we can't avoid
+					// copying the key when we insert into the field map.
+					// This is ok since we will de-dupe frequently when indexing
+					// graphite fields and also only ever insert once.
+					NoCopyKey:     false,
+					NoFinalizeKey: true,
+				}
+			}
+
+			terms, keyExists := job.shardedFields.fields.ShardedGet(job.shard, fieldKey)
+			if !keyExists {
 				// NB(bodu): Check again within the lock to make sure we aren't making concurrent map writes.
 				terms = newTerms(job.opts)
-				job.shardedFields.fields.ShardedSetUnsafe(job.shard, entry.field.Name,
-					terms, fieldsMapSetOptions)
+				job.shardedFields.fields.ShardedSetUnsafe(job.shard, fieldKey,
+					terms, setFieldKeyOptions)
 			}
 
 			// If empty field, track insertion of this key into the fields
 			// collection for correct response when retrieving all fields.
 			newField := terms.size() == 0
 			// NB(bodu): Bulk of the cpu time during insertion is spent inside of terms.post().
-			err := terms.post(entry.field.Value, entry.id)
+			err := terms.post(entry.field.Value, entry.id, entry.opts)
 			if err != nil {
 				job.batchErr.AddWithLock(index.BatchError{Err: err, Idx: entry.docIdx})
 			}
 			if err == nil && newField {
 				newEntry := uniqueField{
 					field:        entry.field.Name,
+					opts:         entry.opts,
 					postingsList: terms.postingsListUnion,
 				}
 				job.shardedFields.uniqueFields[job.shard] = append(job.shardedFields.uniqueFields[job.shard], newEntry)
@@ -187,8 +226,8 @@ type builder struct {
 	concurrency   int
 
 	graphitePathIndexingEnabled bool
-	graphitePathLeaf            []byte
-	graphitePathNode            []byte
+	graphitePathBuffer          []byte
+	graphiteKeyBuffer           []byte
 
 	status builderStatus
 }
@@ -276,7 +315,12 @@ func (b *builder) SetIndexConcurrency(value int) {
 
 				// Set with new correct shard.
 				b.shardedFields.fields.ShardedSetUnsafe(newShard, field,
-					terms, fieldsMapSetOptions)
+					terms, fieldsMapSetUnsafeOptions{
+						// Builder takes ownership of keys and docs so it's ok
+						// to avoid copying and finalizing keys.
+						NoCopyKey:     true,
+						NoFinalizeKey: true,
+					})
 			}
 		}
 	}
@@ -315,8 +359,9 @@ func (b *builder) Reset() {
 		b.shardedFields.uniqueFields[i] = shardUniqueFields[:0]
 	}
 
-	b.graphitePathLeaf = b.graphitePathLeaf[:0]
-	b.graphitePathNode = b.graphitePathNode[:0]
+	// Reset the graphite path buffer.
+	b.graphitePathBuffer = b.graphitePathBuffer[:0]
+	b.graphiteKeyBuffer = b.graphiteKeyBuffer[:0]
 }
 
 func (b *builder) Insert(d doc.Metadata) ([]byte, error) {
@@ -413,57 +458,87 @@ func (b *builder) insertBatchWithLock(batch index.Batch) *index.BatchPartialErro
 		b.docs = append(b.docs, d)
 
 		// Index the terms.
-		var graphiteDoc bool
 		for _, f := range d.Fields {
-			if !graphiteDoc && bytes.Equal(f.Name, graphiteFirstTagName) {
-				graphiteDoc = true
-			}
-			b.queueIndexJobEntryWithLock(wg, postings.ID(postingsListID), f, i, batchErr)
+			fieldShard := b.calculateShardWithRLock(f.Name)
+			b.queueIndexJobEntryWithLock(fieldShard, wg, postings.ID(postingsListID),
+				f, i, indexJobEntryOptions{}, batchErr)
 		}
-		b.queueIndexJobEntryWithLock(wg, postings.ID(postingsListID), doc.Field{
+		docShard := b.calculateShardWithRLock(d.ID)
+		b.queueIndexJobEntryWithLock(docShard, wg, postings.ID(postingsListID), doc.Field{
 			Name:  doc.IDReservedFieldName,
 			Value: d.ID,
-		}, i, batchErr)
+		}, i, indexJobEntryOptions{}, batchErr)
 
-		if graphiteDoc {
+		if b.graphitePathIndexingEnabled {
 			// Index the Graphite parent path for fast find lookup queries.
 			var (
 				i             = 0
 				piece, exists = d.Get(graphite.TagName(i))
 				lastPiece     []byte
 			)
-			b.graphitePathLeaf = append(b.graphitePathLeaf[:0], doc.GraphitePathLeafPrefix...)
-			b.graphitePathNode = append(b.graphitePathNode[:0], doc.GraphitePathNodePrefix...)
+			b.graphitePathBuffer = b.graphitePathBuffer[:0]
 			for exists {
 				if i > 0 {
 					if i > 1 {
-						b.graphitePathLeaf = append(b.graphitePathLeaf, byte('.'))
-						b.graphitePathNode = append(b.graphitePathNode, byte('.'))
+						b.graphitePathBuffer = append(b.graphitePathBuffer, byte('.'))
 					}
-					b.graphitePathLeaf = append(b.graphitePathLeaf, lastPiece...)
-					b.graphitePathNode = append(b.graphitePathNode, lastPiece...)
+					b.graphitePathBuffer = append(b.graphitePathBuffer, lastPiece...)
 				}
 				lastPiece = piece
 				i++
 
+				// Ensure that the current path we're indexing is as expects a subset of the ID.
+				var parentPath []byte
+				if bytes.Equal(d.ID[:len(b.graphitePathBuffer)], b.graphitePathBuffer) {
+					parentPath = d.ID[:len(b.graphitePathBuffer)]
+				} else {
+					// Emit an error since this means there is likely a code bug or
+					// ID's are formatted strange in an unexpected way for Graphite metrics.
+					err := instrument.InvariantErrorf("graphite path not subslice of ID: id='%s', path='%s'",
+						d.ID, b.graphitePathBuffer)
+					// Need to add with lock since enqueued terms to be indexed already and
+					// they could asynchronously be adding their own errors for this entry.
+					batchErr.AddWithLock(index.BatchError{Err: err, Idx: i})
+					// Still index just do so expensively by allocating.
+					parentPath = append(make([]byte, 0, len(b.graphitePathBuffer)), b.graphitePathBuffer...)
+				}
+
 				// Get next piece.
 				piece, exists = d.Get(graphite.TagName(i))
 
-				// TODO: Check that if parentPath is pooled whether it's possible to actually
-				// enqueue and take a reference to it or not (probably isn't?... might
-				// need a copy here).
+				// Now reuse the graphite path buffer to calculate the shard for the key.
 				if exists {
+					b.graphiteKeyBuffer = append(b.graphiteKeyBuffer[:0], doc.GraphitePathNodePrefix...)
+				} else {
+					b.graphiteKeyBuffer = append(b.graphiteKeyBuffer[:0], doc.GraphitePathLeafPrefix...)
+				}
+				b.graphiteKeyBuffer = append(b.graphiteKeyBuffer, parentPath...)
+				fieldShard := b.calculateShardWithRLock(b.graphiteKeyBuffer)
+
+				// Now index the field.
+				if exists {
+					// Take reference to subset of the ID.
 					// Next piece exists, this node has children.
-					b.queueIndexJobEntryWithLock(wg, postings.ID(postingsListID), doc.Field{
-						Name:  append(make([]byte, 0, len(b.graphitePathNode)), b.graphitePathNode...),
-						Value: append(make([]byte, 0, len(lastPiece)), lastPiece...),
-					}, i, batchErr)
+					b.queueIndexJobEntryWithLock(fieldShard, wg, postings.ID(postingsListID), doc.Field{
+						// NB(rob): Safe to take reference to slice of the immutable doc ID
+						// or has been copied.
+						Name: parentPath,
+						// NB(rob): Safe to take reference to the immutable doc field.
+						Value: lastPiece,
+					}, i, indexJobEntryOptions{
+						graphitePathNode: true,
+					}, batchErr)
 				} else {
 					// Next piece does not exist, this is the leaf node.
-					b.queueIndexJobEntryWithLock(wg, postings.ID(postingsListID), doc.Field{
-						Name:  append(make([]byte, 0, len(b.graphitePathLeaf)), b.graphitePathLeaf...),
-						Value: append(make([]byte, 0, len(lastPiece)), lastPiece...),
-					}, i, batchErr)
+					b.queueIndexJobEntryWithLock(fieldShard, wg, postings.ID(postingsListID), doc.Field{
+						// NB(rob): Safe to take reference to slice of the immutable doc ID
+						// or has been copied.
+						Name: parentPath,
+						// NB(rob): Safe to take reference to the immutable doc field.
+						Value: lastPiece,
+					}, i, indexJobEntryOptions{
+						graphitePathLeaf: true,
+					}, batchErr)
 				}
 			}
 		}
@@ -486,18 +561,20 @@ func (b *builder) insertBatchWithLock(batch index.Batch) *index.BatchPartialErro
 }
 
 func (b *builder) queueIndexJobEntryWithLock(
+	shard int,
 	wg *sync.WaitGroup,
 	id postings.ID,
 	field doc.Field,
 	docIdx int,
+	opts indexJobEntryOptions,
 	batchErr *index.BatchPartialError,
 ) {
-	shard := b.calculateShardWithRLock(field.Name)
 	entryIndex := b.shardedJobs[shard].usedEntries
 	b.shardedJobs[shard].usedEntries++
 	b.shardedJobs[shard].entries[entryIndex].id = id
 	b.shardedJobs[shard].entries[entryIndex].field = field
 	b.shardedJobs[shard].entries[entryIndex].docIdx = docIdx
+	b.shardedJobs[shard].entries[entryIndex].opts = opts
 
 	numEntries := b.shardedJobs[shard].usedEntries
 	if numEntries != entriesPerIndexJob {
@@ -573,7 +650,10 @@ func (b *builder) FieldsPostingsList() (segment.FieldsPostingsListIterator, erro
 	b.status.Lock()
 	defer b.status.Unlock()
 
-	return newOrderedFieldsPostingsListIter(b.shardedFields.uniqueFields), nil
+	return newOrderedFieldsPostingsListIter(newOrderedFieldsPostingsListIterOptions{
+		maybeUnorderedFields:        b.shardedFields.uniqueFields,
+		graphitePathIndexingEnabled: b.graphitePathIndexingEnabled,
+	}), nil
 }
 
 func (b *builder) FieldsPostingsListWithRegex(

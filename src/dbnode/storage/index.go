@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"regexp"
 	goruntime "runtime"
 	"sort"
 	"strconv"
@@ -133,6 +134,11 @@ type nsIndex struct {
 	// forwardIndexDice determines if an incoming index write should be dual
 	// written to the next block.
 	forwardIndexDice forwardIndexDice
+
+	// aggFieldFilterRegexCompileEnabled will compile the fields filter into
+	// an OR regex to faster retrieve the specific fields required by the
+	// aggregate query (when there is a large number of unique fields).
+	aggFieldFilterRegexCompileEnabled bool
 
 	doNotIndexWithFields []doc.Field
 	shardSet             sharding.ShardSet
@@ -385,6 +391,8 @@ func newNamespaceIndexWithOptions(
 
 		permitsManager: newIndexOpts.opts.PermitsOptions().IndexQueryPermitsManager(),
 		metrics:        newNamespaceIndexMetrics(indexOpts, instrumentOpts),
+
+		aggFieldFilterRegexCompileEnabled: indexOpts.AggregateFieldFilterRegexCompileEnabled(),
 
 		doNotIndexWithFields: doNotIndexWithFields,
 		shardSet:             shardSet,
@@ -1551,20 +1559,50 @@ func (i *nsIndex) AggregateQuery(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	// TODO: extract the building of this into helper function to reuse
-	// for both fields below.
-	var fieldFilterRegex *m3ninxindex.CompiledRegex
-	if v := opts.FieldFilterRegex; len(v) > 0 {
-		fieldFilterRegexCompiled, err := m3ninxindex.CompileRegex(v)
+	var (
+		fieldFilter         = opts.FieldFilter
+		fieldFilterRegexStr = opts.FieldFilterRegex
+		fieldFilterRegex    *m3ninxindex.CompiledRegex
+	)
+	// If compiling field filters into regex is enabled and there is no existing
+	// filed filter regex but there is a field filter, then compile into a regex
+	// to reduce the search space using a regex rather than bytes equal comparison
+	// of each field against the values in the field filter as each is iterated.
+	if i.aggFieldFilterRegexCompileEnabled && len(fieldFilter) > 0 && len(fieldFilterRegexStr) == 0 {
+		var v bytes.Buffer
+		for i, literal := range fieldFilter {
+			// Make sure to escape all terms and turn them into their literal
+			// matching expression in regexp form.
+			if _, err := v.WriteString(regexp.QuoteMeta(string(literal))); err != nil {
+				return index.AggregateQueryResult{}, err
+			}
+			// Add an OR between each literal term.
+			if i < len(fieldFilter)-1 {
+				continue
+			}
+			if _, err := v.WriteRune('|'); err != nil {
+				return index.AggregateQueryResult{}, err
+			}
+		}
+		fieldFilterRegexStr = v.Bytes()
+	}
+
+	// Compile the field filter regex if set.
+	if len(fieldFilterRegexStr) > 0 {
+		fieldFilterRegexCompiled, err := m3ninxindex.CompileRegex(fieldFilterRegexStr)
 		if err != nil {
 			return index.AggregateQueryResult{}, err
 		}
+		// Take reference to the compiled regex.
 		fieldFilterRegex = &fieldFilterRegexCompiled
 	}
 
-	var valueFilterRegex *m3ninxindex.CompiledRegex
-	if v := opts.ValueFilterRegex; len(v) > 0 {
-		valueFilterRegexCompiled, err := m3ninxindex.CompileRegex(v)
+	var (
+		valueFilterRegexStr = opts.ValueFilterRegex
+		valueFilterRegex    *m3ninxindex.CompiledRegex
+	)
+	if len(valueFilterRegexStr) > 0 {
+		valueFilterRegexCompiled, err := m3ninxindex.CompileRegex(valueFilterRegexStr)
 		if err != nil {
 			return index.AggregateQueryResult{}, err
 		}
@@ -1577,7 +1615,7 @@ func (i *nsIndex) AggregateQuery(
 	aopts := index.AggregateResultsOptions{
 		SizeLimit:             opts.SeriesLimit,
 		DocsLimit:             opts.DocsLimit,
-		FieldFilter:           opts.FieldFilter,
+		FieldFilter:           fieldFilter,
 		FieldFilterRegex:      fieldFilterRegex,
 		ValueFilterRegex:      valueFilterRegex,
 		Type:                  opts.Type,

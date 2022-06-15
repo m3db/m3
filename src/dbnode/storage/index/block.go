@@ -637,30 +637,10 @@ func (b *block) AggregateIter(ctx context.Context, aggOpts AggregateResultsOptio
 			if bytes.Equal(field, doc.IDReservedFieldName) {
 				return false
 			}
-			return aggOpts.FieldFilter.Allow(field)
+			// The field filter is already applied as part of the field iter fn.
+			return true
 		},
 		fieldIterFn: func(r segment.Reader) (segment.FieldsPostingsListIterator, error) {
-			// NB(prateek): we default to using the regular (FST) fields iterator
-			// unless we have a predefined list of fields we know we need to restrict
-			// our search to, in which case we iterate that list and check if known values
-			// in the FST to restrict our search. This is going to be significantly faster
-			// while len(FieldsFilter) < 5-10 elements;
-			// but there will exist a ratio between the len(FieldFilter) v size(FST) after which
-			// iterating the entire FST is faster.
-			// Here, we chose to avoid factoring that in to our choice because almost all input
-			// to this function is expected to have (FieldsFilter) pretty small. If that changes
-			// in the future, we can revisit this.
-			// NB(rob): now we have the ability to filter on the fields as well with a regex
-			// that means iterating to just the subset of the FST we need to is possible and
-			// the field filter exact matching is reserved for legacy cases and
-			// may be removed in the near future (however this will not be "over the wire"
-			// compatible between old coordinator to the new DB node, so we'll have to
-			// probably find a way to compile the field filter into a regex OR clause itself).
-
-			// TODO(rob): Maybe just compile the field filter into a regfex OR clause
-			// with this change now? That removes the need to support the native
-			// filtering and is wire compatible.
-
 			return newFilterFieldsIterator(r, aggOpts.FieldFilter, aggOpts.FieldFilterRegex)
 		},
 	}

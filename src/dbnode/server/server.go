@@ -1840,7 +1840,8 @@ func withEncodingAndPoolingOptions(
 		SetAggregateResultsPool(aggregateQueryResultsPool).
 		SetAggregateValuesPool(aggregateQueryValuesPool).
 		SetForwardIndexProbability(cfg.Index.ForwardIndexProbability).
-		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold)
+		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold).
+		SetAggregateFieldFilterRegexCompileEnabled(cfg.Index.AggregateFieldFilterRegexCompileEnabled)
 
 	queryResultsPool.Init(func() index.QueryResults {
 		// NB(r): Need to initialize after setting the index opts so
