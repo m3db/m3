@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -34,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/m3ninx/postings"
-	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/x"
 	"github.com/m3db/m3/src/x/context"
@@ -660,11 +660,21 @@ func (r *fsSegment) unmarshalReadOnlyBitmapNotClosedMaybeFinalizedWithLock(
 		}
 
 		postingsOffset := fieldData.FieldPostingsListOffset
+		if postingsOffset == math.MaxUint64 {
+			// Reserve for empty terms.
+			return b.Reset(nil)
+		}
+
 		postingsBytes, err = r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, postingsOffset)
 		if err != nil {
 			return fmt.Errorf("unable to retrieve postings data: %v", err)
 		}
 	} else {
+		if offset == math.MaxUint64 {
+			// Reserve for empty terms.
+			return b.Reset(nil)
+		}
+
 		var err error
 		postingsBytes, err = r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, offset)
 		if err != nil {
@@ -697,11 +707,23 @@ func (r *fsSegment) unmarshalBitmapNotClosedMaybeFinalizedWithLock(
 		}
 
 		postingsOffset := fieldData.FieldPostingsListOffset
+		if postingsOffset == math.MaxUint64 {
+			// Reserve for empty terms.
+			b.Reset()
+			return nil
+		}
+
 		postingsBytes, err = r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, postingsOffset)
 		if err != nil {
 			return fmt.Errorf("unable to retrieve postings data: %v", err)
 		}
 	} else {
+		if offset == math.MaxUint64 {
+			// Reserve for empty terms.
+			b.Reset()
+			return nil
+		}
+
 		var err error
 		postingsBytes, err = r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, offset)
 		if err != nil {
@@ -792,12 +814,7 @@ func (r *fsSegment) matchTermNotClosedMaybeFinalizedWithRLock(
 		return r.opts.PostingsListPool().Get(), nil
 	}
 
-	pl, err := r.retrievePostingsListWithRLock(postingsOffset)
-	if err != nil {
-		return nil, err
-	}
-
-	return pl, nil
+	return r.retrievePostingsListWithRLock(postingsOffset)
 }
 
 type regexpSearcher struct {
@@ -1025,17 +1042,24 @@ func (r *fsSegment) allDocsNotClosedMaybeFinalizedWithRLock(
 }
 
 func (r *fsSegment) retrievePostingsListWithRLock(postingsOffset uint64) (postings.List, error) {
-	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, postingsOffset)
-	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve postings data: %v", err)
-	}
-
 	if index.MigrationReadOnlyPostings() {
 		// Read only bitmap is a very low allocation postings list.
-		return roaring.NewReadOnlyBitmap(postingsBytes)
+		bitmap, err := roaring.NewReadOnlyBitmap(nil)
+		if err != nil {
+			return nil, err
+		}
+		if err := r.unmarshalReadOnlyBitmapNotClosedMaybeFinalizedWithLock(bitmap, postingsOffset, false); err != nil {
+			return nil, err
+		}
+		return bitmap, nil
 	}
 
-	return pilosa.Unmarshal(postingsBytes)
+	bitmap := pilosaroaring.NewBitmap()
+	if err := r.unmarshalBitmapNotClosedMaybeFinalizedWithLock(bitmap, postingsOffset, false); err != nil {
+		return nil, err
+	}
+
+	return roaring.NewPostingsListFromBitmap(bitmap), nil
 }
 
 func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (vellumFST, bool) {

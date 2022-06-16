@@ -23,6 +23,7 @@ package fst
 import (
 	"fmt"
 	"io"
+	"math"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
@@ -224,28 +225,38 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 		// for each term corresponding to the current field
 		for terms.Next() {
 			_, pl := terms.Current()
-			// write the postings list
-			n, err := writePL(pl)
-			if err != nil {
-				return err
+			if pl.IsEmpty() {
+				// empty postings list, no-op and write math.MaxUint64 here
+				w.termPostingsOffsets = append(w.termPostingsOffsets, math.MaxUint64)
+			} else {
+				// write the postings list
+				n, err := writePL(pl)
+				if err != nil {
+					return err
+				}
+				// update offset with the number of bytes we've written
+				currentOffset += n
+				// track current offset as the offset for the current field/term
+				w.termPostingsOffsets = append(w.termPostingsOffsets, currentOffset)
 			}
-			// update offset with the number of bytes we've written
-			currentOffset += n
-			// track current offset as the offset for the current field/term
-			w.termPostingsOffsets = append(w.termPostingsOffsets, currentOffset)
 		}
 
 		// write the field level postings list
 		if writeFieldsPostingList {
-			// Write the unioned postings list out.
-			n, err := writePL(fieldPostingsList)
-			if err != nil {
-				return err
+			if fieldPostingsList.IsEmpty() {
+				// empty postings list, no-op and write math.MaxUint64 here
+				w.fieldPostingsOffsets = append(w.fieldPostingsOffsets, math.MaxUint64)
+			} else {
+				// Write the unioned postings list out.
+				n, err := writePL(fieldPostingsList)
+				if err != nil {
+					return err
+				}
+				// update offset with the number of bytes we've written
+				currentOffset += n
+				// track current offset as the offset for the current field
+				w.fieldPostingsOffsets = append(w.fieldPostingsOffsets, currentOffset)
 			}
-			// update offset with the number of bytes we've written
-			currentOffset += n
-			// track current offset as the offset for the current field
-			w.fieldPostingsOffsets = append(w.fieldPostingsOffsets, currentOffset)
 		}
 
 		if err := terms.Err(); err != nil {

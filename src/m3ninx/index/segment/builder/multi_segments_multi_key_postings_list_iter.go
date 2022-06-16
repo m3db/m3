@@ -23,12 +23,18 @@ package builder
 import (
 	"bytes"
 
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	bitmap "github.com/m3dbx/pilosa/roaring"
+)
+
+var (
+	graphitePathPrefixBytes = []byte(doc.GraphitePathPrefix)
+	emptyReadOnlyBitmap, _  = roaring.NewReadOnlyBitmap(nil)
 )
 
 var _ segment.FieldsPostingsListIterator = &multiKeyPostingsListIterator{}
@@ -41,12 +47,20 @@ type multiKeyPostingsListIterator struct {
 	currIters             []keyIterator
 	currReaders           []index.Reader
 	currFieldPostingsList postings.MutableList
+	readOnlyBitmapIter    roaring.ReadOnlyBitmapIterator
 }
 
 func newMultiKeyPostingsListIterator() *multiKeyPostingsListIterator {
-	b := bitmap.NewBitmapWithDefaultPooling(defaultBitmapContainerPooling)
+	var (
+		b                  = bitmap.NewBitmapWithDefaultPooling(defaultBitmapContainerPooling)
+		readOnlyBitmapIter roaring.ReadOnlyBitmapIterator
+	)
+	if index.MigrationReadOnlyPostings() {
+		readOnlyBitmapIter = roaring.NewReadOnlyBitmapIterator(nil)
+	}
 	i := &multiKeyPostingsListIterator{
 		currFieldPostingsList: roaring.NewPostingsListFromBitmap(b),
+		readOnlyBitmapIter:    readOnlyBitmapIter,
 	}
 	i.reset()
 	return i
@@ -133,18 +147,29 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 	currField := i.currIters[0].Current()
 
 	for _, iter := range i.currIters {
-		fieldsKeyIter := iter.(*fieldsKeyIter)
-		reader, err := fieldsKeyIter.segment.segment.Reader()
-		if err != nil {
-			i.err = err
-			return false
-		}
-		i.currReaders = append(i.currReaders, reader)
+		var (
+			fieldsKeyIter = iter.(*fieldsKeyIter)
+			pl            postings.List
+			err           error
+		)
+		if bytes.HasPrefix(currField, graphitePathPrefixBytes) {
+			// NB(rob): This is definitely a hack, should instead make this
+			// path low alloc dealing with a ton of unique fields that all
+			// need to pull back the field postings list.
+			pl = emptyReadOnlyBitmap
+		} else {
+			reader, err := fieldsKeyIter.segment.segment.Reader()
+			if err != nil {
+				i.err = err
+				return false
+			}
+			i.currReaders = append(i.currReaders, reader)
 
-		pl, err := reader.MatchField(currField)
-		if err != nil {
-			i.err = err
-			return false
+			pl, err = reader.MatchField(currField)
+			if err != nil {
+				i.err = err
+				return false
+			}
 		}
 
 		if fieldsKeyIter.segment.offset == 0 && fieldsKeyIter.segment.skips == 0 {
@@ -152,7 +177,9 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 			// so can just direct union.
 			// Make sure skipAsc is empty otherwise we need to do filtering.
 			if index.MigrationReadOnlyPostings() {
-				if err := i.currFieldPostingsList.AddIterator(pl.Iterator()); err != nil {
+				readOnlyBitmap := pl.(*roaring.ReadOnlyBitmap)
+				i.readOnlyBitmapIter.Reset(readOnlyBitmap)
+				if err := i.currFieldPostingsList.AddIterator(i.readOnlyBitmapIter); err != nil {
 					i.err = err
 					return false
 				}
@@ -167,9 +194,16 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 
 		// We have to taken into account the offset and duplicates
 		var (
-			iter            = pl.Iterator()
 			negativeOffsets = fieldsKeyIter.segment.negativeOffsets
+			iter            postings.Iterator
 		)
+		if index.MigrationReadOnlyPostings() {
+			readOnlyBitmap := pl.(*roaring.ReadOnlyBitmap)
+			i.readOnlyBitmapIter.Reset(readOnlyBitmap)
+			iter = i.readOnlyBitmapIter
+		} else {
+			iter = pl.Iterator()
+		}
 		for iter.Next() {
 			curr := iter.Current()
 			negativeOffset := negativeOffsets[curr]

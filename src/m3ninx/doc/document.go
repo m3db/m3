@@ -30,8 +30,9 @@ import (
 
 const (
 	ReservedFieldPrefix    = "_m3ninx"
-	GraphitePathLeafPrefix = ReservedFieldPrefix + "_graphite_path_leaf:"
-	GraphitePathNodePrefix = ReservedFieldPrefix + "_graphite_path_node:"
+	GraphitePathPrefix     = ReservedFieldPrefix + "_graphite_path"
+	GraphitePathLeafPrefix = GraphitePathPrefix + "_leaf:"
+	GraphitePathNodePrefix = GraphitePathPrefix + "_node:"
 )
 
 var (

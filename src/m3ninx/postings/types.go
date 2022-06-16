@@ -37,10 +37,8 @@ const (
 	MaxID ID = ID(math.MaxUint32)
 )
 
-var (
-	// ErrEmptyList is the error returned when a postings list is unexpectedly empty.
-	ErrEmptyList = errors.New("postings list is empty")
-)
+// ErrEmptyList is the error returned when a postings list is unexpectedly empty.
+var ErrEmptyList = errors.New("postings list is empty")
 
 // List is a collection of docIDs. The interface only supports immutable methods.
 type List interface {
