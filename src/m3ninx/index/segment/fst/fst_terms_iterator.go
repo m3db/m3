@@ -21,17 +21,16 @@
 package fst
 
 import (
-	"sync"
-
 	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/m3dbx/vellum"
 )
 
 type newFSTTermsIterOptions struct {
-	onCloseUnlock sync.Locker
+	closeContextOnClose context.Context
 }
 
 func newFSTTermsIter(opts newFSTTermsIterOptions) *fstTermsIter {
@@ -89,6 +88,10 @@ func (f *fstTermsIter) clear() {
 	f.firstNext = true
 	f.current = nil
 	f.currentValue = 0
+}
+
+func (f *fstTermsIter) resetContextOnClose(ctx context.Context) {
+	f.closeContextOnClose = ctx
 }
 
 func (f *fstTermsIter) reset(opts fstTermsIterOpts) {
@@ -170,8 +173,9 @@ func (f *fstTermsIter) Close() error {
 	multiErr = multiErr.Add(f.iter.Close())
 	multiErr = multiErr.Add(f.opts.Close())
 	f.clear()
-	if f.onCloseUnlock != nil {
-		f.onCloseUnlock.Unlock()
+	if f.closeContextOnClose != nil {
+		f.closeContextOnClose.Close()
+		f.closeContextOnClose = nil
 	}
 	return multiErr.FinalError()
 }

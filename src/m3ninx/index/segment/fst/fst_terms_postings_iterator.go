@@ -39,8 +39,10 @@ var postingsIterRoaringPoolingConfig = pilosaroaring.ContainerPoolingConfigurati
 	MaxKeysAndContainersSliceLength: 128 * 10,
 }
 
-var _ sgmt.TermsIterator = &fstTermsPostingsIter{}
-var _ sgmt.FieldsPostingsListIterator = &fstTermsPostingsIter{}
+var (
+	_ sgmt.TermsIterator              = &fstTermsPostingsIter{}
+	_ sgmt.FieldsPostingsListIterator = &fstTermsPostingsIter{}
+)
 
 type fstTermsPostingsIter struct {
 	bitmap       *roaring.ReadOnlyBitmap
@@ -139,6 +141,7 @@ func (f *fstTermsPostingsIter) Close() error {
 	var err error
 	if f.termsIter != nil {
 		err = f.termsIter.Close()
+		f.termsIter = nil
 	}
 	f.clear()
 	return err

@@ -366,9 +366,11 @@ func (fti *fieldsAndTermsIter) closePerUse() xerrors.MultiError {
 	var multiErr xerrors.MultiError
 	if fti.fieldIter != nil {
 		multiErr = multiErr.Add(fti.fieldIter.Close())
+		fti.fieldIter = nil
 	}
 	if fti.termIter != nil {
 		multiErr = multiErr.Add(fti.termIter.Close())
+		fti.termIter = nil
 	}
 	return multiErr
 }
