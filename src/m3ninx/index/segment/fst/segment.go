@@ -21,6 +21,7 @@
 package fst
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -55,6 +56,8 @@ var (
 	errPostingsDataUnset       = errors.New("postings data bytes are not set")
 	errFSTTermsDataUnset       = errors.New("fst terms data bytes are not set")
 	errFSTFieldsDataUnset      = errors.New("fst fields data bytes are not set")
+
+	graphitePathPrefix = []byte(doc.GraphitePathPrefix)
 )
 
 // SegmentData represent the collection of required parameters to construct a Segment.
@@ -175,6 +178,13 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 
 	for iter.Next() {
 		field := iter.Current()
+		if bytes.HasPrefix(field, graphitePathPrefix) {
+			// NB(rob): Too expensive to pre-load all the graphite path indexed
+			// path terms, load these on demand for find queries which are
+			// small in volume comparative to queries.
+			continue
+		}
+
 		termsFSTOffset := iter.CurrentOffset()
 		termsFSTBytes, err := s.retrieveBytesWithRLock(s.data.FSTTermsData.Bytes, termsFSTOffset)
 		if err != nil {
@@ -310,14 +320,17 @@ func (r *fsSegment) ContainsID(docID []byte) (bool, error) {
 		return false, errReaderClosed
 	}
 
-	termsFST, exists := r.retrieveTermsFSTWithRLock(doc.IDReservedFieldName)
+	termsFST, exists, err := r.retrieveTermsFSTWithRLock(doc.IDReservedFieldName)
+	if err != nil {
+		return false, err
+	}
 	if !exists {
 		return false, fmt.Errorf(
 			"internal error while retrieving id FST: %s",
 			doc.IDReservedFieldName)
 	}
 
-	_, exists, err := termsFST.Get(docID)
+	_, exists, err = termsFST.Get(docID)
 	return exists, err
 }
 
@@ -523,7 +536,10 @@ func (i *termsIterable) termsWithTermsIterAndContextLifetime(
 	fieldsIter *fstTermsIter,
 	field []byte,
 ) (sgmt.TermsIterator, error) {
-	termsFST, exists := i.r.retrieveTermsFSTWithRLock(field)
+	termsFST, exists, err := i.r.retrieveTermsFSTWithRLock(field)
+	if err != nil {
+		return nil, err
+	}
 	if !exists {
 		return sgmt.EmptyTermsIterator, nil
 	}
@@ -542,7 +558,10 @@ func (i *termsIterable) termsWithRegexWithTermsIterAndContextLifetime(
 	field []byte,
 	compiled *index.CompiledRegex,
 ) (sgmt.TermsIterator, error) {
-	termsFST, exists := i.r.retrieveTermsFSTWithRLock(field)
+	termsFST, exists, err := i.r.retrieveTermsFSTWithRLock(field)
+	if err != nil {
+		return nil, err
+	}
 	if !exists {
 		return sgmt.EmptyTermsIterator, nil
 	}
@@ -773,7 +792,10 @@ func (r *fsSegment) matchTermNotClosedMaybeFinalizedWithRLock(
 		return nil, errReaderFinalized
 	}
 
-	termsFST, exists := r.retrieveTermsFSTWithRLock(field)
+	termsFST, exists, err := r.retrieveTermsFSTWithRLock(field)
+	if err != nil {
+		return nil, err
+	}
 	if !exists {
 		// i.e. we don't know anything about the field, so can early return an empty postings list
 		if index.MigrationReadOnlyPostings() {
@@ -857,7 +879,10 @@ func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 		return nil, errReaderNilRegexp
 	}
 
-	termsFST, exists := r.retrieveTermsFSTWithRLock(field)
+	termsFST, exists, err := r.retrieveTermsFSTWithRLock(field)
+	if err != nil {
+		return nil, err
+	}
 	if !exists {
 		// i.e. we don't know anything about the field, so can early return an empty postings list
 		if index.MigrationReadOnlyPostings() {
@@ -895,10 +920,7 @@ func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 		iterErr = searcher.iter.Next()
 	}
 
-	var (
-		pl  postings.List
-		err error
-	)
+	var pl postings.List
 	if index.MigrationReadOnlyPostings() {
 		// Perform a lazy fast union.
 		pl, err = roaring.UnionReadOnly(searcher.pls)
@@ -1049,8 +1071,35 @@ func (r *fsSegment) retrievePostingsListWithRLock(postingsOffset uint64) (postin
 	return roaring.NewPostingsListFromBitmap(bitmap), nil
 }
 
-func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (vellumFST, bool) {
-	return r.termFSTs.fstMap.Get(field)
+func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (vellumFST, bool, error) {
+	if bytes.HasPrefix(field, graphitePathPrefix) {
+		// NB(rob): Too expensive to pre-load all the graphite path indexed
+		// path terms, load these on demand for find queries which are
+		// small in volume comparative to queries.
+		termsFSTOffset, exists, err := r.fieldsFST.Get(field)
+		if err != nil {
+			return vellumFST{}, false, err
+		}
+		if !exists {
+			return vellumFST{}, false, nil
+		}
+
+		termsFSTBytes, err := r.retrieveBytesWithRLock(r.data.FSTTermsData.Bytes, termsFSTOffset)
+		if err != nil {
+			return vellumFST{}, false, err
+		}
+
+		termsFST, err := vellum.Load(termsFSTBytes)
+		if err != nil {
+			return vellumFST{}, false, err
+		}
+
+		return newVellumFST(termsFST), true, nil
+	}
+
+	// Otherwise FST map should contain the field (since pre-load all others).
+	result, exists := r.termFSTs.fstMap.Get(field)
+	return result, exists, nil
 }
 
 func (r *fsSegment) retrieveFieldsFSTWithRLock() (*vellum.FST, error) {
