@@ -406,8 +406,8 @@ func (r *fsSegment) FieldsIterable() sgmt.FieldsIterable {
 
 func (r *fsSegment) Fields() (sgmt.FieldsIterator, error) {
 	r.RLock()
+	defer r.RUnlock()
 	if r.closed {
-		r.RUnlock()
 		return nil, errReaderClosed
 	}
 
