@@ -111,7 +111,7 @@ func TestMessageWriter(t *testing.T) {
 		wg.Done()
 	}()
 
-	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics())
 	require.Equal(t, 200, int(w.ReplicatedShardID()))
 	w.Init()
 
@@ -184,7 +184,7 @@ func TestMessageWriterRetry(t *testing.T) {
 
 	addr := lis.Addr().String()
 	opts := testOptions()
-	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics())
 	w.Init()
 	defer w.Close()
 
@@ -212,8 +212,11 @@ func TestMessageWriterRetry(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	_, ok := w.acks.ackMap[metadataKey{shard: 200, id: 1}]
+	require.Equal(t, 1, w.acks.size())
+	w.acks.mtx.Lock()
+	_, ok := w.acks.acks[uint64(1)]
 	require.True(t, ok)
+	w.acks.mtx.Unlock()
 
 	cw := newConsumerWriter(addr, a, opts, testConsumerWriterMetrics())
 	cw.Init()
@@ -254,30 +257,30 @@ func TestMessageWriterCleanupDroppedMessage(t *testing.T) {
 	w.Write(rm)
 
 	// A get will allocate a new message because the old one has not been returned to pool yet.
-	m := w.(*messageWriterImpl).mPool.Get()
+	m := w.mPool.Get()
 	require.Nil(t, m.RefCountedMessage)
 
-	require.Equal(t, 1, w.(*messageWriterImpl).queue.Len())
+	require.Equal(t, 1, w.queue.Len())
 	w.Init()
 	defer w.Close()
 
 	for {
-		w.(*messageWriterImpl).Lock()
-		l := w.(*messageWriterImpl).queue.Len()
-		w.(*messageWriterImpl).Unlock()
+		w.Lock()
+		l := w.queue.Len()
+		w.Unlock()
 		if l != 1 {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	require.True(t, isEmptyWithLock(w.(*messageWriterImpl).acks))
+	require.True(t, isEmptyWithLock(w.acks))
 }
 
 func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	opts := testOptions()
-	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics())
 	w.Init()
 	defer w.Close()
 
@@ -330,19 +333,20 @@ func TestMessageWriterCutoverCutoff(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	w := newMessageWriter(200, newMessagePool(), nil, testMessageWriterMetrics()).(*messageWriterImpl)
+	w := newMessageWriter(200, newMessagePool(), nil, testMessageWriterMetrics())
 	now := time.Now()
 	w.nowFn = func() time.Time { return now }
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()))
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150))
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+250))
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+50))
+	met := w.Metrics()
+	require.True(t, w.isValidWriteWithLock(now.UnixNano(), met))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150, met))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+250, met))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+50, met))
 
 	w.SetCutoffNanos(now.UnixNano() + 200)
 	w.SetCutoverNanos(now.UnixNano() + 100)
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150))
-	require.False(t, w.isValidWriteWithLock(now.UnixNano()+250))
-	require.False(t, w.isValidWriteWithLock(now.UnixNano()+50))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150, met))
+	require.False(t, w.isValidWriteWithLock(now.UnixNano()+250, met))
+	require.False(t, w.isValidWriteWithLock(now.UnixNano()+50, met))
 	require.Equal(t, 0, w.queue.Len())
 
 	mm := producer.NewMockMessage(ctrl)
@@ -357,15 +361,16 @@ func TestMessageWriterIgnoreCutoverCutoff(t *testing.T) {
 
 	opts := NewOptions().SetIgnoreCutoffCutover(true)
 
-	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics())
 	now := time.Now()
 	w.nowFn = func() time.Time { return now }
 
 	w.SetCutoffNanos(now.UnixNano() + 200)
 	w.SetCutoverNanos(now.UnixNano() + 100)
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150))
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+250))
-	require.True(t, w.isValidWriteWithLock(now.UnixNano()+50))
+	met := w.Metrics()
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+150, met))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+250, met))
+	require.True(t, w.isValidWriteWithLock(now.UnixNano()+50, met))
 	require.Equal(t, 0, w.queue.Len())
 
 	mm := producer.NewMockMessage(ctrl)
@@ -382,7 +387,7 @@ func TestMessageWriterKeepNewWritesInOrderInFrontOfTheQueue(t *testing.T) {
 	opts := testOptions().SetMessageRetryNanosFn(
 		NextRetryNanosFn(retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond)),
 	)
-	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics())
 
 	now := time.Now()
 	w.nowFn = func() time.Time { return now }
@@ -426,7 +431,7 @@ func TestMessageWriterRetryIterateBatchFullScan(t *testing.T) {
 	opts := testOptions().SetMessageQueueScanBatchSize(retryBatchSize).SetMessageRetryNanosFn(
 		NextRetryNanosFn(retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond)),
 	)
-	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics())
 
 	now := time.Now()
 	w.nowFn = func() time.Time { return now }
@@ -491,7 +496,7 @@ func TestMessageWriterRetryIterateBatchFullScanWithMessageTTL(t *testing.T) {
 	opts := testOptions().SetMessageQueueScanBatchSize(retryBatchSize).SetMessageRetryNanosFn(
 		NextRetryNanosFn(retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond)),
 	)
-	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics())
 
 	now := time.Now()
 	w.nowFn = func() time.Time { return now }
@@ -553,7 +558,7 @@ func TestMessageWriterRetryIterateBatchNotFullScan(t *testing.T) {
 	opts := testOptions().SetMessageQueueScanBatchSize(retryBatchSize).SetMessageRetryNanosFn(
 		NextRetryNanosFn(retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond)),
 	)
-	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics())
 
 	now := time.Now()
 	w.nowFn = func() time.Time { return now }
@@ -629,7 +634,7 @@ func TestNextRetryAfterNanos(t *testing.T) {
 					SetJitter(true),
 			),
 		)
-	w := newMessageWriter(200, nil, opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	w := newMessageWriter(200, nil, opts, testMessageWriterMetrics())
 
 	nowNanos := time.Now().UnixNano()
 	m := newMessage()
@@ -653,7 +658,7 @@ func TestStaticRetryAfterNanos(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := testOptions().SetMessageRetryNanosFn(fn)
-	w := newMessageWriter(200, nil, opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	w := newMessageWriter(200, nil, opts, testMessageWriterMetrics())
 
 	m := newMessage()
 	m.IncWriteTimes()
@@ -686,7 +691,7 @@ func TestMessageWriterCloseCleanupAllMessages(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	opts := testOptions()
-	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	w := newMessageWriter(200, newMessagePool(), opts, testMessageWriterMetrics())
 
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
@@ -713,7 +718,7 @@ func TestMessageWriterQueueFullScanOnWriteErrors(t *testing.T) {
 	opts := testOptions().SetMessageQueueScanBatchSize(1)
 	scope := tally.NewTestScope("", nil)
 	metrics := testMessageWriterMetricsWithScope(scope).withConsumer("c1")
-	w := newMessageWriter(200, newMessagePool(), opts, metrics).(*messageWriterImpl)
+	w := newMessageWriter(200, newMessagePool(), opts, metrics)
 	w.AddConsumerWriter(newConsumerWriter("bad", nil, opts, testConsumerWriterMetrics()))
 
 	mm1 := producer.NewMockMessage(ctrl)
@@ -748,7 +753,7 @@ func TestMessageWriter_WithoutConsumerScope(t *testing.T) {
 	opts := testOptions().SetMessageQueueScanBatchSize(1)
 	scope := tally.NewTestScope("", nil)
 	metrics := newMessageWriterMetrics(scope, instrument.TimerOptions{}, true)
-	w := newMessageWriter(200, nil, opts, metrics).(*messageWriterImpl)
+	w := newMessageWriter(200, nil, opts, metrics)
 	w.AddConsumerWriter(newConsumerWriter("bad", nil, opts, testConsumerWriterMetrics()))
 
 	snapshot := scope.Snapshot()
@@ -758,20 +763,18 @@ func TestMessageWriter_WithoutConsumerScope(t *testing.T) {
 }
 
 func isEmptyWithLock(h *acks) bool {
-	h.Lock()
-	defer h.Unlock()
-	return len(h.ackMap) == 0
+	return h.size() == 0
 }
 
-func testMessageWriterMetrics() messageWriterMetrics {
+func testMessageWriterMetrics() *messageWriterMetrics {
 	return newMessageWriterMetrics(tally.NoopScope, instrument.TimerOptions{}, false)
 }
 
-func testMessageWriterMetricsWithScope(scope tally.TestScope) messageWriterMetrics {
+func testMessageWriterMetricsWithScope(scope tally.TestScope) *messageWriterMetrics {
 	return newMessageWriterMetrics(scope, instrument.TimerOptions{}, false)
 }
 
-func validateMessages(t *testing.T, msgs []*producer.RefCountedMessage, w *messageWriterImpl) {
+func validateMessages(t *testing.T, msgs []*producer.RefCountedMessage, w *messageWriter) {
 	w.RLock()
 	idx := 0
 	for e := w.queue.Front(); e != nil; e = e.Next() {

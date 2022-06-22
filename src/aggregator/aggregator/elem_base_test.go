@@ -593,3 +593,26 @@ func TestParsePipelineTransformationDerivativeOrderTooHigh(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "transformation derivative order is 2 higher than supported 1"))
 }
+
+func TestConsumeStateReset(t *testing.T) {
+	s := &consumeState{}
+	s.Reset()
+	require.EqualValues(t, consumeState{}, *s)
+
+	s = &consumeState{
+		annotation:    []byte("foo1"),
+		values:        []float64{1.0, 2.0, 3.0},
+		startAt:       123,
+		prevStartTime: 42,
+		lastUpdatedAt: 100,
+		dirty:         true,
+		resendEnabled: true,
+	}
+	s.Reset()
+	require.EqualValues(t, consumeState{
+		annotation: []byte{},
+		values:     []float64{},
+	}, *s)
+	require.Equal(t, 4, cap(s.annotation))
+	require.Equal(t, 3, cap(s.values))
+}

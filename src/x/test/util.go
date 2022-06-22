@@ -22,8 +22,30 @@ package test
 
 import (
 	"reflect"
+	"testing"
 	"unsafe"
+
+	"github.com/stretchr/testify/require"
 )
+
+// FailNowPanicsTestingT returns a TestingT that panics on a failed assertion.
+// This is useful for aborting a test on failed assertions from an asynchronous
+// goroutine (since stretchr calls FailNow on testing.T but it will not abort
+// the test unless the goroutine is the one running the benchmark or test).
+// For more info see: https://github.com/stretchr/testify/issues/652.
+func FailNowPanicsTestingT(t *testing.T) require.TestingT {
+	return failNowPanicsTestingT{TestingT: t}
+}
+
+var _ require.TestingT = failNowPanicsTestingT{}
+
+type failNowPanicsTestingT struct {
+	require.TestingT
+}
+
+func (t failNowPanicsTestingT) FailNow() {
+	panic("failed assertion")
+}
 
 // ByteSlicesBackedBySameData returns a bool indicating if the raw backing bytes
 // under the []byte slice point to the same memory.

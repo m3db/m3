@@ -781,9 +781,11 @@ func (l *timedMetricList) Close() {
 type metricListType int
 
 const (
+	// NB(vytenis): keep this zero-indexed
 	standardMetricListType metricListType = iota
 	forwardedMetricListType
 	timedMetricListType
+	invalidMetricListType // must be the last value in the list - used as a sentinel value for metric scope generation
 )
 
 func (t metricListType) String() string {
