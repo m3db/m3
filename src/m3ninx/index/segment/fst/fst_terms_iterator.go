@@ -172,10 +172,10 @@ func (f *fstTermsIter) Close() error {
 	var multiErr xerrors.MultiError
 	multiErr = multiErr.Add(f.iter.Close())
 	multiErr = multiErr.Add(f.opts.Close())
-	f.clear()
 	if f.closeContextOnClose != nil {
 		f.closeContextOnClose.Close()
 		f.closeContextOnClose = nil
 	}
+	f.clear()
 	return multiErr.FinalError()
 }

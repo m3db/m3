@@ -501,15 +501,7 @@ func (i *termsIterable) Terms(field []byte) (sgmt.TermsIterator, error) {
 		return nil, err
 	}
 
-	iter, err := i.termsWithTermsIterAndContextLifetime(fieldsIter, field)
-	if err != nil {
-		// NB(rob): Important to close since closing will release the RLock
-		// that is acquired.
-		fieldsIter.Close()
-		return nil, err
-	}
-
-	return iter, nil
+	return i.termsWithTermsIterAndContextLifetime(fieldsIter, field)
 }
 
 func (i *termsIterable) TermsWithRegex(
@@ -521,21 +513,23 @@ func (i *termsIterable) TermsWithRegex(
 		return nil, err
 	}
 
-	iter, err := i.termsWithRegexWithTermsIterAndContextLifetime(fieldsIter, field, compiled)
-	if err != nil {
-		// NB(rob): Important to close since closing will release the RLock
-		// that is acquired.
-		fieldsIter.Close()
-		return nil, err
-	}
-
-	return iter, nil
+	return i.termsWithRegexWithTermsIterAndContextLifetime(fieldsIter, field, compiled)
 }
 
 func (i *termsIterable) termsWithTermsIterAndContextLifetime(
 	fieldsIter *fstTermsIter,
 	field []byte,
 ) (sgmt.TermsIterator, error) {
+	var iterWithContextLifetimeUsed bool
+	defer func() {
+		if iterWithContextLifetimeUsed {
+			return
+		}
+		// NB(rob): Important to close since closing will release the context lifetime
+		// that is acquired.
+		fieldsIter.Close()
+	}()
+
 	termsFST, exists, err := i.r.retrieveTermsFSTWithRLock(field)
 	if err != nil {
 		return nil, err
@@ -544,6 +538,7 @@ func (i *termsIterable) termsWithTermsIterAndContextLifetime(
 		return sgmt.EmptyTermsIterator, nil
 	}
 
+	iterWithContextLifetimeUsed = true
 	fieldsIter.reset(fstTermsIterOpts{
 		seg:         i.r,
 		fst:         termsFST.fst,
@@ -558,6 +553,16 @@ func (i *termsIterable) termsWithRegexWithTermsIterAndContextLifetime(
 	field []byte,
 	compiled *index.CompiledRegex,
 ) (sgmt.TermsIterator, error) {
+	var iterWithContextLifetimeUsed bool
+	defer func() {
+		if iterWithContextLifetimeUsed {
+			return
+		}
+		// NB(rob): Important to close since closing will release the context lifetime
+		// that is acquired.
+		fieldsIter.Close()
+	}()
+
 	termsFST, exists, err := i.r.retrieveTermsFSTWithRLock(field)
 	if err != nil {
 		return nil, err
@@ -566,6 +571,7 @@ func (i *termsIterable) termsWithRegexWithTermsIterAndContextLifetime(
 		return sgmt.EmptyTermsIterator, nil
 	}
 
+	iterWithContextLifetimeUsed = true
 	fieldsIter.reset(fstTermsIterOpts{
 		seg:         i.r,
 		fst:         termsFST.fst,
@@ -582,15 +588,7 @@ func (i *termsIterable) FieldsPostingsList() (sgmt.FieldsPostingsListIterator, e
 		return nil, err
 	}
 
-	iter, err := i.fieldsWithTermsIterAndContextLifetime(fieldsIter)
-	if err != nil {
-		// NB(rob): Important to close since closing will release the RLock
-		// that is acquired.
-		fieldsIter.Close()
-		return nil, err
-	}
-
-	return iter, nil
+	return i.fieldsWithTermsIterAndContextLifetime(fieldsIter), nil
 }
 
 func (i *termsIterable) FieldsPostingsListWithRegex(
@@ -601,20 +599,12 @@ func (i *termsIterable) FieldsPostingsListWithRegex(
 		return nil, err
 	}
 
-	iter, err := i.fieldsWithRegexWithTermsIterAndContextLifetime(fieldsIter, compiled)
-	if err != nil {
-		// NB(rob): Important to close since closing will release the RLock
-		// that is acquired.
-		fieldsIter.Close()
-		return nil, err
-	}
-
-	return iter, nil
+	return i.fieldsWithRegexWithTermsIterAndContextLifetime(fieldsIter, compiled)
 }
 
 func (i *termsIterable) fieldsWithTermsIterAndContextLifetime(
 	fieldsIter *fstTermsIter,
-) (sgmt.FieldsPostingsListIterator, error) {
+) sgmt.FieldsPostingsListIterator {
 	fieldsIter.reset(fstTermsIterOpts{
 		seg:         i.r,
 		fst:         i.r.fieldsFST,
@@ -622,17 +612,28 @@ func (i *termsIterable) fieldsWithTermsIterAndContextLifetime(
 		fieldsFST:   true,
 	})
 	i.postingsIter.reset(i.r, fieldsIter, true)
-	return i.postingsIter, nil
+	return i.postingsIter
 }
 
 func (i *termsIterable) fieldsWithRegexWithTermsIterAndContextLifetime(
 	fieldsIter *fstTermsIter,
 	compiled *index.CompiledRegex,
 ) (sgmt.TermsIterator, error) {
+	var iterWithContextLifetimeUsed bool
+	defer func() {
+		if iterWithContextLifetimeUsed {
+			return
+		}
+		// NB(rob): Important to close since closing will release the context lifetime
+		// that is acquired.
+		fieldsIter.Close()
+	}()
+
 	if compiled == nil {
 		return nil, errReaderNilRegexp
 	}
 
+	iterWithContextLifetimeUsed = true
 	fieldsIter.reset(fstTermsIterOpts{
 		seg:         i.r,
 		fst:         i.r.fieldsFST,
@@ -1283,7 +1284,7 @@ func (sr *fsSegmentReader) FieldsPostingsList() (sgmt.FieldsPostingsListIterator
 	// NB(rob): The segment reader holds a finalized state reader lock the whole
 	// time before closed.
 	fieldsIter := newFSTTermsIter(newFSTTermsIterOptions{})
-	return iterable.fieldsWithTermsIterAndContextLifetime(fieldsIter)
+	return iterable.fieldsWithTermsIterAndContextLifetime(fieldsIter), nil
 }
 
 func (sr *fsSegmentReader) FieldsPostingsListWithRegex(
