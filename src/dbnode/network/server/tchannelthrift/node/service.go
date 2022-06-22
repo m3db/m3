@@ -58,9 +58,9 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xresource "github.com/m3db/m3/src/x/resource"
 	"github.com/m3db/m3/src/x/serialize"
+	tbinarypool "github.com/m3db/m3/src/x/thrift"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
@@ -2731,7 +2731,7 @@ func (r *writeBatchPooledReq) Finalize() {
 	// Return any pooled thrift byte slices to the thrift pool.
 	if r.writeReq != nil {
 		for _, elem := range r.writeReq.Elements {
-			apachethrift.BytesPoolPut(elem.ID)
+			tbinarypool.BytesPoolPut(elem.ID)
 			// Ownership of the annotations has been transferred to the BatchWriter
 			// so they will get returned the pool automatically by the commitlog once
 			// it finishes writing them to disk via the finalization function that
@@ -2741,7 +2741,7 @@ func (r *writeBatchPooledReq) Finalize() {
 	}
 	if r.writeV2Req != nil {
 		for _, elem := range r.writeV2Req.Elements {
-			apachethrift.BytesPoolPut(elem.ID)
+			tbinarypool.BytesPoolPut(elem.ID)
 			// Ownership of the annotations has been transferred to the BatchWriter
 			// so they will get returned the pool automatically by the commitlog once
 			// it finishes writing them to disk via the finalization function that
@@ -2751,7 +2751,7 @@ func (r *writeBatchPooledReq) Finalize() {
 	}
 	if r.writeTaggedReq != nil {
 		for _, elem := range r.writeTaggedReq.Elements {
-			apachethrift.BytesPoolPut(elem.ID)
+			tbinarypool.BytesPoolPut(elem.ID)
 			// Ownership of the encoded tags has been transferred to the BatchWriter
 			// so they will get returned the pool automatically by the commitlog once
 			// it finishes writing them to disk via the finalization function that
@@ -2763,7 +2763,7 @@ func (r *writeBatchPooledReq) Finalize() {
 	}
 	if r.writeTaggedV2Req != nil {
 		for _, elem := range r.writeTaggedV2Req.Elements {
-			apachethrift.BytesPoolPut(elem.ID)
+			tbinarypool.BytesPoolPut(elem.ID)
 			// Ownership of the encoded tags has been transferred to the BatchWriter
 			// so they will get returned the pool automatically by the commitlog once
 			// it finishes writing them to disk via the finalization function that
@@ -2883,17 +2883,17 @@ func (p *writeBatchPooledReqPool) Put(v *writeBatchPooledReq) {
 }
 
 // finalizeEncodedTagsFn implements ts.FinalizeEncodedTagsFn because
-// apachethrift.BytesPoolPut(b) returns a bool but ts.FinalizeEncodedTagsFn
+// tbinarypool.BytesPoolPut(b) returns a bool but ts.FinalizeEncodedTagsFn
 // does not.
 func finalizeEncodedTagsFn(b []byte) {
-	apachethrift.BytesPoolPut(b)
+	tbinarypool.BytesPoolPut(b)
 }
 
 // finalizeAnnotationFn implements ts.FinalizeAnnotationFn because
-// apachethrift.BytesPoolPut(b) returns a bool but ts.FinalizeAnnotationFn
+// tbinarypool.BytesPoolPut(b) returns a bool but ts.FinalizeAnnotationFn
 // does not.
 func finalizeAnnotationFn(b []byte) {
-	apachethrift.BytesPoolPut(b)
+	tbinarypool.BytesPoolPut(b)
 }
 
 func addRequestDataToContext(
