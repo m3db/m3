@@ -23,7 +23,7 @@ package httpjson
 import (
 	"time"
 
-	apachethrift "github.com/apache/thrift/lib/go/thrift"
+	apachethrift "github.com/uber/tchannel-go/thirdparty/github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber/tchannel-go/thrift"
 	"golang.org/x/net/context"
 )

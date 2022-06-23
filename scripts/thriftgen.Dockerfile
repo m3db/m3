@@ -1,20 +1,19 @@
 # built artifacts maintained externally at https://quay.io/repository/m3db/thrift-gen
 
 # stage 1: build thrift-gen binary
-FROM golang:1.12-alpine3.9 AS thriftgen
+FROM golang:1.17-alpine3.15 AS thriftgen
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 # install git
 RUN apk add --update git glide
 
 # get thrift-gen deps
-RUN go get -u github.com/uber/tchannel-go
+RUN go get -u github.com/uber/tchannel-go@v1.31.0
 
 # build thrift-gen
-RUN cd /go/src/github.com/uber/tchannel-go && \
-  git checkout thrift-v1.0.0-dev &&           \
-  glide install &&                            \
-  go install github.com/uber/tchannel-go/thrift/thrift-gen
+RUN cd /go/pkg/mod/github.com/uber/tchannel-go@v1.31.0 && \
+   go mod vendor &&                            \
+   go install github.com/uber/tchannel-go/thrift/thrift-gen
 
 # stage 2: merge thrift-gen into thrift base image
 FROM thrift:0.10.0

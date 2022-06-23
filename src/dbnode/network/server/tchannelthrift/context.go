@@ -26,8 +26,8 @@ import (
 
 	"github.com/m3db/m3/src/x/context"
 
-	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber/tchannel-go"
+	apachethrift "github.com/uber/tchannel-go/thirdparty/github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber/tchannel-go/thrift"
 )
 
