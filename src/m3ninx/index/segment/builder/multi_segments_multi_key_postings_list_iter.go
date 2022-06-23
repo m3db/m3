@@ -228,12 +228,6 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 		}
 	}
 
-	if i.currFieldPostingsList.IsEmpty() {
-		// Everything skipped or term is empty.
-		// TODO: make this non-stack based (i.e. not recursive).
-		return i.Next()
-	}
-
 	return true
 }
 
