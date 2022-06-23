@@ -119,6 +119,8 @@ github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239 h1:kFOfPq6dUM1hTo
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/apache/arrow/go/arrow v0.0.0-20191024131854-af6fa24be0db/go.mod h1:VTxUBvSJ3s3eHAg65PNgrsn5BtqCRPdmyXh6rAfdxN0=
+github.com/apache/thrift v0.12.0/go.mod h1:cp2SuWMxlEZw2r+iP2GNCdIi4C1qmUzdZFSVb+bacwQ=
+github.com/apache/thrift v0.13.0/go.mod h1:cp2SuWMxlEZw2r+iP2GNCdIi4C1qmUzdZFSVb+bacwQ=
 github.com/apex/log v1.3.0 h1:1fyfbPvUwD10nMoh3hY6MXzvZShJQn9/ck7ATgAt5pA=
 github.com/apex/log v1.3.0/go.mod h1:jd8Vpsr46WAe3EZSQ/IUMs2qQD/GOycT5rPWCO1yGcs=
 github.com/apex/logs v0.0.4/go.mod h1:XzxuLZ5myVHDy9SAmYpamKKRNApGj54PfYLcFrXqDwo=
@@ -809,8 +811,6 @@ github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878 h1:kww0LtVVfGrXR7Ofpbi/
 github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878/go.mod h1:TxroQUZzb1wzOsq+4+TfVtT7z89YTz3v2UJAYfLNfLE=
 github.com/m3dbx/pilosa v1.4.1 h1:/Cpp1XAHSd6orpjceXGiKpCoDdYBP5BD/6NoqGG9eVg=
 github.com/m3dbx/pilosa v1.4.1/go.mod h1:Jt0+w9O08sa7qWDeRC58VBjb4OeOTDMOhfvVmyeVCO8=
-github.com/m3dbx/thrift v0.0.0-20210326170526-6e3eef8b4a26 h1:4qw8juBzxIiD1g2XS7rDJEZ3FGZKn1giTeFZSRPtozA=
-github.com/m3dbx/thrift v0.0.0-20210326170526-6e3eef8b4a26/go.mod h1:01NnKywm1VUGvVw3DQrt4SsfK+7V90Rg2IZW4UqYYwk=
 github.com/m3dbx/vellum v0.0.0-20201119082309-5b47f7a70f69 h1:dANuca0xuYlZR7qWdPIIAZKG0YHvsbLTzdenj53yQvc=
 github.com/m3dbx/vellum v0.0.0-20201119082309-5b47f7a70f69/go.mod h1:DOTAUfV4bzK6Nrb0dboT/oCG0DnQuX+/n0jfZPh6xxI=
 github.com/magiconair/properties v1.8.0/go.mod h1:PppfXfuXeibc/6YijjN8zIbojt8czPbwD3XqdrwzmxQ=

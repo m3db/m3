@@ -8,7 +8,6 @@ require (
 	github.com/MichaelTJones/pcg v0.0.0-20180122055547-df440c6ed7ed
 	github.com/RoaringBitmap/roaring v0.4.21
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
-	github.com/apache/thrift v0.13.0
 	github.com/apex/log v1.3.0 // indirect
 	github.com/bmatcuk/doublestar v1.3.1 // indirect
 	github.com/briandowns/spinner v1.11.1 // indirect
@@ -116,9 +115,6 @@ require (
 	gopkg.in/vmihailenco/msgpack.v2 v2.8.3
 	gopkg.in/yaml.v2 v2.4.0
 )
-
-// branch 0.9.3-patch
-replace github.com/apache/thrift => github.com/m3dbx/thrift v0.0.0-20210326170526-6e3eef8b4a26
 
 // NB(nate): upgrading to the latest msgpack is not backwards compatibile as msgpack will no longer attempt to automatically
 // write an integer into the smallest number of bytes it will fit in. We rely on this behavior by having helper methods
