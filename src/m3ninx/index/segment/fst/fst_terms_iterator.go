@@ -90,10 +90,6 @@ func (f *fstTermsIter) clear() {
 	f.currentValue = 0
 }
 
-func (f *fstTermsIter) resetContextOnClose(ctx context.Context) {
-	f.closeContextOnClose = ctx
-}
-
 func (f *fstTermsIter) reset(opts fstTermsIterOpts) {
 	f.clear()
 	f.opts = opts

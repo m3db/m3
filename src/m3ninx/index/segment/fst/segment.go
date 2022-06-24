@@ -463,35 +463,31 @@ func (r *fsSegment) FreeMmap() error {
 // bitmap being unpacked for use when iterating over an entire segment
 // for the terms postings iterator.
 type termsIterable struct {
-	r            *fsSegment
+	seg          *fsSegment
 	fieldsIter   *fstTermsIter
 	postingsIter *fstTermsPostingsIter
 }
 
-func newTermsIterable(r *fsSegment) *termsIterable {
+func newTermsIterable(seg *fsSegment) *termsIterable {
 	return &termsIterable{
-		r:            r,
+		seg:          seg,
 		fieldsIter:   newFSTTermsIter(newFSTTermsIterOptions{}),
 		postingsIter: newFSTTermsPostingsIter(),
 	}
 }
 
 func (i *termsIterable) acquireRLockCheckValidAndExtendLifetimeWithContext() (*fstTermsIter, error) {
-	i.r.RLock()
-	defer i.r.RUnlock()
-	if i.r.closed {
+	i.seg.RLock()
+	defer i.seg.RUnlock()
+	if i.seg.closed {
 		return nil, errReaderClosed
 	}
 
-	// Register a new context that extends the lifetime of the segment.
-	ctx := i.r.opts.ContextPool().Get()
-	i.r.ctx.DependsOn(ctx)
-	i.fieldsIter.resetContextOnClose(ctx)
-
-	// Now we have terms iterator that will release the dependency on the FST
-	// segment once it's closed itself.
-	// We avoid creating the fields iter new each time to save allocations
-	// when performing background compaction.
+	// This code path is used by compaction to iterate through all terms in the segment.
+	// We ensure it creates a reader that is not closed until compaction is completed
+	// and hence already extends the lifetime, so to avoid overhead of all the
+	// locking of creating new dependent contexts each time during background compaction
+	// we disable extending the lifetime of the segment for this code path.
 	return i.fieldsIter, nil
 }
 
@@ -530,7 +526,7 @@ func (i *termsIterable) termsWithTermsIterAndContextLifetime(
 		fieldsIter.Close()
 	}()
 
-	termsFST, exists, err := i.r.retrieveTermsFSTWithRLock(field)
+	termsFST, exists, err := i.seg.retrieveTermsFSTWithRLock(field)
 	if err != nil {
 		return nil, err
 	}
@@ -540,11 +536,11 @@ func (i *termsIterable) termsWithTermsIterAndContextLifetime(
 
 	iterWithContextLifetimeUsed = true
 	fieldsIter.reset(fstTermsIterOpts{
-		seg:         i.r,
+		seg:         i.seg,
 		fst:         termsFST.fst,
 		finalizeFST: false,
 	})
-	i.postingsIter.reset(i.r, fieldsIter, false)
+	i.postingsIter.reset(i.seg, fieldsIter, false)
 	return i.postingsIter, nil
 }
 
@@ -563,7 +559,7 @@ func (i *termsIterable) termsWithRegexWithTermsIterAndContextLifetime(
 		fieldsIter.Close()
 	}()
 
-	termsFST, exists, err := i.r.retrieveTermsFSTWithRLock(field)
+	termsFST, exists, err := i.seg.retrieveTermsFSTWithRLock(field)
 	if err != nil {
 		return nil, err
 	}
@@ -573,12 +569,12 @@ func (i *termsIterable) termsWithRegexWithTermsIterAndContextLifetime(
 
 	iterWithContextLifetimeUsed = true
 	fieldsIter.reset(fstTermsIterOpts{
-		seg:         i.r,
+		seg:         i.seg,
 		fst:         termsFST.fst,
 		fstSearch:   compiled,
 		finalizeFST: false,
 	})
-	i.postingsIter.reset(i.r, fieldsIter, false)
+	i.postingsIter.reset(i.seg, fieldsIter, false)
 	return i.postingsIter, nil
 }
 
@@ -606,12 +602,12 @@ func (i *termsIterable) fieldsWithTermsIterAndContextLifetime(
 	fieldsIter *fstTermsIter,
 ) sgmt.FieldsPostingsListIterator {
 	fieldsIter.reset(fstTermsIterOpts{
-		seg:         i.r,
-		fst:         i.r.fieldsFST,
+		seg:         i.seg,
+		fst:         i.seg.fieldsFST,
 		finalizeFST: false,
 		fieldsFST:   true,
 	})
-	i.postingsIter.reset(i.r, fieldsIter, true)
+	i.postingsIter.reset(i.seg, fieldsIter, true)
 	return i.postingsIter
 }
 
@@ -635,13 +631,13 @@ func (i *termsIterable) fieldsWithRegexWithTermsIterAndContextLifetime(
 
 	iterWithContextLifetimeUsed = true
 	fieldsIter.reset(fstTermsIterOpts{
-		seg:         i.r,
-		fst:         i.r.fieldsFST,
+		seg:         i.seg,
+		fst:         i.seg.fieldsFST,
 		fstSearch:   compiled,
 		finalizeFST: false,
 		fieldsFST:   true,
 	})
-	i.postingsIter.reset(i.r, fieldsIter, true)
+	i.postingsIter.reset(i.seg, fieldsIter, true)
 	return i.postingsIter, nil
 }
 
