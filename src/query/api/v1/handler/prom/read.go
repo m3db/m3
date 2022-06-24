@@ -118,6 +118,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logger.Info("readHandler ServeHTTP")
 	params := request.Params
 	fetchOptions := request.FetchOpts
 
