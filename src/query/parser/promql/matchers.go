@@ -37,7 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/parser/common"
 
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/pkg/labels"
 	promql "github.com/prometheus/prometheus/promql/parser"
 )
 

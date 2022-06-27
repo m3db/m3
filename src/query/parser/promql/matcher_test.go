@@ -27,7 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/query/models"
 
-	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

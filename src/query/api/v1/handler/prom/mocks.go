@@ -29,7 +29,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	kitlogzap "github.com/go-kit/kit/log/zap"
-	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/promql"
 	promstorage "github.com/prometheus/prometheus/storage"
 	"go.uber.org/zap/zapcore"
@@ -60,11 +60,11 @@ func (q *mockQuerier) Select(
 	return &mockSeriesSet{mockOptions: q.mockOptions}
 }
 
-func (*mockQuerier) LabelValues(string, ...*labels.Matcher) ([]string, promstorage.Warnings, error) {
+func (*mockQuerier) LabelValues(name string, matchers ...*labels.Matcher) ([]string, promstorage.Warnings, error) {
 	return nil, nil, errors.New("not implemented")
 }
 
-func (*mockQuerier) LabelNames(...*labels.Matcher) ([]string, promstorage.Warnings, error) {
+func (*mockQuerier) LabelNames() ([]string, promstorage.Warnings, error) {
 	return nil, nil, errors.New("not implemented")
 }
 
