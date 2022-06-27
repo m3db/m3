@@ -38,8 +38,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/tests/v3/framework/integration"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/integration"
 	"golang.org/x/net/context"
 )
 
@@ -525,13 +525,13 @@ func TestWatchNonBlocking(t *testing.T) {
 	require.NoError(t, err)
 
 	before := time.Now()
-	ecluster.Members[0].Bridge().Blackhole()
+	ecluster.Members[0].Blackhole()
 	w1, err := c.Watch("foo")
 	require.WithinDuration(t, time.Now(), before, 100*time.Millisecond)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(w1.C()))
-	ecluster.Members[0].Bridge().Unblackhole()
-	ecluster.Members[0].Bridge().DropConnections()
+	ecluster.Members[0].Unblackhole()
+	ecluster.Members[0].DropConnections()
 
 	// watch channel will error out, but Get() will be tried
 	<-w1.C()
@@ -777,7 +777,6 @@ func TestDelete_TriggerWatch(t *testing.T) {
 }
 
 func TestStaleDelete__FromGet(t *testing.T) {
-	integration.BeforeTestExternal(t)
 	// in this test we ensure clients who did not receive a delete for a key in
 	// their caches, evict the value in their cache the next time they communicate
 	// with an etcd which is unaware of the key (e.g. it's been compacted).
@@ -786,9 +785,7 @@ func TestStaleDelete__FromGet(t *testing.T) {
 	serverCachePath, err := ioutil.TempDir("", "server-cache-dir")
 	require.NoError(t, err)
 	defer os.RemoveAll(serverCachePath)
-	ec, opts, closeFn := testStore(t, func(tc *testStoreOpts) {
-		tc.etcdBeforeTestExternal = false
-	})
+	ec, opts, closeFn := testStore(t)
 
 	setStore, err := NewStore(ec, opts.SetCacheFileFn(func(ns string) string {
 		return path.Join(serverCachePath, fmt.Sprintf("%s.json", ns))
@@ -836,7 +833,7 @@ func TestStaleDelete__FromGet(t *testing.T) {
 	}, time.Minute), "timed out waiting to flush new cache file")
 
 	// create new etcd cluster
-	ec2, opts, closeFn2 := testStore(t, withNoEtcdBeforeTestExternal())
+	ec2, opts, closeFn2 := testStore(t)
 	defer closeFn2()
 	getStore, err := NewStore(ec2, opts.SetCacheFileFn(func(ns string) string {
 		nsFile := path.Join(newServerCachePath, fmt.Sprintf("%s.json", ns))
@@ -863,7 +860,6 @@ func TestStaleDelete__FromGet(t *testing.T) {
 }
 
 func TestStaleDelete__FromWatch(t *testing.T) {
-	integration.BeforeTestExternal(t)
 	// in this test we ensure clients who did not receive a delete for a key in
 	// their caches, evict the value in their cache the next time they communicate
 	// with an etcd which is unaware of the key (e.g. it's been compacted).
@@ -871,7 +867,7 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 	serverCachePath, err := ioutil.TempDir("", "server-cache-dir")
 	require.NoError(t, err)
 	defer os.RemoveAll(serverCachePath)
-	ec, opts, closeFn := testStore(t, withNoEtcdBeforeTestExternal())
+	ec, opts, closeFn := testStore(t)
 
 	setStore, err := NewStore(ec, opts.SetCacheFileFn(func(ns string) string {
 		return path.Join(serverCachePath, fmt.Sprintf("%s.json", ns))
@@ -921,7 +917,7 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 	}, time.Minute), "timed out waiting to flush new cache file")
 
 	// create new etcd cluster
-	ec2, opts, closeFn2 := testStore(t, withNoEtcdBeforeTestExternal())
+	ec2, opts, closeFn2 := testStore(t)
 	defer closeFn2()
 	getStore, err := NewStore(ec2, opts.SetCacheFileFn(func(ns string) string {
 		nsFile := path.Join(newServerCachePath, fmt.Sprintf("%s.json", ns))
@@ -1164,20 +1160,8 @@ func genProto(msg string) proto.Message {
 	return &kvtest.Foo{Msg: msg}
 }
 
-func testCluster(t *testing.T, testOpts ...testStoreOption) (*integration.Cluster, Options, func()) {
-	cfg := testStoreOpts{etcdBeforeTestExternal: true}
-	for _, opt := range testOpts {
-		opt(&cfg)
-	}
-
-	if cfg.etcdBeforeTestExternal {
-		integration.BeforeTestExternal(t)
-	}
-
-	ecluster := integration.NewCluster(t, &integration.ClusterConfig{
-		Size:      1,
-		UseBridge: true,
-	})
+func testCluster(t *testing.T) (*integration.ClusterV3, Options, func()) {
+	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 	closer := func() {
 		ecluster.Terminate(t)
 	}
@@ -1193,20 +1177,8 @@ func testCluster(t *testing.T, testOpts ...testStoreOption) (*integration.Cluste
 	return ecluster, opts, closer
 }
 
-type testStoreOpts struct {
-	etcdBeforeTestExternal bool
-}
-
-type testStoreOption func(tc *testStoreOpts)
-
-func withNoEtcdBeforeTestExternal() testStoreOption {
-	return func(tc *testStoreOpts) {
-		tc.etcdBeforeTestExternal = false
-	}
-}
-
-func testStore(t *testing.T, testOpts ...testStoreOption) (*clientv3.Client, Options, func()) {
-	ecluster, opts, closer := testCluster(t, testOpts...)
+func testStore(t *testing.T) (*clientv3.Client, Options, func()) {
+	ecluster, opts, closer := testCluster(t)
 	return ecluster.RandClient(), opts, closer
 }
 

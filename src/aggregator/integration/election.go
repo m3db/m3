@@ -27,8 +27,8 @@ import (
 	"github.com/m3db/m3/src/cluster/services/leader"
 
 	"github.com/stretchr/testify/require"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/tests/v3/framework/integration"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/integration"
 )
 
 var (
