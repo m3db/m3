@@ -81,11 +81,7 @@ require (
 	go.uber.org/config v1.4.0
 	go.uber.org/goleak v1.1.12
 	go.uber.org/zap v1.21.0
-<<<<<<< HEAD
 	golang.org/x/net v0.0.0-20220225172249-27dd8689420f
-=======
-	golang.org/x/net v0.0.0-20220121210141-e204ce36a2ba
->>>>>>> 5fbdef919 (Upgraded tchannel-go to vendor apache thrift version)
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20220422013727-9388b58f7150
 	google.golang.org/grpc v1.44.0
