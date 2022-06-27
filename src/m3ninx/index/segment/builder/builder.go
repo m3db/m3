@@ -463,8 +463,8 @@ func (b *builder) insertBatchWithLock(batch index.Batch) *index.BatchPartialErro
 			b.queueIndexJobEntryWithLock(fieldShard, wg, postings.ID(postingsListID),
 				f, i, indexJobEntryOptions{}, batchErr)
 		}
-		docShard := b.calculateShardWithRLock(d.ID)
-		b.queueIndexJobEntryWithLock(docShard, wg, postings.ID(postingsListID), doc.Field{
+		docIDFieldShard := b.calculateShardWithRLock(doc.IDReservedFieldName)
+		b.queueIndexJobEntryWithLock(docIDFieldShard, wg, postings.ID(postingsListID), doc.Field{
 			Name:  doc.IDReservedFieldName,
 			Value: d.ID,
 		}, i, indexJobEntryOptions{}, batchErr)
