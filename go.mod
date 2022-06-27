@@ -179,7 +179,6 @@ require (
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
-
 // NB(nate): upgrading to the latest msgpack is not backwards compatibile as msgpack will no longer attempt to automatically
 // write an integer into the smallest number of bytes it will fit in. We rely on this behavior by having helper methods
 // in at least two encoders (see below) take int64s and expect that msgpack will size them down accordingly. We'll have

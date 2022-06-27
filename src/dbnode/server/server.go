@@ -25,7 +25,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/m3db/m3/src/utils"
 	"io"
 	"math"
 	"net/http"
@@ -93,6 +92,7 @@ import (
 	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
+	tbinarypool "github.com/m3db/m3/src/x/thrift"
 
 	"github.com/m3dbx/vellum/levenshtein"
 	"github.com/m3dbx/vellum/levenshtein2"
@@ -1603,7 +1603,7 @@ func withEncodingAndPoolingOptions(
 	thriftBytesAllocSizes := policy.ThriftBytesPoolAllocSizesOrDefault()
 	logger.Info("set thrift bytes pool slice sizes",
 		zap.Ints("sizes", thriftBytesAllocSizes))
-	utils.SetMaxBytesPoolAlloc(thriftBytesAllocSizes...)
+	tbinarypool.SetMaxBytesPoolAlloc(thriftBytesAllocSizes...)
 
 	bytesPoolOpts := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(iOpts.SetMetricsScope(scope.SubScope("bytes-pool")))
