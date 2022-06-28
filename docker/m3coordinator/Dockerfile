@@ -2,6 +2,11 @@
 FROM golang:1.18-alpine3.15 AS builder
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
+RUN apk update
+RUN apk add --no-cache bash
+RUN apk add --no-cache iperf3
+RUN apk add --no-cache curl
+
 # Install deps
 RUN apk add --update git make bash
 
