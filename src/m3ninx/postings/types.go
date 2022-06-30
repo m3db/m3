@@ -66,6 +66,31 @@ type List interface {
 	Equal(other List) bool
 }
 
+var (
+	EmptyList List = emptyList{}
+)
+
+type emptyList struct {}
+
+func (emptyList) Contains(id ID) bool { return false}
+func (emptyList) IsEmpty() bool {return true}
+func (emptyList) CountFast() (int, bool) {return 0, true}
+func (emptyList) CountSlow() int {return 0}
+func (emptyList) Iterator() Iterator {return EmptyIterator }
+func (emptyList) Equal(other List) bool {return other.IsEmpty()}
+
+var (
+	EmptyIterator Iterator = emptyIterator{}
+)
+
+type emptyIterator struct {}
+
+func (emptyIterator) Next() bool { return false }
+func (emptyIterator) Current() ID { return 0 }
+func (emptyIterator) Err() error { return nil }
+func (emptyIterator) Close() error { return nil }
+
+
 // MutableList is a postings list implementation which also supports mutable operations.
 type MutableList interface {
 	List

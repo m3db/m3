@@ -174,10 +174,15 @@ func (w *indexWorkers) indexWorker(indexQueue <-chan indexJob) {
 				job.batchErr.AddWithLock(index.BatchError{Err: err, Idx: entry.docIdx})
 			}
 			if err == nil && newField {
+				var fieldPostingsList postings.List = terms.postingsListUnion
+				if graphiteNodeOrLeaf {
+					// Field postings list will always be empty for graphite field.
+					fieldPostingsList = postings.EmptyList
+				}
 				newEntry := uniqueField{
 					field:        entry.field.Name,
 					opts:         entry.opts,
-					postingsList: terms.postingsListUnion,
+					postingsList: fieldPostingsList,
 				}
 				job.shardedFields.uniqueFields[job.shard] = append(job.shardedFields.uniqueFields[job.shard], newEntry)
 			}

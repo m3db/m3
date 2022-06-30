@@ -22,6 +22,7 @@ package builder
 
 import (
 	"bytes"
+	"sort"
 
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/twotwotwo/sorts"
@@ -45,10 +46,9 @@ type termElem struct {
 func newTerms(opts Options) *terms {
 	pool := opts.PostingsListPool()
 	return &terms{
-		opts:              opts,
-		pool:              pool,
-		postingsListUnion: pool.Get(),
-		postings:          NewPostingsMap(PostingsMapOptions{}),
+		opts:                opts,
+		pool:                pool,
+		uniqueTermsIsSorted: true,
 	}
 }
 
@@ -74,6 +74,34 @@ func (t *terms) poolPut(v postings.MutableList) {
 }
 
 func (t *terms) post(term []byte, id postings.ID, opts indexJobEntryOptions) error {
+	graphiteNodeOrLeaf := opts.graphitePathNode || opts.graphitePathLeaf
+	if graphiteNodeOrLeaf {
+		// NB(rob): For graphite path indexing we don't actually associate
+		// the timeseries that are associated to the actual graphite path
+		// since this adds a lot of indexing pressure.
+		// The graphite paths that are indexed are purely only used for find lookups
+		// so we don't need to actually need a postings list for each term.
+		i := sort.Search(len(t.uniqueTerms), func(i int) bool {
+			return bytes.Compare(t.uniqueTerms[i].term, term) >= 0
+		})
+		if i < len(t.uniqueTerms) && bytes.Compare(t.uniqueTerms[i].term, term) == 0 {
+			// Already inserted.
+			return nil
+		}
+		// Insert the term at the correct position.
+		t.uniqueTerms = append(t.uniqueTerms, termElem{})
+		copy(t.uniqueTerms[i+1:], t.uniqueTerms[i:])
+		t.uniqueTerms[i] = termElem{
+			term:     term,
+			postings: postings.EmptyList,
+		}
+		return nil
+	}
+
+	// Lazy allocate the postings map.
+	if t.postings == nil {
+		t.postings = NewPostingsMap(PostingsMapOptions{})
+	}
 	postingsList, exists := t.postings.Get(term)
 	if !exists {
 		postingsList = t.poolGet()
@@ -84,18 +112,15 @@ func (t *terms) post(term []byte, id postings.ID, opts indexJobEntryOptions) err
 		})
 	}
 
-	if !opts.graphitePathNode && !opts.graphitePathLeaf {
-		// NB(rob): For graphite path indexing we don't actually associate
-		// the timeseries that are associated to the actual graphite path
-		// since this adds a lot of indexing pressure.
-		// The graphite paths that are indexed are purely only used for find lookups
-		// so we don't need to actually need the correct postings list for each term.
-		if err := postingsList.Insert(id); err != nil {
-			return err
-		}
-		if err := t.postingsListUnion.Insert(id); err != nil {
-			return err
-		}
+	if err := postingsList.Insert(id); err != nil {
+		return err
+	}
+	// Lazy allocate the postings list union.
+	if t.postingsListUnion == nil {
+		t.postingsListUnion = t.poolGet()
+	}
+	if err := t.postingsListUnion.Insert(id); err != nil {
+		return err
 	}
 
 	// If new postings list, track insertion of this key into the terms
@@ -109,12 +134,6 @@ func (t *terms) post(term []byte, id postings.ID, opts indexJobEntryOptions) err
 		t.uniqueTermsIsSorted = false
 	}
 	return nil
-}
-
-// nolint: unused
-func (t *terms) get(term []byte) (postings.List, bool) {
-	value, ok := t.postings.Get(term)
-	return value, ok
 }
 
 func (t *terms) sortIfRequired() {
@@ -131,12 +150,16 @@ func (t *terms) sortIfRequired() {
 }
 
 func (t *terms) reset() {
-	// Keep postings map lookup, return postings lists to pool
-	for _, entry := range t.postings.Iter() {
-		t.poolPut(entry.Value())
+	if t.postings != nil {
+		// Keep postings map lookup, return postings lists to pool
+		for _, entry := range t.postings.Iter() {
+			t.poolPut(entry.Value())
+		}
+		t.postings.Reset()
 	}
-	t.postings.Reset()
-	t.postingsListUnion.Reset()
+	if t.postingsListUnion != nil {
+		t.postingsListUnion.Reset()
+	}
 
 	// Reset the unique terms slice
 	var emptyTerm termElem
