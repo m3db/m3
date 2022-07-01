@@ -53,6 +53,8 @@ import (
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
+	xclock "github.com/m3db/m3/src/x/clock"
 )
 
 type testGraphiteFindDatasetSize uint
@@ -146,10 +148,12 @@ carbon:
 		retentionPeriod = 6 * blockSize
 		rOpts           = retention.NewOptions().
 				SetRetentionPeriod(retentionPeriod).
-				SetBlockSize(blockSize)
+				SetBlockSize(blockSize).
+				SetBufferPast(blockSize - time.Minute).
+				SetBufferFuture(blockSize - time.Minute)
 		idxOpts = namespace.NewIndexOptions().
 			SetEnabled(true).
-			SetBlockSize(2 * blockSize)
+			SetBlockSize(blockSize)
 		nOpts = namespace.NewOptions().
 			SetRetentionOptions(rOpts).
 			SetIndexOptions(idxOpts)
@@ -260,25 +264,121 @@ carbon:
 				IDs:       []string{series.ID.String()},
 				Tags:      series.Tags,
 				NumPoints: 1,
-				Start:     now.Add(-1 * blockSize),
-			},
-			{
-				IDs:       []string{series.ID.String()},
-				Tags:      series.Tags,
-				NumPoints: 1,
 				Start:     now,
 			},
 		}...)
 	}
 	seriesMaps := generate.BlocksByStart(generateBlocks)
-	log.Info("writing graphite data set to disk",
-		zap.Int("seriesMapSize", len(seriesMaps)))
-	require.NoError(t, writeTestDataToDisk(ns, setup, seriesMaps, 0))
 
 	// Start the server with filesystem bootstrapper.
 	log.Info("starting server")
 	require.NoError(t, setup.StartServer())
 	log.Info("server is now up")
+
+	var toWrite uint32
+	for _, blockSeries := range seriesMaps { 
+		for _, series := range blockSeries {
+			toWrite += uint32(len(series.Data))
+		}
+	}
+	log.Info("writing graphite data via client",
+		zap.Int("seriesMapSize", len(seriesMaps)),
+		zap.Uint32("datapointsSize", toWrite),
+	)
+
+	writeWorkerPool := xsync.NewWorkerPool(1024)
+	writeWorkerPool.Init()
+
+	var (
+		writeWG sync.WaitGroup
+		writeDoneCh = make(chan struct{}, 1)
+		numTotalSuccess = atomic.NewUint32(0)
+		numTotalErrors  = atomic.NewUint32(0)
+		start = time.Now()
+		numSeriesEnqueue int
+	)
+	go func() {
+		for {
+			select {
+			case <-writeDoneCh:
+				return
+			case <-time.After(5 * time.Second):
+				log.Info("written datapoints progress", 
+					zap.Uint32("success", numTotalSuccess.Load()),
+					zap.Uint32("total", toWrite),
+				)
+			}
+		}
+	}()
+
+	session, err := setup.M3DBClient().DefaultSession()
+	require.NoError(t, err)
+	for _, blockSeries := range seriesMaps { 
+		for _, series := range blockSeries {
+			numSeriesEnqueue++
+			for _, value := range series.Data {
+				series, value := series, value
+				writeWG.Add(1)
+				writeWorkerPool.Go(func() {
+					defer writeWG.Done()
+					err := session.WriteTagged(
+						ns.ID(),
+						series.ID,
+						ident.NewTagsIterator(series.Tags),
+						value.Timestamp,
+						value.Value,
+						xtime.Second,
+						value.Annotation,
+					)
+					if err != nil {
+						numTotalErrors.Inc()
+						assert.NoError(t, err)
+						return
+					}
+					numTotalSuccess.Inc()
+				})
+			}
+		}
+	}
+
+	writeWG.Wait()
+	close(writeDoneCh)
+
+	// Check no write errors.
+	require.Equal(t, int(0), int(numTotalErrors.Load()))
+
+	log.Info("test data written",
+		zap.Duration("took", time.Since(start)),
+		zap.Int("written", int(numTotalSuccess.Load())))
+
+	log.Info("data indexing verify start")
+
+	// Wait for at least all things to be enqueued for indexing.
+	expectStatPrefix := "dbindex.index-attempt+namespace=testns,"
+	expectStatProcess := expectStatPrefix + "stage=process"
+	expectNumIndex := numSeriesEnqueue
+	indexProcess := xclock.WaitUntil(func() bool {
+		counters := setup.Scope().Snapshot().Counters()
+		counter, ok := counters[expectStatProcess]
+		if !ok {
+			return false
+		}
+		return int(counter.Value()) == expectNumIndex
+	}, 10 * time.Second)
+
+	counters := setup.Scope().Snapshot().Counters()
+	counter, ok := counters[expectStatProcess]
+
+	var value int
+	if ok {
+		value = int(counter.Value())
+	}
+	if !indexProcess{
+		logCounterValues(setup.Scope(), log)
+	}
+	require.True(t, indexProcess,
+		fmt.Sprintf("expected to index %d but processed %d", expectNumIndex, value))
+
 
 	// Stop the server.
 	defer func() {
