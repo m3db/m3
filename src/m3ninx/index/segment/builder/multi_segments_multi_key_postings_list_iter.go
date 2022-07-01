@@ -59,8 +59,10 @@ func newMultiKeyPostingsListIterator() *multiKeyPostingsListIterator {
 		readOnlyBitmapIter = roaring.NewReadOnlyBitmapIterator(nil)
 	}
 	i := &multiKeyPostingsListIterator{
-		currFieldPostingsList: roaring.NewPostingsListFromBitmap(b),
-		readOnlyBitmapIter:    readOnlyBitmapIter,
+		currFieldPostingsList: &skipResetOnEmptyMutableList{
+			list: roaring.NewPostingsListFromBitmap(b),
+		},
+		readOnlyBitmapIter: readOnlyBitmapIter,
 	}
 	i.reset()
 	return i
