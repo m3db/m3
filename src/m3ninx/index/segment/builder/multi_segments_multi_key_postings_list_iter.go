@@ -46,7 +46,7 @@ type multiKeyPostingsListIterator struct {
 	iters                 []keyIterator
 	currIters             []keyIterator
 	currReaders           []index.Reader
-	currFieldPostingsList postings.MutableList
+	currFieldPostingsList *skipResetOnEmptyMutableList
 	readOnlyBitmapIter    roaring.ReadOnlyBitmapIterator
 }
 
@@ -70,7 +70,7 @@ func newMultiKeyPostingsListIterator() *multiKeyPostingsListIterator {
 
 func (i *multiKeyPostingsListIterator) reset() {
 	i.firstNext = true
-	i.currFieldPostingsList.Reset()
+	i.currFieldPostingsList.reset()
 
 	for j := range i.closeIters {
 		i.closeIters[j] = nil
@@ -145,7 +145,7 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 		i.currReaders = i.currReaders[:0]
 	}()
 
-	i.currFieldPostingsList.Reset()
+	i.currFieldPostingsList.reset()
 	currField := i.currIters[0].Current()
 
 	for _, iter := range i.currIters {
@@ -181,12 +181,12 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 			if index.MigrationReadOnlyPostings() {
 				readOnlyBitmap := pl.(*roaring.ReadOnlyBitmap)
 				i.readOnlyBitmapIter.Reset(readOnlyBitmap)
-				if err := i.currFieldPostingsList.AddIterator(i.readOnlyBitmapIter); err != nil {
+				if err := i.currFieldPostingsList.addIterator(i.readOnlyBitmapIter); err != nil {
 					i.err = err
 					return false
 				}
 			} else {
-				if err := i.currFieldPostingsList.Union(pl); err != nil {
+				if err := i.currFieldPostingsList.union(pl); err != nil {
 					i.err = err
 					return false
 				}
@@ -215,7 +215,7 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 				continue
 			}
 			value := curr + fieldsKeyIter.segment.offset - postings.ID(negativeOffset)
-			if err := i.currFieldPostingsList.Insert(value); err != nil {
+			if err := i.currFieldPostingsList.insert(value); err != nil {
 				iter.Close()
 				i.err = err
 				return false
@@ -260,7 +260,7 @@ func (i *multiKeyPostingsListIterator) tryAddCurr(iter keyIterator) {
 }
 
 func (i *multiKeyPostingsListIterator) Current() ([]byte, postings.List) {
-	return i.currIters[0].Current(), i.currFieldPostingsList
+	return i.currIters[0].Current(), i.currFieldPostingsList.list
 }
 
 func (i *multiKeyPostingsListIterator) CurrentIters() []keyIterator {
