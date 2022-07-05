@@ -51,39 +51,3 @@ func (c Configuration) NewTracerProvider(
 ) (*sdktrace.TracerProvider, error) {
 	return nil, nil
 }
-
-type traceSpanProcessor struct {
-	traceStart       tally.Counter
-	traceEnd         tally.Counter
-	tracerShutdown   tally.Counter
-	tracerForceFlush tally.Counter
-}
-
-func newTraceSpanProcessor(scope tally.Scope) sdktrace.SpanProcessor {
-	traceScope := scope.SubScope("trace")
-	tracerScope := scope.SubScope("tracer")
-	return &traceSpanProcessor{
-		traceStart:       traceScope.Counter("start"),
-		traceEnd:         traceScope.Counter("end"),
-		tracerShutdown:   tracerScope.Counter("shutdown"),
-		tracerForceFlush: tracerScope.Counter("force-flush"),
-	}
-}
-
-func (p *traceSpanProcessor) OnStart(parent context.Context, s sdktrace.ReadWriteSpan) {
-	p.traceStart.Inc(1)
-}
-
-func (p *traceSpanProcessor) OnEnd(s sdktrace.ReadOnlySpan) {
-	p.traceEnd.Inc(1)
-}
-
-func (p *traceSpanProcessor) Shutdown(ctx context.Context) error {
-	p.tracerShutdown.Inc(1)
-	return nil
-}
-
-func (p *traceSpanProcessor) ForceFlush(ctx context.Context) error {
-	p.tracerForceFlush.Inc(1)
-	return nil
-}
