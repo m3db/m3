@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Uber Technologies, Inc.
+// Copyright (c) 2022 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,4 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package opentelemetry provides Open Telemetry configuration.
+// Currently OpenTelemetry trace provider is disabled due to internal Uber's dependency
+// issue. OpenTelemetry trace provider is disabled for some time till we fix internal
+// Uber dependency. This change will never be landed to M3 master.
 package opentelemetry

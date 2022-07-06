@@ -28,13 +28,10 @@ import (
 	"github.com/uber-go/tally"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
-	"google.golang.org/grpc"
 )
 
 // Configuration configures an OpenTelemetry trace provider.
@@ -70,22 +67,10 @@ func (c Configuration) NewTracerProvider(
 		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
 
-	driverOpts := []otlptracegrpc.Option{
-		otlptracegrpc.WithEndpoint(c.Endpoint),
-		otlptracegrpc.WithDialOption(grpc.WithBlock()),
-	}
-	if c.Insecure {
-		driverOpts = append(driverOpts, otlptracegrpc.WithInsecure())
-	}
-	driver := otlptracegrpc.NewClient(driverOpts...)
-	traceExporter, err := otlptrace.New(ctx, driver)
-	if err != nil {
-		return nil, fmt.Errorf("failed to trace exporter: %w", err)
-	}
-
 	// Register the trace exporter with a TracerProvider, using a batch
 	// span processor to aggregate spans before export.
-	batchSpanProcessor := sdktrace.NewBatchSpanProcessor(traceExporter)
+	// exporter is passed as nil, the span processor will preform no action.
+	batchSpanProcessor := sdktrace.NewBatchSpanProcessor(nil)
 	tracerMetricsProcessor := newTraceSpanProcessor(scope)
 	tracerProvider := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
