@@ -31,7 +31,7 @@ import (
 func TestTermsReuse(t *testing.T) {
 	terms := newTerms(NewOptions())
 
-	require.NoError(t, terms.post([]byte("term"), postings.ID(1)))
+	require.NoError(t, terms.post([]byte("term"), postings.ID(1), indexJobEntryOptions{}))
 	require.Equal(t, terms.size(), 1)
 	require.Equal(t, terms.postings.Len(), 1)
 	require.Equal(t, terms.postingsListUnion.CountSlow(), 1)

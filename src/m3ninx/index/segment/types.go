@@ -30,11 +30,9 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var (
-	// ErrClosed is the error returned when attempting to perform operations on a
-	// segment that has already been closed.
-	ErrClosed = errors.New("segment has been closed")
-)
+// ErrClosed is the error returned when attempting to perform operations on a
+// segment that has already been closed.
+var ErrClosed = errors.New("segment has been closed")
 
 // Segment is a sub-collection of documents within an index.
 type Segment interface {
@@ -159,9 +157,34 @@ type FieldsIterator interface {
 type TermsIterator interface {
 	Iterator
 
+	// AllTermsLength returns the length of the all terms contained by the
+	// current field that is being iterated.
+	// NB: If the term iterator is filtering some results out this result
+	// will not be accurate as it only returns the full number of terms
+	// contained by the FST, not just the number of terms this iterator will
+	// ultimately return.
+	AllTermsLength() int
+
 	// Current returns the current element.
-	// NB: the element returned is only valid until the subsequent call to Next().
+	// NB: The element returned is only valid until the subsequent call to Next.
 	Current() (term []byte, postings postings.List)
+}
+
+// ReuseableTermsIterator is a terms iterator that can be reset independently.
+type ReuseableTermsIterator interface {
+	TermsIterator
+
+	// ResetField resets the field that the terms iterator is iterating over.
+	ResetField(field []byte) error
+
+	// ResetFieldWithNumResults resets the field that the terms iterator is
+	// iterating over and explicitly expects the terms to be of a specific size,
+	// caller should be confident this matches (some implementations will check
+	// this and others expect to have this calculated from previous calls to
+	// ResetField on the same segment and is provided to avoid an extra cycle
+	// of iterating the terms to calculate size to return for calls to the
+	// AllTermsLength method).
+	ResetFieldWithNumTerms(field []byte, numTerms int) error
 }
 
 // Iterator holds common iterator methods.
@@ -214,6 +237,10 @@ type Builder interface {
 
 	// AllDocs returns an iterator over the documents known to the Reader.
 	AllDocs() (index.IDDocIterator, error)
+
+	// TermsIterator returns a reuseable terms iterator that can be used
+	// many times independently concurrently alongside other term iterators.
+	TermsIterator() (ReuseableTermsIterator, error)
 }
 
 // DocumentsBuilder is a builder that has documents written to it.

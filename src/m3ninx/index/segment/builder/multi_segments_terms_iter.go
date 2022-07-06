@@ -35,14 +35,15 @@ const (
 
 // Ensure for our use case that the terms iter from segments we return
 // matches the signature for the terms iterator.
-var _ segment.TermsIterator = &termsIterFromSegments{}
+var _ segment.ReuseableTermsIterator = &termsIterFromSegments{}
 
 type termsIterFromSegments struct {
 	keyIter          *multiKeyIterator
 	currPostingsList *skipResetOnEmptyMutableList
 	bitmapIter       *bitmap.Iterator
 
-	segments []segmentTermsMetadata
+	segments   []segmentTermsMetadata
+	numResults int
 
 	err        error
 	termsIters []*termsKeyIter
@@ -99,7 +100,37 @@ func (i *termsIterFromSegments) reset(segments []segmentMetadata) {
 	}
 }
 
-func (i *termsIterFromSegments) setField(field []byte) error {
+func (i *termsIterFromSegments) ResetField(field []byte) error {
+	if err := i.resetKeyIter(field); err != nil {
+		return err
+	}
+
+	// Count full number of results to be able to return accurate
+	// result for AllTermsLength.
+	n := 0
+	for i.keyIter.Next() {
+		n++
+	}
+	if err := i.keyIter.Err(); err != nil {
+		return err
+	}
+	if err := i.keyIter.Close(); err != nil {
+		return err
+	}
+
+	// Reset again for the actual iteration with the known terms count.
+	return i.ResetFieldWithNumTerms(field, n)
+}
+
+func (i *termsIterFromSegments) ResetFieldWithNumTerms(field []byte, n int) error {
+	if err := i.resetKeyIter(field); err != nil {
+		return err
+	}
+	i.numResults = n
+	return nil
+}
+
+func (i *termsIterFromSegments) resetKeyIter(field []byte) error {
 	i.clearTermIters()
 
 	// Alloc any required terms iter containers.
@@ -130,6 +161,10 @@ func (i *termsIterFromSegments) setField(field []byte) error {
 	}
 
 	return nil
+}
+
+func (i *termsIterFromSegments) AllTermsLength() int {
+	return i.numResults
 }
 
 func (i *termsIterFromSegments) Next() bool {
@@ -200,12 +235,6 @@ func (i *termsIterFromSegments) Next() bool {
 			i.err = err
 			return false
 		}
-	}
-
-	if i.currPostingsList.list.IsEmpty() {
-		// Everything skipped or term is empty.
-		// TODO: make this non-stack based (i.e. not recursive).
-		return i.Next()
 	}
 
 	return true

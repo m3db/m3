@@ -29,40 +29,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
-// termsDictionary is an internal interface for a mutable terms dictionary.
-type termsDictionary interface {
-	// Insert inserts the field with the given ID into the terms dictionary.
-	Insert(field doc.Field, id postings.ID) error
-
-	// ContainsField returns a bool indicating whether the terms dictionary contains
-	// the given field.
-	ContainsField(field []byte) bool
-
-	// ContainsTerm returns a bool indicating whether the terms dictionary contains
-	// the given term.
-	ContainsTerm(field, term []byte) bool
-
-	// MatchTerm returns the postings list corresponding to documents which match the
-	// given field term exactly.
-	MatchTerm(field, term []byte) postings.List
-
-	// MatchRegexp returns the postings list corresponding to documents which match the
-	// given egular expression.
-	MatchRegexp(field []byte, compiled *re.Regexp) postings.List
-
-	// Fields returns the known fields.
-	Fields() sgmt.FieldsIterator
-
-	// Fields returns the known fields.
-	FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error)
-
-	// Terms returns the known terms values for the given field.
-	Terms(field []byte) sgmt.TermsIterator
-
-	// Reset resets the terms dictionary for reuse.
-	Reset()
-}
-
 // ReadableSegment is an internal interface for reading from a segment.
 //
 // NB(jeromefroe): Currently mockgen requires that interfaces with embedded interfaces be

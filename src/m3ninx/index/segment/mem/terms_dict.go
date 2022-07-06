@@ -21,6 +21,7 @@
 package mem
 
 import (
+	"fmt"
 	re "regexp"
 	"sync"
 
@@ -42,7 +43,7 @@ type termsDict struct {
 	}
 }
 
-func newTermsDict(opts Options) termsDictionary {
+func newTermsDict(opts Options) *termsDict {
 	dict := &termsDict{
 		opts: opts,
 	}
@@ -112,14 +113,14 @@ func (d *termsDict) FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error
 	return newUniqueFieldsIter(fields, d.opts), nil
 }
 
-func (d *termsDict) Terms(field []byte) sgmt.TermsIterator {
+func (d *termsDict) terms(field []byte) (*concurrentPostingsMap, error) {
 	d.fields.RLock()
 	defer d.fields.RUnlock()
 	values, ok := d.fields.Get(field)
 	if !ok {
-		return sgmt.EmptyTermsIterator
+		return nil, fmt.Errorf("field not found: field=%s", field)
 	}
-	return values.Keys()
+	return values, nil
 }
 
 func (d *termsDict) matchTerm(field, term []byte) (postings.List, bool) {

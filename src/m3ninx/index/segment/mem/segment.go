@@ -57,7 +57,7 @@ type memSegment struct {
 	}
 
 	// Mapping of term to postings list.
-	termsDict termsDictionary
+	termsDict *termsDict
 
 	writer struct {
 		sync.Mutex
@@ -479,13 +479,24 @@ func (s *memSegment) FieldsPostingsListWithRegex(
 	return nil, fmt.Errorf("unimplemented")
 }
 
-func (s *memSegment) Terms(name []byte) (segment.TermsIterator, error) {
+func (s *memSegment) Terms(field []byte) (segment.TermsIterator, error) {
+	termsIter, err := s.TermsIterator()
+	if err != nil {
+		return nil, err
+	}
+	if err := termsIter.ResetField(field); err != nil {
+		return nil, err
+	}
+	return termsIter, nil
+}
+
+func (s *memSegment) TermsIterator() (segment.ReuseableTermsIterator, error) {
 	s.state.RLock()
 	defer s.state.RUnlock()
 	if err := s.checkIsSealedWithRLock(); err != nil {
 		return nil, err
 	}
-	return s.termsDict.Terms(name), nil
+	return newTermsIter(s), nil
 }
 
 func (s *memSegment) TermsWithRegex(

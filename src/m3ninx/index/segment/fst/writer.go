@@ -21,9 +21,12 @@
 package fst
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"math"
+	"runtime"
+	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
@@ -36,6 +39,7 @@ import (
 )
 
 var (
+	writerConcurrency                    = runtime.NumCPU()
 	defaultInitialPostingsOffsetsSize    = 1024
 	defaultInitialFSTTermsOffsetsSize    = 1024
 	defaultInitialDocOffsetsSize         = 1024
@@ -60,11 +64,14 @@ type writer struct {
 	fstTermsFileWritten bool
 	fstTermsOffsets     []uint64
 	termPostingsOffsets []uint64
+	fieldTermsLengths   []uint64
 
 	// only used by versions >= 1.1
 	fieldPostingsOffsets []uint64
 	fieldData            *fswriter.FieldData
 	fieldBuffer          proto.Buffer
+
+	writeFSTTermsWorkers []*writeFSTTermsWorker
 }
 
 // WriterOptions is a set of options used when writing an FST.
@@ -97,17 +104,25 @@ func newWriterWithVersion(opts WriterOptions, vers *Version) (Writer, error) {
 		return nil, err
 	}
 
-	return &writer{
-		version:             v,
-		intEncoder:          encoding.NewEncoder(defaultInitialIntEncoderSize),
-		postingsEncoder:     pilosa.NewEncoder(),
-		fstWriter:           newFSTWriter(opts),
-		docsWriter:          docsWriter,
-		fstTermsOffsets:     make([]uint64, 0, defaultInitialFSTTermsOffsetsSize),
-		termPostingsOffsets: make([]uint64, 0, defaultInitialPostingsOffsetsSize),
+	workers := make([]*writeFSTTermsWorker, 0, writerConcurrency)
+	for i := 0; i < int(writerConcurrency); i++ {
+		worker := newWriteFSTTermsWorker(i, opts)
+		workers = append(workers, worker)
+	}
 
+	return &writer{
+		postingsEncoder:     pilosa.NewEncoder(),
+		version:              v,
+		intEncoder:           encoding.NewEncoder(defaultInitialIntEncoderSize),
+		fstWriter:            newFSTWriter(opts),
+		docsWriter:           docsWriter,
+		fstTermsOffsets:      make([]uint64, 0, defaultInitialFSTTermsOffsetsSize),
+		termPostingsOffsets:  make([]uint64, 0, defaultInitialPostingsOffsetsSize),
 		fieldPostingsOffsets: make([]uint64, 0, defaultInitialPostingsOffsetsSize),
+		fieldTermsLengths:    make([]uint64, 0, defaultInitialPostingsOffsetsSize),
 		fieldData:            &fswriter.FieldData{},
+
+		writeFSTTermsWorkers: workers,
 	}, nil
 }
 
@@ -129,6 +144,10 @@ func (w *writer) clear() {
 	w.fieldPostingsOffsets = w.fieldPostingsOffsets[:0]
 	w.fieldData.Reset()
 	w.fieldBuffer.Reset()
+
+	for _, worker := range w.writeFSTTermsWorkers {
+		worker.reset(nil)
+	}
 }
 
 func (w *writer) Reset(b sgmt.Builder) error {
@@ -148,6 +167,7 @@ func (w *writer) Reset(b sgmt.Builder) error {
 
 	w.metadata = metadataBytes
 	w.builder = b
+
 	w.size = int64(numDocs)
 	return nil
 }
@@ -213,18 +233,22 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 		return err
 	}
 
+	termsIter, err := w.builder.TermsIterator()
+	if err != nil {
+		return err
+	}
+
 	// for each known field
 	for fields.Next() {
 		f, fieldPostingsList := fields.Current()
 		// retrieve known terms for current field
-		terms, err := w.builder.Terms(f)
-		if err != nil {
+		if err := termsIter.ResetField(f); err != nil {
 			return err
 		}
 
 		// for each term corresponding to the current field
-		for terms.Next() {
-			_, pl := terms.Current()
+		for termsIter.Next() {
+			_, pl := termsIter.Current()
 			if pl.IsEmpty() {
 				// empty postings list, no-op and write math.MaxUint64 here
 				w.termPostingsOffsets = append(w.termPostingsOffsets, math.MaxUint64)
@@ -259,11 +283,11 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 			}
 		}
 
-		if err := terms.Err(); err != nil {
+		if err := termsIter.Err(); err != nil {
 			return err
 		}
 
-		if err := terms.Close(); err != nil {
+		if err := termsIter.Close(); err != nil {
 			return err
 		}
 	}
@@ -280,6 +304,156 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 	return nil
 }
 
+type writeFSTTermsWorker struct {
+	numWorker int
+	fstWriter *fstWriter
+	fstBuff   *bytes.Buffer
+
+	termsIter sgmt.ReuseableTermsIterator
+
+	closed bool
+
+	workCh   chan writeFSTTermsArgs
+	resultCh chan writeFSTTermsResult
+}
+
+type workSignal struct {
+	abort bool
+}
+
+type writeFSTTermsArgs struct {
+	workSignal
+	field        []byte
+	metadataBuff []byte
+	termsOffsets []uint64
+}
+
+type writeFSTTermsResult struct {
+	workSignal
+	err          error
+	metadataBuff []byte
+	fstBuff      []byte
+	numBytesFST  uint64
+}
+
+func newWriteFSTTermsWorker(
+	numWorker int,
+	opts WriterOptions,
+) *writeFSTTermsWorker {
+	w := &writeFSTTermsWorker{
+		numWorker: numWorker,
+		fstWriter: newFSTWriter(opts),
+		fstBuff:   bytes.NewBuffer(nil),
+	}
+	return w
+}
+
+func (w *writeFSTTermsWorker) reset(
+	termsIter sgmt.ReuseableTermsIterator,
+) {
+	numWorker := w.numWorker
+	fstWriter := w.fstWriter
+	fstBuff := w.fstBuff
+
+	*w = writeFSTTermsWorker{}
+
+	w.numWorker = numWorker
+	w.termsIter = termsIter
+	w.workCh = make(chan writeFSTTermsArgs, 32)
+	w.resultCh = make(chan writeFSTTermsResult, 32)
+	w.fstWriter = fstWriter
+	w.fstBuff = fstBuff
+}
+
+func (w *writeFSTTermsWorker) run() {
+	defer func() {
+		// Cleanup.
+		if err := w.termsIter.Close(); err != nil {
+			w.resultCh <- writeFSTTermsResult{err: err}
+		}
+		w.termsIter = nil
+
+		// Make sure consumer of result is signaled end of result publishing.
+		w.resultCh <- writeFSTTermsResult{workSignal: workSignal{abort: true}}
+	}()
+
+	for args := range w.workCh {
+		if args.abort {
+			// Publisher side was closed cleanly.
+			return
+		}
+
+		// Run and publish result.
+		w.resultCh <- w.work(args)
+	}
+}
+
+func (w *writeFSTTermsWorker) closePublisher() {
+	if !w.closed {
+		w.workCh <- writeFSTTermsArgs{workSignal: workSignal{abort: true}}
+		w.closed = true
+	}
+}
+
+func (w *writeFSTTermsWorker) work(args writeFSTTermsArgs) writeFSTTermsResult {
+	// Reset buffers.
+	w.fstBuff.Reset()
+	w.fstWriter.Reset(w.fstBuff)
+
+	f := args.field
+	termsOffsets := args.termsOffsets
+	numTerms := len(termsOffsets)
+
+	// NB(rob): Reset using ResetFieldWithNumTerms so that an extra iteration
+	// to determine the number of unique terms is not required for
+	// the multi-segments terms iterator (termsIterFromSegments).
+	if err := w.termsIter.ResetFieldWithNumTerms(f, numTerms); err != nil {
+		return writeFSTTermsResult{err: err}
+	}
+
+	// for each term corresponding to this field
+	for w.termsIter.Next() {
+		t, _ := w.termsIter.Current()
+
+		// retieve postsings offset for the current field,term
+		if len(termsOffsets) == 0 {
+			return writeFSTTermsResult{
+				err: fmt.Errorf("postings offset not found for: field=%s, term=%s", f, t),
+			}
+		}
+
+		po := termsOffsets[0]
+		termsOffsets = termsOffsets[1:]
+
+		// add the term -> posting offset into the term's fst
+		if err := w.fstWriter.Add(t, po); err != nil {
+			return writeFSTTermsResult{err: err}
+		}
+	}
+	if err := w.termsIter.Err(); err != nil {
+		return writeFSTTermsResult{err: err}
+	}
+
+	if len(termsOffsets) != 0 {
+		return writeFSTTermsResult{
+			err: fmt.Errorf("iterated terms but expected more: actual=%d, expected=%d",
+				numTerms-len(termsOffsets), numTerms),
+		}
+	}
+
+	// retrieve a serialized representation of the field's fst
+	numBytesFST, err := w.fstWriter.Close()
+	if err != nil {
+		return writeFSTTermsResult{err: err}
+	}
+
+	return writeFSTTermsResult{
+		metadataBuff: args.metadataBuff,
+		fstBuff:      append(make([]byte, 0, len(w.fstBuff.Bytes())), w.fstBuff.Bytes()...),
+		numBytesFST:  numBytesFST,
+	}
+}
+
 func (w *writer) WriteFSTTerms(iow io.Writer) error {
 	if !w.postingsFileWritten {
 		return fmt.Errorf("postings offsets have to be written before fst terms can be written")
@@ -289,6 +463,95 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 		writeFieldsPostingList = w.version.supportsFieldPostingsList()
 		currentOffset          = uint64(0) // track offset of writes into `iow`.
 	)
+	consume := func() error {
+		closed := make([]int, 0, len(w.writeFSTTermsWorkers))
+		for {
+		WorkerConsumeLoop:
+			for i, worker := range w.writeFSTTermsWorkers {
+				for _, j := range closed {
+					if i == j {
+						continue WorkerConsumeLoop
+					}
+				}
+
+				result := <-worker.resultCh
+				if result.abort {
+					closed = append(closed, i)
+					continue
+				}
+
+				if err := result.err; err != nil {
+					return err
+				}
+
+				if len(result.metadataBuff) > 0 {
+					if _, err := iow.Write(result.metadataBuff); err != nil {
+						return err
+					}
+					numBytesMD := uint64(len(result.metadataBuff))
+					numBytesMDSize, err := w.writeUint64(iow, numBytesMD)
+					if err != nil {
+						return err
+					}
+
+					// update offset with the number of bytes we've written
+					currentOffset += numBytesMD + numBytesMDSize
+				}
+
+				// write the fst
+				if _, err := iow.Write(result.fstBuff); err != nil {
+					return err
+				}
+
+				// serialize the size of the fst
+				n, err := w.writeSizeAndMagicNumber(iow, result.numBytesFST)
+				if err != nil {
+					return err
+				}
+
+				// update offset with the number of bytes we've written
+				currentOffset += result.numBytesFST + n
+
+				// track current offset as the offset for the current field's fst
+				w.fstTermsOffsets = append(w.fstTermsOffsets, currentOffset)
+			}
+			if len(closed) == len(w.writeFSTTermsWorkers) {
+				// All workers have closed their result channels, we're done.
+				return nil
+			}
+		}
+	}
+
+	// Run workers.
+	var workersDone sync.WaitGroup
+	for i := range w.writeFSTTermsWorkers {
+		termsIter, err := w.builder.TermsIterator()
+		if err != nil {
+			return err
+		}
+
+		worker := w.writeFSTTermsWorkers[i]
+		worker.reset(termsIter)
+		workersDone.Add(1)
+		go func(i int) {
+			worker.run()
+			workersDone.Done()
+		}(i)
+	}
+
+	// Ensure we cleanup all workers.
+	defer func() {
+		// Abort workers if they haven't already closed due to successful
+		for _, worker := range w.writeFSTTermsWorkers {
+			worker.closePublisher()
+		}
+		// Wait for all workers to finish.
+		workersDone.Wait()
+	}()
+
+	// Start consume worker.
+	consumeCh := make(chan error)
+	go func() { consumeCh <- consume() }()
 
 	// retrieve all known fields
 	fields, err := w.builder.FieldsPostingsList()
@@ -296,15 +559,18 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 		return err
 	}
 
-	// iterate term|field postings offsets
+	// iterate term|field postings offsets and build a fst for each field's terms
 	var (
-		termOffsets  = w.termPostingsOffsets
-		fieldOffsets = w.fieldPostingsOffsets
+		termOffsets       = w.termPostingsOffsets
+		fieldOffsets      = w.fieldPostingsOffsets
+		fieldTermsLengths = w.fieldTermsLengths
+		fieldIndex        = -1
 	)
-
-	// build a fst for each field's terms
 	for fields.Next() {
 		f, _ := fields.Current()
+		fieldIndex++
+
+		var fieldsMetadata []byte
 
 		// write fields level postings list if required
 		if writeFieldsPostingList {
@@ -314,69 +580,27 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 			if err != nil {
 				return err
 			}
-			if _, err := iow.Write(md); err != nil {
-				return err
-			}
-			numBytesMD := uint64(len(md))
-			numBytesMDSize, err := w.writeUint64(iow, numBytesMD)
-			if err != nil {
-				return err
-			}
-			currentOffset += numBytesMD + numBytesMDSize
+			fieldsMetadata = md
 		}
 
-		// reset writer for this field's fst
-		if err := w.fstWriter.Reset(iow); err != nil {
-			return err
+		numTerms := fieldTermsLengths[0]
+		fieldTermsLengths = fieldTermsLengths[1:]
+		offsets := termOffsets[:numTerms]
+		termOffsets = termOffsets[numTerms:]
+
+		numWorker := fieldIndex % len(w.writeFSTTermsWorkers)
+		worker := w.writeFSTTermsWorkers[numWorker]
+
+		// TODO: ensure this won't block forever if worker/consumer shutdown
+		// due to an error.
+		// This caused an infinite pause during testing since consume returns
+		// an error and then the consumer is no longer reading results
+		// and the worker channel becomes blocked.
+		worker.workCh <- writeFSTTermsArgs{
+			field:        append(make([]byte, 0, len(f)), f...),
+			metadataBuff: append(make([]byte, 0, len(fieldsMetadata)), fieldsMetadata...),
+			termsOffsets: offsets,
 		}
-
-		// retrieve all terms for this field
-		terms, err := w.builder.Terms(f)
-		if err != nil {
-			return err
-		}
-
-		// for each term corresponding to this field
-		for terms.Next() {
-			t, _ := terms.Current()
-
-			// retieve postsings offset for the current field,term
-			if len(termOffsets) == 0 {
-				return fmt.Errorf("postings offset not found for: field=%s, term=%s", f, t)
-			}
-
-			po := termOffsets[0]
-			termOffsets = termOffsets[1:]
-
-			// add the term -> posting offset into the term's fst
-			if err := w.fstWriter.Add(t, po); err != nil {
-				return err
-			}
-		}
-		if err := terms.Err(); err != nil {
-			return err
-		}
-
-		if err := terms.Close(); err != nil {
-			return err
-		}
-
-		// retrieve a serialized representation of the field's fst
-		numBytesFST, err := w.fstWriter.Close()
-		if err != nil {
-			return err
-		}
-
-		// serialize the size of the fst
-		n, err := w.writeSizeAndMagicNumber(iow, numBytesFST)
-		if err != nil {
-			return err
-		}
-		// update offset with the number of bytes we've written
-		currentOffset += numBytesFST + n
-
-		// track current offset as the offset for the current field's fst
-		w.fstTermsOffsets = append(w.fstTermsOffsets, currentOffset)
 	}
 
 	if err := fields.Err(); err != nil {
@@ -384,6 +608,14 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 	}
 
 	if err := fields.Close(); err != nil {
+		return err
+	}
+
+	// Signal workers no more to publish.
+	for _, worker := range w.writeFSTTermsWorkers {
+		worker.closePublisher()
+	}
+	if err := <-consumeCh; err != nil {
 		return err
 	}
 

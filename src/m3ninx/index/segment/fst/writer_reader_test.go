@@ -171,18 +171,6 @@ func TestFieldDoesNotExist(t *testing.T) {
 			for _, tc := range newTestCases(t, test.docs) {
 				t.Run(tc.name, func(t *testing.T) {
 					elaborateFieldName := []byte("some-elaborate-field-that-does-not-exist-in-test-docs")
-					terms, err := tc.expected.TermsIterable().Terms(elaborateFieldName)
-					require.NoError(t, err)
-					require.False(t, terms.Next())
-					require.NoError(t, terms.Err())
-					require.NoError(t, terms.Close())
-
-					terms, err = tc.observed.TermsIterable().Terms(elaborateFieldName)
-					require.NoError(t, err)
-					require.False(t, terms.Next())
-					require.NoError(t, terms.Err())
-					require.NoError(t, terms.Close())
-
 					expectedReader, err := tc.expected.Reader()
 					require.NoError(t, err)
 					pl, err := expectedReader.MatchTerm(elaborateFieldName, []byte("."))
@@ -312,6 +300,7 @@ func TestPostingsListEqualForMatchField(t *testing.T) {
 		})
 	}
 }
+
 func TestPostingsListEqualForMatchTerm(t *testing.T) {
 	for _, test := range testDocuments {
 		t.Run(test.name, func(t *testing.T) {

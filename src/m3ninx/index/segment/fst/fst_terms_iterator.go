@@ -129,6 +129,10 @@ func (f *fstTermsIter) handleIterErr(err error) {
 	}
 }
 
+func (f *fstTermsIter) AllTermsLength() int {
+	return f.opts.fst.Len()
+}
+
 func (f *fstTermsIter) Next() bool {
 	if f.done || f.err != nil {
 		return false

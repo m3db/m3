@@ -170,6 +170,7 @@ func TestBuilderIndexGraphiteDocs(t *testing.T) {
 
 	graphiteDocs := []doc.Metadata{
 		{
+			ID: []byte("foo.bar"),
 			Fields: []doc.Field{
 				{
 					Name:  []byte(graphite.TagName(0)),
@@ -182,6 +183,7 @@ func TestBuilderIndexGraphiteDocs(t *testing.T) {
 			},
 		},
 		{
+			ID: []byte("foo.bar.baz"),
 			Fields: []doc.Field{
 				{
 					Name:  []byte(graphite.TagName(0)),
@@ -198,6 +200,7 @@ func TestBuilderIndexGraphiteDocs(t *testing.T) {
 			},
 		},
 		{
+			ID: []byte("foo.bar.qux"),
 			Fields: []doc.Field{
 				{
 					Name:  []byte(graphite.TagName(0)),
@@ -214,6 +217,7 @@ func TestBuilderIndexGraphiteDocs(t *testing.T) {
 			},
 		},
 		{
+			ID: []byte("qaz"),
 			Fields: []doc.Field{
 				{
 					Name:  []byte(graphite.TagName(0)),
@@ -222,6 +226,7 @@ func TestBuilderIndexGraphiteDocs(t *testing.T) {
 			},
 		},
 		{
+			ID: []byte("foo.jar"),
 			Fields: []doc.Field{
 				{
 					Name:  []byte(graphite.TagName(0)),

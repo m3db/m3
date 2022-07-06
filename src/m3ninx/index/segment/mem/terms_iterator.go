@@ -27,11 +27,15 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
+var errNotReset = fmt.Errorf("terms iterator not reset")
+
 type termsLookup interface {
 	Get(key []byte) (postings.List, bool)
 }
 
 type termsIter struct {
+	seg *memSegment
+
 	err  error
 	done bool
 
@@ -43,20 +47,56 @@ type termsIter struct {
 	opts            Options
 }
 
-var _ sgmt.TermsIterator = &termsIter{}
+var _ sgmt.ReuseableTermsIterator = &termsIter{}
 
-func newTermsIter(
-	slice [][]byte,
-	postings termsLookup,
-	opts Options,
-) *termsIter {
-	sortSliceOfByteSlices(slice)
-	return &termsIter{
-		currentIdx:      -1,
-		backingSlice:    slice,
-		backingPostings: postings,
-		opts:            opts,
+func newTermsIter(seg *memSegment) *termsIter {
+	termsIter := termsIterInitState(seg)
+	return &termsIter
+}
+
+func termsIterInitState(seg *memSegment) termsIter {
+	return termsIter{seg: seg, err: errNotReset}
+}
+
+func (b *termsIter) ResetField(field []byte) error {
+	terms, err := b.seg.termsDict.terms(field)
+	if err != nil {
+		return err
 	}
+
+	keys := terms.Keys()
+	b.reset(terms, keys)
+	return nil
+}
+
+func (b *termsIter) ResetFieldWithNumTerms(field []byte, numTerms int) error {
+	terms, err := b.seg.termsDict.terms(field)
+	if err != nil {
+		return err
+	}
+	keys := terms.Keys()
+	if len(keys) != numTerms {
+		return fmt.Errorf("expected %d terms, got %d", numTerms, len(keys))
+	}
+	b.reset(terms, keys)
+	return nil
+}
+
+func (b *termsIter) reset(
+	terms *concurrentPostingsMap,
+	keys [][]byte,
+) {
+	sortSliceOfByteSlices(keys)
+	b.err = nil
+	b.done = false
+	b.currentIdx = -1
+	b.backingSlice = keys
+	b.backingPostings = terms
+	b.opts = b.seg.termsDict.opts
+}
+
+func (b *termsIter) AllTermsLength() int {
+	return len(b.backingSlice)
 }
 
 func (b *termsIter) Next() bool {
@@ -91,7 +131,10 @@ func (b *termsIter) Len() int {
 }
 
 func (b *termsIter) Close() error {
-	b.current = nil
-	b.opts.BytesSliceArrayPool().Put(b.backingSlice)
+	if cap(b.backingSlice) > 0 {
+		b.opts.BytesSliceArrayPool().Put(b.backingSlice)
+	}
+	// Reset to zero state.
+	*b = termsIterInitState(b.seg)
 	return nil
 }

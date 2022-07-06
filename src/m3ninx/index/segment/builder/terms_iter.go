@@ -21,11 +21,15 @@
 package builder
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
 type termsIter struct {
+	builder *builder
+
 	err  error
 	done bool
 
@@ -34,15 +38,46 @@ type termsIter struct {
 	terms      []termElem
 }
 
-var _ segment.TermsIterator = &termsIter{}
+var _ segment.ReuseableTermsIterator = &termsIter{}
 
-func newTermsIter(
-	orderedTerms []termElem,
-) *termsIter {
-	return &termsIter{
-		currentIdx: -1,
-		terms:      orderedTerms,
+func newTermsIter(builder *builder) *termsIter {
+	termsIter := termsIterInitState(builder)
+	return &termsIter
+}
+
+func termsIterInitState(builder *builder) termsIter {
+	return termsIter{builder: builder}
+}
+
+func (b *termsIter) ResetField(field []byte) error {
+	terms, err := b.builder.termsForField(field)
+	if err != nil {
+		return err
 	}
+	b.reset(terms.uniqueTerms)
+	return nil
+}
+
+func (b *termsIter) ResetFieldWithNumTerms(field []byte, numTerms int) error {
+	terms, err := b.builder.termsForField(field)
+	if err != nil {
+		return err
+	}
+	if len(terms.uniqueTerms) != numTerms {
+		return fmt.Errorf("expected %d unique terms, got %d", numTerms, len(terms.uniqueTerms))
+	}
+	b.reset(terms.uniqueTerms)
+	return nil
+}
+
+func (b *termsIter) reset(terms []termElem) {
+	*b = termsIterInitState(b.builder)
+	b.currentIdx = -1
+	b.terms = terms
+}
+
+func (b *termsIter) AllTermsLength() int {
+	return len(b.terms)
 }
 
 func (b *termsIter) Next() bool {

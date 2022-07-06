@@ -671,10 +671,27 @@ func (b *builder) FieldsPostingsListWithRegex(
 }
 
 func (b *builder) Terms(field []byte) (segment.TermsIterator, error) {
-	// NB(r): Need write lock since sort if required below
+	termsIter, err := b.TermsIterator()
+	if err != nil {
+		return nil, err
+	}
+	if err := termsIter.ResetField(field); err != nil {
+		return nil, err
+	}
+	return termsIter, nil
+}
+
+func (b *builder) termsForField(field []byte) (*terms, error) {
+	// NB(rob): Need to upgrade to write lock since if sort is required below
 	// and SetConcurrency causes sharded fields to change.
-	b.status.Lock()
-	defer b.status.Unlock()
+	b.status.RLock()
+	readUnlocked := false
+	defer func() {
+		if readUnlocked {
+			return
+		}
+		b.status.RUnlock()
+	}()
 
 	shard := b.calculateShardWithRLock(field)
 	terms, ok := b.shardedFields.fields.ShardedGet(shard, field)
@@ -682,11 +699,20 @@ func (b *builder) Terms(field []byte) (segment.TermsIterator, error) {
 		return nil, fmt.Errorf("field not found: %s", string(field))
 	}
 
-	// NB(r): Ensure always sorted so can be used to build an FST which
+	// NB(rob): Ensure always sorted so can be used to build an FST which
 	// requires in order insertion.
-	terms.sortIfRequired()
+	if terms.sortRequired() {
+		b.status.RUnlock()
+		readUnlocked = true
+		b.status.Lock()
+		terms.sort()
+		b.status.Unlock()
+	}
+	return terms, nil
+}
 
-	return newTermsIter(terms.uniqueTerms), nil
+func (b *builder) TermsIterator() (segment.ReuseableTermsIterator, error) {
+	return newTermsIter(b), nil
 }
 
 func (b *builder) TermsWithRegex(

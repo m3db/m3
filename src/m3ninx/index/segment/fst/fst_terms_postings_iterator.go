@@ -100,6 +100,10 @@ func (f *fstTermsPostingsIter) reset(
 	f.fieldOffsets = fieldOffsets
 }
 
+func (f *fstTermsPostingsIter) AllTermsLength() int {
+	return f.termsIter.AllTermsLength()
+}
+
 func (f *fstTermsPostingsIter) Next() bool {
 	if f.err != nil {
 		return false

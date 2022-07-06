@@ -136,11 +136,11 @@ func (t *terms) post(term []byte, id postings.ID, opts indexJobEntryOptions) err
 	return nil
 }
 
-func (t *terms) sortIfRequired() {
-	if t.uniqueTermsIsSorted {
-		return
-	}
+func (t *terms) sortRequired() bool {
+	return !t.uniqueTermsIsSorted
+}
 
+func (t *terms) sort() {
 	// NB(r): See SetSortConcurrency why this RLock is required.
 	sortConcurrencyLock.RLock()
 	sorts.ByBytes(t)

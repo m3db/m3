@@ -40,7 +40,6 @@ type builderFromSegments struct {
 	filter         segment.DocumentsFilter
 	filterCount    tally.Counter
 	segments       []segmentMetadata
-	termsIter      *termsIterFromSegments
 	segmentsOffset postings.ID
 }
 
@@ -64,7 +63,6 @@ func NewBuilderFromSegments(opts Options) segment.SegmentsBuilder {
 		idSet: NewIDsMap(IDsMapOptions{
 			InitialSize: opts.InitialCapacity(),
 		}),
-		termsIter: newTermsIterFromSegments(),
 	}
 }
 
@@ -89,8 +87,6 @@ func (b *builderFromSegments) Reset() {
 		b.segments[i].negativeOffsets = negativeOffsets[:0]
 	}
 	b.segments = b.segments[:0]
-
-	b.termsIter.clear()
 }
 
 func (b *builderFromSegments) SetFilter(filter segment.DocumentsFilter, filterCount tally.Counter) {
@@ -183,9 +179,6 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 		b.segmentsOffset += postings.ID(added)
 	}
 
-	// Make sure the terms iter has all the segments to combine data from
-	b.termsIter.reset(b.segments)
-
 	return nil
 }
 
@@ -254,10 +247,21 @@ func (b *builderFromSegments) FieldsPostingsListWithRegex(
 }
 
 func (b *builderFromSegments) Terms(field []byte) (segment.TermsIterator, error) {
-	if err := b.termsIter.setField(field); err != nil {
+	termsIter := b.termsIter()
+	if err := termsIter.ResetField(field); err != nil {
 		return nil, err
 	}
-	return b.termsIter, nil
+	return termsIter, nil
+}
+
+func (b *builderFromSegments) TermsIterator() (segment.ReuseableTermsIterator, error) {
+	return b.termsIter(), nil
+}
+
+func (b *builderFromSegments) termsIter() segment.ReuseableTermsIterator {
+	termsIter := newTermsIterFromSegments()
+	termsIter.reset(b.segments)
+	return termsIter
 }
 
 func (b *builderFromSegments) TermsWithRegex(
