@@ -69,6 +69,7 @@ func (c Configuration) NewTracerProvider(
 
 	// Register the trace exporter with a TracerProvider, using a batch
 	// span processor to aggregate spans before export.
+	// exporter is passed as nil, the span processor will preform no action.
 	batchSpanProcessor := sdktrace.NewBatchSpanProcessor(nil)
 	tracerMetricsProcessor := newTraceSpanProcessor(scope)
 	tracerProvider := sdktrace.NewTracerProvider(
