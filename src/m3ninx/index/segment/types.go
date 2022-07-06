@@ -157,14 +157,6 @@ type FieldsIterator interface {
 type TermsIterator interface {
 	Iterator
 
-	// AllTermsLength returns the length of the all terms contained by the
-	// current field that is being iterated.
-	// NB: If the term iterator is filtering some results out this result
-	// will not be accurate as it only returns the full number of terms
-	// contained by the FST, not just the number of terms this iterator will
-	// ultimately return.
-	AllTermsLength() int
-
 	// Current returns the current element.
 	// NB: The element returned is only valid until the subsequent call to Next.
 	Current() (term []byte, postings postings.List)
@@ -176,15 +168,6 @@ type ReuseableTermsIterator interface {
 
 	// ResetField resets the field that the terms iterator is iterating over.
 	ResetField(field []byte) error
-
-	// ResetFieldWithNumResults resets the field that the terms iterator is
-	// iterating over and explicitly expects the terms to be of a specific size,
-	// caller should be confident this matches (some implementations will check
-	// this and others expect to have this calculated from previous calls to
-	// ResetField on the same segment and is provided to avoid an extra cycle
-	// of iterating the terms to calculate size to return for calls to the
-	// AllTermsLength method).
-	ResetFieldWithNumTerms(field []byte, numTerms int) error
 }
 
 // Iterator holds common iterator methods.

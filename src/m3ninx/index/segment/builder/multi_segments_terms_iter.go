@@ -42,8 +42,7 @@ type termsIterFromSegments struct {
 	currPostingsList *skipResetOnEmptyMutableList
 	bitmapIter       *bitmap.Iterator
 
-	segments   []segmentTermsMetadata
-	numResults int
+	segments []segmentTermsMetadata
 
 	err        error
 	termsIters []*termsKeyIter
@@ -101,36 +100,6 @@ func (i *termsIterFromSegments) reset(segments []segmentMetadata) {
 }
 
 func (i *termsIterFromSegments) ResetField(field []byte) error {
-	if err := i.resetKeyIter(field); err != nil {
-		return err
-	}
-
-	// Count full number of results to be able to return accurate
-	// result for AllTermsLength.
-	n := 0
-	for i.keyIter.Next() {
-		n++
-	}
-	if err := i.keyIter.Err(); err != nil {
-		return err
-	}
-	if err := i.keyIter.Close(); err != nil {
-		return err
-	}
-
-	// Reset again for the actual iteration with the known terms count.
-	return i.ResetFieldWithNumTerms(field, n)
-}
-
-func (i *termsIterFromSegments) ResetFieldWithNumTerms(field []byte, n int) error {
-	if err := i.resetKeyIter(field); err != nil {
-		return err
-	}
-	i.numResults = n
-	return nil
-}
-
-func (i *termsIterFromSegments) resetKeyIter(field []byte) error {
 	i.clearTermIters()
 
 	// Alloc any required terms iter containers.
@@ -161,10 +130,6 @@ func (i *termsIterFromSegments) resetKeyIter(field []byte) error {
 	}
 
 	return nil
-}
-
-func (i *termsIterFromSegments) AllTermsLength() int {
-	return i.numResults
 }
 
 func (i *termsIterFromSegments) Next() bool {

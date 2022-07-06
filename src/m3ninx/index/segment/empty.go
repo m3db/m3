@@ -37,7 +37,6 @@ var EmptyTermsIterator TermsIterator = emptyTermsIter{}
 
 type emptyTermsIter struct{}
 
-func (e emptyTermsIter) AllTermsLength() int              { return 0 }
 func (e emptyTermsIter) Next() bool                       { return false }
 func (e emptyTermsIter) Current() ([]byte, postings.List) { return nil, nil }
 func (e emptyTermsIter) Err() error                       { return nil }

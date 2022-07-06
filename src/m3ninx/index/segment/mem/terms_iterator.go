@@ -69,19 +69,6 @@ func (b *termsIter) ResetField(field []byte) error {
 	return nil
 }
 
-func (b *termsIter) ResetFieldWithNumTerms(field []byte, numTerms int) error {
-	terms, err := b.seg.termsDict.terms(field)
-	if err != nil {
-		return err
-	}
-	keys := terms.Keys()
-	if len(keys) != numTerms {
-		return fmt.Errorf("expected %d terms, got %d", numTerms, len(keys))
-	}
-	b.reset(terms, keys)
-	return nil
-}
-
 func (b *termsIter) reset(
 	terms *concurrentPostingsMap,
 	keys [][]byte,
@@ -93,10 +80,6 @@ func (b *termsIter) reset(
 	b.backingSlice = keys
 	b.backingPostings = terms
 	b.opts = b.seg.termsDict.opts
-}
-
-func (b *termsIter) AllTermsLength() int {
-	return len(b.backingSlice)
 }
 
 func (b *termsIter) Next() bool {

@@ -111,7 +111,7 @@ func newWriterWithVersion(opts WriterOptions, vers *Version) (Writer, error) {
 	}
 
 	return &writer{
-		postingsEncoder:     pilosa.NewEncoder(),
+		postingsEncoder:      pilosa.NewEncoder(),
 		version:              v,
 		intEncoder:           encoding.NewEncoder(defaultInitialIntEncoderSize),
 		fstWriter:            newFSTWriter(opts),
@@ -140,7 +140,7 @@ func (w *writer) clear() {
 	w.fstTermsFileWritten = false
 	w.fstTermsOffsets = w.fstTermsOffsets[:0]
 	w.termPostingsOffsets = w.termPostingsOffsets[:0]
-
+	w.fieldTermsLengths = w.fieldTermsLengths[:0]
 	w.fieldPostingsOffsets = w.fieldPostingsOffsets[:0]
 	w.fieldData.Reset()
 	w.fieldBuffer.Reset()
@@ -247,8 +247,10 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 		}
 
 		// for each term corresponding to the current field
+		terms := 0
 		for termsIter.Next() {
 			_, pl := termsIter.Current()
+			terms++
 			if pl.IsEmpty() {
 				// empty postings list, no-op and write math.MaxUint64 here
 				w.termPostingsOffsets = append(w.termPostingsOffsets, math.MaxUint64)
@@ -264,6 +266,7 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 				w.termPostingsOffsets = append(w.termPostingsOffsets, currentOffset)
 			}
 		}
+		w.fieldTermsLengths = append(w.fieldTermsLengths, uint64(terms))
 
 		// write the field level postings list
 		if writeFieldsPostingList {
@@ -404,10 +407,7 @@ func (w *writeFSTTermsWorker) work(args writeFSTTermsArgs) writeFSTTermsResult {
 	termsOffsets := args.termsOffsets
 	numTerms := len(termsOffsets)
 
-	// NB(rob): Reset using ResetFieldWithNumTerms so that an extra iteration
-	// to determine the number of unique terms is not required for
-	// the multi-segments terms iterator (termsIterFromSegments).
-	if err := w.termsIter.ResetFieldWithNumTerms(f, numTerms); err != nil {
+	if err := w.termsIter.ResetField(f); err != nil {
 		return writeFSTTermsResult{err: err}
 	}
 
