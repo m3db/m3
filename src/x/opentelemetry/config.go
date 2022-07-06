@@ -23,9 +23,15 @@ package opentelemetry
 
 import (
 	"context"
+	"fmt"
+
 	"github.com/uber-go/tally"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 )
 
 // Configuration configures an OpenTelemetry trace provider.
@@ -49,5 +55,66 @@ func (c Configuration) NewTracerProvider(
 	scope tally.Scope,
 	opts TracerProviderOptions,
 ) (*sdktrace.TracerProvider, error) {
-	return nil, nil
+	attributes := make([]attribute.KeyValue, 0, 1+len(c.Attributes)+len(opts.Attributes))
+	attributes = append(attributes, semconv.ServiceNameKey.String(c.ServiceName))
+	for k, v := range c.Attributes {
+		attributes = append(attributes, attribute.String(k, v))
+	}
+	attributes = append(attributes, opts.Attributes...)
+
+	res, err := resource.New(ctx, resource.WithAttributes(attributes...))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create resource: %w", err)
+	}
+
+	// Register the trace exporter with a TracerProvider, using a batch
+	// span processor to aggregate spans before export.
+	batchSpanProcessor := sdktrace.NewBatchSpanProcessor(nil)
+	tracerMetricsProcessor := newTraceSpanProcessor(scope)
+	tracerProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithResource(res),
+		sdktrace.WithSpanProcessor(batchSpanProcessor),
+		sdktrace.WithSpanProcessor(tracerMetricsProcessor),
+	)
+	otel.SetTracerProvider(tracerProvider)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+
+	return tracerProvider, nil
+}
+
+type traceSpanProcessor struct {
+	traceStart       tally.Counter
+	traceEnd         tally.Counter
+	tracerShutdown   tally.Counter
+	tracerForceFlush tally.Counter
+}
+
+func newTraceSpanProcessor(scope tally.Scope) sdktrace.SpanProcessor {
+	traceScope := scope.SubScope("trace")
+	tracerScope := scope.SubScope("tracer")
+	return &traceSpanProcessor{
+		traceStart:       traceScope.Counter("start"),
+		traceEnd:         traceScope.Counter("end"),
+		tracerShutdown:   tracerScope.Counter("shutdown"),
+		tracerForceFlush: tracerScope.Counter("force-flush"),
+	}
+}
+
+func (p *traceSpanProcessor) OnStart(parent context.Context, s sdktrace.ReadWriteSpan) {
+	p.traceStart.Inc(1)
+}
+
+func (p *traceSpanProcessor) OnEnd(s sdktrace.ReadOnlySpan) {
+	p.traceEnd.Inc(1)
+}
+
+func (p *traceSpanProcessor) Shutdown(ctx context.Context) error {
+	p.tracerShutdown.Inc(1)
+	return nil
+}
+
+func (p *traceSpanProcessor) ForceFlush(ctx context.Context) error {
+	p.tracerForceFlush.Inc(1)
+	return nil
 }
