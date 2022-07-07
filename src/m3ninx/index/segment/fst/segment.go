@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/x/mmap"
 	pilosaroaring "github.com/m3dbx/pilosa/roaring"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/m3dbx/vellum"
 )
 
@@ -159,7 +160,10 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 		opts: opts,
 
 		termFSTs: vellumFSTs{fstMap: newFSTMap(fstMapOptions{})},
-		numDocs:  metadata.NumDocs,
+
+		graphitePathFieldTermOffsetsMap: make(map[uint64]uint64),
+
+		numDocs: metadata.NumDocs,
 	}
 
 	// Preload all the term FSTs so that there's no locking
@@ -178,14 +182,21 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 
 	for iter.Next() {
 		field := iter.Current()
+		termsFSTOffset := iter.CurrentOffset()
 		if bytes.HasPrefix(field, graphitePathPrefix) {
 			// NB(rob): Too expensive to pre-load all the graphite path indexed
 			// path terms, load these on demand for find queries which are
 			// small in volume comparative to queries.
+			key := xxhash.Sum64(field)
+			if _, ok := s.graphitePathFieldTermOffsetsMap[key]; ok {
+				// Collision.
+				return nil, fmt.Errorf("unexpected collision of graphite path field term offsets: key=%d", key)
+			}
+			// Put into hash map so don't need to do expensive field FSTs traversal later.
+			s.graphitePathFieldTermOffsetsMap[key] = termsFSTOffset
 			continue
 		}
 
-		termsFSTOffset := iter.CurrentOffset()
 		termsFSTBytes, err := s.retrieveBytesWithRLock(s.data.FSTTermsData.Bytes, termsFSTOffset)
 		if err != nil {
 			return nil, fmt.Errorf(
@@ -232,8 +243,9 @@ type fsSegment struct {
 	data                  SegmentData
 	opts                  Options
 
-	termFSTs vellumFSTs
-	numDocs  int64
+	termFSTs                        vellumFSTs
+	graphitePathFieldTermOffsetsMap map[uint64]uint64
+	numDocs                         int64
 }
 
 type vellumFSTs struct {
@@ -1073,10 +1085,9 @@ func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (vellumFST, bool, er
 		// NB(rob): Too expensive to pre-load all the graphite path indexed
 		// path terms, load these on demand for find queries which are
 		// small in volume comparative to queries.
-		termsFSTOffset, exists, err := r.fieldsFST.Get(field)
-		if err != nil {
-			return vellumFST{}, false, err
-		}
+		// Load from map instead of traversing fields FST since that is expensive.
+		key := xxhash.Sum64(field)
+		termsFSTOffset, exists := r.graphitePathFieldTermOffsetsMap[key]
 		if !exists {
 			return vellumFST{}, false, nil
 		}

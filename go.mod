@@ -18,7 +18,6 @@ require (
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb // indirect
 	github.com/davecgh/go-spew v1.1.1
-	github.com/dgraph-io/ristretto v0.0.3 // indirect
 	github.com/fortytw2/leaktest v1.2.1-0.20180901000122-b433bbd6d743
 	github.com/fossas/fossa-cli v1.0.30
 	github.com/garethr/kubeval v0.0.0-20180821130434-c44f5193dc94
@@ -48,7 +47,7 @@ require (
 	github.com/m3db/bitset v2.0.0+incompatible
 	github.com/m3db/bloom/v4 v4.0.0-20200901140942-52efb8544fe9
 	github.com/m3db/build-tools v0.0.0-20181013000606-edd1bdd1df8a
-	github.com/m3db/m3x v0.0.0-20190408051622-ebf3c7b94afd // indirect
+	github.com/m3db/m3x v0.0.0-20190408051622-ebf3c7b94afd
 	github.com/m3db/prometheus_client_golang v0.8.1
 	github.com/m3db/prometheus_client_model v0.0.0-20180517145114-8b2299a4bf7d
 	github.com/m3db/prometheus_common v0.0.0-20180517030744-25aaa3dff79b
@@ -57,7 +56,7 @@ require (
 	github.com/m3db/stackmurmur3/v2 v2.0.2
 	github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878
 	github.com/m3dbx/pilosa v1.4.2-0.20201109081833-6c9df43642fd
-	github.com/m3dbx/vellum v0.0.0-20201119082309-5b47f7a70f69
+	github.com/m3dbx/vellum v0.0.0-20220707195009-db278b57e5d9
 	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
 	github.com/mjibson/esc v0.1.0
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
