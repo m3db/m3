@@ -36,6 +36,7 @@ type terms struct {
 	postingsListUnion   postings.MutableList
 	uniqueTerms         []termElem
 	uniqueTermsIsSorted bool
+	generation          uint64
 }
 
 type termElem struct {
@@ -74,6 +75,16 @@ func (t *terms) poolPut(v postings.MutableList) {
 }
 
 func (t *terms) post(term []byte, id postings.ID, opts indexJobEntryOptions) error {
+	if opts.generation != t.generation {
+		// Lazily reset the terms if the generation has changed (and we are
+		// holding old results).
+		// CPU profiles indicated a lot of time is spent just clearing out terms
+		// between foreground compactions so now we lazily reset when the builder
+		// generation is incremented.
+		t.reset()
+		t.generation = opts.generation
+	}
+
 	graphiteNodeOrLeaf := opts.graphitePathNode || opts.graphitePathLeaf
 	if graphiteNodeOrLeaf {
 		// NB(rob): For graphite path indexing we don't actually associate
@@ -167,7 +178,7 @@ func (t *terms) reset() {
 		t.uniqueTerms[i] = emptyTerm
 	}
 	t.uniqueTerms = t.uniqueTerms[:0]
-	t.uniqueTermsIsSorted = false
+	t.uniqueTermsIsSorted = true
 }
 
 func (t *terms) Len() int {

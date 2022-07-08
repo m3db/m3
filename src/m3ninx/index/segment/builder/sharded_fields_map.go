@@ -54,12 +54,3 @@ func (s *shardedFieldsMap) ShardedSetUnsafe(
 ) {
 	s.data[shard].SetUnsafe(k, v, opts)
 }
-
-// ResetTermsSets keeps fields around but resets the terms set for each one.
-func (s *shardedFieldsMap) ResetTermsSets() {
-	for _, fieldMap := range s.data {
-		for _, entry := range fieldMap.Iter() {
-			entry.Value().reset()
-		}
-	}
-}

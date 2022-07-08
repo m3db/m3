@@ -83,6 +83,7 @@ type indexJobEntry struct {
 }
 
 type indexJobEntryOptions struct {
+	generation       uint64
 	graphitePathNode bool
 	graphitePathLeaf bool
 }
@@ -216,7 +217,8 @@ func (w *indexWorkers) unregisterBuilder() {
 
 type builderStatus struct {
 	sync.RWMutex
-	closed bool
+	generation uint64
+	closed     bool
 }
 
 type builder struct {
@@ -352,9 +354,6 @@ func (b *builder) Reset() {
 	// Remove all entries in the ID set.
 	b.idSet.Reset()
 
-	// Keep fields around, just reset the terms set for each one.
-	b.shardedFields.fields.ResetTermsSets()
-
 	// Reset the unique fields slice
 	var emptyField uniqueField
 	for i, shardUniqueFields := range b.shardedFields.uniqueFields {
@@ -367,6 +366,10 @@ func (b *builder) Reset() {
 	// Reset the graphite path buffer.
 	b.graphitePathBuffer = b.graphitePathBuffer[:0]
 	b.graphiteKeyBuffer = b.graphiteKeyBuffer[:0]
+
+	// Bump the generation so we know which terms are valid when lazily
+	// resetting them.
+	b.status.generation++
 }
 
 func (b *builder) Insert(d doc.Metadata) ([]byte, error) {
@@ -466,13 +469,13 @@ func (b *builder) insertBatchWithLock(batch index.Batch) *index.BatchPartialErro
 		for _, f := range d.Fields {
 			fieldShard := b.calculateShardWithRLock(f.Name)
 			b.queueIndexJobEntryWithLock(fieldShard, wg, postings.ID(postingsListID),
-				f, i, indexJobEntryOptions{}, batchErr)
+				f, i, indexJobEntryOptions{generation: b.status.generation}, batchErr)
 		}
 		docIDFieldShard := b.calculateShardWithRLock(doc.IDReservedFieldName)
 		b.queueIndexJobEntryWithLock(docIDFieldShard, wg, postings.ID(postingsListID), doc.Field{
 			Name:  doc.IDReservedFieldName,
 			Value: d.ID,
-		}, i, indexJobEntryOptions{}, batchErr)
+		}, i, indexJobEntryOptions{generation: b.status.generation}, batchErr)
 
 		if b.graphitePathIndexingEnabled {
 			// Index the Graphite parent path for fast find lookup queries.
@@ -531,6 +534,7 @@ func (b *builder) insertBatchWithLock(batch index.Batch) *index.BatchPartialErro
 						// NB(rob): Safe to take reference to the immutable doc field.
 						Value: lastPiece,
 					}, i, indexJobEntryOptions{
+						generation:       b.status.generation,
 						graphitePathNode: true,
 					}, batchErr)
 				} else {
@@ -542,6 +546,7 @@ func (b *builder) insertBatchWithLock(batch index.Batch) *index.BatchPartialErro
 						// NB(rob): Safe to take reference to the immutable doc field.
 						Value: lastPiece,
 					}, i, indexJobEntryOptions{
+						generation:       b.status.generation,
 						graphitePathLeaf: true,
 					}, batchErr)
 				}
@@ -695,7 +700,15 @@ func (b *builder) termsForField(field []byte) (*terms, error) {
 
 	shard := b.calculateShardWithRLock(field)
 	terms, ok := b.shardedFields.fields.ShardedGet(shard, field)
-	if !ok {
+	// Make sure we have the terms and it matches the latest generation
+	// since builder was reset (otherwise there are no entries and it's the
+	// same as not being found).
+	// CPU profiles indicated a lot of time is spent just clearing out terms
+	// between foreground compactions so now we lazily reset when the builder
+	// generation is incremented.
+	// If the generation does not match then that means we have no terms
+	// for this field for this generation.
+	if !ok || terms.generation != b.status.generation {
 		return nil, fmt.Errorf("field not found: %s", string(field))
 	}
 

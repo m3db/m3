@@ -72,7 +72,6 @@ func TestMultiSegmentsBuilderSortedBySizeDescending(t *testing.T) {
 		seg := segment.NewMockSegment(ctrl)
 		seg.EXPECT().Reader().Return(r, nil)
 		seg.EXPECT().Size().Return(int64(i * 10)).AnyTimes()
-		seg.EXPECT().TermsIterable().Return(nil)
 		segs = append(segs, seg)
 	}
 	require.NoError(t, b.AddSegments(segs))
