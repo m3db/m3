@@ -23,7 +23,7 @@ package client
 import (
 	"errors"
 
-	"github.com/apache/thrift/lib/go/thrift"
+	"github.com/uber/tchannel-go/thirdparty/github.com/apache/thrift/lib/go/thrift"
 )
 
 var (
