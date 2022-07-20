@@ -387,7 +387,8 @@ func Test_newConfigFromCluster(t *testing.T) {
 				Timeout: 7 * time.Second,
 			},
 			TLS:              nil, // TODO: TLS config gets read eagerly here; test it separately.
-			AutoSyncInterval: 20 * time.Second,
+			AutoSyncInterval: 21 * time.Second,
+			DialTimeout:      42 * time.Second,
 		}
 	}
 
@@ -398,10 +399,10 @@ func Test_newConfigFromCluster(t *testing.T) {
 		assert.Equal(t,
 			clientv3.Config{
 				Endpoints:            []string{"i1"},
-				AutoSyncInterval:     20000000000,
-				DialTimeout:          15000000000,
-				DialKeepAliveTime:    5000000010, // generated using fake rnd above
-				DialKeepAliveTimeout: 7000000000,
+				AutoSyncInterval:     21 * time.Second,
+				DialTimeout:          42 * time.Second,
+				DialKeepAliveTime:    5*time.Second + 10, // generated using fake rnd above
+				DialKeepAliveTimeout: 7 * time.Second,
 				MaxCallSendMsgSize:   33554432,
 				MaxCallRecvMsgSize:   33554432,
 				RejectOldCluster:     false,
