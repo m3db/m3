@@ -8,9 +8,6 @@
 # Successive backoffs double the timeout.
 # adapted from: https://stackoverflow.com/questions/8350942/how-to-re-run-the-curl-command-automatically-when-the-error-occurs/8351489#8351489
 function retry_with_backoff {
-  OLDOPTS=$(set +o)
-  set +x
-
   local max_attempts=${ATTEMPTS-5}
   local timeout=${TIMEOUT-1}
   local max_timeout=${MAX_TIMEOUT}
@@ -43,7 +40,6 @@ function retry_with_backoff {
     echo "You've failed me for the last time! ($@)" 1>&2
   fi
 
-  eval "${OLDOPTS}"
   return $exitCode
 }
 
@@ -338,3 +334,4 @@ function wait_for_namespaces {
   ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
     '[ "$(curl -sSf 0.0.0.0:'"${coordinator_port}"'/api/v1/services/m3db/namespace | jq .registry.namespaces.coldWritesRepairAndNoIndex.coldWritesEnabled)" == true ]'
 }
+
