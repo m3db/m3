@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/cache"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -45,6 +46,7 @@ type prometheusQueryable struct {
 	storage storage.Storage
 	scope   tally.Scope
 	logger  *zap.Logger
+	cache   *cache.RedisCache
 }
 
 // PrometheusOptions are options to create a prometheus queryable backed by
@@ -52,6 +54,7 @@ type prometheusQueryable struct {
 type PrometheusOptions struct {
 	Storage           storage.Storage
 	InstrumentOptions instrument.Options
+	RedisCacheAddress string
 }
 
 // StorageErr wraps all errors returned by the storage layer.
@@ -84,6 +87,7 @@ func NewPrometheusQueryable(opts PrometheusOptions) promstorage.Queryable {
 		storage: opts.Storage,
 		scope:   scope,
 		logger:  opts.InstrumentOptions.Logger(),
+		cache:   cache.NewRedisCache(opts.RedisCacheAddress, opts.InstrumentOptions.Logger()),
 	}
 }
 
@@ -91,24 +95,27 @@ func NewPrometheusQueryable(opts PrometheusOptions) promstorage.Queryable {
 func (q *prometheusQueryable) Querier(
 	ctx context.Context, _, _ int64,
 ) (promstorage.Querier, error) {
-	return newQuerier(ctx, q.storage, q.logger), nil
+	return newQuerier(ctx, q.storage, q.logger, q.cache), nil
 }
 
 type querier struct {
 	ctx     context.Context
 	storage storage.Storage
 	logger  *zap.Logger
+	cache   *cache.RedisCache
 }
 
 func newQuerier(
 	ctx context.Context,
 	storage storage.Storage,
 	logger *zap.Logger,
+	cache *cache.RedisCache,
 ) promstorage.Querier {
 	return &querier{
 		ctx:     ctx,
 		storage: storage,
 		logger:  logger,
+		cache:   cache,
 	}
 }
 
