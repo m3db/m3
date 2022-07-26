@@ -20,6 +20,10 @@ const (
 	ExpirationTime string = "300"
 	// Blank result used to denote an empty PromResult
 	EmptyResult string = "{}"
+	// Minimum number of connections pools to Redis to keep open
+	MinPools int = 10
+	// Time to wait before creating a new Redis connection pool (in ms)
+	CreateAfterTime time.Duration = 100 * time.Millisecond
 )
 
 type RedisCache struct {
@@ -36,7 +40,7 @@ func NewRedisCache(redisAddress string, logger *zap.Logger) *RedisCache {
 		logger.Info("Not using cache since address is empty")
 		return nil
 	}
-	pool, err := radix.NewPool("tcp", redisAddress, 10, radix.PoolOnEmptyCreateAfter(time.Millisecond*100))
+	pool, err := radix.NewPool("tcp", redisAddress, MinPools, radix.PoolOnEmptyCreateAfter(CreateAfterTime))
 	if err != nil {
 		logger.Error("Failed to connect to Redis", zap.String("address", redisAddress))
 		return nil
