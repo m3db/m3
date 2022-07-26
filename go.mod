@@ -92,6 +92,8 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 )
 
+require github.com/mediocregopher/radix/v3 v3.8.0
+
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/CAFxX/gcnotifier v0.0.0-20190112062741-224a280d589d // indirect

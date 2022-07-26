@@ -146,6 +146,9 @@ type Configuration struct {
 	// ListenAddress is the server listen address.
 	ListenAddress *string `yaml:"listenAddress"`
 
+	// RedisAddress is the Redis address for caching.
+	RedisCacheAddress *string `yaml:"redisCacheAddress"`
+
 	// Filter is the read/write/complete tags filter configuration.
 	Filter FilterConfiguration `yaml:"filter"`
 
