@@ -144,7 +144,8 @@ func (q *querier) Select(
 		return promstorage.ErrSeriesSet(err)
 	}
 
-	result, err := q.storage.FetchProm(q.ctx, query, fetchOptions)
+	// result, err := q.storage.FetchProm(q.ctx, query, fetchOptions)
+	result, err := cache.WindowGetOrFetch(q.ctx, q.storage, fetchOptions, query, q.cache)
 	if err != nil {
 		return promstorage.ErrSeriesSet(NewStorageErr(err))
 	}
