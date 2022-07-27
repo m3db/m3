@@ -87,7 +87,7 @@ func NewPrometheusQueryable(opts PrometheusOptions) promstorage.Queryable {
 		storage: opts.Storage,
 		scope:   scope,
 		logger:  opts.InstrumentOptions.Logger(),
-		cache:   cache.NewRedisCache(opts.RedisCacheAddress, opts.InstrumentOptions.Logger()),
+		cache:   cache.NewRedisCache(opts.RedisCacheAddress, opts.InstrumentOptions.Logger(), scope),
 	}
 }
 
