@@ -1486,6 +1486,7 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 
 	if m.backgroundCompactors == nil {
 		n := numBackgroundCompactorsStandard
+		m.backgroundCompactorsCreatedAt = now
 		m.backgroundCompactors = make(chan *compaction.Compactor, n)
 		for i := 0; i < n; i++ {
 			backgroundCompactor, err := compaction.NewCompactor(metadataPool,
