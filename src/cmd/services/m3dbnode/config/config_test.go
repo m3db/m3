@@ -638,6 +638,7 @@ func TestConfiguration(t *testing.T) {
             keepAlive: null
             tls: null
             autoSyncInterval: 0s
+            dialTimeout: 0s
           m3sd:
             initTimeout: null
           watchWithRevision: 0
