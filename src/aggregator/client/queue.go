@@ -129,7 +129,6 @@ type queue struct {
 	buf      qbuf
 	dropType DropType
 	closed   atomic.Bool
-	mtx      sync.Mutex
 }
 
 func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
@@ -174,9 +173,6 @@ func (q *queue) Enqueue(buf protobuf.Buffer) error {
 	if len(buf.Bytes()) == 0 {
 		return nil
 	}
-
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
 
 	if full := q.buf.full(); full {
 		switch q.dropType {
@@ -243,10 +239,7 @@ func (q *queue) Flush() {
 func (q *queue) flush(tmpWriteBuf *[]byte) (int, error) {
 	var n int
 
-	q.mtx.Lock()
-
 	if q.buf.size() == 0 {
-		q.mtx.Unlock()
 		return n, io.EOF
 	}
 
@@ -269,9 +262,6 @@ func (q *queue) flush(tmpWriteBuf *[]byte) (int, error) {
 		n += len(bytes)
 		protoBuffer.Close()
 	}
-
-	// mutex is not held while doing IO
-	q.mtx.Unlock()
 
 	if n == 0 {
 		return n, io.EOF

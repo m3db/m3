@@ -21,7 +21,12 @@
 package client
 
 import (
+	"context"
 	"errors"
+	"sync"
+
+	"net"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -33,7 +38,10 @@ import (
 	"go.uber.org/goleak"
 
 	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/x/clock"
+	xtest "github.com/m3db/m3/src/x/test"
 )
 
 var (
@@ -65,6 +73,189 @@ func TestWriterManagerAddInstancesSingleRef(t *testing.T) {
 	require.Equal(t, int32(2), w.refCount.n)
 }
 
+// TestWriterManagerMultipleWriters tries to recreate the scenario that
+// has multiple writers out of which one is slow. We have had multiple
+// incidents where onw slow writer blocks all the other writers in the
+// aggregator client and cascades into a variety of issues including
+// dropped metrics, OOM etc.
+// How does this test mimic the slow writer?
+// It first overrides the connect and write functions of the TcpClient and
+// and makes the writeFn block on the context.Context. An instance created
+// with this overridden connection options struct creates a slow writer.
+// After the writer/instance is created, we re-override the connect/write
+// functions in the connection options struct and replace them with no-op
+// functions. These writers are called normal writers. Instances added after
+// updating the opts with the re-overridden functions creates normal writers.
+// The test creates several normal writers and one slow writer.
+// It then begins a loop of writing one payload to every writer: slow and normal.
+// The first Flush() invoked on the slow writer blocks the thread and so
+// We initiate every write-loop in a separate goroutine. This mimics the newly
+// updated ReportSnapshot() semantics where every second it is invoked in a
+// separate goroutine.
+// We keep track of attempted writes and completed writes of the normal
+// clients by way of counters: writesInitialized and writesCompleted.
+// These counters are counted and checked in a separate single goroutine to
+// to avoid any data races.
+// As soon as all write-loops are done meaning that all normal writers have
+// finished writing all that had to write, the context is cancelled. This unblocks
+// the slow writer and then we perform the necessary validations.
+// NB(shankar.nair): An issue with this test is that the slow writer times out
+// and only then the test is able to complete. This is because the goroutine
+// worker pool in the write manager has an issue of head-of-line blocking where
+// a normal writer could be blocked behind the slow writer. Therefore, since this
+// test waits for the normal writer to be done, it first has to wait for the
+// slow writer to finish via timeout. This makes this test a bit flaky and
+// can fail in such situations.
+func TestWriterManagerMultipleWriters(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	wrInitCh := make(chan bool)
+	wrCompCh := make(chan bool)
+	doneCh := make(chan bool)
+
+	writesCompleted := 0
+	writesInitiated := 0
+
+	ctx := context.Background()
+	ctx, cancelFn := context.WithCancel(ctx)
+	defer cancelFn()
+
+	slowMockConn := NewMockConn(ctrl)
+	slowMockConn.EXPECT().Write(gomock.Any()).DoAndReturn(func(b []byte) (n int, err error) {
+		// Block till all normal writers have finished writing
+		// all write loops below
+		select {
+		case <-time.After(1 * time.Second):
+		case <-ctx.Done():
+		}
+		return len(b), nil
+	}).AnyTimes()
+	slowMockConn.EXPECT().SetWriteDeadline(gomock.Any()).AnyTimes()
+
+	slowWriterDialerFn := func(c context.Context, network string, address string) (net.Conn, error) {
+		return slowMockConn, nil
+	}
+
+	normalMockConn := NewMockConn(ctrl)
+	normalMockConn.EXPECT().Write(gomock.Any()).DoAndReturn(func(b []byte) (n int, err error) {
+		// signal write completion and return immediately
+		wrCompCh <- true
+		return len(b), nil
+	}).AnyTimes()
+	normalMockConn.EXPECT().SetWriteDeadline(gomock.Any()).AnyTimes()
+
+	normalWriterDialerFn := func(ctx context.Context, network string, address string) (net.Conn, error) {
+		return normalMockConn, nil
+	}
+
+	// Override opts for slow writer
+	slowConnOpts := testConnectionOptions().SetContextDialer(slowWriterDialerFn)
+	opts := testOptions().SetConnectionOptions(slowConnOpts)
+	mgr := mustMakeInstanceWriterManager(opts)
+
+	slowInstance := placement.NewInstance().
+		SetID("slowTestID").
+		SetEndpoint("SlowTestEp")
+
+	// Add slow writer/instance
+	require.NoError(t, mgr.AddInstances([]placement.Instance{slowInstance}))
+
+	// Re-override opts for normal writers
+	mgr.opts = mgr.opts.SetConnectionOptions(testConnectionOptions().SetContextDialer(normalWriterDialerFn))
+
+	// Create go routine to track write counters and signal completion of all normal writes
+	// in a single write loop.
+	go func() {
+		done := false
+		for {
+			select {
+			case val := <-wrInitCh:
+				if val {
+					writesInitiated++
+				}
+			case val, more := <-wrCompCh:
+				if val {
+					writesCompleted++
+				}
+
+				if !more {
+					done = true
+				}
+			}
+
+			if done {
+				break
+			}
+
+			if writesInitiated == writesCompleted {
+				// Writes that had been initiated in one loop below to
+				// all normal writers have completed. Signal the doneCh
+				doneCh <- true
+			}
+		}
+	}()
+
+	numNormalInstances := 16
+	instances := []placement.Instance{}
+	for i := 0; i < numNormalInstances; i++ {
+		instances = append(instances, placement.NewInstance().
+			SetID("testID"+strconv.Itoa(i)).
+			SetEndpoint("testEp"+strconv.Itoa(i)),
+		)
+	}
+
+	// Create normal writers
+	require.NoError(t, mgr.AddInstances(instances))
+
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(iterationID int) {
+			defer wg.Done()
+			payload := payloadUnion{
+				payloadType: untimedType,
+				untimed: untimedPayload{
+					metric: unaggregated.MetricUnion{
+						Type:       metric.CounterType,
+						ID:         []byte("foo"),
+						CounterVal: int64(iterationID),
+					},
+					metadatas: testStagedMetadatas,
+				},
+			}
+
+			err := mgr.Write(slowInstance, 0, payload)
+			require.NoError(t, err)
+
+			for _, instance := range instances {
+				err := mgr.Write(instance, 0, payload)
+				require.NoError(t, err)
+				wrInitCh <- true
+			}
+
+			err = mgr.Flush()
+			if err != nil {
+				require.EqualError(t, err, errFlushInProgress.Error())
+			}
+		}(i)
+
+		// Block till all normal writers in this iteration have completed.
+		// Slow writer could still be blocked but that is what we want.
+		<-doneCh
+	}
+
+	// Now that all normal writers have finished writing
+	// cancel the slow writer and compare write counts
+	// to validate.
+	cancelFn()
+
+	wg.Wait()
+
+	close(wrInitCh)
+	close(wrCompCh)
+
+	require.Equal(t, writesInitiated, writesCompleted)
+}
+
 func TestWriterManagerRemoveInstancesClosed(t *testing.T) {
 	mgr := mustMakeInstanceWriterManager(testOptions())
 	mgr.Lock()
@@ -90,7 +281,7 @@ func TestWriterManagerRemoveInstancesSuccess(t *testing.T) {
 	mgr.Lock()
 	require.Equal(t, 1, len(mgr.writers))
 	w := mgr.writers[testPlacementInstance.ID()].instanceWriter.(*writer)
-	require.False(t, w.closed)
+	require.False(t, w.closed.Load())
 	mgr.Unlock()
 
 	// Remove the instance list again and assert the writer is now removed.
@@ -101,9 +292,7 @@ func TestWriterManagerRemoveInstancesSuccess(t *testing.T) {
 	require.NoError(t, mgr.RemoveInstances(toRemove))
 	require.Equal(t, 0, len(mgr.writers))
 	require.True(t, clock.WaitUntil(func() bool {
-		w.Lock()
-		defer w.Unlock()
-		return w.closed
+		return w.closed.Load()
 	}, 3*time.Second))
 }
 
@@ -303,11 +492,7 @@ func TestWriterManagerCloseSuccess(t *testing.T) {
 	require.True(t, clock.WaitUntil(func() bool {
 		for _, w := range mgr.writers {
 			wr := w.instanceWriter.(*writer)
-			wr.Lock()
-			closed := wr.closed
-			wr.Unlock()
-
-			if !closed {
+			if !wr.closed.Load() {
 				return false
 			}
 		}

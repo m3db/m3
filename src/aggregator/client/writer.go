@@ -43,6 +43,7 @@ var (
 	errInstanceWriterClosed    = errors.New("instance writer is closed")
 	errUnrecognizedMetricType  = errors.New("unrecognized metric type")
 	errUnrecognizedPayloadType = errors.New("unrecognized payload type")
+	errFlushInProgress         = errors.New("flush is in progress")
 )
 
 type instanceWriter interface {
@@ -70,8 +71,9 @@ type writer struct {
 	newLockedEncoderFn newLockedEncoderFn
 	maxTimerBatchSize  int
 	maxBatchSize       int
-	sync.RWMutex
-	closed bool
+	encoderByShardMtx  sync.RWMutex
+	closed             atomic.Bool
+	isFlushActive      atomic.Bool
 }
 
 func newInstanceWriter(instance placement.Instance, opts Options) instanceWriter {
@@ -89,51 +91,63 @@ func newInstanceWriter(instance placement.Instance, opts Options) instanceWriter
 		queue:             newInstanceQueue(instance, queueOpts),
 		encodersByShard:   make(map[uint32]*lockedEncoder),
 	}
+
+	w.isFlushActive.Store(false)
 	w.newLockedEncoderFn = newLockedEncoder
 	return w
 }
 
+// Write takes the payload and writes it to the per-shard encoder.
 func (w *writer) Write(shard uint32, payload payloadUnion) error {
-	w.RLock()
-	if w.closed {
-		w.RUnlock()
+	w.encoderByShardMtx.RLock()
+	if w.closed.Load() {
+		w.encoderByShardMtx.RUnlock()
 		return errInstanceWriterClosed
 	}
 	encoder, exists := w.encodersByShard[shard]
 	if exists {
 		err := w.encodeWithLock(encoder, payload)
-		w.RUnlock()
+		w.encoderByShardMtx.RUnlock()
 		return err
 	}
-	w.RUnlock()
+	w.encoderByShardMtx.RUnlock()
 
-	w.Lock()
-	if w.closed {
-		w.Unlock()
+	w.encoderByShardMtx.Lock()
+	if w.closed.Load() {
+		w.encoderByShardMtx.Unlock()
 		return errInstanceWriterClosed
 	}
 	encoder, exists = w.encodersByShard[shard]
 	if exists {
 		err := w.encodeWithLock(encoder, payload)
-		w.Unlock()
+		w.encoderByShardMtx.Unlock()
 		return err
 	}
 	encoder = w.newLockedEncoderFn(w.encoderOpts)
 	w.encodersByShard[shard] = encoder
 	err := w.encodeWithLock(encoder, payload)
-	w.Unlock()
+	w.encoderByShardMtx.Unlock()
 
 	return err
 }
 
+// Flush loops through all encoders in encodersByShard, grabs the encoded
+// payload and writes it to the queue. From there the queue is drained
+// towards the destination via the transport in a blocking manner
 func (w *writer) Flush() error {
-	w.RLock()
-	if w.closed {
-		w.RUnlock()
+	if w.closed.Load() {
 		return errInstanceWriterClosed
 	}
-	err := w.flushWithLock()
-	w.RUnlock()
+
+	if !w.isFlushActive.CAS(false, true) {
+		// Flush is already active, bail
+		w.metrics.skippedFlushes.Inc(1)
+		return errFlushInProgress
+	}
+
+	defer w.isFlushActive.Store(false)
+
+	err := w.flush()
 
 	if err != nil {
 		w.metrics.flushErrors.Inc(1)
@@ -143,16 +157,17 @@ func (w *writer) Flush() error {
 }
 
 func (w *writer) Close() error {
-	w.Lock()
-	defer w.Unlock()
-
-	if w.closed {
+	if !w.closed.CAS(false, true) {
 		return errInstanceWriterClosed
 	}
-	w.closed = true
-	if err := w.flushWithLock(); err != nil {
-		w.metrics.flushErrors.Inc(1)
+
+	if w.isFlushActive.CAS(false, true) {
+		if err := w.flush(); err != nil {
+			w.metrics.flushErrors.Inc(1)
+		}
+		w.isFlushActive.Store(false)
 	}
+
 	return w.queue.Close()
 }
 
@@ -200,15 +215,9 @@ func (w *writer) encodeWithLock(
 		return err
 	}
 
-	if encoder.Len() < w.maxBatchSize {
-		encoder.Unlock()
-		return nil
-	}
-
-	buffer := encoder.Relinquish()
 	encoder.Unlock()
 
-	return w.enqueueBuffer(buffer)
+	return nil
 }
 
 func (w *writer) encodeUntimedWithLock(
@@ -351,8 +360,10 @@ func (w *writer) encodePassthroughWithLock(
 	return encoder.EncodeMessage(msg)
 }
 
-func (w *writer) flushWithLock() error {
+func (w *writer) flush() error {
 	multiErr := xerrors.NewMultiError()
+
+	w.encoderByShardMtx.RLock()
 	for _, encoder := range w.encodersByShard {
 		encoder.Lock()
 		if encoder.Len() == 0 {
@@ -365,6 +376,7 @@ func (w *writer) flushWithLock() error {
 			multiErr = multiErr.Add(err)
 		}
 	}
+	w.encoderByShardMtx.RUnlock()
 
 	w.queue.Flush()
 
@@ -390,6 +402,7 @@ type writerMetrics struct {
 	encodeErrors    tally.Counter
 	enqueueErrors   tally.Counter
 	flushErrors     tally.Counter
+	skippedFlushes  tally.Counter
 }
 
 func newWriterMetrics(s tally.Scope) writerMetrics {
@@ -398,6 +411,7 @@ func newWriterMetrics(s tally.Scope) writerMetrics {
 		encodeErrors:    s.Tagged(map[string]string{actionTag: "encode-error"}).Counter(buffersMetric),
 		enqueueErrors:   s.Tagged(map[string]string{actionTag: "enqueue-error"}).Counter(buffersMetric),
 		flushErrors:     s.Tagged(map[string]string{actionTag: "flush-error"}).Counter(buffersMetric),
+		skippedFlushes:  s.Tagged(map[string]string{actionTag: "skipped-flush"}).Counter(buffersMetric),
 	}
 }
 
@@ -414,7 +428,6 @@ func newLockedEncoder(encoderOpts protobuf.UnaggregatedOptions) *lockedEncoder {
 type refCountedWriter struct {
 	instanceWriter
 	refCount
-	dirty atomic.Bool
 }
 
 func newRefCountedWriter(instance placement.Instance, opts Options) *refCountedWriter {
@@ -424,8 +437,10 @@ func newRefCountedWriter(instance placement.Instance, opts Options) *refCountedW
 }
 
 func (rcWriter *refCountedWriter) Close() {
-	// NB: closing the writer needs to be done asynchronously because it may
-	// be called by writer manager while holding a lock that blocks any writes
-	// from proceeding.
-	go rcWriter.instanceWriter.Close() // nolint: errcheck
+	// The following Close() used to be called asyncly
+	// since Close() grabbed a lock before but it does not
+	// anymore so we can simply call it in the same
+	// context. This is called when the writeMgr is
+	// shutting down.
+	rcWriter.instanceWriter.Close() // nolint: errcheck
 }
