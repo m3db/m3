@@ -384,20 +384,22 @@ func (r *fsSegment) Finalize() {
 
 	r.finalized = true
 
-	r.fieldsFST.Close()
-	if r.data.Closer != nil {
-		r.data.Closer.Close()
+	if r.fieldsFST != nil {
+		r.fieldsFST.Close()
+		r.fieldsFST = nil
 	}
-
-	for _, elem := range r.termFSTs.fstMap.Iter() {
-		vellumFST := elem.Value()
-		vellumFST.fst.Close()
-	}
-
-	r.fieldsFST.Close()
 
 	if r.data.Closer != nil {
 		r.data.Closer.Close()
+		r.data.Closer = nil
+	}
+
+	if r.termFSTs.fstMap != nil {
+		for _, elem := range r.termFSTs.fstMap.Iter() {
+			vellumFST := elem.Value()
+			vellumFST.fst.Close()
+		}
+		r.termFSTs.fstMap = nil
 	}
 }
 
