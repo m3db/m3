@@ -108,3 +108,17 @@ func (mr *MockinstanceQueueMockRecorder) Size() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockinstanceQueue)(nil).Size))
 }
+
+// SizeBytes mocks base method.
+func (m *MockinstanceQueue) SizeBytes() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SizeBytes")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// SizeBytes indicates an expected call of SizeBytes.
+func (mr *MockinstanceQueueMockRecorder) SizeBytes() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SizeBytes", reflect.TypeOf((*MockinstanceQueue)(nil).SizeBytes))
+}
