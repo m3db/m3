@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
+	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 
@@ -52,7 +53,7 @@ type ConnectionConfiguration struct {
 	ReadBufferSize  *int                 `yaml:"readBufferSize"`
 	// ContextDialer specifies a custom dialer to use when creating TCP connections to the consumer.
 	// See writer.ConnectionOptions.ContextDialer for details.
-	ContextDialer writer.ContextDialerFn `yaml:"-"` // not serializable
+	ContextDialer xnet.ContextDialerFn `yaml:"-"` // not serializable
 }
 
 // NewOptions creates connection options.

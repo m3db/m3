@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
+	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/retry"
 )
 
@@ -111,6 +112,17 @@ type ConnectionOptions interface {
 
 	// RWOptions returns the RW options.
 	RWOptions() xio.Options
+
+	// ContextDialer allows customizing the way an aggregator client the aggregator, at the TCP layer.
+	// By default, this is:
+	// (&net.ContextDialer{}).DialContext. This can be used to do a variety of things, such as forwarding a connection
+	// over a proxy.
+	// NOTE: if your xnet.ContextDialerFn returns anything other a *net.TCPConn, TCP options such as KeepAlivePeriod
+	// will *not* be applied automatically. It is your responsibility to make sure these get applied as needed in
+	// your custom xnet.ContextDialerFn.
+	ContextDialer() xnet.ContextDialerFn
+	// SetContextDialer sets ContextDialer() -- see that method.
+	SetContextDialer(dialer xnet.ContextDialerFn) ConnectionOptions
 }
 
 type connectionOptions struct {
@@ -125,6 +137,7 @@ type connectionOptions struct {
 	maxThreshold   int
 	multiplier     int
 	connKeepAlive  bool
+	dialer         xnet.ContextDialerFn
 }
 
 // NewConnectionOptions create a new set of connection options.
@@ -147,6 +160,7 @@ func NewConnectionOptions() ConnectionOptions {
 		maxDuration:    defaultMaxReconnectDuration,
 		writeRetryOpts: defaultWriteRetryOpts,
 		rwOpts:         xio.NewOptions(),
+		dialer:         nil, // Will default to net.Dialer{}.DialContext
 	}
 }
 
@@ -258,4 +272,15 @@ func (o *connectionOptions) SetRWOptions(value xio.Options) ConnectionOptions {
 
 func (o *connectionOptions) RWOptions() xio.Options {
 	return o.rwOpts
+}
+
+func (o *connectionOptions) ContextDialer() xnet.ContextDialerFn {
+	return o.dialer
+}
+
+// SetContextDialer see ContextDialer.
+func (o *connectionOptions) SetContextDialer(dialer xnet.ContextDialerFn) ConnectionOptions {
+	opts := *o
+	opts.dialer = dialer
+	return &opts
 }
