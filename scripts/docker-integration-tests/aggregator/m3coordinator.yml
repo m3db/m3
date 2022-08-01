@@ -21,6 +21,8 @@ clusters:
           cacheDir: /var/lib/m3kv
           etcdClusters:
             - zone: embedded
+              autoSyncInterval: 10m
+              dialTimeout: 1m
               endpoints:
                 - dbnode01:2379
 

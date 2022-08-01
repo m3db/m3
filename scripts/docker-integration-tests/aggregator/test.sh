@@ -211,7 +211,7 @@ function prometheus_query_native {
     params_prefixed='&'"${params}"
   fi
 
-  result=$(curl -vs                                    \
+  result=$(curl -s                                    \
     -H "M3-Metrics-Type: ${metrics_type}"             \
     -H "M3-Storage-Policy: ${metrics_storage_policy}" \
     "0.0.0.0:7202/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}" | jq -s last)
@@ -329,7 +329,7 @@ function test_metric_type_survives_aggregation {
     rangeEnd=${end} \
     jq_path="$jq_path" expected_value="CAEQAQ==" \
     retry_with_backoff dbnode_fetch
-
+  
   # Additional test to ensure correct value is stored
   ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 \
     namespace="agg" \
