@@ -65,6 +65,8 @@ func keyEncode(query *storage.FetchQuery) string {
 	label_key := strings.Join(res, ";")
 	queryRange := int64(query.End.Sub(query.Start).Seconds())
 	// Key becomes {labels}::{endTime}::{duration}
+	// For example, a key might look like
+	// "fieldA=\"1\";fieldB=\"2\"::1659459470::300"
 	return fmt.Sprintf("%s::%d::%d", label_key, query.End.Unix(), queryRange)
 }
 
