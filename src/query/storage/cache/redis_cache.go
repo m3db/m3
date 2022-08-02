@@ -94,12 +94,13 @@ func NewRedisCache(redisAddress string, logger *zap.Logger, scope tally.Scope) *
 		return nil
 	}
 	logger.Info("Connection to Redis established", zap.String("address", redisAddress))
-	return &RedisCache{
+	cache := &RedisCache{
 		client:       pool,
 		redisAddress: redisAddress,
 		logger:       logger,
 		cacheMetrics: NewCacheMetrics(scope),
 	}
+	return cache
 }
 
 // Given a fetch query, converts it into a key for Redis
@@ -239,7 +240,7 @@ func WindowGetOrFetch(
 	q *storage.FetchQuery,
 	cache *RedisCache,
 ) (storage.PromResult, error) {
-	if cache == nil {
+	if cache == nil || !EnableCache {
 		return st.FetchProm(ctx, q, fetchOptions)
 	}
 	query_range := int64(q.End.Sub(q.Start).Seconds())
