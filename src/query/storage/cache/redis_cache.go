@@ -11,6 +11,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/storage"
 	radix "github.com/mediocregopher/radix/v3"
+	"github.com/uber-go/tally"
 
 	"go.uber.org/zap"
 )
@@ -30,11 +31,58 @@ type RedisCache struct {
 	client       radix.Client
 	redisAddress string
 	logger       *zap.Logger
+	cacheMetrics CacheMetrics
+}
+
+// Struct for tracking stats for cache
+type CacheMetrics struct {
+	hitCounter        tally.Counter
+	hitSamplesCounter tally.Counter
+	hitBytesCounter   tally.Counter
+
+	missCounter        tally.Counter
+	missSamplesCounter tally.Counter
+	missBytesCounter   tally.Counter
+}
+
+func NewCacheMetrics(scope tally.Scope) CacheMetrics {
+	subScope := scope.SubScope("cache")
+	return CacheMetrics{
+		hitCounter:        subScope.Counter("hit"),
+		hitSamplesCounter: subScope.Counter("hit-samples"),
+		hitBytesCounter:   subScope.Counter("hit-bytes"),
+
+		missCounter:        subScope.Counter("miss"),
+		missSamplesCounter: subScope.Counter("miss-samples"),
+		missBytesCounter:   subScope.Counter("miss-bytes"),
+	}
+}
+
+// Update metrcis for a cache hit
+func (cm CacheMetrics) CacheMetricsHit(result storage.PromResult) {
+	cm.hitCounter.Inc(1)
+	tot_samples := 0
+	for _, ts := range result.PromResult.Timeseries {
+		tot_samples += len(ts.Samples)
+	}
+	cm.hitSamplesCounter.Inc(int64(tot_samples))
+	cm.hitBytesCounter.Inc(int64(result.PromResult.Size()))
+}
+
+// Update metrics for a cache miss
+func (cm CacheMetrics) CacheMetricsMiss(result storage.PromResult) {
+	cm.missCounter.Inc(1)
+	tot_samples := 0
+	for _, ts := range result.PromResult.Timeseries {
+		tot_samples += len(ts.Samples)
+	}
+	cm.missSamplesCounter.Inc(int64(tot_samples))
+	cm.missBytesCounter.Inc(int64(result.PromResult.Size()))
 }
 
 // Create new RedisCache
 // If redisAddress is "" or a connection can't be made, returns nil
-func NewRedisCache(redisAddress string, logger *zap.Logger) *RedisCache {
+func NewRedisCache(redisAddress string, logger *zap.Logger, scope tally.Scope) *RedisCache {
 	logger.Info("New Cache", zap.String("address", redisAddress))
 	if redisAddress == "" {
 		logger.Info("Not using cache since address is empty")
@@ -50,6 +98,7 @@ func NewRedisCache(redisAddress string, logger *zap.Logger) *RedisCache {
 		client:       pool,
 		redisAddress: redisAddress,
 		logger:       logger,
+		cacheMetrics: NewCacheMetrics(scope),
 	}
 }
 
@@ -213,8 +262,10 @@ func WindowGetOrFetch(
 		}
 
 		cache.logger.Info("cache miss", zap.String("key", keyEncode(align_q)), zap.Int("size", len(promRes.PromResult.Timeseries)))
+		cache.cacheMetrics.CacheMetricsMiss(promRes)
 		return promRes, err
 	}
 	cache.logger.Info("cache hit", zap.String("key", keyEncode(align_q)))
+	cache.cacheMetrics.CacheMetricsHit(*res[0])
 	return *res[0], nil
 }

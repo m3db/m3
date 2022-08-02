@@ -1,4 +1,4 @@
-// Basic unit tests for Redis cache (not comprehensive, just a quick sanity check)
+// Simple unit tests for Redis cache
 // This test suite requires setting up a Redis instance at
 // 127.0.0.1:6379 (localhost)
 
@@ -15,6 +15,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	radix "github.com/mediocregopher/radix/v3"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
@@ -23,7 +24,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	cache = *NewRedisCache("127.0.0.1:6379", zap.NewExample())
+	cache = *NewRedisCache("127.0.0.1:6379", zap.NewExample(), tally.NewTestScope("", make(map[string]string, 0)))
 	var response string
 	cache.client.Do(radix.Cmd(&response, "FLUSHALL"))
 	m.Run()
