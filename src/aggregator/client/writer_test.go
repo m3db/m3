@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	"go.uber.org/atomic"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -1143,4 +1144,12 @@ func clonePassthroughedMetric(m aggregated.Metric) aggregated.Metric {
 	cloned.ID = append([]byte(nil), m.ID...)
 	cloned.Value = m.Value
 	return cloned
+}
+
+func TestAtomic(t *testing.T) {
+	var b atomic.Bool
+	b.Store(true)
+	fmt.Println(b.CAS(false, true))
+
+	fmt.Println(b.Load())
 }

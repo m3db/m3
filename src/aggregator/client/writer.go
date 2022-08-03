@@ -22,6 +22,7 @@ package client
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/cluster/placement"
@@ -149,10 +150,12 @@ func (w *writer) Flush() error {
 
 	err := w.flush()
 
+	fmt.Printf("%s: Done flushing!\n", w.queue.(*queue).instance.ID())
 	if err != nil {
 		w.metrics.flushErrors.Inc(1)
 		return err
 	}
+
 	return nil
 }
 

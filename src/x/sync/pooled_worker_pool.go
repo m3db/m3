@@ -37,7 +37,7 @@ const (
 )
 
 type pooledWorkerPool struct {
-	sync.Mutex
+	mu                       sync.Mutex
 	numRoutinesAtomic        int64
 	numWorkingRoutinesAtomic int64
 	numRoutinesGauge         tally.Gauge

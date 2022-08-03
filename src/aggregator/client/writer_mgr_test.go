@@ -23,11 +23,11 @@ package client
 import (
 	"context"
 	"errors"
-	"sync"
-
+	"fmt"
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -108,9 +108,11 @@ func TestWriterManagerAddInstancesSingleRef(t *testing.T) {
 // can fail in such situations.
 func TestWriterManagerMultipleWriters(t *testing.T) {
 	ctrl := xtest.NewController(t)
-	wrInitCh := make(chan bool)
-	wrCompCh := make(chan bool)
-	doneCh := make(chan bool)
+
+	const (
+		numSnapshots       = 10
+		numNormalInstances = 16
+	)
 
 	writesCompleted := 0
 	writesInitiated := 0
@@ -124,7 +126,7 @@ func TestWriterManagerMultipleWriters(t *testing.T) {
 		// Block till all normal writers have finished writing
 		// all write loops below
 		select {
-		case <-time.After(1 * time.Second):
+		//case <-time.After(1 * time.Second):
 		case <-ctx.Done():
 		}
 		return len(b), nil
@@ -138,9 +140,8 @@ func TestWriterManagerMultipleWriters(t *testing.T) {
 	normalMockConn := NewMockConn(ctrl)
 	normalMockConn.EXPECT().Write(gomock.Any()).DoAndReturn(func(b []byte) (n int, err error) {
 		// signal write completion and return immediately
-		wrCompCh <- true
 		return len(b), nil
-	}).AnyTimes()
+	}).Times(numSnapshots * numNormalInstances)
 	normalMockConn.EXPECT().SetWriteDeadline(gomock.Any()).AnyTimes()
 
 	normalWriterDialerFn := func(ctx context.Context, network string, address string) (net.Conn, error) {
@@ -162,39 +163,6 @@ func TestWriterManagerMultipleWriters(t *testing.T) {
 	// Re-override opts for normal writers
 	mgr.opts = mgr.opts.SetConnectionOptions(testConnectionOptions().SetContextDialer(normalWriterDialerFn))
 
-	// Create go routine to track write counters and signal completion of all normal writes
-	// in a single write loop.
-	go func() {
-		done := false
-		for {
-			select {
-			case val := <-wrInitCh:
-				if val {
-					writesInitiated++
-				}
-			case val, more := <-wrCompCh:
-				if val {
-					writesCompleted++
-				}
-
-				if !more {
-					done = true
-				}
-			}
-
-			if done {
-				break
-			}
-
-			if writesInitiated == writesCompleted {
-				// Writes that had been initiated in one loop below to
-				// all normal writers have completed. Signal the doneCh
-				doneCh <- true
-			}
-		}
-	}()
-
-	numNormalInstances := 16
 	instances := []placement.Instance{}
 	for i := 0; i < numNormalInstances; i++ {
 		instances = append(instances, placement.NewInstance().
@@ -206,11 +174,21 @@ func TestWriterManagerMultipleWriters(t *testing.T) {
 	// Create normal writers
 	require.NoError(t, mgr.AddInstances(instances))
 
-	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
+	var (
+		allSnapshotsDone sync.WaitGroup
+		nonSlowWrites    sync.WaitGroup
+	)
+	for i := 0; i < numSnapshots; i++ {
+		allSnapshotsDone.Add(1)
+
+		var writesDone sync.WaitGroup
+		writesDone.Add(1)
+		if i != 0 {
+			nonSlowWrites.Add(1)
+		}
+		// snapshot: write to all writers
 		go func(iterationID int) {
-			defer wg.Done()
+			defer allSnapshotsDone.Done()
 			payload := payloadUnion{
 				payloadType: untimedType,
 				untimed: untimedPayload{
@@ -229,31 +207,48 @@ func TestWriterManagerMultipleWriters(t *testing.T) {
 			for _, instance := range instances {
 				err := mgr.Write(instance, 0, payload)
 				require.NoError(t, err)
-				wrInitCh <- true
 			}
 
+			//writesDone.Done()
+			fmt.Printf("iteration %d: waiting to flush\n", iterationID)
 			err = mgr.Flush()
-			if err != nil {
-				require.EqualError(t, err, errFlushInProgress.Error())
+			fmt.Printf("iteration %d: finished flush with result: %v\n", iterationID, err)
+			//if err != nil {
+			//	require.Contains(t, err.Error(), errFlushInProgress.Error())
+			//}
+			if iterationID != 0 {
+				nonSlowWrites.Done()
 			}
 		}(i)
-
-		// Block till all normal writers in this iteration have completed.
-		// Slow writer could still be blocked but that is what we want.
-		<-doneCh
+		//writesDone.Wait()
 	}
+
+	// Invariants:
+	//  - All data from non slow writers goes through
+	//  - Flushes all complete after the slow writer completes
 
 	// Now that all normal writers have finished writing
 	// cancel the slow writer and compare write counts
 	// to validate.
-	cancelFn()
 
-	wg.Wait()
+	// assert that all non slow writes finished
+	nonSlowDone := make(chan struct{})
+	go func() {
+		nonSlowWrites.Wait()
+		close(nonSlowDone)
+	}()
 
-	close(wrInitCh)
-	close(wrCompCh)
-
+	select {
+	case <-nonSlowDone:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "timeout waiting for non slow writes")
+	}
 	require.Equal(t, writesInitiated, writesCompleted)
+
+	cancelFn()
+	fmt.Println("waiting for all snapshots to finish")
+	allSnapshotsDone.Wait()
+
 }
 
 func TestWriterManagerRemoveInstancesClosed(t *testing.T) {
