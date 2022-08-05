@@ -6,6 +6,7 @@ package cache
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -39,6 +40,7 @@ func labelsEqual(a, b []prompb.Label) bool {
 		val := (string(a[i].Name) == string(b[i].Name) &&
 			string(a[i].Value) == string(b[i].Value))
 		if !val {
+			println("b", string(a[i].Value), string(b[i].Value), string(a[i].Name), string(b[i].Name))
 			return false
 		}
 	}
@@ -53,6 +55,7 @@ func samplesEqual(a, b []prompb.Sample) bool {
 		val := (a[i].Timestamp == b[i].Timestamp &&
 			a[i].Value == b[i].Value)
 		if !val {
+			println(a[i].Value, b[i].Value, a[i].Timestamp, b[i].Timestamp)
 			return false
 		}
 	}
@@ -63,6 +66,12 @@ func timeseriesEqual(a, b []*prompb.TimeSeries) bool {
 	if len(a) != len(b) {
 		return false
 	}
+	sort.Slice(a, func(i, j int) bool {
+		return (&prompb.Labels{Labels: a[i].Labels}).String() < (&prompb.Labels{Labels: a[j].Labels}).String()
+	})
+	sort.Slice(b, func(i, j int) bool {
+		return (&prompb.Labels{Labels: b[i].Labels}).String() < (&prompb.Labels{Labels: b[j].Labels}).String()
+	})
 	for i := range a {
 		val := (labelsEqual(a[i].Labels, b[i].Labels) &&
 			samplesEqual(a[i].Samples, b[i].Samples))
@@ -75,6 +84,10 @@ func timeseriesEqual(a, b []*prompb.TimeSeries) bool {
 
 func resultEqual(a, b *storage.PromResult) bool {
 	return (a.Metadata.Equals(b.Metadata) && timeseriesEqual(a.PromResult.Timeseries, b.PromResult.Timeseries))
+}
+
+func queryEqual(a, b *storage.FetchQuery) bool {
+	return (a.Start.Unix() == b.Start.Unix()) && (a.End.Unix() == b.End.Unix())
 }
 
 func TestSingle(t *testing.T) {
@@ -231,4 +244,116 @@ func TestMulti(t *testing.T) {
 	require.Nil(t, res[0], "Result should've been nil for empty key")
 	require.Nil(t, res[1], "Result should've been nil for empty key")
 	require.Nil(t, res[2], "Result should've been nil for empty key")
+}
+
+func TestSplit(t *testing.T) {
+	tags := []models.Matcher{
+		{Type: models.MatchEqual, Name: []byte("fieldA"), Value: []byte("1")},
+	}
+
+	start := int64(150)
+	end := int64(1050)
+	bucket := int64(BucketSize.Seconds())
+
+	query := storage.FetchQuery{
+		TagMatchers: tags,
+		Start:       time.Unix(int64(start), 0),
+		End:         time.Unix(int64(end), 0),
+		Interval:    0,
+	}
+
+	var expected []*storage.FetchQuery
+	tm := int64(0)
+	for tm < end {
+		cur_end := int64((int64(tm) + bucket) / bucket * bucket)
+		if cur_end > end {
+			cur_end = end
+		}
+		expected = append(expected, &storage.FetchQuery{
+			TagMatchers: tags,
+			Start:       time.Unix(int64(tm), 0),
+			End:         time.Unix(int64(cur_end), 0),
+			Interval:    0,
+		})
+		tm += bucket
+	}
+
+	splits := splitQueryToBuckets(&query, BucketSize)
+	require.Equal(t, len(splits), 4, "Didn't split into the expected number of buckets")
+
+	for i := range splits {
+		require.True(t, queryEqual(splits[i], expected[i]), "Split queries didn't equal expected")
+	}
+}
+
+func TestFilter(t *testing.T) {
+	result := createEmptyPromResult()
+	result.PromResult.Timeseries = make([]*prompb.TimeSeries, 3)
+
+	result.PromResult.Timeseries[0] = &prompb.TimeSeries{}
+	result.PromResult.Timeseries[0].Samples = []prompb.Sample{
+		{Value: 1, Timestamp: 100000},
+		{Value: 1.5, Timestamp: 110000},
+		{Value: 2, Timestamp: 250000},
+	}
+
+	result.PromResult.Timeseries[0].Labels = []prompb.Label{
+		{Name: []byte("fieldA"), Value: []byte("{")},
+	}
+
+	result.PromResult.Timeseries[1] = &prompb.TimeSeries{}
+	result.PromResult.Timeseries[1].Samples = []prompb.Sample{
+		{Value: 1, Timestamp: 150000},
+		{Value: 1.5, Timestamp: 210000},
+		{Value: 2, Timestamp: 250000},
+	}
+
+	result.PromResult.Timeseries[2] = &prompb.TimeSeries{}
+	result.PromResult.Timeseries[2].Samples = []prompb.Sample{
+		{Value: 1, Timestamp: 100000},
+		{Value: 1.5, Timestamp: 210000},
+		{Value: 2, Timestamp: 250000},
+	}
+
+	result.PromResult.Timeseries[1].Labels = []prompb.Label{
+		{Name: []byte("fieldA"), Value: []byte("{")},
+		{Name: []byte("fieldB"), Value: []byte("}")},
+		{Name: []byte("fieldC"), Value: []byte("5")},
+		{Name: []byte("__name__"), Value: []byte("3")},
+	}
+
+	expected := createEmptyPromResult()
+	expected.PromResult.Timeseries = make([]*prompb.TimeSeries, 3)
+
+	expected.PromResult.Timeseries[0] = &prompb.TimeSeries{}
+	expected.PromResult.Timeseries[0].Samples = []prompb.Sample{
+		{Value: 2, Timestamp: 250000},
+	}
+
+	expected.PromResult.Timeseries[0].Labels = []prompb.Label{
+		{Name: []byte("fieldA"), Value: []byte("{")},
+	}
+
+	expected.PromResult.Timeseries[1] = &prompb.TimeSeries{}
+	expected.PromResult.Timeseries[1].Samples = []prompb.Sample{
+		{Value: 1, Timestamp: 150000},
+		{Value: 1.5, Timestamp: 210000},
+		{Value: 2, Timestamp: 250000},
+	}
+
+	expected.PromResult.Timeseries[2] = &prompb.TimeSeries{}
+	expected.PromResult.Timeseries[2].Samples = []prompb.Sample{
+		{Value: 1.5, Timestamp: 210000},
+		{Value: 2, Timestamp: 250000},
+	}
+
+	expected.PromResult.Timeseries[1].Labels = []prompb.Label{
+		{Name: []byte("fieldA"), Value: []byte("{")},
+		{Name: []byte("fieldB"), Value: []byte("}")},
+		{Name: []byte("fieldC"), Value: []byte("5")},
+		{Name: []byte("__name__"), Value: []byte("3")},
+	}
+
+	filterResult(result, 130)
+	require.True(t, resultEqual(expected, result), "Filtered result not equal")
 }

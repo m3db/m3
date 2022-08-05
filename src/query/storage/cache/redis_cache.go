@@ -2,13 +2,8 @@ package cache
 
 import (
 	"context"
-	"fmt"
-	"sort"
-	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/storage"
 	radix "github.com/mediocregopher/radix/v3"
 	"github.com/uber-go/tally"
@@ -18,13 +13,15 @@ import (
 
 const (
 	// Time that keys expire after (in seconds)
-	ExpirationTime string = "300"
+	ExpirationTime string = "1200"
 	// Blank result used to denote an empty PromResult
 	EmptyResult string = "{}"
 	// Minimum number of connections pools to Redis to keep open
 	MinPools int = 10
 	// Time to wait before creating a new Redis connection pool (in ms)
 	CreateAfterTime time.Duration = 100 * time.Millisecond
+	// Bucket size (in s) to split window up into
+	BucketSize time.Duration = 300 * time.Second
 )
 
 type RedisCache struct {
@@ -58,9 +55,8 @@ func NewCacheMetrics(scope tally.Scope) CacheMetrics {
 	}
 }
 
-// Update metrcis for a cache hit
+// Update metrics for a cache hit
 func (cm CacheMetrics) CacheMetricsHit(result storage.PromResult) {
-	cm.hitCounter.Inc(1)
 	tot_samples := 0
 	for _, ts := range result.PromResult.Timeseries {
 		tot_samples += len(ts.Samples)
@@ -69,9 +65,22 @@ func (cm CacheMetrics) CacheMetricsHit(result storage.PromResult) {
 	cm.hitBytesCounter.Inc(int64(result.PromResult.Size()))
 }
 
+// Update metrics for a hit of buckets
+func (cm CacheMetrics) CacheMetricsBucketHit(results []*storage.PromResult) {
+	tot_samples := 0
+	tot_size := 0
+	for _, result := range results {
+		for _, ts := range result.PromResult.Timeseries {
+			tot_samples += len(ts.Samples)
+		}
+		tot_size += result.PromResult.Size()
+	}
+	cm.hitSamplesCounter.Inc(int64(tot_samples))
+	cm.hitBytesCounter.Inc(int64(tot_size))
+}
+
 // Update metrics for a cache miss
 func (cm CacheMetrics) CacheMetricsMiss(result storage.PromResult) {
-	cm.missCounter.Inc(1)
 	tot_samples := 0
 	for _, ts := range result.PromResult.Timeseries {
 		tot_samples += len(ts.Samples)
@@ -94,69 +103,12 @@ func NewRedisCache(redisAddress string, logger *zap.Logger, scope tally.Scope) *
 		return nil
 	}
 	logger.Info("Connection to Redis established", zap.String("address", redisAddress))
-	cache := &RedisCache{
+	return &RedisCache{
 		client:       pool,
 		redisAddress: redisAddress,
 		logger:       logger,
 		cacheMetrics: NewCacheMetrics(scope),
 	}
-	return cache
-}
-
-// Given a fetch query, converts it into a key for Redis
-func keyEncode(query *storage.FetchQuery) string {
-	res := make([]string, len(query.TagMatchers))
-	for i, m := range query.TagMatchers {
-		res[i] = m.String()
-	}
-	// Sort to guarantee we have the same order every time
-	sort.Strings(res)
-
-	label_key := strings.Join(res, ";")
-	queryRange := int64(query.End.Sub(query.Start).Seconds())
-	// Key becomes {labels}::{endTime}::{duration}
-	// For example, a key might look like
-	// "fieldA=\"1\";fieldB=\"2\"::1659459470::300"
-	return fmt.Sprintf("%s::%d::%d", label_key, query.End.Unix(), queryRange)
-}
-
-// Given a result, encodes it into string (or "" if error)
-// Encodes an empty PromResult to {} to differentiate from ""
-//
-// We only encode the QueryResult portion of the PromResult struct
-// We omit the metadata since we do not use it in computation
-// and also this metadata also isn't accurate since we aren't getting it from M3DB
-func resultEncode(result *storage.PromResult) (string, error) {
-	if len(result.PromResult.Timeseries) == 0 {
-		return EmptyResult, nil
-	}
-	// Custom Marshal function for QueryResults
-	res, err := result.PromResult.Marshal()
-	if err != nil {
-		return "", err
-	}
-	return string(res), nil
-}
-
-// Given a string, decodes it into a result (or nil if failed)
-//
-// Sets the metadata to a blank as we don't use it
-// and we don't actually have metadata from M3DB for this result
-func resultDecode(val []byte) (*storage.PromResult, error) {
-	var result storage.PromResult
-	result.PromResult = &prompb.QueryResult{}
-
-	// Check length first so we don't convert to string every time
-	if len(val) == len([]byte(EmptyResult)) && string(val) == EmptyResult {
-		result.Metadata = block.NewResultMetadata()
-		return &result, nil
-	}
-	// Custom Unmarshal function for QueryResults
-	if err := result.PromResult.Unmarshal(val); err != nil {
-		return nil, err
-	}
-	result.Metadata = block.NewResultMetadata()
-	return &result, nil
 }
 
 // For each entry in {entries}, gives the PromResult or nil if failed in array
@@ -170,6 +122,7 @@ func (cache *RedisCache) Get(entries []*storage.FetchQuery) []*storage.PromResul
 	}
 
 	// Consume as bytes to avoid having to casting to string later on (avoids duplicate memory)
+	// var expire string
 	responses := make([][]byte, len(entries))
 	if err := cache.client.Do(radix.Cmd(&responses, "MGET", keys...)); err != nil {
 		cache.logger.Error("Failed to execute Redis batch get", zap.Error(err))
@@ -199,15 +152,11 @@ func (cache *RedisCache) Set(
 	entries []*storage.FetchQuery,
 	values []*storage.PromResult,
 ) error {
-	var commands []radix.CmdAction
+	var args []string
 	// Place holder variable to fit radix.Cmd() functions
 	var response string
 
 	for i := range entries {
-		// Skip over non-existent results
-		if entries[i] == nil {
-			continue
-		}
 		entry := keyEncode(entries[i])
 		value, err := resultEncode(values[i])
 		cache.logger.Info("Prom result size", zap.Int("length", len(value)), zap.Int("ts_len", len(values[i].PromResult.Timeseries)))
@@ -216,10 +165,11 @@ func (cache *RedisCache) Set(
 			continue
 		}
 
-		commands = append(commands, radix.Cmd(&response, "SET", entry, value), radix.Cmd(&response, "EXPIRE", entry, ExpirationTime))
+		args = append(args, entry, value)
 	}
 
-	if err := cache.client.Do(radix.Pipeline(commands...)); err != nil {
+	// Use MSET and don't set expiration, let Redis LRU determine the process
+	if err := cache.client.Do(radix.Cmd(&response, "MSET", args...)); err != nil {
 		cache.logger.Error("Failed to execute Redis set", zap.Error(err))
 		return err
 	}
