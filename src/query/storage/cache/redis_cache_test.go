@@ -246,6 +246,50 @@ func TestMulti(t *testing.T) {
 	require.Nil(t, res[2], "Result should've been nil for empty key")
 }
 
+func TestCheck(t *testing.T) {
+	tags := []models.Matcher{
+		{Type: models.MatchEqual, Name: []byte("fieldA"), Value: []byte("1")},
+	}
+
+	var queries []*storage.FetchQuery
+	var results []*storage.PromResult
+	tm := 0
+	i := 0
+	for tm < 100 {
+		queries = append(queries, &storage.FetchQuery{
+			Start:       time.Unix(int64(tm), 0),
+			End:         time.Unix(int64(tm+10), 0),
+			TagMatchers: tags,
+			Interval:    0,
+		})
+		results = append(results, createEmptyPromResult())
+		i += 1
+		tm += 10
+	}
+
+	sets := []*storage.FetchQuery{
+		queries[0], queries[1], queries[2],
+		queries[7], queries[8], queries[9],
+	}
+
+	cache.Set(sets, results[:6])
+
+	var test string
+	cache.client.Do(radix.Cmd(&test, "EXISTS", "fieldA=\"1\"::40::50"))
+
+	count := cache.Check(queries[:7])
+	require.Equal(t, count, 3, "Check didn't match")
+
+	count = cache.Check(queries[4:6])
+	require.Equal(t, count, 0, "Check didn't match")
+
+	count = cache.Check(queries[5:9])
+	require.Equal(t, count, 2, "Check didn't match")
+
+	count = cache.Check(queries[:10])
+	require.Equal(t, count, 6, "Check didn't match")
+}
+
 func TestSplit(t *testing.T) {
 	tags := []models.Matcher{
 		{Type: models.MatchEqual, Name: []byte("fieldA"), Value: []byte("1")},
@@ -356,4 +400,75 @@ func TestFilter(t *testing.T) {
 
 	filterResult(result, 130)
 	require.True(t, resultEqual(expected, result), "Filtered result not equal")
+}
+
+func TestSplitAndCombine(t *testing.T) {
+	result := createEmptyPromResult()
+	result.PromResult.Timeseries = make([]*prompb.TimeSeries, 2)
+
+	result.PromResult.Timeseries[0] = &prompb.TimeSeries{}
+	result.PromResult.Timeseries[0].Samples = []prompb.Sample{
+		{Value: 1, Timestamp: 110000},
+		{Value: 1.5, Timestamp: 310000},
+		{Value: 2, Timestamp: 470000},
+	}
+
+	result.PromResult.Timeseries[0].Labels = []prompb.Label{
+		{Name: []byte("fieldA"), Value: []byte("{")},
+	}
+
+	result.PromResult.Timeseries[1] = &prompb.TimeSeries{}
+	result.PromResult.Timeseries[1].Samples = []prompb.Sample{
+		{Value: 1, Timestamp: 150000},
+		{Value: 1.5, Timestamp: 170000},
+		{Value: 2, Timestamp: 250000},
+	}
+
+	result.PromResult.Timeseries[1].Labels = []prompb.Label{
+		{Name: []byte("fieldA"), Value: []byte("{")},
+		{Name: []byte("fieldB"), Value: []byte("}")},
+	}
+
+	expected := createEmptyPromResult()
+	expected.PromResult.Timeseries = make([]*prompb.TimeSeries, 2)
+
+	expected.PromResult.Timeseries[0] = &prompb.TimeSeries{}
+	expected.PromResult.Timeseries[0].Samples = []prompb.Sample{
+		{Value: 1.5, Timestamp: 310000},
+		{Value: 2, Timestamp: 470000},
+	}
+
+	expected.PromResult.Timeseries[0].Labels = []prompb.Label{
+		{Name: []byte("fieldA"), Value: []byte("{")},
+	}
+
+	expected.PromResult.Timeseries[1] = &prompb.TimeSeries{}
+	expected.PromResult.Timeseries[1].Samples = []prompb.Sample{
+		{Value: 1, Timestamp: 150000},
+		{Value: 1.5, Timestamp: 170000},
+		{Value: 2, Timestamp: 250000},
+	}
+
+	expected.PromResult.Timeseries[1].Labels = []prompb.Label{
+		{Name: []byte("fieldA"), Value: []byte("{")},
+		{Name: []byte("fieldB"), Value: []byte("}")},
+	}
+
+	tags := []models.Matcher{
+		{Type: models.MatchEqual, Name: []byte("fieldA"), Value: []byte("{")},
+	}
+
+	query := &storage.FetchQuery{
+		TagMatchers: tags,
+		Start:       time.Unix(150, 0),
+		End:         time.Unix(750, 0),
+		Interval:    0,
+	}
+
+	buckets := splitQueryToBuckets(query, BucketSize)
+	cache.SetAsBuckets(result, buckets)
+
+	res := combineResult(cache.Get(buckets))
+	filterResult(res, query.Start.Unix())
+	require.True(t, resultEqual(expected, res), "Filtered result not equal")
 }

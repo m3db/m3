@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/storage"
 	radix "github.com/mediocregopher/radix/v3"
 	"github.com/uber-go/tally"
@@ -57,6 +58,7 @@ func NewCacheMetrics(scope tally.Scope) CacheMetrics {
 
 // Update metrics for a cache hit
 func (cm CacheMetrics) CacheMetricsHit(result storage.PromResult) {
+	// cm.hitCounter.Inc(1)
 	tot_samples := 0
 	for _, ts := range result.PromResult.Timeseries {
 		tot_samples += len(ts.Samples)
@@ -67,6 +69,7 @@ func (cm CacheMetrics) CacheMetricsHit(result storage.PromResult) {
 
 // Update metrics for a hit of buckets
 func (cm CacheMetrics) CacheMetricsBucketHit(results []*storage.PromResult) {
+	// cm.hitCounter.Inc(1)
 	tot_samples := 0
 	tot_size := 0
 	for _, result := range results {
@@ -81,6 +84,7 @@ func (cm CacheMetrics) CacheMetricsBucketHit(results []*storage.PromResult) {
 
 // Update metrics for a cache miss
 func (cm CacheMetrics) CacheMetricsMiss(result storage.PromResult) {
+	// cm.missCounter.Inc(1)
 	tot_samples := 0
 	for _, ts := range result.PromResult.Timeseries {
 		tot_samples += len(ts.Samples)
@@ -109,6 +113,17 @@ func NewRedisCache(redisAddress string, logger *zap.Logger, scope tally.Scope) *
 		logger:       logger,
 		cacheMetrics: NewCacheMetrics(scope),
 	}
+}
+
+// Return the number of entries are actually in Redis
+func (cache *RedisCache) Check(entries []*storage.FetchQuery) int {
+	var count int
+	var keys []string
+	for _, e := range entries {
+		keys = append(keys, keyEncode(e))
+	}
+	cache.client.Do(radix.Cmd(&count, "EXISTS", keys...))
+	return count
 }
 
 // For each entry in {entries}, gives the PromResult or nil if failed in array
@@ -166,6 +181,7 @@ func (cache *RedisCache) Set(
 		}
 
 		args = append(args, entry, value)
+		// commands = append(commands, radix.Cmd(&response, "SET", entry, value), radix.Cmd(&response, "EXPIRE", entry, ExpirationTime))
 	}
 
 	// Use MSET and don't set expiration, let Redis LRU determine the process
@@ -219,4 +235,128 @@ func WindowGetOrFetch(
 	cache.logger.Info("cache hit", zap.String("key", keyEncode(align_q)))
 	cache.cacheMetrics.CacheMetricsHit(*res[0])
 	return *res[0], nil
+}
+
+func (cache *RedisCache) SetAsBuckets(result *storage.PromResult, buckets []*storage.FetchQuery) {
+	results := make([]*storage.PromResult, len(buckets))
+	for i := range buckets {
+		results[i] = createEmptyPromResult()
+	}
+	for _, ts := range result.PromResult.Timeseries {
+		idx := 0
+		for i, b := range buckets {
+			start := b.Start.Unix()
+			end := b.End.Unix()
+			prev := idx
+			// Convert millisecond timestamp to second timestamp
+			for idx < len(ts.Samples) && ts.Samples[idx].Timestamp/1000 >= start && ts.Samples[idx].Timestamp/1000 < end {
+				idx += 1
+			}
+			// Nothing to add
+			if prev == idx {
+				continue
+			}
+			results[i].PromResult.Timeseries = append(results[i].PromResult.Timeseries,
+				&prompb.TimeSeries{
+					Labels:  ts.Labels,
+					Samples: ts.Samples[prev:idx],
+				},
+			)
+			// No need to continue
+			if idx == len(ts.Samples) {
+				break
+			}
+		}
+	}
+	cache.Set(buckets, results)
+}
+
+func BucketWindowGetOrFetch(
+	ctx context.Context,
+	st storage.Storage,
+	fetchOptions *storage.FetchOptions,
+	q *storage.FetchQuery,
+	cache *RedisCache,
+) (storage.PromResult, error) {
+	if cache == nil || !EnableCache {
+		return st.FetchProm(ctx, q, fetchOptions)
+	}
+
+	last_start := q.End.Truncate(BucketSize)
+	// If we have more than one bucket
+	if q.Start.Before(last_start) {
+		// Split into not-last and last
+		exclude_last_query := &storage.FetchQuery{
+			TagMatchers: q.TagMatchers,
+			Start:       q.Start,
+			End:         last_start,
+			Interval:    q.Interval,
+		}
+		last_query := &storage.FetchQuery{
+			TagMatchers: q.TagMatchers,
+			Start:       last_start,
+			End:         q.End,
+			Interval:    q.Interval,
+		}
+		buckets := splitQueryToBuckets(exclude_last_query, BucketSize)
+		// Check if we have to make a request to M3DB, in which case we just ask for all
+		// This is so we don't have to convert if we need to ask M3DB for all of it anyways
+		count := cache.Check(buckets)
+		cache.logger.Info("num_hit", zap.Int("check", count), zap.Int("length", len(buckets)))
+		if count < len(buckets)-1 || count == 0 {
+			cache.logger.Info("cache miss", zap.String("key", keyEncode(q)))
+			res, err := st.FetchProm(ctx, q, fetchOptions)
+			cache.cacheMetrics.CacheMetricsMiss(res)
+			if err == nil {
+				cache.SetAsBuckets(&res, buckets)
+			}
+			return res, err
+		}
+
+		results := cache.Get(buckets)
+		cnt := 0
+		// Check again after getting just in case some of the keys disappeared so we don't make many M3DB requests
+		for _, r := range results {
+			if r == nil {
+				cnt++
+				if cnt > 1 {
+					cache.logger.Info("cache miss", zap.String("key", keyEncode(q)))
+					res, err := st.FetchProm(ctx, q, fetchOptions)
+					cache.cacheMetrics.CacheMetricsMiss(res)
+					if err == nil {
+						cache.SetAsBuckets(&res, buckets)
+					}
+					return res, err
+				}
+			}
+		}
+		for i, r := range results {
+			if r == nil {
+				res, err := st.FetchProm(ctx, buckets[i], fetchOptions)
+				if err != nil {
+					cache.logger.Error("M3DB Fetch Error of Bucket", zap.Error(err))
+					return storage.PromResult{}, nil
+				}
+				cache.cacheMetrics.CacheMetricsMiss(res)
+				results[i] = &res
+				cache.Set([]*storage.FetchQuery{buckets[i]}, []*storage.PromResult{results[i]})
+			}
+			// If it's the first bucket, we need to filter it to the actual start of query
+			if i == 0 {
+				filterResult(results[i], q.Start.Unix())
+			}
+		}
+		cache.cacheMetrics.CacheMetricsBucketHit(results)
+
+		// Get last bucket (don't set this one)
+		res, err := st.FetchProm(ctx, last_query, fetchOptions)
+		cache.cacheMetrics.CacheMetricsMiss(res)
+		if err != nil {
+			return storage.PromResult{}, nil
+		}
+		return *combineResult(append(results, &res)), nil
+	}
+	res, err := st.FetchProm(ctx, q, fetchOptions)
+	cache.cacheMetrics.CacheMetricsMiss(res)
+	return res, err
 }
