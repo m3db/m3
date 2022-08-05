@@ -20,7 +20,7 @@ func createEmptyPromResult() *storage.PromResult {
 
 // Given a fetch query, converts it into a key for Redis
 // Give a prefix to differentiate between different types of keys (bucket vs. simple)
-func keyEncode(query *storage.FetchQuery) string {
+func keyEncode(query *storage.FetchQuery, prefix string) string {
 	res := make([]string, len(query.TagMatchers))
 	for i, m := range query.TagMatchers {
 		res[i] = m.String()
@@ -32,7 +32,7 @@ func keyEncode(query *storage.FetchQuery) string {
 	// Key becomes {labels}::{startTime}::{endTime}
 	// For example, a key might look like
 	// "fieldA=\"1\";fieldB=\"2\"::1659459470::1659459770"
-	return fmt.Sprintf("%s::%d::%d", label_key, query.Start.Unix(), query.End.Unix())
+	return fmt.Sprintf("%s::%s::%d::%d", prefix, label_key, query.Start.Unix(), query.End.Unix())
 }
 
 // Given a result, encodes it into string (or "" if error)

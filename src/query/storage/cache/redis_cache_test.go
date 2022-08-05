@@ -137,17 +137,17 @@ func TestSingle(t *testing.T) {
 		{Name: []byte("__name__"), Value: []byte("3")},
 	}
 
-	err := cache.Set([]*storage.FetchQuery{&query}, []*storage.PromResult{&result})
+	err := cache.Set([]*storage.FetchQuery{&query}, []*storage.PromResult{&result}, SimpleKeyPrefix)
 	require.Nil(t, err, fmt.Sprintf("SET failure: Got %s instead of OK as response", err))
 
 	// Test if right values
-	res := cache.Get([]*storage.FetchQuery{&query})
+	res := cache.Get([]*storage.FetchQuery{&query}, SimpleKeyPrefix)
 	require.NotNil(t, res[0], "Error in decoding PromResult, result is not nil")
 	require.True(t, resultEqual(res[0], &result), "Results did not equal expected")
 
 	// Test for correct empty
 	query.End = time.Unix(7200, 0)
-	res = cache.Get([]*storage.FetchQuery{&query})
+	res = cache.Get([]*storage.FetchQuery{&query}, SimpleKeyPrefix)
 	require.Nil(t, res[0], "Result should've been nil for empty key")
 }
 
@@ -211,11 +211,11 @@ func TestMulti(t *testing.T) {
 		{Name: []byte("__name__"), Value: []byte("3")},
 	}
 
-	err := cache.Set([]*storage.FetchQuery{&query1, &query2}, []*storage.PromResult{&result1, &result2})
+	err := cache.Set([]*storage.FetchQuery{&query1, &query2}, []*storage.PromResult{&result1, &result2}, BucketKeyPrefix)
 	require.Nil(t, err, fmt.Sprintf("SET failure: Got %s instead of OK as response", err))
 
 	// Test if right values
-	res := cache.Get([]*storage.FetchQuery{&query1, &query2})
+	res := cache.Get([]*storage.FetchQuery{&query1, &query2}, BucketKeyPrefix)
 	require.NotNil(t, res[0], "Error in decoding PromResult, result is not nil")
 	require.True(t, resultEqual(res[0], &result1), "Results did not equal expected")
 	require.NotNil(t, res[1], "Error in decoding PromResult, result is not nil")
@@ -240,7 +240,7 @@ func TestMulti(t *testing.T) {
 		End:         time.Unix(5400, 0),
 		Interval:    0,
 	}
-	res = cache.Get([]*storage.FetchQuery{&query3, &query4, &query5})
+	res = cache.Get([]*storage.FetchQuery{&query3, &query4, &query5}, BucketKeyPrefix)
 	require.Nil(t, res[0], "Result should've been nil for empty key")
 	require.Nil(t, res[1], "Result should've been nil for empty key")
 	require.Nil(t, res[2], "Result should've been nil for empty key")
@@ -272,21 +272,21 @@ func TestCheck(t *testing.T) {
 		queries[7], queries[8], queries[9],
 	}
 
-	cache.Set(sets, results[:6])
+	cache.Set(sets, results[:6], BucketKeyPrefix)
 
 	var test string
 	cache.client.Do(radix.Cmd(&test, "EXISTS", "fieldA=\"1\"::40::50"))
 
-	count := cache.Check(queries[:7])
+	count := cache.Check(queries[:7], BucketKeyPrefix)
 	require.Equal(t, count, 3, "Check didn't match")
 
-	count = cache.Check(queries[4:6])
+	count = cache.Check(queries[4:6], BucketKeyPrefix)
 	require.Equal(t, count, 0, "Check didn't match")
 
-	count = cache.Check(queries[5:9])
+	count = cache.Check(queries[5:9], BucketKeyPrefix)
 	require.Equal(t, count, 2, "Check didn't match")
 
-	count = cache.Check(queries[:10])
+	count = cache.Check(queries[:10], BucketKeyPrefix)
 	require.Equal(t, count, 6, "Check didn't match")
 }
 
@@ -468,7 +468,7 @@ func TestSplitAndCombine(t *testing.T) {
 	buckets := splitQueryToBuckets(query, BucketSize)
 	cache.SetAsBuckets(result, buckets)
 
-	res := combineResult(cache.Get(buckets))
+	res := combineResult(cache.Get(buckets, BucketKeyPrefix))
 	filterResult(res, query.Start.Unix())
 	require.True(t, resultEqual(expected, res), "Filtered result not equal")
 }
