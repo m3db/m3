@@ -21,6 +21,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"math/rand"
 	"net"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/x/clock"
 	xio "github.com/m3db/m3/src/x/io"
+	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/uber-go/tally"
@@ -59,7 +61,7 @@ type connection struct {
 	connectWithLockFn       connectWithLockFn
 	sleepFn                 sleepFn
 	nowFn                   clock.NowFn
-	conn                    *net.TCPConn
+	conn                    net.Conn
 	rngFn                   retry.RngFn
 	writeWithLockFn         writeWithLockFn
 	addr                    string
@@ -74,6 +76,7 @@ type connection struct {
 	numFailures             int
 	mtx                     sync.Mutex
 	keepAlive               bool
+	dialer                  xnet.ContextDialerFn
 }
 
 // newConnection creates a new connection.
@@ -88,6 +91,7 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 		maxThreshold:   opts.MaxReconnectThreshold(),
 		maxDuration:    opts.MaxReconnectDuration(),
 		writeRetryOpts: opts.WriteRetryOptions(),
+		dialer:         opts.ContextDialer(),
 		rngFn:          rand.New(rand.NewSource(time.Now().UnixNano())).Int63n,
 		nowFn:          opts.ClockOptions().NowFn(),
 		sleepFn:        time.Sleep,
@@ -166,25 +170,50 @@ func (c *connection) writeAttemptWithLock(data []byte) error {
 }
 
 func (c *connection) connectWithLock() error {
+	// TODO: propagate this all the way up the callstack.
+	ctx := context.TODO()
+
 	c.lastConnectAttemptNanos = c.nowFn().UnixNano()
-	conn, err := net.DialTimeout(tcpProtocol, c.addr, c.connTimeout)
+
+	ctx, cancel := context.WithTimeout(ctx, c.connTimeout)
+	defer cancel()
+
+	conn, err := c.dialContext(ctx, c.addr)
 	if err != nil {
 		c.metrics.connectError.Inc(1)
 		return err
 	}
 
-	tcpConn := conn.(*net.TCPConn)
-	if err := tcpConn.SetKeepAlive(c.keepAlive); err != nil {
-		c.metrics.setKeepAliveError.Inc(1)
+	// N.B.: If using a custom dialer which doesn't return *net.TCPConn, users are responsible for TCP keep alive options
+	// themselves.
+	if tcpConn, ok := conn.(keepAlivable); ok {
+		if err := tcpConn.SetKeepAlive(c.keepAlive); err != nil {
+			c.metrics.setKeepAliveError.Inc(1)
+		}
 	}
 
 	if c.conn != nil {
 		c.conn.Close() // nolint: errcheck
 	}
 
-	c.conn = tcpConn
-	c.writer.Reset(tcpConn)
+	c.conn = conn
+	c.writer.Reset(conn)
 	return nil
+}
+
+// Make sure net.TCPConn implements this; otherwise bad things will happen.
+var _ keepAlivable = (*net.TCPConn)(nil)
+
+type keepAlivable interface {
+	SetKeepAlive(shouldKeepAlive bool) error
+}
+
+func (c *connection) dialContext(ctx context.Context, addr string) (net.Conn, error) {
+	if dialer := c.dialer; dialer != nil {
+		return dialer(ctx, tcpProtocol, addr)
+	}
+	var dialer net.Dialer
+	return dialer.DialContext(ctx, tcpProtocol, addr)
 }
 
 func (c *connection) checkReconnectWithLock() error {

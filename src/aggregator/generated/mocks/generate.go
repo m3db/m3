@@ -23,6 +23,7 @@
 //go:generate sh -c "mockgen -package=client github.com/m3db/m3/src/aggregator/client Client,AdminClient | genclean -pkg github.com/m3db/m3/src/aggregator/client -out $GOPATH/src/github.com/m3db/m3/src/aggregator/client/client_mock.go"
 //go:generate sh -c "mockgen -package=handler github.com/m3db/m3/src/aggregator/aggregator/handler Handler | genclean -pkg github.com/m3db/m3/src/aggregator/aggregator/handler -out $GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/handler/handler_mock.go"
 //go:generate sh -c "mockgen -package=runtime github.com/m3db/m3/src/aggregator/runtime OptionsWatcher | genclean -pkg github.com/m3db/m3/src/aggregator/runtime -out $GOPATH/src/github.com/m3db/m3/src/aggregator/runtime/runtime_mock.go"
+//go:generate sh -c "mockgen -package=client net Conn | genclean -pkg github.com/m3db/m3/src/aggregator/client -out $GOPATH/src/github.com/m3db/m3/src/aggregator/client/conn_mock_test.go"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode).
 //go:generate sh -c "mockgen -package=aggregator -destination=$GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/flush_mgr_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/flush_mgr.go"
@@ -34,5 +35,6 @@
 //go:generate sh -c "mockgen -package=deploy -destination=$GOPATH/src/github.com/m3db/m3/src/aggregator/tools/deploy/manager_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/aggregator/tools/deploy/manager.go"
 //go:generate sh -c "mockgen -package=deploy -destination=$GOPATH/src/github.com/m3db/m3/src/aggregator/tools/deploy/planner_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/aggregator/tools/deploy/planner.go"
 //go:generate sh -c "mockgen -package=deploy -destination=$GOPATH/src/github.com/m3db/m3/src/aggregator/tools/deploy/validator_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/aggregator/tools/deploy/validator.go"
+//go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/github.com/m3db/m3/src/aggregator/client/keep_alivable_mock_test.go -source=$GOPATH/src/github.com/m3db/m3/src/aggregator/client/conn.go client keepAlivableConn"
 
 package mocks
