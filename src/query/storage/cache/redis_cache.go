@@ -159,6 +159,11 @@ func resultDecode(val []byte) (*storage.PromResult, error) {
 	return &result, nil
 }
 
+func (cache *RedisCache) FlushAll() {
+	var response string
+	cache.client.Do(radix.Cmd(&response, "FLUSHALL"))
+}
+
 // For each entry in {entries}, gives the PromResult or nil if failed in array
 // Array parameter used to handle multiple bucket requests in the future
 func (cache *RedisCache) Get(entries []*storage.FetchQuery) []*storage.PromResult {
@@ -245,6 +250,8 @@ func WindowGetOrFetch(
 	}
 	query_range := int64(q.End.Sub(q.Start).Seconds())
 	// Align to the current minute
+	// We align this query to help condense queries that ask for the same thing in the same minute
+	// We assume they all want roughly similar responses
 	align_end := int64(q.End.Unix()/60) * 60
 	// Set start to aligned end minus the query range
 	align_start := align_end - query_range
