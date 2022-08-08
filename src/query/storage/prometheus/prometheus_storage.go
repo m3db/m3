@@ -144,10 +144,17 @@ func (q *querier) Select(
 		return promstorage.ErrSeriesSet(err)
 	}
 
-	// result, err := q.storage.FetchProm(q.ctx, query, fetchOptions)
-	result, err := cache.BucketWindowGetOrFetch(q.ctx, q.storage, fetchOptions, query, q.cache)
-	if err != nil {
-		return promstorage.ErrSeriesSet(NewStorageErr(err))
+	useM3DB := q.ctx.Value("UseM3DB")
+	var result storage.PromResult
+	var e error
+	if useM3DB != nil && useM3DB.(bool) {
+		result, e = q.storage.FetchProm(q.ctx, query, fetchOptions)
+	} else {
+		result, e = cache.BucketWindowGetOrFetch(q.ctx, q.storage, fetchOptions, query, q.cache)
+	}
+
+	if e != nil {
+		return promstorage.ErrSeriesSet(NewStorageErr(e))
 	}
 	seriesSet := fromQueryResult(sortSeries, result.PromResult, result.Metadata)
 

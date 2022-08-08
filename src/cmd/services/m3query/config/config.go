@@ -149,6 +149,9 @@ type Configuration struct {
 	// RedisAddress is the Redis address for caching.
 	RedisCacheAddress *string `yaml:"redisCacheAddress"`
 
+	// The % of queries we check against the result using only M3DB
+	CheckSampleRate float64 `yaml:"checkSampleRate"`
+
 	// Filter is the read/write/complete tags filter configuration.
 	Filter FilterConfiguration `yaml:"filter"`
 

@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/api/v1/handler/prom"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/httpd"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -206,6 +207,7 @@ func Run(runOpts RunOptions) RunResult {
 		listenerOpts = xnet.NewListenerOptions()
 		runResult    RunResult
 	)
+	prom.CheckSampleRate = float64(cfg.CheckSampleRate)
 
 	logger, err := cfg.LoggingOrDefault().BuildLogger()
 	if err != nil {
