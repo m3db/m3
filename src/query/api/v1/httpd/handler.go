@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
 	// needed for pprof handler registration
 	_ "net/http/pprof"
 	"time"
@@ -46,6 +47,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/api/v1/route"
 	"github.com/m3db/m3/src/query/parser/promql"
+	"github.com/m3db/m3/src/query/storage/cache"
 	"github.com/m3db/m3/src/query/util/queryhttp"
 	xdebug "github.com/m3db/m3/src/x/debug"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -350,6 +352,15 @@ func (h *Handler) RegisterRoutes() error {
 		Path:    graphite.FindURL,
 		Handler: h.options.GraphiteFindRouter(),
 		Methods: graphite.FindHTTPMethods,
+	}); err != nil {
+		return err
+	}
+
+	// Enable/Disable Redis endpoint
+	if err := h.registry.Register(queryhttp.RegisterOptions{
+		Path:    cache.ToggleRedisURL,
+		Handler: &cache.RedisToggleHandler{},
+		Methods: methods(cache.ToggleRedisMethods),
 	}); err != nil {
 		return err
 	}
