@@ -252,12 +252,13 @@ func TestWindowGet(t *testing.T) {
 					},
 				},
 			}, nil
-		})
+		}).MaxTimes(1)
 
 	series := q.Select(true, hints, matchers...)
 	assert.NoError(t, series.Err())
 
-	// Rerun, result should be cached so we should get results despite no M3DB connection
+	// Rerun, result should be cached so we should not have to FetchProm again
+	// If we do, since Max is 1, we will hit error
 	series = q.Select(true, hints, matchers...)
 	assert.NoError(t, series.Err())
 
