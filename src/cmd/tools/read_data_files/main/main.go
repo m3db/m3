@@ -21,11 +21,11 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -67,7 +67,7 @@ const (
 
 func main() {
 	var (
-		optPathPrefix = getopt.StringLong("path-prefix", 'p', "", "Path prefix [e.g. /var/lib/m3db]")
+		optPathPrefix = getopt.StringLong("path-prefix", 'p', "/var/lib/m3db", "Path prefix [e.g. /var/lib/m3db]")
 		optNamespace  = getopt.StringLong("namespace", 'n', "default", "Namespace [e.g. metrics]")
 		optShard      = getopt.IntLong("shard", 's', allShards,
 			fmt.Sprintf("Shard [expected format uint32], or %v for all shards in the directory", allShards))
@@ -109,10 +109,13 @@ func main() {
 	var benchMode benchmarkMode
 	switch *benchmark {
 	case "":
+		fmt.Println("shard\tid\tdatapoints\tsum\tstartTimeInSec\tendTimeInSec")
 	case "series":
 		benchMode = benchmarkSeries
+		fmt.Println("shard,series,elaspedTime")
 	case "datapoints":
 		benchMode = benchmarkDatapoints
+		fmt.Println("shard,series,datapoints,zeros,annotated,elaspedTime")
 	default:
 		log.Fatalf("unknown benchmark type: %s", *benchmark)
 	}
@@ -140,6 +143,7 @@ func main() {
 		var (
 			seriesCount         = 0
 			datapointCount      = 0
+			zeroDatapointCount  = 0
 			annotationSizeTotal uint64
 			start               = time.Now()
 		)
@@ -178,22 +182,32 @@ func main() {
 				continue
 			}
 
+			startTime := xtime.ToUnixNano(time.Now())
+			endTime := xtime.FromSeconds(0)
+			numDatapointsPerSeries := 0
+			sumPerSeries := 0.0
 			if benchMode != benchmarkSeries {
 				iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
+				fmt.Printf("%d\t%s\t", shard, id.String())
 				for iter.Next() {
 					dp, _, annotation := iter.Current()
-					if benchMode == benchmarkNone {
-						// Use fmt package so it goes to stdout instead of stderr
-						fmt.Printf("{id: %s, dp: %+v", id.String(), dp) // nolint: forbidigo
-						if len(annotation) > 0 {
-							fmt.Printf(", annotation: %s", // nolint: forbidigo
-								base64.StdEncoding.EncodeToString(annotation))
-						}
-						fmt.Println("}") // nolint: forbidigo
-					}
+					startTime = xtime.MinUnixNano(startTime, dp.TimestampNanos)
+                    endTime = xtime.MaxUnixNano(endTime, dp.TimestampNanos)
+                    numDatapointsPerSeries++
+                    sumPerSeries += dp.Value
 					annotationSizeTotal += uint64(len(annotation))
 					datapointCount++
+					if dp.Value == 0 {
+						zeroDatapointCount++
+					}
 				}
+				if benchMode == benchmarkNone {
+                    if math.IsNaN(sumPerSeries) {
+						fmt.Printf("%d\t\t%d\t%d\n", numDatapointsPerSeries, startTime.Seconds(), endTime.Seconds())
+                    } else {
+						fmt.Printf("%d\t%.2f\t%d\t%d\n", numDatapointsPerSeries, sumPerSeries, startTime.Seconds(), endTime.Seconds())
+                    }
+                }
 				if err := iter.Err(); err != nil {
 					log.Fatalf("unable to iterate original data: %v", err)
 				}
@@ -210,20 +224,13 @@ func main() {
 
 		if benchMode != benchmarkNone {
 			runTime := time.Since(start)
-			fmt.Printf("Running time: %s\n", runTime)     // nolint: forbidigo
-			fmt.Printf("\n%d series read\n", seriesCount) // nolint: forbidigo
-			if runTime > 0 {
-				fmt.Printf("(%.2f series/second)\n", float64(seriesCount)/runTime.Seconds()) // nolint: forbidigo
-			}
-
+			// csv ouptut, header with shard,series,
+			fmt.Printf("%d,%d,", shard, seriesCount)
 			if benchMode == benchmarkDatapoints {
-				fmt.Printf("\n%d datapoints decoded\n", datapointCount) // nolint: forbidigo
-				if runTime > 0 {
-					fmt.Printf("(%.2f datapoints/second)\n", float64(datapointCount)/runTime.Seconds()) // nolint: forbidigo
-				}
-
-				fmt.Printf("\nTotal annotation size: %d bytes\n", annotationSizeTotal) // nolint: forbidigo
+				fmt.Printf("%d,%d,%d,", datapointCount, zeroDatapointCount, annotationSizeTotal)
 			}
+			// elasped_time
+            fmt.Printf("%s\n", runTime)
 		}
 	}
 
