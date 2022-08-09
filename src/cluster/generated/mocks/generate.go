@@ -19,11 +19,11 @@
 // THE SOFTWARE.
 
 // mockgen rules for generating mocks for exported interfaces (reflection mode).
-//go:generate sh -c "mockgen -package=client github.com/m3db/m3/src/cluster/client Client | genclean -pkg github.com/m3db/m3/src/cluster/client -out $GOPATH/src/github.com/m3db/m3/src/cluster/client/client_mock.go"
+//go:generate sh -c "mockgen -package=client github.com/m3db/m3/src/cluster/client Client | genclean -pkg github.com/m3db/m3/src/cluster/client -out ../../client/client_mock.go"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode).
-//go:generate sh -c "mockgen -package=placement -destination=$GOPATH/src/github.com/m3db/m3/src/cluster/placement/placement_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/cluster/placement/types.go"
-//go:generate sh -c "mockgen -package=services -destination=$GOPATH/src/github.com/m3db/m3/src/cluster/services/services_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/cluster/services/types.go"
-//go:generate sh -c "mockgen -package=kv -destination=$GOPATH/src/github.com/m3db/m3/src/cluster/kv/kv_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/cluster/kv/types.go"
+//go:generate sh -c "mockgen -package=placement -destination=../../placement/placement_mock.go -source=../../placement/types.go"
+//go:generate sh -c "mockgen -package=services -destination=../../services/services_mock.go -source=../../services/types.go"
+//go:generate sh -c "mockgen -package=kv -destination=../../kv/kv_mock.go -source=../../kv/types.go"
 
 package mocks
