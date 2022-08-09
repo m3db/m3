@@ -11,6 +11,20 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 )
 
+type Timeseries []*prompb.TimeSeries
+
+func (tss Timeseries) Len() int {
+	return len(tss)
+}
+
+func (tss Timeseries) Swap(i, j int) {
+	tss[i], tss[j] = tss[j], tss[i]
+}
+
+func (tss Timeseries) Less(i, j int) bool {
+	return (&prompb.Labels{Labels: tss[i].Labels}).String() < (&prompb.Labels{Labels: tss[j].Labels}).String()
+}
+
 func createEmptyPromResult() *storage.PromResult {
 	return &storage.PromResult{
 		PromResult: &prompb.QueryResult{},
@@ -20,7 +34,7 @@ func createEmptyPromResult() *storage.PromResult {
 
 // Given a fetch query, converts it into a key for Redis
 // Give a prefix to differentiate between different types of keys (bucket vs. simple)
-func keyEncode(query *storage.FetchQuery, prefix string) string {
+func KeyEncode(query *storage.FetchQuery, prefix string) string {
 	res := make([]string, len(query.TagMatchers))
 	for i, m := range query.TagMatchers {
 		res[i] = m.String()
@@ -150,7 +164,8 @@ func combineResult(results []*storage.PromResult) *storage.PromResult {
 				cur_ts++
 				idx = 0
 			}
-			samples[cnt] = v[cur_ts].Samples[idx]
+			samples[cnt].Timestamp = v[cur_ts].Samples[idx].Timestamp
+			samples[cnt].Value = float64(v[cur_ts].Samples[idx].Value)
 			idx++
 			cnt++
 

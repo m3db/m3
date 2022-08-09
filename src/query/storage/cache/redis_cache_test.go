@@ -6,6 +6,7 @@ package cache
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"testing"
 	"time"
@@ -55,6 +56,9 @@ func samplesEqual(a, b []prompb.Sample) bool {
 		val := (a[i].Timestamp == b[i].Timestamp &&
 			a[i].Value == b[i].Value)
 		if !val {
+			if math.IsNaN(a[i].Value) && math.IsNaN(b[i].Value) {
+				continue
+			}
 			println(a[i].Value, b[i].Value, a[i].Timestamp, b[i].Timestamp)
 			return false
 		}
@@ -62,7 +66,7 @@ func samplesEqual(a, b []prompb.Sample) bool {
 	return true
 }
 
-func timeseriesEqual(a, b []*prompb.TimeSeries) bool {
+func TimeseriesEqual(a, b []*prompb.TimeSeries) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -83,7 +87,7 @@ func timeseriesEqual(a, b []*prompb.TimeSeries) bool {
 }
 
 func resultEqual(a, b *storage.PromResult) bool {
-	return (a.Metadata.Equals(b.Metadata) && timeseriesEqual(a.PromResult.Timeseries, b.PromResult.Timeseries))
+	return (a.Metadata.Equals(b.Metadata) && TimeseriesEqual(a.PromResult.Timeseries, b.PromResult.Timeseries))
 }
 
 func queryEqual(a, b *storage.FetchQuery) bool {

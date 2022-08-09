@@ -123,7 +123,7 @@ func (cache *RedisCache) Check(entries []*storage.FetchQuery, prefix string) int
 	var count int
 	var keys []string
 	for _, e := range entries {
-		keys = append(keys, keyEncode(e, prefix))
+		keys = append(keys, KeyEncode(e, prefix))
 	}
 	cache.client.Do(radix.Cmd(&count, "EXISTS", keys...))
 	return count
@@ -141,7 +141,7 @@ func (cache *RedisCache) Get(entries []*storage.FetchQuery, prefix string) []*st
 	results := make([]*storage.PromResult, len(entries))
 
 	for i, b := range entries {
-		keys[i] = keyEncode(b, prefix)
+		keys[i] = KeyEncode(b, prefix)
 	}
 
 	// Consume as bytes to avoid having to casting to string later on (avoids duplicate memory)
@@ -181,7 +181,7 @@ func (cache *RedisCache) Set(
 	var response string
 
 	for i := range entries {
-		entry := keyEncode(entries[i], prefix)
+		entry := KeyEncode(entries[i], prefix)
 		value, err := resultEncode(values[i])
 		cache.logger.Info("Prom result size", zap.Int("length", len(value)), zap.Int("ts_len", len(values[i].PromResult.Timeseries)))
 		if err != nil {
@@ -239,11 +239,11 @@ func WindowGetOrFetch(
 			cache.Set([]*storage.FetchQuery{align_q}, []*storage.PromResult{&promRes}, SimpleKeyPrefix)
 		}
 
-		cache.logger.Info("cache miss", zap.String("key", keyEncode(align_q, SimpleKeyPrefix)), zap.Int("size", len(promRes.PromResult.Timeseries)))
+		cache.logger.Info("cache miss", zap.String("key", KeyEncode(align_q, SimpleKeyPrefix)), zap.Int("size", len(promRes.PromResult.Timeseries)))
 		cache.cacheMetrics.CacheMetricsMiss(promRes)
 		return promRes, err
 	}
-	cache.logger.Info("cache hit", zap.String("key", keyEncode(align_q, SimpleKeyPrefix)))
+	cache.logger.Info("cache hit", zap.String("key", KeyEncode(align_q, SimpleKeyPrefix)))
 	cache.cacheMetrics.CacheMetricsHit(*res[0])
 	return *res[0], nil
 }
@@ -320,7 +320,7 @@ func BucketWindowGetOrFetch(
 		count := cache.Check(buckets, BucketKeyPrefix)
 		cache.logger.Info("num_hit", zap.Int("check", count), zap.Int("length", len(buckets)))
 		if count < len(buckets)-1 || count == 0 {
-			cache.logger.Info("cache miss", zap.String("key", keyEncode(q, BucketKeyPrefix)))
+			cache.logger.Info("cache miss", zap.String("key", KeyEncode(q, BucketKeyPrefix)))
 			res, err := st.FetchProm(ctx, q, fetchOptions)
 			cache.cacheMetrics.CacheMetricsMiss(res)
 			if err == nil {
@@ -336,7 +336,7 @@ func BucketWindowGetOrFetch(
 			if r == nil {
 				cnt++
 				if cnt > 1 {
-					cache.logger.Info("cache miss", zap.String("key", keyEncode(q, BucketKeyPrefix)))
+					cache.logger.Info("cache miss", zap.String("key", KeyEncode(q, BucketKeyPrefix)))
 					res, err := st.FetchProm(ctx, q, fetchOptions)
 					cache.cacheMetrics.CacheMetricsMiss(res)
 					if err == nil {
