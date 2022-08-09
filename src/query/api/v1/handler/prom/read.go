@@ -25,10 +25,7 @@ package prom
 import (
 	"context"
 	"errors"
-	"math"
-	"math/rand"
 	"net/http"
-	"sort"
 	"sync"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
@@ -48,11 +45,6 @@ import (
 	promstorage "github.com/prometheus/prometheus/storage"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
-)
-
-const (
-	// Threshold in % to determine if there's difference in results
-	ComparePercentThreshold = 1
 )
 
 // NewQueryFn creates a new promql Query.
@@ -92,48 +84,7 @@ var (
 				params.Now)
 		}
 	}
-
-	// Ratio of queries we make a check for
-	CheckSampleRate = 0.0
 )
-
-func compareResults(a, b *promql.Result) bool {
-	if a.Value.Type() != parser.ValueTypeVector || b.Value.Type() != parser.ValueTypeVector {
-		return false
-	}
-	v1 := a.Value.(promql.Vector)
-	v2 := b.Value.(promql.Vector)
-
-	if len(v1) != len(v2) {
-		return false
-	} else {
-		sort.Slice(v1, func(i, j int) bool {
-			return v1[i].Metric.String() < v1[j].Metric.String()
-		})
-		sort.Slice(v2, func(i, j int) bool {
-			return v2[i].Metric.String() < v2[j].Metric.String()
-		})
-
-		for i := range v1 {
-			if v1[i].Metric.String() != v2[i].Metric.String() {
-				return false
-			}
-			if v1[i].Point.V == 0 && v2[i].Point.V != 0 {
-				return false
-			}
-			percent_diff := math.Abs(v1[i].Point.V-v2[i].Point.V) / v1[i].Point.V * 100
-			if percent_diff > ComparePercentThreshold {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-type queryCheckMetrics struct {
-	queryCheckMismatch tally.Counter
-	queryCheckTotal    tally.Counter
-}
 
 type readHandler struct {
 	hOpts               options.HandlerOptions
@@ -141,8 +92,6 @@ type readHandler struct {
 	logger              *zap.Logger
 	opts                opts
 	returnedDataMetrics native.PromReadReturnedDataMetrics
-
-	queryCheckMetrics queryCheckMetrics
 }
 
 func newReadHandler(
@@ -152,17 +101,12 @@ func newReadHandler(
 	scope := hOpts.InstrumentOpts().MetricsScope().Tagged(
 		map[string]string{"handler": "prometheus-read"},
 	)
-	queryCheckMetrics := queryCheckMetrics{
-		queryCheckMismatch: scope.Counter("query_check_mismatches"),
-		queryCheckTotal:    scope.Counter("query_check_total"),
-	}
 	return &readHandler{
 		hOpts:               hOpts,
 		opts:                options,
 		scope:               scope,
 		logger:              hOpts.InstrumentOpts().Logger(),
 		returnedDataMetrics: native.NewPromReadReturnedDataMetrics(scope),
-		queryCheckMetrics:   queryCheckMetrics,
 	}, nil
 }
 
@@ -205,7 +149,6 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer qry.Close()
 
 	res := qry.Exec(ctx)
-	h.logger.Info("final result", zap.String("result", res.Value.String()), zap.Float64("base", CheckSampleRate))
 	if res.Err != nil {
 		h.logger.Error("error executing query",
 			zap.Error(res.Err), zap.String("query", params.Query),
@@ -232,23 +175,6 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			xhttp.WriteError(w, promErr)
 		}
 		return
-	}
-
-	if rand.Float64() < float64(CheckSampleRate) {
-		query, err := h.opts.newQueryFn(params)
-		if err != nil {
-			h.logger.Error("Comparison query failed to create")
-		}
-		defer query.Close()
-		result := query.Exec(context.WithValue(ctx, "UseM3DB", true))
-		if result.Err != nil {
-			h.logger.Error("Comparison query failed to execute")
-		}
-		if result != nil && !compareResults(res, result) {
-			h.queryCheckMetrics.queryCheckMismatch.Inc(1)
-			h.logger.Info("mismatch", zap.String("query", qry.String()))
-		}
-		h.queryCheckMetrics.queryCheckTotal.Inc(1)
 	}
 
 	for _, warn := range resultMetadata.Warnings {
