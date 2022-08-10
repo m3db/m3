@@ -20,4 +20,4 @@
 
 package configflag
 
-//go:generate sh -c "mockgen -package=configflag -destination=$GOPATH/src/github.com/m3db/m3/src/x/config/configflag/os_mock_test.go -source=$GOPATH/src/github.com/m3db/m3/src/x/config/configflag/flag.go"
+//go:generate sh -c "mockgen -package=configflag -destination=../../config/configflag/os_mock_test.go -source=../../config/configflag/flag.go"
