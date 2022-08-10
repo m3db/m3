@@ -19,7 +19,7 @@
 // THE SOFTWARE.
 
 package integration
-
+/*
 import (
 	"testing"
 
@@ -79,3 +79,4 @@ func (tc *testCluster) options() leader.Options {
 		SetServiceID(sid).
 		SetElectionOpts(eopts)
 }
+*/

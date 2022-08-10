@@ -20,6 +20,7 @@
 
 package watchmanager
 
+/*
 import (
 	"fmt"
 	"runtime"
@@ -370,3 +371,4 @@ func testSetup(t *testing.T) (*manager, *clientv3.Client, *int32, *int32, chan s
 	wh, ecluster, updateCalled, shouldStop, donech, closer := testCluster(t)
 	return wh, ecluster.RandClient(), updateCalled, shouldStop, donech, closer
 }
+*/
