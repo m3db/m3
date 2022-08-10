@@ -57,7 +57,7 @@ func SetupSingleM3DBNode(opts ...SetupOptions) (resources.M3Resources, error) { 
 	pool.MaxWait = timeout
 
 	if !options.existingCluster {
-		if err := SetupNetwork(pool); err != nil {
+		if err := SetupNetwork(pool, true); err != nil {
 			return nil, err
 		}
 

@@ -48,6 +48,8 @@ type Resource struct {
 }
 
 // NewDockerResource creates a new DockerResource.
+// If resourceOpts.Image is empty, it will attempt to connect to an existing container.
+// Otherwise, it will start the container with the specified image.
 func NewDockerResource(
 	pool *dockertest.Pool,
 	resourceOpts ResourceOptions,
@@ -64,6 +66,23 @@ func NewDockerResource(
 			zap.String("container", containerName),
 		)
 	)
+
+	// TODO: this seems hard to use; a different method might be more appropriate.
+	if image.Name == "" {
+		logger.Info("connecting to existing container", zap.String("container", containerName))
+		var ok bool
+		resource, ok := pool.ContainerByName(containerName)
+		if !ok {
+			logger.Error("could not find container")
+			return nil, fmt.Errorf("could not find container %v", containerName)
+		}
+
+		return &Resource{
+			logger:   logger,
+			resource: resource,
+			pool:     nil,
+		}, nil
+	}
 
 	opts := exposePorts(newOptions(containerName), portList)
 
@@ -88,24 +107,14 @@ func NewDockerResource(
 		c.Mounts = mounts
 	}
 
-	var resource *dockertest.Resource
-	var err error
-	if image.Name == "" {
-		logger.Info("connecting to existing container", zap.String("container", containerName))
-		var ok bool
-		resource, ok = pool.ContainerByName(containerName)
-		if !ok {
-			logger.Error("could not find container", zap.Error(err))
-			return nil, fmt.Errorf("could not find container %v", containerName)
-		}
-	} else {
-		opts = useImage(opts, image)
-		opts.Mounts = resourceOpts.Mounts
-		imageWithTag := fmt.Sprintf("%v:%v", image.Name, image.Tag)
-		logger.Info("running container with options",
-			zap.String("image", imageWithTag), zap.Any("options", opts))
-		resource, err = pool.RunWithOptions(opts, hostConfigOpts)
-	}
+	opts = useImage(opts, image)
+	opts.Mounts = resourceOpts.Mounts
+	opts.Env = resourceOpts.Env
+
+	imageWithTag := fmt.Sprintf("%v:%v", image.Name, image.Tag)
+	logger.Info("running container with options",
+		zap.String("image", imageWithTag), zap.Any("options", opts))
+	resource, err := pool.RunWithOptions(opts, hostConfigOpts)
 
 	if err != nil {
 		logger.Error("could not run container", zap.Error(err))

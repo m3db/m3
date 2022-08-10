@@ -45,6 +45,10 @@ type ResourceOptions struct {
 	ContainerName    string
 	Image            Image
 	PortList         []int
+
+	// Env is the environment for the docker container; it corresponds 1:1 with dockertest.RunOptions.
+	// Format should be: VAR=value
+	Env []string
 	// Mounts creates mounts in the container that map back to a resource
 	// on the host system.
 	Mounts []string
@@ -105,7 +109,7 @@ func useImage(opts *dockertest.RunOptions, image Image) *dockertest.RunOptions {
 }
 
 // SetupNetwork sets up a network within docker.
-func SetupNetwork(pool *dockertest.Pool) error {
+func SetupNetwork(pool *dockertest.Pool, cleanIfExists bool) error {
 	networks, err := pool.Client.ListNetworks()
 	if err != nil {
 		return err
@@ -113,6 +117,9 @@ func SetupNetwork(pool *dockertest.Pool) error {
 
 	for _, n := range networks {
 		if n.Name == networkName {
+			if !cleanIfExists {
+				return nil
+			}
 			if err := pool.Client.RemoveNetwork(networkName); err != nil {
 				return err
 			}

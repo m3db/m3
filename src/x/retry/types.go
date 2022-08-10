@@ -22,6 +22,7 @@
 package retry
 
 import (
+	"context"
 	"time"
 
 	"github.com/m3db/m3/src/x/errors"
@@ -59,6 +60,9 @@ type Retrier interface {
 
 	// AttemptWhile will attempt to perform a function with retries.
 	AttemptWhile(continueFn ContinueFn, fn Fn) error
+
+	// AttemptContext attempts fn with retries until ctx is cancelled (e.g., due to timeout).
+	AttemptContext(ctx context.Context, fn Fn) error
 }
 
 // Options is a set of retry options.

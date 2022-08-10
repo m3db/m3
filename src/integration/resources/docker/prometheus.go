@@ -72,13 +72,13 @@ func NewPrometheus(opts PrometheusOptions) resources.ExternalResources {
 }
 
 // Setup is a method that setups up the prometheus instance.
-func (p *Prometheus) Setup() error {
+func (p *Prometheus) Setup(context.Context) error {
 	if p.resource != nil {
 		return errors.New("prometheus already setup. must close resource " +
 			"before attempting to setup again")
 	}
 
-	if err := SetupNetwork(p.pool); err != nil {
+	if err := SetupNetwork(p.pool, true); err != nil {
 		return err
 	}
 
@@ -201,7 +201,7 @@ type vectorResult struct {
 }
 
 // Close cleans up the prometheus instance.
-func (p *Prometheus) Close() error {
+func (p *Prometheus) Close(context.Context) error {
 	if p.resource.Closed() {
 		return errClosed
 	}

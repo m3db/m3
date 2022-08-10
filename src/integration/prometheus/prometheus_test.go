@@ -1,4 +1,6 @@
+//go:build cluster_integration
 // +build cluster_integration
+
 //
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
@@ -23,6 +25,7 @@
 package prometheus
 
 import (
+	context2 "context"
 	"path"
 	"runtime"
 	"testing"
@@ -64,10 +67,10 @@ func testSetup(t *testing.T) (resources.M3Resources, resources.ExternalResources
 		Pool:      pool,
 		PathToCfg: path.Join(path.Dir(filename), "../resources/docker/config/prometheus.yml"),
 	})
-	require.NoError(t, prom.Setup())
+	require.NoError(t, prom.Setup(context.TODO()))
 
 	return m3, prom, func() {
-		assert.NoError(t, prom.Close())
+		assert.NoError(t, prom.Close(context2.TODO()))
 		assert.NoError(t, m3.Cleanup())
 	}
 }

@@ -1,4 +1,6 @@
+//go:build integration_v2
 // +build integration_v2
+
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,6 +24,7 @@
 package docker
 
 import (
+	context2 "context"
 	"path"
 	"runtime"
 	"testing"
@@ -39,6 +42,6 @@ func TestNewPrometheus(t *testing.T) {
 		Pool:      pool,
 		PathToCfg: path.Join(path.Dir(filename), "config/prometheus.yml"),
 	})
-	require.NoError(t, prom.Setup())
-	require.NoError(t, prom.Close())
+	require.NoError(t, prom.Setup(context.TODO()))
+	require.NoError(t, prom.Close(context2.TODO()))
 }
