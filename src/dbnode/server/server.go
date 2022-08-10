@@ -100,7 +100,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go"
-	"go.etcd.io/etcd/server/v3/embed"
 	"go.uber.org/zap"
 )
 
@@ -355,24 +354,24 @@ func Run(runOpts RunOptions) {
 		if !config.IsSeedNode(seedNodes, hostID) {
 			logger.Info("not a seed node, using cluster seed nodes")
 		} else {
-			logger.Info("seed node, starting etcd server")
-
-			etcdCfg, err := config.NewEtcdEmbedConfig(cfg)
-			if err != nil {
-				logger.Fatal("unable to create etcd config", zap.Error(err))
-			}
-
-			e, err := embed.StartEtcd(etcdCfg)
-			if err != nil {
-				logger.Fatal("could not start embedded etcd", zap.Error(err))
-			}
-
-			if runOpts.EmbeddedKVCh != nil {
-				// Notify on embedded KV bootstrap chan if specified
-				runOpts.EmbeddedKVCh <- struct{}{}
-			}
-
-			defer e.Close()
+			//logger.Info("seed node, starting etcd server")
+			//
+			//etcdCfg, err := config.NewEtcdEmbedConfig(cfg)
+			//if err != nil {
+			//	logger.Fatal("unable to create etcd config", zap.Error(err))
+			//}
+			//
+			//e, err := embed.StartEtcd(etcdCfg)
+			//if err != nil {
+			//	logger.Fatal("could not start embedded etcd", zap.Error(err))
+			//}
+			//
+			//if runOpts.EmbeddedKVCh != nil {
+			//	// Notify on embedded KV bootstrap chan if specified
+			//	runOpts.EmbeddedKVCh <- struct{}{}
+			//}
+			//
+			//defer e.Close()
 		}
 	}
 
