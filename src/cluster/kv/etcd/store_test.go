@@ -20,6 +20,7 @@
 
 package etcd
 
+/*
 import (
 	"bytes"
 	"encoding/json"
@@ -1235,3 +1236,4 @@ func readCacheJSON(dirPath string) ([]byte, error) {
 	_, b, err := readCacheJSONAndFilename(dirPath)
 	return b, err
 }
+*/

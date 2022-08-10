@@ -20,6 +20,7 @@
 
 package etcd
 
+/*
 import (
 	"testing"
 	"time"
@@ -448,3 +449,4 @@ func testStore(t *testing.T, sid services.ServiceID) (*clientv3.Client, Options,
 	}
 	return ec, NewOptions().SetServiceID(sid).SetRequestTimeout(20 * time.Second), closer
 }
+*/
