@@ -278,9 +278,6 @@ func TestCheck(t *testing.T) {
 
 	cache.Set(sets, results[:6], BucketKeyPrefix)
 
-	var test string
-	cache.client.Do(radix.Cmd(&test, "EXISTS", "fieldA=\"1\"::40::50"))
-
 	count := cache.Check(queries[:7], BucketKeyPrefix)
 	require.Equal(t, count, 3, "Check didn't match")
 
