@@ -248,6 +248,8 @@ func WindowGetOrFetch(
 	return *res[0], nil
 }
 
+// Splits a result into buckets as defined by {buckets} and sets them in Redis
+// Buckets are assumed to be in order + non-overlapping
 func (cache *RedisCache) SetAsBuckets(result *storage.PromResult, buckets []*storage.FetchQuery) {
 	results := make([]*storage.PromResult, len(buckets))
 	for i := range buckets {
@@ -260,6 +262,7 @@ func (cache *RedisCache) SetAsBuckets(result *storage.PromResult, buckets []*sto
 			end := b.End.Unix()
 			prev := idx
 			// Convert millisecond timestamp to second timestamp
+			// Get all samples within the bucket
 			for idx < len(ts.Samples) && ts.Samples[idx].Timestamp/1000 >= start && ts.Samples[idx].Timestamp/1000 < end {
 				idx += 1
 			}
@@ -282,6 +285,11 @@ func (cache *RedisCache) SetAsBuckets(result *storage.PromResult, buckets []*sto
 	cache.Set(buckets, results, BucketKeyPrefix)
 }
 
+// Function that checks whether the query data is in Redis using a sliding window
+// If it is not, it gets the result from M3DB
+//
+// Currently, this is done by splitting data into buckets
+// and checking if we have enough buckets that we can retrieve from Redis to recreate the result
 func BucketWindowGetOrFetch(
 	ctx context.Context,
 	st storage.Storage,
