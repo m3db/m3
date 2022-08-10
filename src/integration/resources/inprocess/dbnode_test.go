@@ -1,4 +1,6 @@
+//go:build test_harness
 // +build test_harness
+
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -25,8 +27,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
+	dbcfg "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/integration/resources"
@@ -206,3 +211,23 @@ const defaultDBNodeConfig = `
 db:
   writeNewSeriesAsync: false
 `
+
+func TestLoad(t *testing.T) {
+	//amainsd delete
+	yamlCfg := `
+"db":
+  discovery:
+   "config":
+   "service":
+     "etcdClusters":
+     - "endpoints": ["http://127.0.0.1:2379"]
+       "zone": "embedded"
+     "service": "m3db"
+     "zone": "embedded"
+     "env": "default_env"
+`
+	var dbCfg dbcfg.Configuration
+	require.NoError(t, yaml.Unmarshal([]byte(yamlCfg), &dbCfg))
+	spew.Dump(dbCfg)
+	//fmt.Printf("%+v\n", dbCfg)
+}

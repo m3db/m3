@@ -61,6 +61,11 @@ func (c ClusterConfig) NewCluster() Cluster {
 
 	if c.AutoSyncInterval > 0 {
 		cluster = cluster.SetAutoSyncInterval(c.AutoSyncInterval)
+	} else if c.AutoSyncInterval < 0 {
+		// Autosync should *always* be on, unless the user very explicitly requests it to be off, via a negative value
+		// (in which case we can assume they know what they're doing).
+		// Therefore, only update if it's nonzero.
+		cluster = cluster.SetAutoSyncInterval(0)
 	}
 
 	if c.DialTimeout > 0 {

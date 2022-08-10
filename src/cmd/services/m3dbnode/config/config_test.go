@@ -909,28 +909,6 @@ func TestGetHostAndEndpointFromID(t *testing.T) {
 	}
 }
 
-func TestNewEtcdEmbedConfig(t *testing.T) {
-	fd, err := ioutil.TempFile("", "config2.yaml")
-	require.NoError(t, err)
-	defer func() {
-		assert.NoError(t, fd.Close())
-		assert.NoError(t, os.Remove(fd.Name()))
-	}()
-
-	_, err = fd.Write([]byte(testBaseConfig))
-	require.NoError(t, err)
-
-	// Verify is valid
-	var cfg Configuration
-	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
-	require.NoError(t, err)
-
-	embedCfg, err := NewEtcdEmbedConfig(*cfg.DB)
-	require.NoError(t, err)
-
-	assert.Equal(t, "existing", embedCfg.ClusterState)
-}
-
 func TestNewJaegerTracer(t *testing.T) {
 	fd, err := ioutil.TempFile("", "config_jaeger.yaml")
 	require.NoError(t, err)

@@ -1,9 +1,18 @@
 version: "3.5"
 services:
+  etcd:
+    image: docker.io/bitnami/etcd:3.5
+    expose:
+      - "2379-2380"
+    ports:
+      - "0.0.0.0:2379-2380:2379-2380"
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+    networks:
+      - backend
   dbnode01:
     expose:
       - "9000-9004"
-      - "2379-2380"
     ports:
       - "0.0.0.0:9012:9002"
       - "0.0.0.0:9013:9003"
@@ -14,10 +23,11 @@ services:
       - M3DB_HOST_ID=m3db_local_1
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
+    depends_on:
+      - etcd
   dbnode02:
     expose:
       - "9000-9004"
-      - "2379-2380"
     ports:
       - "0.0.0.0:9022:9002"
       - "0.0.0.0:9023:9003"
@@ -28,6 +38,8 @@ services:
       - M3DB_HOST_ID=m3db_local_2
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
+    depends_on:
+      - etcd
   coordinator01:
     expose:
       - "7201"
@@ -42,5 +54,7 @@ services:
     image: "m3coordinator_integration:${REVISION}"
     volumes:
       - "./:/etc/m3coordinator/"
+    depends_on:
+      - etcd
 networks:
-  backend:
+  backend: null

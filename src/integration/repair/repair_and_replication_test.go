@@ -1,4 +1,6 @@
+//go:build cluster_integration
 // +build cluster_integration
+
 //
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
@@ -23,13 +25,17 @@
 package repair
 
 import (
+	"context"
 	"testing"
 
+	"github.com/m3db/m3/src/integration/resources"
+	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal"
+	"github.com/m3db/m3/src/integration/resources/inprocess"
+	"github.com/m3db/m3/src/x/instrument"
+
+	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/m3db/m3/src/integration/resources"
-	"github.com/m3db/m3/src/integration/resources/inprocess"
 )
 
 func TestRepairAndReplication(t *testing.T) {
@@ -40,11 +46,23 @@ func TestRepairAndReplication(t *testing.T) {
 }
 
 func testSetup(t *testing.T) (resources.M3Resources, resources.M3Resources, func()) {
-	fullCfgs1 := getClusterFullConfgs(t)
-	fullCfgs2 := getClusterFullConfgs(t)
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err)
 
-	ep1 := fullCfgs1.Configs.Coordinator.Clusters[0].Client.EnvironmentConfig.Services[0].Service.ETCDClusters[0].Endpoints
-	ep2 := fullCfgs2.Configs.Coordinator.Clusters[0].Client.EnvironmentConfig.Services[0].Service.ETCDClusters[0].Endpoints
+	etcd1 := mustNewStartedEtcd(t, pool)
+	etcd2 := mustNewStartedEtcd(t, pool)
+
+	cluster1Opts := newTestClusterOptions()
+	cluster1Opts.Etcd = etcd1
+
+	cluster2Opts := newTestClusterOptions()
+	cluster2Opts.Etcd = etcd2
+
+	fullCfgs1 := getClusterFullConfgs(t, cluster1Opts)
+	fullCfgs2 := getClusterFullConfgs(t, cluster2Opts)
+
+	ep1 := []string{etcd1.Address()}
+	ep2 := []string{etcd2.Address()}
 
 	setRepairAndReplicationCfg(
 		&fullCfgs1,
@@ -57,10 +75,10 @@ func testSetup(t *testing.T) (resources.M3Resources, resources.M3Resources, func
 		ep1,
 	)
 
-	cluster1, err := inprocess.NewClusterFromSpecification(fullCfgs1, clusterOptions)
+	cluster1, err := inprocess.NewClusterFromSpecification(fullCfgs1, cluster1Opts)
 	require.NoError(t, err)
 
-	cluster2, err := inprocess.NewClusterFromSpecification(fullCfgs2, clusterOptions)
+	cluster2, err := inprocess.NewClusterFromSpecification(fullCfgs2, cluster2Opts)
 	require.NoError(t, err)
 
 	return cluster1, cluster2, func() {
@@ -69,7 +87,14 @@ func testSetup(t *testing.T) (resources.M3Resources, resources.M3Resources, func
 	}
 }
 
-func getClusterFullConfgs(t *testing.T) inprocess.ClusterSpecification {
+func mustNewStartedEtcd(t *testing.T, pool *dockertest.Pool) *dockerexternal.EtcdNode {
+	etcd, err := dockerexternal.NewEtcd(pool, instrument.NewOptions())
+	require.NoError(t, err)
+	require.NoError(t, etcd.Setup(context.TODO()))
+	return etcd
+}
+
+func getClusterFullConfgs(t *testing.T, clusterOptions resources.ClusterOptions) inprocess.ClusterSpecification {
 	cfgs, err := inprocess.NewClusterConfigsFromYAML(
 		TestRepairDBNodeConfig, TestRepairCoordinatorConfig, "",
 	)
@@ -84,18 +109,22 @@ func getClusterFullConfgs(t *testing.T) inprocess.ClusterSpecification {
 func setRepairAndReplicationCfg(fullCfg *inprocess.ClusterSpecification, clusterName string, endpoints []string) {
 	for _, dbnode := range fullCfg.Configs.DBNodes {
 		dbnode.DB.Replication.Clusters[0].Name = clusterName
-		dbnode.DB.Replication.Clusters[0].Client.EnvironmentConfig.Services[0].Service.ETCDClusters[0].Endpoints = endpoints
+		etcdService := &(dbnode.DB.Replication.Clusters[0].Client.EnvironmentConfig.Services[0].Service.ETCDClusters[0])
+		etcdService.AutoSyncInterval = -1
+		etcdService.Endpoints = endpoints
 	}
 }
 
-var clusterOptions = resources.ClusterOptions{
-	DBNode: &resources.DBNodeClusterOptions{
-		RF:                 2,
-		NumShards:          4,
-		NumInstances:       1,
-		NumIsolationGroups: 2,
-	},
-	Coordinator: resources.CoordinatorClusterOptions{
-		GeneratePorts: true,
-	},
+func newTestClusterOptions() resources.ClusterOptions {
+	return resources.ClusterOptions{
+		DBNode: &resources.DBNodeClusterOptions{
+			RF:                 2,
+			NumShards:          4,
+			NumInstances:       1,
+			NumIsolationGroups: 2,
+		},
+		Coordinator: resources.CoordinatorClusterOptions{
+			GeneratePorts: true,
+		},
+	}
 }

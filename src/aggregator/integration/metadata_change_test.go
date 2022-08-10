@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2016 Uber Technologies, Inc.
@@ -138,7 +139,7 @@ func testMetadataChange(t *testing.T, oldMetadataFn, newMetadataFn metadataFn) {
 	// must be the longer than the lowest resolution across all policies.
 	finalTime := end.Add(6 * time.Second)
 	clock.SetNow(finalTime)
-	time.Sleep(6 * time.Second)
+	time.Sleep(waitForDataToFlush)
 
 	require.NoError(t, client.close())
 

@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2016 Uber Technologies, Inc.
@@ -126,7 +127,7 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 	// must be the longer than the lowest resolution across all policies.
 	finalTime := stop.Add(6 * time.Second)
 	clock.SetNow(finalTime)
-	time.Sleep(4 * time.Second)
+	time.Sleep(waitForDataToFlush)
 
 	for i := 0; i < numClients; i++ {
 		require.NoError(t, clients[i].close())

@@ -66,6 +66,7 @@ SUBDIRS :=    \
 	m3ninx      \
 	aggregator  \
 	ctl         \
+	integration
 
 TOOLS :=               \
 	annotation_checker   \
@@ -105,7 +106,8 @@ setup:
 
 .PHONY: install-vendor-m3
 install-vendor-m3:
-	[ -d $(VENDOR) ] || GOSUMDB=off go mod vendor
+	# amainsd: is this necessary on CI? If no, kill it entirely.
+	# [ -d $(VENDOR) ] || GOSUMDB=off go mod vendor
 
 .PHONY: docker-dev-prep
 docker-dev-prep:

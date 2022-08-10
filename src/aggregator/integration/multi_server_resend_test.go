@@ -142,6 +142,7 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 
 	// Election cluster setup.
 	electionCluster := newTestCluster(t)
+	defer electionCluster.Close()
 
 	// Sharding function maps all metrics to shard 0 except for the rollup metric,
 	// which gets mapped to the last shard.

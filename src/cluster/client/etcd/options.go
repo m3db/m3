@@ -464,6 +464,9 @@ func (c cluster) AutoSyncInterval() time.Duration {
 }
 
 func (c cluster) SetAutoSyncInterval(autoSyncInterval time.Duration) Cluster {
+	if autoSyncInterval < 0 {
+		autoSyncInterval = 0
+	}
 	c.autoSyncInterval = autoSyncInterval
 	return c
 }

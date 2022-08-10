@@ -1,4 +1,6 @@
+//go:build cluster_integration
 // +build cluster_integration
+
 //
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
@@ -23,12 +25,14 @@
 package prometheus
 
 import (
+	"context"
 	"path"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/integration/resources"
-	"github.com/m3db/m3/src/integration/resources/docker"
+	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal"
 	"github.com/m3db/m3/src/integration/resources/inprocess"
 
 	"github.com/ory/dockertest/v3"
@@ -60,14 +64,17 @@ func testSetup(t *testing.T) (resources.M3Resources, resources.ExternalResources
 	require.NoError(t, err)
 
 	_, filename, _, _ := runtime.Caller(0)
-	prom := docker.NewPrometheus(docker.PrometheusOptions{
+	prom := dockerexternal.NewPrometheus(dockerexternal.PrometheusOptions{
 		Pool:      pool,
 		PathToCfg: path.Join(path.Dir(filename), "../resources/docker/config/prometheus.yml"),
 	})
-	require.NoError(t, prom.Setup())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, prom.Setup(ctx))
 
 	return m3, prom, func() {
-		assert.NoError(t, prom.Close())
+		assert.NoError(t, prom.Close(ctx))
 		assert.NoError(t, m3.Cleanup())
 	}
 }

@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	defaulTimeout    = 5 * time.Second
+	defaulTimeout    = 30 * time.Second
 	defaultDir       = "etcd.dir"
 	defaultServiceID = "integration.service"
 	defaultEnv       = "integration.env"

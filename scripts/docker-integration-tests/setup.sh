@@ -26,7 +26,9 @@ function build_image {
   local svc=$1
   echo "creating image for $svc"
   make ${svc}-linux-amd64
-  docker build -t "${svc}_integration:${REVISION}" -f ./scripts/docker-integration-tests/${svc}.Dockerfile ./bin
+  docker build \
+    --no-cache \
+    -t "${svc}_integration:${REVISION}" -f ./scripts/docker-integration-tests/${svc}.Dockerfile ./bin
 }
 
 if [[ "$SERVICE" != "" ]]; then

@@ -13,4 +13,4 @@ clusters:
           etcdClusters:
             - zone: embedded
               endpoints:
-                - 127.0.0.1:2379
+                - http://etcd:2379

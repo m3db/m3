@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2018 Uber Technologies, Inc.
@@ -119,7 +120,7 @@ func TestOneClientMultiTypeTimedMetrics(t *testing.T) {
 	// Move time forward and wait for flushing to happen.
 	finalTime := stop.Add(time.Minute + 2*time.Second)
 	clock.SetNow(finalTime)
-	time.Sleep(2 * time.Second)
+	time.Sleep(waitForDataToFlush)
 
 	require.NoError(t, client.close())
 

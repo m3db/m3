@@ -59,18 +59,20 @@ require (
 	github.com/uber/tchannel-go v1.31.1-0.20220504180658-be708aa1a97d
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.11
-	// etcd is currently on an alpha version to accomodate a GRPC version upgrade. See
-	// https://github.com/m3db/m3/issues/4090 for the followup task to move back to a stable version.
-	//  Gory details (why we're doing this):
+
+	// A note on etcd dependencies: we have intentionally limited our imports here to *only* the etcd client packages
+	 // to accomodate a GRPC version upgrade.
+	//  Gory details (why we're doing this): Prior to this change, we have the following import chain:
 	//
 	//    - We import etcd/server/v3 via etcd/embed and etcd/testing/v3/frameworks/integration.
-	//    - etcd/server/v3 in 3.5.2 depends on pre 1.0 opentelemetry. Bleeding edge etcd depends on 1.0 opentelemetry
-	//    - M3 depends on 1.0 opentelemetry — this conflicts with etcd 3.5.2, but not bleeding edge etcd
-	go.etcd.io/etcd/api/v3 v3.6.0-alpha.0
-	go.etcd.io/etcd/client/pkg/v3 v3.6.0-alpha.0
-	go.etcd.io/etcd/client/v3 v3.6.0-alpha.0
-	go.etcd.io/etcd/server/v3 v3.6.0-alpha.0
-	go.etcd.io/etcd/tests/v3 v3.6.0-alpha.0
+	//    - etcd/server/v3 in 3.5.4 depends on pre 1.0 opentelemetry. Bleeding edge etcd depends on 1.0 opentelemetry
+	//    - M3 depends on 1.0 opentelemetry — this conflicts with etcd 3.5.4, but not bleeding edge etcd
+	//
+	// Given that the etcd server is a heavy import that we don't strictly speaking need, we should most likely
+	// disallow imports that bring it in, and stick to the client packages.
+	go.etcd.io/etcd/api/v3 v3.5.4
+	go.etcd.io/etcd/client/pkg/v3 v3.5.4
+	go.etcd.io/etcd/client/v3 v3.5.4
 	go.opentelemetry.io/collector v0.45.0
 	go.opentelemetry.io/otel v1.4.1
 	go.opentelemetry.io/otel/bridge/opentracing v1.4.1
@@ -110,7 +112,6 @@ require (
 	github.com/dennwc/varint v1.0.0 // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
-	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/edsrzf/mmap-go v1.0.0 // indirect
 	github.com/felixge/httpsnoop v1.0.2 // indirect
 	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
@@ -120,13 +121,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-playground/locales v0.13.0 // indirect
 	github.com/go-playground/universal-translator v0.17.0 // indirect
-	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
-	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/google/btree v1.0.1 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
-	github.com/gorilla/websocket v1.4.2 // indirect
-	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
-	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/hashicorp/hcl v1.0.1-0.20190611123218-cf7d376da96d // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
@@ -160,18 +155,12 @@ require (
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/shirou/gopsutil v3.21.6+incompatible // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
-	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.3.0 // indirect
 	github.com/tinylib/msgp v1.1.0 // indirect
-	github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802 // indirect
 	github.com/twmb/murmur3 v1.1.6 // indirect
-	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
-	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0 // indirect
-	go.etcd.io/etcd/pkg/v3 v3.6.0-alpha.0 // indirect
-	go.etcd.io/etcd/raft/v3 v3.6.0-alpha.0 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.opentelemetry.io/collector/model v0.45.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.28.0 // indirect
@@ -182,7 +171,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.4.1 // indirect
 	go.opentelemetry.io/proto/otlp v0.12.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
-	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b // indirect
 	golang.org/x/text v0.3.7 // indirect
@@ -192,8 +180,6 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
-	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
-	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
 // NB(nate): upgrading to the latest msgpack is not backwards compatibile as msgpack will no longer attempt to automatically
@@ -214,19 +200,3 @@ replace github.com/google/flatbuffers => github.com/google/flatbuffers v1.12.1
 replace github.com/uber-go/atomic => github.com/uber-go/atomic v1.4.0
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.40.1
-
-// TODO: this can be removed once M3 is on Go 1.17.x
-// This is here because of a dependency chain that makes client/v2 hard dependent on Go 1.17. Specifically:
-//~ /Code/m3 $ go mod why sigs.k8s.io/json
-// # sigs.k8s.io/json
-// github.com/m3db/m3/src/aggregator/integration
-// go.etcd.io/etcd/tests/v3/framework/integration
-// go.etcd.io/etcd/server/v3/etcdserver
-// go.etcd.io/etcd/server/v3/etcdserver/api/v2discovery
-// go.etcd.io/etcd/client/v2
-// sigs.k8s.io/json
-// This dependency chain is recently added,
-// (in https://github.com/etcd-io/etcd/commit/b5e4c2d3c483d9c3d03a0f97ae7b07607f38a5cc)
-// and not actually relevant to anything used by M3 (we are on client/v3).
-// Therefore, replace client/v2 to avoid the bad dependency chain until we upgrade.
-replace go.etcd.io/etcd/client/v2 => go.etcd.io/etcd/client/v2 v2.305.0-alpha.0.0.20211029212747-6656181d312a

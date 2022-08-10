@@ -14,7 +14,7 @@ db:
             etcdClusters:
               - zone: embedded
                 endpoints:
-                    - cluster_a_dbnode01:2379
+                    - cluster_a_etcd:2379
         - service:
             env: default_env
             zone: embedded
@@ -23,7 +23,7 @@ db:
             etcdClusters:
                 - zone: embedded
                   endpoints:
-                      - cluster_b_dbnode01:2379
+                      - cluster_b_etcd:2379
           async: true
 
   discovery:
@@ -36,7 +36,7 @@ db:
         etcdClusters:
           - zone: embedded
             endpoints:
-              - cluster_a_dbnode01:2379
+              - cluster_a_etcd:2379
       seedNodes:
         initialCluster:
           - hostID: cluster_a_m3db_local_1

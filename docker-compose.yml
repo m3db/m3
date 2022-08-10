@@ -8,6 +8,9 @@ services:
     volumes:
       - .:/go/src/github.com/m3db/m3
       - /usr/bin/buildkite-agent:/usr/bin/buildkite-agent
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - CI
       - BUILDKITE

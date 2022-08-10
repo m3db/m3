@@ -21,7 +21,10 @@
 package inprocess
 
 import (
+	"context"
+
 	"github.com/m3db/m3/src/integration/resources"
+	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal"
 	"github.com/m3db/m3/src/x/errors"
 )
 
@@ -29,11 +32,13 @@ type inprocessM3Resources struct {
 	coordinator resources.Coordinator
 	dbNodes     resources.Nodes
 	aggregators resources.Aggregators
+	etcd        *dockerexternal.EtcdNode
 }
 
 // ResourceOptions are the options for creating new
 // resources.M3Resources.
 type ResourceOptions struct {
+	Etcd        *dockerexternal.EtcdNode
 	Coordinator resources.Coordinator
 	DBNodes     resources.Nodes
 	Aggregators resources.Aggregators
@@ -43,6 +48,7 @@ type ResourceOptions struct {
 // backed by in-process implementations of the M3 components.
 func NewM3Resources(options ResourceOptions) resources.M3Resources {
 	return &inprocessM3Resources{
+		etcd:        options.Etcd,
 		coordinator: options.Coordinator,
 		dbNodes:     options.DBNodes,
 		aggregators: options.Aggregators,
@@ -72,6 +78,10 @@ func (i *inprocessM3Resources) Cleanup() error {
 	for _, a := range i.aggregators {
 		err = err.Add(a.Close())
 	}
+
+	// amainsd: centralize this.
+	ctx := context.TODO()
+	err = err.Add(i.etcd.Close(ctx))
 
 	return err.FinalError()
 }

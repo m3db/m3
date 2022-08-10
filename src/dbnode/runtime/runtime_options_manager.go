@@ -53,7 +53,10 @@ func (w *optionsManager) Get() Options {
 func (w *optionsManager) RegisterListener(
 	listener OptionsListener,
 ) xresource.SimpleCloser {
-	_, watch, _ := w.watchable.Watch()
+	_, watch, err := w.watchable.Watch()
+	if err != nil {
+		return xresource.SimpleCloserFn(func() {})
+	}
 
 	// We always initialize the watchable so always read
 	// the first notification value
