@@ -26,20 +26,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/retry"
+
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
-
-	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/cluster/services"
 )
 
 func TestETCDClientGen(t *testing.T) {
-	cs, err := NewConfigServiceClient(testOptions())
+	cs, err := NewConfigServiceClient(testOptions().
+		// Don't retry--either we succeed or we always error, but retrying never helps for this unittest.
+		SetRetryOptions(retry.NewOptions().SetMaxRetries(0)),
+	)
 	require.NoError(t, err)
 
 	c := cs.(*csclient)
@@ -456,8 +461,15 @@ func testOptions() Options {
 func testNewETCDFn(t *testing.T) (newClientFn, func()) {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
-	etcdCluster, err := dockerexternal.NewEtcd(pool, instrument.NewOptions())
+	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)
+
+	etcdCluster, err := dockerexternal.NewEtcd(pool, instrument.NewOptions().SetLogger(logger))
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, etcdCluster.Setup(ctx))
 
 	newFn := func(Cluster) (*clientv3.Client, error) {
 		return clientv3.New(clientv3.Config{Endpoints: etcdCluster.Members()})
