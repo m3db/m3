@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package docker
+package dockerexternal
 
 import (
 	"context"
@@ -27,7 +27,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/m3db/m3/src/integration/resources"
+	xdockertest "github.com/m3db/m3/src/x/dockertest"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/ory/dockertest/v3"
@@ -40,6 +40,7 @@ func NewEtcd(pool *dockertest.Pool, instrumentOpts instrument.Options) (*EtcdClu
 	logger := instrumentOpts.Logger()
 	if logger == nil {
 		logger = zap.NewNop()
+		instrumentOpts = instrumentOpts.SetLogger(logger)
 	}
 	return &EtcdCluster{
 		pool:           pool,
@@ -55,8 +56,6 @@ func NewEtcd(pool *dockertest.Pool, instrumentOpts instrument.Options) (*EtcdClu
 	}, nil
 }
 
-var _ resources.ExternalResources = (*EtcdCluster)(nil)
-
 type EtcdCluster struct {
 	instrumentOpts instrument.Options
 	logger         *zap.Logger
@@ -68,7 +67,7 @@ type EtcdCluster struct {
 
 	// initialized by Setup
 	members  []string
-	resource *Resource
+	resource *xdockertest.Resource
 }
 
 func (c *EtcdCluster) Setup(ctx context.Context) error {
@@ -76,7 +75,7 @@ func (c *EtcdCluster) Setup(ctx context.Context) error {
 		return errors.New("etcd cluster already started")
 	}
 
-	if err := SetupNetwork(c.pool, false); err != nil {
+	if err := xdockertest.SetupNetwork(c.pool, false); err != nil {
 		return err
 	}
 	id := rand.Int()
@@ -90,12 +89,12 @@ func (c *EtcdCluster) Setup(ctx context.Context) error {
 	// Roughly, runs:
 	// docker run --rm --env ALLOW_NONE_AUTHENTICATION=yes -it --name Etcd bitnami/etcd
 	// Port 2379 on the container is bound to a free port on the host
-	resource, err := NewDockerResource(c.pool, ResourceOptions{
+	resource, err := xdockertest.NewDockerResource(c.pool, xdockertest.ResourceOptions{
 		OverrideDefaults: false,
 		// TODO: what even is this?
 		Source:        "etcd",
 		ContainerName: fmt.Sprintf("%s%d", namePrefix, id),
-		Image: Image{
+		Image: xdockertest.Image{
 			Name: "bitnami/etcd",
 		},
 		Env:            []string{"ALLOW_NONE_AUTHENTICATION=yes"},
@@ -111,7 +110,7 @@ func (c *EtcdCluster) Setup(ctx context.Context) error {
 
 	// Extract the port on which we are listening.
 	// This is coming from the equivalent of docker inspect <container_id>
-	portBinds := resource.resource.Container.NetworkSettings.Ports["2379/tcp"]
+	portBinds := resource.Resource().Container.NetworkSettings.Ports["2379/tcp"]
 
 	c.members = []string{fmt.Sprintf("127.0.0.1:%s", portBinds[0].HostPort)}
 	c.resource = resource

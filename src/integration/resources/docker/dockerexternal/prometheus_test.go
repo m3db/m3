@@ -1,8 +1,4 @@
-//go:build cluster_integration
-// +build cluster_integration
-
-//
-// Copyright (c) 2021  Uber Technologies, Inc.
+// Copyright (c) 2022 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,59 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package prometheus
+//go:build integration_v2
+// +build integration_v2
+
+package dockerexternal
 
 import (
-	"context"
+	context2 "context"
 	"path"
 	"runtime"
 	"testing"
-	"time"
-
-	"github.com/m3db/m3/src/integration/resources"
-	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal"
-	"github.com/m3db/m3/src/integration/resources/inprocess"
 
 	"github.com/ory/dockertest/v3"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestPrometheus(t *testing.T) {
-	m3, prom, closer := testSetup(t)
-	defer closer()
-
-	RunTest(t, m3, prom)
-}
-
-func testSetup(t *testing.T) (resources.M3Resources, resources.ExternalResources, func()) {
-	cfgs, err := inprocess.NewClusterConfigsFromYAML(
-		TestPrometheusDBNodeConfig, TestPrometheusCoordinatorConfig, "",
-	)
-	require.NoError(t, err)
-
-	m3, err := inprocess.NewCluster(cfgs,
-		resources.ClusterOptions{
-			DBNode: resources.NewDBNodeClusterOptions(),
-		},
-	)
-	require.NoError(t, err)
-
+func TestNewPrometheus(t *testing.T) {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
 	_, filename, _, _ := runtime.Caller(0)
-	prom := dockerexternal.NewPrometheus(dockerexternal.PrometheusOptions{
+	prom := NewPrometheus(PrometheusOptions{
 		Pool:      pool,
-		PathToCfg: path.Join(path.Dir(filename), "../resources/docker/config/prometheus.yml"),
+		PathToCfg: path.Join(path.Dir(filename), "config/prometheus.yml"),
 	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	require.NoError(t, prom.Setup(ctx))
-
-	return m3, prom, func() {
-		assert.NoError(t, prom.Close(ctx))
-		assert.NoError(t, m3.Cleanup())
-	}
+	require.NoError(t, prom.Setup(context.TODO()))
+	require.NoError(t, prom.Close(context2.TODO()))
 }

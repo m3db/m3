@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2022 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package docker
+package dockerm3
 
 import (
 	"fmt"
@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration"
 	"github.com/m3db/m3/src/integration/resources"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
+	xdockertest "github.com/m3db/m3/src/x/dockertest"
 
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
@@ -42,7 +43,7 @@ const (
 var (
 	defaultDBNodePortList = []int{2379, 2380, 9000, 9001, 9002, 9003, 9004}
 
-	defaultDBNodeOptions = ResourceOptions{
+	defaultDBNodeOptions = xdockertest.ResourceOptions{
 		Source:        defaultDBNodeSource,
 		ContainerName: defaultDBNodeContainerName,
 		PortList:      defaultDBNodePortList,
@@ -51,15 +52,17 @@ var (
 
 type dbNode struct {
 	tchanClient *integration.TestTChannelClient
-	resource    *Resource
+	resource    *xdockertest.Resource
+	pool        *dockertest.Pool
+	logger      *zap.Logger
 }
 
 func newDockerHTTPNode(
 	pool *dockertest.Pool,
-	opts ResourceOptions,
+	opts xdockertest.ResourceOptions,
 ) (resources.Node, error) {
-	opts = opts.withDefaults(defaultDBNodeOptions)
-	resource, err := NewDockerResource(pool, opts)
+	opts = opts.WithDefaults(defaultDBNodeOptions)
+	resource, err := xdockertest.NewDockerResource(pool, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -71,17 +74,20 @@ func newDockerHTTPNode(
 		}
 	}()
 
-	addr := resource.resource.GetHostPort("9000/tcp")
+	logger := opts.InstrumentOpts.Logger()
+	addr := resource.Resource().GetHostPort("9000/tcp")
 	tchanClient, err := integration.NewTChannelClient("client", addr)
 	if err != nil {
 		return nil, err
 	}
 
-	resource.logger.Info("set up tchanClient", zap.String("node_addr", addr))
+	logger.Info("set up tchanClient", zap.String("node_addr", addr))
 	completed = true
 	return &dbNode{
 		tchanClient: tchanClient,
+		pool:        pool,
 		resource:    resource,
+		logger:      logger,
 	}, nil
 }
 
@@ -91,14 +97,14 @@ func (c *dbNode) Start() {
 
 func (c *dbNode) HostDetails(p int) (*admin.Host, error) {
 	var network docker.ContainerNetwork
-	for _, n := range c.resource.resource.Container.NetworkSettings.Networks { // nolint: gocritic
+	for _, n := range c.resource.Resource().Container.NetworkSettings.Networks { // nolint: gocritic
 		network = n
 	}
 
-	host := strings.TrimLeft(c.resource.resource.Container.Name, "/")
+	host := strings.TrimLeft(c.resource.Resource().Container.Name, "/")
 	return &admin.Host{
 		Id:             host,
-		IsolationGroup: "rack-a-" + c.resource.resource.Container.Name,
+		IsolationGroup: "rack-a-" + c.resource.Resource().Container.Name,
 		Zone:           "embedded",
 		Weight:         1024,
 		Address:        network.IPAddress,
@@ -107,11 +113,11 @@ func (c *dbNode) HostDetails(p int) (*admin.Host, error) {
 }
 
 func (c *dbNode) Health() (*rpc.NodeHealthResult_, error) {
-	if c.resource.closed {
-		return nil, errClosed
+	if c.resource.Closed() {
+		return nil, xdockertest.ErrClosed
 	}
 
-	logger := c.resource.logger.With(resources.ZapMethod("health"))
+	logger := c.logger.With(zapMethod("health"))
 	res, err := c.tchanClient.TChannelClientHealth(timeout)
 	if err != nil {
 		logger.Error("failed get", zap.Error(err), zap.Any("res", res))
@@ -121,12 +127,12 @@ func (c *dbNode) Health() (*rpc.NodeHealthResult_, error) {
 }
 
 func (c *dbNode) WaitForBootstrap() error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
-	logger := c.resource.logger.With(resources.ZapMethod("waitForBootstrap"))
-	return c.resource.pool.Retry(func() error {
+	logger := c.logger.With(zapMethod("waitForBootstrap"))
+	return c.pool.Retry(func() error {
 		health, err := c.Health()
 		if err != nil {
 			return err
@@ -143,11 +149,11 @@ func (c *dbNode) WaitForBootstrap() error {
 }
 
 func (c *dbNode) WritePoint(req *rpc.WriteRequest) error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
-	logger := c.resource.logger.With(resources.ZapMethod("write"))
+	logger := c.logger.With(zapMethod("write"))
 	err := c.tchanClient.TChannelClientWrite(timeout, req)
 	if err != nil {
 		logger.Error("could not write", zap.Error(err))
@@ -159,11 +165,11 @@ func (c *dbNode) WritePoint(req *rpc.WriteRequest) error {
 }
 
 func (c *dbNode) WriteTaggedPoint(req *rpc.WriteTaggedRequest) error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
-	logger := c.resource.logger.With(resources.ZapMethod("write-tagged"))
+	logger := c.logger.With(zapMethod("write-tagged"))
 	err := c.tchanClient.TChannelClientWriteTagged(timeout, req)
 	if err != nil {
 		logger.Error("could not write-tagged", zap.Error(err))
@@ -176,11 +182,11 @@ func (c *dbNode) WriteTaggedPoint(req *rpc.WriteTaggedRequest) error {
 
 // WriteTaggedBatchRaw writes a batch of writes to the node directly.
 func (c *dbNode) WriteTaggedBatchRaw(req *rpc.WriteTaggedBatchRawRequest) error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
-	logger := c.resource.logger.With(resources.ZapMethod("write-tagged-batch-raw"))
+	logger := c.logger.With(zapMethod("write-tagged-batch-raw"))
 	err := c.tchanClient.TChannelClientWriteTaggedBatchRaw(timeout, req)
 	if err != nil {
 		logger.Error("writeTaggedBatchRaw call failed", zap.Error(err))
@@ -192,11 +198,11 @@ func (c *dbNode) WriteTaggedBatchRaw(req *rpc.WriteTaggedBatchRawRequest) error 
 }
 
 func (c *dbNode) AggregateTiles(req *rpc.AggregateTilesRequest) (int64, error) {
-	if c.resource.closed {
-		return 0, errClosed
+	if c.resource.Closed() {
+		return 0, xdockertest.ErrClosed
 	}
 
-	logger := c.resource.logger.With(resources.ZapMethod("aggregate-tiles"))
+	logger := c.logger.With(zapMethod("aggregate-tiles"))
 	rsp, err := c.tchanClient.TChannelClientAggregateTiles(timeout, req)
 	if err != nil {
 		logger.Error("could not aggregate tiles", zap.Error(err))
@@ -208,11 +214,11 @@ func (c *dbNode) AggregateTiles(req *rpc.AggregateTilesRequest) (int64, error) {
 }
 
 func (c *dbNode) Fetch(req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
-	if c.resource.closed {
-		return nil, errClosed
+	if c.resource.Closed() {
+		return nil, xdockertest.ErrClosed
 	}
 
-	logger := c.resource.logger.With(resources.ZapMethod("fetch"))
+	logger := c.logger.With(zapMethod("fetch"))
 	dps, err := c.tchanClient.TChannelClientFetch(timeout, req)
 	if err != nil {
 		logger.Error("could not fetch", zap.Error(err))
@@ -224,11 +230,11 @@ func (c *dbNode) Fetch(req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
 }
 
 func (c *dbNode) FetchTagged(req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
-	if c.resource.closed {
-		return nil, errClosed
+	if c.resource.Closed() {
+		return nil, xdockertest.ErrClosed
 	}
 
-	logger := c.resource.logger.With(resources.ZapMethod("fetchtagged"))
+	logger := c.logger.With(zapMethod("fetchtagged"))
 	result, err := c.tchanClient.TChannelClientFetchTagged(timeout, req)
 	if err != nil {
 		logger.Error("could not fetch", zap.Error(err))
@@ -240,14 +246,14 @@ func (c *dbNode) FetchTagged(req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResul
 }
 
 func (c *dbNode) Restart() error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
-	cName := c.resource.resource.Container.Name
-	logger := c.resource.logger.With(resources.ZapMethod("restart"))
+	cName := c.resource.Resource().Container.Name
+	logger := c.logger.With(zapMethod("restart"))
 	logger.Info("restarting container", zap.String("container", cName))
-	err := c.resource.pool.Client.RestartContainer(cName, 60)
+	err := c.pool.Client.RestartContainer(cName, 60)
 	if err != nil {
 		logger.Error("could not restart", zap.Error(err))
 		return err
@@ -257,8 +263,8 @@ func (c *dbNode) Restart() error {
 }
 
 func (c *dbNode) Exec(commands ...string) (string, error) {
-	if c.resource.closed {
-		return "", errClosed
+	if c.resource.Closed() {
+		return "", xdockertest.ErrClosed
 	}
 
 	return c.resource.Exec(commands...)
@@ -268,16 +274,16 @@ func (c *dbNode) GoalStateExec(
 	verifier resources.GoalStateVerifier,
 	commands ...string,
 ) error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
 	return c.resource.GoalStateExec(verifier, commands...)
 }
 
 func (c *dbNode) Close() error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
 	return c.resource.Close()

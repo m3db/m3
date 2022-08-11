@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2022 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package docker
+package dockertest
 
 import (
 	"errors"
@@ -34,8 +34,16 @@ var (
 	networkName = "d-test"
 	volumeName  = "d-test"
 
-	errClosed = errors.New("container has been closed")
+	ErrClosed = errors.New("container has been closed")
 )
+
+// Image represents a docker image.
+type Image struct {
+	Name string
+	Tag  string
+}
+
+type GoalStateVerifier func(string, error) error
 
 // ResourceOptions returns options for creating
 // a Resource.
@@ -58,7 +66,7 @@ type ResourceOptions struct {
 }
 
 // NB: this will fill unset fields with given default values.
-func (o ResourceOptions) withDefaults(
+func (o ResourceOptions) WithDefaults(
 	defaultOpts ResourceOptions) ResourceOptions {
 	if o.OverrideDefaults {
 		return o
@@ -132,7 +140,7 @@ func SetupNetwork(pool *dockertest.Pool, cleanIfExists bool) error {
 	return err
 }
 
-func setupVolume(pool *dockertest.Pool) error {
+func SetupVolume(pool *dockertest.Pool) error {
 	volumes, err := pool.Client.ListVolumes(dc.ListVolumesOptions{})
 	if err != nil {
 		return err

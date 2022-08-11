@@ -1,7 +1,4 @@
-//go:build integration_v2
-// +build integration_v2
-
-// Copyright (c) 2021  Uber Technologies, Inc.
+// Copyright (c) 2022 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,27 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package docker
+package dockerm3
 
 import (
-	context2 "context"
-	"path"
-	"runtime"
-	"testing"
-
-	"github.com/ory/dockertest/v3"
-	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
-func TestNewPrometheus(t *testing.T) {
-	pool, err := dockertest.NewPool("")
-	require.NoError(t, err)
-
-	_, filename, _, _ := runtime.Caller(0)
-	prom := NewPrometheus(PrometheusOptions{
-		Pool:      pool,
-		PathToCfg: path.Join(path.Dir(filename), "config/prometheus.yml"),
-	})
-	require.NoError(t, prom.Setup(context.TODO()))
-	require.NoError(t, prom.Close(context2.TODO()))
-}
+// zapMethod appends the method as a log field.
+func zapMethod(s string) zapcore.Field { return zap.String("method", s) }

@@ -21,14 +21,17 @@
 package etcd
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/tests/v3/framework/integration"
 	"google.golang.org/grpc"
 
 	"github.com/m3db/m3/src/cluster/kv"
@@ -451,16 +454,20 @@ func testOptions() Options {
 }
 
 func testNewETCDFn(t *testing.T) (newClientFn, func()) {
-	integration.BeforeTestExternal(t)
-	ecluster := integration.NewCluster(t, &integration.ClusterConfig{Size: 1})
-	ec := ecluster.RandClient()
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err)
+	etcdCluster, err := dockerexternal.NewEtcd(pool, instrument.NewOptions())
+	require.NoError(t, err)
 
 	newFn := func(Cluster) (*clientv3.Client, error) {
-		return ec, nil
+		return clientv3.New(clientv3.Config{Endpoints: etcdCluster.Members()})
 	}
 
 	closer := func() {
-		ecluster.Terminate(t)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		require.NoError(t, etcdCluster.Close(ctx))
 	}
 
 	return newFn, closer

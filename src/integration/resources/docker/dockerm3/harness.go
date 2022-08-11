@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2022 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,13 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package docker contains resources needed to setup docker containers for M3 tests.
-package docker
+// Package dockerm3 contains resources needed to setup docker containers for M3 tests.
+package dockerm3
 
 import (
 	"time"
 
 	"github.com/m3db/m3/src/integration/resources"
+	xdockertest "github.com/m3db/m3/src/x/dockertest"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -57,17 +58,17 @@ func SetupSingleM3DBNode(opts ...SetupOptions) (resources.M3Resources, error) { 
 	pool.MaxWait = timeout
 
 	if !options.existingCluster {
-		if err := SetupNetwork(pool, true); err != nil {
+		if err := xdockertest.SetupNetwork(pool, true); err != nil {
 			return nil, err
 		}
 
-		if err := setupVolume(pool); err != nil {
+		if err := xdockertest.SetupVolume(pool); err != nil {
 			return nil, err
 		}
 	}
 
 	iOpts := instrument.NewOptions()
-	dbNode, err := newDockerHTTPNode(pool, ResourceOptions{
+	dbNode, err := newDockerHTTPNode(pool, xdockertest.ResourceOptions{
 		Image:          options.dbNodeImage,
 		ContainerName:  options.dbNodeContainerName,
 		InstrumentOpts: iOpts,
@@ -91,7 +92,7 @@ func SetupSingleM3DBNode(opts ...SetupOptions) (resources.M3Resources, error) { 
 		return nil, err
 	}
 
-	coordinator, err := newDockerHTTPCoordinator(pool, ResourceOptions{
+	coordinator, err := newDockerHTTPCoordinator(pool, xdockertest.ResourceOptions{
 		Image:          options.coordinatorImage,
 		ContainerName:  options.coordinatorContainerName,
 		InstrumentOpts: iOpts,
@@ -137,7 +138,7 @@ func AttachToExistingContainers(
 	iOpts := instrument.NewOptions()
 	dbNodes := resources.Nodes{}
 	for _, containerName := range dbNodesContainersNames {
-		dbNode, err := newDockerHTTPNode(pool, ResourceOptions{
+		dbNode, err := newDockerHTTPNode(pool, xdockertest.ResourceOptions{
 			InstrumentOpts: iOpts,
 			ContainerName:  containerName,
 		})
@@ -149,7 +150,7 @@ func AttachToExistingContainers(
 
 	coordinator, err := newDockerHTTPCoordinator(
 		pool,
-		ResourceOptions{
+		xdockertest.ResourceOptions{
 			InstrumentOpts: iOpts,
 			ContainerName:  coordinatorContainerName,
 		},

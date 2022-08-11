@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2022 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,17 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package docker
+package dockerm3
 
-// Image represents a docker image.
-type Image struct {
-	Name string
-	Tag  string
-}
+import "github.com/m3db/m3/src/x/dockertest"
 
 type setupOptions struct {
-	dbNodeImage      Image
-	coordinatorImage Image
+	dbNodeImage      dockertest.Image
+	coordinatorImage dockertest.Image
 
 	existingCluster          bool
 	dbNodeContainerName      string
@@ -41,14 +37,14 @@ type SetupOptions func(*setupOptions)
 // WithDBNodeImage sets an option to use an image name and tag for the DB node.
 func WithDBNodeImage(name, tag string) SetupOptions {
 	return func(o *setupOptions) {
-		o.dbNodeImage = Image{Name: name, Tag: tag}
+		o.dbNodeImage = dockertest.Image{Name: name, Tag: tag}
 	}
 }
 
 // WithCoordinatorImage sets an option to use an image name and tag for the coordinator.
 func WithCoordinatorImage(name, tag string) SetupOptions {
 	return func(o *setupOptions) {
-		o.coordinatorImage = Image{Name: name, Tag: tag}
+		o.coordinatorImage = dockertest.Image{Name: name, Tag: tag}
 	}
 }
 
