@@ -68,6 +68,7 @@ type EtcdCluster struct {
 	// initialized by Setup
 	members  []string
 	resource *xdockertest.Resource
+	etcdCli  *clientv3.Client
 }
 
 func (c *EtcdCluster) Setup(ctx context.Context) error {
@@ -114,27 +115,30 @@ func (c *EtcdCluster) Setup(ctx context.Context) error {
 
 	c.members = []string{fmt.Sprintf("127.0.0.1:%s", portBinds[0].HostPort)}
 	c.resource = resource
-	return c.waitForHealth(ctx)
-}
 
-func (c *EtcdCluster) waitForHealth(ctx context.Context) error {
-	retrier := retry.NewRetrier(retry.NewOptions().
-		SetForever(true).
-		SetMaxBackoff(5 * time.Second),
-	)
-
-	etcdCli, err := c.newClient(
+	etcdCli, err := clientv3.New(
 		clientv3.Config{
 			Endpoints: c.members,
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("constructing etcd client to check health: %w", err)
+		return fmt.Errorf("constructing etcd client: %w", err)
 	}
 
+	c.etcdCli = etcdCli
+
+	return c.waitForHealth(ctx, c.etcdCli)
+}
+
+func (c *EtcdCluster) waitForHealth(ctx context.Context, memberCli memberClient) error {
+	retrier := retry.NewRetrier(retry.NewOptions().
+		SetForever(true).
+		SetMaxBackoff(5 * time.Second),
+	)
+
 	c.logger.Info("Waiting for etcd to report healthy (via member list)")
-	err = retrier.AttemptContext(ctx, func() error {
-		_, err := etcdCli.MemberList(ctx)
+	err := retrier.AttemptContext(ctx, func() error {
+		_, err := c.etcdCli.MemberList(ctx)
 		if err != nil {
 			c.logger.Info(
 				"Failed connecting to etcd while waiting for container to come up",
@@ -157,6 +161,10 @@ func (c *EtcdCluster) Close(ctx context.Context) error {
 
 func (c *EtcdCluster) Members() []string {
 	return c.members
+}
+
+func (c *EtcdCluster) RandClient() *clientv3.Client {
+	return c.etcdCli
 }
 
 var _ memberClient = (*clientv3.Client)(nil)

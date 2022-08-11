@@ -159,14 +159,11 @@ func TestCluster_waitForHealth(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		deps := setupEtcdTest(t)
-		deps.Etcd.newClient = func(config clientv3.Config) (memberClient, error) {
-			return fakeMemberClient{err: assert.AnError}, nil
-		}
-
+		etcdCli := fakeMemberClient{err: assert.AnError}
 		cancel()
 		require.EqualError(
 			t,
-			deps.Etcd.waitForHealth(ctx),
+			deps.Etcd.waitForHealth(ctx, etcdCli),
 			"waiting for etcd to become healthy: context cancelled while retrying: context canceled",
 		)
 	})

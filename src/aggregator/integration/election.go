@@ -19,16 +19,19 @@
 // THE SOFTWARE.
 
 package integration
-/*
+
 import (
+	"context"
 	"testing"
 
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/services/leader"
+	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/ory/dockertest/v3"
 
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/tests/v3/framework/integration"
 )
 
 var (
@@ -41,16 +44,20 @@ var (
 
 type testCluster struct {
 	t       *testing.T
-	cluster *integration.Cluster
+	cluster *dockerexternal.EtcdCluster
 }
 
 func newTestCluster(t *testing.T) *testCluster {
-	integration.BeforeTestExternal(t)
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err)
+	cluster, err := dockerexternal.NewEtcd(pool, instrument.NewOptions())
+	require.NoError(t, err)
+
+	require.NoError(t, cluster.Setup(context.TODO()))
+
 	return &testCluster{
-		t: t,
-		cluster: integration.NewCluster(t, &integration.ClusterConfig{
-			Size: testClusterSize,
-		}),
+		t:       t,
+		cluster: cluster,
 	}
 }
 
@@ -61,7 +68,7 @@ func (tc *testCluster) LeaderService() services.LeaderService {
 }
 
 func (tc *testCluster) Close() {
-	tc.cluster.Terminate(tc.t)
+	require.NoError(tc.t, tc.cluster.Close(context.TODO()))
 }
 
 func (tc *testCluster) etcdClient() *clientv3.Client {
@@ -79,4 +86,3 @@ func (tc *testCluster) options() leader.Options {
 		SetServiceID(sid).
 		SetElectionOpts(eopts)
 }
-*/
