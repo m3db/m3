@@ -25,8 +25,10 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net"
 	"time"
 
+	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdbridge"
 	xdockertest "github.com/m3db/m3/src/x/dockertest"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
@@ -69,6 +71,7 @@ type EtcdCluster struct {
 	members  []string
 	resource *xdockertest.Resource
 	etcdCli  *clientv3.Client
+	bridge   *etcdbridge.Bridge
 }
 
 func (c *EtcdCluster) Setup(ctx context.Context) error {
@@ -113,8 +116,14 @@ func (c *EtcdCluster) Setup(ctx context.Context) error {
 	// This is coming from the equivalent of docker inspect <container_id>
 	portBinds := resource.Resource().Container.NetworkSettings.Ports["2379/tcp"]
 
-	c.members = []string{fmt.Sprintf("127.0.0.1:%s", portBinds[0].HostPort)}
 	c.resource = resource
+	c.members = []string{fmt.Sprintf("127.0.0.1:%s", portBinds[0].HostPort)}
+	setupBridge := true
+	if setupBridge {
+		if err := c.setupBridge(); err != nil {
+			return err
+		}
+	}
 
 	etcdCli, err := clientv3.New(
 		clientv3.Config{
@@ -128,6 +137,39 @@ func (c *EtcdCluster) Setup(ctx context.Context) error {
 	c.etcdCli = etcdCli
 
 	return c.waitForHealth(ctx, c.etcdCli)
+}
+
+func (c *EtcdCluster) containerHostPort() string {
+	portBinds := c.resource.Resource().Container.NetworkSettings.Ports["2379/tcp"]
+
+	return fmt.Sprintf("127.0.0.1:%s", portBinds[0].HostPort)
+}
+
+func (c *EtcdCluster) setupBridge() error {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return fmt.Errorf("setting up bridge: %w", err)
+	}
+
+	c.logger.Info("etcd bridge is listening", zap.String("addr", listener.Addr().String()))
+
+	// dialer = make connections to the etcd container
+	// listener = the bridge's inbounds
+	c.bridge, err = etcdbridge.New(dialer{hostport: c.containerHostPort()}, listener)
+	if err != nil {
+		return err
+	}
+
+	c.members = []string{listener.Addr().String()}
+	return nil
+}
+
+type dialer struct {
+	hostport string
+}
+
+func (d dialer) Dial() (net.Conn, error) {
+	return net.Dial("tcp", d.hostport)
 }
 
 func (c *EtcdCluster) waitForHealth(ctx context.Context, memberCli memberClient) error {
@@ -163,8 +205,20 @@ func (c *EtcdCluster) Members() []string {
 	return c.members
 }
 
+func (c *EtcdCluster) Bridge() *etcdbridge.Bridge {
+	return c.bridge
+}
+
 func (c *EtcdCluster) RandClient() *clientv3.Client {
 	return c.etcdCli
+}
+
+func (c *EtcdCluster) Stop(ctx context.Context) error {
+	return c.pool.Client.StopContainerWithContext(c.resource.Resource().Container.ID, 0, ctx)
+}
+
+func (c *EtcdCluster) Start(ctx context.Context) error {
+	return c.pool.Client.StartContainerWithContext(c.resource.Resource().Container.ID, nil, ctx)
 }
 
 var _ memberClient = (*clientv3.Client)(nil)

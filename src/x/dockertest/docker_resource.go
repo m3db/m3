@@ -85,7 +85,8 @@ func NewDockerResource(
 	opts := exposePorts(newOptions(containerName), portList)
 
 	hostConfigOpts := func(c *dc.HostConfig) {
-		c.AutoRemove = true
+		// amainsd: make this optional
+		c.AutoRemove = false
 		c.NetworkMode = networkName
 		// Allow the docker container to call services on the host machine.
 		// Docker for OS X and Windows support the host.docker.internal hostname
