@@ -24,8 +24,19 @@ const (
 	// Bucket size (in s) to split window up into
 	BucketSize time.Duration = 300 * time.Second
 
-	SimpleKeyPrefix = "simple"
-	BucketKeyPrefix = "bucket"
+	// Prefix used for keys that cache data for smaller queries coming in at the same time
+	// This caches using the notion that queries coming in at around the same time
+	//  are asking for the same thing
+	// Small means <= BucketSize
+	// WindowGetOrFetch() will use this key, see function for more details
+	SimpleKeyPrefix = "same_window"
+	// Prefix used for keys that cache data for larger queries over a larger period of time
+	// This caches using a sliding window to be able to reuse previously queried data
+	// Large means > BucketSize
+	// BucketWindowGetOrFetch() will use this key, see function for more details
+	BucketKeyPrefix = "sliding_window"
+
+	AllowedMissingBuckets = 1
 )
 
 type RedisCache struct {
@@ -44,6 +55,8 @@ type CacheMetrics struct {
 	missCounter        tally.Counter
 	missSamplesCounter tally.Counter
 	missBytesCounter   tally.Counter
+
+	redisTimer tally.Timer
 }
 
 func NewCacheMetrics(scope tally.Scope) CacheMetrics {
@@ -56,6 +69,8 @@ func NewCacheMetrics(scope tally.Scope) CacheMetrics {
 		missCounter:        subScope.Counter("miss"),
 		missSamplesCounter: subScope.Counter("miss-samples"),
 		missBytesCounter:   subScope.Counter("miss-bytes"),
+
+		redisTimer: subScope.Timer("latency"),
 	}
 }
 
@@ -129,6 +144,7 @@ func (cache *RedisCache) Check(entries []*storage.FetchQuery, prefix string) int
 	return count
 }
 
+// Function to clear Redis cache, currently only used for testing
 func (cache *RedisCache) FlushAll() {
 	var response string
 	cache.client.Do(radix.Cmd(&response, "FLUSHALL"))
@@ -151,6 +167,8 @@ func (cache *RedisCache) Get(entries []*storage.FetchQuery, prefix string) []*st
 		cache.logger.Error("Failed to execute Redis batch get", zap.Error(err))
 		return results
 	}
+	// Go over all responses, and convert them from []byte back to PromResults
+	// If they don't exist, then the cache wasn't able to get them
 	for i, r := range responses {
 		// If the response is nil (not EmptyResult), then it doesn't exist
 		if len(r) == 0 {
@@ -182,6 +200,7 @@ func (cache *RedisCache) Set(
 
 	for i := range entries {
 		entry := KeyEncode(entries[i], prefix)
+		// Encode PromResult into string for Redis to store
 		value, err := resultEncode(values[i])
 		cache.logger.Info("Prom result size", zap.Int("length", len(value)), zap.Int("ts_len", len(values[i].PromResult.Timeseries)))
 		if err != nil {
@@ -218,6 +237,10 @@ func WindowGetOrFetch(
 	if cache == nil || !EnableCache {
 		return st.FetchProm(ctx, q, fetchOptions)
 	}
+
+	sw := cache.cacheMetrics.redisTimer.Start()
+	defer sw.Stop()
+
 	query_range := int64(q.End.Sub(q.Start).Seconds())
 	// Align to the current minute
 	// We align this query to help condense queries that ask for the same thing in the same minute
@@ -306,10 +329,19 @@ func BucketWindowGetOrFetch(
 		return WindowGetOrFetch(ctx, st, fetchOptions, q, cache)
 	}
 
+	// WindowGetOrFetch already records timing, no need re-record it in this function
+	sw := cache.cacheMetrics.redisTimer.Start()
+	defer sw.Stop()
+
 	last_start := q.End.Truncate(BucketSize)
-	// If we have more than one bucket
+	// We cache by breaking down data into buckets of size BucketSize
+	// based on multiplies of BucketSize (in Unix time)
+	// The last bucket we always get from M3DB to ensure that we do not store partial data
+	// Since otherwise getting the last bucket and storing it could avoid storing new data
+
+	// If we have more than one bucket, we want to get every bucket from the last from M3DB
 	if q.Start.Before(last_start) {
-		// Split into not-last and last
+		// Split into queries of the last bucket and everything else
 		exclude_last_query := &storage.FetchQuery{
 			TagMatchers: q.TagMatchers,
 			Start:       q.Start,
@@ -327,7 +359,9 @@ func BucketWindowGetOrFetch(
 		// This is so we don't have to convert if we need to ask M3DB for all of it anyways
 		count := cache.Check(buckets, BucketKeyPrefix)
 		cache.logger.Info("num_hit", zap.Int("check", count), zap.Int("length", len(buckets)))
-		if count < len(buckets)-1 || count == 0 {
+		// We need to get from M3DB when we are missing more than total allowed missing buckets
+		// Or when we have no buckets (in the case where we only want 1 bucket, and nothing is there)
+		if count < len(buckets)-AllowedMissingBuckets || count == 0 {
 			cache.logger.Info("cache miss", zap.String("key", KeyEncode(q, BucketKeyPrefix)))
 			res, err := st.FetchProm(ctx, q, fetchOptions)
 			cache.cacheMetrics.CacheMetricsMiss(res)
@@ -337,13 +371,15 @@ func BucketWindowGetOrFetch(
 			return res, err
 		}
 
+		// Get the data for each bucket
 		results := cache.Get(buckets, BucketKeyPrefix)
 		cnt := 0
 		// Check again after getting just in case some of the keys disappeared so we don't make many M3DB requests
 		for _, r := range results {
 			if r == nil {
 				cnt++
-				if cnt > 1 {
+				// In case we end up missing more than the allowed amount of missing buckets
+				if cnt > AllowedMissingBuckets {
 					cache.logger.Info("cache miss", zap.String("key", KeyEncode(q, BucketKeyPrefix)))
 					res, err := st.FetchProm(ctx, q, fetchOptions)
 					cache.cacheMetrics.CacheMetricsMiss(res)
@@ -354,6 +390,8 @@ func BucketWindowGetOrFetch(
 				}
 			}
 		}
+		// We iterate again since in the above iteration, we just do an iteration to check if all the data is still there
+		// Allows us to avoid making more than the acceptable number of M3DB requests
 		for i, r := range results {
 			if r == nil {
 				res, err := st.FetchProm(ctx, buckets[i], fetchOptions)
@@ -378,6 +416,7 @@ func BucketWindowGetOrFetch(
 		if err != nil {
 			return storage.PromResult{}, nil
 		}
+		// Combine all the results together
 		return *combineResult(append(results, &res)), nil
 	}
 	res, err := st.FetchProm(ctx, q, fetchOptions)
