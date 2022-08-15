@@ -75,6 +75,10 @@ func resultDecode(val []byte) (*storage.PromResult, error) {
 	var result storage.PromResult
 	result.PromResult = &prompb.QueryResult{}
 
+	if len(val) == 0 {
+		return nil, nil
+	}
+
 	// Check length first so we don't convert to string every time
 	if len(val) == len([]byte(EmptyResult)) && string(val) == EmptyResult {
 		result.Metadata = block.NewResultMetadata()
@@ -163,6 +167,7 @@ func combineResult(results []*storage.PromResult) *storage.PromResult {
 			if len(v[cur_ts].Samples) == 0 {
 				cur_ts++
 				idx = 0
+				continue
 			}
 			samples[cnt].Timestamp = v[cur_ts].Samples[idx].Timestamp
 			samples[cnt].Value = float64(v[cur_ts].Samples[idx].Value)
