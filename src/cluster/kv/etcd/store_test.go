@@ -1164,7 +1164,7 @@ func genProto(msg string) proto.Message {
 	return &kvtest.Foo{Msg: msg}
 }
 
-func testCluster(t *testing.T, testOpts ...testStoreOption) (*integration.Cluster, Options, func()) {
+func testCluster(t *testing.T, testOpts ...testStoreOption) (*integration.ClusterV3, Options, func()) {
 	cfg := testStoreOpts{etcdBeforeTestExternal: true}
 	for _, opt := range testOpts {
 		opt(&cfg)
