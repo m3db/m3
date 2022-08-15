@@ -1174,7 +1174,7 @@ func testCluster(t *testing.T, testOpts ...testStoreOption) (*integration.Cluste
 		integration.BeforeTestExternal(t)
 	}
 
-	ecluster := integration.NewCluster(t, &integration.ClusterConfig{
+	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{
 		Size:      1,
 		UseBridge: true,
 	})

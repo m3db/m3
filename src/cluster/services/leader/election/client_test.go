@@ -34,14 +34,14 @@ import (
 
 type testCluster struct {
 	t       *testing.T
-	cluster *integration.Cluster
+	cluster *integration.ClusterV3
 }
 
 func newTestCluster(t *testing.T) *testCluster {
 	integration.BeforeTestExternal(t)
 	return &testCluster{
 		t: t,
-		cluster: integration.NewCluster(t, &integration.ClusterConfig{
+		cluster: integration.NewClusterV3(t, &integration.ClusterConfig{
 			Size: 1,
 		}),
 	}

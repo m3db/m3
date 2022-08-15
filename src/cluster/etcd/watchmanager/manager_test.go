@@ -172,7 +172,7 @@ func TestWatchNoLeader(t *testing.T) {
 	)
 
 	integration.BeforeTestExternal(t)
-	ecluster := integration.NewCluster(t, &integration.ClusterConfig{Size: 3})
+	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 3})
 	defer ecluster.Terminate(t)
 
 	var (
@@ -320,14 +320,14 @@ func TestWatchCompactedRevision(t *testing.T) {
 
 func testCluster(t *testing.T) (
 	*manager,
-	*integration.Cluster,
+	*integration.ClusterV3,
 	*int32,
 	*int32,
 	chan struct{},
 	func(),
 ) {
 	integration.BeforeTestExternal(t)
-	ecluster := integration.NewCluster(t, &integration.ClusterConfig{
+	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{
 		Size:      1,
 		UseBridge: true,
 	})
