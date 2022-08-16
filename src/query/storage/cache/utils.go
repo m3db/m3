@@ -2,6 +2,7 @@ package cache
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -23,6 +24,80 @@ func (tss Timeseries) Swap(i, j int) {
 
 func (tss Timeseries) Less(i, j int) bool {
 	return (&prompb.Labels{Labels: tss[i].Labels}).String() < (&prompb.Labels{Labels: tss[j].Labels}).String()
+}
+
+// Check if lists of labels are equal
+func labelsEqual(a, b []prompb.Label) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		val := (string(a[i].Name) == string(b[i].Name) &&
+			string(a[i].Value) == string(b[i].Value))
+		if !val {
+			return false
+		}
+	}
+	return true
+}
+
+// Print samples (debug purposes)
+func printSamples(a, b []prompb.Sample) {
+	println("Sample size unequal", len(a), len(b))
+	for i := range a {
+		print(a[i].Timestamp, ",")
+	}
+	println()
+	for i := range b {
+		print(b[i].Timestamp, ",")
+	}
+	println()
+}
+
+// Check if lists of samples are equal up to {end} (in ms)
+// If {end} is 0, then there is no upper bound on timestamp checking
+func samplesEqual(a, b []prompb.Sample, end int64) bool {
+	for i := range a {
+		if i >= len(b) {
+			printSamples(a, b)
+			return false
+		}
+		if end != 0 && a[i].Timestamp > end {
+			return true
+		}
+		val := (a[i].Timestamp == b[i].Timestamp &&
+			a[i].Value == b[i].Value)
+		if !val {
+			// Account for NaN case
+			if math.IsNaN(a[i].Value) && math.IsNaN(b[i].Value) {
+				continue
+			}
+			return false
+		}
+	}
+	return true
+}
+
+// Check if lists of timeseries are equal (see samplesEqual for usage of {end} param)
+func TimeseriesEqual(a, b []*prompb.TimeSeries, end int64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	// Sort to ensure we are matching up the timeseries to each other properly
+	sort.Slice(a, func(i, j int) bool {
+		return (&prompb.Labels{Labels: a[i].Labels}).String() < (&prompb.Labels{Labels: a[j].Labels}).String()
+	})
+	sort.Slice(b, func(i, j int) bool {
+		return (&prompb.Labels{Labels: b[i].Labels}).String() < (&prompb.Labels{Labels: b[j].Labels}).String()
+	})
+	for i := range a {
+		val := (labelsEqual(a[i].Labels, b[i].Labels) &&
+			samplesEqual(a[i].Samples, b[i].Samples, end))
+		if !val {
+			return false
+		}
+	}
+	return true
 }
 
 func createEmptyPromResult() *storage.PromResult {

@@ -68,15 +68,11 @@ func withEngine(promQLEngineFn options.PromQLEngineFn, instant bool) Option {
 
 func newDefaultOptions(hOpts options.HandlerOptions) opts {
 	// Check if Redis Address exists, otherwise let it be ""
-	redisAddress := ""
-	if hOpts.Config().RedisCacheAddress != nil {
-		redisAddress = *hOpts.Config().RedisCacheAddress
-	}
 	queryable := prometheus.NewPrometheusQueryable(
 		prometheus.PrometheusOptions{
 			Storage:           hOpts.Storage(),
 			InstrumentOptions: hOpts.InstrumentOpts(),
-			RedisCacheAddress: redisAddress,
+			RedisCacheSpec:    hOpts.Config().RedisCacheSpec,
 		})
 	return opts{
 		queryable:  queryable,

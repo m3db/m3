@@ -54,7 +54,7 @@ type prometheusQueryable struct {
 type PrometheusOptions struct {
 	Storage           storage.Storage
 	InstrumentOptions instrument.Options
-	RedisCacheAddress string
+	RedisCacheSpec    *cache.RedisCacheSpec
 }
 
 // StorageErr wraps all errors returned by the storage layer.
@@ -87,7 +87,7 @@ func NewPrometheusQueryable(opts PrometheusOptions) promstorage.Queryable {
 		storage: opts.Storage,
 		scope:   scope,
 		logger:  opts.InstrumentOptions.Logger(),
-		cache:   cache.NewRedisCache(opts.RedisCacheAddress, opts.InstrumentOptions.Logger(), scope),
+		cache:   cache.NewRedisCache(opts.RedisCacheSpec, opts.InstrumentOptions.Logger(), scope),
 	}
 }
 
@@ -145,6 +145,8 @@ func (q *querier) Select(
 	}
 
 	result, err := cache.BucketWindowGetOrFetch(q.ctx, q.storage, fetchOptions, query, q.cache)
+	// result, err := q.storage.FetchProm(q.ctx, query, fetchOptions)
+	// cache.CheckWithM3DB(q.ctx, q.storage, fetchOptions, query, q.cache, &result)
 	// Bug fix: Initial FetchProm gives results in sorted label order, so function must match that
 	// Not doing so leads to slight imprecision of result
 	tss := cache.Timeseries(result.PromResult.Timeseries)

@@ -6,8 +6,6 @@ package cache
 
 import (
 	"fmt"
-	"math"
-	"sort"
 	"testing"
 	"time"
 
@@ -26,68 +24,15 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	cache = *NewRedisCache("127.0.0.1:6379", zap.NewExample(), tally.NewTestScope("", make(map[string]string, 0)))
+	cache = *NewRedisCache(&RedisCacheSpec{RedisCacheAddress: "127.0.0.1:6379"}, zap.NewExample(), tally.NewTestScope("", make(map[string]string, 0)))
 	var response string
 	cache.client.Do(radix.Cmd(&response, "FLUSHALL"))
 	m.Run()
 	cache.client.Do(radix.Cmd(&response, "FLUSHALL"))
 }
 
-func labelsEqual(a, b []prompb.Label) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		val := (string(a[i].Name) == string(b[i].Name) &&
-			string(a[i].Value) == string(b[i].Value))
-		if !val {
-			println("b", string(a[i].Value), string(b[i].Value), string(a[i].Name), string(b[i].Name))
-			return false
-		}
-	}
-	return true
-}
-
-func samplesEqual(a, b []prompb.Sample) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		val := (a[i].Timestamp == b[i].Timestamp &&
-			a[i].Value == b[i].Value)
-		if !val {
-			if math.IsNaN(a[i].Value) && math.IsNaN(b[i].Value) {
-				continue
-			}
-			println(a[i].Value, b[i].Value, a[i].Timestamp, b[i].Timestamp)
-			return false
-		}
-	}
-	return true
-}
-
-func TimeseriesEqual(a, b []*prompb.TimeSeries) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	sort.Slice(a, func(i, j int) bool {
-		return (&prompb.Labels{Labels: a[i].Labels}).String() < (&prompb.Labels{Labels: a[j].Labels}).String()
-	})
-	sort.Slice(b, func(i, j int) bool {
-		return (&prompb.Labels{Labels: b[i].Labels}).String() < (&prompb.Labels{Labels: b[j].Labels}).String()
-	})
-	for i := range a {
-		val := (labelsEqual(a[i].Labels, b[i].Labels) &&
-			samplesEqual(a[i].Samples, b[i].Samples))
-		if !val {
-			return false
-		}
-	}
-	return true
-}
-
 func resultEqual(a, b *storage.PromResult) bool {
-	return (a.Metadata.Equals(b.Metadata) && TimeseriesEqual(a.PromResult.Timeseries, b.PromResult.Timeseries))
+	return (a.Metadata.Equals(b.Metadata) && TimeseriesEqual(a.PromResult.Timeseries, b.PromResult.Timeseries, 0))
 }
 
 func queryEqual(a, b *storage.FetchQuery) bool {
