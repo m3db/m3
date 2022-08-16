@@ -514,6 +514,7 @@ func CheckWithM3DB(
 	if rand.Float32() < float32(cache.redisCacheSpec.CheckSampleRate) {
 		m3dbResult, err := st.FetchProm(ctx, q, fetchOptions)
 		if err == nil {
+			// Compare up to 30s ago to account for M3DB potentially not having been fully updated
 			equals := TimeseriesEqual(cacheResult.PromResult.Timeseries, m3dbResult.PromResult.Timeseries, q.End.Add(-30*time.Second).UnixMilli())
 			if !equals {
 				cache.logger.Info("Mismatch", zap.String("tags", q.TagMatchers.String()))
