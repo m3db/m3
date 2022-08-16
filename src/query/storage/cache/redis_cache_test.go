@@ -399,7 +399,7 @@ func TestFilter(t *testing.T) {
 		{Name: []byte("__name__"), Value: []byte("3")},
 	}
 
-	filterResult(result, 130)
+	filterResult(result, 130*1000)
 	require.True(t, resultEqual(expected, result), "Filtered result not equal")
 }
 
@@ -410,7 +410,10 @@ func TestSplitAndCombine(t *testing.T) {
 	result.PromResult.Timeseries[0] = &prompb.TimeSeries{}
 	result.PromResult.Timeseries[0].Samples = []prompb.Sample{
 		{Value: 1, Timestamp: 110000},
-		{Value: 1.5, Timestamp: 310000},
+		{Value: 1.5, Timestamp: 120001},
+		{Value: 1.5, Timestamp: 149997},
+		{Value: 1.5, Timestamp: 149998},
+		{Value: 1.5, Timestamp: 149999},
 		{Value: 2, Timestamp: 470000},
 	}
 
@@ -435,7 +438,10 @@ func TestSplitAndCombine(t *testing.T) {
 
 	expected.PromResult.Timeseries[0] = &prompb.TimeSeries{}
 	expected.PromResult.Timeseries[0].Samples = []prompb.Sample{
-		{Value: 1.5, Timestamp: 310000},
+		{Value: 1.5, Timestamp: 120001},
+		{Value: 1.5, Timestamp: 149997},
+		{Value: 1.5, Timestamp: 149998},
+		{Value: 1.5, Timestamp: 149999},
 		{Value: 2, Timestamp: 470000},
 	}
 
@@ -461,7 +467,7 @@ func TestSplitAndCombine(t *testing.T) {
 
 	query := &storage.FetchQuery{
 		TagMatchers: tags,
-		Start:       time.Unix(150, 0),
+		Start:       time.Unix(120, 0),
 		End:         time.Unix(750, 0),
 		Interval:    0,
 	}
@@ -470,6 +476,6 @@ func TestSplitAndCombine(t *testing.T) {
 	cache.SetAsBuckets(result, buckets)
 
 	res := combineResult(cache.Get(buckets, BucketKeyPrefix))
-	filterResult(res, query.Start.Unix())
+	filterResult(res, query.Start.UnixMilli())
 	require.True(t, resultEqual(expected, res), "Filtered result not equal")
 }
