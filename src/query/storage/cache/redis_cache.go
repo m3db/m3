@@ -2,12 +2,8 @@ package cache
 
 import (
 	"context"
-	"fmt"
-	"sort"
-	"strings"
 	"time"
 
-	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/storage"
 	radix "github.com/mediocregopher/radix/v3"
@@ -18,13 +14,29 @@ import (
 
 const (
 	// Time that keys expire after (in seconds)
-	ExpirationTime string = "300"
+	ExpirationTime string = "1200"
 	// Blank result used to denote an empty PromResult
 	EmptyResult string = "{}"
 	// Minimum number of connections pools to Redis to keep open
 	MinPools int = 10
 	// Time to wait before creating a new Redis connection pool (in ms)
 	CreateAfterTime time.Duration = 100 * time.Millisecond
+	// Bucket size (in s) to split window up into
+	BucketSize time.Duration = 300 * time.Second
+
+	// Prefix used for keys that cache data for smaller queries coming in at the same time
+	// This caches using the notion that queries coming in at around the same time
+	//  are asking for the same thing
+	// Small means <= BucketSize
+	// WindowGetOrFetch() will use this key, see function for more details
+	SimpleKeyPrefix = "same_window"
+	// Prefix used for keys that cache data for larger queries over a larger period of time
+	// This caches using a sliding window to be able to reuse previously queried data
+	// Large means > BucketSize
+	// BucketWindowGetOrFetch() will use this key, see function for more details
+	BucketKeyPrefix = "sliding_window"
+
+	AllowedMissingBuckets = 1
 )
 
 type RedisCache struct {
@@ -43,6 +55,8 @@ type CacheMetrics struct {
 	missCounter        tally.Counter
 	missSamplesCounter tally.Counter
 	missBytesCounter   tally.Counter
+
+	redisTimer tally.Timer
 }
 
 func NewCacheMetrics(scope tally.Scope) CacheMetrics {
@@ -55,12 +69,14 @@ func NewCacheMetrics(scope tally.Scope) CacheMetrics {
 		missCounter:        subScope.Counter("miss"),
 		missSamplesCounter: subScope.Counter("miss-samples"),
 		missBytesCounter:   subScope.Counter("miss-bytes"),
+
+		redisTimer: subScope.Timer("latency"),
 	}
 }
 
-// Update metrcis for a cache hit
+// Update metrics for a cache hit
 func (cm CacheMetrics) CacheMetricsHit(result storage.PromResult) {
-	cm.hitCounter.Inc(1)
+	// cm.hitCounter.Inc(1)
 	tot_samples := 0
 	for _, ts := range result.PromResult.Timeseries {
 		tot_samples += len(ts.Samples)
@@ -69,9 +85,24 @@ func (cm CacheMetrics) CacheMetricsHit(result storage.PromResult) {
 	cm.hitBytesCounter.Inc(int64(result.PromResult.Size()))
 }
 
+// Update metrics for a hit of buckets
+func (cm CacheMetrics) CacheMetricsBucketHit(results []*storage.PromResult) {
+	// cm.hitCounter.Inc(1)
+	tot_samples := 0
+	tot_size := 0
+	for _, result := range results {
+		for _, ts := range result.PromResult.Timeseries {
+			tot_samples += len(ts.Samples)
+		}
+		tot_size += result.PromResult.Size()
+	}
+	cm.hitSamplesCounter.Inc(int64(tot_samples))
+	cm.hitBytesCounter.Inc(int64(tot_size))
+}
+
 // Update metrics for a cache miss
 func (cm CacheMetrics) CacheMetricsMiss(result storage.PromResult) {
-	cm.missCounter.Inc(1)
+	// cm.missCounter.Inc(1)
 	tot_samples := 0
 	for _, ts := range result.PromResult.Timeseries {
 		tot_samples += len(ts.Samples)
@@ -94,71 +125,26 @@ func NewRedisCache(redisAddress string, logger *zap.Logger, scope tally.Scope) *
 		return nil
 	}
 	logger.Info("Connection to Redis established", zap.String("address", redisAddress))
-	cache := &RedisCache{
+	return &RedisCache{
 		client:       pool,
 		redisAddress: redisAddress,
 		logger:       logger,
 		cacheMetrics: NewCacheMetrics(scope),
 	}
-	return cache
 }
 
-// Given a fetch query, converts it into a key for Redis
-func keyEncode(query *storage.FetchQuery) string {
-	res := make([]string, len(query.TagMatchers))
-	for i, m := range query.TagMatchers {
-		res[i] = m.String()
+// Return the number of entries are actually in Redis
+func (cache *RedisCache) Check(entries []*storage.FetchQuery, prefix string) int {
+	var count int
+	var keys []string
+	for _, e := range entries {
+		keys = append(keys, KeyEncode(e, prefix))
 	}
-	// Sort to guarantee we have the same order every time
-	sort.Strings(res)
-
-	label_key := strings.Join(res, ";")
-	queryRange := int64(query.End.Sub(query.Start).Seconds())
-	// Key becomes {labels}::{endTime}::{duration}
-	// For example, a key might look like
-	// "fieldA=\"1\";fieldB=\"2\"::1659459470::300"
-	return fmt.Sprintf("%s::%d::%d", label_key, query.End.Unix(), queryRange)
+	cache.client.Do(radix.Cmd(&count, "EXISTS", keys...))
+	return count
 }
 
-// Given a result, encodes it into string (or "" if error)
-// Encodes an empty PromResult to {} to differentiate from ""
-//
-// We only encode the QueryResult portion of the PromResult struct
-// We omit the metadata since we do not use it in computation
-// and also this metadata also isn't accurate since we aren't getting it from M3DB
-func resultEncode(result *storage.PromResult) (string, error) {
-	if len(result.PromResult.Timeseries) == 0 {
-		return EmptyResult, nil
-	}
-	// Custom Marshal function for QueryResults
-	res, err := result.PromResult.Marshal()
-	if err != nil {
-		return "", err
-	}
-	return string(res), nil
-}
-
-// Given a string, decodes it into a result (or nil if failed)
-//
-// Sets the metadata to a blank as we don't use it
-// and we don't actually have metadata from M3DB for this result
-func resultDecode(val []byte) (*storage.PromResult, error) {
-	var result storage.PromResult
-	result.PromResult = &prompb.QueryResult{}
-
-	// Check length first so we don't convert to string every time
-	if len(val) == len([]byte(EmptyResult)) && string(val) == EmptyResult {
-		result.Metadata = block.NewResultMetadata()
-		return &result, nil
-	}
-	// Custom Unmarshal function for QueryResults
-	if err := result.PromResult.Unmarshal(val); err != nil {
-		return nil, err
-	}
-	result.Metadata = block.NewResultMetadata()
-	return &result, nil
-}
-
+// Function to clear Redis cache, currently only used for testing
 func (cache *RedisCache) FlushAll() {
 	var response string
 	cache.client.Do(radix.Cmd(&response, "FLUSHALL"))
@@ -166,20 +152,23 @@ func (cache *RedisCache) FlushAll() {
 
 // For each entry in {entries}, gives the PromResult or nil if failed in array
 // Array parameter used to handle multiple bucket requests in the future
-func (cache *RedisCache) Get(entries []*storage.FetchQuery) []*storage.PromResult {
+func (cache *RedisCache) Get(entries []*storage.FetchQuery, prefix string) []*storage.PromResult {
 	keys := make([]string, len(entries))
 	results := make([]*storage.PromResult, len(entries))
 
 	for i, b := range entries {
-		keys[i] = keyEncode(b)
+		keys[i] = KeyEncode(b, prefix)
 	}
 
 	// Consume as bytes to avoid having to casting to string later on (avoids duplicate memory)
+	// var expire string
 	responses := make([][]byte, len(entries))
 	if err := cache.client.Do(radix.Cmd(&responses, "MGET", keys...)); err != nil {
 		cache.logger.Error("Failed to execute Redis batch get", zap.Error(err))
 		return results
 	}
+	// Go over all responses, and convert them from []byte back to PromResults
+	// If they don't exist, then the cache wasn't able to get them
 	for i, r := range responses {
 		// If the response is nil (not EmptyResult), then it doesn't exist
 		if len(r) == 0 {
@@ -203,17 +192,15 @@ func (cache *RedisCache) Get(entries []*storage.FetchQuery) []*storage.PromResul
 func (cache *RedisCache) Set(
 	entries []*storage.FetchQuery,
 	values []*storage.PromResult,
+	prefix string,
 ) error {
-	var commands []radix.CmdAction
+	var args []string
 	// Place holder variable to fit radix.Cmd() functions
 	var response string
 
 	for i := range entries {
-		// Skip over non-existent results
-		if entries[i] == nil {
-			continue
-		}
-		entry := keyEncode(entries[i])
+		entry := KeyEncode(entries[i], prefix)
+		// Encode PromResult into string for Redis to store
 		value, err := resultEncode(values[i])
 		cache.logger.Info("Prom result size", zap.Int("length", len(value)), zap.Int("ts_len", len(values[i].PromResult.Timeseries)))
 		if err != nil {
@@ -221,10 +208,12 @@ func (cache *RedisCache) Set(
 			continue
 		}
 
-		commands = append(commands, radix.Cmd(&response, "SET", entry, value), radix.Cmd(&response, "EXPIRE", entry, ExpirationTime))
+		args = append(args, entry, value)
+		// commands = append(commands, radix.Cmd(&response, "SET", entry, value), radix.Cmd(&response, "EXPIRE", entry, ExpirationTime))
 	}
 
-	if err := cache.client.Do(radix.Pipeline(commands...)); err != nil {
+	// Use MSET and don't set expiration, let Redis LRU determine the process
+	if err := cache.client.Do(radix.Cmd(&response, "MSET", args...)); err != nil {
 		cache.logger.Error("Failed to execute Redis set", zap.Error(err))
 		return err
 	}
@@ -248,6 +237,10 @@ func WindowGetOrFetch(
 	if cache == nil || !EnableCache {
 		return st.FetchProm(ctx, q, fetchOptions)
 	}
+
+	sw := cache.cacheMetrics.redisTimer.Start()
+	defer sw.Stop()
+
 	query_range := int64(q.End.Sub(q.Start).Seconds())
 	// Align to the current minute
 	// We align this query to help condense queries that ask for the same thing in the same minute
@@ -262,18 +255,189 @@ func WindowGetOrFetch(
 		End:         time.Unix(align_end, 0),
 	}
 
-	res := cache.Get([]*storage.FetchQuery{align_q})
+	res := cache.Get([]*storage.FetchQuery{align_q}, SimpleKeyPrefix)
 	if res[0] == nil {
 		promRes, err := st.FetchProm(ctx, q, fetchOptions)
 		if err == nil {
-			cache.Set([]*storage.FetchQuery{align_q}, []*storage.PromResult{&promRes})
+			cache.Set([]*storage.FetchQuery{align_q}, []*storage.PromResult{&promRes}, SimpleKeyPrefix)
 		}
 
-		cache.logger.Info("cache miss", zap.String("key", keyEncode(align_q)), zap.Int("size", len(promRes.PromResult.Timeseries)))
+		cache.logger.Info("cache miss", zap.String("key", KeyEncode(align_q, SimpleKeyPrefix)), zap.Int("size", len(promRes.PromResult.Timeseries)))
 		cache.cacheMetrics.CacheMetricsMiss(promRes)
 		return promRes, err
 	}
-	cache.logger.Info("cache hit", zap.String("key", keyEncode(align_q)))
+	cache.logger.Info("cache hit", zap.String("key", KeyEncode(align_q, SimpleKeyPrefix)))
 	cache.cacheMetrics.CacheMetricsHit(*res[0])
 	return *res[0], nil
+}
+
+// Splits a result into buckets as defined by {buckets} and sets them in Redis
+// Buckets are assumed to be in order + non-overlapping
+func (cache *RedisCache) SetAsBuckets(result *storage.PromResult, buckets []*storage.FetchQuery) {
+	results := make([]*storage.PromResult, len(buckets))
+	for i := range buckets {
+		results[i] = createEmptyPromResult()
+	}
+	for _, ts := range result.PromResult.Timeseries {
+		idx := 0
+		for i, b := range buckets {
+			start := b.Start.UnixMilli()
+			end := b.End.UnixMilli()
+			prev := idx
+			// Convert millisecond timestamp to second timestamp
+			// Get all samples within the bucket
+			for idx < len(ts.Samples) && ts.Samples[idx].Timestamp >= start && ts.Samples[idx].Timestamp < end {
+				idx += 1
+			}
+			// Nothing to add
+			if prev == idx {
+				continue
+			}
+			results[i].PromResult.Timeseries = append(results[i].PromResult.Timeseries,
+				&prompb.TimeSeries{
+					Labels:  ts.Labels,
+					Samples: ts.Samples[prev:idx],
+				},
+			)
+			// No need to continue
+			if idx == len(ts.Samples) {
+				break
+			}
+		}
+	}
+	cache.Set(buckets, results, BucketKeyPrefix)
+}
+
+// Function that checks whether the query data is in Redis using a sliding window
+// If it is not, it gets the result from M3DB
+//
+// Currently, this is done by splitting data into buckets
+// and checking if we have enough buckets that we can retrieve from Redis to recreate the result
+func BucketWindowGetOrFetch(
+	ctx context.Context,
+	st storage.Storage,
+	fetchOptions *storage.FetchOptions,
+	q *storage.FetchQuery,
+	cache *RedisCache,
+) (storage.PromResult, error) {
+	if cache == nil || !EnableCache {
+		return st.FetchProm(ctx, q, fetchOptions)
+	}
+	queryRange := int64(q.End.Sub(q.Start).Seconds())
+	// If size is <= bucket size, use simple caching
+	if queryRange <= int64(BucketSize.Seconds()) {
+		return WindowGetOrFetch(ctx, st, fetchOptions, q, cache)
+	}
+
+	// WindowGetOrFetch already records timing, no need re-record it in this function
+	sw := cache.cacheMetrics.redisTimer.Start()
+	defer sw.Stop()
+
+	last_start := q.End.Truncate(BucketSize)
+	// We cache by breaking down data into buckets of size BucketSize
+	// based on multiplies of BucketSize (in Unix time)
+	// The last bucket we always get from M3DB to ensure that we do not store partial data
+	// Since otherwise getting the last bucket and storing it could avoid storing new data
+
+	// If we have more than one bucket, we want to get every bucket from the last from M3DB
+	if q.Start.Before(last_start) {
+		// Split into queries of the last bucket and everything else
+		exclude_last_query := &storage.FetchQuery{
+			TagMatchers: q.TagMatchers,
+			Start:       q.Start,
+			End:         last_start,
+			Interval:    q.Interval,
+		}
+		last_query := &storage.FetchQuery{
+			TagMatchers: q.TagMatchers,
+			Start:       last_start,
+			End:         q.End,
+			Interval:    q.Interval,
+		}
+		buckets := splitQueryToBuckets(exclude_last_query, BucketSize)
+		// Check if we have to make a request to M3DB, in which case we just ask for all
+		// This is so we don't have to convert if we need to ask M3DB for all of it anyways
+		count := cache.Check(buckets, BucketKeyPrefix)
+		// cache.logger.Info("num_hit", zap.Int("check", count), zap.Int("length", len(buckets)))
+		// We need to get from M3DB when we are missing more than total allowed missing buckets
+		// Or when we have no buckets (in the case where we only want 1 bucket, and nothing is there)
+		if count < len(buckets)-AllowedMissingBuckets || count == 0 {
+			cache.logger.Info("cache miss", zap.String("key", KeyEncode(q, BucketKeyPrefix)))
+			expanded_query := &storage.FetchQuery{
+				TagMatchers: q.TagMatchers,
+				Start:       buckets[0].Start,
+				End:         q.End,
+				Interval:    q.Interval,
+			}
+			res, err := st.FetchProm(ctx, expanded_query, fetchOptions)
+			cache.cacheMetrics.CacheMetricsMiss(res)
+			if err == nil {
+				cache.SetAsBuckets(&res, buckets)
+			}
+			return res, err
+		}
+
+		// Get the data for each bucket
+		results := cache.Get(buckets, BucketKeyPrefix)
+		cnt := 0
+		// Check again after getting just in case some of the keys disappeared so we don't make many M3DB requests
+		for i, r := range results {
+			if r == nil {
+				cnt++
+				// In case we end up missing more than the allowed amount of missing buckets
+				if cnt > AllowedMissingBuckets {
+					cache.logger.Info(
+						"cache miss", zap.String("key", KeyEncode(q, BucketKeyPrefix)),
+						zap.Int64("start", buckets[i].Start.Unix()),
+						zap.Int64("start", buckets[i].End.Unix()),
+					)
+					expanded_query := &storage.FetchQuery{
+						TagMatchers: q.TagMatchers,
+						Start:       buckets[0].Start,
+						End:         q.End,
+						Interval:    q.Interval,
+					}
+					res, err := st.FetchProm(ctx, expanded_query, fetchOptions)
+					cache.cacheMetrics.CacheMetricsMiss(res)
+					if err == nil {
+						cache.SetAsBuckets(&res, buckets)
+					}
+					return res, err
+				}
+			}
+		}
+		// We iterate again since in the above iteration, we just do an iteration to check if all the data is still there
+		// Allows us to avoid making more than the acceptable number of M3DB requests
+		for i, r := range results {
+			if r == nil {
+				res, err := st.FetchProm(ctx, buckets[i], fetchOptions)
+				if err != nil {
+					cache.logger.Error("M3DB Fetch Error of Bucket", zap.Error(err))
+					return storage.PromResult{}, nil
+				}
+				cache.cacheMetrics.CacheMetricsMiss(res)
+				results[i] = &res
+				cache.Set([]*storage.FetchQuery{buckets[i]}, []*storage.PromResult{results[i]}, BucketKeyPrefix)
+			}
+			// If it's the first bucket, then we may not need all the data from it
+			// For example, if we want 9:22-9:32, and we get bucket 9:20-9:25, we don't need the data 9:20-9:22
+			// So we remove data prior to the start of the query
+			if i == 0 {
+				filterResult(results[i], q.Start.UnixMilli())
+			}
+		}
+		cache.cacheMetrics.CacheMetricsBucketHit(results)
+
+		// Get last bucket (don't set this one)
+		res, err := st.FetchProm(ctx, last_query, fetchOptions)
+		cache.cacheMetrics.CacheMetricsMiss(res)
+		if err != nil {
+			return storage.PromResult{}, nil
+		}
+		// Combine all the results together
+		return *combineResult(append(results, &res)), nil
+	}
+	res, err := st.FetchProm(ctx, q, fetchOptions)
+	cache.cacheMetrics.CacheMetricsMiss(res)
+	return res, err
 }

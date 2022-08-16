@@ -144,8 +144,12 @@ func (q *querier) Select(
 		return promstorage.ErrSeriesSet(err)
 	}
 
-	// result, err := q.storage.FetchProm(q.ctx, query, fetchOptions)
-	result, err := cache.WindowGetOrFetch(q.ctx, q.storage, fetchOptions, query, q.cache)
+	result, err := cache.BucketWindowGetOrFetch(q.ctx, q.storage, fetchOptions, query, q.cache)
+	// Bug fix: Initial FetchProm gives results in sorted label order, so function must match that
+	// Not doing so leads to slight imprecision of result
+	tss := cache.Timeseries(result.PromResult.Timeseries)
+	sort.Sort(tss)
+
 	if err != nil {
 		return promstorage.ErrSeriesSet(NewStorageErr(err))
 	}
