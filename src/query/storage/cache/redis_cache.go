@@ -281,12 +281,12 @@ func (cache *RedisCache) SetAsBuckets(result *storage.PromResult, buckets []*sto
 	for _, ts := range result.PromResult.Timeseries {
 		idx := 0
 		for i, b := range buckets {
-			start := b.Start.Unix()
-			end := b.End.Unix()
+			start := b.Start.UnixMilli()
+			end := b.End.UnixMilli()
 			prev := idx
 			// Convert millisecond timestamp to second timestamp
 			// Get all samples within the bucket
-			for idx < len(ts.Samples) && ts.Samples[idx].Timestamp/1000 >= start && ts.Samples[idx].Timestamp/1000 < end {
+			for idx < len(ts.Samples) && ts.Samples[idx].Timestamp >= start && ts.Samples[idx].Timestamp < end {
 				idx += 1
 			}
 			// Nothing to add
@@ -358,14 +358,21 @@ func BucketWindowGetOrFetch(
 		// Check if we have to make a request to M3DB, in which case we just ask for all
 		// This is so we don't have to convert if we need to ask M3DB for all of it anyways
 		count := cache.Check(buckets, BucketKeyPrefix)
-		cache.logger.Info("num_hit", zap.Int("check", count), zap.Int("length", len(buckets)))
+		// cache.logger.Info("num_hit", zap.Int("check", count), zap.Int("length", len(buckets)))
 		// We need to get from M3DB when we are missing more than total allowed missing buckets
 		// Or when we have no buckets (in the case where we only want 1 bucket, and nothing is there)
 		if count < len(buckets)-AllowedMissingBuckets || count == 0 {
 			cache.logger.Info("cache miss", zap.String("key", KeyEncode(q, BucketKeyPrefix)))
-			res, err := st.FetchProm(ctx, q, fetchOptions)
+			expanded_query := &storage.FetchQuery{
+				TagMatchers: q.TagMatchers,
+				Start:       buckets[0].Start,
+				End:         q.End,
+				Interval:    q.Interval,
+			}
+			res, err := st.FetchProm(ctx, expanded_query, fetchOptions)
 			cache.cacheMetrics.CacheMetricsMiss(res)
 			if err == nil {
+				buckets = append(buckets, last_query)
 				cache.SetAsBuckets(&res, buckets)
 			}
 			return res, err
@@ -375,13 +382,23 @@ func BucketWindowGetOrFetch(
 		results := cache.Get(buckets, BucketKeyPrefix)
 		cnt := 0
 		// Check again after getting just in case some of the keys disappeared so we don't make many M3DB requests
-		for _, r := range results {
+		for i, r := range results {
 			if r == nil {
 				cnt++
 				// In case we end up missing more than the allowed amount of missing buckets
 				if cnt > AllowedMissingBuckets {
-					cache.logger.Info("cache miss", zap.String("key", KeyEncode(q, BucketKeyPrefix)))
-					res, err := st.FetchProm(ctx, q, fetchOptions)
+					cache.logger.Info(
+						"cache miss", zap.String("key", KeyEncode(q, BucketKeyPrefix)),
+						zap.Int64("start", buckets[i].Start.Unix()),
+						zap.Int64("start", buckets[i].End.Unix()),
+					)
+					expanded_query := &storage.FetchQuery{
+						TagMatchers: q.TagMatchers,
+						Start:       buckets[0].Start,
+						End:         q.End,
+						Interval:    q.Interval,
+					}
+					res, err := st.FetchProm(ctx, expanded_query, fetchOptions)
 					cache.cacheMetrics.CacheMetricsMiss(res)
 					if err == nil {
 						cache.SetAsBuckets(&res, buckets)
@@ -403,9 +420,11 @@ func BucketWindowGetOrFetch(
 				results[i] = &res
 				cache.Set([]*storage.FetchQuery{buckets[i]}, []*storage.PromResult{results[i]}, BucketKeyPrefix)
 			}
-			// If it's the first bucket, we need to filter it to the actual start of query
+			// If it's the first bucket, then we may not need all the data from it
+			// For example, if we want 9:22-9:32, and we get bucket 9:20-9:25, we don't need the data 9:20-9:22
+			// So we remove data prior to the start of the query
 			if i == 0 {
-				filterResult(results[i], q.Start.Unix())
+				filterResult(results[i], q.Start.UnixMilli())
 			}
 		}
 		cache.cacheMetrics.CacheMetricsBucketHit(results)

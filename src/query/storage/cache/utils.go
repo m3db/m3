@@ -117,16 +117,22 @@ func splitQueryToBuckets(q *storage.FetchQuery, bucketSize time.Duration) []*sto
 
 // Filter result in-place for all times after start (in s)
 func filterResult(result *storage.PromResult, start int64) {
+	nonempty := make([]*prompb.TimeSeries, 0)
 	if result != nil {
 		for _, ts := range result.PromResult.Timeseries {
 			idx := 0
-			// Convert timestamp in millisecond to seconds
-			for idx < len(ts.Samples) && ts.Samples[idx].Timestamp/1000 < start {
+			for idx < len(ts.Samples) && ts.Samples[idx].Timestamp < start {
 				idx++
 			}
-			ts.Samples = ts.Samples[idx:]
+			if idx != len(ts.Samples) {
+				nonempty = append(nonempty, &prompb.TimeSeries{
+					Labels:  ts.Labels,
+					Samples: ts.Samples[idx:],
+				})
+			}
 		}
 	}
+	result.PromResult.Timeseries = nonempty
 }
 
 // Combines multiple M3DB results with the assumption that they are in order in time
@@ -156,6 +162,9 @@ func combineResult(results []*storage.PromResult) *storage.PromResult {
 		length := 0
 		for _, sample := range v {
 			length += len(sample.Samples)
+		}
+		if length == 0 {
+			continue
 		}
 		samples := make([]prompb.Sample, length)
 
