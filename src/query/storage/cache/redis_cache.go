@@ -54,7 +54,15 @@ const (
 	// BucketWindowGetOrFetch() will use this key, see function for more details
 	BucketKeyPrefix = "sliding_window"
 
+	// Number of buckets that are allowed to be missing before we just default to M3DB entirely
 	AllowedMissingBuckets = 1
+
+	// The time that needs to pass before we can set a bucket (to make sure data is fully filled in)
+	SetBufferTime = 1 * time.Minute
+
+	// Cutoff time from the end of query to validate when checking cache vs. M3DB
+	// This is done since sometimes extra data that just loaded in M3DB comes in
+	CheckCutoffTime = -30 * time.Second
 )
 
 type RedisCacheSpec struct {
@@ -243,7 +251,6 @@ func (cache *RedisCache) Set(
 		entry := KeyEncode(entries[i], prefix)
 		// Encode PromResult into string for Redis to store
 		value, err := resultEncode(values[i])
-		// cache.logger.Info("Prom result size", zap.Int("length", len(value)), zap.Int("ts_len", len(values[i].PromResult.Timeseries)))
 		if err != nil {
 			cache.logger.Error("Redis encode error", zap.Error(err))
 			continue
@@ -473,8 +480,8 @@ func BucketWindowGetOrFetch(
 				}
 				cache.cacheMetrics.CacheMetricsMiss(res)
 				results[i] = &res
-				// Only set after a minute to ensure all data has properly loaded in M3DB for that bucket
-				if buckets[i].End.Add(1 * time.Minute).Before(q.End) {
+				// Only set after some buffer to ensure all data has properly loaded in M3DB for that bucket
+				if buckets[i].End.Add(SetBufferTime).Before(q.End) {
 					cache.Set([]*storage.FetchQuery{buckets[i]}, []*storage.PromResult{results[i]}, BucketKeyPrefix)
 				}
 			}
@@ -514,8 +521,8 @@ func CheckWithM3DB(
 	if rand.Float32() < float32(cache.redisCacheSpec.CheckSampleRate) {
 		m3dbResult, err := st.FetchProm(ctx, q, fetchOptions)
 		if err == nil {
-			// Compare up to 30s ago to account for M3DB potentially not having been fully updated
-			equals := TimeseriesEqual(cacheResult.PromResult.Timeseries, m3dbResult.PromResult.Timeseries, q.End.Add(-30*time.Second).UnixMilli())
+			// Compare up to a bit ago to account for M3DB potentially not having been fully updated
+			equals := TimeseriesEqual(cacheResult.PromResult.Timeseries, m3dbResult.PromResult.Timeseries, q.End.Add(CheckCutoffTime).UnixMilli())
 			if !equals {
 				cache.logger.Info("Mismatch", zap.String("tags", q.TagMatchers.String()))
 				cache.cacheMetrics.checkMismatchCounter.Inc(1)
