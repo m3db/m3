@@ -372,7 +372,6 @@ func BucketWindowGetOrFetch(
 			res, err := st.FetchProm(ctx, expanded_query, fetchOptions)
 			cache.cacheMetrics.CacheMetricsMiss(res)
 			if err == nil {
-				buckets = append(buckets, last_query)
 				cache.SetAsBuckets(&res, buckets)
 			}
 			return res, err
