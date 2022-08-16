@@ -303,11 +303,11 @@ func WindowGetOrFetch(
 			cache.Set([]*storage.FetchQuery{align_q}, []*storage.PromResult{&promRes}, SimpleKeyPrefix)
 		}
 
-		// cache.logger.Info("cache miss", zap.String("key", KeyEncode(align_q, SimpleKeyPrefix)), zap.Int("size", len(promRes.PromResult.Timeseries)))
+		cache.logger.Info("cache miss", zap.String("key", KeyEncode(align_q, SimpleKeyPrefix)), zap.Int("size", len(promRes.PromResult.Timeseries)))
 		cache.cacheMetrics.CacheMetricsMiss(promRes)
 		return promRes, err
 	}
-	// cache.logger.Info("cache hit", zap.String("key", KeyEncode(align_q, SimpleKeyPrefix)))
+	cache.logger.Info("cache hit", zap.String("key", KeyEncode(align_q, SimpleKeyPrefix)))
 	cache.cacheMetrics.CacheMetricsHit(*res[0])
 	CheckWithM3DB(ctx, st, fetchOptions, align_q, cache, res[0])
 	return *res[0], nil
