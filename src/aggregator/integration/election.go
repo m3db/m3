@@ -28,7 +28,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/tests/v3/framework/integration"
+	"go.etcd.io/etcd/tests/v3/integration"
 )
 
 var (
@@ -41,14 +41,14 @@ var (
 
 type testCluster struct {
 	t       *testing.T
-	cluster *integration.Cluster
+	cluster *integration.ClusterV3
 }
 
 func newTestCluster(t *testing.T) *testCluster {
 	integration.BeforeTestExternal(t)
 	return &testCluster{
 		t: t,
-		cluster: integration.NewCluster(t, &integration.ClusterConfig{
+		cluster: integration.NewClusterV3(t, &integration.ClusterConfig{
 			Size: testClusterSize,
 		}),
 	}

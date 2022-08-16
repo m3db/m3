@@ -30,7 +30,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/tests/v3/framework/integration"
+	"go.etcd.io/etcd/tests/v3/integration"
 )
 
 func TestKeys(t *testing.T) {
@@ -439,7 +439,7 @@ func TestWatchNonBlocking(t *testing.T) {
 
 func testStore(t *testing.T, sid services.ServiceID) (*clientv3.Client, Options, func()) {
 	integration.BeforeTestExternal(t)
-	ecluster := integration.NewCluster(t, &integration.ClusterConfig{Size: 1})
+	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 	ec := ecluster.RandClient()
 
 	closer := func() {

@@ -39,7 +39,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/tests/v3/framework/integration"
+	"go.etcd.io/etcd/tests/v3/integration"
 	"golang.org/x/net/context"
 )
 
@@ -1164,7 +1164,7 @@ func genProto(msg string) proto.Message {
 	return &kvtest.Foo{Msg: msg}
 }
 
-func testCluster(t *testing.T, testOpts ...testStoreOption) (*integration.Cluster, Options, func()) {
+func testCluster(t *testing.T, testOpts ...testStoreOption) (*integration.ClusterV3, Options, func()) {
 	cfg := testStoreOpts{etcdBeforeTestExternal: true}
 	for _, opt := range testOpts {
 		opt(&cfg)
@@ -1174,7 +1174,7 @@ func testCluster(t *testing.T, testOpts ...testStoreOption) (*integration.Cluste
 		integration.BeforeTestExternal(t)
 	}
 
-	ecluster := integration.NewCluster(t, &integration.ClusterConfig{
+	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{
 		Size:      1,
 		UseBridge: true,
 	})
