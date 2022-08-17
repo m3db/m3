@@ -511,6 +511,13 @@ func BucketWindowGetOrFetch(
 	return res, err
 }
 
+// Function to check cached results against M3DB results
+// Given a query, gets the result of that query from M3DB and compares it to cacheResult
+// NOTE: Especially for larger queries, cachedResult use M3DB for the most recent data
+// It is possible that the checking M3DB request that comes later has more data as more data loads in M3DB
+// As such, we do not record an error if we get a mismatch on data within a minute of the end query (but we still log it)
+// Note that requests to M3DB are not instant (though the queries to rulemanager are) M3coordinator has already parsed them into asking for
+// data from a specific range (instant queries would return nothing as nothing is in that range)
 func CheckWithM3DB(
 	ctx context.Context,
 	st storage.Storage,
