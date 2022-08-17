@@ -87,7 +87,8 @@ func samplesEqual(a, b []prompb.Sample, end int64, logger *zap.Logger) bool {
 				continue
 			}
 			// If we checked all timestamps so we are after provided timestamp, then don't return false
-			if a[i].Timestamp >= end && b[i].Timestamp >= end {
+			// If end == 0 was specified, then we don't make this exception
+			if end != 0 && a[i].Timestamp >= end && b[i].Timestamp >= end {
 				printSamples(a, b, logger)
 				return true
 			}
