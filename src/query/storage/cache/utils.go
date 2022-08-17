@@ -10,6 +10,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/storage"
+	"go.uber.org/zap"
 )
 
 type Timeseries []*prompb.TimeSeries
@@ -26,15 +27,30 @@ func (tss Timeseries) Less(i, j int) bool {
 	return (&prompb.Labels{Labels: tss[i].Labels}).String() < (&prompb.Labels{Labels: tss[j].Labels}).String()
 }
 
+// Print labels (debug purposes)
+func printLabels(a, b []prompb.Label, logger *zap.Logger) {
+	arr1 := make([]string, 0)
+	for i := range a {
+		arr1 = append(arr1, a[i].String())
+	}
+	arr2 := make([]string, 0)
+	for i := range b {
+		arr2 = append(arr2, b[i].String())
+	}
+	logger.Info("label differences", zap.Strings("actual", arr1), zap.Strings("expected", arr2))
+}
+
 // Check if lists of labels are equal
-func labelsEqual(a, b []prompb.Label) bool {
+func labelsEqual(a, b []prompb.Label, logger *zap.Logger) bool {
 	if len(a) != len(b) {
+		printLabels(a, b, logger)
 		return false
 	}
 	for i := range a {
 		val := (string(a[i].Name) == string(b[i].Name) &&
 			string(a[i].Value) == string(b[i].Value))
 		if !val {
+			printLabels(a, b, logger)
 			return false
 		}
 	}
@@ -42,28 +58,26 @@ func labelsEqual(a, b []prompb.Label) bool {
 }
 
 // Print samples (debug purposes)
-func printSamples(a, b []prompb.Sample) {
-	println("Sample size unequal", len(a), len(b))
+func printSamples(a, b []prompb.Sample, logger *zap.Logger) {
+	arr1 := make([]string, 0)
 	for i := range a {
-		print(a[i].Timestamp, ",")
+		arr1 = append(arr1, a[i].String())
 	}
-	println()
+	arr2 := make([]string, 0)
 	for i := range b {
-		print(b[i].Timestamp, ",")
+		arr2 = append(arr2, b[i].String())
 	}
-	println()
+	logger.Info("sample differences", zap.Strings("actual", arr1), zap.Strings("expected", arr2))
 }
 
-// Check if lists of samples are equal up to {end} (in ms)
+// Check if lists of samples are equal. Only returns false if they don't match before time {end} (in ms)
 // If {end} is 0, then there is no upper bound on timestamp checking
-func samplesEqual(a, b []prompb.Sample, end int64) bool {
+func samplesEqual(a, b []prompb.Sample, end int64, logger *zap.Logger) bool {
+	// Can't check lengths due to potential variance of M3DB at end of query range (i.e. current time)
 	for i := range a {
 		if i >= len(b) {
-			printSamples(a, b)
+			printSamples(a, b, logger)
 			return false
-		}
-		if end != 0 && a[i].Timestamp > end {
-			return true
 		}
 		val := (a[i].Timestamp == b[i].Timestamp &&
 			a[i].Value == b[i].Value)
@@ -72,6 +86,11 @@ func samplesEqual(a, b []prompb.Sample, end int64) bool {
 			if math.IsNaN(a[i].Value) && math.IsNaN(b[i].Value) {
 				continue
 			}
+			// If we checked all timestamps so we are after provided timestamp, then don't return false
+			if a[i].Timestamp >= end && b[i].Timestamp >= end {
+				printSamples(a, b, logger)
+				return true
+			}
 			return false
 		}
 	}
@@ -79,8 +98,9 @@ func samplesEqual(a, b []prompb.Sample, end int64) bool {
 }
 
 // Check if lists of timeseries are equal (see samplesEqual for usage of {end} param)
-func TimeseriesEqual(a, b []*prompb.TimeSeries, end int64) bool {
+func TimeseriesEqual(a, b []*prompb.TimeSeries, end int64, logger *zap.Logger) bool {
 	if len(a) != len(b) {
+		logger.Info("Timeseries lengths unequal", zap.Int("actual length", len(a)), zap.Int("expected length", len(b)))
 		return false
 	}
 	// Sort to ensure we are matching up the timeseries to each other properly
@@ -91,9 +111,10 @@ func TimeseriesEqual(a, b []*prompb.TimeSeries, end int64) bool {
 		return (&prompb.Labels{Labels: b[i].Labels}).String() < (&prompb.Labels{Labels: b[j].Labels}).String()
 	})
 	for i := range a {
-		val := (labelsEqual(a[i].Labels, b[i].Labels) &&
-			samplesEqual(a[i].Samples, b[i].Samples, end))
-		if !val {
+		e1 := labelsEqual(a[i].Labels, b[i].Labels, logger)
+		e2 := samplesEqual(a[i].Samples, b[i].Samples, end, logger)
+		// If one doesn't equal
+		if !e1 || !e2 {
 			return false
 		}
 	}

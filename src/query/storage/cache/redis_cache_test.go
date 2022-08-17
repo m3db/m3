@@ -32,7 +32,7 @@ func TestMain(m *testing.M) {
 }
 
 func resultEqual(a, b *storage.PromResult) bool {
-	return (a.Metadata.Equals(b.Metadata) && TimeseriesEqual(a.PromResult.Timeseries, b.PromResult.Timeseries, 0))
+	return (a.Metadata.Equals(b.Metadata) && TimeseriesEqual(a.PromResult.Timeseries, b.PromResult.Timeseries, 0, zap.NewExample()))
 }
 
 func queryEqual(a, b *storage.FetchQuery) bool {

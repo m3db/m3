@@ -62,7 +62,7 @@ const (
 
 	// Cutoff time from the end of query to validate when checking cache vs. M3DB
 	// This is done since sometimes extra data that just loaded in M3DB comes in
-	CheckCutoffTime = -30 * time.Second
+	CheckCutoffTime = 1 * time.Minute
 )
 
 type RedisCacheSpec struct {
@@ -301,6 +301,7 @@ func WindowGetOrFetch(
 		TagMatchers: q.TagMatchers,
 		Start:       time.Unix(align_start, 0),
 		End:         time.Unix(align_end, 0),
+		Interval:    q.Interval,
 	}
 
 	res := cache.Get([]*storage.FetchQuery{align_q}, SimpleKeyPrefix)
@@ -522,9 +523,9 @@ func CheckWithM3DB(
 		m3dbResult, err := st.FetchProm(ctx, q, fetchOptions)
 		if err == nil {
 			// Compare up to a bit ago to account for M3DB potentially not having been fully updated
-			equals := TimeseriesEqual(cacheResult.PromResult.Timeseries, m3dbResult.PromResult.Timeseries, q.End.Add(CheckCutoffTime).UnixMilli())
+			equals := TimeseriesEqual(cacheResult.PromResult.Timeseries, m3dbResult.PromResult.Timeseries, q.End.Add(-CheckCutoffTime).UnixMilli(), cache.logger)
 			if !equals {
-				cache.logger.Info("Mismatch", zap.String("tags", q.TagMatchers.String()))
+				cache.logger.Info("Mismatch", zap.String("tags", q.TagMatchers.String()), zap.Int64("Start", q.Start.Unix()), zap.Int64("End", q.End.Unix()))
 				cache.cacheMetrics.checkMismatchCounter.Inc(1)
 			}
 			cache.cacheMetrics.checkTotalCounter.Inc(1)
