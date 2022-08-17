@@ -425,8 +425,11 @@ func BucketWindowGetOrFetch(
 			res, err := st.FetchProm(ctx, expanded_query, fetchOptions)
 			cache.cacheMetrics.CacheMetricsMiss(res)
 			if err == nil {
-				// Don't set last bucket if it's within a minute of the end of query to ensure M3DB is filled out when we set
-				if buckets[len(buckets)-1].End.Add(1 * time.Minute).After(q.End) {
+				// Don't set last bucket if it's within a specific amount of time of the end of query
+				// This is because M3DB may not have been fully filled out for this time as it is very recent
+				// We do not want to set the data if this is the case since this would lead to an incompletely filled bucket
+				// Which we would use assuming it was filled further down the line
+				if buckets[len(buckets)-1].End.Add(SetBufferTime).After(q.End) {
 					buckets = buckets[:len(buckets)-1]
 				}
 				cache.SetAsBuckets(&res, buckets)
@@ -460,8 +463,11 @@ func BucketWindowGetOrFetch(
 					res, err := st.FetchProm(ctx, expanded_query, fetchOptions)
 					cache.cacheMetrics.CacheMetricsMiss(res)
 					if err == nil {
-						// Don't set last bucket if it's within a minute of the end of query to ensure M3DB is filled out when we set
-						if buckets[len(buckets)-1].End.Add(1 * time.Minute).After(q.End) {
+						// Don't set last bucket if it's within a specific amount of time of the end of query
+						// This is because M3DB may not have been fully filled out for this time as it is very recent
+						// We do not want to set the data if this is the case since this would lead to an incompletely filled bucket
+						// Which we would use assuming it was filled further down the line
+						if buckets[len(buckets)-1].End.Add(SetBufferTime).After(q.End) {
 							buckets = buckets[:len(buckets)-1]
 						}
 						cache.SetAsBuckets(&res, buckets)
@@ -532,7 +538,13 @@ func CheckWithM3DB(
 			// Compare up to a bit ago to account for M3DB potentially not having been fully updated
 			equals := TimeseriesEqual(cacheResult.PromResult.Timeseries, m3dbResult.PromResult.Timeseries, q.End.Add(-CheckCutoffTime).UnixMilli(), cache.logger)
 			if !equals {
-				cache.logger.Info("Mismatch", zap.String("tags", q.TagMatchers.String()), zap.Int64("Start", q.Start.Unix()), zap.Int64("End", q.End.Unix()))
+				cache.logger.Error("Mismatch",
+					zap.String("tags", q.TagMatchers.String()),
+					zap.Int64("Start", q.Start.Unix()),
+					zap.Int64("End", q.End.Unix()),
+					zap.String("actual", cacheResult.PromResult.String()),
+					zap.String("expected", m3dbResult.PromResult.String()),
+				)
 				cache.cacheMetrics.checkMismatchCounter.Inc(1)
 			}
 			cache.cacheMetrics.checkTotalCounter.Inc(1)
