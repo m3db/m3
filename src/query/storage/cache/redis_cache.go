@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -11,6 +12,23 @@ import (
 
 	"go.uber.org/zap"
 )
+
+/*
+Redis cache implementation
+Data is cached in one of two ways
+1) For larger queries, larger than BucketSize, we split result from M3DB into buckets of size BucketSize
+We then store the data in Redis via those buckets (i.e. we store data in 9:25-9:30, 9:30-9:35, etc.)
+This is done for all but the last bucket, since this last bucket may not be completely filled in
+For example, if the query end is 9:28, the last bucket is 9:25-9:30 and, at the time of evaluation, we
+may not have seen 9:28-9:30 data, so we shouldn't set that bucket since that would be giving incomplete info
+
+2) For smaller queries, less than BucketSize, we cannot split the results into buckets of size BucketSize.
+However, we use the fact that queries asking for the same data (same labels, same duration) that come within
+the same minute can use the same data. As such, for these queries, we first align the query to the minute
+(or the closest multiple of 60s) so different requests at the same minute may become the same request.
+By caching the whole result from one query, we can cut out some requests to M3DB.
+ Note: this may mean results from m3coordinator for these smaller queries may not match up with the exact timestamp of evaluation
+*/
 
 const (
 	// Time that keys expire after (in seconds)
@@ -36,14 +54,34 @@ const (
 	// BucketWindowGetOrFetch() will use this key, see function for more details
 	BucketKeyPrefix = "sliding_window"
 
+	// Number of buckets that are allowed to be missing before we just default to M3DB entirely
 	AllowedMissingBuckets = 1
+
+	// The time that needs to pass before we can set a bucket (to make sure data is fully filled in)
+	SetBufferTime = 1 * time.Minute
+
+	// Cutoff time from the end of query to validate when checking cache vs. M3DB
+	// This is done since sometimes extra data that just loaded in M3DB comes in
+	CheckCutoffTime = 1 * time.Minute
 )
 
+type RedisCacheSpec struct {
+	// RedisAddress is the Redis address for caching.
+	RedisCacheAddress string `yaml:"redisCacheAddress"`
+
+	// The % of queries we check against the result using only M3DB
+	CheckSampleRate float32 `yaml:"checkSampleRate"`
+
+	// The % diff threshold to declare inequality
+	ComparePercentThreshold float32 `yaml:"comparePercentThreshold"`
+}
+
 type RedisCache struct {
-	client       radix.Client
-	redisAddress string
-	logger       *zap.Logger
-	cacheMetrics CacheMetrics
+	client         radix.Client
+	redisAddress   string
+	redisCacheSpec *RedisCacheSpec
+	logger         *zap.Logger
+	cacheMetrics   CacheMetrics
 }
 
 // Struct for tracking stats for cache
@@ -57,6 +95,9 @@ type CacheMetrics struct {
 	missBytesCounter   tally.Counter
 
 	redisTimer tally.Timer
+
+	checkMismatchCounter tally.Counter
+	checkTotalCounter    tally.Counter
 }
 
 func NewCacheMetrics(scope tally.Scope) CacheMetrics {
@@ -71,6 +112,9 @@ func NewCacheMetrics(scope tally.Scope) CacheMetrics {
 		missBytesCounter:   subScope.Counter("miss-bytes"),
 
 		redisTimer: subScope.Timer("latency"),
+
+		checkMismatchCounter: subScope.Counter("check-mismatches"),
+		checkTotalCounter:    subScope.Counter("check-total"),
 	}
 }
 
@@ -113,7 +157,11 @@ func (cm CacheMetrics) CacheMetricsMiss(result storage.PromResult) {
 
 // Create new RedisCache
 // If redisAddress is "" or a connection can't be made, returns nil
-func NewRedisCache(redisAddress string, logger *zap.Logger, scope tally.Scope) *RedisCache {
+func NewRedisCache(redisCacheSpec *RedisCacheSpec, logger *zap.Logger, scope tally.Scope) *RedisCache {
+	if redisCacheSpec == nil {
+		return nil
+	}
+	redisAddress := redisCacheSpec.RedisCacheAddress
 	logger.Info("New Cache", zap.String("address", redisAddress))
 	if redisAddress == "" {
 		logger.Info("Not using cache since address is empty")
@@ -126,10 +174,11 @@ func NewRedisCache(redisAddress string, logger *zap.Logger, scope tally.Scope) *
 	}
 	logger.Info("Connection to Redis established", zap.String("address", redisAddress))
 	return &RedisCache{
-		client:       pool,
-		redisAddress: redisAddress,
-		logger:       logger,
-		cacheMetrics: NewCacheMetrics(scope),
+		client:         pool,
+		redisAddress:   redisAddress,
+		redisCacheSpec: redisCacheSpec,
+		logger:         logger,
+		cacheMetrics:   NewCacheMetrics(scope),
 	}
 }
 
@@ -202,7 +251,6 @@ func (cache *RedisCache) Set(
 		entry := KeyEncode(entries[i], prefix)
 		// Encode PromResult into string for Redis to store
 		value, err := resultEncode(values[i])
-		cache.logger.Info("Prom result size", zap.Int("length", len(value)), zap.Int("ts_len", len(values[i].PromResult.Timeseries)))
 		if err != nil {
 			cache.logger.Error("Redis encode error", zap.Error(err))
 			continue
@@ -253,11 +301,12 @@ func WindowGetOrFetch(
 		TagMatchers: q.TagMatchers,
 		Start:       time.Unix(align_start, 0),
 		End:         time.Unix(align_end, 0),
+		Interval:    q.Interval,
 	}
 
 	res := cache.Get([]*storage.FetchQuery{align_q}, SimpleKeyPrefix)
 	if res[0] == nil {
-		promRes, err := st.FetchProm(ctx, q, fetchOptions)
+		promRes, err := st.FetchProm(ctx, align_q, fetchOptions)
 		if err == nil {
 			cache.Set([]*storage.FetchQuery{align_q}, []*storage.PromResult{&promRes}, SimpleKeyPrefix)
 		}
@@ -268,6 +317,7 @@ func WindowGetOrFetch(
 	}
 	cache.logger.Info("cache hit", zap.String("key", KeyEncode(align_q, SimpleKeyPrefix)))
 	cache.cacheMetrics.CacheMetricsHit(*res[0])
+	CheckWithM3DB(ctx, st, fetchOptions, align_q, cache, res[0])
 	return *res[0], nil
 }
 
@@ -363,6 +413,9 @@ func BucketWindowGetOrFetch(
 		// Or when we have no buckets (in the case where we only want 1 bucket, and nothing is there)
 		if count < len(buckets)-AllowedMissingBuckets || count == 0 {
 			cache.logger.Info("cache miss", zap.String("key", KeyEncode(q, BucketKeyPrefix)))
+			// Update query so it contains the expanded start of query
+			// It's expanded so we can properly set the whole bucket
+			// For example, a query from 9:22-9:32, needs to start at 9:20, so we can set the 9:20-9:25 bucket correctly
 			expanded_query := &storage.FetchQuery{
 				TagMatchers: q.TagMatchers,
 				Start:       buckets[0].Start,
@@ -372,6 +425,13 @@ func BucketWindowGetOrFetch(
 			res, err := st.FetchProm(ctx, expanded_query, fetchOptions)
 			cache.cacheMetrics.CacheMetricsMiss(res)
 			if err == nil {
+				// Don't set last bucket if it's within a specific amount of time of the end of query
+				// This is because M3DB may not have been fully filled out for this time as it is very recent
+				// We do not want to set the data if this is the case since this would lead to an incompletely filled bucket
+				// Which we would use assuming it was filled further down the line
+				if buckets[len(buckets)-1].End.Add(SetBufferTime).After(q.End) {
+					buckets = buckets[:len(buckets)-1]
+				}
 				cache.SetAsBuckets(&res, buckets)
 			}
 			return res, err
@@ -391,6 +451,9 @@ func BucketWindowGetOrFetch(
 						zap.Int64("start", buckets[i].Start.Unix()),
 						zap.Int64("start", buckets[i].End.Unix()),
 					)
+					// Update query so it contains the expanded start of query
+					// It's expanded so we can properly set the whole bucket
+					// For example, a query from 9:22-9:32, needs to start at 9:20, so we can set the 9:20-9:25 bucket correctly
 					expanded_query := &storage.FetchQuery{
 						TagMatchers: q.TagMatchers,
 						Start:       buckets[0].Start,
@@ -400,6 +463,13 @@ func BucketWindowGetOrFetch(
 					res, err := st.FetchProm(ctx, expanded_query, fetchOptions)
 					cache.cacheMetrics.CacheMetricsMiss(res)
 					if err == nil {
+						// Don't set last bucket if it's within a specific amount of time of the end of query
+						// This is because M3DB may not have been fully filled out for this time as it is very recent
+						// We do not want to set the data if this is the case since this would lead to an incompletely filled bucket
+						// Which we would use assuming it was filled further down the line
+						if buckets[len(buckets)-1].End.Add(SetBufferTime).After(q.End) {
+							buckets = buckets[:len(buckets)-1]
+						}
 						cache.SetAsBuckets(&res, buckets)
 					}
 					return res, err
@@ -417,7 +487,10 @@ func BucketWindowGetOrFetch(
 				}
 				cache.cacheMetrics.CacheMetricsMiss(res)
 				results[i] = &res
-				cache.Set([]*storage.FetchQuery{buckets[i]}, []*storage.PromResult{results[i]}, BucketKeyPrefix)
+				// Only set after some buffer to ensure all data has properly loaded in M3DB for that bucket
+				if buckets[i].End.Add(SetBufferTime).Before(q.End) {
+					cache.Set([]*storage.FetchQuery{buckets[i]}, []*storage.PromResult{results[i]}, BucketKeyPrefix)
+				}
 			}
 			// If it's the first bucket, then we may not need all the data from it
 			// For example, if we want 9:22-9:32, and we get bucket 9:20-9:25, we don't need the data 9:20-9:22
@@ -435,9 +508,46 @@ func BucketWindowGetOrFetch(
 			return storage.PromResult{}, nil
 		}
 		// Combine all the results together
-		return *combineResult(append(results, &res)), nil
+		result := combineResult(append(results, &res))
+		CheckWithM3DB(ctx, st, fetchOptions, q, cache, result)
+		return *result, nil
 	}
 	res, err := st.FetchProm(ctx, q, fetchOptions)
 	cache.cacheMetrics.CacheMetricsMiss(res)
 	return res, err
+}
+
+// Function to check cached results against M3DB results
+// Given a query, gets the result of that query from M3DB and compares it to cacheResult
+// NOTE: Especially for larger queries, cachedResult use M3DB for the most recent data
+// It is possible that the checking M3DB request that comes later has more data as more data loads in M3DB
+// As such, we do not record an error if we get a mismatch on data within a minute of the end query (but we still log it)
+// Note that requests to M3DB are not instant (though the queries to rulemanager are) M3coordinator has already parsed them into asking for
+// data from a specific range (instant queries would return nothing as nothing is in that range)
+func CheckWithM3DB(
+	ctx context.Context,
+	st storage.Storage,
+	fetchOptions *storage.FetchOptions,
+	q *storage.FetchQuery,
+	cache *RedisCache,
+	cacheResult *storage.PromResult,
+) {
+	if rand.Float32() < float32(cache.redisCacheSpec.CheckSampleRate) {
+		m3dbResult, err := st.FetchProm(ctx, q, fetchOptions)
+		if err == nil {
+			// Compare up to a bit ago to account for M3DB potentially not having been fully updated
+			equals := TimeseriesEqual(cacheResult.PromResult.Timeseries, m3dbResult.PromResult.Timeseries, q.End.Add(-CheckCutoffTime).UnixMilli(), cache.logger)
+			if !equals {
+				cache.logger.Error("Mismatch",
+					zap.String("tags", q.TagMatchers.String()),
+					zap.Int64("Start", q.Start.Unix()),
+					zap.Int64("End", q.End.Unix()),
+					zap.String("actual", cacheResult.PromResult.String()),
+					zap.String("expected", m3dbResult.PromResult.String()),
+				)
+				cache.cacheMetrics.checkMismatchCounter.Inc(1)
+			}
+			cache.cacheMetrics.checkTotalCounter.Inc(1)
+		}
+	}
 }

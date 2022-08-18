@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/cache"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -186,7 +187,7 @@ func TestWindowGet(t *testing.T) {
 	opts := PrometheusOptions{
 		Storage:           store,
 		InstrumentOptions: instrument.NewOptions(),
-		RedisCacheAddress: "127.0.0.1:6379",
+		RedisCacheSpec:    &cache.RedisCacheSpec{RedisCacheAddress: "127.0.0.1:6379"},
 	}
 
 	queryable := NewPrometheusQueryable(opts)
@@ -318,7 +319,7 @@ func TestBucketWindowGet(t *testing.T) {
 	opts := PrometheusOptions{
 		Storage:           store,
 		InstrumentOptions: instrument.NewOptions(),
-		RedisCacheAddress: "127.0.0.1:6379",
+		RedisCacheSpec:    &cache.RedisCacheSpec{RedisCacheAddress: "127.0.0.1:6379"},
 	}
 
 	queryable := NewPrometheusQueryable(opts)
