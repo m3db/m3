@@ -40,6 +40,7 @@ type ClusterConfig struct {
 	KeepAlive        *KeepAliveConfig `yaml:"keepAlive"`
 	TLS              *TLSConfig       `yaml:"tls"`
 	AutoSyncInterval time.Duration    `yaml:"autoSyncInterval"`
+	DialTimeout      time.Duration    `yaml:"dialTimeout"`
 
 	DialOptions []grpc.DialOption `yaml:"-"` // nonserializable
 }
@@ -50,13 +51,23 @@ func (c ClusterConfig) NewCluster() Cluster {
 	if c.KeepAlive != nil {
 		keepAliveOpts = c.KeepAlive.NewOptions()
 	}
-	return NewCluster().
+
+	cluster := NewCluster().
 		SetZone(c.Zone).
 		SetEndpoints(c.Endpoints).
 		SetDialOptions(c.DialOptions).
 		SetKeepAliveOptions(keepAliveOpts).
-		SetTLSOptions(c.TLS.newOptions()).
-		SetAutoSyncInterval(c.AutoSyncInterval)
+		SetTLSOptions(c.TLS.newOptions())
+
+	if c.AutoSyncInterval > 0 {
+		cluster = cluster.SetAutoSyncInterval(c.AutoSyncInterval)
+	}
+
+	if c.DialTimeout > 0 {
+		cluster = cluster.SetDialTimeout(c.DialTimeout)
+	}
+
+	return cluster
 }
 
 // TLSConfig is the config for TLS.

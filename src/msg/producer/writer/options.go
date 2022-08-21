@@ -21,8 +21,6 @@
 package writer
 
 import (
-	"context"
-	"net"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/placement"
@@ -30,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/instrument"
+	xnet "github.com/m3db/m3/src/x/net"
 	"github.com/m3db/m3/src/x/retry"
 )
 
@@ -55,10 +54,6 @@ const (
 	defaultWriterRetryInitialBackoff = time.Second * 5
 )
 
-// ContextDialerFn allows customization of how a m3msg Writer connects to producer endpoints.
-// See ConnectionOptions#ContextDialer
-type ContextDialerFn func(ctx context.Context, network string, address string) (net.Conn, error)
-
 // ConnectionOptions configs the connections.
 type ConnectionOptions interface {
 	// NumConnections returns the number of connections.
@@ -70,13 +65,13 @@ type ConnectionOptions interface {
 	// ContextDialer allows customizing the way a m3msg Writer connects to producer endpoints. By default, this is:
 	// (&net.ContextDialer{}).DialContext. This can be used to do a variety of things, such as forwarding a connection
 	// over a proxy.
-	// NOTE: if your ContextDialerFn returns anything other a *net.TCPConn, TCP options such as KeepAlivePeriod
+	// NOTE: if your xnet.ContextDialerFn returns anything other a *net.TCPConn, TCP options such as KeepAlivePeriod
 	// will *not* be applied automatically. It is your responsibility to make sure these get applied as needed in
-	// your custom ContextDialerFn.
-	ContextDialer() ContextDialerFn
+	// your custom xnet.ContextDialerFn.
+	ContextDialer() xnet.ContextDialerFn
 
 	// SetContextDialer see ContextDialer.
-	SetContextDialer(fn ContextDialerFn) ConnectionOptions
+	SetContextDialer(fn xnet.ContextDialerFn) ConnectionOptions
 
 	// DialTimeout returns the dial timeout.
 	DialTimeout() time.Duration
@@ -144,7 +139,7 @@ type connectionOptions struct {
 	writeBufferSize int
 	readBufferSize  int
 	iOpts           instrument.Options
-	dialer          ContextDialerFn
+	dialer          xnet.ContextDialerFn
 }
 
 // NewConnectionOptions creates ConnectionOptions.
@@ -184,11 +179,11 @@ func (opts *connectionOptions) SetDialTimeout(value time.Duration) ConnectionOpt
 	return &o
 }
 
-func (opts *connectionOptions) ContextDialer() ContextDialerFn {
+func (opts *connectionOptions) ContextDialer() xnet.ContextDialerFn {
 	return opts.dialer
 }
 
-func (opts *connectionOptions) SetContextDialer(fn ContextDialerFn) ConnectionOptions {
+func (opts *connectionOptions) SetContextDialer(fn xnet.ContextDialerFn) ConnectionOptions {
 	o := *opts
 	o.dialer = fn
 	return &o

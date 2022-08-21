@@ -27,7 +27,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/model/labels"
 	promstorage "github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/chunkenc"
 	"github.com/uber-go/tally"
@@ -161,13 +161,13 @@ func (q *querier) Select(
 	return seriesSet
 }
 
-func (q *querier) LabelValues(name string, matchers ...*labels.Matcher) ([]string, promstorage.Warnings, error) {
+func (q *querier) LabelValues(string, ...*labels.Matcher) ([]string, promstorage.Warnings, error) {
 	// TODO (@shreyas): Implement this.
 	q.logger.Warn("calling unsupported LabelValues method")
 	return nil, nil, errors.New("not implemented")
 }
 
-func (q *querier) LabelNames() ([]string, promstorage.Warnings, error) {
+func (q *querier) LabelNames(...*labels.Matcher) ([]string, promstorage.Warnings, error) {
 	// TODO (@shreyas): Implement this.
 	q.logger.Warn("calling unsupported LabelNames method")
 	return nil, nil, errors.New("not implemented")

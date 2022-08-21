@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2022 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,31 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package httpjson
+package net
 
 import (
-	m3dbcontext "github.com/m3db/m3/src/x/context"
-
-	apachethrift "github.com/uber/tchannel-go/thirdparty/github.com/apache/thrift/lib/go/thrift"
-	"github.com/uber/tchannel-go/thrift"
-	"golang.org/x/net/context"
+	"context"
+	"net"
 )
 
-const (
-	contextKey = "m3dbcontext"
-)
+// ContextDialerFn allows customization of how a process makes its TCP connections. This is the same pattern/function
+// signature used by grpc.WithContextDialer -- we just define it here for convenience (it's used in multiple places
+// across the M3 codebase).
+// It is implemented by at least net.Dialer
+type ContextDialerFn func(ctx context.Context, network string, address string) (net.Conn, error)
 
-// NewDefaultContextFn returns a function that will create M3DB contexts per request
-func NewDefaultContextFn(contextPool m3dbcontext.Pool) ContextFn {
-	return func(ctx context.Context, method string, headers map[string]string) thrift.Context {
-		ctxWithValue := context.WithValue(ctx, interface{}(contextKey), contextPool.Get())
-		return thrift.WithHeaders(ctxWithValue, headers)
-	}
-}
-
-// DefaulPostResponseFn will close M3DB contexts per request
-func DefaulPostResponseFn(ctx context.Context, method string, response apachethrift.TStruct) {
-	value := ctx.Value(contextKey)
-	inner := value.(m3dbcontext.Context)
-	inner.Close()
-}
+// Assert that net.Dialer.DialContext implements our interface.
+var _ ContextDialerFn = (*net.Dialer)(nil).DialContext

@@ -23,12 +23,12 @@ package promql
 import (
 	"time"
 
-	"github.com/prometheus/prometheus/pkg/labels"
-	pql "github.com/prometheus/prometheus/promql/parser"
-
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	xclock "github.com/m3db/m3/src/x/clock"
+
+	"github.com/prometheus/prometheus/model/labels"
+	pql "github.com/prometheus/prometheus/promql/parser"
 )
 
 // ParseFunctionExpr parses arguments to a function expression, returning

@@ -60,6 +60,32 @@ update those files. There are `make` targets to help with generation:
 
 Don't forget to account for changes to generated files in tests.
 
+You can build mocks/protos etc. for a single component with:
+
+```
+make mock-gen-<component>
+
+e.g. 
+make mock-gen-aggregator
+```
+
+### Adding new mocks
+
+`mockgen` statements are centralized in a single generate.go file per component. The convention is:
+
+`src/<component>/generated/mocks/generate.go`
+
+e.g. for the aggregator 
+`src/aggregator/generated/mocks/generate.go`
+
+### Adding new proto definitions
+
+Proto definitions should be placed in:
+
+```
+src/<component>/generated/proto`
+```
+
 ## Scoping Pull Requests
 
 Inspired by Phabricator's article about

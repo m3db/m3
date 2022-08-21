@@ -21,13 +21,13 @@
 package mocks
 
 // mockgen rules for generating mocks (file mode)
-//go:generate sh -c "mockgen -package=postings -destination=$GOPATH/src/github.com/m3db/m3/src/m3ninx/postings/postings_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/m3ninx/postings/types.go"
-//go:generate sh -c "mockgen -package=doc -destination=$GOPATH/src/github.com/m3db/m3/src/m3ninx/doc/doc_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/m3ninx/doc/types.go"
-//go:generate sh -c "mockgen -package=search -destination=$GOPATH/src/github.com/m3db/m3/src/m3ninx/search/search_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/m3ninx/search/types.go"
-//go:generate sh -c "mockgen -package=persist -destination=$GOPATH/src/github.com/m3db/m3/src/m3ninx/persist/persist_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/m3ninx/persist/types.go"
-//go:generate sh -c "mockgen -package=segment -destination=$GOPATH/src/github.com/m3db/m3/src/m3ninx/index/segment/segment_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/m3ninx/index/segment/types.go"
+//go:generate sh -c "mockgen -package=postings -destination=../../postings/postings_mock.go -source=../../postings/types.go"
+//go:generate sh -c "mockgen -package=doc -destination=../../doc/doc_mock.go -source=../../doc/types.go"
+//go:generate sh -c "mockgen -package=search -destination=../../search/search_mock.go -source=../../search/types.go"
+//go:generate sh -c "mockgen -package=persist -destination=../../persist/persist_mock.go -source=../../persist/types.go"
+//go:generate sh -c "mockgen -package=segment -destination=../../index/segment/segment_mock.go -source=../../index/segment/types.go"
 
 // mockgen rules for generating mocks (reflection mode)
-//go:generate sh -c "mockgen -package=mem -destination=$GOPATH/src/github.com/m3db/m3/src/m3ninx/index/segment/mem/mem_mock.go github.com/m3db/m3/src/m3ninx/index/segment/mem ReadableSegment"
-//go:generate sh -c "mockgen -package=fst -destination=$GOPATH/src/github.com/m3db/m3/src/m3ninx/index/segment/fst/fst_mock.go github.com/m3db/m3/src/m3ninx/index/segment/fst Writer,Segment"
-//go:generate sh -c "mockgen -package=index -destination=$GOPATH/src/github.com/m3db/m3/src/m3ninx/index/index_mock.go github.com/m3db/m3/src/m3ninx/index Reader,DocRetriever,MetadataRetriever"
+//go:generate sh -c "mockgen -package=mem -destination=../../index/segment/mem/mem_mock.go github.com/m3db/m3/src/m3ninx/index/segment/mem ReadableSegment"
+//go:generate sh -c "mockgen -package=fst -destination=../../index/segment/fst/fst_mock.go github.com/m3db/m3/src/m3ninx/index/segment/fst Writer,Segment"
+//go:generate sh -c "mockgen -package=index -destination=../../index/index_mock.go github.com/m3db/m3/src/m3ninx/index Reader,DocRetriever,MetadataRetriever"

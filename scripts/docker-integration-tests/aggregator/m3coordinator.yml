@@ -21,6 +21,8 @@ clusters:
           cacheDir: /var/lib/m3kv
           etcdClusters:
             - zone: embedded
+              autoSyncInterval: 10m
+              dialTimeout: 1m
               endpoints:
                 - dbnode01:2379
 
@@ -55,18 +57,13 @@ downsample:
               namespaces:
                 placement: /placement
             connection:
-              numConnections: 4
-            messagePool:
-              size: 16384
-              watermark:
-                low: 0.2
-                high: 0.5
+              numConnections: 1
 
 ingest:
   ingester:
-    workerPoolSize: 10000
+    workerPoolSize: 50
     opPool:
-      size: 10000
+      size: dynamic
     retry:
       maxRetries: 3
       jitter: true
@@ -75,7 +72,7 @@ ingest:
     server:
       listenAddress: "0.0.0.0:7507"
       retry:
-        maxBackoff: 10s
+        maxBackoff: 1s
         jitter: true
 
 storeMetricsType: true

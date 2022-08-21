@@ -19,12 +19,12 @@
 // THE SOFTWARE.
 
 // mockgen rules for generating mocks for unexported interfaces (file mode)
-//go:generate sh -c "mockgen -package=build -destination=$GOPATH/src/github.com/m3db/m3/src/m3em/build/build_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/m3em/build/types.go"
-//go:generate sh -c "mockgen -package=fs -destination=$GOPATH/src/github.com/m3db/m3/src/m3em/os/fs/mocks/fs_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/m3em/os/fs/types.go"
-//go:generate sh -c "mockgen -package=exec -destination=$GOPATH/src/github.com/m3db/m3/src/m3em/os/exec/mocks/exec_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/m3em/os/exec/types.go"
+//go:generate sh -c "mockgen -package=build -destination=../../build/build_mock.go -source=../../build/types.go"
+//go:generate sh -c "mockgen -package=fs -destination=../../os/fs/mocks/fs_mock.go -source=../../os/fs/types.go"
+//go:generate sh -c "mockgen -package=exec -destination=../../os/exec/mocks/exec_mock.go -source=../../os/exec/types.go"
 
 // mockgen rules for generating mocks for exported interfaces (reflection mode)
-//go:generate sh -c "mockgen -package=node github.com/m3db/m3/src/m3em/node ServiceNode,Options | genclean -pkg github.com/m3db/m3/src/m3em/node -out $GOPATH/src/github.com/m3db/m3/src/m3em/node/node_mock.go"
-//go:generate sh -c "mockgen -package=m3em github.com/m3db/m3/src/m3em/generated/proto/m3em OperatorClient,Operator_PushFileClient,Operator_PullFileClient,Operator_PullFileServer | genclean -pkg github.com/m3db/m3/src/m3em/generated/proto/m3em -out $GOPATH/src/github.com/m3db/m3/src/m3em/generated/proto/m3em/m3em_mock.go"
+//go:generate sh -c "mockgen -package=node github.com/m3db/m3/src/m3em/node ServiceNode,Options | genclean -pkg github.com/m3db/m3/src/m3em/node -out ../../node/node_mock.go"
+//go:generate sh -c "mockgen -package=m3em github.com/m3db/m3/src/m3em/generated/proto/m3em OperatorClient,Operator_PushFileClient,Operator_PullFileClient,Operator_PullFileServer | genclean -pkg github.com/m3db/m3/src/m3em/generated/proto/m3em -out ../../generated/proto/m3em/m3em_mock.go"
 
 package generated
