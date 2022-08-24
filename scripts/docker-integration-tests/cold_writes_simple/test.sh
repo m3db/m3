@@ -9,8 +9,9 @@ COMPOSE_FILE=$SCRIPT_PATH/docker-compose.yml
 export REVISION
 
 echo "Run m3dbnode and m3coordinator containers"
-docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes dbnode01
-docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes coordinator01
+docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes # etcd
+#docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes dbnode01
+#docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes coordinator01
 
 # Think of this as a defer func() in golang
 function defer {
