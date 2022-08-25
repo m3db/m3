@@ -46,6 +46,7 @@ import (
 )
 
 func TestPlacementChange(t *testing.T) {
+	t.Skip("skipping until replacement of etcd/integration package")
 	if testing.Short() {
 		t.SkipNow()
 	}

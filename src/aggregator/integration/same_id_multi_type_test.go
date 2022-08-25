@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2016 Uber Technologies, Inc.
@@ -33,6 +34,7 @@ import (
 )
 
 func TestSameIDMultiTypeWithStagedMetadatas(t *testing.T) {
+	t.Skip("skipping until replacement of etcd/integration package")
 	metadataFn := func(int) metadataUnion {
 		return metadataUnion{
 			mType:           stagedMetadatasType,

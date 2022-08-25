@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2018 Uber Technologies, Inc.
@@ -36,6 +37,7 @@ import (
 )
 
 func TestOneClientMultiTypeTimedMetrics(t *testing.T) {
+	t.Skip("skipping until replacement of etcd/integration package")
 	if testing.Short() {
 		t.SkipNow()
 	}

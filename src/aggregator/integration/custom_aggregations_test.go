@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2016 Uber Technologies, Inc.
@@ -35,6 +36,7 @@ import (
 )
 
 func TestCustomAggregationWithStagedMetadatas(t *testing.T) {
+	t.Skip("skipping until replacement of etcd/integration package")
 	metadataFns := [4]metadataFn{
 		func(int) metadataUnion {
 			return metadataUnion{

@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 // Copyright (c) 2020 Uber Technologies, Inc.
@@ -39,6 +40,7 @@ import (
 )
 
 func TestOneClientPassthroughMetrics(t *testing.T) {
+	t.Skip("skipping until replacement of etcd/integration package")
 	if testing.Short() {
 		t.SkipNow()
 	}

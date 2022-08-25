@@ -55,6 +55,7 @@ import (
 
 //nolint:dupl
 func TestMultiServerResendAggregatedValues(t *testing.T) {
+	t.Skip("skipping until replacement of etcd/integration package")
 	if testing.Short() {
 		t.SkipNow()
 	}

@@ -19,7 +19,7 @@
 // THE SOFTWARE.
 
 package integration
-/*
+
 import (
 	"testing"
 
@@ -28,7 +28,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/tests/v3/integration"
 )
 
 var (
@@ -40,17 +39,14 @@ var (
 )
 
 type testCluster struct {
-	t       *testing.T
-	cluster *integration.ClusterV3
+	t *testing.T
+	//cluster *integration.ClusterV3
 }
 
 func newTestCluster(t *testing.T) *testCluster {
-	integration.BeforeTestExternal(t)
+	//integration.BeforeTestExternal(t)
 	return &testCluster{
 		t: t,
-		cluster: integration.NewClusterV3(t, &integration.ClusterConfig{
-			Size: testClusterSize,
-		}),
 	}
 }
 
@@ -61,11 +57,12 @@ func (tc *testCluster) LeaderService() services.LeaderService {
 }
 
 func (tc *testCluster) Close() {
-	tc.cluster.Terminate(tc.t)
+	//tc.cluster.Terminate(tc.t)
 }
 
 func (tc *testCluster) etcdClient() *clientv3.Client {
-	return tc.cluster.RandClient()
+	//return tc.cluster.RandClient()
+	return nil
 }
 
 func (tc *testCluster) options() leader.Options {
@@ -79,4 +76,3 @@ func (tc *testCluster) options() leader.Options {
 		SetServiceID(sid).
 		SetElectionOpts(eopts)
 }
-*/
