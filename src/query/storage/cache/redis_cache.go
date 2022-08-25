@@ -98,10 +98,14 @@ type CacheMetrics struct {
 
 	checkMismatchCounter tally.Counter
 	checkTotalCounter    tally.Counter
+
+	cacheBytesRetrieved tally.Histogram
+	m3dbBytesRetrieved  tally.Histogram
 }
 
 func NewCacheMetrics(scope tally.Scope) CacheMetrics {
 	subScope := scope.SubScope("cache")
+	buckets, _ := tally.ExponentialValueBuckets(1000, 10, 10)
 	return CacheMetrics{
 		hitCounter:        subScope.Counter("hit"),
 		hitSamplesCounter: subScope.Counter("hit-samples"),
@@ -115,23 +119,27 @@ func NewCacheMetrics(scope tally.Scope) CacheMetrics {
 
 		checkMismatchCounter: subScope.Counter("check-mismatches"),
 		checkTotalCounter:    subScope.Counter("check-total"),
+
+		cacheBytesRetrieved: subScope.Histogram("request-bytes", buckets),
+		m3dbBytesRetrieved:  subScope.Histogram("m3db-request-bytes", buckets),
 	}
 }
 
 // Update metrics for a cache hit
 func (cm CacheMetrics) CacheMetricsHit(result storage.PromResult) {
-	// cm.hitCounter.Inc(1)
+	cm.hitCounter.Inc(1)
 	tot_samples := 0
 	for _, ts := range result.PromResult.Timeseries {
 		tot_samples += len(ts.Samples)
 	}
 	cm.hitSamplesCounter.Inc(int64(tot_samples))
 	cm.hitBytesCounter.Inc(int64(result.PromResult.Size()))
+	cm.cacheBytesRetrieved.RecordValue(float64(result.PromResult.Size()))
 }
 
 // Update metrics for a hit of buckets
 func (cm CacheMetrics) CacheMetricsBucketHit(results []*storage.PromResult) {
-	// cm.hitCounter.Inc(1)
+	cm.hitCounter.Inc(1)
 	tot_samples := 0
 	tot_size := 0
 	for _, result := range results {
@@ -142,17 +150,19 @@ func (cm CacheMetrics) CacheMetricsBucketHit(results []*storage.PromResult) {
 	}
 	cm.hitSamplesCounter.Inc(int64(tot_samples))
 	cm.hitBytesCounter.Inc(int64(tot_size))
+	cm.cacheBytesRetrieved.RecordValue(float64(tot_size))
 }
 
 // Update metrics for a cache miss
 func (cm CacheMetrics) CacheMetricsMiss(result storage.PromResult) {
-	// cm.missCounter.Inc(1)
+	cm.missCounter.Inc(1)
 	tot_samples := 0
 	for _, ts := range result.PromResult.Timeseries {
 		tot_samples += len(ts.Samples)
 	}
 	cm.missSamplesCounter.Inc(int64(tot_samples))
 	cm.missBytesCounter.Inc(int64(result.PromResult.Size()))
+	cm.m3dbBytesRetrieved.RecordValue(float64(result.PromResult.Size()))
 }
 
 // Create new RedisCache
@@ -222,7 +232,6 @@ func (cache *RedisCache) Get(entries []*storage.FetchQuery, prefix string) []*st
 		// If the response is nil (not EmptyResult), then it doesn't exist
 		if len(r) == 0 {
 			results[i] = nil
-			cache.logger.Info("cache didn't get", zap.String("key", keys[i]))
 			continue
 		}
 		// Otherwise we did find it
@@ -503,10 +512,10 @@ func BucketWindowGetOrFetch(
 
 		// Get last bucket (don't set this one)
 		res, err := st.FetchProm(ctx, last_query, fetchOptions)
-		cache.cacheMetrics.CacheMetricsMiss(res)
 		if err != nil {
 			return storage.PromResult{}, nil
 		}
+		cache.cacheMetrics.CacheMetricsMiss(res)
 		// Combine all the results together
 		result := combineResult(append(results, &res))
 		CheckWithM3DB(ctx, st, fetchOptions, q, cache, result)

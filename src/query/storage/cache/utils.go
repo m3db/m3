@@ -98,22 +98,57 @@ func samplesEqual(a, b []prompb.Sample, end int64, logger *zap.Logger) bool {
 	return true
 }
 
+// Create new result that doesn't include data past end
+func createEndFilteredTimeseries(timeseries []*prompb.TimeSeries, end int64) []*prompb.TimeSeries {
+	nonempty := make([]*prompb.TimeSeries, 0)
+	if timeseries != nil {
+		for _, ts := range timeseries {
+			// Check if all data is after time end
+			// If it is, then don't add it (i.e. drop timeseries as a whole)
+			if ts.Samples[0].Timestamp < end {
+				nonempty = append(nonempty, &prompb.TimeSeries{
+					Labels:  ts.Labels,
+					Samples: ts.Samples,
+				})
+			}
+		}
+	}
+	return nonempty
+}
+
+// Log the list of timeseries labels for a timeseries as list of strings
+func TimeseriesPrint(a, b []*prompb.TimeSeries, logger *zap.Logger) {
+	arr1 := make([]string, 0)
+	for i := range a {
+		arr1 = append(arr1, (&prompb.Labels{Labels: a[i].Labels}).String())
+	}
+	arr2 := make([]string, 0)
+	for i := range b {
+		arr2 = append(arr2, (&prompb.Labels{Labels: b[i].Labels}).String())
+	}
+	logger.Info("Timeseries difference", zap.Strings("actual labels", arr1), zap.Strings("expected labels", arr2))
+}
+
 // Check if lists of timeseries are equal (see samplesEqual for usage of {end} param)
 func TimeseriesEqual(a, b []*prompb.TimeSeries, end int64, logger *zap.Logger) bool {
-	if len(a) != len(b) {
-		logger.Info("Timeseries lengths unequal", zap.Int("actual length", len(a)), zap.Int("expected length", len(b)))
+	// Account for case where a new timeseries has just been recently added in the time difference
+	// In this case, filter out that data and recompare
+	a_filter := createEndFilteredTimeseries(a, end)
+	b_filter := createEndFilteredTimeseries(b, end)
+	if len(a_filter) != len(b_filter) {
+		TimeseriesPrint(a_filter, b_filter, logger)
 		return false
 	}
 	// Sort to ensure we are matching up the timeseries to each other properly
-	sort.Slice(a, func(i, j int) bool {
-		return (&prompb.Labels{Labels: a[i].Labels}).String() < (&prompb.Labels{Labels: a[j].Labels}).String()
+	sort.Slice(a_filter, func(i, j int) bool {
+		return (&prompb.Labels{Labels: a_filter[i].Labels}).String() < (&prompb.Labels{Labels: a_filter[j].Labels}).String()
 	})
-	sort.Slice(b, func(i, j int) bool {
-		return (&prompb.Labels{Labels: b[i].Labels}).String() < (&prompb.Labels{Labels: b[j].Labels}).String()
+	sort.Slice(b_filter, func(i, j int) bool {
+		return (&prompb.Labels{Labels: b_filter[i].Labels}).String() < (&prompb.Labels{Labels: b_filter[j].Labels}).String()
 	})
-	for i := range a {
-		e1 := labelsEqual(a[i].Labels, b[i].Labels, logger)
-		e2 := samplesEqual(a[i].Samples, b[i].Samples, end, logger)
+	for i := range a_filter {
+		e1 := labelsEqual(a_filter[i].Labels, b_filter[i].Labels, logger)
+		e2 := samplesEqual(a_filter[i].Samples, b_filter[i].Samples, end, logger)
 		// If one doesn't equal
 		if !e1 || !e2 {
 			return false
@@ -260,9 +295,7 @@ func combineResult(results []*storage.PromResult) *storage.PromResult {
 		for _, sample := range v {
 			length += len(sample.Samples)
 		}
-		if length == 0 {
-			continue
-		}
+		// Fine to set length 0 here, filterResult() will clear them if so
 		samples := make([]prompb.Sample, length)
 
 		cur_ts := 0

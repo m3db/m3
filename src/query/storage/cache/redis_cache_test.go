@@ -424,3 +424,82 @@ func TestSplitAndCombine(t *testing.T) {
 	filterResult(res, query.Start.UnixMilli())
 	require.True(t, resultEqual(expected, res), "Filtered result not equal")
 }
+
+// Test to check that comparison doesn't through false positives/negatives
+// Given that we need to make certain exceptions when checking
+func TestCompareResults(t *testing.T) {
+	result := createEmptyPromResult()
+	result.PromResult.Timeseries = make([]*prompb.TimeSeries, 1)
+
+	result.PromResult.Timeseries[0] = &prompb.TimeSeries{}
+	result.PromResult.Timeseries[0].Samples = []prompb.Sample{
+		{Value: 1, Timestamp: 110000},
+		{Value: 1.5, Timestamp: 120001},
+		{Value: 1.5, Timestamp: 149997},
+		{Value: 1.5, Timestamp: 149998},
+		{Value: 1.5, Timestamp: 149999},
+		{Value: 2, Timestamp: 470000},
+	}
+
+	result.PromResult.Timeseries[0].Labels = []prompb.Label{
+		{Name: []byte("fieldA"), Value: []byte("{")},
+	}
+
+	expected := createEmptyPromResult()
+	expected.PromResult.Timeseries = make([]*prompb.TimeSeries, 2)
+
+	expected.PromResult.Timeseries[0] = &prompb.TimeSeries{}
+	expected.PromResult.Timeseries[0].Samples = []prompb.Sample{
+		{Value: 1.5, Timestamp: 120001},
+		{Value: 1.5, Timestamp: 149997},
+		{Value: 1.5, Timestamp: 149998},
+		{Value: 1.5, Timestamp: 149999},
+		{Value: 2, Timestamp: 470000},
+	}
+
+	expected.PromResult.Timeseries[0].Labels = []prompb.Label{
+		{Name: []byte("fieldA"), Value: []byte("{")},
+	}
+
+	expected.PromResult.Timeseries[1] = &prompb.TimeSeries{}
+	expected.PromResult.Timeseries[1].Samples = []prompb.Sample{
+		{Value: 2, Timestamp: 470050},
+	}
+
+	expected.PromResult.Timeseries[1].Labels = []prompb.Label{
+		{Name: []byte("fieldA"), Value: []byte("{")},
+		{Name: []byte("fieldB"), Value: []byte("}")},
+	}
+
+	tags := []models.Matcher{
+		{Type: models.MatchEqual, Name: []byte("fieldA"), Value: []byte("{")},
+	}
+
+	query := &storage.FetchQuery{
+		TagMatchers: tags,
+		Start:       time.Unix(120, 0),
+		End:         time.Unix(750, 0),
+		Interval:    0,
+	}
+
+	buckets := splitQueryToBuckets(query, BucketSize)
+	cache.SetAsBuckets(result, buckets)
+
+	res := combineResult(cache.Get(buckets, BucketKeyPrefix))
+	filterResult(res, query.Start.UnixMilli())
+	// Check that we still pass check even with an extra new timeseries
+	require.True(
+		t,
+		TimeseriesEqual(expected.PromResult.Timeseries, res.PromResult.Timeseries, 470000, zap.NewExample()),
+		"Filtered result not equal",
+	)
+	// Check that we still fail though
+	expected.PromResult.Timeseries[1].Samples = []prompb.Sample{
+		{Value: 2, Timestamp: 460000},
+	}
+	require.False(
+		t,
+		TimeseriesEqual(expected.PromResult.Timeseries, res.PromResult.Timeseries, 470000, zap.NewExample()),
+		"Filtered result not equal",
+	)
+}

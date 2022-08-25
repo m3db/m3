@@ -223,8 +223,8 @@ func TestWindowGet(t *testing.T) {
 
 	exQuery := &storage.FetchQuery{
 		TagMatchers: models.Matchers{m, m2},
-		Start:       time.Unix(start, 0),
-		End:         time.Unix(end, 0),
+		Start:       time.Unix(int64(start/60)*60, 0),
+		End:         time.Unix(int64(end/60)*60, 0),
 		Interval:    time.Duration(step),
 	}
 
@@ -354,9 +354,10 @@ func TestBucketWindowGet(t *testing.T) {
 
 	exQuery := &storage.FetchQuery{
 		TagMatchers: models.Matchers{m, m2},
-		Start:       time.Unix(start, 0),
-		End:         time.Unix(end, 0),
-		Interval:    time.Duration(step),
+		// BucketFetch will truncate to BucketSize
+		Start:    time.Unix(start/int64(cache.BucketSize.Seconds())*int64(cache.BucketSize.Seconds()), 0),
+		End:      time.Unix(end, 0),
+		Interval: time.Duration(step),
 	}
 
 	meta := block.NewResultMetadata()
@@ -394,6 +395,8 @@ func TestBucketWindowGet(t *testing.T) {
 			}, nil
 		}).MaxTimes(1)
 
+	// Set it to not include all data to test that we handle offsets correctly
+	hints.Start = (start + 1) * 1000
 	series := q.Select(true, hints, matchers...)
 	assert.NoError(t, series.Err())
 
@@ -465,11 +468,11 @@ func TestBucketWindowGet(t *testing.T) {
 
 	exDp := [][]dp{
 		{
-			{v: 1, t: 100000}, {v: 0, t: 300000}, {v: 0, t: 700000}, {v: 0, t: 1000000}, {v: 1, t: 1300000},
+			{v: 0, t: 300000}, {v: 0, t: 700000}, {v: 0, t: 1000000}, {v: 1, t: 1300000},
 			{v: 2, t: 1600000}, {v: 0, t: 3600000}, {v: 1, t: 3601000},
 		},
 		{
-			{v: 0, t: 100000}, {v: 1, t: 101000}, {v: 2, t: 102000}, {v: 0, t: 2400000}, {v: 1, t: 2401000},
+			{v: 1, t: 101000}, {v: 2, t: 102000}, {v: 0, t: 2400000}, {v: 1, t: 2401000},
 			{v: 2, t: 2402000}, {v: 0, t: 3600000}, {v: 1, t: 3601000},
 		},
 	}
