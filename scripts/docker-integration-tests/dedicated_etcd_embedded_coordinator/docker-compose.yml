@@ -1,5 +1,15 @@
 version: "3.5"
 services:
+  etcd:
+    image: docker.io/bitnami/etcd:3.5
+    expose:
+      - "2379-2380"
+    ports:
+      - "0.0.0.0:2379-2380:2379-2380"
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+    networks:
+      - backend
   dbnode01:
     expose:
       - "9000-9004"
@@ -14,36 +24,6 @@ services:
       - M3DB_HOST_ID=dbnode01
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
-    depends_on:
-      - etcd
-  etcd01:
-    expose:
-      - "2379-2380"
-    ports:
-      - "0.0.0.0:2379-2380:2379-2380"
-    networks:
-      - backend
-    image: quay.io/coreos/etcd:v3.4.3
-    command:
-      - "etcd"
-      - "--name"
-      - "etcd01"
-      - "--listen-peer-urls"
-      - "http://0.0.0.0:2380"
-      - "--listen-client-urls"
-      - "http://0.0.0.0:2379"
-      - "--advertise-client-urls"
-      - "http://etcd01:2379"
-      - "--initial-cluster-token"
-      - "etcd-cluster-1"
-      - "--initial-advertise-peer-urls"
-      - "http://etcd01:2380"
-      - "--initial-cluster"
-      - "etcd01=http://etcd01:2380"
-      - "--initial-cluster-state"
-      - "new"
-      - "--data-dir"
-      - "/var/lib/etcd"
     depends_on:
       - etcd
 networks:

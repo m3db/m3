@@ -9,13 +9,13 @@ COMPOSE_FILE=$SCRIPT_PATH/docker-compose.yml
 export REVISION
 
 echo "Run m3dbnode and m3coordinator containers"
-docker-compose-with-defaults -f "${COMPOSE_FILE}" up -d --renew-anon-volumes # etcd
-#docker-compose-with-defaults -f ${COMPOSE_FILE} up -d --renew-anon-volumes dbnode01
-#docker-compose-with-defaults -f ${COMPOSE_FILE} up -d --renew-anon-volumes coordinator01
+docker-compose -f "${COMPOSE_FILE}" up -d --renew-anon-volumes # etcd
+#docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes dbnode01
+#docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes coordinator01
 
 # Think of this as a defer func() in golang
 function defer {
-  docker-compose-with-defaults -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+  docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
 }
 trap defer EXIT
 
@@ -73,10 +73,10 @@ write_data "coldWritesRepairAndNoIndex" "foo" "$(($(date +"%s") - 60 * 60 * 2))"
 
 echo "Wait until cold writes are flushed"
 ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
-  '[ -n "$(docker-compose-with-defaults -f ${COMPOSE_FILE} exec dbnode01 find /var/lib/m3db/data/coldWritesRepairAndNoIndex -name "*1-checkpoint.db")" ]'
+  '[ -n "$(docker-compose -f ${COMPOSE_FILE} exec dbnode01 find /var/lib/m3db/data/coldWritesRepairAndNoIndex -name "*1-checkpoint.db")" ]'
 
 echo "Restart DB (test bootstrapping cold writes)"
-docker-compose-with-defaults -f ${COMPOSE_FILE} restart dbnode01
+docker-compose -f ${COMPOSE_FILE} restart dbnode01
 
 echo "Wait until bootstrapped"
 ATTEMPTS=10 TIMEOUT=2 retry_with_backoff  \

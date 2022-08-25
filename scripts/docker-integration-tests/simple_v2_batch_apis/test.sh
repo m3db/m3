@@ -17,18 +17,18 @@ docker pull $PROMREMOTECLI_IMAGE
 docker pull $JQ_IMAGE
 
 echo "Run m3dbnode and m3coordinator containers"
-docker-compose-with-defaults -f ${COMPOSE_FILE} up -d dbnode01
-docker-compose-with-defaults -f ${COMPOSE_FILE} up -d coordinator01
+docker-compose -f ${COMPOSE_FILE} up -d dbnode01
+docker-compose -f ${COMPOSE_FILE} up -d coordinator01
 
 function defer {
-  docker-compose-with-defaults -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+  docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
 }
 trap defer EXIT
 
 setup_single_m3db_node
 
 echo "Start Prometheus containers"
-docker-compose-with-defaults -f ${COMPOSE_FILE} up -d prometheus01
+docker-compose -f ${COMPOSE_FILE} up -d prometheus01
 
 function test_prometheus_remote_read {
   # Ensure Prometheus can proxy a Prometheus query

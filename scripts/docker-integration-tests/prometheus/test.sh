@@ -23,25 +23,25 @@ docker pull $PROMREMOTECLI_IMAGE
 docker pull $JQ_IMAGE
 
 echo "Run m3dbnode and m3coordinator containers"
-docker-compose-with-defaults -f ${COMPOSE_FILE} up -d dbnode01
-docker-compose-with-defaults -f ${COMPOSE_FILE} up -d coordinator01
+docker-compose -f ${COMPOSE_FILE} up -d dbnode01
+docker-compose -f ${COMPOSE_FILE} up -d coordinator01
 
 TEST_SUCCESS=false
 
 function defer {
   if [[ "$TEST_SUCCESS" != "true" ]]; then
     echo "Test failure, printing docker-compose logs"
-    docker-compose-with-defaults -f ${COMPOSE_FILE} logs
+    docker-compose -f ${COMPOSE_FILE} logs
   fi
 
-  docker-compose-with-defaults -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+  docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
 }
 trap defer EXIT
 
 setup_single_m3db_node
 
 echo "Start Prometheus containers"
-docker-compose-with-defaults -f ${COMPOSE_FILE} up -d prometheus01
+docker-compose -f ${COMPOSE_FILE} up -d prometheus01
 
 function test_readiness {
   # Check readiness probe eventually succeeds

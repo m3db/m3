@@ -20,22 +20,22 @@ docker pull $PROMREMOTECLI_IMAGE
 trap 'cleanup ${COMPOSE_FILE} ${TEST_SUCCESS}' EXIT
 
 echo "Run ETCD"
-docker-compose-with-defaults -f "${COMPOSE_FILE}" up -d etcd01
+docker-compose -f "${COMPOSE_FILE}" up -d etcd
 
 echo "Run Coordinator in Admin mode"
-docker-compose-with-defaults -f "${COMPOSE_FILE}" up -d coordinatoradmin
+docker-compose -f "${COMPOSE_FILE}" up -d coordinatoradmin
 wait_until_ready "0.0.0.0:7201"
 
 initialize_m3_via_coordinator_admin
 
 echo "Run M3 containers"
-docker-compose-with-defaults -f "${COMPOSE_FILE}" up -d m3aggregator01
-docker-compose-with-defaults -f "${COMPOSE_FILE}" up -d m3aggregator02
-docker-compose-with-defaults -f "${COMPOSE_FILE}" up -d m3coordinator01
+docker-compose -f "${COMPOSE_FILE}" up -d m3aggregator01
+docker-compose -f "${COMPOSE_FILE}" up -d m3aggregator02
+docker-compose -f "${COMPOSE_FILE}" up -d m3coordinator01
 
 echo "Start Prometheus containers"
-docker-compose-with-defaults -f "${COMPOSE_FILE}" up -d prometheusraw
-docker-compose-with-defaults -f "${COMPOSE_FILE}" up -d prometheusagg
+docker-compose -f "${COMPOSE_FILE}" up -d prometheusraw
+docker-compose -f "${COMPOSE_FILE}" up -d prometheusagg
 
 wait_until_leader_elected
 wait_until_ready "0.0.0.0:7202"

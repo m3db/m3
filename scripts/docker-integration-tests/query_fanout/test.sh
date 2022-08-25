@@ -13,18 +13,18 @@ COMPOSE_FILE="$M3_PATH"/scripts/docker-integration-tests/query_fanout/docker-com
 export REVISION
 
 echo "Run m3dbnode and m3coordinator containers"
-docker-compose-with-defaults -f ${COMPOSE_FILE} up -d dbnode-cluster-a
-docker-compose-with-defaults -f ${COMPOSE_FILE} up -d coordinator-cluster-a
+docker-compose -f ${COMPOSE_FILE} up -d dbnode-cluster-a
+docker-compose -f ${COMPOSE_FILE} up -d coordinator-cluster-a
 
-docker-compose-with-defaults -f ${COMPOSE_FILE} up -d dbnode-cluster-b
-docker-compose-with-defaults -f ${COMPOSE_FILE} up -d coordinator-cluster-b
+docker-compose -f ${COMPOSE_FILE} up -d dbnode-cluster-b
+docker-compose -f ${COMPOSE_FILE} up -d coordinator-cluster-b
 
-docker-compose-with-defaults -f ${COMPOSE_FILE} up -d dbnode-cluster-c
-docker-compose-with-defaults -f ${COMPOSE_FILE} up -d coordinator-cluster-c
+docker-compose -f ${COMPOSE_FILE} up -d dbnode-cluster-c
+docker-compose -f ${COMPOSE_FILE} up -d coordinator-cluster-c
 
 # think of this as a defer func() in golang
 function defer {
-  docker-compose-with-defaults -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+  docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
 }
 trap defer EXIT
 

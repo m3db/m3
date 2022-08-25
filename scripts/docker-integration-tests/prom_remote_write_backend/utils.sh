@@ -61,10 +61,10 @@ function cleanup {
   local success=$2
   if [[ "$success" != "true" ]]; then
     echo "Test failure, printing docker-compose logs"
-    docker-compose-with-defaults -f "${compose_file}" logs
+    docker-compose -f "${compose_file}" logs
   fi
 
-  docker-compose-with-defaults -f "${compose_file}" down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+  docker-compose -f "${compose_file}" down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
 }
 
 function initialize_m3_via_coordinator_admin {
