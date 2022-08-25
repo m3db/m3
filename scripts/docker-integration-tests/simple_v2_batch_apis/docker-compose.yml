@@ -10,6 +10,8 @@ services:
     networks:
       - backend
     image: "m3dbnode_integration:${REVISION}"
+    depends_on:
+      - etcd
   coordinator01:
     expose:
       - "7201"
@@ -22,5 +24,7 @@ services:
     image: "m3coordinator_integration:${REVISION}"
     volumes:
       - "./:/etc/m3coordinator/"
+    depends_on:
+      - etcd
 networks:
-  backend:
+  backend: null

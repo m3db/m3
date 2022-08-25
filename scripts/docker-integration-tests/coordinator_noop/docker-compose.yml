@@ -10,33 +10,7 @@ services:
     image: "m3coordinator_integration:${REVISION}"
     volumes:
       - "./m3coordinator.yml:/etc/m3coordinator/m3coordinator.yml"
-  etcd01:
-    expose:
-      - "2379-2380"
-    ports:
-      - "0.0.0.0:2379-2380:2379-2380"
-    networks:
-      - backend
-    image: quay.io/coreos/etcd:v3.4.3
-    command:
-      - "etcd"
-      - "--name"
-      - "etcd01"
-      - "--listen-peer-urls"
-      - "http://0.0.0.0:2380"
-      - "--listen-client-urls"
-      - "http://0.0.0.0:2379"
-      - "--advertise-client-urls"
-      - "http://etcd01:2379"
-      - "--initial-cluster-token"
-      - "etcd-cluster-1"
-      - "--initial-advertise-peer-urls"
-      - "http://etcd01:2380"
-      - "--initial-cluster"
-      - "etcd01=http://etcd01:2380"
-      - "--initial-cluster-state"
-      - "new"
-      - "--data-dir"
-      - "/var/lib/etcd"
+    depends_on:
+      - etcd
 networks:
   backend:

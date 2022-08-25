@@ -3,8 +3,8 @@
 set -ex
 
 TESTS=(
-	scripts/docker-integration-tests/cold_writes_simple/test.sh
-#	scripts/docker-integration-tests/prometheus_replication/test.sh
+#	scripts/docker-integration-tests/cold_writes_simple/test.sh
+	scripts/docker-integration-tests/prometheus_replication/test.sh
 #	scripts/docker-integration-tests/carbon/test.sh
 #	scripts/docker-integration-tests/aggregator/test.sh
 #	scripts/docker-integration-tests/aggregator_legacy/test.sh

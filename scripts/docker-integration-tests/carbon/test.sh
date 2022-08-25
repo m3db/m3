@@ -10,13 +10,13 @@ EXPECTED_PATH=$SCRIPT_PATH/expected
 export REVISION
 
 echo "Run m3dbnode and m3coordinator containers"
-docker-compose -f ${COMPOSE_FILE} up -d dbnode01
-docker-compose -f ${COMPOSE_FILE} up -d coordinator01
+docker-compose-with-defaults -f ${COMPOSE_FILE} up -d dbnode01
+docker-compose-with-defaults -f ${COMPOSE_FILE} up -d coordinator01
 
 # Think of this as a defer func() in golang
 METRIC_EMIT_PID="-1"
 function defer {
-  docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+  docker-compose-with-defaults -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
   if [ "$METRIC_EMIT_PID" != "-1" ]; then
     echo "Kill metric emit process"
     kill $METRIC_EMIT_PID

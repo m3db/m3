@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+function docker-compose-with-defaults {
+  etcd_compose="${DIR}/docker-compose-etcd.yml"
+  docker-compose -f "${etcd_compose}" $@
+}
+
 # Retries a command a configurable number of times with backoff.
 #
 # The retry count is given by ATTEMPTS (default 3), the initial backoff

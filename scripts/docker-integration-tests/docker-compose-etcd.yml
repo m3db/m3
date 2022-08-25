@@ -1,0 +1,17 @@
+version: "3.5"
+services:
+  etcd:
+    image: docker.io/bitnami/etcd:3.5
+    expose:
+      - "2379-2380"
+    ports:
+      - "0.0.0.0:2379-2380:2379-2380"
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+    #    volumes:
+    #      - etcd_data:/bitnami/etcd
+    networks:
+      - backend
+
+networks:
+  backend:

@@ -15,12 +15,12 @@ docker pull $PROMREMOTECLI_IMAGE
 docker pull $JQ_IMAGE
 
 echo "Run m3dbnode"
-docker-compose -f ${COMPOSE_FILE} up -d dbnode01
+docker-compose-with-defaults -f ${COMPOSE_FILE} up -d dbnode01
 
 # Stop containers on exit
 METRIC_EMIT_PID="-1"
 function defer {
-  docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+  docker-compose-with-defaults -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
   if [ "$METRIC_EMIT_PID" != "-1" ]; then
     echo "Kill metric emit process"
     kill $METRIC_EMIT_PID
@@ -118,12 +118,12 @@ echo "> port 7202 is coordinator API"
 echo "> port 7203 is coordinator metrics"
 echo "> port 7204 is coordinator graphite ingest"
 echo "> port 7507 is coordinator m3msg ingest from aggregator ingest"
-docker-compose -f ${COMPOSE_FILE} up -d m3coordinator01
+docker-compose-with-defaults -f ${COMPOSE_FILE} up -d m3coordinator01
 COORDINATOR_API="localhost:7202"
 
 echo "Running m3aggregator containers"
-docker-compose -f ${COMPOSE_FILE} up -d m3aggregator01
-docker-compose -f ${COMPOSE_FILE} up -d m3aggregator02
+docker-compose-with-defaults -f ${COMPOSE_FILE} up -d m3aggregator01
+docker-compose-with-defaults -f ${COMPOSE_FILE} up -d m3aggregator02
 
 echo "Verifying aggregation with remote aggregators"
 

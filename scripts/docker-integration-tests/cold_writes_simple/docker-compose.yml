@@ -1,17 +1,6 @@
 version: "3.5"
+# depends on docker-compose-etcd.yml
 services:
-  etcd:
-    image: docker.io/bitnami/etcd:3.5
-    expose:
-      - "2379-2380"
-    ports:
-      - "0.0.0.0:2379-2380:2379-2380"
-    environment:
-      - ALLOW_NONE_AUTHENTICATION=yes
-#    volumes:
-#      - etcd_data:/bitnami/etcd
-    networks:
-      - backend
   dbnode01:
     expose:
       - "9000-9004"
@@ -35,7 +24,7 @@ services:
       - backend
     image: "m3coordinator_integration:${REVISION}"
     volumes:
-      - "./:/etc/m3coordinator/"
+      - "./cold_writes_simple:/etc/m3coordinator/"
     depends_on:
       - etcd
 networks:

@@ -13,4 +13,4 @@ clusters:
           etcdClusters:
             - zone: embedded
               endpoints:
-                - cluster_b_dbnode01:2379
+                - cluster_b_etcd:2379

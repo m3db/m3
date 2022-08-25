@@ -9,8 +9,8 @@ COMPOSE_FILE=$SCRIPT_PATH/docker-compose.yml
 export REVISION
 
 echo "Run etcd and m3dbnode containers"
-docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes etcd01
-docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes dbnode01
+docker-compose-with-defaults -f ${COMPOSE_FILE} up -d --renew-anon-volumes etcd01
+docker-compose-with-defaults -f ${COMPOSE_FILE} up -d --renew-anon-volumes dbnode01
 
 DUMP_DIR="${SCRIPT_PATH}/dump"
 DUMP_ZIP="${DUMP_DIR}/dump.zip"
@@ -19,7 +19,7 @@ function defer {
   if [ -d $DUMP_DIR ]; then 
     rm -rf $DUMP_DIR
   fi
-  docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+  docker-compose-with-defaults -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
 }
 trap defer EXIT
 

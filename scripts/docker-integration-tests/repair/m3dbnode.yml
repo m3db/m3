@@ -13,7 +13,7 @@ db:
         etcdClusters:
           - zone: embedded
             endpoints:
-              - dbnode01:2379
+              - etcd:2379
       seedNodes:
         initialCluster:
           - hostID: m3db_local_1

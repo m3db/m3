@@ -395,7 +395,7 @@ function test_fanout_warning_range {
 }
 
 function test_fanout_warning_missing_zone {
-  docker-compose -f ${COMPOSE_FILE} stop coordinator-cluster-c
+  docker-compose-with-defaults -f ${COMPOSE_FILE} stop coordinator-cluster-c
 
   METRIC_NAME=$INSTANT_NAME
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 100 15 remote_store_cluster-c_fetch_data_error
@@ -425,7 +425,7 @@ function test_fanout_warning_missing_zone {
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 16 remote_store_cluster-c_fetch_data_error
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 9 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_data_error
 
-  docker-compose -f ${COMPOSE_FILE} start coordinator-cluster-c
+  docker-compose-with-defaults -f ${COMPOSE_FILE} start coordinator-cluster-c
 }
 
 function test_fanout_warnings {
