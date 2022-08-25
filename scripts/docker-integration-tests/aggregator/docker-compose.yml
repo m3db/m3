@@ -12,6 +12,8 @@ services:
     networks:
       - backend
     image: "m3dbnode_integration:${REVISION}"
+    depends_on:
+      - etcd
   m3coordinator01:
     expose:
       - "7202"
@@ -26,6 +28,8 @@ services:
     image: "m3coordinator_integration:${REVISION}"
     volumes:
       - "./m3coordinator.yml:/etc/m3coordinator/m3coordinator.yml"
+    depends_on:
+      - etcd
   m3aggregator01:
     expose:
       - "6001"
@@ -38,6 +42,8 @@ services:
     image: "m3aggregator_integration:${REVISION}"
     volumes:
       - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
+    depends_on:
+      - etcd
   m3aggregator02:
     networks:
       - backend
@@ -46,5 +52,7 @@ services:
     image: "m3aggregator_integration:${REVISION}"
     volumes:
       - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
+    depends_on:
+      - etcd
 networks:
-  backend:
+  backend: null

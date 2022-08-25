@@ -14,6 +14,8 @@ services:
       - M3DB_HOST_ID=dbnode01
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
+    depends_on:
+      - etcd
   etcd01:
     expose:
       - "2379-2380"
@@ -42,5 +44,7 @@ services:
       - "new"
       - "--data-dir"
       - "/var/lib/etcd"
+    depends_on:
+      - etcd
 networks:
-  backend:
+  backend: null

@@ -13,4 +13,4 @@ services:
     depends_on:
       - etcd
 networks:
-  backend:
+  backend: null

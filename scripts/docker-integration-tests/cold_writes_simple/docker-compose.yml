@@ -1,5 +1,4 @@
 version: "3.5"
-# depends on docker-compose-etcd.yml
 services:
   dbnode01:
     expose:
@@ -28,4 +27,4 @@ services:
     depends_on:
       - etcd
 networks:
-  backend:
+  backend: null

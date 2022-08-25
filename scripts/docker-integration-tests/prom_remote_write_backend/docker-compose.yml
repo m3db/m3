@@ -12,6 +12,8 @@ services:
     image: "m3aggregator_integration:${REVISION}"
     volumes:
       - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
+    depends_on:
+      - etcd
   m3aggregator02:
     expose:
       - "6002"
@@ -24,6 +26,8 @@ services:
     image: "m3aggregator_integration:${REVISION}"
     volumes:
       - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
+    depends_on:
+      - etcd
   m3coordinator01:
     expose:
       - "7202"
@@ -34,6 +38,8 @@ services:
     image: "m3coordinator_integration:${REVISION}"
     volumes:
       - "./:/etc/m3coordinator/"
+    depends_on:
+      - etcd
   coordinatoradmin:
     expose:
       - "7201"
@@ -44,6 +50,8 @@ services:
     image: "m3coordinator_integration:${REVISION}"
     volumes:
       - "./m3coordinator-admin.yml:/etc/m3coordinator/m3coordinator.yml"
+    depends_on:
+      - etcd
   prometheusraw:
     expose:
       - "9090"
@@ -60,6 +68,8 @@ services:
       - "--web.console.libraries=/usr/share/prometheus/console_libraries"
       - "--web.console.templates=/usr/share/prometheus/consoles"
       - "--enable-feature=remote-write-receiver"
+    depends_on:
+      - etcd
   prometheusagg:
     expose:
       - "9091"
@@ -76,6 +86,8 @@ services:
       - "--web.console.libraries=/usr/share/prometheus/console_libraries"
       - "--web.console.templates=/usr/share/prometheus/consoles"
       - "--enable-feature=remote-write-receiver"
+    depends_on:
+      - etcd
   etcd01:
     expose:
       - "2379-2380"
@@ -104,5 +116,7 @@ services:
       - "new"
       - "--data-dir"
       - "/var/lib/etcd"
+    depends_on:
+      - etcd
 networks:
-  backend:
+  backend: null

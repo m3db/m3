@@ -10,6 +10,8 @@ services:
     networks:
       - backend
     image: "m3dbnode_integration:${REVISION}"
+    depends_on:
+      - etcd
   coordinator-cluster-a:
     expose:
       - "7201"
@@ -24,6 +26,8 @@ services:
     image: "m3coordinator_integration:${REVISION}"
     volumes:
       - "./m3coordinator-cluster-a.yml:/etc/m3coordinator/m3coordinator.yml"
+    depends_on:
+      - etcd
   dbnode-cluster-b:
     expose:
       - "9000-9004"
@@ -34,6 +38,8 @@ services:
     networks:
       - backend
     image: "m3dbnode_integration:${REVISION}"
+    depends_on:
+      - etcd
   coordinator-cluster-b:
     expose:
       - "7201"
@@ -48,6 +54,8 @@ services:
     image: "m3coordinator_integration:${REVISION}"
     volumes:
       - "./m3coordinator-cluster-b.yml:/etc/m3coordinator/m3coordinator.yml"
+    depends_on:
+      - etcd
   dbnode-cluster-c:
     expose:
       - "9000-9004"
@@ -58,6 +66,8 @@ services:
     networks:
       - backend
     image: "m3dbnode_integration:${REVISION}"
+    depends_on:
+      - etcd
   coordinator-cluster-c:
     expose:
       - "7201"
@@ -72,5 +82,7 @@ services:
     image: "m3coordinator_integration:${REVISION}"
     volumes:
       - "./m3coordinator-cluster-c.yml:/etc/m3coordinator/m3coordinator.yml"
+    depends_on:
+      - etcd
 networks:
-  backend:
+  backend: null

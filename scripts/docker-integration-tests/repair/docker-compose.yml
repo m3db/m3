@@ -14,6 +14,8 @@ services:
       - M3DB_HOST_ID=m3db_local_1
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
+    depends_on:
+      - etcd
   dbnode02:
     expose:
       - "9000-9004"
@@ -28,6 +30,8 @@ services:
       - M3DB_HOST_ID=m3db_local_2
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
+    depends_on:
+      - etcd
   coordinator01:
     expose:
       - "7201"
@@ -42,5 +46,7 @@ services:
     image: "m3coordinator_integration:${REVISION}"
     volumes:
       - "./:/etc/m3coordinator/"
+    depends_on:
+      - etcd
 networks:
-  backend:
+  backend: null

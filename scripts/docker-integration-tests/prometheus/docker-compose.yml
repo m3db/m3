@@ -12,6 +12,8 @@ services:
     image: "m3dbnode_integration:${REVISION}"
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
+    depends_on:
+      - etcd
   coordinator01:
     expose:
       - "7201"
@@ -24,6 +26,8 @@ services:
     image: "m3coordinator_integration:${REVISION}"
     volumes:
       - "./:/etc/m3coordinator/"
+    depends_on:
+      - etcd
   prometheus01:
     expose:
       - "9090"
@@ -34,5 +38,7 @@ services:
     image: prom/prometheus:latest
     volumes:
       - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+    depends_on:
+      - etcd
 networks:
-  backend:
+  backend: null
