@@ -1,5 +1,4 @@
 //go:build integration
-// +build integration
 
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
@@ -227,9 +226,9 @@ func TestPlacementChange(t *testing.T) {
 	}
 
 	clock.SetNow(start2)
-	time.Sleep(6 * time.Second)
+	time.Sleep(waitForDataToFlush)
 	setPlacement(t, placementKey, clusterClient, finalPlacement)
-	time.Sleep(6 * time.Second)
+	time.Sleep(waitForDataToFlush)
 
 	for _, data := range datasets[1] {
 		clock.SetNow(data.timestamp)
@@ -245,7 +244,7 @@ func TestPlacementChange(t *testing.T) {
 
 	// Move time forward and wait for flushing to happen.
 	clock.SetNow(finalTime)
-	time.Sleep(6 * time.Second)
+	time.Sleep(waitForDataToFlush)
 
 	// Remove all the topic consumers before closing clients and servers. This allows to close the
 	// connections between servers while they still are running. Otherwise, during server shutdown,

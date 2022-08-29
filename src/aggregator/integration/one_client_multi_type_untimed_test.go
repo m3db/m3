@@ -26,9 +26,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3/src/cluster/placement"
+
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	// waitForDataToFlush is the amount of time we will wait in these tests between finishing writing data to
+	// the aggregator, and attempting to assert that data went through.
+	// The aggregator generally, and these tests specifically are quite sensitive to time.
+	// The tests probably need a bit of a rethink to wait on (or poll for) an actual condition instead of sleeping.
+	waitForDataToFlush = 10 * time.Second
 )
 
 func TestOneClientMultiTypeUntimedMetricsWithStagedMetadatas(t *testing.T) {
@@ -114,7 +122,7 @@ func testOneClientMultiType(t *testing.T, metadataFn metadataFn) {
 	// must be the longer than the lowest resolution across all policies.
 	finalTime := stop.Add(6 * time.Second)
 	clock.SetNow(finalTime)
-	time.Sleep(4 * time.Second)
+	time.Sleep(waitForDataToFlush)
 
 	require.NoError(t, client.close())
 

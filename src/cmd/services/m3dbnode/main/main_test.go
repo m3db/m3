@@ -1,4 +1,6 @@
+//go:build big
 // +build big
+
 //
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
@@ -51,7 +53,7 @@ import (
 // TestConfig tests booting a server using file based configuration.
 func TestConfig(t *testing.T) {
 	// Embedded kv
-	embeddedKV, err := etcd.New(etcd.NewOptions())
+	embeddedKV, err := etcd.New(etcd.NewOptions().SetInitTimeout(30 * time.Second))
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, embeddedKV.Close())
@@ -631,6 +633,7 @@ db:
                 etcdClusters:
                     - zone: {{.ServiceZone}}
                       endpoints: {{.EtcdEndpoints}}
+                      autoSyncInterval: -1
 `
 
 	embeddedKVConfigPortion = `
