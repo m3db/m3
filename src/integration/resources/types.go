@@ -23,6 +23,7 @@
 package resources
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -206,11 +207,11 @@ type M3Resources interface {
 type ExternalResources interface {
 	// Setup sets up the external resource so that it's ready
 	// for use.
-	Setup() error
+	Setup(ctx context.Context) error
 
 	// Close stops and cleans up all the resources associated with
 	// the external resource.
-	Close() error
+	Close(ctx context.Context) error
 }
 
 // InstanceInfo represents the host information for an instance.
