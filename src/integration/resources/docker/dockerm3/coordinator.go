@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package docker
+package dockerm3
 
 import (
 	"errors"
@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	xdockertest "github.com/m3db/m3/src/x/dockertest"
 
 	"github.com/ory/dockertest/v3"
 	"github.com/prometheus/common/model"
@@ -43,7 +44,7 @@ const (
 var (
 	defaultCoordinatorList = []int{7201, 7203, 7204}
 
-	defaultCoordinatorOptions = ResourceOptions{
+	defaultCoordinatorOptions = xdockertest.ResourceOptions{
 		Source:        defaultCoordinatorSource,
 		ContainerName: defaultCoordinatorName,
 		PortList:      defaultCoordinatorList,
@@ -51,18 +52,18 @@ var (
 )
 
 type coordinator struct {
-	resource *Resource
+	resource *xdockertest.Resource
 	client   resources.CoordinatorClient
 }
 
 func newDockerHTTPCoordinator(
 	pool *dockertest.Pool,
-	opts ResourceOptions,
+	opts xdockertest.ResourceOptions,
 ) (resources.Coordinator, error) {
-	opts = opts.withDefaults(defaultCoordinatorOptions)
+	opts = opts.WithDefaults(defaultCoordinatorOptions)
 	opts.TmpfsMounts = []string{"/etc/m3coordinator/"}
 
-	resource, err := NewDockerResource(pool, opts)
+	resource, err := xdockertest.NewDockerResource(pool, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -72,8 +73,8 @@ func newDockerHTTPCoordinator(
 		client: resources.NewCoordinatorClient(resources.CoordinatorClientOptions{
 			Client:    http.DefaultClient,
 			HTTPPort:  7201,
-			Logger:    resource.logger,
-			RetryFunc: resource.pool.Retry,
+			Logger:    opts.InstrumentOpts.Logger(),
+			RetryFunc: pool.Retry,
 		}),
 	}, nil
 }
@@ -88,8 +89,8 @@ func (c *coordinator) HostDetails() (*resources.InstanceInfo, error) {
 }
 
 func (c *coordinator) GetNamespace() (admin.NamespaceGetResponse, error) {
-	if c.resource.closed {
-		return admin.NamespaceGetResponse{}, errClosed
+	if c.resource.Closed() {
+		return admin.NamespaceGetResponse{}, xdockertest.ErrClosed
 	}
 
 	return c.client.GetNamespace()
@@ -98,8 +99,8 @@ func (c *coordinator) GetNamespace() (admin.NamespaceGetResponse, error) {
 func (c *coordinator) GetPlacement(
 	opts resources.PlacementRequestOptions,
 ) (admin.PlacementGetResponse, error) {
-	if c.resource.closed {
-		return admin.PlacementGetResponse{}, errClosed
+	if c.resource.Closed() {
+		return admin.PlacementGetResponse{}, xdockertest.ErrClosed
 	}
 
 	return c.client.GetPlacement(opts)
@@ -109,8 +110,8 @@ func (c *coordinator) InitPlacement(
 	opts resources.PlacementRequestOptions,
 	req admin.PlacementInitRequest,
 ) (admin.PlacementGetResponse, error) {
-	if c.resource.closed {
-		return admin.PlacementGetResponse{}, errClosed
+	if c.resource.Closed() {
+		return admin.PlacementGetResponse{}, xdockertest.ErrClosed
 	}
 
 	return c.client.InitPlacement(opts, req)
@@ -119,16 +120,16 @@ func (c *coordinator) InitPlacement(
 func (c *coordinator) DeleteAllPlacements(
 	opts resources.PlacementRequestOptions,
 ) error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
 	return c.client.DeleteAllPlacements(opts)
 }
 
 func (c *coordinator) WaitForNamespace(name string) error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
 	return c.client.WaitForNamespace(name)
@@ -137,24 +138,24 @@ func (c *coordinator) WaitForNamespace(name string) error {
 func (c *coordinator) WaitForInstances(
 	ids []string,
 ) error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
 	return c.client.WaitForInstances(ids)
 }
 
 func (c *coordinator) WaitForShardsReady() error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
 	return c.client.WaitForShardsReady()
 }
 
 func (c *coordinator) WaitForClusterReady() error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
 	return c.client.WaitForClusterReady()
@@ -163,8 +164,8 @@ func (c *coordinator) WaitForClusterReady() error {
 func (c *coordinator) CreateDatabase(
 	addRequest admin.DatabaseCreateRequest,
 ) (admin.DatabaseCreateResponse, error) {
-	if c.resource.closed {
-		return admin.DatabaseCreateResponse{}, errClosed
+	if c.resource.Closed() {
+		return admin.DatabaseCreateResponse{}, xdockertest.ErrClosed
 	}
 
 	return c.client.CreateDatabase(addRequest)
@@ -173,8 +174,8 @@ func (c *coordinator) CreateDatabase(
 func (c *coordinator) AddNamespace(
 	addRequest admin.NamespaceAddRequest,
 ) (admin.NamespaceGetResponse, error) {
-	if c.resource.closed {
-		return admin.NamespaceGetResponse{}, errClosed
+	if c.resource.Closed() {
+		return admin.NamespaceGetResponse{}, xdockertest.ErrClosed
 	}
 
 	return c.client.AddNamespace(addRequest)
@@ -183,16 +184,16 @@ func (c *coordinator) AddNamespace(
 func (c *coordinator) UpdateNamespace(
 	req admin.NamespaceUpdateRequest,
 ) (admin.NamespaceGetResponse, error) {
-	if c.resource.closed {
-		return admin.NamespaceGetResponse{}, errClosed
+	if c.resource.Closed() {
+		return admin.NamespaceGetResponse{}, xdockertest.ErrClosed
 	}
 
 	return c.client.UpdateNamespace(req)
 }
 
 func (c *coordinator) DeleteNamespace(namespaceID string) error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
 	return c.client.DeleteNamespace(namespaceID)
@@ -201,11 +202,11 @@ func (c *coordinator) DeleteNamespace(namespaceID string) error {
 func (c *coordinator) WriteCarbon(
 	port int, metric string, v float64, t time.Time,
 ) error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
-	url := c.resource.resource.GetHostPort(fmt.Sprintf("%d/tcp", port))
+	url := c.resource.Resource().GetHostPort(fmt.Sprintf("%d/tcp", port))
 
 	return c.client.WriteCarbon(url, metric, v, t)
 }
@@ -216,8 +217,8 @@ func (c *coordinator) WriteProm(
 	samples []prompb.Sample,
 	headers resources.Headers,
 ) error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
 	return c.client.WriteProm(name, tags, samples, headers)
@@ -227,16 +228,16 @@ func (c *coordinator) WritePromWithRequest(
 	writeRequest prompb.WriteRequest,
 	headers resources.Headers,
 ) error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
 	return c.client.WritePromWithRequest(writeRequest, headers)
 }
 
 func (c *coordinator) ApplyKVUpdate(update string) error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
 	return c.client.ApplyKVUpdate(update)
@@ -247,8 +248,8 @@ func (c *coordinator) RunQuery(
 	query string,
 	headers resources.Headers,
 ) error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
 	return c.client.RunQuery(verifier, query, headers)
@@ -258,8 +259,8 @@ func (c *coordinator) InstantQuery(
 	req resources.QueryRequest,
 	headers resources.Headers,
 ) (model.Vector, error) {
-	if c.resource.closed {
-		return nil, errClosed
+	if c.resource.Closed() {
+		return nil, xdockertest.ErrClosed
 	}
 	return c.client.InstantQuery(req, headers)
 }
@@ -271,8 +272,8 @@ func (c *coordinator) InstantQueryWithEngine(
 	engine options.QueryEngine,
 	headers resources.Headers,
 ) (model.Vector, error) {
-	if c.resource.closed {
-		return nil, errClosed
+	if c.resource.Closed() {
+		return nil, xdockertest.ErrClosed
 	}
 	return c.client.InstantQueryWithEngine(req, engine, headers)
 }
@@ -282,8 +283,8 @@ func (c *coordinator) RangeQuery(
 	req resources.RangeQueryRequest,
 	headers resources.Headers,
 ) (model.Matrix, error) {
-	if c.resource.closed {
-		return nil, errClosed
+	if c.resource.Closed() {
+		return nil, xdockertest.ErrClosed
 	}
 	return c.client.RangeQuery(req, headers)
 }
@@ -300,8 +301,8 @@ func (c *coordinator) RangeQueryWithEngine(
 	engine options.QueryEngine,
 	headers resources.Headers,
 ) (model.Matrix, error) {
-	if c.resource.closed {
-		return nil, errClosed
+	if c.resource.Closed() {
+		return nil, xdockertest.ErrClosed
 	}
 	return c.client.RangeQueryWithEngine(req, engine, headers)
 }
@@ -311,8 +312,8 @@ func (c *coordinator) LabelNames(
 	req resources.LabelNamesRequest,
 	headers resources.Headers,
 ) (model.LabelNames, error) {
-	if c.resource.closed {
-		return nil, errClosed
+	if c.resource.Closed() {
+		return nil, xdockertest.ErrClosed
 	}
 	return c.client.LabelNames(req, headers)
 }
@@ -322,8 +323,8 @@ func (c *coordinator) LabelValues(
 	req resources.LabelValuesRequest,
 	headers resources.Headers,
 ) (model.LabelValues, error) {
-	if c.resource.closed {
-		return nil, errClosed
+	if c.resource.Closed() {
+		return nil, xdockertest.ErrClosed
 	}
 	return c.client.LabelValues(req, headers)
 }
@@ -333,15 +334,15 @@ func (c *coordinator) Series(
 	req resources.SeriesRequest,
 	headers resources.Headers,
 ) ([]model.Metric, error) {
-	if c.resource.closed {
-		return nil, errClosed
+	if c.resource.Closed() {
+		return nil, xdockertest.ErrClosed
 	}
 	return c.client.Series(req, headers)
 }
 
 func (c *coordinator) Close() error {
-	if c.resource.closed {
-		return errClosed
+	if c.resource.Closed() {
+		return xdockertest.ErrClosed
 	}
 
 	return c.resource.Close()
