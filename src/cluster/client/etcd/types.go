@@ -159,6 +159,11 @@ type Cluster interface {
 	SetTLSOptions(TLSOptions) Cluster
 
 	AutoSyncInterval() time.Duration
+
+	// SetAutoSyncInterval sets the etcd client to autosync cluster endpoints periodically. This defaults to
+	// 1 minute (defaultAutoSyncInterval). If negative or zero, it will disable autosync. This differs slightly
+	// from the underlying etcd configuration its setting, which only supports 0 for disabling. We do this because
+	// there's otherwise no good way to specify "disable" in our configs (which default to SetAutoSyncInterval(1m)).
 	SetAutoSyncInterval(value time.Duration) Cluster
 
 	DialTimeout() time.Duration
