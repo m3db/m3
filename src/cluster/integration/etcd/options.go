@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	defaulTimeout    = 5 * time.Second
+	defaultTimeout   = 30 * time.Second
 	defaultDir       = "etcd.dir"
 	defaultServiceID = "integration.service"
 	defaultEnv       = "integration.env"
@@ -48,7 +48,7 @@ func NewOptions() Options {
 	return &opts{
 		iopts:       instrument.NewOptions(),
 		workingDir:  defaultDir,
-		initTimeout: defaulTimeout,
+		initTimeout: defaultTimeout,
 		serviceID:   defaultServiceID,
 		env:         defaultEnv,
 		zone:        defaultZone,

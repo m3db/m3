@@ -339,8 +339,14 @@ func newConfigFromCluster(rnd randInt63N, cluster Cluster) (clientv3.Config, err
 	if err != nil {
 		return clientv3.Config{}, err
 	}
+
+	// Support disabling autosync if a user very explicitly requests it (via negative duration).
+	autoSyncInterval := cluster.AutoSyncInterval()
+	if autoSyncInterval < 0 {
+		autoSyncInterval = 0
+	}
 	cfg := clientv3.Config{
-		AutoSyncInterval:   cluster.AutoSyncInterval(),
+		AutoSyncInterval:   autoSyncInterval,
 		DialTimeout:        cluster.DialTimeout(),
 		DialOptions:        cluster.DialOptions(),
 		Endpoints:          cluster.Endpoints(),
