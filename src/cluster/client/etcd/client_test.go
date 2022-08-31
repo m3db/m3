@@ -25,18 +25,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/services"
+	integration "github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdintegration"
+	"github.com/m3db/m3/src/x/retry"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/tests/v3/framework/integration"
 	"google.golang.org/grpc"
-
-	"github.com/m3db/m3/src/cluster/kv"
-	"github.com/m3db/m3/src/cluster/services"
 )
 
 func TestETCDClientGen(t *testing.T) {
-	cs, err := NewConfigServiceClient(testOptions())
+	cs, err := NewConfigServiceClient(
+		testOptions().
+			// These are error cases; don't retry for no reason.
+			SetRetryOptions(retry.NewOptions().SetMaxRetries(0)),
+	)
 	require.NoError(t, err)
 
 	c := cs.(*csclient)
@@ -412,6 +417,15 @@ func Test_newConfigFromCluster(t *testing.T) {
 			},
 			cfg,
 		)
+	})
+
+	t.Run("negative autosync on M3 disables autosync for etcd", func(t *testing.T) {
+		inputCfg := newFullConfig()
+		inputCfg.AutoSyncInterval = -1
+		etcdCfg, err := newConfigFromCluster(testRnd, inputCfg.NewCluster())
+		require.NoError(t, err)
+
+		assert.Equal(t, time.Duration(0), etcdCfg.AutoSyncInterval)
 	})
 
 	// Separate test just because the assert.Equal won't work for functions.
