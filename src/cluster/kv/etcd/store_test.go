@@ -36,10 +36,10 @@ import (
 	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/golang/protobuf/proto"
+	integration "github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdintegration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/tests/v3/framework/integration"
 	"golang.org/x/net/context"
 )
 
@@ -513,7 +513,7 @@ func TestWatchNonBlocking(t *testing.T) {
 	ecluster, opts, closeFn := testCluster(t)
 	defer closeFn()
 
-	ec := ecluster.Client(0)
+	ec := ecluster.RandClient()
 
 	opts = opts.SetWatchChanResetInterval(200 * time.Millisecond).SetWatchChanInitTimeout(500 * time.Millisecond)
 

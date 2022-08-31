@@ -83,6 +83,9 @@ func NewDockerResource(
 	}
 
 	opts := newOptions(containerName)
+	if !resourceOpts.NoNetworkOverlay {
+		opts.NetworkID = networkName
+	}
 	opts, err := exposePorts(opts, portList, resourceOpts.PortMappings)
 	if err != nil {
 		return nil, err
