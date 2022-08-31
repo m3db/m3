@@ -51,6 +51,7 @@ func newTestCluster(t *testing.T) *testCluster {
 		t: t,
 		cluster: integration.NewCluster(t, &integration.ClusterConfig{
 			Size: testClusterSize,
+			//	UseBridge: true,
 		}),
 	}
 	return cluster
