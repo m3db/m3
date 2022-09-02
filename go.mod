@@ -59,16 +59,26 @@ require (
 	github.com/uber/tchannel-go v1.31.1-0.20220504180658-be708aa1a97d
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.11
-	// etcd is currently on an alpha version to accomodate a GRPC version upgrade. See
-	// https://github.com/m3db/m3/issues/4090 for the followup task to move back to a stable version.
-	//  Gory details (why we're doing this):
+	// Quick note about this etcd version: this version is compatible with our GRPC version (>= 1.41.x) if and only if
+	// the etcd/embed and etcd/testing/v3/frameworks/integration packages are *not* used. See
+	// https://github.com/m3db/m3/issues/4144 for a description of the problem.
+	// As of this writing, we have replaced all usages of those packages with a docker based solution, which eliminates
+	// the issue. However, if you're seeing conflicts with GRPC and/or otel packages coming from etcd, you may have
+	// pulled in one of the packages by mistake.
+	// Use github.com/m3db/m3/src/integration/resources/docker/dockerexternal/etcdintegration
+	// instead for tests. Don't depend on the `embed` package at all.
+	//
+	//  Gory details (why the issues occur):
 	//
 	//    - We import etcd/server/v3 via etcd/embed and etcd/testing/v3/frameworks/integration.
 	//    - etcd/server/v3 in 3.5.2 depends on pre 1.0 opentelemetry. Bleeding edge etcd depends on 1.0 opentelemetry
 	//    - M3 depends on 1.0 opentelemetry — this conflicts with etcd 3.5.2, but not bleeding edge etcd
-	go.etcd.io/etcd/api/v3 v3.6.0-alpha.0
-	go.etcd.io/etcd/client/pkg/v3 v3.6.0-alpha.0
-	go.etcd.io/etcd/client/v3 v3.6.0-alpha.0
+	//
+	// Later versions of etcd (>= 3.5.5, >= 3.6.0-alpha.0) have fixed the dependency conflicts, but it is still
+	// probably better to only depend on the client packages here.
+	go.etcd.io/etcd/api/v3 v3.5.4
+	go.etcd.io/etcd/client/pkg/v3 v3.5.4
+	go.etcd.io/etcd/client/v3 v3.5.4
 	go.opentelemetry.io/collector v0.45.0
 	go.opentelemetry.io/otel v1.4.1
 	go.opentelemetry.io/otel/bridge/opentracing v1.4.1
@@ -197,19 +207,3 @@ replace github.com/google/flatbuffers => github.com/google/flatbuffers v1.12.1
 replace github.com/uber-go/atomic => github.com/uber-go/atomic v1.4.0
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.40.1
-
-// TODO: this can be removed once M3 is on Go 1.17.x
-// This is here because of a dependency chain that makes client/v2 hard dependent on Go 1.17. Specifically:
-//~ /Code/m3 $ go mod why sigs.k8s.io/json
-// # sigs.k8s.io/json
-// github.com/m3db/m3/src/aggregator/integration
-// go.etcd.io/etcd/tests/v3/framework/integration
-// go.etcd.io/etcd/server/v3/etcdserver
-// go.etcd.io/etcd/server/v3/etcdserver/api/v2discovery
-// go.etcd.io/etcd/client/v2
-// sigs.k8s.io/json
-// This dependency chain is recently added,
-// (in https://github.com/etcd-io/etcd/commit/b5e4c2d3c483d9c3d03a0f97ae7b07607f38a5cc)
-// and not actually relevant to anything used by M3 (we are on client/v3).
-// Therefore, replace client/v2 to avoid the bad dependency chain until we upgrade.
-replace go.etcd.io/etcd/client/v2 => go.etcd.io/etcd/client/v2 v2.305.0-alpha.0.0.20211029212747-6656181d312a
