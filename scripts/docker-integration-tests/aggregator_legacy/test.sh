@@ -7,6 +7,9 @@ REVISION=$(git rev-parse HEAD)
 COMPOSE_FILE="$M3_PATH"/scripts/docker-integration-tests/aggregator_legacy/docker-compose.yml
 export REVISION
 
+echo "Run etcd"
+docker-compose -f ${COMPOSE_FILE} up -d etcd
+
 echo "Run m3dbnode"
 docker-compose -f ${COMPOSE_FILE} up -d dbnode01
 
