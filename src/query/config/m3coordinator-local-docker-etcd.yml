@@ -1,9 +1,9 @@
-limits:
-  perQuery:
-    maxFetchedSeries: 100
-
 clusters:
-  - client:
+  - namespaces:
+      - namespace: default
+        type: unaggregated
+        retention: 48h
+    client:
       config:
         service:
           env: default_env
@@ -13,5 +13,4 @@ clusters:
           etcdClusters:
             - zone: embedded
               endpoints:
-                - etcd:2379
-      useV2BatchAPIs: true
+                - http://etcd:2379
