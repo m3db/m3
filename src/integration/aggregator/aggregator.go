@@ -117,6 +117,17 @@ ingest:
         maxBackoff: 10s
         jitter: true
 storeMetricsType: true
+
+clusterManagement:
+  etcd:
+    env: default_env
+    zone: embedded
+    service: m3db
+    cacheDir: /var/lib/m3kv
+    etcdClusters:
+    - zone: embedded
+      endpoints:
+      - 127.0.0.1:2379
 `
 
 	// TestAggregatorAggregatorConfig is the test config for the aggregators.
