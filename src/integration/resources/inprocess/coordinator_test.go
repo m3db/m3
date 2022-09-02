@@ -1,4 +1,6 @@
+//go:build test_harness
 // +build test_harness
+
 // Copyright (c) 2021  Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,17 +24,21 @@
 package inprocess
 
 import (
+	"context"
 	"testing"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/integration/resources"
+	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal"
 	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/ory/dockertest/v3"
 
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
@@ -40,6 +46,16 @@ import (
 )
 
 func TestNewCoordinator(t *testing.T) {
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err)
+
+	etcd, err := dockerexternal.NewEtcd(pool, instrument.NewOptions(), dockerexternal.EtcdClusterPort(2379))
+	require.NoError(t, err)
+	require.NoError(t, etcd.Setup(context.TODO()))
+	t.Cleanup(func() {
+		require.NoError(t, etcd.Close(context.TODO()))
+	})
+
 	dbnode, err := NewDBNodeFromYAML(defaultDBNodeConfig, DBNodeOptions{Start: true})
 	require.NoError(t, err)
 	defer func() {
