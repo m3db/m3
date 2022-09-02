@@ -151,8 +151,6 @@ func (c *EtcdNode) Setup(ctx context.Context) (closeErr error) {
 	// This is coming from the equivalent of docker inspect <container_id>
 	portBinds := container.NetworkSettings.Ports["2379/tcp"]
 
-	// If running in a docker container e.g. on buildkite, route to etcd using the published port on the *host* machine.
-	// See also http://github.com/m3db/m3/blob/master/docker-compose.yml#L16-L16
 	ipAddr := "127.0.0.1"
 	_, err = net.ResolveIPAddr("ip4", "host.docker.internal")
 	if err == nil {

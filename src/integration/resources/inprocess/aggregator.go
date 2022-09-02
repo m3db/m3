@@ -33,6 +33,7 @@ import (
 	m3agg "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/server"
 	"github.com/m3db/m3/src/aggregator/tools/deploy"
+	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/integration/resources"
 	nettest "github.com/m3db/m3/src/integration/resources/net"
@@ -63,12 +64,16 @@ type Aggregator struct {
 
 // AggregatorOptions are options of starting an in-process aggregator.
 type AggregatorOptions struct {
+	// EtcdEndpoints are the endpoints this aggregator should use to connect to etcd.
+	EtcdEndpoints []string
+
 	// Logger is the logger to use for the in-process aggregator.
 	Logger *zap.Logger
 	// StartFn is a custom function that can be used to start the Aggregator.
 	StartFn AggregatorStartFn
 	// Start indicates whether to start the aggregator instance
 	Start bool
+
 	// GeneratePorts will automatically update the config to use open ports
 	// if set to true. If false, configuration is used as-is re: ports.
 	GeneratePorts bool
@@ -286,6 +291,10 @@ func updateAggregatorConfig(
 		}
 	}
 
+	kvCfg := cfg.KVClientOrDefault()
+	cfg.KVClient = &kvCfg
+	updateEtcdEndpoints(opts.EtcdEndpoints, cfg.KVClient.Etcd)
+
 	// Replace any filepath with a temporary directory
 	cfg, tmpDirs, err = updateAggregatorFilepaths(cfg)
 	if err != nil {
@@ -293,6 +302,11 @@ func updateAggregatorConfig(
 	}
 
 	return cfg, tmpDirs, nil
+}
+
+func updateEtcdEndpoints(etcdEndpoints []string, etcdCfg *etcdclient.Configuration) {
+	etcdCfg.ETCDClusters[0].Endpoints = etcdEndpoints
+	etcdCfg.ETCDClusters[0].AutoSyncInterval = -1
 }
 
 func updateAggregatorHostID(cfg config.Configuration) config.Configuration {
