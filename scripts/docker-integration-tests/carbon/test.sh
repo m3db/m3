@@ -10,8 +10,7 @@ EXPECTED_PATH=$SCRIPT_PATH/expected
 export REVISION
 
 echo "Run m3dbnode and m3coordinator containers"
-docker-compose -f ${COMPOSE_FILE} up -d dbnode01
-docker-compose -f ${COMPOSE_FILE} up -d coordinator01
+docker-compose -f ${COMPOSE_FILE} up -d
 
 # Think of this as a defer func() in golang
 METRIC_EMIT_PID="-1"
@@ -152,7 +151,7 @@ ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "wait_carbon_values_accum
 
 # Now test the max datapoints behavior using max of four datapoints (4x 5s resolution = 20s)
 end=$(date +%s)
-start=$(($end-20)) 
+start=$(($end-20))
 # 1. no max datapoints set, should not adjust number of datapoints coming back
 ATTEMPTS=2 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff "read_carbon 'stat.already-aggregated.foo' 42 $start $end"
 # 2. max datapoints with LTTB, should be an existing value (i.e. 42)
