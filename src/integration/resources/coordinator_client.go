@@ -59,8 +59,8 @@ var errUnknownServiceType = errors.New("unknown service type")
 // operation until successful.
 type RetryFunc func(op func() error) error
 
-// ZapMethod appends the method as a log field.
-func ZapMethod(s string) zapcore.Field { return zap.String("method", s) }
+// zapMethod appends the method as a log field.
+func zapMethod(s string) zapcore.Field { return zap.String("method", s) }
 
 // CoordinatorClient is a client use to invoke API calls
 // on a coordinator
@@ -97,7 +97,7 @@ func (c *CoordinatorClient) makeURL(resource string) string {
 func (c *CoordinatorClient) GetNamespace() (admin.NamespaceGetResponse, error) {
 	url := c.makeURL("api/v1/services/m3db/namespace")
 	logger := c.logger.With(
-		ZapMethod("getNamespace"), zap.String("url", url))
+		zapMethod("getNamespace"), zap.String("url", url))
 
 	//nolint:noctx
 	resp, err := c.client.Get(url)
@@ -129,7 +129,7 @@ func (c *CoordinatorClient) GetPlacement(opts PlacementRequestOptions) (admin.Pl
 	}
 	url := c.makeURL(handlerurl)
 	logger := c.logger.With(
-		ZapMethod("getPlacement"), zap.String("url", url))
+		zapMethod("getPlacement"), zap.String("url", url))
 
 	resp, err := c.makeRequest(logger, url, placementhandler.GetHTTPMethod, nil, placementOptsToMap(opts))
 	if err != nil {
@@ -163,7 +163,7 @@ func (c *CoordinatorClient) InitPlacement(
 	}
 	url := c.makeURL(handlerurl)
 	logger := c.logger.With(
-		ZapMethod("initPlacement"), zap.String("url", url))
+		zapMethod("initPlacement"), zap.String("url", url))
 
 	resp, err := c.makeRequest(logger, url, placementhandler.InitHTTPMethod, &initRequest, placementOptsToMap(opts))
 	if err != nil {
@@ -194,7 +194,7 @@ func (c *CoordinatorClient) DeleteAllPlacements(opts PlacementRequestOptions) er
 	}
 	url := c.makeURL(handlerurl)
 	logger := c.logger.With(
-		ZapMethod("deleteAllPlacements"), zap.String("url", url))
+		zapMethod("deleteAllPlacements"), zap.String("url", url))
 
 	resp, err := c.makeRequest(
 		logger, url, placementhandler.DeleteAllHTTPMethod, nil, placementOptsToMap(opts),
@@ -221,7 +221,7 @@ func (c *CoordinatorClient) DeleteAllPlacements(opts PlacementRequestOptions) er
 // NB: if the name string is empty, this will instead
 // check for a successful response.
 func (c *CoordinatorClient) WaitForNamespace(name string) error {
-	logger := c.logger.With(ZapMethod("waitForNamespace"))
+	logger := c.logger.With(zapMethod("waitForNamespace"))
 	return c.retryFunc(func() error {
 		ns, err := c.GetNamespace()
 		if err != nil {
@@ -250,7 +250,7 @@ func (c *CoordinatorClient) WaitForNamespace(name string) error {
 func (c *CoordinatorClient) WaitForInstances(
 	ids []string,
 ) error {
-	logger := c.logger.With(ZapMethod("waitForPlacement"))
+	logger := c.logger.With(zapMethod("waitForPlacement"))
 	return c.retryFunc(func() error {
 		placement, err := c.GetPlacement(PlacementRequestOptions{Service: ServiceTypeM3DB})
 		if err != nil {
@@ -282,7 +282,7 @@ func (c *CoordinatorClient) WaitForInstances(
 
 // WaitForShardsReady waits until all shards gets ready.
 func (c *CoordinatorClient) WaitForShardsReady() error {
-	logger := c.logger.With(ZapMethod("waitForShards"))
+	logger := c.logger.With(zapMethod("waitForShards"))
 	return c.retryFunc(func() error {
 		placement, err := c.GetPlacement(PlacementRequestOptions{Service: ServiceTypeM3DB})
 		if err != nil {
@@ -307,7 +307,7 @@ func (c *CoordinatorClient) WaitForShardsReady() error {
 func (c *CoordinatorClient) WaitForClusterReady() error {
 	var (
 		url    = c.makeURL("ready")
-		logger = c.logger.With(ZapMethod("waitForClusterReady"), zap.String("url", url))
+		logger = c.logger.With(zapMethod("waitForClusterReady"), zap.String("url", url))
 	)
 	return c.retryFunc(func() error {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
@@ -350,7 +350,7 @@ func (c *CoordinatorClient) CreateDatabase(
 ) (admin.DatabaseCreateResponse, error) {
 	url := c.makeURL("api/v1/database/create")
 	logger := c.logger.With(
-		ZapMethod("createDatabase"), zap.String("url", url),
+		zapMethod("createDatabase"), zap.String("url", url),
 		zap.String("request", addRequest.String()))
 
 	resp, err := c.makeRequest(logger, url, http.MethodPost, &addRequest, nil)
@@ -383,7 +383,7 @@ func (c *CoordinatorClient) AddNamespace(
 ) (admin.NamespaceGetResponse, error) {
 	url := c.makeURL("api/v1/services/m3db/namespace")
 	logger := c.logger.With(
-		ZapMethod("addNamespace"), zap.String("url", url),
+		zapMethod("addNamespace"), zap.String("url", url),
 		zap.String("request", addRequest.String()))
 
 	resp, err := c.makeRequest(logger, url, http.MethodPost, &addRequest, nil)
@@ -411,7 +411,7 @@ func (c *CoordinatorClient) UpdateNamespace(
 ) (admin.NamespaceGetResponse, error) {
 	url := c.makeURL("api/v1/services/m3db/namespace")
 	logger := c.logger.With(
-		ZapMethod("updateNamespace"), zap.String("url", url),
+		zapMethod("updateNamespace"), zap.String("url", url),
 		zap.String("request", req.String()))
 
 	resp, err := c.makeRequest(logger, url, http.MethodPut, &req, nil)
@@ -431,7 +431,7 @@ func (c *CoordinatorClient) UpdateNamespace(
 func (c *CoordinatorClient) setNamespaceReady(name string) error {
 	url := c.makeURL("api/v1/services/m3db/namespace/ready")
 	logger := c.logger.With(
-		ZapMethod("setNamespaceReady"), zap.String("url", url),
+		zapMethod("setNamespaceReady"), zap.String("url", url),
 		zap.String("namespace", name))
 
 	_, err := c.makeRequest(logger, url, http.MethodPost, // nolint: bodyclose
@@ -445,7 +445,7 @@ func (c *CoordinatorClient) setNamespaceReady(name string) error {
 // DeleteNamespace removes the namespace.
 func (c *CoordinatorClient) DeleteNamespace(namespaceID string) error {
 	url := c.makeURL("api/v1/services/m3db/namespace/" + namespaceID)
-	logger := c.logger.With(ZapMethod("deleteNamespace"), zap.String("url", url))
+	logger := c.logger.With(zapMethod("deleteNamespace"), zap.String("url", url))
 
 	if _, err := c.makeRequest(logger, url, http.MethodDelete, nil, nil); err != nil { // nolint: bodyclose
 		logger.Error("failed to delete namespace", zap.Error(err))
@@ -462,7 +462,7 @@ func (c *CoordinatorClient) InitM3msgTopic(
 ) (admin.TopicGetResponse, error) {
 	url := c.makeURL(topic.InitURL)
 	logger := c.logger.With(
-		ZapMethod("initM3msgTopic"),
+		zapMethod("initM3msgTopic"),
 		zap.String("url", url),
 		zap.String("request", initRequest.String()),
 		zap.String("topic", fmt.Sprintf("%v", topicOpts)))
@@ -489,7 +489,7 @@ func (c *CoordinatorClient) GetM3msgTopic(
 ) (admin.TopicGetResponse, error) {
 	url := c.makeURL(topic.GetURL)
 	logger := c.logger.With(
-		ZapMethod("getM3msgTopic"), zap.String("url", url),
+		zapMethod("getM3msgTopic"), zap.String("url", url),
 		zap.String("topic", fmt.Sprintf("%v", topicOpts)))
 
 	resp, err := c.makeRequest(logger, url, topic.GetHTTPMethod, nil, m3msgTopicOptionsToMap(topicOpts))
@@ -516,7 +516,7 @@ func (c *CoordinatorClient) AddM3msgTopicConsumer(
 ) (admin.TopicGetResponse, error) {
 	url := c.makeURL(topic.AddURL)
 	logger := c.logger.With(
-		ZapMethod("addM3msgTopicConsumer"),
+		zapMethod("addM3msgTopicConsumer"),
 		zap.String("url", url),
 		zap.String("request", addRequest.String()),
 		zap.String("topic", fmt.Sprintf("%v", topicOpts)))
@@ -557,7 +557,7 @@ func (c *CoordinatorClient) WriteCarbon(
 	url string, metric string, v float64, t time.Time,
 ) error {
 	logger := c.logger.With(
-		ZapMethod("writeCarbon"), zap.String("url", url),
+		zapMethod("writeCarbon"), zap.String("url", url),
 		zap.String("at time", time.Now().String()),
 		zap.String("at ts", t.String()))
 
@@ -623,7 +623,7 @@ func (c *CoordinatorClient) WritePromWithRequest(writeRequest prompb.WriteReques
 	url := c.makeURL("api/v1/prom/remote/write")
 
 	logger := c.logger.With(
-		ZapMethod("writeProm"), zap.String("url", url),
+		zapMethod("writeProm"), zap.String("url", url),
 		zap.String("request", writeRequest.String()))
 
 	body, err := proto.Marshal(&writeRequest)
@@ -697,7 +697,7 @@ func (c *CoordinatorClient) ApplyKVUpdate(update string) error {
 	url := c.makeURL("api/v1/kvstore")
 
 	logger := c.logger.With(
-		ZapMethod("ApplyKVUpdate"), zap.String("url", url),
+		zapMethod("ApplyKVUpdate"), zap.String("url", url),
 		zap.String("update", update))
 
 	data := bytes.NewBuffer([]byte(update))
@@ -731,7 +731,7 @@ func (c *CoordinatorClient) query(
 ) error {
 	url := c.makeURL(query)
 	logger := c.logger.With(
-		ZapMethod("query"), zap.String("url", url), zap.Any("headers", headers))
+		zapMethod("query"), zap.String("url", url), zap.Any("headers", headers))
 	logger.Info("running")
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
@@ -962,7 +962,7 @@ func (c *CoordinatorClient) runQuery(
 ) (string, error) {
 	url := c.makeURL(query)
 	logger := c.logger.With(
-		ZapMethod("query"), zap.String("url", url), zap.Any("headers", headers))
+		zapMethod("query"), zap.String("url", url), zap.Any("headers", headers))
 	logger.Info("running")
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
@@ -1000,7 +1000,7 @@ func (c *CoordinatorClient) runQuery(
 func (c *CoordinatorClient) RunQuery(
 	verifier ResponseVerifier, query string, headers map[string][]string,
 ) error {
-	logger := c.logger.With(ZapMethod("runQuery"),
+	logger := c.logger.With(zapMethod("runQuery"),
 		zap.String("query", query))
 	err := c.retryFunc(func() error {
 		err := c.query(verifier, query, headers)
@@ -1067,7 +1067,7 @@ func (c *CoordinatorClient) GraphiteQuery(
 
 	url := c.makeURL(queryStr)
 	logger := c.logger.With(
-		ZapMethod("graphiteQuery"), zap.String("url", url))
+		zapMethod("graphiteQuery"), zap.String("url", url))
 	logger.Info("running")
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
