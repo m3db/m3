@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"path"
 	"strings"
 	"time"
 
@@ -42,9 +41,7 @@ import (
 	"github.com/m3db/m3/src/x/opentracing"
 
 	"github.com/m3dbx/vellum/regexp"
-	"go.etcd.io/etcd/client/pkg/v3/transport"
 	"go.etcd.io/etcd/client/pkg/v3/types"
-	"go.etcd.io/etcd/server/v3/embed"
 	"gopkg.in/yaml.v2"
 )
 
@@ -679,80 +676,6 @@ func (c *ProtoConfiguration) Validate() error {
 		}
 	}
 	return nil
-}
-
-// NewEtcdEmbedConfig creates a new embedded etcd config from kv config.
-func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
-	newKVCfg := embed.NewConfig()
-
-	hostID, err := cfg.HostIDOrDefault().Resolve()
-	if err != nil {
-		return nil, fmt.Errorf("failed resolving hostID %w", err)
-	}
-
-	discoveryCfg := cfg.DiscoveryOrDefault()
-	envCfg, err := discoveryCfg.EnvironmentConfig(hostID)
-	if err != nil {
-		return nil, fmt.Errorf("failed getting env config from discovery config %w", err)
-	}
-
-	kvCfg := envCfg.SeedNodes
-	newKVCfg.Name = hostID
-
-	dir := kvCfg.RootDir
-	if dir == "" {
-		dir = path.Join(cfg.Filesystem.FilePathPrefixOrDefault(), defaultEtcdDirSuffix)
-	}
-	newKVCfg.Dir = dir
-
-	LPUrls, err := convertToURLsWithDefault(kvCfg.ListenPeerUrls, newURL(defaultEtcdListenHost, DefaultEtcdServerPort))
-	if err != nil {
-		return nil, err
-	}
-	newKVCfg.LPUrls = LPUrls
-
-	LCUrls, err := convertToURLsWithDefault(kvCfg.ListenClientUrls, newURL(defaultEtcdListenHost, DefaultEtcdClientPort))
-	if err != nil {
-		return nil, err
-	}
-	newKVCfg.LCUrls = LCUrls
-
-	host, endpoint, err := getHostAndEndpointFromID(kvCfg.InitialCluster, hostID)
-	if err != nil {
-		return nil, err
-	}
-
-	if host.ClusterState != "" {
-		newKVCfg.ClusterState = host.ClusterState
-	}
-
-	APUrls, err := convertToURLsWithDefault(kvCfg.InitialAdvertisePeerUrls, newURL(endpoint, DefaultEtcdServerPort))
-	if err != nil {
-		return nil, err
-	}
-	newKVCfg.APUrls = APUrls
-
-	ACUrls, err := convertToURLsWithDefault(kvCfg.AdvertiseClientUrls, newURL(endpoint, DefaultEtcdClientPort))
-	if err != nil {
-		return nil, err
-	}
-	newKVCfg.ACUrls = ACUrls
-
-	newKVCfg.InitialCluster = initialClusterString(kvCfg.InitialCluster)
-
-	copySecurityDetails := func(tls *transport.TLSInfo, ysc *environment.SeedNodeSecurityConfig) {
-		tls.TrustedCAFile = ysc.CAFile
-		tls.CertFile = ysc.CertFile
-		tls.KeyFile = ysc.KeyFile
-		tls.ClientCertAuth = ysc.CertAuth
-		tls.TrustedCAFile = ysc.TrustedCAFile
-	}
-	copySecurityDetails(&newKVCfg.ClientTLSInfo, &kvCfg.ClientTransportSecurity)
-	copySecurityDetails(&newKVCfg.PeerTLSInfo, &kvCfg.PeerTransportSecurity)
-	newKVCfg.ClientAutoTLS = kvCfg.ClientTransportSecurity.AutoTLS
-	newKVCfg.PeerAutoTLS = kvCfg.PeerTransportSecurity.AutoTLS
-
-	return newKVCfg, nil
 }
 
 func newURL(host string, port int) string {

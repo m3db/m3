@@ -69,7 +69,6 @@ require (
 	go.etcd.io/etcd/api/v3 v3.6.0-alpha.0
 	go.etcd.io/etcd/client/pkg/v3 v3.6.0-alpha.0
 	go.etcd.io/etcd/client/v3 v3.6.0-alpha.0
-	go.etcd.io/etcd/server/v3 v3.6.0-alpha.0
 	go.opentelemetry.io/collector v0.45.0
 	go.opentelemetry.io/otel v1.4.1
 	go.opentelemetry.io/otel/bridge/opentracing v1.4.1
@@ -111,7 +110,6 @@ require (
 	github.com/dennwc/varint v1.0.0 // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
-	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/edsrzf/mmap-go v1.0.0 // indirect
 	github.com/felixge/httpsnoop v1.0.2 // indirect
 	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
@@ -121,12 +119,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-playground/locales v0.13.0 // indirect
 	github.com/go-playground/universal-translator v0.17.0 // indirect
-	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
-	github.com/google/btree v1.0.1 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
-	github.com/gorilla/websocket v1.4.2 // indirect
-	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
-	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/hashicorp/hcl v1.0.1-0.20190611123218-cf7d376da96d // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
@@ -160,18 +153,12 @@ require (
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/shirou/gopsutil v3.21.6+incompatible // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
-	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.3.0 // indirect
 	github.com/tinylib/msgp v1.1.0 // indirect
-	github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802 // indirect
 	github.com/twmb/murmur3 v1.1.6 // indirect
-	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
-	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0 // indirect
-	go.etcd.io/etcd/pkg/v3 v3.6.0-alpha.0 // indirect
-	go.etcd.io/etcd/raft/v3 v3.6.0-alpha.0 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.opentelemetry.io/collector/model v0.45.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.28.0 // indirect
@@ -182,7 +169,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.4.1 // indirect
 	go.opentelemetry.io/proto/otlp v0.12.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
-	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b // indirect
 	golang.org/x/text v0.4.0 // indirect
@@ -191,8 +177,6 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
-	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
-	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
 // NB(nate): upgrading to the latest msgpack is not backwards compatibile as msgpack will no longer attempt to automatically
