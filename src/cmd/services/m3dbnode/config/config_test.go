@@ -414,6 +414,7 @@ func TestConfiguration(t *testing.T) {
     fetchSeriesBlocksBatchSize: null
     writeShardsInitializing: null
     shardsLeavingCountTowardsConsistency: null
+
 	shardsLeavingAndInitializingCountTowardsConsistency: null
     iterateEqualTimestampStrategy: null
   gcPercentage: 100
