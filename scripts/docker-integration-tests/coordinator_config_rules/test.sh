@@ -16,8 +16,7 @@ docker pull $PROMREMOTECLI_IMAGE
 docker pull $JQ_IMAGE
 
 echo "Run m3dbnode and m3coordinator containers"
-docker-compose -f ${COMPOSE_FILE} up -d dbnode01
-docker-compose -f ${COMPOSE_FILE} up -d coordinator01
+docker-compose -f ${COMPOSE_FILE} up -d
 
 # Think of this as a defer func() in golang
 function defer {

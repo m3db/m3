@@ -1,0 +1,11 @@
+coordinator: {}
+"db":
+  discovery:
+    "config":
+      "service":
+        "etcdClusters":
+          - "endpoints": ["http://etcd:2379"]
+            "zone": "embedded"
+        "service": "m3db"
+        "zone": "embedded"
+        "env": "default_env"

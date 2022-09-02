@@ -24,7 +24,7 @@ clusters:
               autoSyncInterval: 10m
               dialTimeout: 1m
               endpoints:
-                - dbnode01:2379
+                - etcd:2379
 
 downsample:
   rules:

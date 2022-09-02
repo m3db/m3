@@ -9,8 +9,7 @@ COMPOSE_FILE=$SCRIPT_PATH/docker-compose.yml
 export REVISION
 
 echo "Run coordinator with no etcd"
-docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes coordinator01
-docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes etcd01
+docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes
 
 function defer {
   docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes

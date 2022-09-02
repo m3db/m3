@@ -36,15 +36,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3dbx/vellum/levenshtein"
-	"github.com/m3dbx/vellum/levenshtein2"
-	"github.com/m3dbx/vellum/regexp"
-	"github.com/opentracing/opentracing-go"
-	"github.com/uber-go/tally"
-	"github.com/uber/tchannel-go"
-	"go.etcd.io/etcd/server/v3/embed"
-	"go.uber.org/zap"
-
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
@@ -102,6 +93,13 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	tbinarypool "github.com/m3db/m3/src/x/thrift"
+	"github.com/m3dbx/vellum/levenshtein"
+	"github.com/m3dbx/vellum/levenshtein2"
+	"github.com/m3dbx/vellum/regexp"
+	"github.com/opentracing/opentracing-go"
+	"github.com/uber-go/tally"
+	"github.com/uber/tchannel-go"
+	"go.uber.org/zap"
 )
 
 const (
@@ -355,24 +353,7 @@ func Run(runOpts RunOptions) {
 		if !config.IsSeedNode(seedNodes, hostID) {
 			logger.Info("not a seed node, using cluster seed nodes")
 		} else {
-			logger.Info("seed node, starting etcd server")
-
-			etcdCfg, err := config.NewEtcdEmbedConfig(cfg)
-			if err != nil {
-				logger.Fatal("unable to create etcd config", zap.Error(err))
-			}
-
-			e, err := embed.StartEtcd(etcdCfg)
-			if err != nil {
-				logger.Fatal("could not start embedded etcd", zap.Error(err))
-			}
-
-			if runOpts.EmbeddedKVCh != nil {
-				// Notify on embedded KV bootstrap chan if specified
-				runOpts.EmbeddedKVCh <- struct{}{}
-			}
-
-			defer e.Close()
+			logger.Warn("seed node with embedded etcd no longer supported; skipping etcd setup.")
 		}
 	}
 

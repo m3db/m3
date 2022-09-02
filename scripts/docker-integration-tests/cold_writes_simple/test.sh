@@ -8,9 +8,8 @@ SCRIPT_PATH="$M3_PATH"/scripts/docker-integration-tests/cold_writes_simple
 COMPOSE_FILE=$SCRIPT_PATH/docker-compose.yml
 export REVISION
 
-echo "Run m3dbnode and m3coordinator containers"
-docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes dbnode01
-docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes coordinator01
+echo "Run etcd, m3dbnode and m3coordinator containers"
+docker-compose -f "${COMPOSE_FILE}" up -d --renew-anon-volumes
 
 # Think of this as a defer func() in golang
 function defer {
