@@ -58,7 +58,11 @@ type ResourceOptions struct {
 	Image            Image
 	PortList         []int
 	PortMappings     map[dc.Port][]dc.PortBinding
+
+	// NoNetworkOverlay if set, disables use of the default integration testing network we create (networkName).
 	NoNetworkOverlay bool
+
+	Cmd []string
 
 	// Env is the environment for the docker container; it corresponds 1:1 with dockertest.RunOptions.
 	// Format should be: VAR=value
@@ -111,8 +115,7 @@ func (o ResourceOptions) WithDefaults(
 
 func newOptions(name string) *dockertest.RunOptions {
 	return &dockertest.RunOptions{
-		Name:      name,
-		NetworkID: networkName,
+		Name: name,
 	}
 }
 
