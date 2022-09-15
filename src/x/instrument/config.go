@@ -50,6 +50,20 @@ type ScopeConfiguration struct {
 	CommonTags map[string]string `yaml:"tags"`
 }
 
+type AttributionConfiguration struct {
+	// Name of this attribution
+	Name string `yaml:"name"`
+
+	// Max capacity of this attribution
+	Capacity int `yaml:"capacity" validate:"nonzero,min=1"`
+
+	// Sampling rate
+	SamplingRate float64 `yaml:"samplingRate" validate:"nonzero,min=0.0,max=1.0"`
+
+	// Matched labels of this attribution
+	Labels []string `yaml:"labels"`
+}
+
 // MetricsConfiguration configures options for emitting metrics.
 type MetricsConfiguration struct {
 	// Root scope configuration.
@@ -69,6 +83,8 @@ type MetricsConfiguration struct {
 
 	// Metric sanitization type.
 	Sanitization *MetricSanitizationType `yaml:"sanitization"`
+
+	Attributions []*AttributionConfiguration `yaml:"attributions"`
 }
 
 // NewRootScope creates a new tally.Scope based on a tally.CachedStatsReporter

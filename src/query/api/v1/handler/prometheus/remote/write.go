@@ -127,6 +127,7 @@ type PromWriteHandler struct {
 	nowFn                  clock.NowFn
 	instrumentOpts         instrument.Options
 	metrics                promWriteMetrics
+	attributions           []*promAttributionMetrics
 
 	// Counting the number of times of "literal is too long" error for log sampling purposes.
 	numLiteralIsTooLong uint32
@@ -160,6 +161,12 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 	metrics, err := newPromWriteMetrics(scope)
 	if err != nil {
 		return nil, err
+	}
+
+	attributions := make([]*promAttributionMetrics, len(options.Config().Metrics.Attributions))
+	for i, attributionOpts := range options.Config().Metrics.Attributions {
+		attribution, _ := newPromAttributionMetrics(scope, attributionOpts)
+		attributions[i] = attribution
 	}
 
 	// Only use a forwarding worker pool if concurrency is bound, otherwise
@@ -199,6 +206,7 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 		forwardRetrier:         retry.NewRetrier(forwardRetryOpts),
 		nowFn:                  nowFn,
 		metrics:                metrics,
+		attributions:           attributions,
 		instrumentOpts:         instrumentOpts,
 	}, nil
 }
@@ -315,6 +323,9 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Record ingestion delay latency
 	now := h.nowFn()
 	for _, series := range req.Timeseries {
+		for _, attribution := range h.attributions {
+			attribution.attribute(series)
+		}
 		for _, sample := range series.Samples {
 			age := now.Sub(storage.PromTimestampToTime(sample.Timestamp))
 			h.metrics.ingestLatency.RecordDuration(age)
