@@ -585,7 +585,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		}
 
 		if shouldFlush && satisifiedFlushRanges {
-			s.log.Debug("building file set index segment", buildIndexLogFields...)
+			s.log.Info("building file set index segment", buildIndexLogFields...)
 			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 				ns,
 				requestedRanges,
@@ -601,7 +601,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				// Bail early if the index segment is already out of retention.
 				// This can happen when the edge of requested ranges at time of data bootstrap
 				// is now out of retention.
-				s.log.Debug("skipping out of retention index segment", buildIndexLogFields...)
+				s.log.Info("skipping out of retention index segment", buildIndexLogFields...)
 				s.metrics.persistedIndexBlocksOutOfRetention.Inc(1)
 				return
 			} else if err != nil {
@@ -785,12 +785,17 @@ func (s *fileSystemSource) read(
 		// NB(r): First read all the FSTs and add to runResult index results,
 		// subtract the shard + time ranges from what we intend to bootstrap
 		// for those we found.
+		s.log.Info("filesystem bootstrapper detecting index blocks for range ",
+			zap.String("shardTimeRanges", shardTimeRanges.String()))
+
 		r, err := s.bootstrapFromIndexPersistedBlocks(md,
 			shardTimeRanges)
 		if err != nil {
 			s.log.Warn("filesystem bootstrapped failed to read persisted index blocks")
 		} else {
 			// We may have less we need to read
+			s.log.Info("filesystem bootstrapped detected existing index blocks for range",
+				zap.String("fulfilled", r.fulfilled.String()))
 			shardTimeRanges = shardTimeRanges.Copy()
 			shardTimeRanges.Subtract(r.fulfilled)
 			// Set or merge result.
@@ -814,6 +819,7 @@ func (s *fileSystemSource) read(
 	default:
 		panic(fmt.Errorf("unrecognized run type: %d", run))
 	}
+
 	runtimeOpts := s.opts.RuntimeOptionsManager().Get()
 	go bootstrapper.EnqueueReaders(bootstrapper.EnqueueReadersOptions{
 		NsMD:            md,
