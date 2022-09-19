@@ -57,7 +57,8 @@ var (
 	errFSTTermsDataUnset       = errors.New("fst terms data bytes are not set")
 	errFSTFieldsDataUnset      = errors.New("fst fields data bytes are not set")
 
-	graphitePathPrefix = []byte(doc.GraphitePathPrefix)
+	reservedFieldChar      = "_"
+	reservedFieldCharBytes = []byte(reservedFieldChar)
 )
 
 // SegmentData represent the collection of required parameters to construct a Segment.
@@ -167,10 +168,16 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 	// required (which was causing lock contention with queries requiring
 	// access to the terms FST for a field that hasn't been accessed before
 	// and loading on demand).
+	nonUnderscoreFields, err := index.CompileRegex([]byte("^[^_].*$"))
+	if err != nil {
+		return nil, err
+	}
+
 	iter := newFSTTermsIter(newFSTTermsIterOptions{})
 	iter.reset(fstTermsIterOpts{
 		seg:         s,
 		fst:         fieldsFST,
+		fstSearch:   &nonUnderscoreFields,
 		finalizeFST: false,
 	})
 
@@ -180,13 +187,6 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 	for iter.Next() {
 		field := iter.Current()
 		termsFSTOffset := iter.CurrentOffset()
-		if bytes.HasPrefix(field, graphitePathPrefix) {
-			// NB(rob): Too expensive to pre-load all the graphite path indexed
-			// path terms, load these on demand for find queries which are
-			// small in volume comparative to queries.
-			continue
-		}
-
 		termsFSTBytes, err := s.retrieveBytesWithRLock(s.data.FSTTermsData.Bytes, termsFSTOffset)
 		if err != nil {
 			return nil, fmt.Errorf(
@@ -1072,7 +1072,7 @@ func (r *fsSegment) retrievePostingsListWithRLock(postingsOffset uint64) (postin
 }
 
 func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (vellumFST, bool, error) {
-	if bytes.HasPrefix(field, graphitePathPrefix) {
+	if len(field) == 0 || bytes.HasPrefix(field, reservedFieldCharBytes) {
 		// NB(rob): Too expensive to pre-load all the graphite path indexed
 		// path terms, load these on demand for find queries which are
 		// small in volume comparative to queries.

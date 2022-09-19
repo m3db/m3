@@ -785,17 +785,19 @@ func (s *fileSystemSource) read(
 		// NB(r): First read all the FSTs and add to runResult index results,
 		// subtract the shard + time ranges from what we intend to bootstrap
 		// for those we found.
+		t0, t1, rng := shardTimeRanges.MinMaxRange()
 		s.log.Info("filesystem bootstrapper detecting index blocks for range ",
-			zap.String("shardTimeRanges", shardTimeRanges.String()))
+			zap.Time("from", t0), zap.Time("until", t1), zap.Duration("range", rng))
 
 		r, err := s.bootstrapFromIndexPersistedBlocks(md,
 			shardTimeRanges)
 		if err != nil {
 			s.log.Warn("filesystem bootstrapped failed to read persisted index blocks")
 		} else {
-			// We may have less we need to read
+			// We may have less we need to read.
+			f0, f1, rng := shardTimeRanges.MinMaxRange()
 			s.log.Info("filesystem bootstrapped detected existing index blocks for range",
-				zap.String("fulfilled", r.fulfilled.String()))
+				zap.Time("from", f0), zap.Time("until", f1), zap.Duration("range", rng))
 			shardTimeRanges = shardTimeRanges.Copy()
 			shardTimeRanges.Subtract(r.fulfilled)
 			// Set or merge result.
