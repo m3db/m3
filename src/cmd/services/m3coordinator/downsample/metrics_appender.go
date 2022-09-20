@@ -334,7 +334,8 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	//    if so then skip aggregating for that storage policy.
 	//    This is what we calculated in the step above.
 	// 2. Any type of drop rule has been set. Drop rules should mean that the auto-mapping rules are ignored.
-	if !a.curr.Pipelines.IsDropPolicySet() {
+	// 3. Aggregate default metric when only downsample option is enable
+	if opts.downsampleAll && !a.curr.Pipelines.IsDropPolicySet() {
 		// No drop rule has been set as part of rule matching.
 		for idx, stagedMetadatasProto := range a.defaultStagedMetadatasProtos {
 			// NB(r): Need to take copy of default staged metadatas as we
