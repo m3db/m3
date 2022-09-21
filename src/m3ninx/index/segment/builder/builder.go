@@ -166,6 +166,8 @@ func (w *indexWorkers) indexWorker(indexQueue <-chan indexJob) {
 					terms, setFieldKeyOptions)
 			}
 
+			// NB(rob): Prepare the terms for use with this generation.
+			terms.maybeResetWithGeneration(entry.opts.generation)
 			// If empty field, track insertion of this key into the fields
 			// collection for correct response when retrieving all fields.
 			newField := terms.size() == 0

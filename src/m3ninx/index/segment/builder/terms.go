@@ -74,17 +74,21 @@ func (t *terms) poolPut(v postings.MutableList) {
 	t.poolLocal = append(t.poolLocal, v)
 }
 
-func (t *terms) post(term []byte, id postings.ID, opts indexJobEntryOptions) error {
-	if opts.generation != t.generation {
-		// Lazily reset the terms if the generation has changed (and we are
-		// holding old results).
-		// CPU profiles indicated a lot of time is spent just clearing out terms
-		// between foreground compactions so now we lazily reset when the builder
-		// generation is incremented.
-		t.reset()
-		t.generation = opts.generation
+func (t *terms) maybeResetWithGeneration(generation uint64) {
+	if generation == t.generation {
+		return
 	}
 
+	// Lazily reset the terms if the generation has changed (and we are
+	// holding old results).
+	// CPU profiles indicated a lot of time is spent just clearing out terms
+	// between foreground compactions so now we lazily reset when the builder
+	// generation is incremented.
+	t.reset()
+	t.generation = generation
+}
+
+func (t *terms) post(term []byte, id postings.ID, opts indexJobEntryOptions) error {
 	graphiteNodeOrLeaf := opts.graphitePathNode || opts.graphitePathLeaf
 	if graphiteNodeOrLeaf {
 		// NB(rob): For graphite path indexing we don't actually associate
