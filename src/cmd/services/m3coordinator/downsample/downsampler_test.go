@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//nolint: dupl
+// nolint: dupl
 package downsample
 
 import (
@@ -94,6 +94,10 @@ func TestDownsamplerAggregationWithAutoMappingRulesFromNamespacesWatcher(t *test
 		ingest: &testDownsamplerOptionsIngest{
 			gaugeMetrics: gaugeMetrics,
 		},
+		sampleAppenderOpts: &SampleAppenderOptions{
+			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeCounter},
+			downsampleAll:    true,
+		},
 		expect: &testDownsamplerOptionsExpect{
 			writes: []testExpectedWrite{
 				{
@@ -122,6 +126,101 @@ func TestDownsamplerAggregationWithAutoMappingRulesFromNamespacesWatcher(t *test
 	waitForStagedMetadataUpdate(t, testDownsampler, origStagedMetadata)
 
 	require.True(t, testDownsampler.downsampler.Enabled())
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func TestDownsamplerAggregationWithDownSampleAllDisable(t *testing.T) {
+	t.Parallel()
+
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	gaugeMetrics, _ := testGaugeMetrics(testGaugeMetricsOptions{})
+	require.Equal(t, 1, len(gaugeMetrics))
+
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: gaugeMetrics,
+		},
+		sampleAppenderOpts: &SampleAppenderOptions{
+			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeCounter},
+			downsampleAll:    false,
+		},
+		// no output aggregated metric by default
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{},
+		},
+	})
+
+	require.False(t, testDownsampler.downsampler.Enabled())
+
+	origStagedMetadata := originalStagedMetadata(t, testDownsampler)
+
+	session := dbclient.NewMockSession(ctrl)
+	setAggregatedNamespaces(t, testDownsampler, session, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("2s:1d"),
+		Resolution:  2 * time.Second,
+		Retention:   24 * time.Hour,
+		Session:     session,
+	})
+
+	waitForStagedMetadataUpdate(t, testDownsampler, origStagedMetadata)
+
+	require.True(t, testDownsampler.downsampler.Enabled())
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func TestDownsamplerAggregationWithDownSampleAllDisableAndMappingRules(t *testing.T) {
+	t.Parallel()
+
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			nameTag: "foo_metric",
+			"app":   "nginx_edge",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
+		},
+	}
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter:       "app:nginx*",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 1 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		sampleAppenderOpts: &SampleAppenderOptions{
+			downsampleAll: false,
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags:   gaugeMetric.tags,
+					values: []expectedValue{{value: 30}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  1 * time.Second,
+						Retention:   30 * 24 * time.Hour,
+					},
+				},
+			},
+		},
+	})
 
 	// Test expected output
 	testDownsamplerAggregation(t, testDownsampler)
@@ -177,6 +276,10 @@ func TestDownsamplerAggregationDownsamplesRawMetricWithRollupRule(t *testing.T) 
 		},
 		ingest: &testDownsamplerOptionsIngest{
 			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		sampleAppenderOpts: &SampleAppenderOptions{
+			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeCounter},
+			downsampleAll:    true,
 		},
 		expect: &testDownsamplerOptionsExpect{
 			writes: []testExpectedWrite{
@@ -274,6 +377,10 @@ func TestDownsamplerEmptyGroupBy(t *testing.T) {
 					},
 				},
 			},
+		},
+		sampleAppenderOpts: &SampleAppenderOptions{
+			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeCounter},
+			downsampleAll:    true,
 		},
 		ingest: &testDownsamplerOptionsIngest{
 			gaugeMetrics: []testGaugeMetric{requestMetric, errorMetric},
@@ -611,6 +718,10 @@ func TestDownsamplerAggregationWithAutoMappingRulesAndRulesConfigMappingRulesAnd
 		ingest: &testDownsamplerOptionsIngest{
 			gaugeMetrics: []testGaugeMetric{gaugeMetric},
 		},
+		sampleAppenderOpts: &SampleAppenderOptions{
+			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeCounter},
+			downsampleAll:    true,
+		},
 		expect: &testDownsamplerOptionsExpect{
 			allowFilter: &testDownsamplerOptionsExpectAllowFilter{
 				attributes: []storagemetadata.Attributes{
@@ -671,6 +782,10 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesPartialReplaceAutoMapp
 		},
 		ingest: &testDownsamplerOptionsIngest{
 			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		sampleAppenderOpts: &SampleAppenderOptions{
+			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeCounter},
+			downsampleAll:    true,
 		},
 		expect: &testDownsamplerOptionsExpect{
 			writes: []testExpectedWrite{
@@ -870,6 +985,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesTypeFilter(t *testing.
 		},
 		sampleAppenderOpts: &SampleAppenderOptions{
 			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeCounter},
+			downsampleAll:    true,
 		},
 		ingest: &testDownsamplerOptionsIngest{
 			gaugeMetrics: []testGaugeMetric{gaugeMetric},
@@ -927,6 +1043,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesTypePromFilter(t *test
 		},
 		sampleAppenderOpts: &SampleAppenderOptions{
 			SeriesAttributes: ts.SeriesAttributes{PromType: ts.PromMetricTypeCounter},
+			downsampleAll:    true,
 		},
 		ingest: &testDownsamplerOptionsIngest{
 			gaugeMetrics: []testGaugeMetric{gaugeMetric},
@@ -983,6 +1100,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesTypeFilterNoMatch(t *t
 		},
 		sampleAppenderOpts: &SampleAppenderOptions{
 			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeGauge},
+			downsampleAll:    true,
 		},
 		ingest: &testDownsamplerOptionsIngest{
 			gaugeMetrics: []testGaugeMetric{gaugeMetric},
@@ -1027,6 +1145,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesPromTypeFilterNoMatch(
 		},
 		sampleAppenderOpts: &SampleAppenderOptions{
 			SeriesAttributes: ts.SeriesAttributes{PromType: ts.PromMetricTypeGauge},
+			downsampleAll:    true,
 		},
 		ingest: &testDownsamplerOptionsIngest{
 			gaugeMetrics: []testGaugeMetric{gaugeMetric},
@@ -1331,6 +1450,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesPromQuantileTag(t *tes
 		},
 		sampleAppenderOpts: &SampleAppenderOptions{
 			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeTimer},
+			downsampleAll:    true,
 		},
 		ingest: &testDownsamplerOptionsIngest{
 			timerMetrics: []testTimerMetric{timerMetric},
@@ -1394,6 +1514,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesPromQuantileTagIgnored
 		},
 		sampleAppenderOpts: &SampleAppenderOptions{
 			SeriesAttributes: ts.SeriesAttributes{M3Type: ts.M3MetricTypeTimer},
+			downsampleAll:    true,
 		},
 		ingest: &testDownsamplerOptionsIngest{
 			timerMetrics: []testTimerMetric{timerMetric},
@@ -2709,6 +2830,7 @@ func TestDownsamplerAggregationWithOverrideRules(t *testing.T) {
 					},
 				},
 			},
+			downsampleAll: true,
 		},
 		rulesConfig: &RulesConfiguration{
 			MappingRules: []MappingRuleConfiguration{

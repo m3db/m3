@@ -74,6 +74,8 @@ type SampleAppenderOptions struct {
 	Override         bool
 	OverrideRules    SamplesAppenderOverrideRules
 	SeriesAttributes ts.SeriesAttributes
+	// option for coordinator to append all metric to downsampler, default is false
+	downsampleAll bool
 }
 
 // SamplesAppenderOverrideRules provides override rules to
