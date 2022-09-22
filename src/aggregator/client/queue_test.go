@@ -94,6 +94,142 @@ func TestInstanceQueueEnqueueQueueFullDropOldest(t *testing.T) {
 	}, result)
 }
 
+func TestInstanceQueueEnqueueQueueFullBytesDropCurrent(t *testing.T) {
+	opts := testOptions().SetQueueDropType(DropCurrent).SetInstanceMaxQueueSizeBytes(8)
+	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
+
+	var result []byte
+	queue.writeFn = func(payload []byte) error {
+		result = payload
+		return nil
+	}
+
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{1, 2, 3})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{4, 5, 6})))
+	require.NoError(t, queue.Enqueue(testNewBuffer([]byte{7, 8, 9})))
+
+	require.Equal(t, errWriterQueueFull, queue.Enqueue(testNewBuffer([]byte{42})))
+
+	queue.Flush()
+
+	require.EqualValues(t, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}, result)
+}
+
+func TestInstanceQueueEnqueueQueueFullBytesDropOldest(t *testing.T) {
+	tests := []struct {
+		name           string
+		queueSizeBytes int
+		queueSizeItems int
+		toEnqueue      []protobuf.Buffer
+		expected       []byte
+	}{
+		{
+			name:           "last one removes all previous enqueued buffers",
+			queueSizeBytes: 5,
+			// default queueSizeItems (128)
+			toEnqueue: []protobuf.Buffer{
+				testNewBuffer([]byte{42}),
+				testNewBuffer([]byte{42, 43, 44}),
+				testNewBuffer([]byte{45, 46, 47}),
+				testNewBuffer([]byte{1, 2, 3, 4, 5}),
+				testNewBuffer([]byte{1}),
+			},
+			expected: []byte{1},
+		},
+		{
+			name:           "last two buffers remain",
+			queueSizeBytes: 5,
+			// default queueSizeItems (128)
+			toEnqueue: []protobuf.Buffer{
+				testNewBuffer([]byte{}),
+				testNewBuffer([]byte{1, 2, 3}),
+				testNewBuffer([]byte{42}),
+				testNewBuffer([]byte{}),
+				testNewBuffer([]byte{42, 43, 44}),
+				testNewBuffer([]byte{45, 46, 47}),
+				testNewBuffer([]byte{1}),
+			},
+			expected: []byte{45, 46, 47, 1},
+		},
+		{
+			name:           "zero length buffer enqueued",
+			queueSizeBytes: 5,
+			// default queueSizeItems (128)
+			toEnqueue: []protobuf.Buffer{},
+			expected:  []byte{},
+		},
+		{
+			name:           "big last buffer expands queue beyond limit",
+			queueSizeBytes: 5,
+			// default queueSizeItems (128)
+			toEnqueue: []protobuf.Buffer{
+				testNewBuffer([]byte{1, 2, 3}),
+				testNewBuffer([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0}),
+			},
+			expected: []byte{1, 2, 3, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0},
+		},
+		{
+			name:           "last one dequeues all others",
+			queueSizeBytes: 5,
+			// default queueSizeItems (128)
+			toEnqueue: []protobuf.Buffer{
+				testNewBuffer([]byte{1}),
+				testNewBuffer([]byte{1}),
+				testNewBuffer([]byte{1}),
+				testNewBuffer([]byte{1}),
+				testNewBuffer([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0}),
+				testNewBuffer([]byte{2}),
+			},
+			expected: []byte{2},
+		},
+		{
+			name: "default queue sizes",
+			// default queueSizeBytes (0) no-limit
+			// default queueSizeItems (128)
+			toEnqueue: []protobuf.Buffer{
+				testNewBuffer([]byte{}),
+				testNewBuffer([]byte{1, 2, 3}),
+				testNewBuffer([]byte{42}),
+				testNewBuffer([]byte{}),
+				testNewBuffer([]byte{42, 43, 44}),
+				testNewBuffer([]byte{45, 46, 47}),
+				testNewBuffer([]byte{1}),
+			},
+			expected: []byte{1, 2, 3, 42, 42, 43, 44, 45, 46, 47, 1},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			opts := testOptions()
+			if test.queueSizeBytes > 0 {
+				opts = opts.SetInstanceMaxQueueSizeBytes(test.queueSizeBytes)
+			}
+			if test.queueSizeItems > 0 {
+				opts = opts.SetInstanceQueueSize(test.queueSizeItems)
+			}
+
+			queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
+
+			result := []byte{}
+			queue.writeFn = func(payload []byte) error {
+				result = payload
+				return nil
+			}
+
+			for _, input := range test.toEnqueue {
+				require.NoError(t, queue.Enqueue(input),
+					"Enqueue failed for test %q", test.name)
+			}
+
+			queue.Flush()
+
+			require.EqualValues(t, test.expected, result,
+				"Enqueue expectation failed for test %q", test.name)
+		})
+	}
+}
+
 func TestInstanceQueueEnqueueLargeBuffers(t *testing.T) {
 	var (
 		opts = testOptions().
