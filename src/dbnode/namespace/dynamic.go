@@ -141,7 +141,7 @@ func newDynamicRegistry(opts DynamicOptions) (Registry, error) {
 
 	logger.Info("initial namespace value received")
 
-	m, err := getMapFromUpdate(initValue, opts.ForceColdWritesEnabled())
+	m, err := getMapFromUpdate(initValue, opts)
 	if err != nil {
 		logger.Error("dynamic namespace registry received invalid initial value", zap.Error(err))
 		return nil, err
@@ -237,7 +237,7 @@ func (r *dynamicRegistry) run() {
 			r.logger.Debug("current value for dynamic registry is nil. this should only happen on initialization")
 		}
 
-		m, err := getMapFromUpdate(val, r.opts.ForceColdWritesEnabled())
+		m, err := getMapFromUpdate(val, r.opts)
 		if err != nil {
 			r.metrics.numInvalidUpdates.Inc(1)
 			r.logger.Warn("dynamic namespace registry received invalid update, skipping",
@@ -288,7 +288,10 @@ func (r *dynamicRegistry) Close() error {
 	return nil
 }
 
-func getMapFromUpdate(val kv.Value, forceColdWritesEnabled bool) (Map, error) {
+func getMapFromUpdate(
+	val kv.Value,
+	opts DynamicOptions,
+) (Map, error) {
 	if val == nil {
 		return nil, errInvalidRegistry
 	}
@@ -304,8 +307,28 @@ func getMapFromUpdate(val kv.Value, forceColdWritesEnabled bool) (Map, error) {
 	}
 
 	// NB(bodu): Force cold writes to be enabled for all ns if specified.
-	if forceColdWritesEnabled {
-		m, err = NewMap(ForceColdWritesEnabledForMetadatas(m.Metadatas()))
+	if opts.ForceColdWritesEnabled() {
+		m, err = NewMap(MetadatasWithOptions(m.Metadatas(), func(o Options) Options {
+			return o.SetColdWritesEnabled(true)
+		}))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if v := opts.ForceWriteIndexingPerCPUConcurrency(); v != nil {
+		m, err = NewMap(MetadatasWithOptions(m.Metadatas(), func(o Options) Options {
+			return o.SetRuntimeOptions(o.RuntimeOptions().SetWriteIndexingPerCPUConcurrency(v))
+		}))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if v := opts.ForceFlushIndexingPerCPUConcurrency(); v != nil {
+		m, err = NewMap(MetadatasWithOptions(m.Metadatas(), func(o Options) Options {
+			return o.SetRuntimeOptions(o.RuntimeOptions().SetFlushIndexingPerCPUConcurrency(v))
+		}))
 		if err != nil {
 			return nil, err
 		}

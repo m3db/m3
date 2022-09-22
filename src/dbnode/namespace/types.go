@@ -303,6 +303,22 @@ type DynamicOptions interface {
 	// AllowEmptyInitialNamespaceRegistry returns whether to allow the initial
 	// namespace update to be empty or to wait indefinitely until namespaces are received.
 	AllowEmptyInitialNamespaceRegistry() bool
+
+	// SetForceWriteIndexingPerCPUConcurrency sets whether or not to force the
+	// write indexing per CPU concurrency.
+	SetForceWriteIndexingPerCPUConcurrency(value *float64) DynamicOptions
+
+	// ForceWriteIndexingPerCPUConcurrency returns whether or not to force the
+	// write indexing per CPU concurrency.
+	ForceWriteIndexingPerCPUConcurrency() *float64
+
+	// SetForceFlushIndexingPerCPUConcurrency sets whether or not to force the
+	// write indexing per CPU concurrency.
+	SetForceFlushIndexingPerCPUConcurrency(value *float64) DynamicOptions
+
+	// ForceFlushIndexingPerCPUConcurrency returns whether or not to force the
+	// write indexing per CPU concurrency.
+	ForceFlushIndexingPerCPUConcurrency() *float64
 }
 
 // NamespaceWatch watches for namespace updates.

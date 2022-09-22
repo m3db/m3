@@ -45,10 +45,8 @@ const (
 	FindURL = handler.RoutePrefixV1 + "/graphite/metrics/find"
 )
 
-var (
-	// FindHTTPMethods are the HTTP methods for this handler.
-	FindHTTPMethods = []string{http.MethodGet, http.MethodPost}
-)
+// FindHTTPMethods are the HTTP methods for this handler.
+var FindHTTPMethods = []string{http.MethodGet, http.MethodPost}
 
 type grahiteFindHandler struct {
 	storage             graphitestorage.Storage
@@ -171,9 +169,10 @@ func (h *grahiteFindHandler) ServeHTTP(
 	}
 
 	handleroptions.AddResponseHeaders(w, meta, opts)
+
 	// TODO: Support multiple result types
-	if err = findResultsJSON(w, prefix, seenMap); err != nil {
-		logger.Error("unable to print find results", zap.Error(err))
-		xhttp.WriteError(w, err)
+	var resultOpts findResultsOptions
+	if err := findResultsJSON(w, prefix, seenMap, resultOpts); err != nil {
+		logger.Error("unable to render find results", zap.Error(err))
 	}
 }

@@ -1284,6 +1284,22 @@ type Options interface {
 	// SetForceColdWritesEnabled returns options for forcing cold writes.
 	ForceColdWritesEnabled() bool
 
+	// SetForceWriteIndexingPerCPUConcurrency sets whether or not to force the
+	// write indexing per CPU concurrency.
+	SetForceWriteIndexingPerCPUConcurrency(value *float64) Options
+
+	// ForceWriteIndexingPerCPUConcurrency returns whether or not to force the
+	// write indexing per CPU concurrency.
+	ForceWriteIndexingPerCPUConcurrency() *float64
+
+	// SetForceFlushIndexingPerCPUConcurrency sets whether or not to force the
+	// write indexing per CPU concurrency.
+	SetForceFlushIndexingPerCPUConcurrency(value *float64) Options
+
+	// ForceFlushIndexingPerCPUConcurrency returns whether or not to force the
+	// write indexing per CPU concurrency.
+	ForceFlushIndexingPerCPUConcurrency() *float64
+
 	// SetSourceLoggerBuilder sets the limit source logger builder.
 	SetSourceLoggerBuilder(value limits.SourceLoggerBuilder) Options
 
