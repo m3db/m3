@@ -40,12 +40,14 @@ var (
 )
 
 type dynamicOpts struct {
-	iopts                              instrument.Options
-	csClient                           client.Client
-	nsRegistryKey                      string
-	initTimeout                        time.Duration
-	forceColdWritesEnabled             bool
-	allowEmptyInitialNamespaceRegistry bool
+	iopts                               instrument.Options
+	csClient                            client.Client
+	nsRegistryKey                       string
+	initTimeout                         time.Duration
+	forceColdWritesEnabled              bool
+	allowEmptyInitialNamespaceRegistry  bool
+	forceWriteIndexingPerCPUConcurrency *float64
+	forceFlushIndexingPerCPUConcurrency *float64
 }
 
 // NewDynamicOptions creates a new DynamicOptions
@@ -118,4 +120,24 @@ func (o *dynamicOpts) SetAllowEmptyInitialNamespaceRegistry(value bool) DynamicO
 
 func (o *dynamicOpts) AllowEmptyInitialNamespaceRegistry() bool {
 	return o.allowEmptyInitialNamespaceRegistry
+}
+
+func (o *dynamicOpts) SetForceWriteIndexingPerCPUConcurrency(value *float64) DynamicOptions {
+	opts := *o
+	opts.forceWriteIndexingPerCPUConcurrency = value
+	return &opts
+}
+
+func (o *dynamicOpts) ForceWriteIndexingPerCPUConcurrency() *float64 {
+	return o.forceWriteIndexingPerCPUConcurrency
+}
+
+func (o *dynamicOpts) SetForceFlushIndexingPerCPUConcurrency(value *float64) DynamicOptions {
+	opts := *o
+	opts.forceFlushIndexingPerCPUConcurrency = value
+	return &opts
+}
+
+func (o *dynamicOpts) ForceFlushIndexingPerCPUConcurrency() *float64 {
+	return o.forceFlushIndexingPerCPUConcurrency
 }

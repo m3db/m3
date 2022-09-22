@@ -211,6 +211,12 @@ type DBConfiguration struct {
 	// ForceColdWritesEnabled will force enable cold writes for all namespaces
 	// if set.
 	ForceColdWritesEnabled *bool `yaml:"forceColdWritesEnabled"`
+
+	// ForceWriteIndexingPerCPUConcurrency will force enable indexing concurrency.
+	ForceWriteIndexingPerCPUConcurrency *float64 `yaml:"forceWriteIndexingPerCPUConcurrency"`
+
+	// ForceFlushIndexingPerCPUConcurrency will force enable indexing concurrency.
+	ForceFlushIndexingPerCPUConcurrency *float64 `yaml:"forceFlushIndexingPerCPUConcurrency"`
 }
 
 // LoggingOrDefault returns the logging configuration or defaults.

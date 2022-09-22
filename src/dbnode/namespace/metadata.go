@@ -50,7 +50,6 @@ func NewMetadata(id ident.ID, opts Options) (Metadata, error) {
 
 	if err := opts.Validate(); err != nil {
 		return nil, fmt.Errorf("unable to validate options: %v", err)
-
 	}
 
 	copiedID := checked.NewBytes(append([]byte(nil), id.Bytes()...), nil)
@@ -72,13 +71,16 @@ func (m *metadata) Equal(value Metadata) bool {
 	return m.id.Equal(value.ID()) && m.Options().Equal(value.Options())
 }
 
-// ForceColdWritesEnabledForMetadatas forces cold writes to be enabled for all ns.
-func ForceColdWritesEnabledForMetadatas(metadatas []Metadata) []Metadata {
+// MetadatasWithOptions returns metadatas with modified options.
+func MetadatasWithOptions(
+	metadatas []Metadata,
+	fn func(o Options) Options,
+) []Metadata {
 	mds := make([]Metadata, 0, len(metadatas))
 	for _, md := range metadatas {
 		mds = append(mds, &metadata{
 			id:   md.ID(),
-			opts: md.Options().SetColdWritesEnabled(true),
+			opts: fn(md.Options()),
 		})
 	}
 	return mds

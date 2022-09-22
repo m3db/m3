@@ -194,11 +194,13 @@ func (c ConfigureResults) SyncCluster() (ConfigureResult, error) {
 
 // ConfigurationParameters are options used to create new ConfigureResults
 type ConfigurationParameters struct {
-	InstrumentOpts         instrument.Options
-	HashingSeed            uint32
-	HostID                 string
-	NewDirectoryMode       os.FileMode
-	ForceColdWritesEnabled bool
+	InstrumentOpts                      instrument.Options
+	HashingSeed                         uint32
+	HostID                              string
+	NewDirectoryMode                    os.FileMode
+	ForceColdWritesEnabled              bool
+	ForceWriteIndexingPerCPUConcurrency *float64
+	ForceFlushIndexingPerCPUConcurrency *float64
 	// AllowEmptyInitialNamespaceRegistry determines whether to allow the initial
 	// namespace update to be empty or to wait indefinitely until namespaces are received.
 	// This is used when configuring the namespaceInitializer.
@@ -302,6 +304,8 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 			SetConfigServiceClient(configSvcClient).
 			SetNamespaceRegistryKey(kvconfig.NamespacesKey).
 			SetForceColdWritesEnabled(cfgParams.ForceColdWritesEnabled).
+			SetForceWriteIndexingPerCPUConcurrency(cfgParams.ForceWriteIndexingPerCPUConcurrency).
+			SetForceFlushIndexingPerCPUConcurrency(cfgParams.ForceFlushIndexingPerCPUConcurrency).
 			SetAllowEmptyInitialNamespaceRegistry(cfgParams.AllowEmptyInitialNamespaceRegistry)
 		nsInit := namespace.NewDynamicInitializer(dynamicOpts)
 
@@ -358,7 +362,19 @@ func (c Configuration) configureStatic(cfgParams ConfigurationParameters) (Confi
 		}
 		// NB(bodu): Force cold writes to be enabled for all ns if specified.
 		if cfgParams.ForceColdWritesEnabled {
-			nsList = namespace.ForceColdWritesEnabledForMetadatas(nsList)
+			nsList = namespace.MetadatasWithOptions(nsList, func(o namespace.Options) namespace.Options {
+				return o.SetColdWritesEnabled(true)
+			})
+		}
+		if v := cfgParams.ForceWriteIndexingPerCPUConcurrency; v != nil {
+			nsList = namespace.MetadatasWithOptions(nsList, func(o namespace.Options) namespace.Options {
+				return o.SetRuntimeOptions(o.RuntimeOptions().SetWriteIndexingPerCPUConcurrency(v))
+			})
+		}
+		if v := cfgParams.ForceFlushIndexingPerCPUConcurrency; v != nil {
+			nsList = namespace.MetadatasWithOptions(nsList, func(o namespace.Options) namespace.Options {
+				return o.SetRuntimeOptions(o.RuntimeOptions().SetFlushIndexingPerCPUConcurrency(v))
+			})
 		}
 
 		nsInitStatic := namespace.NewStaticInitializer(nsList)

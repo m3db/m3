@@ -173,8 +173,11 @@ func (h *grahiteFindHandler) ServeHTTP(
 
 	handleroptions.AddResponseHeaders(w, meta, opts)
 
-	// TODO: Support multiple result types other than just JSON such as pickle.
-	if err := findResultsJSON(w, prefix, seenMap); err != nil {
+	// TODO: Support multiple result types
+	resultOpts := findResultsOptions{
+		includeBothExpandableAndLeaf: h.graphiteStorageOpts.FindResultsIncludeBothExpandableAndLeaf,
+	}
+	if err := findResultsJSON(w, prefix, seenMap, resultOpts); err != nil {
 		logger.Error("unable to render find results", zap.Error(err))
 	}
 }

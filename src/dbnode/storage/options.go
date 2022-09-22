@@ -124,61 +124,63 @@ func NewSeriesOptionsFromOptions(opts Options, ropts retention.Options) series.O
 }
 
 type options struct {
-	clockOpts                       clock.Options
-	instrumentOpts                  instrument.Options
-	nsRegistryInitializer           namespace.Initializer
-	blockOpts                       block.Options
-	commitLogOpts                   commitlog.Options
-	runtimeOptsMgr                  m3dbruntime.OptionsManager
-	errWindowForLoad                time.Duration
-	errThresholdForLoad             int64
-	indexingEnabled                 bool
-	repairEnabled                   bool
-	truncateType                    series.TruncateType
-	transformOptions                series.WriteTransformOptions
-	indexOpts                       index.Options
-	repairOpts                      repair.Options
-	newEncoderFn                    encoding.NewEncoderFn
-	newDecoderFn                    encoding.NewDecoderFn
-	bootstrapProcessProvider        bootstrap.ProcessProvider
-	persistManager                  persist.Manager
-	indexClaimsManager              fs.IndexClaimsManager
-	blockRetrieverManager           block.DatabaseBlockRetrieverManager
-	poolOpts                        pool.ObjectPoolOptions
-	contextPool                     context.Pool
-	seriesCachePolicy               series.CachePolicy
-	seriesOpts                      series.Options
-	seriesPool                      series.DatabaseSeriesPool
-	bytesPool                       pool.CheckedBytesPool
-	encoderPool                     encoding.EncoderPool
-	segmentReaderPool               xio.SegmentReaderPool
-	readerIteratorPool              encoding.ReaderIteratorPool
-	multiReaderIteratorPool         encoding.MultiReaderIteratorPool
-	identifierPool                  ident.Pool
-	fetchBlockMetadataResultsPool   block.FetchBlockMetadataResultsPool
-	fetchBlocksMetadataResultsPool  block.FetchBlocksMetadataResultsPool
-	writeBatchPool                  *writes.WriteBatchPool
-	bufferBucketPool                *series.BufferBucketPool
-	bufferBucketVersionsPool        *series.BufferBucketVersionsPool
-	retrieveRequestPool             fs.RetrieveRequestPool
-	checkedBytesWrapperPool         xpool.CheckedBytesWrapperPool
-	schemaReg                       namespace.SchemaRegistry
-	blockLeaseManager               block.LeaseManager
-	onColdFlush                     OnColdFlush
-	forceColdWritesEnabled          bool
-	sourceLoggerBuilder             limits.SourceLoggerBuilder
-	iterationOptions                index.IterationOptions
-	memoryTracker                   MemoryTracker
-	mmapReporter                    mmap.Reporter
-	doNotIndexWithFieldsMap         map[string]string
-	namespaceRuntimeOptsMgrRegistry namespace.RuntimeOptionsManagerRegistry
-	mediatorTickInterval            time.Duration
-	adminClient                     client.AdminClient
-	wideBatchSize                   int
-	newBackgroundProcessFns         []NewBackgroundProcessFn
-	namespaceHooks                  NamespaceHooks
-	tileAggregator                  TileAggregator
-	permitsOptions                  permits.Options
+	clockOpts                           clock.Options
+	instrumentOpts                      instrument.Options
+	nsRegistryInitializer               namespace.Initializer
+	blockOpts                           block.Options
+	commitLogOpts                       commitlog.Options
+	runtimeOptsMgr                      m3dbruntime.OptionsManager
+	errWindowForLoad                    time.Duration
+	errThresholdForLoad                 int64
+	indexingEnabled                     bool
+	repairEnabled                       bool
+	truncateType                        series.TruncateType
+	transformOptions                    series.WriteTransformOptions
+	indexOpts                           index.Options
+	repairOpts                          repair.Options
+	newEncoderFn                        encoding.NewEncoderFn
+	newDecoderFn                        encoding.NewDecoderFn
+	bootstrapProcessProvider            bootstrap.ProcessProvider
+	persistManager                      persist.Manager
+	indexClaimsManager                  fs.IndexClaimsManager
+	blockRetrieverManager               block.DatabaseBlockRetrieverManager
+	poolOpts                            pool.ObjectPoolOptions
+	contextPool                         context.Pool
+	seriesCachePolicy                   series.CachePolicy
+	seriesOpts                          series.Options
+	seriesPool                          series.DatabaseSeriesPool
+	bytesPool                           pool.CheckedBytesPool
+	encoderPool                         encoding.EncoderPool
+	segmentReaderPool                   xio.SegmentReaderPool
+	readerIteratorPool                  encoding.ReaderIteratorPool
+	multiReaderIteratorPool             encoding.MultiReaderIteratorPool
+	identifierPool                      ident.Pool
+	fetchBlockMetadataResultsPool       block.FetchBlockMetadataResultsPool
+	fetchBlocksMetadataResultsPool      block.FetchBlocksMetadataResultsPool
+	writeBatchPool                      *writes.WriteBatchPool
+	bufferBucketPool                    *series.BufferBucketPool
+	bufferBucketVersionsPool            *series.BufferBucketVersionsPool
+	retrieveRequestPool                 fs.RetrieveRequestPool
+	checkedBytesWrapperPool             xpool.CheckedBytesWrapperPool
+	schemaReg                           namespace.SchemaRegistry
+	blockLeaseManager                   block.LeaseManager
+	onColdFlush                         OnColdFlush
+	forceColdWritesEnabled              bool
+	forceWriteIndexingPerCPUConcurrency *float64
+	forceFlushIndexingPerCPUConcurrency *float64
+	sourceLoggerBuilder                 limits.SourceLoggerBuilder
+	iterationOptions                    index.IterationOptions
+	memoryTracker                       MemoryTracker
+	mmapReporter                        mmap.Reporter
+	doNotIndexWithFieldsMap             map[string]string
+	namespaceRuntimeOptsMgrRegistry     namespace.RuntimeOptionsManagerRegistry
+	mediatorTickInterval                time.Duration
+	adminClient                         client.AdminClient
+	wideBatchSize                       int
+	newBackgroundProcessFns             []NewBackgroundProcessFn
+	namespaceHooks                      NamespaceHooks
+	tileAggregator                      TileAggregator
+	permitsOptions                      permits.Options
 }
 
 // NewOptions creates a new set of storage options with defaults.
@@ -787,6 +789,26 @@ func (o *options) SetForceColdWritesEnabled(value bool) Options {
 
 func (o *options) ForceColdWritesEnabled() bool {
 	return o.forceColdWritesEnabled
+}
+
+func (o *options) SetForceWriteIndexingPerCPUConcurrency(value *float64) Options {
+	opts := *o
+	opts.forceWriteIndexingPerCPUConcurrency = value
+	return &opts
+}
+
+func (o *options) ForceWriteIndexingPerCPUConcurrency() *float64 {
+	return o.forceWriteIndexingPerCPUConcurrency
+}
+
+func (o *options) SetForceFlushIndexingPerCPUConcurrency(value *float64) Options {
+	opts := *o
+	opts.forceFlushIndexingPerCPUConcurrency = value
+	return &opts
+}
+
+func (o *options) ForceFlushIndexingPerCPUConcurrency() *float64 {
+	return o.forceFlushIndexingPerCPUConcurrency
 }
 
 func (o *options) SetSourceLoggerBuilder(value limits.SourceLoggerBuilder) Options {

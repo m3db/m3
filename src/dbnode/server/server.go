@@ -717,17 +717,24 @@ func Run(runOpts RunOptions) {
 		// Allow forcing cold writes to be enabled by config.
 		opts = opts.SetForceColdWritesEnabled(*value)
 	}
+	if value := cfg.ForceWriteIndexingPerCPUConcurrency; value != nil {
+		opts = opts.SetForceWriteIndexingPerCPUConcurrency(value)
+	}
+	if value := cfg.ForceFlushIndexingPerCPUConcurrency; value != nil {
+		opts = opts.SetForceFlushIndexingPerCPUConcurrency(value)
+	}
 
-	forceColdWrites := opts.ForceColdWritesEnabled()
 	var envCfgResults environment.ConfigureResults
 	if len(envConfig.Statics) == 0 {
 		logger.Info("creating dynamic config service client with m3cluster")
 
 		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts:         iOpts,
-			HashingSeed:            cfg.Hashing.Seed,
-			NewDirectoryMode:       newDirectoryMode,
-			ForceColdWritesEnabled: forceColdWrites,
+			InstrumentOpts:                      iOpts,
+			HashingSeed:                         cfg.Hashing.Seed,
+			NewDirectoryMode:                    newDirectoryMode,
+			ForceColdWritesEnabled:              opts.ForceColdWritesEnabled(),
+			ForceWriteIndexingPerCPUConcurrency: opts.ForceWriteIndexingPerCPUConcurrency(),
+			ForceFlushIndexingPerCPUConcurrency: opts.ForceFlushIndexingPerCPUConcurrency(),
 		})
 		if err != nil {
 			logger.Fatal("could not initialize dynamic config", zap.Error(err))
@@ -736,9 +743,11 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating static config service client with m3cluster")
 
 		envCfgResults, err = envConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts:         iOpts,
-			HostID:                 hostID,
-			ForceColdWritesEnabled: forceColdWrites,
+			InstrumentOpts:                      iOpts,
+			HostID:                              hostID,
+			ForceColdWritesEnabled:              opts.ForceColdWritesEnabled(),
+			ForceWriteIndexingPerCPUConcurrency: opts.ForceWriteIndexingPerCPUConcurrency(),
+			ForceFlushIndexingPerCPUConcurrency: opts.ForceFlushIndexingPerCPUConcurrency(),
 		})
 		if err != nil {
 			logger.Fatal("could not initialize static config", zap.Error(err))
