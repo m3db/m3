@@ -37,6 +37,8 @@ import (
 const (
 	// ContinuousCPUProfileName is the name of continuous CPU profile.
 	ContinuousCPUProfileName = "cpu"
+
+	continuousProfileBackoff = 2 * time.Minute
 )
 
 var (
@@ -143,14 +145,12 @@ func (c *ContinuousFileProfile) Stop() error {
 
 func (c *ContinuousFileProfile) run() {
 	closeCh := c.closeCh
-	ticker := time.NewTicker(c.interval)
-	defer ticker.Stop()
 
 	for {
 		select {
 		case <-closeCh:
 			return
-		case <-ticker.C:
+		case <-time.After(c.interval):
 			if !c.conditional() {
 				continue
 			}
@@ -163,6 +163,9 @@ func (c *ContinuousFileProfile) run() {
 					zap.Duration("interval", c.interval),
 					zap.Error(err))
 			}
+
+			// Backoff to avoid profiling impacting performance too frequently.
+			time.Sleep(continuousProfileBackoff)
 		}
 	}
 }
