@@ -175,6 +175,8 @@ type options struct {
 	doNotIndexWithFieldsMap             map[string]string
 	namespaceRuntimeOptsMgrRegistry     namespace.RuntimeOptionsManagerRegistry
 	mediatorTickInterval                time.Duration
+	flushOffset                         time.Duration
+	flushJitter                         time.Duration
 	adminClient                         client.AdminClient
 	wideBatchSize                       int
 	newBackgroundProcessFns             []NewBackgroundProcessFn
@@ -881,6 +883,26 @@ func (o *options) SetMediatorTickInterval(value time.Duration) Options {
 
 func (o *options) MediatorTickInterval() time.Duration {
 	return o.mediatorTickInterval
+}
+
+func (o *options) SetFlushOffset(value time.Duration) Options {
+	opts := *o
+	opts.flushOffset = value
+	return &opts
+}
+
+func (o *options) FlushOffset() time.Duration {
+	return o.flushOffset
+}
+
+func (o *options) SetFlushJitter(value time.Duration) Options {
+	opts := *o
+	opts.flushJitter = value
+	return &opts
+}
+
+func (o *options) FlushJitter() time.Duration {
+	return o.flushJitter
 }
 
 func (o *options) SetAdminClient(value client.AdminClient) Options {

@@ -23,13 +23,17 @@ package config
 import (
 	"fmt"
 	"os"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
 )
 
 const (
 	// DefaultNewFileMode is the default new file mode.
-	DefaultNewFileMode = os.FileMode(0666)
+	DefaultNewFileMode = os.FileMode(0o666)
 	// DefaultNewDirectoryMode is the default new directory mode.
-	DefaultNewDirectoryMode = os.FileMode(0755)
+	DefaultNewDirectoryMode = os.FileMode(0o755)
 
 	defaultFilePathPrefix                  = "/var/lib/m3db"
 	defaultWriteBufferSize                 = 65536
@@ -98,6 +102,22 @@ type FilesystemConfiguration struct {
 	// BloomFilterFalsePositivePercent controls the target false positive percentage
 	// for the bloom filters for the fileset files.
 	BloomFilterFalsePositivePercent *float64 `yaml:"bloomFilterFalsePositivePercent"`
+
+	// Flush is the filesystem flush options.
+	Flush FilesystemFlushConfiguration `yaml:"flush"`
+}
+
+// FilesystemFlushConfiguration is the filesystem flush configuration.
+type FilesystemFlushConfiguration struct {
+	Jitter *time.Duration                     `yaml:"jitter"`
+	Offset FilesystemFlushOffsetConfiguration `yaml:"offset"`
+}
+
+// FilesystemFlushOffsetConfiguration is the filesystem flush offset configuration.
+type FilesystemFlushOffsetConfiguration struct {
+	Fixed                  *time.Duration `yaml:"fixed"`
+	FromHostnamePattern    *string        `yaml:"fromHostnamePattern"`
+	FromHostnameMultiplier *time.Duration `yaml:"fromHostnameMultiplier"`
 }
 
 // Validate validates the Filesystem configuration. We use this method to validate
@@ -255,6 +275,58 @@ func (f FilesystemConfiguration) BloomFilterFalsePositivePercentOrDefault() floa
 		return *f.BloomFilterFalsePositivePercent
 	}
 	return defaultBloomFilterFalsePositivePercent
+}
+
+// JitterOrDefault returns the flush jitter or default.
+func (f FilesystemFlushConfiguration) JitterOrDefault() time.Duration {
+	if v := f.Jitter; v != nil {
+		return *v
+	}
+	return 0
+}
+
+// JitterOrDefault returns the flush offset or default, sometimes extracted
+// from the host ID string and multiplied.
+func (f FilesystemFlushConfiguration) OffsetOrDefault(hostID string) (time.Duration, error) {
+	var result time.Duration
+
+	if v := f.Offset.Fixed; v != nil {
+		result += *v
+	}
+
+	if str := f.Offset.FromHostnamePattern; str != nil {
+		pattern := *str
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return 0, err
+		}
+
+		matches := re.FindStringSubmatch(hostID)
+		if len(matches) != 2 {
+			return 0, fmt.Errorf(
+				"invalid flush offset from hostname pattern: pattern=%s, host_id=%s, matches=%d",
+				pattern, hostID, len(matches))
+		}
+
+		// Extract the offset from the first submatch and strip any leading zeros.
+		match := strings.TrimLeft(matches[1], "0")
+		num, err := strconv.Atoi(matches[1])
+		if err != nil {
+			return 0, fmt.Errorf("invalid flush offset from hostname pattern value: match=%s ,err=%v",
+				match, err)
+		}
+
+		n := time.Duration(num)
+		if multiply := f.Offset.FromHostnameMultiplier; multiply != nil {
+			n *= *multiply
+		} else {
+			n *= time.Minute
+		}
+
+		result += n
+	}
+
+	return result, nil
 }
 
 // MmapConfiguration is the mmap configuration.
