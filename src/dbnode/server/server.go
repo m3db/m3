@@ -365,6 +365,26 @@ func Run(runOpts RunOptions) {
 	)
 	opts = opts.SetInstrumentOptions(iOpts)
 
+	flushJitter := cfg.Filesystem.Flush.JitterOrDefault()
+	flushOffset, err := cfg.Filesystem.Flush.OffsetOrDefault(hostID)
+	if err != nil {
+		logger.Fatal("could not parse flush offset", zap.Error(err))
+	}
+
+	if flushJitter > 0 {
+		opts = opts.SetFlushJitter(flushJitter)
+		logger.Info("flush jitter set", zap.Duration("jitter", flushJitter))
+	} else {
+		logger.Info("flush jitter not set")
+	}
+
+	if flushOffset > 0 {
+		opts = opts.SetFlushJitter(flushOffset)
+		logger.Info("flush offset set", zap.Duration("offset", flushOffset))
+	} else {
+		logger.Info("flush offset not set")
+	}
+
 	// Only override the default MemoryTracker (which has default limits) if a custom limit has
 	// been set.
 	if cfg.Limits.MaxOutstandingRepairedBytes > 0 {
