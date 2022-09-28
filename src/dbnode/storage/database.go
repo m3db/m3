@@ -334,7 +334,6 @@ func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []
 	for _, entry := range existing.Iter() {
 		ns := entry.Value()
 		newMd, err := newNamespaces.Get(ns.ID())
-
 		// if a namespace doesn't exist in newNamespaces, mark for removal
 		if err != nil {
 			removes = append(removes, ns.ID())
