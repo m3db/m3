@@ -23,7 +23,6 @@ package storage
 import (
 	"errors"
 	"fmt"
-	"math/rand"
 	"sync"
 	"time"
 
@@ -65,8 +64,6 @@ type flushManagerMetrics struct {
 	dataSnapshotDuration            tally.Timer
 	indexFlushDuration              tally.Timer
 	commitLogRotationDuration       tally.Timer
-	flushOffset                     tally.Gauge
-	flushJitter                     tally.Gauge
 }
 
 func newFlushManagerMetrics(scope tally.Scope) flushManagerMetrics {
@@ -79,8 +76,6 @@ func newFlushManagerMetrics(scope tally.Scope) flushManagerMetrics {
 		dataSnapshotDuration:            scope.Timer("data-snapshot-duration"),
 		indexFlushDuration:              scope.Timer("index-flush-duration"),
 		commitLogRotationDuration:       scope.Timer("commit-log-rotation-duration"),
-		flushOffset:                     scope.Gauge("flush-offset"),
-		flushJitter:                     scope.Gauge("flush-jitter"),
 	}
 }
 
@@ -95,8 +90,6 @@ type flushManager struct {
 	// while flushInProgress and snapshotInProgress are more granular and
 	// are used for emitting granular gauges.
 	state   flushManagerState
-	offset  time.Duration
-	jitter  time.Duration
 	metrics flushManagerMetrics
 
 	lastSuccessfulSnapshotStartTime atomic.Int64 // == xtime.UnixNano
@@ -110,21 +103,12 @@ func newFlushManager(
 	commitlog commitlog.CommitLog,
 	scope tally.Scope,
 ) databaseFlushManager {
-	var (
-		opts   = database.Options()
-		offset = opts.FlushOffset()
-		jitter time.Duration
-	)
-	if v := opts.FlushJitter(); v > 0 {
-		jitter = time.Duration(rand.Int63n(int64(v)))
-	}
+	opts := database.Options()
 	return &flushManager{
 		database:  database,
 		commitlog: commitlog,
 		opts:      opts,
 		pm:        opts.PersistManager(),
-		offset:    offset,
-		jitter:    jitter,
 		metrics:   newFlushManagerMetrics(scope),
 		logger:    opts.InstrumentOptions().Logger(),
 		nowFn:     opts.ClockOptions().NowFn(),
@@ -306,8 +290,6 @@ func (m *flushManager) indexFlush(
 func (m *flushManager) Report() {
 	m.RLock()
 	state := m.state
-	offset := m.offset
-	jitter := m.jitter
 	m.RUnlock()
 
 	if state == flushManagerFlushInProgress {
@@ -327,9 +309,6 @@ func (m *flushManager) Report() {
 	} else {
 		m.metrics.isIndexFlushing.Update(0)
 	}
-
-	m.metrics.flushOffset.Update(float64(offset))
-	m.metrics.flushJitter.Update(float64(jitter))
 }
 
 func (m *flushManager) setState(state flushManagerState) {
@@ -339,10 +318,6 @@ func (m *flushManager) setState(state flushManagerState) {
 }
 
 func (m *flushManager) flushRange(rOpts retention.Options, t time.Time) (time.Time, time.Time) {
-	// Add offset + jitter to the buffer past to determine the eligible flush
-	// time end taking into account the jitter.
-	bufferPast := rOpts.BufferPast()
-	rOpts = rOpts.SetBufferPast(bufferPast + m.offset + m.jitter)
 	return retention.FlushTimeStart(rOpts, t), retention.FlushTimeEnd(rOpts, t)
 }
 

@@ -1338,18 +1338,6 @@ type Options interface {
 	// MediatorTickInterval returns the ticking interval for the mediator.
 	MediatorTickInterval() time.Duration
 
-	// SetFlushJitter sets the flush jitter.
-	SetFlushJitter(value time.Duration) Options
-
-	// FlushJitter returns the flush jitter.
-	FlushJitter() time.Duration
-
-	// SetFlushOffset sets the flush offset.
-	SetFlushOffset(value time.Duration) Options
-
-	// FlushOffset returns the flush offset.
-	FlushOffset() time.Duration
-
 	// SetAdminClient sets the admin client for the database options.
 	SetAdminClient(value client.AdminClient) Options
 
