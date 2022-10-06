@@ -56,7 +56,7 @@ require (
 	github.com/m3db/stackmurmur3/v2 v2.0.2
 	github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878
 	github.com/m3dbx/pilosa v1.4.2-0.20201109081833-6c9df43642fd
-	github.com/m3dbx/vellum v0.0.0-20220707195009-db278b57e5d9
+	github.com/m3dbx/vellum v0.0.0-20221006191556-bf692c9da731
 	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
 	github.com/mjibson/esc v0.1.0
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9

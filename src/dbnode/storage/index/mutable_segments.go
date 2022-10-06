@@ -588,7 +588,7 @@ func (m *mutableSegments) backgroundCompactWithLock() {
 			} else {
 				m.backgroundCompactWithPlan(gcPlan, compactors,
 					gcRequired, flushedBlockStarts)
-				m.closeCompactors(compactors)
+				closeCompactors(compactors, m.iopts)
 			}
 
 			m.Lock()
@@ -625,11 +625,14 @@ func (m *mutableSegments) cleanupBackgroundCompactWithLock() {
 		return
 	}
 
-	m.closeCompactors(m.compact.backgroundCompactors)
+	closeCompactors(m.compact.backgroundCompactors, m.iopts)
 	m.compact.backgroundCompactors = nil
 }
 
-func (m *mutableSegments) closeCompactors(compactors chan *compaction.Compactor) {
+func closeCompactors(
+	compactors chan *compaction.Compactor,
+	instrumentOpts instrument.Options,
+) {
 	close(compactors)
 	for compactor := range compactors {
 		err := compactor.Close()
@@ -637,7 +640,7 @@ func (m *mutableSegments) closeCompactors(compactors chan *compaction.Compactor)
 			continue
 		}
 
-		instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+		instrument.EmitAndLogInvariantViolation(instrumentOpts, func(l *zap.Logger) {
 			l.Error("error closing index block background compactor", zap.Error(err))
 		})
 	}
@@ -1490,14 +1493,7 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 	if m.backgroundCompactors != nil && backgroundCompactResourcesReset {
 		backgroundCompactors := m.backgroundCompactors // Save into temp var
 		m.backgroundCompactors = nil                   // Nil out
-		go func() {
-			for compactor := range backgroundCompactors {
-				if err := compactor.Close(); err != nil {
-					logger := m.opts.InstrumentOptions().Logger()
-					logger.Error("error closing background compactor", zap.Error(err))
-				}
-			}
-		}()
+		go closeCompactors(backgroundCompactors, m.opts.InstrumentOptions())
 	}
 
 	if m.backgroundCompactors == nil {

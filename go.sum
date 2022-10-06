@@ -636,6 +636,8 @@ github.com/m3dbx/pilosa v1.4.2-0.20201109081833-6c9df43642fd h1:C+RCSMuplTpLH8Fi
 github.com/m3dbx/pilosa v1.4.2-0.20201109081833-6c9df43642fd/go.mod h1:Jt0+w9O08sa7qWDeRC58VBjb4OeOTDMOhfvVmyeVCO8=
 github.com/m3dbx/vellum v0.0.0-20220707195009-db278b57e5d9 h1:WYfLCea9hNRh88TA+8zEtDQhfRgf1g6WXcHcSummTaI=
 github.com/m3dbx/vellum v0.0.0-20220707195009-db278b57e5d9/go.mod h1:DOTAUfV4bzK6Nrb0dboT/oCG0DnQuX+/n0jfZPh6xxI=
+github.com/m3dbx/vellum v0.0.0-20221006191556-bf692c9da731 h1:hUWne9O+MtjCfREmNUIjJzLhJnlyTb/NXytbPCuSTwg=
+github.com/m3dbx/vellum v0.0.0-20221006191556-bf692c9da731/go.mod h1:DOTAUfV4bzK6Nrb0dboT/oCG0DnQuX+/n0jfZPh6xxI=
 github.com/magiconair/properties v1.8.0/go.mod h1:PppfXfuXeibc/6YijjN8zIbojt8czPbwD3XqdrwzmxQ=
 github.com/magiconair/properties v1.8.1/go.mod h1:PppfXfuXeibc/6YijjN8zIbojt8czPbwD3XqdrwzmxQ=
 github.com/magiconair/properties v1.8.2 h1:znVR8Q4g7/WlcvsxLBRWvo+vtFJUAbDn3w+Yak2xVMI=
