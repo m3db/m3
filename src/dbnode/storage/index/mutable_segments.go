@@ -566,7 +566,7 @@ func (m *mutableSegments) backgroundCompactWithLock() {
 		// Kick off compaction.
 		m.compact.compactingBackgroundStandard = true
 		go func() {
-			m.backgroundCompactWithPlan(plan, m.compact.backgroundCompactors,
+			m.backgroundCompactWithPlan(plan, m.compact.backgroundCompactor,
 				gcRequired, flushedBlockStarts)
 
 			m.Lock()
@@ -580,15 +580,15 @@ func (m *mutableSegments) backgroundCompactWithLock() {
 		// Run non-GC tasks separately so the standard loop is not blocked.
 		m.compact.compactingBackgroundGarbageCollect = true
 		go func() {
-			compactors, err := m.compact.allocBackgroundCompactorsGarbageCollect()
+			compactor, err := m.compact.allocBackgroundCompactorsGarbageCollect()
 			if err != nil {
 				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
 					l.Error("error background gc segments", zap.Error(err))
 				})
 			} else {
-				m.backgroundCompactWithPlan(gcPlan, compactors,
+				m.backgroundCompactWithPlan(gcPlan, compactor,
 					gcRequired, flushedBlockStarts)
-				closeCompactors(compactors, m.iopts)
+				closeCompactor(compactor, m.iopts)
 			}
 
 			m.Lock()
@@ -621,29 +621,26 @@ func (m *mutableSegments) cleanupBackgroundCompactWithLock() {
 	m.backgroundSegments = nil
 
 	// Free compactor resources.
-	if m.compact.backgroundCompactors == nil {
+	if m.compact.backgroundCompactor == nil {
 		return
 	}
 
-	closeCompactors(m.compact.backgroundCompactors, m.iopts)
-	m.compact.backgroundCompactors = nil
+	closeCompactor(m.compact.backgroundCompactor, m.iopts)
+	m.compact.backgroundCompactor = nil
 }
 
-func closeCompactors(
-	compactors chan *compaction.Compactor,
+func closeCompactor(
+	compactor *compaction.Compactor,
 	instrumentOpts instrument.Options,
 ) {
-	close(compactors)
-	for compactor := range compactors {
-		err := compactor.Close()
-		if err == nil {
-			continue
-		}
-
-		instrument.EmitAndLogInvariantViolation(instrumentOpts, func(l *zap.Logger) {
-			l.Error("error closing index block background compactor", zap.Error(err))
-		})
+	err := compactor.Close()
+	if err == nil {
+		return
 	}
+
+	instrument.EmitAndLogInvariantViolation(instrumentOpts, func(l *zap.Logger) {
+		l.Error("error closing index block background compactor", zap.Error(err))
+	})
 }
 
 func (m *mutableSegments) closeCompactedSegmentsWithLock(segments []*readableSeg) {
@@ -659,7 +656,7 @@ func (m *mutableSegments) closeCompactedSegmentsWithLock(segments []*readableSeg
 
 func (m *mutableSegments) backgroundCompactWithPlan(
 	plan *compaction.Plan,
-	compactors chan *compaction.Compactor,
+	compactor *compaction.Compactor,
 	gcRequired bool,
 	flushedBlocks map[xtime.UnixNano]struct{},
 ) {
@@ -687,27 +684,15 @@ func (m *mutableSegments) backgroundCompactWithPlan(
 		}
 	}
 
-	var wg sync.WaitGroup
 	for i, task := range plan.Tasks {
-		i, task := i, task
-		wg.Add(1)
-		compactor := <-compactors
-		go func() {
-			defer func() {
-				compactors <- compactor
-				wg.Done()
-			}()
-			err := m.backgroundCompactWithTask(task, compactor, gcRequired,
-				flushedBlocks, log, logger.With(zap.Int("task", i)))
-			if err != nil {
-				instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
-					l.Error("error compacting segments", zap.Error(err))
-				})
-			}
-		}()
+		err := m.backgroundCompactWithTask(task, compactor, gcRequired,
+			flushedBlocks, log, logger.With(zap.Int("task", i)))
+		if err != nil {
+			instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+				l.Error("error compacting segments", zap.Error(err))
+			})
+		}
 	}
-
-	wg.Wait()
 }
 
 func (m *mutableSegments) newReadThroughSegment(seg fst.Segment) *ReadThroughSegment {
@@ -1263,7 +1248,7 @@ func (m *mutableSegments) maybeMoveForegroundSegmentsToBackgroundWithLock(
 	if len(segments) == 0 {
 		return
 	}
-	if m.compact.backgroundCompactors == nil {
+	if m.compact.backgroundCompactor == nil {
 		// No longer performing background compaction due to evict/close.
 		return
 	}
@@ -1411,7 +1396,7 @@ type mutableSegmentsCompact struct {
 
 	foregroundSegBuilder               segment.CloseableDocumentsBuilder
 	foregroundCompactor                *compaction.Compactor
-	backgroundCompactors               chan *compaction.Compactor
+	backgroundCompactor                *compaction.Compactor
 	compactingForeground               bool
 	compactingBackgroundStandard       bool
 	compactingBackgroundGarbageCollect bool
@@ -1490,41 +1475,13 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 		m.backgroundCompactorsCreatedAt = now
 	}
 
-	if m.backgroundCompactors != nil && backgroundCompactResourcesReset {
-		backgroundCompactors := m.backgroundCompactors // Save into temp var
-		m.backgroundCompactors = nil                   // Nil out
-		go closeCompactors(backgroundCompactors, m.opts.InstrumentOptions())
+	if m.backgroundCompactor != nil && backgroundCompactResourcesReset {
+		backgroundCompactor := m.backgroundCompactor // Save into temp var
+		m.backgroundCompactor = nil                  // Nil out
+		go closeCompactor(backgroundCompactor, m.opts.InstrumentOptions())
 	}
 
-	if m.backgroundCompactors == nil {
-		n := numBackgroundCompactorsStandard
-		m.backgroundCompactors = make(chan *compaction.Compactor, n)
-		for i := 0; i < n; i++ {
-			backgroundCompactor, err := compaction.NewCompactor(metadataPool,
-				MetadataArrayPoolCapacity,
-				m.opts.SegmentBuilderOptions(),
-				m.opts.FSTSegmentOptions(),
-				compaction.CompactorOptions{
-					MmapDocsData: m.blockOpts.BackgroundCompactorMmapDocsData,
-				})
-			if err != nil {
-				return err
-			}
-			m.backgroundCompactors <- backgroundCompactor
-		}
-	}
-
-	return nil
-}
-
-func (m *mutableSegmentsCompact) allocBackgroundCompactorsGarbageCollect() (
-	chan *compaction.Compactor,
-	error,
-) {
-	metadataPool := m.opts.MetadataArrayPool()
-	n := numBackgroundCompactorsGarbageCollect
-	compactors := make(chan *compaction.Compactor, n)
-	for i := 0; i < n; i++ {
+	if m.backgroundCompactor == nil {
 		backgroundCompactor, err := compaction.NewCompactor(metadataPool,
 			MetadataArrayPoolCapacity,
 			m.opts.SegmentBuilderOptions(),
@@ -1533,11 +1490,26 @@ func (m *mutableSegmentsCompact) allocBackgroundCompactorsGarbageCollect() (
 				MmapDocsData: m.blockOpts.BackgroundCompactorMmapDocsData,
 			})
 		if err != nil {
-			return nil, err
+			return err
 		}
-		compactors <- backgroundCompactor
+		m.backgroundCompactor = backgroundCompactor
 	}
-	return compactors, nil
+
+	return nil
+}
+
+func (m *mutableSegmentsCompact) allocBackgroundCompactorsGarbageCollect() (
+	*compaction.Compactor,
+	error,
+) {
+	metadataPool := m.opts.MetadataArrayPool()
+	return compaction.NewCompactor(metadataPool,
+		MetadataArrayPoolCapacity,
+		m.opts.SegmentBuilderOptions(),
+		m.opts.FSTSegmentOptions(),
+		compaction.CompactorOptions{
+			MmapDocsData: m.blockOpts.BackgroundCompactorMmapDocsData,
+		})
 }
 
 func taskNumBuilders(task compaction.Task) int {
