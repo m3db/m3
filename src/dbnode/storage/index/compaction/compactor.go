@@ -21,9 +21,11 @@
 package compaction
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"io"
+	"os"
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -46,6 +48,10 @@ var (
 	errCompactorClosed       = errors.New("compactor is closed")
 )
 
+const (
+	fileModeScratchMinSize = 2 << 14 // 32k docs
+)
+
 // Compactor is a compactor.
 type Compactor struct {
 	sync.RWMutex
@@ -56,8 +62,117 @@ type Compactor struct {
 	docsMaxBatch int
 	fstOpts      fst.Options
 	builder      segment.SegmentsBuilder
-	buff         *bytes.Buffer
+	scratch      *bufferOrTempFile
 	closed       bool
+
+	metrics compactorMetrics
+}
+
+type compactorMetrics struct {
+	compactMemScratchBytes  tally.Counter
+	compactFileScratchBytes tally.Counter
+}
+
+var _ io.Writer = (*bufferOrTempFile)(nil)
+
+type bufferOrTempFile struct {
+	fileMode bool
+	buff     *bytes.Buffer
+
+	tempFileBuffer  *bufio.Writer
+	tempFile        *os.File
+	tempFileWritten int64
+
+	stats scratchStats
+}
+
+type scratchStats struct {
+	writeTotal int64
+}
+
+func newBufferOrTempFile() (*bufferOrTempFile, error) {
+	tempFile, err := os.CreateTemp(os.TempDir(), "m3db_compact_scratch*")
+	if err != nil {
+		return nil, err
+	}
+	return &bufferOrTempFile{
+		buff:           bytes.NewBuffer(nil),
+		tempFileBuffer: bufio.NewWriterSize(tempFile, 1<<22 /* 4mb */),
+		tempFile:       tempFile,
+	}, nil
+}
+
+func (b *bufferOrTempFile) EnableFileMode() {
+	b.fileMode = true
+}
+
+func (b *bufferOrTempFile) DisableFileMode() {
+	b.fileMode = false
+}
+
+func (b *bufferOrTempFile) Reset() error {
+	if b.fileMode {
+		if err := b.tempFile.Truncate(0); err != nil {
+			return err
+		}
+		if _, err := b.tempFile.Seek(0, 0); err != nil {
+			return err
+		}
+		b.stats.writeTotal += b.tempFileWritten
+		b.tempFileWritten = 0
+	} else {
+		b.stats.writeTotal += int64(b.buff.Len())
+		b.buff.Reset()
+	}
+	return nil
+}
+
+func (b *bufferOrTempFile) Stats() scratchStats {
+	return b.stats
+}
+
+func (b *bufferOrTempFile) ResetStats() {
+	b.stats = scratchStats{}
+}
+
+func (b *bufferOrTempFile) Write(p []byte) (int, error) {
+	if b.fileMode {
+		n, err := b.tempFileBuffer.Write(p)
+		if err != nil {
+			return 0, err
+		}
+		b.tempFileWritten += int64(n)
+		return n, nil
+	}
+	return b.buff.Write(p)
+}
+
+func (b *bufferOrTempFile) Reader() (io.Reader, error) {
+	if b.fileMode {
+		if err := b.tempFileBuffer.Flush(); err != nil {
+			return nil, err
+		}
+		if _, err := b.tempFile.Seek(0, 0); err != nil {
+			return nil, err
+		}
+		return b.tempFile, nil
+	}
+	return b.buff, nil
+}
+
+func (b *bufferOrTempFile) Size() int64 {
+	if b.fileMode {
+		return b.tempFileWritten
+	}
+	return int64(b.buff.Len())
+}
+
+func (b *bufferOrTempFile) Close() error {
+	file := b.tempFile.Name()
+	if err := b.tempFile.Close(); err != nil {
+		return err
+	}
+	return os.Remove(file)
 }
 
 // CompactorOptions is a set of compactor options.
@@ -90,6 +205,16 @@ func NewCompactor(
 	if err != nil {
 		return nil, err
 	}
+	scratch, err := newBufferOrTempFile()
+	if err != nil {
+		return nil, err
+	}
+	const (
+		indexCompactor           = "index_compactor"
+		compactWriteType         = "type"
+		compactWriteScratchBytes = "compact_write_scratch_bytes"
+	)
+	scope := fstOpts.InstrumentOptions().MetricsScope().SubScope(indexCompactor)
 	return &Compactor{
 		opts:         opts,
 		writer:       writer,
@@ -97,7 +222,15 @@ func NewCompactor(
 		docsMaxBatch: docsMaxBatch,
 		builder:      builder.NewBuilderFromSegments(builderOpts),
 		fstOpts:      fstOpts,
-		buff:         bytes.NewBuffer(nil),
+		scratch:      scratch,
+		metrics: compactorMetrics{
+			compactMemScratchBytes: scope.Tagged(map[string]string{
+				compactWriteType: "mem",
+			}).Counter(compactWriteScratchBytes),
+			compactFileScratchBytes: scope.Tagged(map[string]string{
+				compactWriteType: "file",
+			}).Counter(compactWriteScratchBytes),
+		},
 	}, nil
 }
 
@@ -138,7 +271,11 @@ func (c *Compactor) Compact(
 		return CompactResult{}, err
 	}
 
-	compacted, err := c.compactFromBuilderWithLock(c.builder, reporterOptions)
+	var size int64
+	for _, seg := range segs {
+		size += seg.Size()
+	}
+	compacted, err := c.compactFromBuilderWithLock(c.builder, size, reporterOptions)
 	if err != nil {
 		return CompactResult{}, err
 	}
@@ -170,7 +307,8 @@ func (c *Compactor) CompactUsingBuilder(
 
 	if len(segs) == 0 {
 		// No segments to compact, just compact from the builder
-		return c.compactFromBuilderWithLock(builder, reporterOptions)
+		size := int64(len(builder.Docs()))
+		return c.compactFromBuilderWithLock(builder, size, reporterOptions)
 	}
 
 	// Need to combine segments first
@@ -252,18 +390,40 @@ func (c *Compactor) CompactUsingBuilder(
 		return nil, err
 	}
 
-	return c.compactFromBuilderWithLock(builder, reporterOptions)
+	size := int64(len(builder.Docs()))
+	return c.compactFromBuilderWithLock(builder, size, reporterOptions)
 }
 
 func (c *Compactor) compactFromBuilderWithLock(
 	builder segment.Builder,
+	size int64,
 	reporterOptions mmap.ReporterOptions,
 ) (fst.Segment, error) {
+	// Use file mode just whenever big enough.
+	if size > fileModeScratchMinSize {
+		c.scratch.EnableFileMode()
+	} else {
+		c.scratch.DisableFileMode()
+	}
+
+	// Make sure stats start from beginning.
+	c.scratch.ResetStats()
+
 	defer func() {
 		// Release resources regardless of result,
 		// otherwise old compacted segments are held onto
 		// strongly
 		builder.Reset()
+
+		// Reset the scratch (important to do before inc metrics since stats are saved when reset called).
+		c.scratch.Reset()
+
+		// Record scratch stats.
+		if c.scratch.fileMode {
+			c.metrics.compactFileScratchBytes.Inc(c.scratch.Stats().writeTotal)
+		} else {
+			c.metrics.compactMemScratchBytes.Inc(c.scratch.Stats().writeTotal)
+		}
 	}()
 
 	// Since this builder is likely reused between compaction
@@ -305,53 +465,63 @@ func (c *Compactor) compactFromBuilderWithLock(
 		fstData.DocsReader = docs.NewSliceReader(allDocsCopy)
 	} else {
 		// Otherwise encode and reference the encoded bytes as mmap'd bytes.
-		c.buff.Reset()
-		if err := c.writer.WriteDocumentsData(c.buff); err != nil {
+		if err := c.scratch.Reset(); err != nil {
+			return nil, err
+		}
+		if err := c.writer.WriteDocumentsData(c.scratch); err != nil {
 			return nil, err
 		}
 
-		fstData.DocsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers, reporterOptions)
+		fstData.DocsData, err = c.mmapScratchAndAppendCloser(closers, reporterOptions)
 		if err != nil {
 			return nil, err
 		}
 
-		c.buff.Reset()
-		if err := c.writer.WriteDocumentsIndex(c.buff); err != nil {
+		if err := c.scratch.Reset(); err != nil {
+			return nil, err
+		}
+		if err := c.writer.WriteDocumentsIndex(c.scratch); err != nil {
 			return nil, err
 		}
 
-		fstData.DocsIdxData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers, reporterOptions)
+		fstData.DocsIdxData, err = c.mmapScratchAndAppendCloser(closers, reporterOptions)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	c.buff.Reset()
-	if err := c.writer.WritePostingsOffsets(c.buff); err != nil {
+	if err := c.scratch.Reset(); err != nil {
+		return nil, err
+	}
+	if err := c.writer.WritePostingsOffsets(c.scratch); err != nil {
 		return nil, err
 	}
 
-	fstData.PostingsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers, reporterOptions)
+	fstData.PostingsData, err = c.mmapScratchAndAppendCloser(closers, reporterOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	c.buff.Reset()
-	if err := c.writer.WriteFSTTerms(c.buff); err != nil {
+	if err := c.scratch.Reset(); err != nil {
+		return nil, err
+	}
+	if err := c.writer.WriteFSTTerms(c.scratch); err != nil {
 		return nil, err
 	}
 
-	fstData.FSTTermsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers, reporterOptions)
+	fstData.FSTTermsData, err = c.mmapScratchAndAppendCloser(closers, reporterOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	c.buff.Reset()
-	if err := c.writer.WriteFSTFields(c.buff); err != nil {
+	if err := c.scratch.Reset(); err != nil {
+		return nil, err
+	}
+	if err := c.writer.WriteFSTFields(c.scratch); err != nil {
 		return nil, err
 	}
 
-	fstData.FSTFieldsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers, reporterOptions)
+	fstData.FSTFieldsData, err = c.mmapScratchAndAppendCloser(closers, reporterOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -366,13 +536,17 @@ func (c *Compactor) compactFromBuilderWithLock(
 	return compacted, nil
 }
 
-func (c *Compactor) mmapAndAppendCloser(
-	fromBytes []byte,
+func (c *Compactor) mmapScratchAndAppendCloser(
 	closers *closers,
 	reporterOptions mmap.ReporterOptions,
 ) (mmap.Descriptor, error) {
+	scratchReader, err := c.scratch.Reader()
+	if err != nil {
+		return mmap.Descriptor{}, err
+	}
+
 	// Copy bytes to new mmap region to hide from the GC
-	mmapedResult, err := mmap.Bytes(int64(len(fromBytes)), mmap.Options{
+	mmapedResult, err := mmap.Bytes(c.scratch.Size(), mmap.Options{
 		Read:            true,
 		Write:           true,
 		ReporterOptions: reporterOptions,
@@ -380,7 +554,11 @@ func (c *Compactor) mmapAndAppendCloser(
 	if err != nil {
 		return mmap.Descriptor{}, err
 	}
-	copy(mmapedResult.Bytes, fromBytes)
+
+	if _, err := io.ReadFull(scratchReader, mmapedResult.Bytes); err != nil {
+		_ = mmap.Munmap(mmapedResult)
+		return mmap.Descriptor{}, err
+	}
 
 	closers.Append(closer(func() error {
 		return mmap.Munmap(mmapedResult)
@@ -404,9 +582,10 @@ func (c *Compactor) Close() error {
 	c.metadataPool = nil
 	c.fstOpts = nil
 	c.builder = nil
-	c.buff = nil
+	closeErr := c.scratch.Close()
+	c.scratch = nil
 
-	return nil
+	return closeErr
 }
 
 var _ io.Closer = closer(nil)

@@ -177,6 +177,7 @@ func (w *indexWriter) WriteSegmentFileSet(
 			errIndexFileSetWriterReturnsNoFiles)
 	}
 
+	writer := bufio.NewWriterSize(nil, 1<<21 /* 4mb */)
 	idx := len(w.segments)
 	for _, segFileType := range files {
 		if err := segFileType.Validate(); err != nil {
@@ -205,7 +206,7 @@ func (w *indexWriter) WriteSegmentFileSet(
 		// returns small chunks of data
 		w.fdWithDigest.Reset(fd)
 		digest := w.fdWithDigest.Digest()
-		writer := bufio.NewWriter(w.fdWithDigest)
+		writer.Reset(w.fdWithDigest)
 		writeErr := segmentFileSet.WriteFile(segFileType, writer)
 		err = xerrors.FirstError(writeErr, writer.Flush(), w.fdWithDigest.Close())
 		if err != nil {
