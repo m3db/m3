@@ -1,6 +1,7 @@
 DirectoryPath: site/public
 IgnoreDirectoryMissingTrailingSlash: true
 CheckExternal: true
+ExternalTimeout: 30
 IgnoreAltMissing: false
 CheckImages: false
 CheckScripts: false
