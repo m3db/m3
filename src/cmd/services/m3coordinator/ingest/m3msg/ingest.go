@@ -25,6 +25,7 @@ import (
 	"context"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/policy"
@@ -62,9 +63,12 @@ type ingestMetrics struct {
 	ingestInternalError     tally.Counter
 	ingestNonRetryableError tally.Counter
 	ingestSuccess           tally.Counter
+	ingestLatency           tally.Histogram
+	ingestE2ELatency        tally.Histogram
 }
 
 func newIngestMetrics(scope tally.Scope) ingestMetrics {
+	latencyBuckets, _ := ingest.NewLatencyBuckets()
 	return ingestMetrics{
 		ingestInternalError: scope.Tagged(map[string]string{
 			"error_type": "internal_error",
@@ -72,7 +76,9 @@ func newIngestMetrics(scope tally.Scope) ingestMetrics {
 		ingestNonRetryableError: scope.Tagged(map[string]string{
 			"error_type": "non_retryable_error",
 		}).Counter("ingest-error"),
-		ingestSuccess: scope.Counter("ingest-success"),
+		ingestSuccess:    scope.Counter("ingest-success"),
+		ingestLatency:    scope.Histogram("ingest-latency", latencyBuckets.WriteLatencyBuckets),
+		ingestE2ELatency: scope.Histogram("ingest-e2e-latency", latencyBuckets.IngestLatencyBuckets),
 	}
 }
 
@@ -87,7 +93,7 @@ func NewIngester(
 	opts Options,
 ) *Ingester {
 	retrier := retry.NewRetrier(opts.RetryOptions)
-	m := newIngestMetrics(opts.InstrumentOptions.MetricsScope())
+	m := newIngestMetrics(opts.InstrumentOptions.MetricsScope().SubScope("ingester"))
 	p := pool.NewObjectPool(opts.PoolOptions)
 	tagOpts := opts.TagOptions
 	if tagOpts == nil {
@@ -172,6 +178,8 @@ func (op *ingestOp) sample() bool {
 }
 
 func (op *ingestOp) ingest() {
+	sw := op.m.ingestLatency.Start()
+	defer sw.Stop()
 	if err := op.resetWriteQuery(); err != nil {
 		op.m.ingestInternalError.Inc(1)
 		op.callback.Callback(m3msg.OnRetriableError)
@@ -203,7 +211,9 @@ func (op *ingestOp) ingest() {
 		op.p.Put(op)
 		return
 	}
+	age := xtime.Now().Sub(xtime.UnixNano(op.metricNanos))
 	op.m.ingestSuccess.Inc(1)
+	op.m.ingestE2ELatency.RecordDuration(age)
 	op.callback.Callback(m3msg.OnSuccess)
 	op.p.Put(op)
 }
