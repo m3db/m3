@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/x"
+	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/mmap"
@@ -59,6 +60,7 @@ var (
 
 	reservedFieldChar      = "_"
 	reservedFieldCharBytes = []byte(reservedFieldChar)
+	reservedFieldName      = []byte("__name__")
 )
 
 // SegmentData represent the collection of required parameters to construct a Segment.
@@ -168,7 +170,7 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 	// required (which was causing lock contention with queries requiring
 	// access to the terms FST for a field that hasn't been accessed before
 	// and loading on demand).
-	nonUnderscoreFields, err := index.CompileRegex([]byte("^[^_].*$"))
+	nonInternalFields, err := index.CompileRegex([]byte("^([^_].*|__name__|__g[0-9]+__)$"))
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +179,7 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 	iter.reset(fstTermsIterOpts{
 		seg:         s,
 		fst:         fieldsFST,
-		fstSearch:   &nonUnderscoreFields,
+		fstSearch:   &nonInternalFields,
 		finalizeFST: false,
 	})
 
@@ -1072,29 +1074,45 @@ func (r *fsSegment) retrievePostingsListWithRLock(postingsOffset uint64) (postin
 }
 
 func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (vellumFST, bool, error) {
-	if len(field) == 0 || bytes.HasPrefix(field, reservedFieldCharBytes) {
-		// NB(rob): Too expensive to pre-load all the graphite path indexed
-		// path terms, load these on demand for find queries which are
-		// small in volume comparative to queries.
-		termsFSTOffset, exists, err := r.fieldsFST.Get(field)
-		if err != nil {
-			return vellumFST{}, false, err
-		}
-		if !exists {
-			return vellumFST{}, false, nil
-		}
-
-		termsFSTBytes, err := r.retrieveBytesWithRLock(r.data.FSTTermsData.Bytes, termsFSTOffset)
-		if err != nil {
-			return vellumFST{}, false, err
+	fieldEmpty := len(field) == 0
+	fieldStartsReservedChar := bytes.HasPrefix(field, reservedFieldCharBytes)
+	if fieldEmpty || fieldStartsReservedChar {
+		var (
+			preloadDueToPrometheusNameLabel bool
+			preloadDueToGraphitePath        bool
+		)
+		preloadDueToPrometheusNameLabel = bytes.Equal(field, reservedFieldName)
+		if !preloadDueToPrometheusNameLabel {
+			// Only pay the cost of testing if graphite field if not already
+			// determined to be a preloaded field.
+			_, preloadDueToGraphitePath = graphite.TagIndex(field)
 		}
 
-		termsFST, err := vellum.Load(termsFSTBytes)
-		if err != nil {
-			return vellumFST{}, false, err
-		}
+		preloaded := preloadDueToPrometheusNameLabel || preloadDueToGraphitePath
+		if !preloaded {
+			// NB(rob): Too expensive to pre-load all the graphite path indexed
+			// path terms, load these on demand for find queries which are
+			// small in volume comparative to queries.
+			termsFSTOffset, exists, err := r.fieldsFST.Get(field)
+			if err != nil {
+				return vellumFST{}, false, err
+			}
+			if !exists {
+				return vellumFST{}, false, nil
+			}
 
-		return newVellumFST(termsFST), true, nil
+			termsFSTBytes, err := r.retrieveBytesWithRLock(r.data.FSTTermsData.Bytes, termsFSTOffset)
+			if err != nil {
+				return vellumFST{}, false, err
+			}
+
+			termsFST, err := vellum.Load(termsFSTBytes)
+			if err != nil {
+				return vellumFST{}, false, err
+			}
+
+			return newVellumFST(termsFST), true, nil
+		}
 	}
 
 	// Otherwise FST map should contain the field (since pre-load all others).

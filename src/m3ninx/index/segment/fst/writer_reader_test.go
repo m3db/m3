@@ -557,6 +557,80 @@ func TestSegmentReaderValidUntilClose(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestSegmentPreloadedFSTFields(t *testing.T) {
+	testDocs := []doc.Metadata{
+		{
+			Fields: []doc.Field{
+				{
+					Name:  []byte("__name__"),
+					Value: []byte("requests_foo"),
+				},
+				{
+					Name:  []byte("endpoint"),
+					Value: []byte("/api/v1/foo"),
+				},
+				{
+					Name:  []byte("region"),
+					Value: []byte("us_east1"),
+				},
+			},
+		},
+		{
+			Fields: []doc.Field{
+				{
+					Name:  []byte("__g0__"),
+					Value: []byte("foo"),
+				},
+				{
+					Name:  []byte("__g1__"),
+					Value: []byte("bar"),
+				},
+			},
+		},
+		{
+			Fields: []doc.Field{
+				{
+					Name:  []byte("__name__"),
+					Value: []byte("requests_bar"),
+				},
+				{
+					Name:  []byte("endpoint"),
+					Value: []byte("/api/v1/bar"),
+				},
+				{
+					Name:  []byte("region"),
+					Value: []byte("us_west1"),
+				},
+				{
+					Name:  []byte("_should_not_preload"),
+					Value: []byte("value"),
+				},
+				{
+					Name:  []byte("_should_not_preload2"),
+					Value: []byte("value"),
+				},
+			},
+		},
+	}
+
+	_, fstSeg := newTestSegments(t, testDocs)
+
+	seg := fstSeg.(*fsSegment)
+	preloadedFields := make(map[string]struct{})
+	for _, elem := range seg.termFSTs.fstMap.Iter() {
+		key := elem.Key()
+		preloadedFields[string(key)] = struct{}{}
+	}
+
+	require.Equal(t, map[string]struct{}{
+		"__name__": {},
+		"endpoint": {},
+		"region":   {},
+		"__g0__":   {},
+		"__g1__":   {},
+	}, preloadedFields)
+}
+
 func newTestSegments(t *testing.T, docs []doc.Metadata) (memSeg sgmt.MutableSegment, fstSeg sgmt.Segment) {
 	s := newTestMemSegment(t)
 	for _, d := range docs {
