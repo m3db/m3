@@ -31,6 +31,11 @@ import (
 	"github.com/twotwotwo/sorts"
 )
 
+var (
+	graphitePathNodePrefixBytes = []byte(doc.GraphitePathNodePrefix)
+	graphitePathLeafPrefixBytes = []byte(doc.GraphitePathLeafPrefix)
+)
+
 type uniqueField struct {
 	field        []byte
 	opts         indexJobEntryOptions
@@ -51,7 +56,7 @@ type orderedFieldsPostingsListIter struct {
 var _ segment.FieldsPostingsListIterator = &orderedFieldsPostingsListIter{}
 
 type newOrderedFieldsPostingsListIterOptions struct {
-	maybeUnorderedFields        [][]uniqueField
+	maybeUnorderedFields        []shardUniqueFields
 	graphitePathIndexingEnabled bool
 }
 
@@ -64,8 +69,8 @@ func newOrderedFieldsPostingsListIter(
 	if opts.graphitePathIndexingEnabled {
 	CheckCanParallelSortLoop:
 		for _, slice := range opts.maybeUnorderedFields {
-			for i := range slice {
-				if slice[i].opts.graphitePathNode || slice[i].opts.graphitePathLeaf {
+			for i := range slice.uniqueFields {
+				if slice.uniqueFields[i].opts.graphitePathNode || slice.uniqueFields[i].opts.graphitePathLeaf {
 					// NB(rob): We can't do parallel sorting if there's graphite
 					// path/nodes since they require a buffer to be used that
 					// can't be cached if multiple goroutines are accessing the
@@ -102,8 +107,15 @@ func (b *orderedFieldsPostingsListIter) Next() bool {
 		return false
 	}
 	iOuter, iInner := b.backingSlices.getIndices(b.currentIdx)
-	b.current = b.backingSlices.data[iOuter][iInner]
+	b.current = b.backingSlices.data[iOuter].uniqueFields[iInner]
 	return true
+}
+
+func (b *orderedFieldsPostingsListIter) Reset() {
+	backingSlices := b.backingSlices
+	*b = orderedFieldsPostingsListIter{}
+	b.currentIdx = -1
+	b.backingSlices = backingSlices
 }
 
 type keyBuffer struct {
@@ -147,7 +159,7 @@ func (b *orderedFieldsPostingsListIter) Close() error {
 }
 
 type sortableSliceOfSliceOfUniqueFieldsAsc struct {
-	data                [][]uniqueField
+	data                []shardUniqueFields
 	length              int
 	parallelSort        bool
 	currentFieldBuffer1 keyBuffer
@@ -155,12 +167,12 @@ type sortableSliceOfSliceOfUniqueFieldsAsc struct {
 }
 
 func newSortableSliceOfSliceOfUniqueFieldsAsc(
-	data [][]uniqueField,
+	data []shardUniqueFields,
 	parallelSort bool,
 ) *sortableSliceOfSliceOfUniqueFieldsAsc {
 	length := 0
-	for _, innerSlice := range data {
-		length += len(innerSlice)
+	for _, elem := range data {
+		length += len(elem.uniqueFields)
 	}
 	return &sortableSliceOfSliceOfUniqueFieldsAsc{
 		data:         data,
@@ -176,20 +188,68 @@ func (s *sortableSliceOfSliceOfUniqueFieldsAsc) Len() int {
 func (s *sortableSliceOfSliceOfUniqueFieldsAsc) Less(i, j int) bool {
 	iField := s.elemAt(i)
 	jField := s.elemAt(j)
-	iFieldBytes := fieldBytes(iField, &s.currentFieldBuffer1)
-	jFieldBytes := fieldBytes(jField, &s.currentFieldBuffer2)
+	eitherGraphitePathNodeOrLeaf := iField.opts.graphitePathNode ||
+		iField.opts.graphitePathLeaf ||
+		jField.opts.graphitePathNode ||
+		jField.opts.graphitePathLeaf
+	if !eitherGraphitePathNodeOrLeaf {
+		// No complexity, just compare the bytes.
+		return bytes.Compare(iField.field, jField.field) < 0
+	}
+
+	if iField.opts.graphitePathLeaf && jField.opts.graphitePathNode {
+		// NB(rob): If we have a leaf and a node, the leaf appears first since
+		// it's alphanumerically appears before the node prefix.
+		// See doc.GraphitePathNodePrefix and doc.GraphitePathLeafPrefix for
+		// reference.
+		return true
+	}
+
+	if iField.opts.graphitePathNode && jField.opts.graphitePathLeaf {
+		// NB(rob): If we have a leaf and a node, the leaf appears first since
+		// it's alphanumerically appears before the node prefix.
+		// See doc.GraphitePathNodePrefix and doc.GraphitePathLeafPrefix for
+		// reference.
+		return false
+	}
+
+	if (iField.opts.graphitePathLeaf && jField.opts.graphitePathLeaf) ||
+		(iField.opts.graphitePathNode && jField.opts.graphitePathNode) {
+		// NB(rob): If we have a leaf+leaf or node+node then can just compare the
+		// values to determine order.
+		return bytes.Compare(iField.field, jField.field) < 0
+	}
+
+	// At this point on one side is either a leaf or a node and on the other
+	// side it must be NEITHER a leaf or a node, so we compare the value on the
+	// side that is not a leaf or node with the corresponding prefix of the type
+	// on the side that does have a leaf or node.
+	iFieldBytes := iField.field
+	if iField.opts.graphitePathNode {
+		iFieldBytes = graphitePathNodePrefixBytes
+	} else if iField.opts.graphitePathLeaf {
+		iFieldBytes = graphitePathLeafPrefixBytes
+	}
+
+	jFieldBytes := jField.field
+	if jField.opts.graphitePathNode {
+		jFieldBytes = graphitePathNodePrefixBytes
+	} else if jField.opts.graphitePathLeaf {
+		jFieldBytes = graphitePathLeafPrefixBytes
+	}
+
 	return bytes.Compare(iFieldBytes, jFieldBytes) < 0
 }
 
 func (s *sortableSliceOfSliceOfUniqueFieldsAsc) Swap(i, j int) {
 	iOuter, iInner := s.getIndices(i)
 	jOuter, jInner := s.getIndices(j)
-	s.data[iOuter][iInner], s.data[jOuter][jInner] = s.data[jOuter][jInner], s.data[iOuter][iInner]
+	s.data[iOuter].uniqueFields[iInner], s.data[jOuter].uniqueFields[jInner] = s.data[jOuter].uniqueFields[jInner], s.data[iOuter].uniqueFields[iInner]
 }
 
 func (s *sortableSliceOfSliceOfUniqueFieldsAsc) elemAt(idx int) uniqueField {
 	outer, inner := s.getIndices(idx)
-	elem := s.data[outer][inner]
+	elem := s.data[outer].uniqueFields[inner]
 	if s.parallelSort && (elem.opts.graphitePathNode || elem.opts.graphitePathLeaf) {
 		// NB(rob): This should never be reached if this data entry is a
 		// graphite node or leaf since we fall back to single core sorting if
@@ -208,8 +268,8 @@ func (s *sortableSliceOfSliceOfUniqueFieldsAsc) Key(i int) []byte {
 
 func (s *sortableSliceOfSliceOfUniqueFieldsAsc) getIndices(idx int) (int, int) {
 	currentSliceIdx := 0
-	for idx >= len(s.data[currentSliceIdx]) {
-		idx -= len(s.data[currentSliceIdx])
+	for idx >= len(s.data[currentSliceIdx].uniqueFields) {
+		idx -= len(s.data[currentSliceIdx].uniqueFields)
 		currentSliceIdx++
 	}
 	return currentSliceIdx, idx

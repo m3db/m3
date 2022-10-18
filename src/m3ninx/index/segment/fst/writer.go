@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"runtime"
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
@@ -39,7 +38,6 @@ import (
 )
 
 var (
-	writerConcurrency                    = runtime.NumCPU()
 	defaultInitialPostingsOffsetsSize    = 1024
 	defaultInitialFSTTermsOffsetsSize    = 1024
 	defaultInitialDocOffsetsSize         = 1024
@@ -82,6 +80,11 @@ type WriterOptions struct {
 	// amount (e.g. 2x). You can disable this to speed up high fixed cost
 	// lookups to during building of the FST however.
 	DisableRegistry bool
+	// WorkerConcurrency sets the concurrency of the worker goroutines to
+	// parallelize the FST terms compilation phase. This can be useful for
+	// background indexing where there's a large number of unique terms
+	// and therefore the parallelization is not much more effective.
+	WorkerConcurrency int
 }
 
 // NewWriter returns a new writer.
@@ -104,8 +107,12 @@ func newWriterWithVersion(opts WriterOptions, vers *Version) (Writer, error) {
 		return nil, err
 	}
 
-	workers := make([]*writeFSTTermsWorker, 0, writerConcurrency)
-	for i := 0; i < int(writerConcurrency); i++ {
+	concurrency := opts.WorkerConcurrency
+	if concurrency < 1 {
+		concurrency = 1
+	}
+	workers := make([]*writeFSTTermsWorker, 0, concurrency)
+	for i := 0; i < int(concurrency); i++ {
 		worker := newWriteFSTTermsWorker(i, opts)
 		workers = append(workers, worker)
 	}

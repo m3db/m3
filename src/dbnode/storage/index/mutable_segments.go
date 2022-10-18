@@ -1487,6 +1487,12 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
 			m.opts.SegmentBuilderOptions(),
 			m.opts.FSTSegmentOptions(),
 			compaction.CompactorOptions{
+				FSTWriterOptions: &fst.WriterOptions{
+					// WorkerConcurrency should use all available cores given
+					// high unique term count is with background segments
+					// that have millions of docs.
+					WorkerConcurrency: runtime.NumCPU(),
+				},
 				MmapDocsData: m.blockOpts.BackgroundCompactorMmapDocsData,
 			})
 		if err != nil {

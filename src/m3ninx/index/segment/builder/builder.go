@@ -187,7 +187,8 @@ func (w *indexWorkers) indexWorker(indexQueue <-chan indexJob) {
 					opts:         entry.opts,
 					postingsList: fieldPostingsList,
 				}
-				job.shardedFields.uniqueFields[job.shard] = append(job.shardedFields.uniqueFields[job.shard], newEntry)
+				job.shardedFields.uniqueFields[job.shard].uniqueFields = append(job.shardedFields.uniqueFields[job.shard].uniqueFields, newEntry)
+				job.shardedFields.uniqueFields[job.shard].notModifiedSinceCachedFieldPostingsList = false
 			}
 		}
 
@@ -239,11 +240,18 @@ type builder struct {
 	graphiteKeyBuffer           []byte
 
 	status builderStatus
+
+	cachedFieldsPostingsList *orderedFieldsPostingsListIter
 }
 
 type shardedFields struct {
 	fields       *shardedFieldsMap
-	uniqueFields [][]uniqueField
+	uniqueFields []shardUniqueFields
+}
+
+type shardUniqueFields struct {
+	uniqueFields                            []uniqueField
+	notModifiedSinceCachedFieldPostingsList bool
 }
 
 // NewBuilderFromDocuments returns a builder from documents, it is
@@ -285,7 +293,7 @@ func (b *builder) SetIndexConcurrency(value int) {
 	existingUniqueFields := b.shardedFields.uniqueFields
 	existingFields := b.shardedFields.fields
 
-	b.shardedFields.uniqueFields = make([][]uniqueField, 0, b.concurrency)
+	b.shardedFields.uniqueFields = make([]shardUniqueFields, 0, b.concurrency)
 	b.shardedFields.fields = newShardedFieldsMap(b.concurrency, b.opts.InitialCapacity())
 
 	for i := 0; i < b.concurrency; i++ {
@@ -295,19 +303,21 @@ func (b *builder) SetIndexConcurrency(value int) {
 			shardInitialCapacity /= b.concurrency
 		}
 
-		shardUniqueFields := make([]uniqueField, 0, shardInitialCapacity)
-		b.shardedFields.uniqueFields = append(b.shardedFields.uniqueFields, shardUniqueFields)
+		shardUniqueFieldsSlice := make([]uniqueField, 0, shardInitialCapacity)
+		b.shardedFields.uniqueFields = append(b.shardedFields.uniqueFields, shardUniqueFields{
+			uniqueFields: shardUniqueFieldsSlice,
+		})
 	}
 
 	// Migrate data from existing unique fields.
 	if existingUniqueFields != nil {
 		for _, fields := range existingUniqueFields {
-			for _, field := range fields {
+			for _, field := range fields.uniqueFields {
 				// Calculate the new shard for the field.
 				newShard := b.calculateShardWithRLock(field.field)
 
 				// Append to the correct shard.
-				b.shardedFields.uniqueFields[newShard] = append(b.shardedFields.uniqueFields[newShard], field)
+				b.shardedFields.uniqueFields[newShard].uniqueFields = append(b.shardedFields.uniqueFields[newShard].uniqueFields, field)
 			}
 		}
 	}
@@ -358,11 +368,12 @@ func (b *builder) Reset() {
 
 	// Reset the unique fields slice
 	var emptyField uniqueField
-	for i, shardUniqueFields := range b.shardedFields.uniqueFields {
-		for i := range shardUniqueFields {
-			shardUniqueFields[i] = emptyField
+	for i, uniqueFields := range b.shardedFields.uniqueFields {
+		for j := range uniqueFields.uniqueFields {
+			b.shardedFields.uniqueFields[i].uniqueFields[j] = emptyField
 		}
-		b.shardedFields.uniqueFields[i] = shardUniqueFields[:0]
+		b.shardedFields.uniqueFields[i].uniqueFields = b.shardedFields.uniqueFields[i].uniqueFields[:0]
+		b.shardedFields.uniqueFields[i].notModifiedSinceCachedFieldPostingsList = false
 	}
 
 	// Reset the graphite path buffer.
@@ -372,6 +383,9 @@ func (b *builder) Reset() {
 	// Bump the generation so we know which terms are valid when lazily
 	// resetting them.
 	b.status.generation++
+
+	// Remove the cached fields postings list.
+	b.cachedFieldsPostingsList = nil
 }
 
 func (b *builder) Insert(d doc.Metadata) ([]byte, error) {
@@ -660,12 +674,40 @@ func (b *builder) FieldsPostingsList() (segment.FieldsPostingsListIterator, erro
 	// NB(r): Need write lock since sort in newOrderedFieldsPostingsListIter
 	// and SetConcurrency causes sharded fields to change.
 	b.status.Lock()
-	defer b.status.Unlock()
+	defer func() {
+		// We always return the cached fields postings list so make sure
+		// it's always reset before the caller uses it.
+		b.cachedFieldsPostingsList.Reset()
+		b.status.Unlock()
+	}()
 
-	return newOrderedFieldsPostingsListIter(newOrderedFieldsPostingsListIterOptions{
+	hasCachedFieldsPostingsList := b.cachedFieldsPostingsList != nil
+	if hasCachedFieldsPostingsList {
+		for _, uniqueFields := range b.shardedFields.uniqueFields {
+			if !uniqueFields.notModifiedSinceCachedFieldPostingsList {
+				// Modified since last cache rebuild.
+				hasCachedFieldsPostingsList = false
+				break
+			}
+		}
+	}
+	if hasCachedFieldsPostingsList {
+		return b.cachedFieldsPostingsList, nil
+	}
+
+	// Create and cache the fields postings list so the sorting only happens once.
+	b.cachedFieldsPostingsList = newOrderedFieldsPostingsListIter(newOrderedFieldsPostingsListIterOptions{
 		maybeUnorderedFields:        b.shardedFields.uniqueFields,
 		graphitePathIndexingEnabled: b.graphitePathIndexingEnabled,
-	}), nil
+	})
+
+	// Track not modified since cached fields postings list.
+	for _, uniqueFields := range b.shardedFields.uniqueFields {
+		uniqueFields.notModifiedSinceCachedFieldPostingsList = true
+	}
+
+	// Return fields postings list that is now cached.
+	return b.cachedFieldsPostingsList, nil
 }
 
 func (b *builder) FieldsPostingsListWithRegex(

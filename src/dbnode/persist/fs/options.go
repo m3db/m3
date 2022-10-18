@@ -76,8 +76,8 @@ const (
 
 var (
 	defaultFilePathPrefix   = os.TempDir()
-	defaultNewFileMode      = os.FileMode(0666)
-	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0755)
+	defaultNewFileMode      = os.FileMode(0o666)
+	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0o755)
 	defaultFSTWriterOptions = fst.WriterOptions{}
 
 	errTagEncoderPoolNotSet = errors.New("tag encoder pool is not set")
