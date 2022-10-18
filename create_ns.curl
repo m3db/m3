@@ -1,0 +1,33 @@
+curl -X POST http://172.23.0.6:7201/api/v1/database/create -d '{
+  "type": "cluster",
+  "namespaceName": "snair-test-ns",
+  "retentionTime": "48h",
+  "numShards": "16",
+  "replicationFactor": "3",
+  "hosts": [
+        {
+            "id": "m3dbnode_1",
+            "isolationGroup": "devpod-1",
+            "zone": "embedded",
+            "weight": 100,
+            "address": "m3_m3dbnode_1_1",
+            "port": 9000
+        },
+	{
+            "id": "m3dbnode_2",
+            "isolationGroup": "devpod-2",
+            "zone": "embedded",
+            "weight": 100,
+            "address": "m3_m3dbnode_2_1",
+            "port": 9000
+        },
+	{
+            "id": "m3dbnode_3",
+            "isolationGroup": "devpod-3",
+            "zone": "embedded",
+            "weight": 100,
+            "address": "m3_m3dbnode_3_1",
+            "port": 9000
+        }
+    ]
+}'

@@ -1,0 +1,18 @@
+coordinator:
+  local:
+    namespaces:
+      - namespace: default
+        type: unaggregated
+        retention: 48h
+
+db:
+  hostID:
+    resolver: hostname
+
+  # Fill-out the following and un-comment before using.
+  discovery:
+    type: m3db_cluster
+    m3dbCluster:
+      env: default_env
+      endpoints:
+        - etcd:2379

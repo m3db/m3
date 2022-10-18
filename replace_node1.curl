@@ -1,0 +1,14 @@
+curl -X POST 172.23.0.3:7201/api/v1/services/m3db/placement/replace -d '{
+    "leavingInstanceIDs": ["m3dbnode_3"],
+    "candidates": [
+        {
+          "id": "m3dbnode_4",
+          "isolationGroup": "devpod-3",
+          "zone": "embedded",
+          "weight": 100,
+          "endpoint": "m3_m3dbnode_4_1:9000",
+          "hostname": "m3_m3dbnode_4_1",
+          "port": 9000
+        }
+    ]
+}'

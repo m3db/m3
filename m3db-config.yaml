@@ -1,0 +1,30 @@
+coordinator:
+  local:
+    namespaces:
+      - namespace: default
+        type: unaggregated
+        retention: 48h
+
+db:
+  hostID:
+    resolver: hostname
+
+  # Fill-out the following and un-comment before using.
+  discovery:
+    type: m3db_cluster
+    m3dbCluster: 
+      env: default_env
+      endpoints: 
+        - 10.23.139.187:2379
+        - 10.90.163.40:2379
+        - 10.68.166.47:2379    
+
+    config:
+      seedNodes:
+        initialCluster:
+          - hostID: dca1-i6x
+            endpoint: http://10.23.139.187:2380
+          - hostID: dca11-hh3
+            endpoint: http://10.90.163.40:2380
+          - hostID: dca18-y9
+            endpoint: http://10.68.166.47:2380

@@ -1,0 +1,5 @@
+curl -X POST http://192.168.48.4:7201/api/v1/database/create -d '{
+  "type": "local",
+  "namespaceName": "snair-test-db",
+  "retentionTime": "12h"
+}' | jq .

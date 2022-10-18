@@ -1,0 +1,10 @@
+coordinator:
+  local:
+    namespaces:
+      - namespace: default
+        type: unaggregated
+        retention: 48h
+
+db:
+  hostID:
+    resolver: hostname

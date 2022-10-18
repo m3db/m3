@@ -1,26 +1,43 @@
 version: "3"
 
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  m3dbnode_1:
+    image: m3dbnode-local
+    depends_on:
+      - "etcd"
+    hostname: m3dbnode_1
     volumes:
-      - .:/go/src/github.com/m3db/m3
-      - /usr/bin/buildkite-agent:/usr/bin/buildkite-agent
+      - /home/user/m3_data/1/m3db:/var/lib/m3db
+      - /home/user/m3_data/1/m3kv:/var/lib/m3kv
+  m3dbnode_2:
+    image: m3dbnode-local
+    depends_on:
+      - "etcd"
+    hostname: m3dbnode_2
+    volumes:
+      - /home/user/m3_data/2/m3db:/var/lib/m3db
+      - /home/user/m3_data/2/m3kv:/var/lib/m3kv
+  m3dbnode_3:
+    image: m3dbnode-local
+    depends_on:
+      - "etcd"
+    hostname: m3dbnode_3
+    volumes:
+      - /home/user/m3_data/3/m3db:/var/lib/m3db
+      - /home/user/m3_data/3/m3kv:/var/lib/m3kv
+  m3dbnode_4:
+    image: m3dbnode-local
+    depends_on:
+      - "etcd"
+    hostname: m3dbnode_4
+    volumes:
+      - /home/user/m3_data/4/m3db:/var/lib/m3db
+      - /home/user/m3_data/4/m3kv:/var/lib/m3kv
+
+  etcd:
+    image: quay.io/coreos/etcd
+    ports:
+      - 2379:2379
     environment:
-      - CI
-      - BUILDKITE
-      - BUILDKITE_AGENT_ACCESS_TOKEN
-      - BUILDKITE_JOB_ID
-      - BUILDKITE_BUILD_ID
-      - BUILDKITE_BUILD_NUMBER
-      - BUILDKITE_BRANCH
-      - BUILDKITE_BUILD_URL
-      - BUILDKITE_PROJECT_SLUG
-      - BUILDKITE_COMMIT
-      - BUILDKITE_PULL_REQUEST
-      - BUILDKITE_TAG
-      - CODECOV_TOKEN
-      - SPLIT_IDX
-      - TOTAL_SPLITS
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd:2379
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379

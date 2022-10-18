@@ -1,0 +1,33 @@
+curl -X POST 192.168.112.5:7201/api/v1/services/m3db/placement/init -d '{
+    "num_shards": 16,
+    "replication_factor": 3,
+    "instances": [
+        {
+            "id": "01482089d1ce",
+            "isolation_group": "devpod-1",
+            "zone": "embedded",
+            "weight": 100,
+            "endpoint": "m3_m3dbnode_1:9000",
+            "hostname": "m3_m3dbnode_1",
+            "port": 9000
+        },
+	{
+            "id": "67e3aa7e0ff6",
+            "isolation_group": "devpod-2",
+            "zone": "embedded",
+            "weight": 100,
+            "endpoint": "m3_m3dbnode_2:9000",
+            "hostname": "m3_m3dbnode_2",
+            "port": 9000
+        },
+	{
+            "id": "f4fd7acc58b7",
+            "isolation_group": "devpod-3",
+            "zone": "embedded",
+            "weight": 100,
+            "endpoint": "m3_m3dbnode_3:9000",
+            "hostname": "m3_m3dbnode_3",
+            "port": 9000
+        }
+    ]
+}'

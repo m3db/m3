@@ -23,6 +23,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"reflect"
@@ -66,6 +67,7 @@ func LoadFile(dst interface{}, file string, opts Options) error {
 // present in multiple files, the value from the last file will be applied.
 // Validation is done after merging all values.
 func LoadFiles(dst interface{}, files []string, opts Options) error {
+	fmt.Println("LoadFiles invoked")
 	if len(files) == 0 {
 		return errNoFilesToLoad
 	}
@@ -92,6 +94,7 @@ func LoadFiles(dst interface{}, files []string, opts Options) error {
 	}
 
 	if err := provider.Get(config.Root).Populate(dst); err != nil {
+		fmt.Println("LoadFiles invoked!!!")
 		return err
 	}
 
