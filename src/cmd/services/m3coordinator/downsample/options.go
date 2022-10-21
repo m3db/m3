@@ -69,6 +69,7 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
+	"go.uber.org/zap"
 
 	"github.com/pborman/uuid"
 	"github.com/prometheus/common/model"
@@ -748,7 +749,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	// NB(r): If rules are being explicitly set in config then we are
 	// going to use an in memory KV store for rules and explicitly set them up.
 	if cfg.Rules != nil {
-		logger.Debug("registering downsample rules from config, not using KV")
+		logger.Info("registering downsample rules from config, not using KV",
+			zap.Int("mapping_rules", len(cfg.Rules.MappingRules)),
+			zap.Int("rollup_rules", len(cfg.Rules.RollupRules)),
+		)
 		kvTxnMemStore := mem.NewStore()
 
 		// Initialize the namespaces
@@ -782,11 +786,13 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		for _, mappingRule := range cfg.Rules.MappingRules {
 			rule, err := mappingRule.Rule()
 			if err != nil {
+				logger.Error("Error parsing mapping rule", zap.String("name", mappingRule.Name), zap.Error(err))
 				return agg{}, err
 			}
 
 			_, err = rs.AddMappingRule(rule, updateMetadata)
 			if err != nil {
+				logger.Error("Error adding mapping rule", zap.String("name", mappingRule.Name), zap.Error(err))
 				return agg{}, err
 			}
 		}
@@ -794,11 +800,13 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		for _, rollupRule := range cfg.Rules.RollupRules {
 			rule, err := rollupRule.Rule()
 			if err != nil {
+				logger.Error("Error parsing rollup rule", zap.String("name", rollupRule.Name), zap.Error(err))
 				return agg{}, err
 			}
 
 			_, err = rs.AddRollupRule(rule, updateMetadata)
 			if err != nil {
+				logger.Error("Error adding rollup rule", zap.String("name", rollupRule.Name), zap.Error(err))
 				return agg{}, err
 			}
 		}
