@@ -344,6 +344,14 @@ func FromRPCAggregateQueryRequest(
 		opts.FieldFilter = append(opts.FieldFilter, []byte(f))
 	}
 
+	if v := req.TagNameRegex; v != nil && len(*v) > 0 {
+		return nil, index.Query{}, index.AggregationOptions{}, fmt.Errorf("not implemented: tag name regex")
+	}
+
+	if v := req.TagValueRegex; v != nil && len(*v) > 0 {
+		return nil, index.Query{}, index.AggregationOptions{}, fmt.Errorf("not implemented: tag value regex")
+	}
+
 	if req.AggregateQueryType == rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME_VALUE {
 		opts.Type = index.AggregateTagNamesAndValues
 	} else {
@@ -395,6 +403,12 @@ func FromRPCAggregateQueryRawRequest(
 	}
 
 	opts.FieldFilter = index.AggregateFieldFilter(req.TagNameFilter)
+	if v := req.TagNameRegex; len(v) > 0 {
+		return nil, index.Query{}, index.AggregationOptions{}, fmt.Errorf("not implemented: tag name regex")
+	}
+	if v := req.TagValueRegex; len(v) > 0 {
+		return nil, index.Query{}, index.AggregationOptions{}, fmt.Errorf("not implemented: tag value regex")
+	}
 	if req.AggregateQueryType == rpc.AggregateQueryType_AGGREGATE_BY_TAG_NAME_VALUE {
 		opts.Type = index.AggregateTagNamesAndValues
 	} else {

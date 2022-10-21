@@ -405,6 +405,10 @@ struct AggregateQueryRawRequest {
 	9: optional binary source
 	10: optional i64 docsLimit
 	11: optional bool requireExhaustive
+
+	// New fields that are unsupported for this build that should return in error.
+	13: optional binary tagNameRegex
+	14: optional binary tagValueRegex
 }
 
 struct AggregateQueryRawResult {
@@ -434,6 +438,10 @@ struct AggregateQueryRequest {
 	9: optional binary source
 	10: optional i64 docsLimit
 	11: optional bool requireExhaustive
+
+	// New fields that are unsupported for this build that should return in error.
+	13: optional string tagNameRegex
+	14: optional string tagValueRegex
 }
 
 struct AggregateQueryResult {
