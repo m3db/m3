@@ -20,14 +20,26 @@ import (
  */
 
 var errNoOption = errors.New("no option configured for promAttributionMetrics")
+var errInvalidFilter = errors.New("invalid filter configured for promAttributionMetrics, must be `label=value`")
 
 type promAttributionMetrics struct {
 	opts               *instrument.AttributionConfiguration
+	filters            map[string]string
 	baseScope          tally.Scope
 	attributedCounters sync.Map
 	counterSize        int32
 	skipSamples        tally.Counter
 	missSamples        tally.Counter
+}
+
+func (pam *promAttributionMetrics) filter(label prompb.Label) bool {
+	if pattern, ok := pam.filters[string(label.Name)]; ok {
+		if pattern == string(label.Value) {
+			return true
+		}
+		// TODO: support regex match
+	}
+	return false
 }
 
 func (pam *promAttributionMetrics) attribute(ts prompb.TimeSeries) {
@@ -38,6 +50,10 @@ func (pam *promAttributionMetrics) attribute(ts prompb.TimeSeries) {
 	found := 0
 	sample_count := int64(len(ts.Samples))
 	for _, l := range ts.Labels {
+		if pam.filter(l) {
+			// filter out samples not qualified for this attribution
+			return
+		}
 		labelName := string(l.Name)
 		for i, label := range pam.opts.Labels {
 			if labelName == label {
@@ -73,8 +89,17 @@ func newPromAttributionMetrics(scope tally.Scope, opts *instrument.AttributionCo
 		return nil, errNoOption
 	}
 	baseScope := scope.SubScope("attribution").SubScope(opts.Name)
+	filters := map[string]string{}
+	for _, filter := range opts.Filters {
+		parts := strings.Split(filter, "=")
+		if len(parts) != 2 {
+			return nil, errInvalidFilter
+		}
+		filters[parts[0]] = parts[1]
+	}
 	return &promAttributionMetrics{
 		opts:               opts,
+		filters:            filters,
 		baseScope:          baseScope,
 		attributedCounters: sync.Map{},
 		counterSize:        0,
