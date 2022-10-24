@@ -62,6 +62,9 @@ type AttributionConfiguration struct {
 
 	// Matched labels of this attribution
 	Labels []string `yaml:"labels"`
+
+	// Filter metrics for attribution
+	Filters []string `yaml:"filters"`
 }
 
 // MetricsConfiguration configures options for emitting metrics.

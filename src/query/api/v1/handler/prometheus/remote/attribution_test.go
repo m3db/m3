@@ -104,3 +104,44 @@ func TestPromAttributionMetrics_Capacity(t *testing.T) {
 	}, 5*time.Second)
 	require.True(t, foundMetric)
 }
+
+func TestPromAttributionMetrics_Filters(t *testing.T) {
+	scope := tally.NewTestScope("base", map[string]string{"test": "prom-attribution-test"})
+	opts := instrument.AttributionConfiguration{
+		Name:         "name",
+		Capacity:     10,
+		SamplingRate: 1,
+		Labels:       []string{string(TEST_LABEL_A.Name)},
+		Filters:      []string{"labelA=valueA"},
+	}
+	pam, _ := newPromAttributionMetrics(scope, &opts)
+	tsList := []prompb.TimeSeries{
+		{
+			Labels:  []prompb.Label{TEST_LABEL_A},
+			Samples: make([]prompb.Sample, 3),
+		},
+		{
+			Labels:  []prompb.Label{TEST_LABEL_A1},
+			Samples: make([]prompb.Sample, 2),
+		},
+		{
+			Labels:  []prompb.Label{TEST_LABEL_B, TEST_LABEL_A},
+			Samples: make([]prompb.Sample, 7),
+		},
+		{
+			Labels:  []prompb.Label{TEST_LABEL_B, TEST_LABEL_A1},
+			Samples: make([]prompb.Sample, 11),
+		},
+	}
+	for _, ts := range tsList {
+		pam.attribute(ts)
+	}
+	// samples that contain labelA=valueA will be filtered, only labelA=valueA1 will be counted
+	foundMetric := xclock.WaitUntil(func() bool {
+		counters := scope.Snapshot().Counters()
+		found, ok := counters["base.attribution.name.sample_count+labelA=valueA1,test=prom-attribution-test"]
+		_, notOk := counters["base.attribution.name.sample_count+labelA=valueA,test=prom-attribution-test"]
+		return ok && found.Value() == 13 && !notOk
+	}, 5*time.Second)
+	require.True(t, foundMetric)
+}
