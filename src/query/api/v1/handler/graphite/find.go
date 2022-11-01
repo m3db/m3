@@ -23,6 +23,7 @@ package graphite
 import (
 	"errors"
 	"net/http"
+	"sort"
 	"sync"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
@@ -64,11 +65,6 @@ func NewFindHandler(opts options.HandlerOptions) http.Handler {
 		fetchOptionsBuilder: opts.GraphiteFindFetchOptionsBuilder(),
 		instrumentOpts:      opts.InstrumentOpts(),
 	}
-}
-
-type nodeDescriptor struct {
-	isLeaf      bool
-	hasChildren bool
 }
 
 func mergeTags(
@@ -118,6 +114,30 @@ func mergeTags(
 	}
 
 	return tagMap, nil
+}
+
+func findResultsSorted(prefix string, tagMap map[string]nodeDescriptor) []findResult {
+	results := make([]findResult, 0, len(tagMap))
+	for name, node := range tagMap {
+		results = append(results, findResult{
+			id:   prefix + name,
+			name: name,
+			node: node,
+		})
+	}
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].id != results[j].id {
+			return results[i].id < results[j].id
+		}
+		if results[i].node.hasChildren && !results[j].node.hasChildren {
+			return true
+		}
+		if results[i].node.isLeaf && !results[j].node.isLeaf {
+			return true
+		}
+		return false
+	})
+	return results
 }
 
 func (h *grahiteFindHandler) ServeHTTP(
@@ -193,6 +213,8 @@ func (h *grahiteFindHandler) ServeHTTP(
 		prefix += "."
 	}
 
+	results := findResultsSorted(prefix, seenMap)
+
 	err = handleroptions.AddDBResultResponseHeaders(w, meta, opts)
 	if err != nil {
 		logger.Error("unable to render find header", zap.Error(err))
@@ -204,7 +226,7 @@ func (h *grahiteFindHandler) ServeHTTP(
 	resultOpts := findResultsOptions{
 		includeBothExpandableAndLeaf: h.graphiteStorageOpts.FindResultsIncludeBothExpandableAndLeaf,
 	}
-	if err := findResultsJSON(w, prefix, seenMap, resultOpts); err != nil {
+	if err := findResultsJSON(w, results, resultOpts); err != nil {
 		logger.Error("unable to render find results", zap.Error(err))
 	}
 }
