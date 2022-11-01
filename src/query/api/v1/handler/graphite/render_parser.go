@@ -88,7 +88,7 @@ func ParseRenderRequest(
 	r *http.Request,
 	opts options.HandlerOptions,
 ) (RenderRequest, *storage.FetchOptions, error) {
-	fetchOpts, err := opts.FetchOptionsBuilder().NewFetchOptions(r)
+	fetchOpts, err := opts.GraphiteRenderFetchOptionsBuilder().NewFetchOptions(r)
 	if err != nil {
 		return RenderRequest{}, nil, err
 	}

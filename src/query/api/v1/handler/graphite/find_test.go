@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
+	graphitestorage "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -234,7 +235,10 @@ func testFind(t *testing.T, httpMethod string, ex bool, ex2 bool, header string)
 	require.NoError(t, err)
 	opts := options.EmptyHandlerOptions().
 		SetGraphiteFindFetchOptionsBuilder(builder).
-		SetStorage(store)
+		SetStorage(store).
+		SetGraphiteStorageOptions(graphitestorage.M3WrappedStorageOptions{
+			FindResultsIncludeBothExpandableAndLeaf: true,
+		})
 	h := NewFindHandler(opts)
 
 	// execute the query
@@ -266,13 +270,17 @@ func testFind(t *testing.T, httpMethod string, ex bool, ex2 bool, header string)
 	sort.Sort(r)
 
 	makeNoChildrenResult := func(t string) result {
-		return result{ID: fmt.Sprintf("foo.%s", t), Text: t, Leaf: 1,
-			Expandable: 0, AllowChildren: 0}
+		return result{
+			ID: fmt.Sprintf("foo.%s", t), Text: t, Leaf: 1,
+			Expandable: 0, AllowChildren: 0,
+		}
 	}
 
 	makeWithChildrenResult := func(t string) result {
-		return result{ID: fmt.Sprintf("foo.%s", t), Text: t, Leaf: 0,
-			Expandable: 1, AllowChildren: 1}
+		return result{
+			ID: fmt.Sprintf("foo.%s", t), Text: t, Leaf: 0,
+			Expandable: 1, AllowChildren: 1,
+		}
 	}
 
 	expected := results{
@@ -297,8 +305,10 @@ var limitTests = []struct {
 	{"both incomplete", false, false, fmt.Sprintf(
 		"%s,%s_%s", headers.LimitHeaderSeriesLimitApplied, "foo", "bar")},
 	{"with terminator incomplete", true, false, "foo_bar"},
-	{"with children incomplete", false, true,
-		headers.LimitHeaderSeriesLimitApplied},
+	{
+		"with children incomplete", false, true,
+		headers.LimitHeaderSeriesLimitApplied,
+	},
 	{"both complete", true, true, ""},
 }
 
