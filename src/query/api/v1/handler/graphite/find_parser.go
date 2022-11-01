@@ -40,9 +40,13 @@ import (
 // parseFindParamsToQueries parses an incoming request to two find queries,
 // which are then combined to give the final result.
 // It returns, in order:
-//  the given query; this will return all values for exactly that tag which have
+//
+//	the given query; this will return all values for exactly that tag which have
+//
 // _terminatedQuery, which adds an explicit terminator after the last term in
-//  no child nodes
+//
+//	no child nodes
+//
 // _childQuery, which adds an explicit match all after the last term in the
 // given query; this will return all values for exactly that tag which have at
 // least one child node.
@@ -80,7 +84,6 @@ func parseFindParamsToQueries(r *http.Request) (
 		now,
 		tzOffsetForAbsoluteTime,
 	)
-
 	if err != nil {
 		return nil, nil, "",
 			xerrors.NewInvalidParamsError(fmt.Errorf("invalid 'from': %s", fromString))
@@ -91,7 +94,6 @@ func parseFindParamsToQueries(r *http.Request) (
 		now,
 		tzOffsetForAbsoluteTime,
 	)
-
 	if err != nil {
 		return nil, nil, "",
 			xerrors.NewInvalidParamsError(fmt.Errorf("invalid 'until': %s", untilString))
@@ -176,29 +178,37 @@ type findResultsOptions struct {
 
 func findResultsJSON(
 	w io.Writer,
-	prefix string,
-	tags map[string]nodeDescriptor,
+	results []findResult,
 	opts findResultsOptions,
 ) error {
 	jw := json.NewWriter(w)
 	jw.BeginArray()
 
-	for value, descriptor := range tags {
-		writeFindNodeResultJSON(jw, prefix, value, descriptor, opts)
+	for _, result := range results {
+		writeFindNodeResultJSON(jw, result, opts)
 	}
 
 	jw.EndArray()
 	return jw.Close()
 }
 
+type findResult struct {
+	id   string
+	name string
+	node nodeDescriptor
+}
+
+type nodeDescriptor struct {
+	hasChildren bool
+	isLeaf      bool
+}
+
 func writeFindNodeResultJSON(
 	jw json.Writer,
-	prefix string,
-	value string,
-	descriptor nodeDescriptor,
+	result findResult,
 	opts findResultsOptions,
 ) {
-	id := fmt.Sprintf("%s%s", prefix, value)
+	descriptor := result.node
 
 	// Include the leaf node only if no leaf was specified or
 	// if config optionally sets that both should come back.
@@ -208,11 +218,11 @@ func writeFindNodeResultJSON(
 			descriptor.hasChildren &&
 			opts.includeBothExpandableAndLeaf)
 	if includeLeafNode {
-		writeFindResultJSON(jw, id, value, false)
+		writeFindResultJSON(jw, result.id, result.name, false)
 	}
 
 	if descriptor.hasChildren {
-		writeFindResultJSON(jw, id, value, true)
+		writeFindResultJSON(jw, result.id, result.name, true)
 	}
 }
 
