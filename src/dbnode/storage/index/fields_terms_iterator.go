@@ -262,7 +262,11 @@ func (fti *fieldsAndTermsIter) setNext() bool {
 	for hasNextField := fti.setNextField(); hasNextField; hasNextField = fti.setNextField() {
 		// and get next term for the field
 		var err error
-		fti.termIter, err = fti.reader.Terms(fti.current.field)
+		if re := fti.opts.termsRegex; re != nil {
+			fti.termIter, err = fti.reader.TermsWithRegex(fti.current.field, re)
+		} else {
+			fti.termIter, err = fti.reader.Terms(fti.current.field)
+		}
 		if err != nil {
 			fti.err = err
 			return false

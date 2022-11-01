@@ -38,9 +38,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var (
-	errWriteQueryNoDatapoints = errors.New("write query with no datapoints")
-)
+var errWriteQueryNoDatapoints = errors.New("write query with no datapoints")
 
 // Type describes the type of storage.
 type Type int
@@ -289,11 +287,12 @@ type SeriesMatchQuery struct {
 }
 
 func (q *CompleteTagsQuery) String() string {
-	if q.CompleteNameOnly {
-		return fmt.Sprintf("completing tag name for query %s", q.TagMatchers)
+	var filterNameTags []string
+	for _, tag := range q.FilterNameTags {
+		filterNameTags = append(filterNameTags, string(tag))
 	}
-
-	return fmt.Sprintf("completing tag values for query %s", q.TagMatchers)
+	return fmt.Sprintf("CompleteTagsQuery{CompleteNameOnly: %v, FilterNameTags: %v, FilterNameRegex: %s, FilterValueRegex: %s, TagMatchers: %s, Start: %v, End: %v}",
+		q.CompleteNameOnly, filterNameTags, q.FilterNameRegex, q.FilterValueRegex, q.TagMatchers, q.Start, q.End)
 }
 
 // Appender provides batched appends against a storage.

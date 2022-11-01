@@ -49,12 +49,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	graphitehandler "github.com/m3db/m3/src/query/api/v1/handler/graphite"
 	"github.com/m3db/m3/src/query/graphite/graphite"
+	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
-	xclock "github.com/m3db/m3/src/x/clock"
 )
 
 type testGraphiteFindDatasetSize uint
@@ -276,7 +276,7 @@ carbon:
 	log.Info("server is now up")
 
 	var toWrite uint32
-	for _, blockSeries := range seriesMaps { 
+	for _, blockSeries := range seriesMaps {
 		for _, series := range blockSeries {
 			toWrite += uint32(len(series.Data))
 		}
@@ -290,11 +290,11 @@ carbon:
 	writeWorkerPool.Init()
 
 	var (
-		writeWG sync.WaitGroup
-		writeDoneCh = make(chan struct{}, 1)
-		numTotalSuccess = atomic.NewUint32(0)
-		numTotalErrors  = atomic.NewUint32(0)
-		start = time.Now()
+		writeWG          sync.WaitGroup
+		writeDoneCh      = make(chan struct{}, 1)
+		numTotalSuccess  = atomic.NewUint32(0)
+		numTotalErrors   = atomic.NewUint32(0)
+		start            = time.Now()
 		numSeriesEnqueue int
 	)
 	go func() {
@@ -303,7 +303,7 @@ carbon:
 			case <-writeDoneCh:
 				return
 			case <-time.After(5 * time.Second):
-				log.Info("written datapoints progress", 
+				log.Info("written datapoints progress",
 					zap.Uint32("success", numTotalSuccess.Load()),
 					zap.Uint32("total", toWrite),
 				)
@@ -313,7 +313,7 @@ carbon:
 
 	session, err := setup.M3DBClient().DefaultSession()
 	require.NoError(t, err)
-	for _, blockSeries := range seriesMaps { 
+	for _, blockSeries := range seriesMaps {
 		for _, series := range blockSeries {
 			numSeriesEnqueue++
 			for _, value := range series.Data {
@@ -364,7 +364,7 @@ carbon:
 			return false
 		}
 		return int(counter.Value()) == expectNumIndex
-	}, 10 * time.Second)
+	}, 10*time.Second)
 
 	counters := setup.Scope().Snapshot().Counters()
 	counter, ok := counters[expectStatProcess]
@@ -373,12 +373,11 @@ carbon:
 	if ok {
 		value = int(counter.Value())
 	}
-	if !indexProcess{
+	if !indexProcess {
 		logCounterValues(setup.Scope(), log)
 	}
 	require.True(t, indexProcess,
 		fmt.Sprintf("expected to index %d but processed %d", expectNumIndex, value))
-
 
 	// Stop the server.
 	defer func() {
@@ -460,6 +459,38 @@ carbon:
 			parallelVerifyFindQueries(child, level+1)
 		}
 	}
+	graphiteFind := func(query string) (graphiteFindResults, error) {
+		params := make(url.Values)
+		params.Set("query", query)
+
+		url := fmt.Sprintf("http://%s%s?%s", setup.QueryAddress(),
+			graphitehandler.FindURL, params.Encode())
+
+		req, err := http.NewRequestWithContext(context.Background(),
+			http.MethodGet, url, nil)
+		if err != nil {
+			return graphiteFindResults{}, err
+		}
+
+		res, err := httpClient.Do(req)
+		if err != nil {
+			return graphiteFindResults{}, err
+		}
+		if res.StatusCode != http.StatusOK {
+			return graphiteFindResults{}, fmt.Errorf("bad response code: expected=%d, actual=%d",
+				http.StatusOK, res.StatusCode)
+		}
+
+		defer res.Body.Close()
+
+		// Compare results.
+		var actual graphiteFindResults
+		if err := json.NewDecoder(res.Body).Decode(&actual); err != nil {
+			return graphiteFindResults{}, err
+		}
+
+		return actual, nil
+	}
 	verifyFindQueries = func(node *graphiteNode, level int) (checkResult, *checkFailure, error) {
 		var r checkResult
 
@@ -479,30 +510,8 @@ carbon:
 		queryPathParts = append(queryPathParts, "*")
 		query := strings.Join(queryPathParts, ".")
 
-		params := make(url.Values)
-		params.Set("query", query)
-
-		url := fmt.Sprintf("http://%s%s?%s", setup.QueryAddress(),
-			graphitehandler.FindURL, params.Encode())
-
-		req, err := http.NewRequestWithContext(context.Background(),
-			http.MethodGet, url, nil)
-		require.NoError(t, err)
-
-		res, err := httpClient.Do(req)
+		actual, err := graphiteFind(query)
 		if err != nil {
-			return r, nil, err
-		}
-		if res.StatusCode != http.StatusOK {
-			return r, nil, fmt.Errorf("bad response code: expected=%d, actual=%d",
-				http.StatusOK, res.StatusCode)
-		}
-
-		defer res.Body.Close()
-
-		// Compare results.
-		var actual graphiteFindResults
-		if err := json.NewDecoder(res.Body).Decode(&actual); err != nil {
 			return r, nil, err
 		}
 
@@ -513,7 +522,9 @@ carbon:
 				leaf = 1
 				r.leavesVerified++
 			}
+
 			expected = append(expected, graphiteFindResult{
+				ID:   child.ID(),
 				Text: child.name,
 				Leaf: leaf,
 			})
@@ -538,6 +549,31 @@ carbon:
 		return r, nil, nil
 	}
 
+	// Issue sanity checks.
+	// #1 exact match dir
+	results, err := graphiteFind("lvl00_entry00_dir.lvl01_entry00_dir")
+	require.NoError(t, err)
+	require.Equal(t, 1, len(results))
+	require.Equal(t, "lvl00_entry00_dir.lvl01_entry00_dir", results[0].ID)
+	require.Equal(t, "lvl01_entry00_dir", results[0].Text)
+	require.Equal(t, 0, results[0].Leaf)
+
+	// #2 exact match leaf
+	results, err = graphiteFind("lvl00_entry00_dir.lvl01_entry00_dir.lvl02_entry00_leaf")
+	require.NoError(t, err)
+	require.Equal(t, 1, len(results))
+	require.Equal(t, "lvl00_entry00_dir.lvl01_entry00_dir.lvl02_entry00_leaf", results[0].ID)
+	require.Equal(t, "lvl02_entry00_leaf", results[0].Text)
+	require.Equal(t, 1, results[0].Leaf)
+
+	// #3 wildcard match *leaf*
+	results, err = graphiteFind("lvl00_entry00_dir.lvl01_entry00_dir.*lvl02_entry00_leaf*")
+	require.NoError(t, err)
+	require.Equal(t, 1, len(results))
+	require.Equal(t, "lvl00_entry00_dir.lvl01_entry00_dir.lvl02_entry00_leaf", results[0].ID)
+	require.Equal(t, "lvl02_entry00_leaf", results[0].Text)
+	require.Equal(t, 1, results[0].Leaf)
+
 	// Check all top level entries and recurse.
 	log.Info("checking series",
 		zap.Int("checkConcurrency", testOpts.checkConcurrency),
@@ -557,6 +593,7 @@ carbon:
 type graphiteFindResults []graphiteFindResult
 
 type graphiteFindResult struct {
+	ID   string `json:"id"`
 	Text string `json:"text"`
 	Leaf int    `json:"leaf"`
 }
@@ -575,6 +612,10 @@ type graphiteNode struct {
 	pathParts []string
 	isLeaf    bool
 	children  []*graphiteNode
+}
+
+func (n graphiteNode) ID() string {
+	return strings.Join(n.pathParts, ".")
 }
 
 type graphiteNodeChildOptions struct {
