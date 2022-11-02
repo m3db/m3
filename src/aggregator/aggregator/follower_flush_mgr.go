@@ -241,6 +241,19 @@ func (mgr *followerFlushManager) CanLead() bool {
 		mgr.metrics.notCampaigning.Inc(1)
 		return false
 	}
+
+	flushTimes, err := mgr.flushTimesManager.Get()
+	if err != nil {
+		mgr.logger.Warn(
+			"Error getting flush times from follower",
+			zap.Error(err),
+		)
+	} else if flushTimes == nil || len(flushTimes.ByShard) == 0 {
+		// If there are no flush times, the cluster is just coming up (the leader has not
+		// gotten a chance to flush), so the follower can also lead at this point.
+		return true
+	}
+
 	if mgr.processed == nil {
 		return false
 	}

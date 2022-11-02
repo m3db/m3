@@ -24,7 +24,6 @@
 package integration
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -38,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -195,10 +195,6 @@ func TestMultiServerFollowerHealthInit(t *testing.T) {
 		}()
 	}
 
-	// Create clients for writing to the servers.
-	client := servers.newClient(t)
-	require.NoError(t, client.connect())
-
 	// Waiting for two leaders to come up.
 	var (
 		leaders    = make(map[int]struct{})
@@ -228,10 +224,12 @@ func TestMultiServerFollowerHealthInit(t *testing.T) {
 	}
 	log.Sugar().Infof("%d servers have become leaders", len(leaders))
 
-	for i, server := range servers {
+	for _, server := range servers {
 		var resp httpserver.StatusResponse
 		require.NoError(t, server.getStatusResponse(httpserver.StatusPath, &resp))
 
-		fmt.Printf("j>> server [%d]: %+v\n", i, resp)
+		// No data has been written to the aggregators yet, but all servers (including the
+		// followers should be able to lead).
+		assert.True(t, resp.Status.FlushStatus.CanLead)
 	}
 }
