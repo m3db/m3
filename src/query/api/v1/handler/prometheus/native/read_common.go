@@ -52,8 +52,12 @@ type promReadMetrics struct {
 
 // PromReadReturnedDataMetrics are metrics on the data returned from prom reads.
 type PromReadReturnedDataMetrics struct {
-	FetchSeries     tally.Histogram
-	FetchDatapoints tally.Histogram
+	Scope tally.Scope
+
+	FetchSeries            tally.Histogram
+	FetchDatapoints        tally.Histogram
+	FetchM3Series          tally.Histogram
+	OverLimitFetchM3Series map[string]tally.Gauge
 }
 
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
@@ -70,11 +74,17 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 
 // NewPromReadReturnedDataMetrics returns metrics for returned data.
 func NewPromReadReturnedDataMetrics(scope tally.Scope) PromReadReturnedDataMetrics {
-	seriesBuckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(1, 2, 16)...)
+	// Histogram buckets range from 1 to 2^20
+	// Bucketting chosen to have enough buckets and a wide enough range for
+	// histogram_quantile() to be reliable
+	seriesBuckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(1, 2, 21)...)
 	datapointBuckets := append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)
 	return PromReadReturnedDataMetrics{
-		FetchSeries:     scope.Histogram("fetch.series", seriesBuckets),
-		FetchDatapoints: scope.Histogram("fetch.datapoints", datapointBuckets),
+		OverLimitFetchM3Series: make(map[string]tally.Gauge),
+		Scope:                  scope,
+		FetchM3Series:          scope.Histogram("fetch.m3_series", seriesBuckets),
+		FetchSeries:            scope.Histogram("fetch.series", seriesBuckets),
+		FetchDatapoints:        scope.Histogram("fetch.datapoints", datapointBuckets),
 	}
 }
 
