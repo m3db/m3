@@ -25,9 +25,6 @@ package prom
 import (
 	"context"
 	"errors"
-	"net/http"
-	"sync"
-
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -38,6 +35,8 @@ import (
 	"github.com/m3db/m3/src/query/storage/prometheus"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	"net/http"
+	"sync"
 
 	errs "github.com/pkg/errors"
 	"github.com/prometheus/prometheus/promql"
@@ -45,6 +44,14 @@ import (
 	promstorage "github.com/prometheus/prometheus/storage"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+)
+
+const (
+	// Query series Warning limit 100k
+	querySeriesWarn = 1e5
+
+	// Query max size for metric
+	truncatedQueryLimit = 1024
 )
 
 // NewQueryFn creates a new promql Query.
@@ -197,8 +204,24 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	returnedDataLimited := h.limitReturnedData(query, res, fetchOptions)
+	h.returnedDataMetrics.FetchM3Series.RecordValue(float64(resultMetadata.FetchedSeriesCount))
 	h.returnedDataMetrics.FetchDatapoints.RecordValue(float64(returnedDataLimited.Datapoints))
 	h.returnedDataMetrics.FetchSeries.RecordValue(float64(returnedDataLimited.Series))
+
+	// if query return data more than warning limit, logging an as warning
+	if resultMetadata.FetchedSeriesCount > querySeriesWarn {
+		h.logger.Warn("The time series query return more than query limit", zap.Int("limit threshold", querySeriesWarn), zap.Int("time series", resultMetadata.FetchedSeriesCount), zap.String("query", query))
+
+		truncatedQuery := h.truncateQuery(query)
+		gauge, exists := h.returnedDataMetrics.OverLimitFetchM3Series[truncatedQuery]
+		if !exists {
+			gauge = h.returnedDataMetrics.Scope.Tagged(
+				map[string]string{"query": truncatedQuery},
+			).Gauge("fetch.over_limit_m3_series")
+			h.returnedDataMetrics.OverLimitFetchM3Series[truncatedQuery] = gauge
+		}
+		gauge.Update(float64(resultMetadata.FetchedSeriesCount))
+	}
 
 	limited := &handleroptions.ReturnedDataLimited{
 		Limited:     returnedDataLimited.Limited,
@@ -224,6 +247,13 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.String("query", params.Query),
 			zap.Bool("instant", h.opts.instant))
 	}
+}
+
+func (h *readHandler) truncateQuery(query string) string {
+	if len(query) <= truncatedQueryLimit {
+		return query
+	}
+	return query[:truncatedQueryLimit] + "..."
 }
 
 func (h *readHandler) limitReturnedData(query string,
