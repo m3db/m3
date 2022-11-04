@@ -49,6 +49,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	graphitehandler "github.com/m3db/m3/src/query/api/v1/handler/graphite"
 	"github.com/m3db/m3/src/query/graphite/graphite"
+	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/ident"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -59,12 +60,14 @@ type testGraphiteFindDatasetSize uint
 
 const (
 	smallDatasetSize testGraphiteFindDatasetSize = iota
+	mediumDatasetSize
 	largeDatasetSize
 )
 
 type testGraphiteFindOptions struct {
 	checkConcurrency int
 	datasetSize      testGraphiteFindDatasetSize
+	checkLimit       bool
 }
 
 func TestGraphiteFindSequential(t *testing.T) {
@@ -73,7 +76,7 @@ func TestGraphiteFindSequential(t *testing.T) {
 	// forever) encounters errors running on CI.
 	testGraphiteFind(t, testGraphiteFindOptions{
 		checkConcurrency: 1,
-		datasetSize:      smallDatasetSize,
+		datasetSize:      mediumDatasetSize,
 	})
 }
 
@@ -86,6 +89,14 @@ func TestGraphiteFindParallel(t *testing.T) {
 	})
 }
 
+func TestGraphiteFindLimits(t *testing.T) {
+	testGraphiteFind(t, testGraphiteFindOptions{
+		checkConcurrency: 1,
+		datasetSize:      smallDatasetSize,
+		checkLimit:       true,
+	})
+}
+
 func testGraphiteFind(tt *testing.T, testOpts testGraphiteFindOptions) {
 	if testing.Short() {
 		tt.SkipNow() // Just skip if we're doing a short run
@@ -95,7 +106,7 @@ func testGraphiteFind(tt *testing.T, testOpts testGraphiteFindOptions) {
 	// by using a TestingT that panics when FailNow is called.
 	t := xtest.FailNowPanicsTestingT(tt)
 
-	const queryConfigYAML = `
+	queryConfigYAML := `
 listenAddress: 127.0.0.1:7201
 
 logging:
@@ -120,6 +131,18 @@ local:
       retention: 12h
       resolution: 1m
 `
+
+	if testOpts.checkLimit {
+		queryConfigYAML += `
+carbon:
+  limitsFind:
+    perQuery:
+      maxFetchedSeries: 10
+      instanceMultiple: 2
+      maxFetchedRange: 2h
+      requireExhaustive: false
+`
+	}
 
 	var (
 		blockSize       = 2 * time.Hour
@@ -170,6 +193,10 @@ local:
 	)
 	switch testOpts.datasetSize {
 	case smallDatasetSize:
+		levels = 2
+		entriesPerLevelMin = 12
+		entriesPerLevelMax = 15
+	case mediumDatasetSize:
 		levels = 4
 		entriesPerLevelMin = 5
 		entriesPerLevelMax = 7
@@ -362,6 +389,10 @@ local:
 			http.MethodGet, url, nil)
 		require.NoError(t, err)
 
+		// Ensure that when the limit test runs we don't apply limit
+		// for this specific request (due to this being verification check).
+		req.Header.Set(headers.LimitMaxSeriesHeader, "1000")
+
 		res, err := httpClient.Do(req)
 		if err != nil {
 			return r, nil, err
@@ -417,6 +448,8 @@ local:
 		zap.Uint64("numSeriesChecking", numSeriesChecking))
 	parallelVerifyFindQueries(rootNode, 0)
 
+	testGraphiteFindLimit(t, setup, log)
+
 	// Wait for execution.
 	wg.Wait()
 
@@ -425,6 +458,35 @@ local:
 		log.Info("debug test set, pausing for investigate")
 		<-make(chan struct{})
 	}
+}
+
+func testGraphiteFindLimit(
+	t require.TestingT,
+	setup TestSetup,
+	log *zap.Logger,
+) {
+	params := make(url.Values)
+	params.Set("query", "lvl00_entry00_dir.*")
+
+	url := fmt.Sprintf("http://%s%s?%s", setup.QueryAddress(),
+		graphitehandler.FindURL, params.Encode())
+
+	req, err := http.NewRequestWithContext(context.Background(),
+		http.MethodGet, url, nil)
+	require.NoError(t, err)
+
+	res, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	log.Info("find with limit applied response headers", zap.Any("headers", res.Header))
+
+	defer res.Body.Close()
+
+	var results graphiteFindResults
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&results))
+
+	assert.Equal(t, headers.LimitHeaderSeriesLimitApplied, res.Header.Get(headers.LimitHeader))
 }
 
 type graphiteFindResults []graphiteFindResult
