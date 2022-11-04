@@ -178,8 +178,6 @@ type findResultsOptions struct {
 	returnedSeriesMetadataLimit  int
 }
 
-type findResultsMetadata struct{}
-
 func findResultsJSON(
 	w io.Writer,
 	results []findResult,

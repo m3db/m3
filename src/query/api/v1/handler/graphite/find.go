@@ -29,7 +29,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/lithammer/fuzzysearch/fuzzy"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/api/v1/route"
@@ -41,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
+	"github.com/lithammer/fuzzysearch/fuzzy"
 	"go.uber.org/zap"
 )
 
