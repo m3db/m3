@@ -33,6 +33,7 @@ import (
 	"reflect"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -448,7 +449,9 @@ carbon:
 		zap.Uint64("numSeriesChecking", numSeriesChecking))
 	parallelVerifyFindQueries(rootNode, 0)
 
-	testGraphiteFindLimit(t, setup, log)
+	if testOpts.checkLimit {
+		testGraphiteFindLimit(t, setup, log)
+	}
 
 	// Wait for execution.
 	wg.Wait()
