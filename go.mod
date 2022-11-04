@@ -28,6 +28,7 @@ require (
 	github.com/klauspost/compress v1.14.2
 	github.com/leanovate/gopter v0.2.8
 	github.com/lightstep/lightstep-tracer-go v0.18.1
+	github.com/lithammer/fuzzysearch v1.1.5
 	github.com/m3db/bitset v2.0.0+incompatible
 	github.com/m3db/bloom/v4 v4.0.0-20200901140942-52efb8544fe9
 	github.com/m3db/prometheus_client_golang v1.12.8

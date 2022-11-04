@@ -448,6 +448,15 @@ type PerQueryLimitsConfiguration struct {
 	// service.
 	MaxFetchedRange time.Duration `yaml:"maxFetchedRange"`
 
+	// ReturnedSeriesLimit limits the number of time series returned.
+	ReturnedSeriesLimit int `yaml:"returnedSeriesLimit"`
+
+	// ReturnedDatapointsLimit limits the number of datapoints returned.
+	ReturnedDatapointsLimit int `yaml:"returnedDatapointsLimit"`
+
+	// ReturnedSeriesMetadataLimit limits the number of absolute metrics metadata returned.
+	ReturnedSeriesMetadataLimit int `yaml:"returnedSeriesMetadataLimit"`
+
 	// RequireExhaustive results in an error if the query exceeds any limit.
 	RequireExhaustive *bool `yaml:"requireExhaustive"`
 
@@ -481,12 +490,15 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handl
 	}
 
 	return handleroptions.FetchOptionsBuilderLimitsOptions{
-		SeriesLimit:            seriesLimit,
-		InstanceMultiple:       l.InstanceMultiple,
-		DocsLimit:              docsLimit,
-		RangeLimit:             l.MaxFetchedRange,
-		RequireExhaustive:      requireExhaustive,
-		MaxMetricMetadataStats: maxMetricMetadataStats,
+		SeriesLimit:                 seriesLimit,
+		InstanceMultiple:            l.InstanceMultiple,
+		DocsLimit:                   docsLimit,
+		RangeLimit:                  l.MaxFetchedRange,
+		RequireExhaustive:           requireExhaustive,
+		MaxMetricMetadataStats:      maxMetricMetadataStats,
+		ReturnedSeriesLimit:         l.ReturnedSeriesLimit,
+		ReturnedDatapointsLimit:     l.ReturnedDatapointsLimit,
+		ReturnedSeriesMetadataLimit: l.ReturnedSeriesMetadataLimit,
 	}
 }
 

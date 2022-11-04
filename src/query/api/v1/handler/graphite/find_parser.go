@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	graphitestorage "github.com/m3db/m3/src/query/graphite/storage"
@@ -235,22 +236,24 @@ func parseFindParamsToQueries(
 
 type findResultsOptions struct {
 	includeBothExpandableAndLeaf bool
+	returnedSeriesMetadataLimit  int
 }
 
 func findResultsJSON(
 	w io.Writer,
 	results []findResult,
 	opts findResultsOptions,
-) error {
+) (*handleroptions.ReturnedMetadataLimited, error) {
+	meta := &handleroptions.ReturnedMetadataLimited{}
 	jw := json.NewWriter(w)
 	jw.BeginArray()
 
 	for _, result := range results {
-		writeFindNodeResultJSON(jw, result, opts)
+		writeFindNodeResultJSON(jw, result, opts, meta)
 	}
 
 	jw.EndArray()
-	return jw.Close()
+	return meta, jw.Close()
 }
 
 type findResult struct {
@@ -268,6 +271,7 @@ func writeFindNodeResultJSON(
 	jw json.Writer,
 	result findResult,
 	opts findResultsOptions,
+	meta *handleroptions.ReturnedMetadataLimited,
 ) {
 	descriptor := result.node
 
@@ -279,11 +283,11 @@ func writeFindNodeResultJSON(
 			descriptor.hasChildren &&
 			opts.includeBothExpandableAndLeaf)
 	if includeLeafNode {
-		writeFindResultJSON(jw, result.id, result.name, false)
+		writeFindResultJSON(jw, result.id, result.name, false, opts, meta)
 	}
 
 	if descriptor.hasChildren {
-		writeFindResultJSON(jw, result.id, result.name, true)
+		writeFindResultJSON(jw, result.id, result.name, true, opts, meta)
 	}
 }
 
@@ -292,7 +296,17 @@ func writeFindResultJSON(
 	id string,
 	value string,
 	hasChildren bool,
+	opts findResultsOptions,
+	meta *handleroptions.ReturnedMetadataLimited,
 ) {
+	meta.TotalResults++
+	if opts.returnedSeriesMetadataLimit > 0 && meta.Results >= opts.returnedSeriesMetadataLimit {
+		meta.Limited = true
+		return
+	}
+
+	meta.Results++
+
 	leaf := 1
 	if hasChildren {
 		leaf = 0
