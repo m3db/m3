@@ -22,10 +22,14 @@ package graphite
 
 import (
 	"errors"
+	"io/ioutil"
+	"math"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 
+	"github.com/lithammer/fuzzysearch/fuzzy"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/api/v1/route"
@@ -116,16 +120,37 @@ func mergeTags(
 	return tagMap, nil
 }
 
-func findResultsSorted(prefix string, tagMap map[string]nodeDescriptor) []findResult {
+func findResultsSorted(search, prefix string, tagMap map[string]nodeDescriptor) []findResult {
 	results := make([]findResult, 0, len(tagMap))
+	words := make([]string, 0, len(tagMap))
 	for name, node := range tagMap {
 		results = append(results, findResult{
 			id:   prefix + name,
 			name: name,
 			node: node,
 		})
+		words = append(words, name)
 	}
+
+	var ranks fuzzy.Ranks
+	match := strings.Trim(search, "* ")
+	if match != "" {
+		ranks = fuzzy.RankFindFold(strings.ToLower(search), words)
+
+		// Set any unmatches to the bottom by making the distance max int.
+		for i := range ranks {
+			if ranks[i].Distance == -1 {
+				ranks[i].Distance = math.MaxUint32
+			}
+		}
+	}
+
 	sort.Slice(results, func(i, j int) bool {
+		if len(ranks) > 0 && ranks[i].Distance != ranks[j].Distance {
+			// If the ranks are different, sort by rank.
+			return ranks[i].Distance < ranks[j].Distance
+		}
+		// Otherwise sort by name then attributes.
 		if results[i].id != results[j].id {
 			return results[i].id < results[j].id
 		}
@@ -212,20 +237,38 @@ func (h *grahiteFindHandler) ServeHTTP(
 		prefix += "."
 	}
 
-	results := findResultsSorted(prefix, seenMap)
-
-	err = handleroptions.AddDBResultResponseHeaders(w, meta, opts)
-	if err != nil {
+	search := graphite.ExtractNthMetricPart(raw, graphite.CountMetricParts(raw)-1)
+	results := findResultsSorted(search, prefix, seenMap)
+	if err := handleroptions.AddDBResultResponseHeaders(w, meta, opts); err != nil {
 		logger.Error("unable to render find header", zap.Error(err))
 		xhttp.WriteError(w, err)
 		return
 	}
 
-	// TODO: Support multiple result types
-	resultOpts := findResultsOptions{
-		includeBothExpandableAndLeaf: h.graphiteStorageOpts.FindResultsIncludeBothExpandableAndLeaf,
+	// First write out results to zero output to check if will limit
+	// results and if so then write the header about truncation if occurred.
+	var (
+		noopWriter = ioutil.Discard
+		renderOpts = findResultsOptions{
+			includeBothExpandableAndLeaf: h.graphiteStorageOpts.FindResultsIncludeBothExpandableAndLeaf,
+			returnedSeriesMetadataLimit:  opts.ReturnedSeriesMetadataLimit,
+		}
+	)
+	limited, err := findResultsJSON(noopWriter, results, renderOpts)
+	if err != nil {
+		logger.Error("unable to render list tags results", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
 	}
-	if err := findResultsJSON(w, results, resultOpts); err != nil {
+
+	if err := handleroptions.AddReturnedLimitResponseHeaders(w, nil, limited); err != nil {
+		logger.Error("unable to write returned limit response headers", zap.Error(err))
+		xhttp.WriteError(w, err)
+		return
+	}
+
+	_, err = findResultsJSON(w, results, renderOpts)
+	if err != nil {
 		logger.Error("unable to render find results", zap.Error(err))
 	}
 }

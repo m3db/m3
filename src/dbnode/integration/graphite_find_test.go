@@ -142,6 +142,7 @@ carbon:
       instanceMultiple: 2
       maxFetchedRange: 2h
       requireExhaustive: false
+      returnedSeriesMetadataLimit: 8
 `
 	}
 
@@ -392,7 +393,8 @@ carbon:
 
 		// Ensure that when the limit test runs we don't apply limit
 		// for this specific request (due to this being verification check).
-		req.Header.Set(headers.LimitMaxSeriesHeader, "1000")
+		req.Header.Set(headers.LimitMaxSeriesHeader, strconv.Itoa(1000))
+		req.Header.Set(headers.LimitMaxReturnedSeriesMetadataHeader, strconv.Itoa(1000))
 
 		res, err := httpClient.Do(req)
 		if err != nil {
@@ -489,7 +491,12 @@ func testGraphiteFindLimit(
 	var results graphiteFindResults
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&results))
 
+	// Make sure was limited at server side.
 	assert.Equal(t, headers.LimitHeaderSeriesLimitApplied, res.Header.Get(headers.LimitHeader))
+
+	// Also make sure applied the results limit client side in query handler.
+	assert.NotEmpty(t, res.Header.Get(headers.ReturnedMetadataLimitedHeader))
+	assert.Equal(t, 8, len(results))
 }
 
 type graphiteFindResults []graphiteFindResult
