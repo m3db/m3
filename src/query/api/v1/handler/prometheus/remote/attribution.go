@@ -3,6 +3,7 @@ package remote
 import (
 	"errors"
 	"math/rand"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -10,6 +11,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 /**
@@ -20,11 +22,48 @@ import (
  */
 
 var errNoOption = errors.New("no option configured for promAttributionMetrics")
-var errInvalidFilter = errors.New("invalid filter configured for promAttributionMetrics, must be `label=value`")
+var errInvalidMatcher = errors.New("invalid matcher configured for promAttributionMetrics")
+
+type matchOp int
+
+const (
+	Eq matchOp = iota // ==
+	Ne                // !=
+)
+
+type matcher struct {
+	op      matchOp
+	pattern string
+}
+
+func newMatcher(config string) (string, *matcher, error) {
+	eqRegexp := regexp.MustCompile(`(\w+)==(\w+)`)
+	if eqRegexp.MatchString(config) {
+		groups := eqRegexp.FindStringSubmatch(config)
+		return groups[1], &matcher{op: Eq, pattern: groups[2]}, nil
+	}
+	neRegexp := regexp.MustCompile(`(\w+)!=(\w+)`)
+	if neRegexp.MatchString(config) {
+		groups := neRegexp.FindStringSubmatch(config)
+		return groups[1], &matcher{op: Ne, pattern: groups[2]}, nil
+	}
+	return "", nil, errInvalidMatcher
+}
+
+func (m *matcher) match(value string) bool {
+	switch m.op {
+	case Eq:
+		return m.pattern == value
+	case Ne:
+		return m.pattern != value
+	default:
+		return false
+	}
+}
 
 type promAttributionMetrics struct {
 	opts               *instrument.AttributionConfiguration
-	filters            map[string]string
+	matchers           map[string]*matcher
 	baseScope          tally.Scope
 	attributedCounters sync.Map
 	counterSize        int32
@@ -32,33 +71,32 @@ type promAttributionMetrics struct {
 	missSamples        tally.Counter
 }
 
-func (pam *promAttributionMetrics) filter(label prompb.Label) bool {
-	if pattern, ok := pam.filters[string(label.Name)]; ok {
-		if pattern == string(label.Value) {
-			return true
+func (pam *promAttributionMetrics) match(labels []prompb.Label) bool {
+	for _, l := range labels {
+		name := string(l.Name)
+		if m, ok := pam.matchers[name]; ok {
+			if !m.match(string(l.Value)) {
+				// if 1 of the matches violates, skip the attribution
+				return false
+			}
 		}
-		// TODO: support regex match
 	}
-	return false
+	return true
 }
 
 func (pam *promAttributionMetrics) attribute(ts prompb.TimeSeries) {
-	if rand.Float64() >= pam.opts.SamplingRate {
+	if rand.Float64() >= pam.opts.SamplingRate || !pam.match(ts.Labels) {
 		return
 	}
-	labelValues := make([]string, len(pam.opts.Labels))
+	matchedValues := make([]string, len(pam.opts.Labels))
 	found := 0
 	sample_count := int64(len(ts.Samples))
 	for _, l := range ts.Labels {
-		if pam.filter(l) {
-			// filter out samples not qualified for this attribution
-			return
-		}
 		labelName := string(l.Name)
 		for i, label := range pam.opts.Labels {
 			if labelName == label {
 				found++
-				labelValues[i] = string(l.Value)
+				matchedValues[i] = string(l.Value)
 			}
 		}
 	}
@@ -68,7 +106,7 @@ func (pam *promAttributionMetrics) attribute(ts prompb.TimeSeries) {
 		return
 	}
 	attributeLabels := strings.Join(pam.opts.Labels, "_")
-	attributeValues := strings.Join(labelValues, ":")
+	attributeValues := strings.Join(matchedValues, ":")
 	// look up if the counter in the map already, if not in the map and the counter reaches its capacity, consider this is a miss
 	_, ok := pam.attributedCounters.Load(attributeValues)
 	if !ok && pam.counterSize >= int32(pam.opts.Capacity) {
@@ -84,22 +122,30 @@ func (pam *promAttributionMetrics) attribute(ts prompb.TimeSeries) {
 	(c.(tally.Counter)).Inc(sample_count)
 }
 
-func newPromAttributionMetrics(scope tally.Scope, opts *instrument.AttributionConfiguration) (*promAttributionMetrics, error) {
+func newPromAttributionMetrics(scope tally.Scope,
+	opts *instrument.AttributionConfiguration,
+	logger *zap.Logger) (*promAttributionMetrics, error) {
 	if opts == nil {
 		return nil, errNoOption
 	}
+	logger.Info("Creating new attribution group", zap.String("name", opts.Name))
 	baseScope := scope.SubScope("attribution").SubScope(opts.Name)
-	filters := map[string]string{}
-	for _, filter := range opts.Filters {
-		parts := strings.Split(filter, "=")
-		if len(parts) != 2 {
-			return nil, errInvalidFilter
+	matchers := map[string]*matcher{}
+	for _, mCfg := range opts.Matchers {
+		if key, m, err := newMatcher(mCfg); err != nil {
+			logger.Error("Encounter invalid matchers", zap.String("match", mCfg), zap.Error(err))
+			return nil, err
+		} else {
+			logger.Debug("Adding matcher to attribution group",
+				zap.String("attribution", opts.Name),
+				zap.String("key", key),
+				zap.String("value", m.pattern))
+			matchers[key] = m
 		}
-		filters[parts[0]] = parts[1]
 	}
 	return &promAttributionMetrics{
 		opts:               opts,
-		filters:            filters,
+		matchers:           matchers,
 		baseScope:          baseScope,
 		attributedCounters: sync.Map{},
 		counterSize:        0,
