@@ -31,7 +31,7 @@ func TestPromAttributionMetrics_SingleLabel(t *testing.T) {
 	}
 	pam.attribute(ts)
 	foundMetric := xclock.WaitUntil(func() bool {
-		found, ok := scope.Snapshot().Counters()["base.attribution.name.sample_count+labelA=value-A,test=prom-attribution-test"]
+		found, ok := scope.Snapshot().Counters()["base.attribution.name.sample_count+attr_labelA=value-A,test=prom-attribution-test"]
 		return ok && found.Value() == 3
 	}, 5*time.Second)
 	require.True(t, foundMetric)
@@ -65,7 +65,7 @@ func TestPromAttributionMetrics_MultipleLabels(t *testing.T) {
 		pam.attribute(ts)
 	}
 	foundMetric := xclock.WaitUntil(func() bool {
-		found, ok := scope.Snapshot().Counters()["base.attribution.name.sample_count+labelA_labelB=value-A:valueB,test=prom-attribution-test"]
+		found, ok := scope.Snapshot().Counters()["base.attribution.name.sample_count+attr_labelA_labelB=value-A:valueB,test=prom-attribution-test"]
 		return ok && found.Value() == 7
 	}, 5*time.Second)
 	require.True(t, foundMetric)
@@ -101,8 +101,8 @@ func TestPromAttributionMetrics_Capacity(t *testing.T) {
 	// Because capacity is one, label A with multiple values will only have 1 counter, the other one should go to miss
 	foundMetric := xclock.WaitUntil(func() bool {
 		counters := scope.Snapshot().Counters()
-		found, ok := counters["base.attribution.name.sample_count+labelA=value-A,test=prom-attribution-test"]
-		_, notOk := counters["base.attribution.name.sample_count+labelA=value-A1,test=prom-attribution-test"]
+		found, ok := counters["base.attribution.name.sample_count+attr_labelA=value-A,test=prom-attribution-test"]
+		_, notOk := counters["base.attribution.name.sample_count+attr_labelA=value-A1,test=prom-attribution-test"]
 		return ok && found.Value() == 10 && !notOk
 	}, 5*time.Second)
 	require.True(t, foundMetric)
@@ -143,8 +143,8 @@ func TestPromAttributionMetrics_EqMatch(t *testing.T) {
 	// samples that contain labelA with value-A will be used
 	foundMetric := xclock.WaitUntil(func() bool {
 		counters := scope.Snapshot().Counters()
-		found, ok := counters["base.attribution.name.sample_count+labelA=value-A,test=prom-attribution-test"]
-		_, notOk := counters["base.attribution.name.sample_count+labelA=value-A1,test=prom-attribution-test"]
+		found, ok := counters["base.attribution.name.sample_count+attr_labelA=value-A,test=prom-attribution-test"]
+		_, notOk := counters["base.attribution.name.sample_count+attr_labelA=value-A1,test=prom-attribution-test"]
 		return ok && found.Value() == 10 && !notOk
 	}, 5*time.Second)
 	require.True(t, foundMetric)
@@ -185,8 +185,8 @@ func TestPromAttributionMetrics_NeMatch(t *testing.T) {
 	// samples that contain labelA without value-A will be used
 	foundMetric := xclock.WaitUntil(func() bool {
 		counters := scope.Snapshot().Counters()
-		found, ok := counters["base.attribution.name.sample_count+labelA=value-A1,test=prom-attribution-test"]
-		_, notOk := counters["base.attribution.name.sample_count+labelA=value-A,test=prom-attribution-test"]
+		found, ok := counters["base.attribution.name.sample_count+attr_labelA=value-A1,test=prom-attribution-test"]
+		_, notOk := counters["base.attribution.name.sample_count+attr_labelA=value-A,test=prom-attribution-test"]
 		return ok && found.Value() == 13 && !notOk
 	}, 5*time.Second)
 	require.True(t, foundMetric)

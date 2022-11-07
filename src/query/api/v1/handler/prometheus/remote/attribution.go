@@ -31,18 +31,21 @@ const (
 	Ne                // !=
 )
 
+var (
+	eqRegexp = regexp.MustCompile(`(\w+)==(.*)`)
+	neRegexp = regexp.MustCompile(`(\w+)!=(.*)`)
+)
+
 type matcher struct {
 	op      matchOp
 	pattern string
 }
 
 func newMatcher(config string) (string, *matcher, error) {
-	eqRegexp := regexp.MustCompile(`(\w+)==(.*)`)
 	if eqRegexp.MatchString(config) {
 		groups := eqRegexp.FindStringSubmatch(config)
 		return groups[1], &matcher{op: Eq, pattern: groups[2]}, nil
 	}
-	neRegexp := regexp.MustCompile(`(\w+)!=(.*)`)
 	if neRegexp.MatchString(config) {
 		groups := neRegexp.FindStringSubmatch(config)
 		return groups[1], &matcher{op: Ne, pattern: groups[2]}, nil
@@ -76,7 +79,7 @@ func (pam *promAttributionMetrics) match(labels []prompb.Label) bool {
 		name := string(l.Name)
 		if m, ok := pam.matchers[name]; ok {
 			if !m.match(string(l.Value)) {
-				// if 1 of the matches violates, skip the attribution
+				// if 1 matcher out of match, skip the attribution
 				return false
 			}
 		}
@@ -93,6 +96,8 @@ func (pam *promAttributionMetrics) attribute(ts prompb.TimeSeries) {
 	sample_count := int64(len(ts.Samples))
 	for _, l := range ts.Labels {
 		labelName := string(l.Name)
+		// we enforce there will be at most 3 labels for attribution to avoid high cardinality
+		// so nested for loop is ok for linear scan and we probably don't need to optimize from O(3n) -> O(n)
 		for i, label := range pam.opts.Labels {
 			if labelName == label {
 				found++
@@ -105,7 +110,8 @@ func (pam *promAttributionMetrics) attribute(ts prompb.TimeSeries) {
 		pam.skipSamples.Inc(sample_count)
 		return
 	}
-	attributeLabels := strings.Join(pam.opts.Labels, "_")
+	// to avoid conflicting with normal labels like "job", append a prefix
+	attributeLabels := "attr_" + strings.Join(pam.opts.Labels, "_")
 	attributeValues := strings.Join(matchedValues, ":")
 	// look up if the counter in the map already, if not in the map and the counter reaches its capacity, consider this is a miss
 	_, ok := pam.attributedCounters.Load(attributeValues)

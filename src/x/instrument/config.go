@@ -62,7 +62,7 @@ type AttributionConfiguration struct {
 
 	// Matched labels of this attribution, if a time series has label A & B & C, and here we attribute
 	// to A, we will count all ts with coordinator_attribution_A_sample_count{A="value for label A"}
-	Labels []string `yaml:"labels"`
+	Labels []string `yaml:"labels" validate:"min=1,max=3"`
 
 	// Match metrics for attribution, we support two types of matchers for now:
 	// 1. only sample with label A == <value> will be used for attribution
