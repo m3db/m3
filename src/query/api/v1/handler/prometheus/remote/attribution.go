@@ -24,7 +24,7 @@ import (
 var errNoOption = errors.New("no option configured for promAttributionMetrics")
 var errInvalidMatcher = errors.New("invalid matcher configured for promAttributionMetrics")
 
-type matchOp int
+type matchOp uint8
 
 const (
 	Eq matchOp = iota // ==
@@ -37,12 +37,12 @@ type matcher struct {
 }
 
 func newMatcher(config string) (string, *matcher, error) {
-	eqRegexp := regexp.MustCompile(`(\w+)==(\w+)`)
+	eqRegexp := regexp.MustCompile(`(\w+)==(.*)`)
 	if eqRegexp.MatchString(config) {
 		groups := eqRegexp.FindStringSubmatch(config)
 		return groups[1], &matcher{op: Eq, pattern: groups[2]}, nil
 	}
-	neRegexp := regexp.MustCompile(`(\w+)!=(\w+)`)
+	neRegexp := regexp.MustCompile(`(\w+)!=(.*)`)
 	if neRegexp.MatchString(config) {
 		groups := neRegexp.FindStringSubmatch(config)
 		return groups[1], &matcher{op: Ne, pattern: groups[2]}, nil
@@ -136,9 +136,10 @@ func newPromAttributionMetrics(scope tally.Scope,
 			logger.Error("Encounter invalid matchers", zap.String("match", mCfg), zap.Error(err))
 			return nil, err
 		} else {
-			logger.Debug("Adding matcher to attribution group",
+			logger.Info("Adding matcher to attribution group",
 				zap.String("attribution", opts.Name),
 				zap.String("key", key),
+				zap.Uint8("op", uint8(m.op)),
 				zap.String("value", m.pattern))
 			matchers[key] = m
 		}
