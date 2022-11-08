@@ -60,11 +60,15 @@ type AttributionConfiguration struct {
 	// Sampling rate
 	SamplingRate float64 `yaml:"samplingRate" validate:"nonzero,min=0.0,max=1.0"`
 
-	// Matched labels of this attribution
-	Labels []string `yaml:"labels"`
+	// Matched labels of this attribution, if a time series has label A & B & C, and here we attribute
+	// to A, we will count all ts with coordinator_attribution_A_sample_count{A="value for label A"}
+	Labels []string `yaml:"labels" validate:"min=1,max=3"`
 
-	// Filter metrics for attribution
-	Filters []string `yaml:"filters"`
+	// Match metrics for attribution, we support two types of matchers for now:
+	// 1. only sample with label A == <value> will be used for attribution
+	// 2. only sample with label A != <value> will be used for attribution
+	// the final decision is concatenated using AND unary among matchers
+	Matchers []string `yaml:"matchers"`
 }
 
 // MetricsConfiguration configures options for emitting metrics.

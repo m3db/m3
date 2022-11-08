@@ -141,6 +141,7 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 		nowFn                = options.NowFn()
 		forwarding           = options.Config().WriteForwarding.PromRemoteWrite
 		instrumentOpts       = options.InstrumentOpts()
+		logger               = instrumentOpts.Logger()
 	)
 
 	if downsamplerAndWriter == nil {
@@ -165,7 +166,7 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 
 	attributions := make([]*promAttributionMetrics, len(options.Config().Metrics.Attributions))
 	for i, attributionOpts := range options.Config().Metrics.Attributions {
-		attribution, _ := newPromAttributionMetrics(scope, attributionOpts)
+		attribution, _ := newPromAttributionMetrics(scope, attributionOpts, logger)
 		attributions[i] = attribution
 	}
 
