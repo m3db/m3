@@ -75,6 +75,7 @@ type promAttributionMetrics struct {
 }
 
 func (pam *promAttributionMetrics) match(labels []prompb.Label) bool {
+	matched := 0
 	for _, l := range labels {
 		name := string(l.Name)
 		if m, ok := pam.matchers[name]; ok {
@@ -82,9 +83,10 @@ func (pam *promAttributionMetrics) match(labels []prompb.Label) bool {
 				// if 1 matcher out of match, skip the attribution
 				return false
 			}
+			matched++
 		}
 	}
-	return true
+	return matched == len(pam.matchers)
 }
 
 func (pam *promAttributionMetrics) attribute(ts prompb.TimeSeries) {

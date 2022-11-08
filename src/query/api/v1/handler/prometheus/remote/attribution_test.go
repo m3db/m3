@@ -206,3 +206,45 @@ func TestPromAttributionMetrics_InvalidMatcher(t *testing.T) {
 	require.Nil(t, pam)
 	require.Equal(t, errInvalidMatcher, err)
 }
+
+func TestPromAttributionMetrics_MutilMatch(t *testing.T) {
+	logger := instrument.NewTestDebugLogger(t)
+	scope := tally.NewTestScope("base", map[string]string{"test": "prom-attribution-test"})
+	opts := instrument.AttributionConfiguration{
+		Name:         "name",
+		Capacity:     10,
+		SamplingRate: 1,
+		Labels:       []string{string(TEST_LABEL_A.Name)},
+		Matchers:     []string{"labelA==value-A", "labelB==valueB"},
+	}
+	pam, _ := newPromAttributionMetrics(scope, &opts, logger)
+	tsList := []prompb.TimeSeries{
+		{
+			Labels:  []prompb.Label{TEST_LABEL_A},
+			Samples: make([]prompb.Sample, 3),
+		},
+		{
+			Labels:  []prompb.Label{TEST_LABEL_A1},
+			Samples: make([]prompb.Sample, 2),
+		},
+		{
+			Labels:  []prompb.Label{TEST_LABEL_B, TEST_LABEL_A},
+			Samples: make([]prompb.Sample, 7),
+		},
+		{
+			Labels:  []prompb.Label{TEST_LABEL_B, TEST_LABEL_A1},
+			Samples: make([]prompb.Sample, 11),
+		},
+	}
+	for _, ts := range tsList {
+		pam.attribute(ts)
+	}
+	// samples that contain labelA==value-A and labelB==valueB will be used
+	foundMetric := xclock.WaitUntil(func() bool {
+		counters := scope.Snapshot().Counters()
+		found, ok := counters["base.attribution.name.sample_count+attr_labelA=value-A,test=prom-attribution-test"]
+		_, notOk := counters["base.attribution.name.sample_count+attr_labelA=value-A1,test=prom-attribution-test"]
+		return ok && found.Value() == 7 && !notOk
+	}, 5*time.Second)
+	require.True(t, foundMetric)
+}
