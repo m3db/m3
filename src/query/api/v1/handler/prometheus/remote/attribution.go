@@ -75,6 +75,9 @@ type promAttributionMetrics struct {
 }
 
 func (pam *promAttributionMetrics) match(labels []prompb.Label) bool {
+	if len(pam.matchers) == 0 {
+		return true
+	}
 	matched := 0
 	for _, l := range labels {
 		name := string(l.Name)
