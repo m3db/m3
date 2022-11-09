@@ -244,13 +244,14 @@ func (mgr *followerFlushManager) CanLead() bool {
 
 	flushTimes, err := mgr.flushTimesManager.Get()
 	if err != nil {
-		mgr.logger.Warn(
-			"Error getting flush times from follower",
+		// Error getting flush times, proceed to other logic to determine CanLead.
+		mgr.logger.Warn("Error getting flush times from follower flush manager",
 			zap.Error(err),
 		)
 	} else if flushTimes == nil || len(flushTimes.ByShard) == 0 {
 		// If there are no flush times, the cluster is just coming up (the leader has not
 		// gotten a chance to flush), so the follower can also lead at this point.
+		// See https://github.com/m3db/m3/issues/4168 for longer discussion.
 		return true
 	}
 
