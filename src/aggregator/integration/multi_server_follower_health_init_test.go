@@ -229,7 +229,7 @@ func TestMultiServerFollowerHealthInit(t *testing.T) {
 		require.NoError(t, server.getStatusResponse(httpserver.StatusPath, &resp))
 
 		// No data has been written to the aggregators yet, but all servers (including the
-		// followers should be able to lead).
+		// followers) should be able to lead.
 		assert.True(t, resp.Status.FlushStatus.CanLead)
 	}
 }

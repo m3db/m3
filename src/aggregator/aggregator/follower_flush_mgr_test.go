@@ -282,6 +282,8 @@ func testCanLeadNotFlushed(
 }
 
 func TestFollowerFlushManagerCanLeadNoFlushTimes(t *testing.T) {
+	// Note: most tests here already test whether the follower CanLead when flush
+	// times are present, e.g. TestFollowerFlushManagerCanLeadNotFlushed.
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
