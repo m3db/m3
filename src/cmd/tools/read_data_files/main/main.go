@@ -55,13 +55,13 @@ const (
 type benchmarkMode uint8
 
 const (
-	// benchmarkNone prints the data read to the standard output and does not measure performance.
+	// benchmarkNone prints out the read performance
 	benchmarkNone benchmarkMode = iota
 
-	// benchmarkSeries benchmarks time series read performance (skipping datapoint decoding).
+	// benchmarkSeries outputs only the time series and their sum over the data block.
 	benchmarkSeries
 
-	// benchmarkDatapoints benchmarks series read, including datapoint decoding.
+	// benchmarkDatapoints outputs all datapoints' timestamps and values.
 	benchmarkDatapoints
 )
 
@@ -76,7 +76,7 @@ func main() {
 		fileSetTypeArg = getopt.StringLong("fileset-type", 't', flushType, fmt.Sprintf("%s|%s", flushType, snapshotType))
 		idFilter       = getopt.StringLong("id-filter", 'f', "", "ID Contains Filter (optional)")
 		benchmark      = getopt.StringLong(
-			"benchmark", 'B', "", "benchmark mode (optional), [series|datapoints]")
+			"benchmark", 'B', "series", "benchmark mode (optional), [series|datapoints]")
 	)
 	getopt.Parse()
 
@@ -106,16 +106,20 @@ func main() {
 		log.Fatalf("unknown fileset type: %s", *fileSetTypeArg)
 	}
 
+	// instead of doing benchmark, the -B option specifiy the output data format
+	// "": outputs no data but benchmark results
+	// series: only outputs the number of data points + sum of all values (if any)
+	// datapoints: outputs a list of timestamps + values and in comma separated
 	var benchMode benchmarkMode
 	switch *benchmark {
 	case "":
-		fmt.Println("shard\tid\tdatapoints\tsum\tstartTimeInSec\tendTimeInSec")
+		benchMode = benchmarkNone
 	case "series":
 		benchMode = benchmarkSeries
-		fmt.Println("shard,series,elaspedTime")
+		fmt.Println("shard\tid\tdatapoints\tsum\tstartTimeInSec\tendTimeInSec")
 	case "datapoints":
 		benchMode = benchmarkDatapoints
-		fmt.Println("shard,series,datapoints,zeros,annotated,elaspedTime")
+		fmt.Println("shard\tid\tdatapoints\ttimestamps\tvalues")
 	default:
 		log.Fatalf("unknown benchmark type: %s", *benchmark)
 	}
@@ -141,11 +145,9 @@ func main() {
 
 	for _, shard := range shards {
 		var (
-			seriesCount         = 0
-			datapointCount      = 0
-			zeroDatapointCount  = 0
-			annotationSizeTotal uint64
-			start               = time.Now()
+			seriesCount    = 0
+			datapointCount = 0
+			start          = time.Now()
 		)
 
 		openOpts := fs.DataReaderOpenOptions{
@@ -184,37 +186,47 @@ func main() {
 
 			startTime := xtime.ToUnixNano(time.Now())
 			endTime := xtime.FromSeconds(0)
-			numDatapointsPerSeries := 0
+			datapointsPerSeries := 0
 			sumPerSeries := 0.0
-			if benchMode != benchmarkSeries {
-				iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
-				fmt.Printf("%d\t%s\t", shard, id.String())
-				for iter.Next() {
-					dp, _, annotation := iter.Current()
-					startTime = xtime.MinUnixNano(startTime, dp.TimestampNanos)
-                    endTime = xtime.MaxUnixNano(endTime, dp.TimestampNanos)
-                    numDatapointsPerSeries++
-                    sumPerSeries += dp.Value
-					annotationSizeTotal += uint64(len(annotation))
-					datapointCount++
-					if dp.Value == 0 {
-						zeroDatapointCount++
-					}
-				}
-				if benchMode == benchmarkNone {
-                    if math.IsNaN(sumPerSeries) {
-						fmt.Printf("%d\t\t%d\t%d\n", numDatapointsPerSeries, startTime.Seconds(), endTime.Seconds())
-                    } else {
-						fmt.Printf("%d\t%.2f\t%d\t%d\n", numDatapointsPerSeries, sumPerSeries, startTime.Seconds(), endTime.Seconds())
-                    }
-                }
-				if err := iter.Err(); err != nil {
-					log.Fatalf("unable to iterate original data: %v", err)
-				}
-				iter.Close()
-			}
+			var timestamps, values strings.Builder
+			timestamps.WriteByte('t')
+			values.WriteByte('v')
 
 			seriesCount++
+			iter := m3tsz.NewReaderIterator(xio.NewBytesReader64(data), true, encodingOpts)
+			if benchMode != benchmarkNone {
+				fmt.Printf("%d\t%s\t", shard, id.String())
+			}
+			for iter.Next() {
+				datapointCount++
+
+				dp, _, _ := iter.Current()
+				datapointsPerSeries++
+				if benchMode == benchmarkSeries {
+					sumPerSeries += dp.Value
+					startTime = xtime.MinUnixNano(startTime, dp.TimestampNanos)
+					endTime = xtime.MaxUnixNano(endTime, dp.TimestampNanos)
+				} else if benchMode == benchmarkDatapoints {
+					timestamps.WriteString(fmt.Sprintf(",%d", dp.TimestampNanos/1e9))
+					values.WriteString(fmt.Sprintf(",%.2f", dp.Value))
+				}
+			}
+			switch benchMode {
+			case benchmarkSeries:
+				if math.IsNaN(sumPerSeries) {
+					fmt.Printf("%d\t\t%d\t%d\n", datapointsPerSeries, startTime.Seconds(), endTime.Seconds())
+				} else {
+					fmt.Printf("%d\t%.2f\t%d\t%d\n", datapointsPerSeries, sumPerSeries, startTime.Seconds(), endTime.Seconds())
+				}
+				break
+			case benchmarkDatapoints:
+				fmt.Printf("%d\t%s\t%s\n", datapointsPerSeries, timestamps.String(), values.String())
+				break
+			}
+			if err := iter.Err(); err != nil {
+				log.Fatalf("unable to iterate original data: %v", err)
+			}
+			iter.Close()
 		}
 
 		if seriesCount != reader.Entries() && *idFilter == "" {
@@ -222,15 +234,12 @@ func main() {
 				seriesCount, reader.Entries())
 		}
 
-		if benchMode != benchmarkNone {
+		if benchMode == benchmarkNone {
 			runTime := time.Since(start)
 			// csv ouptut, header with shard,series,
-			fmt.Printf("%d,%d,", shard, seriesCount)
-			if benchMode == benchmarkDatapoints {
-				fmt.Printf("%d,%d,%d,", datapointCount, zeroDatapointCount, annotationSizeTotal)
-			}
+			fmt.Printf("%d,%d,%d", shard, seriesCount, datapointCount)
 			// elasped_time
-            fmt.Printf("%s\n", runTime)
+			fmt.Printf("%s\n", runTime)
 		}
 	}
 
