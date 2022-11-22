@@ -495,10 +495,11 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	entryPool := aggregator.NewEntryPool(entryPoolOpts)
 	runtimeOpts := runtimeOptsManager.RuntimeOptions()
 	opts = opts.SetEntryPool(entryPool)
+	eopts := opts.EntryOptions()
 	// allocate metrics only once to reduce memory utilization
 	metrics := aggregator.NewEntryMetrics(iOpts.MetricsScope())
 	entryPool.Init(func() *aggregator.Entry {
-		return aggregator.NewEntryWithMetrics(nil, metrics, runtimeOpts, opts)
+		return aggregator.NewEntryWithMetrics(nil, metrics, runtimeOpts, eopts)
 	})
 
 	opts = opts.SetWritesIgnoreCutoffCutover(c.WritesIgnoreCutoffCutover)

@@ -214,7 +214,7 @@ func TestEntryIncDecWriter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	e := NewEntry(nil, runtime.NewOptions(), testOptions(ctrl))
+	e := NewEntry(nil, runtime.NewOptions(), testOptions(ctrl).EntryOptions())
 	require.Equal(t, int32(0), e.numWriters.Load())
 
 	var (
@@ -360,9 +360,9 @@ func TestEntryAddBatchTimerWithTimerBatchSizeLimit(t *testing.T) {
 
 	e, _, now := testEntry(ctrl, testEntryOptions{})
 	*now = time.Unix(105, 0)
-	e.opts = e.opts.
-		SetMaxTimerBatchSizePerWrite(2).
-		SetDefaultStoragePolicies(testDefaultStoragePolicies)
+
+	e.opts.MaxTimerBatchSizePerWrite = 2
+	e.opts.DefaultStoragePolicies = testDefaultStoragePolicies
 
 	bt := unaggregated.MetricUnion{
 		Type:          metric.TimerType,
@@ -389,7 +389,7 @@ func TestEntryAddBatchTimerWithTimerBatchSizeLimitError(t *testing.T) {
 	defer ctrl.Finish()
 
 	e, _, _ := testEntry(ctrl, testEntryOptions{})
-	e.opts = e.opts.SetMaxTimerBatchSizePerWrite(2)
+	e.opts.MaxTimerBatchSizePerWrite = 2
 	e.closed = true
 
 	bt := unaggregated.MetricUnion{
@@ -1051,7 +1051,7 @@ func TestAddUntimed_ResendEnabled(t *testing.T) {
 		},
 	}
 	mu := testGauge
-	mu.ClientTimeNanos = xtime.ToUnixNano(e.nowFn().Add(-time.Minute))
+	mu.ClientTimeNanos = xtime.ToUnixNano(e.opts.NowFn().Add(-time.Minute))
 	require.NoError(t, e.addUntimed(mu, metadatas))
 	require.Len(t, e.aggregations, 2)
 
@@ -1102,7 +1102,7 @@ func TestAddUntimed_ResendEnabledMigrationRace(t *testing.T) {
 	elem := e.aggregations[0].elem.Value.(*GaugeElem)
 	vals := elem.values
 	require.Len(t, vals, 1)
-	t1 := xtime.ToUnixNano(e.nowFn().Truncate(resolution))
+	t1 := xtime.ToUnixNano(e.opts.NowFn().Truncate(resolution))
 	_, ok := vals[t1]
 	require.True(t, ok)
 
@@ -1150,7 +1150,7 @@ func TestAddUntimed_ResendEnabledMigrationRaceWithFlusher(t *testing.T) {
 	elem := e.aggregations[0].elem.Value.(*GaugeElem)
 	vals := elem.values
 	require.Len(t, vals, 1)
-	t1 := xtime.ToUnixNano(e.nowFn().Truncate(resolution))
+	t1 := xtime.ToUnixNano(e.opts.NowFn().Truncate(resolution))
 	_, ok := vals[t1]
 	require.True(t, ok)
 
@@ -1206,7 +1206,7 @@ func TestAddUntimed_ClosedAggregation(t *testing.T) {
 	elem := agg.elem.Value.(*GaugeElem)
 	vals := elem.values
 	require.Len(t, vals, 1)
-	t1 := xtime.ToUnixNano(e.nowFn().Truncate(resolution))
+	t1 := xtime.ToUnixNano(e.opts.NowFn().Truncate(resolution))
 	require.NotNil(t, vals[t1].lockedAgg)
 
 	// consume the aggregation.
@@ -1467,7 +1467,7 @@ func TestEntryAddTimedEntryClosed(t *testing.T) {
 	require.Equal(t, errEntryClosed, e.AddTimed(testTimedMetric, testTimedMetadata))
 }
 
-//nolint: dupl
+// nolint: dupl
 func TestEntryAddTimedMetricTooLate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1480,7 +1480,7 @@ func TestEntryAddTimedMetricTooLate(t *testing.T) {
 	e, _, now := testEntry(ctrl, testEntryOptions{
 		options: testOptions(ctrl).SetVerboseErrors(true),
 	})
-	e.opts = e.opts.SetBufferForPastTimedMetricFn(timedAggregationBufferPastFn)
+	e.opts.BufferForPastTimedMetricFn = timedAggregationBufferPastFn
 
 	inputs := []struct {
 		timeNanos       int64
@@ -1556,7 +1556,7 @@ func TestEntryAddTimedWithStagedMetadatasMetricTooLate(t *testing.T) {
 	e, _, now := testEntry(ctrl, testEntryOptions{
 		options: testOptions(ctrl).SetVerboseErrors(true),
 	})
-	e.opts = e.opts.SetBufferForPastTimedMetricFn(timedAggregationBufferPastFn)
+	e.opts.BufferForPastTimedMetricFn = timedAggregationBufferPastFn
 
 	inputs := []struct {
 		timeNanos     int64
@@ -1617,7 +1617,7 @@ func TestEntryAddTimedMetricTooEarly(t *testing.T) {
 	e, _, now := testEntry(ctrl, testEntryOptions{
 		options: testOptions(ctrl).SetVerboseErrors(true),
 	})
-	e.opts = e.opts.SetBufferForFutureTimedMetric(time.Second)
+	e.opts.BufferForFutureTimedMetric = time.Second
 
 	inputs := []struct {
 		timeNanos     int64
@@ -1860,7 +1860,7 @@ func TestEntryAddForwardedMetricTooLate(t *testing.T) {
 	e, _, now := testEntry(ctrl, testEntryOptions{
 		options: testOptions(ctrl).SetVerboseErrors(true),
 	})
-	e.opts = e.opts.SetMaxAllowedForwardingDelayFn(maxAllowedForwardingDelayFn)
+	e.opts.MaxAllowedForwardingDelayFn = maxAllowedForwardingDelayFn
 
 	inputs := []struct {
 		now               time.Time
@@ -2044,16 +2044,16 @@ func TestEntryMaybeExpireNoExpiry(t *testing.T) {
 	e, _, now := testEntry(ctrl, testEntryOptions{})
 
 	// If we are still within entry TTL, should not expire.
-	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(-time.Second)))
+	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL).Add(-time.Second)))
 
 	// If the entry is closed, should not expire.
 	e.closed = true
-	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(time.Second)))
+	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL).Add(time.Second)))
 
 	// If there are still active writers, should not expire.
 	e.closed = false
 	e.numWriters.Store(1)
-	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(time.Second)))
+	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL).Add(time.Second)))
 }
 
 func TestEntryMaybeExpireWithExpiry(t *testing.T) {
@@ -2073,7 +2073,7 @@ func TestEntryMaybeExpireWithExpiry(t *testing.T) {
 
 	// Try expiring the entry with time in the future and
 	// assert it's expired.
-	require.True(t, e.TryExpire(now.Add(e.opts.EntryTTL()).Add(time.Second)))
+	require.True(t, e.TryExpire(now.Add(e.opts.EntryTTL).Add(time.Second)))
 
 	// Assert elements have been tombstoned
 	require.Equal(t, 0, len(e.aggregations))
@@ -2201,8 +2201,8 @@ func testEntry(
 
 	lists := newMetricLists(testShard, opts)
 	runtimeOpts := runtime.NewOptions()
-	e := NewEntry(nil, runtimeOpts, opts)
-	e.ResetSetData(lists, runtimeOpts, opts)
+	e := NewEntry(nil, runtimeOpts, opts.EntryOptions())
+	e.ResetSetData(lists, runtimeOpts, opts.EntryOptions())
 
 	return e, lists, &now
 }
@@ -2220,13 +2220,13 @@ func populateTestUntimedAggregations(
 		)
 		switch typ {
 		case metric.CounterType:
-			newElem = e.opts.CounterElemPool().Get()
+			newElem = e.opts.CounterElemPool.Get()
 			testID = testCounterID
 		case metric.TimerType:
-			newElem = e.opts.TimerElemPool().Get()
+			newElem = e.opts.TimerElemPool.Get()
 			testID = testBatchTimerID
 		case metric.GaugeType:
-			newElem = e.opts.GaugeElemPool().Get()
+			newElem = e.opts.GaugeElemPool.Get()
 			testID = testGaugeID
 		default:
 			require.Fail(t, fmt.Sprintf("unrecognized metric type: %v", typ))

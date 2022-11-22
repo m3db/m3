@@ -41,8 +41,8 @@ import (
 )
 
 const (
-	defaultSoftDeadlineCheckEvery = 128
-	defaultExpireBatchSize        = 1024
+	softDeadlineCheckEvery = 128
+	expireBatchSize        = 1024
 )
 
 var (
@@ -62,6 +62,7 @@ const (
 	untimedMetric
 	forwardedMetric
 	timedMetric
+	invalidMetricCategory // end marker, make sure to keep this last, as it's used to determine metric array length
 )
 
 var validMetricCategories = []metricCategory{
@@ -117,8 +118,9 @@ func newMetricMapMetrics(scope tally.Scope) metricMapMetrics {
 type metricMap struct {
 	sync.RWMutex
 
-	shard        uint32
-	opts         Options
+	shard uint32
+	opts  *EntryOptions
+
 	nowFn        clock.NowFn
 	entryPool    EntryPool
 	batchPercent float64
@@ -142,7 +144,7 @@ func newMetricMap(shard uint32, opts Options) *metricMap {
 	m := &metricMap{
 		rateLimiter:  rate.NewLimiter(0),
 		shard:        shard,
-		opts:         opts,
+		opts:         opts.EntryOptions(),
 		nowFn:        opts.ClockOptions().NowFn(),
 		entryPool:    opts.EntryPool(),
 		batchPercent: opts.EntryCheckBatchPercent(),
@@ -364,7 +366,7 @@ func (m *metricMap) tick(target time.Duration) tickResult {
 
 	m.forEachEntry(func(entry hashedEntry) {
 		now := m.nowFn()
-		if entryIdx > 0 && entryIdx%defaultSoftDeadlineCheckEvery == 0 {
+		if entryIdx > 0 && entryIdx%softDeadlineCheckEvery == 0 {
 			targetDeadline := start.Add(time.Duration(entryIdx) * perEntrySoftDeadline)
 			if now.Before(targetDeadline) {
 				m.sleepFn(targetDeadline.Sub(now))
@@ -382,7 +384,7 @@ func (m *metricMap) tick(target time.Duration) tickResult {
 		if entry.entry.ShouldExpire(now) {
 			expired = append(expired, entry)
 		}
-		if len(expired) >= defaultExpireBatchSize {
+		if len(expired) >= expireBatchSize {
 			standardExpired, forwardedExpired, timedExpired := m.purgeExpired(now, expired)
 			for i := range expired {
 				expired[i] = emptyHashedEntry

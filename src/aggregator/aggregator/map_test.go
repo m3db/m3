@@ -502,12 +502,12 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 		if i%2 == 0 {
 			m.entries[key] = m.entryList.PushBack(hashedEntry{
 				key:   key,
-				entry: NewEntry(m.metricLists, runtime.NewOptions(), liveEntryOpts),
+				entry: NewEntry(m.metricLists, runtime.NewOptions(), liveEntryOpts.EntryOptions()),
 			})
 		} else {
 			m.entries[key] = m.entryList.PushBack(hashedEntry{
 				key:   key,
-				entry: NewEntry(m.metricLists, runtime.NewOptions(), expiredEntryOpts),
+				entry: NewEntry(m.metricLists, runtime.NewOptions(), expiredEntryOpts.EntryOptions()),
 			})
 		}
 	}
@@ -518,7 +518,7 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 	// Assert there should be only half of the entries left.
 	require.Equal(t, numEntries/2, len(m.entries))
 	require.Equal(t, numEntries/2, m.entryList.Len())
-	require.Equal(t, len(sleepIntervals), numEntries/defaultSoftDeadlineCheckEvery)
+	require.Equal(t, len(sleepIntervals), numEntries/softDeadlineCheckEvery)
 	for k, v := range m.entries {
 		e := v.Value.(hashedEntry)
 		require.Equal(t, k, e.key)

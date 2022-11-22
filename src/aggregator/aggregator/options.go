@@ -347,6 +347,9 @@ type Options interface {
 	// SetWritesIgnoreCutoffCutover sets a flag controlling whether cutoff/cutover timestamps
 	// are ignored for incoming writes.
 	SetWritesIgnoreCutoffCutover(value bool) Options
+
+	// EntryOptions returns a subset of aggregator options for Entry.
+	EntryOptions() *EntryOptions
 }
 
 type options struct {
@@ -840,7 +843,7 @@ func (o *options) initPools() {
 	defaultRuntimeOpts := runtime.NewOptions()
 	o.entryPool = NewEntryPool(nil)
 	o.entryPool.Init(func() *Entry {
-		return NewEntryWithMetrics(nil, metrics, defaultRuntimeOpts, o)
+		return NewEntryWithMetrics(nil, metrics, defaultRuntimeOpts, o.EntryOptions())
 	})
 
 	elemOpts := NewElemOptions(o)
@@ -929,6 +932,26 @@ func (o *options) SetWritesIgnoreCutoffCutover(value bool) Options {
 	opts := *o
 	opts.writesIgnoreCutoffCutover = value
 	return &opts
+}
+
+func (o *options) EntryOptions() *EntryOptions {
+	return &EntryOptions{
+		TimeLock:                    o.TimeLock(),
+		NowFn:                       o.ClockOptions().NowFn(),
+		TypesPool:                   o.AggregationTypesOptions().TypesPool(),
+		CounterElemPool:             o.CounterElemPool(),
+		GaugeElemPool:               o.GaugeElemPool(),
+		TimerElemPool:               o.TimerElemPool(),
+		EntryPool:                   o.EntryPool(),
+		BufferForFutureTimedMetric:  o.BufferForFutureTimedMetric(),
+		BufferForPastTimedMetricFn:  o.BufferForPastTimedMetricFn(),
+		DefaultStoragePolicies:      o.DefaultStoragePolicies(),
+		EntryTTL:                    o.EntryTTL(),
+		MaxAllowedForwardingDelayFn: o.MaxAllowedForwardingDelayFn(),
+		MaxTimerBatchSizePerWrite:   o.MaxTimerBatchSizePerWrite(),
+		InstrumentOptions:           o.InstrumentOptions(),
+		VerboseErrors:               o.VerboseErrors(),
+	}
 }
 
 func defaultMaxAllowedForwardingDelayFn(

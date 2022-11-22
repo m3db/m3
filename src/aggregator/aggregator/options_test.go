@@ -239,3 +239,31 @@ func TestSetGaugeElemPool(t *testing.T) {
 func newTestOptions() Options {
 	return NewOptions(clock.NewOptions())
 }
+
+func TestEntryOptions(t *testing.T) {
+	o := newTestOptions()
+	gp := NewGaugeElemPool(nil)
+	tp := NewTimerElemPool(nil)
+	cp := NewCounterElemPool(nil)
+	ep := NewEntryPool(nil)
+
+	o = o.SetGaugeElemPool(gp).
+		SetCounterElemPool(cp).
+		SetTimerElemPool(tp).
+		SetEntryPool(ep).
+		SetVerboseErrors(true)
+
+	eo := o.EntryOptions()
+	require.Equal(t, o.TimeLock(), eo.TimeLock)
+	require.NotNil(t, eo.NowFn())
+	require.Equal(t, gp, eo.GaugeElemPool)
+	require.Equal(t, tp, eo.TimerElemPool)
+	require.Equal(t, ep, eo.EntryPool)
+	require.Equal(t, o.BufferForFutureTimedMetric(), eo.BufferForFutureTimedMetric)
+	require.NotNil(t, eo.BufferForPastTimedMetricFn)
+	require.Equal(t, o.EntryTTL(), eo.EntryTTL)
+	require.NotNil(t, eo.MaxAllowedForwardingDelayFn)
+	require.Equal(t, o.MaxTimerBatchSizePerWrite(), eo.MaxTimerBatchSizePerWrite)
+	require.Equal(t, o.InstrumentOptions(), eo.InstrumentOptions)
+	require.Equal(t, o.VerboseErrors(), eo.VerboseErrors)
+}
