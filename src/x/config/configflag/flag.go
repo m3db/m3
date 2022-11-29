@@ -42,6 +42,10 @@ type Options struct {
 	// and then exit.
 	ShouldDumpConfigAndExit bool
 
+	// ShouldValidateConfigAndExit (-z) causes MainLoad to validate the config
+	// and then exit. If the config is invalid, it will log fatal.
+	ShouldValidateConfigAndExit bool
+
 	// for Usage()
 	cmd *flag.FlagSet
 
@@ -60,6 +64,7 @@ func (opts *Options) RegisterFlagSet(cmd *flag.FlagSet) {
 
 	cmd.Var(&opts.ConfigFiles, "f", "Configuration files to load")
 	cmd.BoolVar(&opts.ShouldDumpConfigAndExit, "d", false, "Dump configuration and exit")
+	cmd.BoolVar(&opts.ShouldValidateConfigAndExit, "z", false, "Validate configuration and exit")
 }
 
 // MainLoad is a convenience method, intended for use in main(), which handles all
