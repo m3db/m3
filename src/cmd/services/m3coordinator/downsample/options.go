@@ -1020,6 +1020,68 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}, nil
 }
 
+// TODO: make newAggregator() calls ValidateAggregationRules() to avoid code repetition
+func ValidateAggregationRules(aggrRules RulesConfiguration) error {
+	kvTxnMemStore := mem.NewStore()
+	matcherOpts := matcher.NewOptions()
+
+	rulesetKeyFmt := matcherOpts.RuleSetKeyFn()([]byte("%s"))
+	rulesStoreOpts := ruleskv.NewStoreOptions(matcherOpts.NamespacesKey(),
+		rulesetKeyFmt, nil)
+	rulesStore := ruleskv.NewStore(kvTxnMemStore, rulesStoreOpts)
+
+	if err := initStoreNamespaces(kvTxnMemStore, matcherOpts.NamespacesKey()); err != nil {
+		return fmt.Errorf("initStoreNamespaces error: %w", err)
+	}
+	ruleNamespaces, err := rulesStore.ReadNamespaces()
+	if err != nil {
+		return fmt.Errorf("ReadNamespaces from the rule store error: %w", err)
+	}
+
+	updateMetadata := rules.NewRuleSetUpdateHelper(0).
+		NewUpdateMetadata(time.Now().UnixNano(), "config")
+
+	// Create the default namespace, always not present since in-memory.
+	_, err = ruleNamespaces.AddNamespace(defaultConfigInMemoryNamespace,
+		updateMetadata)
+	if err != nil {
+		return fmt.Errorf("Add default namespace error: %w", err)
+	}
+
+	// Create the ruleset in the default namespace.
+	rs := rules.NewEmptyRuleSet(defaultConfigInMemoryNamespace,
+		updateMetadata)
+	for _, mappingRule := range aggrRules.MappingRules {
+		rule, err := mappingRule.Rule()
+		if err != nil {
+			return fmt.Errorf("Error from parsing mapping rule [%s]: %w", mappingRule.Name, err)
+		}
+
+		_, err = rs.AddMappingRule(rule, updateMetadata)
+		if err != nil {
+			return fmt.Errorf("Error from adding mapping rule [%s]: %w", mappingRule.Name, err)
+		}
+	}
+
+	for _, rollupRule := range aggrRules.RollupRules {
+		rule, err := rollupRule.Rule()
+		if err != nil {
+			return fmt.Errorf("Error from parsing rollup rule [%s]: %w", rollupRule.Name, err)
+		}
+
+		_, err = rs.AddRollupRule(rule, updateMetadata)
+		if err != nil {
+			return fmt.Errorf("Error from adding rollup rule [%s]: %w", rollupRule.Name, err)
+		}
+	}
+
+	if err := rulesStore.WriteAll(ruleNamespaces, rs); err != nil {
+		return fmt.Errorf("Error from writing all rules: %w", err)
+	}
+
+	return nil
+}
+
 func initStoreNamespaces(store kv.Store, nsKey string) error {
 	_, err := store.SetIfNotExists(nsKey, &rulepb.Namespaces{})
 	if errors.Is(err, kv.ErrAlreadyExists) {

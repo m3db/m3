@@ -24,6 +24,7 @@ import (
 	"flag"
 	"log"
 
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/server"
 	xconfig "github.com/m3db/m3/src/x/config"
@@ -40,6 +41,14 @@ func main() {
 	if err := cfgOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
 		log.Fatalf("error loading config: %v", err)
 	}
+
+  if cfgOpts.ShouldValidateConfigAndExit && cfg.Downsample.Rules != nil {
+    if err := downsample.ValidateAggregationRules(*cfg.Downsample.Rules); err != nil {
+		  log.Fatalf("error validating config: %v", err)
+    }
+    log.Print("the config is valid.")
+    return
+  }
 
 	server.Run(server.RunOptions{
 		Config: cfg,
