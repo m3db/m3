@@ -60,9 +60,12 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		t.SkipNow()
 	}
 
-	servers, clock, topicService := newTestServerSetups(t, func(opts testServerOptions) testServerOptions {
+	testParams := newTestServerSetups(t, func(opts testServerOptions) testServerOptions {
 		return opts.SetDiscardNaNAggregatedValues(discardNaNAggregatedValues)
 	})
+	servers := testParams.servers
+	clock := testParams.clock
+	topicService := testParams.topicService
 
 	// Start the servers.
 	log := xtest.NewLogger(t)

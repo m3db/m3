@@ -31,7 +31,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
@@ -51,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/producer/buffer"
 	msgwriter "github.com/m3db/m3/src/msg/producer/writer"
+	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/retry"
@@ -552,10 +552,16 @@ func (h *capturingHandler) NewWriter(tally.Scope) (writer.Writer, error) {
 
 func (h *capturingHandler) Close() {}
 
+type testServerSetupsParams struct {
+	servers      testServerSetups
+	clock        *testClock
+	topicService topic.Service
+}
+
 func newTestServerSetups(
 	t *testing.T,
 	customServerOpts ...func(testServerOptions) testServerOptions,
-) (testServerSetups, *testClock, topic.Service) {
+) testServerSetupsParams {
 	aggregatorClientType, err := getAggregatorClientTypeFromEnv()
 	require.NoError(t, err)
 
@@ -687,5 +693,9 @@ func newTestServerSetups(
 		servers = append(servers, server)
 	}
 
-	return servers, clock, topicService
+	return testServerSetupsParams{
+		servers:      servers,
+		clock:        clock,
+		topicService: topicService,
+	}
 }

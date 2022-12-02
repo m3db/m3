@@ -53,7 +53,10 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 		t.SkipNow()
 	}
 
-	servers, clock, topicService := newTestServerSetups(t)
+	testParams := newTestServerSetups(t)
+	servers := testParams.servers
+	clock := testParams.clock
+	topicService := testParams.topicService
 
 	// Start the servers.
 	log := xtest.NewLogger(t)

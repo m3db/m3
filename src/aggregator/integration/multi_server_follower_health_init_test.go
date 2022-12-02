@@ -35,13 +35,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//nolint:dupl
 func TestMultiServerFollowerHealthInit(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
 
-	servers, _, _ := newTestServerSetups(t)
+	testParams := newTestServerSetups(t)
+	servers := testParams.servers
 
 	// Start the servers.
 	log := xtest.NewLogger(t)
