@@ -39,6 +39,8 @@ import (
 	httpserver "github.com/m3db/m3/src/aggregator/server/http"
 	m3msgserver "github.com/m3db/m3/src/aggregator/server/m3msg"
 	rawtcpserver "github.com/m3db/m3/src/aggregator/server/rawtcp"
+	"github.com/m3db/m3/src/cluster/kv"
+	memcluster "github.com/m3db/m3/src/cluster/mem"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
@@ -48,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/producer/buffer"
 	msgwriter "github.com/m3db/m3/src/msg/producer/writer"
+	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/retry"
@@ -56,6 +59,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
@@ -547,3 +551,151 @@ func (h *capturingHandler) NewWriter(tally.Scope) (writer.Writer, error) {
 }
 
 func (h *capturingHandler) Close() {}
+
+type testServerSetupsParams struct {
+	servers      testServerSetups
+	clock        *testClock
+	topicService topic.Service
+}
+
+func newTestServerSetups(
+	t *testing.T,
+	customServerOpts ...func(testServerOptions) testServerOptions,
+) testServerSetupsParams {
+	aggregatorClientType, err := getAggregatorClientTypeFromEnv()
+	require.NoError(t, err)
+
+	// Clock setup.
+	clock := newTestClock(time.Now().Truncate(time.Hour))
+
+	// Placement setup.
+	var (
+		numTotalShards = 1024
+		placementKey   = "/placement"
+	)
+	multiServerSetup := []struct {
+		rawTCPAddr     string
+		httpAddr       string
+		m3MsgAddr      string
+		instanceConfig placementInstanceConfig
+	}{
+		{
+			rawTCPAddr: "localhost:6000",
+			httpAddr:   "localhost:16000",
+			m3MsgAddr:  "localhost:26000",
+			instanceConfig: placementInstanceConfig{
+				instanceID:          "localhost:6000",
+				shardSetID:          1,
+				shardStartInclusive: 0,
+				shardEndExclusive:   512,
+			},
+		},
+		{
+			rawTCPAddr: "localhost:6001",
+			httpAddr:   "localhost:16001",
+			m3MsgAddr:  "localhost:26001",
+			instanceConfig: placementInstanceConfig{
+				instanceID:          "localhost:6001",
+				shardSetID:          1,
+				shardStartInclusive: 0,
+				shardEndExclusive:   512,
+			},
+		},
+		{
+			rawTCPAddr: "localhost:6002",
+			httpAddr:   "localhost:16002",
+			m3MsgAddr:  "localhost:26002",
+			instanceConfig: placementInstanceConfig{
+				instanceID:          "localhost:6002",
+				shardSetID:          2,
+				shardStartInclusive: 512,
+				shardEndExclusive:   1024,
+			},
+		},
+		{
+			rawTCPAddr: "localhost:6003",
+			httpAddr:   "localhost:16003",
+			m3MsgAddr:  "localhost:26003",
+			instanceConfig: placementInstanceConfig{
+				instanceID:          "localhost:6003",
+				shardSetID:          2,
+				shardStartInclusive: 512,
+				shardEndExclusive:   1024,
+			},
+		},
+	}
+
+	for i, mss := range multiServerSetup {
+		multiServerSetup[i].instanceConfig.instanceID = mss.rawTCPAddr
+		if aggregatorClientType == aggclient.M3MsgAggregatorClient {
+			multiServerSetup[i].instanceConfig.instanceID = mss.m3MsgAddr
+		}
+	}
+
+	clusterClient := memcluster.New(kv.NewOverrideOptions())
+	instances := make([]placement.Instance, 0, len(multiServerSetup))
+	for _, mss := range multiServerSetup {
+		instance := mss.instanceConfig.newPlacementInstance()
+		instances = append(instances, instance)
+	}
+	initPlacement := newPlacement(numTotalShards, instances).SetReplicaFactor(2)
+	setPlacement(t, placementKey, clusterClient, initPlacement)
+	topicService, err := initializeTopic(defaultTopicName, clusterClient, numTotalShards)
+	require.NoError(t, err)
+
+	// Election cluster setup.
+	electionCluster := newTestCluster(t)
+
+	// Sharding function maps all metrics to shard 0 except for the rollup metric,
+	// which gets mapped to the last shard.
+	shardFn := func(id []byte, numShards uint32) uint32 {
+		if pipelineRollupID == string(id) {
+			return numShards - 1
+		}
+		return 0
+	}
+
+	// Admin client connection options setup.
+	connectionOpts := aggclient.NewConnectionOptions().
+		SetInitReconnectThreshold(1).
+		SetMaxReconnectThreshold(1).
+		SetMaxReconnectDuration(2 * time.Second).
+		SetWriteTimeout(time.Second)
+
+	// Create servers.
+	servers := make(testServerSetups, 0, len(multiServerSetup))
+	for _, mss := range multiServerSetup {
+		instrumentOpts := instrument.NewOptions()
+		logger := instrumentOpts.Logger().With(
+			zap.String("serverAddr", mss.rawTCPAddr),
+		)
+		instrumentOpts = instrumentOpts.SetLogger(logger)
+		serverOpts := newTestServerOptions(t).
+			SetBufferForPastTimedMetric(time.Minute).
+			SetClockOptions(clock.Options()).
+			SetInstrumentOptions(instrumentOpts).
+			SetElectionCluster(electionCluster).
+			SetHTTPAddr(mss.httpAddr).
+			SetRawTCPAddr(mss.rawTCPAddr).
+			SetM3MsgAddr(mss.m3MsgAddr).
+			SetInstanceID(mss.instanceConfig.instanceID).
+			SetClusterClient(clusterClient).
+			SetTopicService(topicService).
+			SetTopicName(defaultTopicName).
+			SetShardFn(shardFn).
+			SetShardSetID(mss.instanceConfig.shardSetID).
+			SetClientConnectionOptions(connectionOpts).
+			SetDiscardNaNAggregatedValues(false)
+		for _, customServerOpt := range customServerOpts {
+			serverOpts = customServerOpt(serverOpts)
+		}
+		server := newTestServerSetup(t, serverOpts)
+		servers = append(servers, server)
+	}
+
+	return testServerSetupsParams{
+		servers:      servers,
+		clock:        clock,
+		topicService: topicService,
+	}
+}

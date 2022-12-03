@@ -30,6 +30,10 @@ import (
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 )
 
+const (
+	pipelineRollupID = "pipelineRollup"
+)
+
 type conditionFn func() bool
 
 func waitUntil(fn conditionFn, timeout time.Duration) bool {
