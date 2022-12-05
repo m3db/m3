@@ -397,6 +397,8 @@ func TestConfiguration(t *testing.T) {
       forever: null
       jitter: true
     logErrorSampleRate: 0
+    logHostWriteErrorSampleRate: 0
+    logHostFetchErrorSampleRate: 0
     backgroundHealthCheckFailLimit: 4
     backgroundHealthCheckFailThrottleFactor: 0.5
     hashing:
