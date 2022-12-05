@@ -20,21 +20,36 @@
 
 package client
 
-import "github.com/m3db/m3/src/x/pool"
+import (
+	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/sampler"
+
+	"go.uber.org/zap"
+)
 
 type fetchStatePool interface {
 	Init()
 	Get() *fetchState
 	Put(*fetchState)
+	MaybeLogHostError(host topology.Host, err error)
 }
 
 type fetchStatePoolImpl struct {
-	pool pool.ObjectPool
+	pool                pool.ObjectPool
+	logger              *zap.Logger
+	logHostErrorSampler *sampler.Sampler
 }
 
-func newFetchStatePool(opts pool.ObjectPoolOptions) fetchStatePool {
+func newFetchStatePool(
+	opts pool.ObjectPoolOptions,
+	logger *zap.Logger,
+	logHostErrorSampler *sampler.Sampler,
+) fetchStatePool {
 	return &fetchStatePoolImpl{
-		pool: pool.NewObjectPool(opts),
+		pool:                pool.NewObjectPool(opts),
+		logger:              logger,
+		logHostErrorSampler: logHostErrorSampler,
 	}
 }
 
@@ -50,4 +65,18 @@ func (p *fetchStatePoolImpl) Get() *fetchState {
 
 func (p *fetchStatePoolImpl) Put(f *fetchState) {
 	p.pool.Put(f)
+}
+
+func (p *fetchStatePoolImpl) MaybeLogHostError(host topology.Host, err error) {
+	if err == nil {
+		return
+	}
+
+	if !p.logHostErrorSampler.Sample() {
+		return
+	}
+
+	p.logger.Warn("sampled error fetching from host (may not lead to consistency result error)",
+		zap.Stringer("host", host),
+		zap.Error(err))
 }

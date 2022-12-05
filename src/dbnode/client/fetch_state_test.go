@@ -23,13 +23,17 @@ package client
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/sampler"
+	"go.uber.org/zap"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestFetchStatePoolInvalidInteraction(t *testing.T) {
-	p := newFetchStatePool(pool.NewObjectPoolOptions().SetSize(1))
+	p := newFetchStatePool(pool.NewObjectPoolOptions().SetSize(1),
+		zap.NewExample(), sampler.MustNewSampler(1))
 	p.Init()
 	s := p.Get()
 
@@ -44,7 +48,8 @@ func TestFetchStatePoolInvalidInteraction(t *testing.T) {
 }
 
 func TestFetchStatePoolValidInteraction(t *testing.T) {
-	p := newFetchStatePool(pool.NewObjectPoolOptions().SetSize(1))
+	p := newFetchStatePool(pool.NewObjectPoolOptions().SetSize(1),
+		zap.NewExample(), sampler.MustNewSampler(1))
 	p.Init()
 	s := p.Get()
 
@@ -75,3 +80,9 @@ func (p *testFetchStatePool) Put(o *fetchState) {
 
 func (p *testFetchStatePool) Init()            { panic("not implemented") }
 func (p *testFetchStatePool) Get() *fetchState { panic("not implemented") }
+func (p *testFetchStatePool) MaybeLogHostError(
+	host topology.Host,
+	err error,
+) {
+	panic("not implemented")
+}

@@ -30,7 +30,10 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
+
+	"go.uber.org/zap"
 )
 
 // writeOp represents a generic write operation
@@ -114,7 +117,8 @@ func (w *writeState) close() {
 }
 
 func (w *writeState) completionFn(result interface{}, err error) {
-	hostID := result.(topology.Host).ID()
+	host := result.(topology.Host)
+	hostID := host.ID()
 	// NB(bl) panic on invalid result, it indicates a bug in the code
 
 	w.Lock()
@@ -129,6 +133,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 			err = xerrors.NewInvalidParamsError(err)
 			err = xerrors.NewNonRetryableError(err)
 		}
+		w.pool.MaybeLogHostError(host, err)
 		wErr = xerrors.NewRenamedError(err, fmt.Errorf("error writing to host %s: %v", hostID, err))
 	} else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
 		errStr := "missing host shard in writeState completionFn: %s"
@@ -185,18 +190,24 @@ func (w *writeState) completionFn(result interface{}, err error) {
 }
 
 type writeStatePool struct {
-	pool           pool.ObjectPool
-	tagEncoderPool serialize.TagEncoderPool
+	pool                pool.ObjectPool
+	tagEncoderPool      serialize.TagEncoderPool
+	logger              *zap.Logger
+	logHostErrorSampler *sampler.Sampler
 }
 
 func newWriteStatePool(
 	tagEncoderPool serialize.TagEncoderPool,
 	opts pool.ObjectPoolOptions,
+	logger *zap.Logger,
+	logHostErrorSampler *sampler.Sampler,
 ) *writeStatePool {
 	p := pool.NewObjectPool(opts)
 	return &writeStatePool{
-		pool:           p,
-		tagEncoderPool: tagEncoderPool,
+		pool:                p,
+		tagEncoderPool:      tagEncoderPool,
+		logger:              logger,
+		logHostErrorSampler: logHostErrorSampler,
 	}
 }
 
@@ -212,4 +223,18 @@ func (p *writeStatePool) Get() *writeState {
 
 func (p *writeStatePool) Put(w *writeState) {
 	p.pool.Put(w)
+}
+
+func (p *writeStatePool) MaybeLogHostError(host topology.Host, err error) {
+	if err == nil {
+		return
+	}
+
+	if !p.logHostErrorSampler.Sample() {
+		return
+	}
+
+	p.logger.Warn("sampled error writing to host (may not lead to consistency result error)",
+		zap.Stringer("host", host),
+		zap.Error(err))
 }

@@ -48,10 +48,8 @@ const (
 	maxInt  = int(maxUint >> 1)
 )
 
-var (
-	errFetchStateStillProcessing = errors.New("[invariant violated] fetch " +
-		"state is still processing, unable to create response")
-)
+var errFetchStateStillProcessing = errors.New("[invariant violated] fetch " +
+	"state is still processing, unable to create response")
 
 type fetchState struct {
 	sync.Cond
@@ -162,8 +160,10 @@ func (f *fetchState) completionFn(
 	)
 	switch r := result.(type) {
 	case fetchTaggedResultAccumulatorOpts:
+		f.pool.MaybeLogHostError(r.host, resultErr)
 		done, err = f.tagResultAccumulator.AddFetchTaggedResponse(r, resultErr)
 	case aggregateResultAccumulatorOpts:
+		f.pool.MaybeLogHostError(r.host, resultErr)
 		done, err = f.tagResultAccumulator.AddAggregateResponse(r, resultErr)
 	default:
 		// should never happen
@@ -242,7 +242,8 @@ func (f *fetchState) asEncodingSeriesIterators(
 }
 
 func (f *fetchState) asAggregatedTagsIterator(pools fetchTaggedPools, limit int) (
-	AggregatedTagsIterator, FetchResponseMetadata, error) {
+	AggregatedTagsIterator, FetchResponseMetadata, error,
+) {
 	f.Lock()
 	defer f.Unlock()
 
