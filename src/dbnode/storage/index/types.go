@@ -529,7 +529,9 @@ func (r blockStatsReporter) ReportIndexingStats(stats BlockIndexingStats) {
 
 // BlockIndexingStats is stats about a block's indexing stats.
 type BlockIndexingStats struct {
-	IndexConcurrency int
+	IndexConcurrency       int
+	ForegroundCompactorAge time.Duration
+	BackgroundCompactorAge time.Duration
 }
 
 // BlockSegmentStats has segment stats.

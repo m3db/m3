@@ -147,12 +147,21 @@ func (s *singleUseIndexWriter) persistIndex(builder segment.Builder) error {
 		return fmt.Errorf("encountered error: %w, skipping further attempts to persist data", err)
 	}
 
-	if err := s.manager.segmentWriter.Reset(builder); err != nil {
+	// segmentWriter holds onto a lot of memory in between flushes so we
+	// build this per index flush.
+	segmentWriter, err := m3ninxpersist.NewMutableSegmentFileSetWriter(
+		s.manager.opts.FSTWriterOptions())
+	if err != nil {
 		markError(err)
 		return err
 	}
 
-	if err := s.writer.WriteSegmentFileSet(s.manager.segmentWriter); err != nil {
+	if err := segmentWriter.Reset(builder); err != nil {
+		markError(err)
+		return err
+	}
+
+	if err := s.writer.WriteSegmentFileSet(segmentWriter); err != nil {
 		markError(err)
 		return err
 	}
@@ -204,10 +213,6 @@ func (s *singleUseIndexWriter) closeIndex() ([]segment.Segment, error) {
 type indexPersistManager struct {
 	sync.Mutex
 
-	// segmentWriter holds the bulk of the re-usable in-mem resources so
-	// we want to share this across writers.
-	segmentWriter m3ninxpersist.MutableSegmentFileSetWriter
-
 	// hooks used for testing
 	newReaderFn            newIndexReaderFn
 	newPersistentSegmentFn newPersistentSegmentFn
@@ -249,12 +254,6 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 		return nil, err
 	}
 
-	segmentWriter, err := m3ninxpersist.NewMutableSegmentFileSetWriter(
-		opts.FSTWriterOptions())
-	if err != nil {
-		return nil, err
-	}
-
 	pm := &persistManager{
 		opts:           opts,
 		filePathPrefix: filePathPrefix,
@@ -267,7 +266,6 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 			snapshotMetadataWriter:        NewSnapshotMetadataWriter(opts),
 		},
 		indexPM: indexPersistManager{
-			segmentWriter: segmentWriter,
 			// fs opts are used by underlying index writers
 			opts: opts,
 		},
@@ -290,8 +288,7 @@ func (pm *persistManager) resetWithLock() error {
 	pm.worked = 0
 	pm.slept = 0
 	pm.dataPM.snapshotID = nil
-
-	return pm.indexPM.segmentWriter.Reset(nil)
+	return nil
 }
 
 // StartIndexPersist is called by the databaseFlushManager to begin the persist process for
@@ -592,7 +589,8 @@ func (pm *persistManager) DoneFlush() error {
 
 // DoneSnapshot is called by the databaseFlushManager to finish the snapshot persist process.
 func (pm *persistManager) DoneSnapshot(
-	snapshotUUID uuid.UUID, commitLogIdentifier persist.CommitLogFile) error {
+	snapshotUUID uuid.UUID, commitLogIdentifier persist.CommitLogFile,
+) error {
 	pm.Lock()
 	defer pm.Unlock()
 

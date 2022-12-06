@@ -457,8 +457,21 @@ func (m *mutableSegments) Stats(reporter BlockStatsReporter) {
 		})
 	}
 
+	var (
+		now                    = m.opts.ClockOptions().NowFn()()
+		foregroundCompactorAge time.Duration
+		backgroundCompactorAge time.Duration
+	)
+	if !m.compact.foregroundCompactorResourcesCreatedAt.IsZero() {
+		foregroundCompactorAge = now.Sub(m.compact.foregroundCompactorResourcesCreatedAt)
+	}
+	if !m.compact.backgroundCompactorsCreatedAt.IsZero() {
+		backgroundCompactorAge = now.Sub(m.compact.backgroundCompactorsCreatedAt)
+	}
 	reporter.ReportIndexingStats(BlockIndexingStats{
-		IndexConcurrency: m.writeIndexingConcurrency,
+		IndexConcurrency:       m.writeIndexingConcurrency,
+		ForegroundCompactorAge: foregroundCompactorAge,
+		BackgroundCompactorAge: backgroundCompactorAge,
 	})
 }
 

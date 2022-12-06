@@ -561,6 +561,13 @@ func (i *nsIndex) reportStats() error {
 				maxIndexConcurrency = v
 			}
 			sumIndexConcurrency += s.IndexConcurrency
+
+			if v := s.ForegroundCompactorAge; v > 0 {
+				i.metrics.indexingForegroundCompactorAge.Record(v)
+			}
+			if v := s.BackgroundCompactorAge; v > 0 {
+				i.metrics.indexingBackgroundCompactorAge.Record(v)
+			}
 		})
 
 	// iterate known blocks in a defined order of time (newest first)
@@ -1908,7 +1915,7 @@ func (i *nsIndex) newBlockQueryIterFn(
 	return block.QueryIter(ctx, query)
 }
 
-//nolint: dupl
+// nolint: dupl
 func (i *nsIndex) execBlockQueryFn(
 	ctx context.Context,
 	block index.Block,
@@ -2460,6 +2467,8 @@ type nsIndexMetrics struct {
 	indexingConcurrencyMin           tally.Gauge
 	indexingConcurrencyMax           tally.Gauge
 	indexingConcurrencyAvg           tally.Gauge
+	indexingForegroundCompactorAge   tally.Timer
+	indexingBackgroundCompactorAge   tally.Timer
 	flushIndexingConcurrency         tally.Gauge
 	flushDocsNew                     tally.Counter
 	flushDocsCached                  tally.Counter
@@ -2534,6 +2543,14 @@ func newNamespaceIndexMetrics(
 		indexingConcurrencyAvg: scope.Tagged(map[string]string{
 			"stat": "avg",
 		}).Gauge(indexingConcurrency),
+		// Explicitly use timer to get Prometheus summary to avoid high cardinality histogram.
+		indexingForegroundCompactorAge: scope.Tagged(map[string]string{
+			"compactor": "foreground",
+		}).Timer("indexing-compactor-age"),
+		// Explicitly use timer to get Prometheus summary to avoid high cardinality histogram.
+		indexingBackgroundCompactorAge: scope.Tagged(map[string]string{
+			"compactor": "background",
+		}).Timer("indexing-compactor-age"),
 		flushIndexingConcurrency: scope.Gauge(flushIndexingConcurrency),
 		flushDocsNew: scope.Tagged(map[string]string{
 			"status": "new",
