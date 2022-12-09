@@ -21,7 +21,10 @@
 package client
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/sampler"
 
@@ -32,11 +35,13 @@ type fetchStatePool interface {
 	Init()
 	Get() *fetchState
 	Put(*fetchState)
-	MaybeLogHostError(host topology.Host, err error)
+	MaybeLogHostError(hostErr maybeHostFetchError)
 }
 
 type fetchStatePoolImpl struct {
-	pool                pool.ObjectPool
+	pool pool.ObjectPool
+
+	instrumentOpts      instrument.Options
 	logger              *zap.Logger
 	logHostErrorSampler *sampler.Sampler
 }
@@ -67,8 +72,10 @@ func (p *fetchStatePoolImpl) Put(f *fetchState) {
 	p.pool.Put(f)
 }
 
-func (p *fetchStatePoolImpl) MaybeLogHostError(host topology.Host, err error) {
-	if err == nil {
+func (p *fetchStatePoolImpl) MaybeLogHostError(hostErr maybeHostFetchError) {
+	if hostErr.err == nil {
+		// No error, this is an expected code path when host request doesn't
+		// encounter an error.
 		return
 	}
 
@@ -77,6 +84,16 @@ func (p *fetchStatePoolImpl) MaybeLogHostError(host topology.Host, err error) {
 	}
 
 	p.logger.Warn("sampled error fetching from host (may not lead to consistency result error)",
-		zap.Stringer("host", host),
-		zap.Error(err))
+		zap.Stringer("host", hostErr.host),
+		zap.Duration("reqRespTime", hostErr.reqRespTime),
+		zap.Error(hostErr.err))
+}
+
+type maybeHostFetchError struct {
+	// Note: both these fields should be set always.
+	host        topology.Host
+	reqRespTime time.Duration
+
+	// Error field is optionally set when there is actually an error.
+	err error
 }

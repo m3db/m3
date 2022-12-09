@@ -1401,6 +1401,7 @@ func (s *session) writeAttemptWithRLock(
 	state.consistencyLevel = s.state.writeLevel
 	state.shardsLeavingCountTowardsConsistency = s.shardsLeavingCountTowardsConsistency
 	state.topoMap = s.state.topoMap
+	state.lastResetTime = time.Now()
 	state.incRef()
 
 	// todo@bl: Can we combine the writeOpPool and the writeStatePool?

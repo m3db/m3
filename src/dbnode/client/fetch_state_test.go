@@ -23,7 +23,6 @@ package client
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/sampler"
 	"go.uber.org/zap"
@@ -78,11 +77,14 @@ func (p *testFetchStatePool) Put(o *fetchState) {
 	require.Equal(p.t, p.expectedState, o)
 }
 
-func (p *testFetchStatePool) Init()            { panic("not implemented") }
-func (p *testFetchStatePool) Get() *fetchState { panic("not implemented") }
-func (p *testFetchStatePool) MaybeLogHostError(
-	host topology.Host,
-	err error,
-) {
+func (p *testFetchStatePool) Init() {
+	panic("not implemented")
+}
+
+func (p *testFetchStatePool) Get() *fetchState {
+	panic("not implemented")
+}
+
+func (p *testFetchStatePool) MaybeLogHostError(hostErr maybeHostFetchError) {
 	panic("not implemented")
 }
