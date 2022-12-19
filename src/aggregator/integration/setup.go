@@ -230,9 +230,6 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	// Set up entry pool.
 	runtimeOpts := runtime.NewOptions()
 	entryPool := aggregator.NewEntryPool(nil)
-	entryPool.Init(func() *aggregator.Entry {
-		return aggregator.NewEntry(nil, runtimeOpts, aggregatorOpts)
-	})
 	aggregatorOpts = aggregatorOpts.SetEntryPool(entryPool)
 
 	// Set up elem pools.
@@ -253,6 +250,11 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	aggregatorOpts = aggregatorOpts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem {
 		return aggregator.MustNewGaugeElem(aggregator.ElemData{}, elemOpts)
+	})
+
+	eopts := aggregatorOpts.EntryOptions()
+	entryPool.Init(func() *aggregator.Entry {
+		return aggregator.NewEntry(nil, runtimeOpts, eopts)
 	})
 
 	return &testServerSetup{
