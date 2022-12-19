@@ -753,6 +753,11 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 			zap.Int("mapping_rules", len(cfg.Rules.MappingRules)),
 			zap.Int("rollup_rules", len(cfg.Rules.RollupRules)),
 		)
+		// Emit number of mapping rules and rollup rules received from configs
+		// coordinator_downsampler_mapping_rules: number of mapping rules added
+		// coordinator_downsampler_rollup_rules: number of rollup rules added
+		scope.Gauge("mapping_rules").Update(float64(len(cfg.Rules.MappingRules)))
+		scope.Gauge("rollup_rules").Update(float64(len(cfg.Rules.RollupRules)))
 		kvTxnMemStore := mem.NewStore()
 
 		// Initialize the namespaces
