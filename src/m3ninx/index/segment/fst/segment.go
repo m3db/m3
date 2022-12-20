@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -526,11 +527,21 @@ func (r *fsSegment) unmarshalReadOnlyBitmapNotClosedMaybeFinalizedWithLock(
 		}
 
 		postingsOffset := fieldData.FieldPostingsListOffset
+		if postingsOffset == math.MaxUint64 {
+			// Reserve for empty terms.
+			return b.Reset(nil)
+		}
+
 		postingsBytes, err = r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, postingsOffset)
 		if err != nil {
 			return fmt.Errorf("unable to retrieve postings data: %v", err)
 		}
 	} else {
+		if offset == math.MaxUint64 {
+			// Reserve for empty terms.
+			return b.Reset(nil)
+		}
+
 		var err error
 		postingsBytes, err = r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, offset)
 		if err != nil {
@@ -563,11 +574,23 @@ func (r *fsSegment) unmarshalBitmapNotClosedMaybeFinalizedWithLock(
 		}
 
 		postingsOffset := fieldData.FieldPostingsListOffset
+		if postingsOffset == math.MaxUint64 {
+			// Reserve for empty terms.
+			b.Reset()
+			return nil
+		}
+
 		postingsBytes, err = r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, postingsOffset)
 		if err != nil {
 			return fmt.Errorf("unable to retrieve postings data: %v", err)
 		}
 	} else {
+		if offset == math.MaxUint64 {
+			// Reserve for empty terms.
+			b.Reset()
+			return nil
+		}
+
 		var err error
 		postingsBytes, err = r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, offset)
 		if err != nil {
