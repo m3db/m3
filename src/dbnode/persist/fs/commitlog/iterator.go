@@ -30,9 +30,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	errIndexDoesNotMatch = errors.New("commit log file index does not match filename")
-)
+var errIndexDoesNotMatch = errors.New("commit log file index does not match filename")
 
 type iteratorMetrics struct {
 	readsErrors tally.Counter
@@ -166,6 +164,9 @@ func (i *iterator) nextReader() bool {
 		i.err = err
 		return false
 	}
+	i.opts.InstrumentOptions().Logger().Info("reading commit log",
+		zap.String("file", file.FilePath),
+		zap.Int("remainingFiles", len(i.files)+1))
 	if index != file.Index {
 		i.err = errIndexDoesNotMatch
 		return false
