@@ -21,6 +21,7 @@
 package fst
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -35,9 +36,9 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/m3ninx/postings"
-	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/x"
+	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/mmap"
@@ -56,6 +57,10 @@ var (
 	errPostingsDataUnset       = errors.New("postings data bytes are not set")
 	errFSTTermsDataUnset       = errors.New("fst terms data bytes are not set")
 	errFSTFieldsDataUnset      = errors.New("fst fields data bytes are not set")
+
+	reservedFieldChar      = "_"
+	reservedFieldCharBytes = []byte(reservedFieldChar)
+	reservedFieldName      = []byte("__name__")
 )
 
 // SegmentData represent the collection of required parameters to construct a Segment.
@@ -157,17 +162,24 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 		opts: opts,
 
 		termFSTs: vellumFSTs{fstMap: newFSTMap(fstMapOptions{})},
-		numDocs:  metadata.NumDocs,
+
+		numDocs: metadata.NumDocs,
 	}
 
 	// Preload all the term FSTs so that there's no locking
 	// required (which was causing lock contention with queries requiring
 	// access to the terms FST for a field that hasn't been accessed before
 	// and loading on demand).
-	iter := newFSTTermsIter()
+	nonInternalFields, err := index.CompileRegex([]byte("^([^_].*|__name__|__g[0-9]+__)$"))
+	if err != nil {
+		return nil, err
+	}
+
+	iter := newFSTTermsIter(newFSTTermsIterOptions{})
 	iter.reset(fstTermsIterOpts{
 		seg:         s,
 		fst:         fieldsFST,
+		fstSearch:   &nonInternalFields,
 		finalizeFST: false,
 	})
 
@@ -311,14 +323,17 @@ func (r *fsSegment) ContainsID(docID []byte) (bool, error) {
 		return false, errReaderClosed
 	}
 
-	termsFST, exists := r.retrieveTermsFSTWithRLock(doc.IDReservedFieldName)
+	termsFST, exists, err := r.retrieveTermsFSTWithRLock(doc.IDReservedFieldName)
+	if err != nil {
+		return false, err
+	}
 	if !exists {
 		return false, fmt.Errorf(
 			"internal error while retrieving id FST: %s",
 			doc.IDReservedFieldName)
 	}
 
-	_, exists, err := termsFST.Get(docID)
+	_, exists, err = termsFST.Get(docID)
 	return exists, err
 }
 
@@ -340,7 +355,7 @@ func (r *fsSegment) Reader() (sgmt.Reader, error) {
 
 	reader := newReader(r, r.opts)
 
-	// NB(r): Ensure that we do not release, mmaps, etc
+	// NB(rob): Ensure that we do not release, mmaps, etc
 	// until all readers have been closed.
 	r.ctx.DependsOn(reader.ctx)
 
@@ -363,25 +378,31 @@ func (r *fsSegment) Close() error {
 
 func (r *fsSegment) Finalize() {
 	r.Lock()
+	defer r.Unlock()
+
 	if r.finalized {
-		r.Unlock()
 		return
 	}
 
 	r.finalized = true
 
-	for _, elem := range r.termFSTs.fstMap.Iter() {
-		vellumFST := elem.Value()
-		vellumFST.fst.Close()
+	if r.fieldsFST != nil {
+		r.fieldsFST.Close()
+		r.fieldsFST = nil
 	}
-
-	r.fieldsFST.Close()
 
 	if r.data.Closer != nil {
 		r.data.Closer.Close()
+		r.data.Closer = nil
 	}
 
-	r.Unlock()
+	if r.termFSTs.fstMap != nil {
+		for _, elem := range r.termFSTs.fstMap.Iter() {
+			vellumFST := elem.Value()
+			vellumFST.fst.Close()
+		}
+		r.termFSTs.fstMap = nil
+	}
 }
 
 func (r *fsSegment) FieldsIterable() sgmt.FieldsIterable {
@@ -395,7 +416,13 @@ func (r *fsSegment) Fields() (sgmt.FieldsIterator, error) {
 		return nil, errReaderClosed
 	}
 
-	iter := newFSTTermsIter()
+	// Make sure we do not finalize until this iterator is completed.
+	ctx := r.opts.ContextPool().Get()
+	r.ctx.DependsOn(ctx)
+
+	iter := newFSTTermsIter(newFSTTermsIterOptions{
+		closeContextOnClose: ctx,
+	})
 	iter.reset(fstTermsIterOpts{
 		seg:         r,
 		fst:         r.fieldsFST,
@@ -405,11 +432,7 @@ func (r *fsSegment) Fields() (sgmt.FieldsIterator, error) {
 }
 
 func (r *fsSegment) TermsIterable() sgmt.TermsIterable {
-	return &termsIterable{
-		r:            r,
-		fieldsIter:   newFSTTermsIter(),
-		postingsIter: newFSTTermsPostingsIter(),
-	}
+	return newTermsIterable(r)
 }
 
 func (r *fsSegment) FreeMmap() error {
@@ -443,65 +466,183 @@ func (r *fsSegment) FreeMmap() error {
 
 // termsIterable allows multiple term lookups to share the same roaring
 // bitmap being unpacked for use when iterating over an entire segment
+// for the terms postings iterator.
 type termsIterable struct {
-	r            *fsSegment
+	seg          *fsSegment
 	fieldsIter   *fstTermsIter
 	postingsIter *fstTermsPostingsIter
 }
 
-func newTermsIterable(r *fsSegment) *termsIterable {
+func newTermsIterable(seg *fsSegment) *termsIterable {
 	return &termsIterable{
-		r:            r,
-		fieldsIter:   newFSTTermsIter(),
+		seg:          seg,
+		fieldsIter:   newFSTTermsIter(newFSTTermsIterOptions{}),
 		postingsIter: newFSTTermsPostingsIter(),
 	}
 }
 
-func (i *termsIterable) Terms(field []byte) (sgmt.TermsIterator, error) {
-	i.r.RLock()
-	defer i.r.RUnlock()
-	if i.r.closed {
+func (i *termsIterable) acquireRLockCheckValidAndExtendLifetimeWithContext() (*fstTermsIter, error) {
+	i.seg.RLock()
+	defer i.seg.RUnlock()
+	if i.seg.closed {
 		return nil, errReaderClosed
 	}
-	return i.termsNotClosedMaybeFinalizedWithRLock(field)
+
+	// This code path is used by compaction to iterate through all terms in the segment.
+	// We ensure it creates a reader that is not closed until compaction is completed
+	// and hence already extends the lifetime, so to avoid overhead of all the
+	// locking of creating new dependent contexts each time during background compaction
+	// we disable extending the lifetime of the segment for this code path.
+	return i.fieldsIter, nil
 }
 
-func (i *termsIterable) fieldsNotClosedMaybeFinalizedWithRLock() (sgmt.FieldsPostingsListIterator, error) {
-	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
-	// calling match field after this segment is finalized.
-	if i.r.finalized {
-		return nil, errReaderFinalized
+func (i *termsIterable) Terms(field []byte) (sgmt.TermsIterator, error) {
+	fieldsIter, err := i.acquireRLockCheckValidAndExtendLifetimeWithContext()
+	if err != nil {
+		return nil, err
 	}
 
-	i.fieldsIter.reset(fstTermsIterOpts{
-		seg:         i.r,
-		fst:         i.r.fieldsFST,
-		finalizeFST: false,
-	})
-	i.postingsIter.reset(i.r, i.fieldsIter, true)
-	return i.postingsIter, nil
+	return i.termsWithTermsIterAndContextLifetime(fieldsIter, field)
 }
 
-func (i *termsIterable) termsNotClosedMaybeFinalizedWithRLock(
+func (i *termsIterable) TermsWithRegex(
+	field []byte,
+	compiled *index.CompiledRegex,
+) (sgmt.TermsIterator, error) {
+	fieldsIter, err := i.acquireRLockCheckValidAndExtendLifetimeWithContext()
+	if err != nil {
+		return nil, err
+	}
+
+	return i.termsWithRegexWithTermsIterAndContextLifetime(fieldsIter, field, compiled)
+}
+
+func (i *termsIterable) termsWithTermsIterAndContextLifetime(
+	fieldsIter *fstTermsIter,
 	field []byte,
 ) (sgmt.TermsIterator, error) {
-	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
-	// calling match field after this segment is finalized.
-	if i.r.finalized {
-		return nil, errReaderFinalized
-	}
+	var iterWithContextLifetimeUsed bool
+	defer func() {
+		if iterWithContextLifetimeUsed {
+			return
+		}
+		// NB(rob): Important to close since closing will release the context lifetime
+		// that is acquired.
+		fieldsIter.Close()
+	}()
 
-	termsFST, exists := i.r.retrieveTermsFSTWithRLock(field)
+	termsFST, exists, err := i.seg.retrieveTermsFSTWithRLock(field)
+	if err != nil {
+		return nil, err
+	}
 	if !exists {
 		return sgmt.EmptyTermsIterator, nil
 	}
 
-	i.fieldsIter.reset(fstTermsIterOpts{
-		seg:         i.r,
+	iterWithContextLifetimeUsed = true
+	fieldsIter.reset(fstTermsIterOpts{
+		seg:         i.seg,
 		fst:         termsFST.fst,
 		finalizeFST: false,
 	})
-	i.postingsIter.reset(i.r, i.fieldsIter, false)
+	i.postingsIter.reset(i.seg, fieldsIter, false)
+	return i.postingsIter, nil
+}
+
+func (i *termsIterable) termsWithRegexWithTermsIterAndContextLifetime(
+	fieldsIter *fstTermsIter,
+	field []byte,
+	compiled *index.CompiledRegex,
+) (sgmt.TermsIterator, error) {
+	var iterWithContextLifetimeUsed bool
+	defer func() {
+		if iterWithContextLifetimeUsed {
+			return
+		}
+		// NB(rob): Important to close since closing will release the context lifetime
+		// that is acquired.
+		fieldsIter.Close()
+	}()
+
+	termsFST, exists, err := i.seg.retrieveTermsFSTWithRLock(field)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return sgmt.EmptyTermsIterator, nil
+	}
+
+	iterWithContextLifetimeUsed = true
+	fieldsIter.reset(fstTermsIterOpts{
+		seg:         i.seg,
+		fst:         termsFST.fst,
+		fstSearch:   compiled,
+		finalizeFST: false,
+	})
+	i.postingsIter.reset(i.seg, fieldsIter, false)
+	return i.postingsIter, nil
+}
+
+func (i *termsIterable) FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error) {
+	fieldsIter, err := i.acquireRLockCheckValidAndExtendLifetimeWithContext()
+	if err != nil {
+		return nil, err
+	}
+
+	return i.fieldsWithTermsIterAndContextLifetime(fieldsIter), nil
+}
+
+func (i *termsIterable) FieldsPostingsListWithRegex(
+	compiled *index.CompiledRegex,
+) (sgmt.FieldsPostingsListIterator, error) {
+	fieldsIter, err := i.acquireRLockCheckValidAndExtendLifetimeWithContext()
+	if err != nil {
+		return nil, err
+	}
+
+	return i.fieldsWithRegexWithTermsIterAndContextLifetime(fieldsIter, compiled)
+}
+
+func (i *termsIterable) fieldsWithTermsIterAndContextLifetime(
+	fieldsIter *fstTermsIter,
+) sgmt.FieldsPostingsListIterator {
+	fieldsIter.reset(fstTermsIterOpts{
+		seg:         i.seg,
+		fst:         i.seg.fieldsFST,
+		finalizeFST: false,
+		fieldsFST:   true,
+	})
+	i.postingsIter.reset(i.seg, fieldsIter, true)
+	return i.postingsIter
+}
+
+func (i *termsIterable) fieldsWithRegexWithTermsIterAndContextLifetime(
+	fieldsIter *fstTermsIter,
+	compiled *index.CompiledRegex,
+) (sgmt.TermsIterator, error) {
+	var iterWithContextLifetimeUsed bool
+	defer func() {
+		if iterWithContextLifetimeUsed {
+			return
+		}
+		// NB(rob): Important to close since closing will release the context lifetime
+		// that is acquired.
+		fieldsIter.Close()
+	}()
+
+	if compiled == nil {
+		return nil, errReaderNilRegexp
+	}
+
+	iterWithContextLifetimeUsed = true
+	fieldsIter.reset(fstTermsIterOpts{
+		seg:         i.seg,
+		fst:         i.seg.fieldsFST,
+		fstSearch:   compiled,
+		finalizeFST: false,
+		fieldsFST:   true,
+	})
+	i.postingsIter.reset(i.seg, fieldsIter, true)
 	return i.postingsIter, nil
 }
 
@@ -653,7 +794,10 @@ func (r *fsSegment) matchTermNotClosedMaybeFinalizedWithRLock(
 		return nil, errReaderFinalized
 	}
 
-	termsFST, exists := r.retrieveTermsFSTWithRLock(field)
+	termsFST, exists, err := r.retrieveTermsFSTWithRLock(field)
+	if err != nil {
+		return nil, err
+	}
 	if !exists {
 		// i.e. we don't know anything about the field, so can early return an empty postings list
 		if index.MigrationReadOnlyPostings() {
@@ -681,12 +825,7 @@ func (r *fsSegment) matchTermNotClosedMaybeFinalizedWithRLock(
 		return r.opts.PostingsListPool().Get(), nil
 	}
 
-	pl, err := r.retrievePostingsListWithRLock(postingsOffset)
-	if err != nil {
-		return nil, err
-	}
-
-	return pl, nil
+	return r.retrievePostingsListWithRLock(postingsOffset)
 }
 
 type regexpSearcher struct {
@@ -742,7 +881,10 @@ func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 		return nil, errReaderNilRegexp
 	}
 
-	termsFST, exists := r.retrieveTermsFSTWithRLock(field)
+	termsFST, exists, err := r.retrieveTermsFSTWithRLock(field)
+	if err != nil {
+		return nil, err
+	}
 	if !exists {
 		// i.e. we don't know anything about the field, so can early return an empty postings list
 		if index.MigrationReadOnlyPostings() {
@@ -780,10 +922,7 @@ func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
 		iterErr = searcher.iter.Next()
 	}
 
-	var (
-		pl  postings.List
-		err error
-	)
+	var pl postings.List
 	if index.MigrationReadOnlyPostings() {
 		// Perform a lazy fast union.
 		pl, err = roaring.UnionReadOnly(searcher.pls)
@@ -914,21 +1053,75 @@ func (r *fsSegment) allDocsNotClosedMaybeFinalizedWithRLock(
 }
 
 func (r *fsSegment) retrievePostingsListWithRLock(postingsOffset uint64) (postings.List, error) {
-	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, postingsOffset)
-	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve postings data: %v", err)
-	}
-
 	if index.MigrationReadOnlyPostings() {
 		// Read only bitmap is a very low allocation postings list.
-		return roaring.NewReadOnlyBitmap(postingsBytes)
+		bitmap, err := roaring.NewReadOnlyBitmap(nil)
+		if err != nil {
+			return nil, err
+		}
+		if err := r.unmarshalReadOnlyBitmapNotClosedMaybeFinalizedWithLock(bitmap, postingsOffset, false); err != nil {
+			return nil, err
+		}
+		return bitmap, nil
 	}
 
-	return pilosa.Unmarshal(postingsBytes)
+	bitmap := pilosaroaring.NewBitmap()
+	if err := r.unmarshalBitmapNotClosedMaybeFinalizedWithLock(bitmap, postingsOffset, false); err != nil {
+		return nil, err
+	}
+
+	return roaring.NewPostingsListFromBitmap(bitmap), nil
 }
 
-func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (vellumFST, bool) {
-	return r.termFSTs.fstMap.Get(field)
+func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (vellumFST, bool, error) {
+	fieldEmpty := len(field) == 0
+	fieldStartsReservedChar := bytes.HasPrefix(field, reservedFieldCharBytes)
+	if fieldEmpty || fieldStartsReservedChar {
+		var (
+			preloadDueToPrometheusNameLabel bool
+			preloadDueToGraphitePath        bool
+		)
+		preloadDueToPrometheusNameLabel = bytes.Equal(field, reservedFieldName)
+		if !preloadDueToPrometheusNameLabel {
+			// Only pay the cost of testing if graphite field if not already
+			// determined to be a preloaded field.
+			_, preloadDueToGraphitePath = graphite.TagIndex(field)
+		}
+
+		preloaded := preloadDueToPrometheusNameLabel || preloadDueToGraphitePath
+		if !preloaded {
+			// NB(rob): Too expensive to pre-load all the graphite path indexed
+			// path terms, load these on demand for find queries which are
+			// small in volume comparative to queries.
+			termsFSTOffset, exists, err := r.fieldsFST.Get(field)
+			if err != nil {
+				return vellumFST{}, false, err
+			}
+			if !exists {
+				return vellumFST{}, false, nil
+			}
+
+			termsFSTBytes, err := r.retrieveBytesWithRLock(r.data.FSTTermsData.Bytes, termsFSTOffset)
+			if err != nil {
+				return vellumFST{}, false, err
+			}
+
+			termsFST, err := vellum.Load(termsFSTBytes)
+			if err != nil {
+				return vellumFST{}, false, err
+			}
+
+			return newVellumFST(termsFST), true, nil
+		}
+	}
+
+	// Otherwise FST map should contain the field (since pre-load all others).
+	result, exists := r.termFSTs.fstMap.Get(field)
+	return result, exists, nil
+}
+
+func (r *fsSegment) retrieveFieldsFSTWithRLock() (*vellum.FST, error) {
+	return vellum.Load(r.data.FSTFieldsData.Bytes)
 }
 
 // retrieveTermsBytesWithRLock assumes the base []byte slice is a collection of
@@ -1062,11 +1255,9 @@ var _ sgmt.Reader = (*fsSegmentReader)(nil)
 // fsSegmentReader is not thread safe for use and relies on the underlying
 // segment for synchronization.
 type fsSegmentReader struct {
-	closed         bool
-	ctx            context.Context
-	fsSegment      *fsSegment
-	fieldsIterable *termsIterable
-	termsIterable  *termsIterable
+	closed    bool
+	ctx       context.Context
+	fsSegment *fsSegment
 }
 
 func newReader(
@@ -1084,7 +1275,9 @@ func (sr *fsSegmentReader) Fields() (sgmt.FieldsIterator, error) {
 		return nil, errReaderClosed
 	}
 
-	iter := newFSTTermsIter()
+	// No need to specify to unlock a lock when closed since reader
+	// extends the lifetime of the segment.
+	iter := newFSTTermsIter(newFSTTermsIterOptions{})
 	iter.reset(fstTermsIterOpts{
 		seg:         sr.fsSegment,
 		fst:         sr.fsSegment.fieldsFST,
@@ -1093,44 +1286,60 @@ func (sr *fsSegmentReader) Fields() (sgmt.FieldsIterator, error) {
 	return iter, nil
 }
 
-func (sr *fsSegmentReader) FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error) {
-	if sr.closed {
-		return nil, errReaderClosed
-	}
-	if sr.fieldsIterable == nil {
-		sr.fieldsIterable = newTermsIterable(sr.fsSegment)
-	}
-	sr.fsSegment.RLock()
-	iter, err := sr.fieldsIterable.fieldsNotClosedMaybeFinalizedWithRLock()
-	sr.fsSegment.RUnlock()
-	return iter, err
-}
-
 func (sr *fsSegmentReader) ContainsField(field []byte) (bool, error) {
 	if sr.closed {
 		return false, errReaderClosed
 	}
-
-	sr.fsSegment.RLock()
-	defer sr.fsSegment.RUnlock()
-	if sr.fsSegment.finalized {
-		return false, errReaderFinalized
-	}
-
 	return sr.fsSegment.fieldsFST.Contains(field)
+}
+
+func (sr *fsSegmentReader) FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error) {
+	if sr.closed {
+		return nil, errReaderClosed
+	}
+	iterable := newTermsIterable(sr.fsSegment)
+	// NB(rob): The segment reader holds a finalized state reader lock the whole
+	// time before closed.
+	fieldsIter := newFSTTermsIter(newFSTTermsIterOptions{})
+	return iterable.fieldsWithTermsIterAndContextLifetime(fieldsIter), nil
+}
+
+func (sr *fsSegmentReader) FieldsPostingsListWithRegex(
+	compiled *index.CompiledRegex,
+) (sgmt.FieldsPostingsListIterator, error) {
+	if sr.closed {
+		return nil, errReaderClosed
+	}
+	iterable := newTermsIterable(sr.fsSegment)
+	// NB(rob): The segment reader holds a finalized state reader lock the whole
+	// time before closed.
+	fieldsIter := newFSTTermsIter(newFSTTermsIterOptions{})
+	return iterable.fieldsWithRegexWithTermsIterAndContextLifetime(fieldsIter, compiled)
 }
 
 func (sr *fsSegmentReader) Terms(field []byte) (sgmt.TermsIterator, error) {
 	if sr.closed {
 		return nil, errReaderClosed
 	}
-	if sr.termsIterable == nil {
-		sr.termsIterable = newTermsIterable(sr.fsSegment)
+	iterable := newTermsIterable(sr.fsSegment)
+	// NB(rob): The segment reader holds a finalized state reader lock the whole
+	// time before closed.
+	fieldsIter := newFSTTermsIter(newFSTTermsIterOptions{})
+	return iterable.termsWithTermsIterAndContextLifetime(fieldsIter, field)
+}
+
+func (sr *fsSegmentReader) TermsWithRegex(
+	field []byte,
+	compiled *index.CompiledRegex,
+) (sgmt.TermsIterator, error) {
+	if sr.closed {
+		return nil, errReaderClosed
 	}
-	sr.fsSegment.RLock()
-	iter, err := sr.termsIterable.termsNotClosedMaybeFinalizedWithRLock(field)
-	sr.fsSegment.RUnlock()
-	return iter, err
+	iterable := newTermsIterable(sr.fsSegment)
+	// NB(rob): The segment reader holds a finalized state reader lock the whole
+	// time before closed.
+	fieldsIter := newFSTTermsIter(newFSTTermsIterOptions{})
+	return iterable.termsWithRegexWithTermsIterAndContextLifetime(fieldsIter, field, compiled)
 }
 
 func (sr *fsSegmentReader) MatchField(field []byte) (postings.List, error) {
@@ -1139,10 +1348,7 @@ func (sr *fsSegmentReader) MatchField(field []byte) (postings.List, error) {
 	}
 	// NB(r): We are allowed to call match field after Close called on
 	// the segment but not after it is finalized.
-	sr.fsSegment.RLock()
-	pl, err := sr.fsSegment.matchFieldNotClosedMaybeFinalizedWithRLock(field)
-	sr.fsSegment.RUnlock()
-	return pl, err
+	return sr.fsSegment.matchFieldNotClosedMaybeFinalizedWithRLock(field)
 }
 
 func (sr *fsSegmentReader) MatchTerm(field []byte, term []byte) (postings.List, error) {
@@ -1151,10 +1357,7 @@ func (sr *fsSegmentReader) MatchTerm(field []byte, term []byte) (postings.List, 
 	}
 	// NB(r): We are allowed to call match field after Close called on
 	// the segment but not after it is finalized.
-	sr.fsSegment.RLock()
-	pl, err := sr.fsSegment.matchTermNotClosedMaybeFinalizedWithRLock(field, term)
-	sr.fsSegment.RUnlock()
-	return pl, err
+	return sr.fsSegment.matchTermNotClosedMaybeFinalizedWithRLock(field, term)
 }
 
 func (sr *fsSegmentReader) MatchRegexp(
@@ -1166,10 +1369,7 @@ func (sr *fsSegmentReader) MatchRegexp(
 	}
 	// NB(r): We are allowed to call match field after Close called on
 	// the segment but not after it is finalized.
-	sr.fsSegment.RLock()
-	pl, err := sr.fsSegment.matchRegexpNotClosedMaybeFinalizedWithRLock(field, compiled)
-	sr.fsSegment.RUnlock()
-	return pl, err
+	return sr.fsSegment.matchRegexpNotClosedMaybeFinalizedWithRLock(field, compiled)
 }
 
 func (sr *fsSegmentReader) MatchAll() (postings.List, error) {
@@ -1178,10 +1378,7 @@ func (sr *fsSegmentReader) MatchAll() (postings.List, error) {
 	}
 	// NB(r): We are allowed to call match field after Close called on
 	// the segment but not after it is finalized.
-	sr.fsSegment.RLock()
-	pl, err := sr.fsSegment.matchAllNotClosedMaybeFinalizedWithRLock()
-	sr.fsSegment.RUnlock()
-	return pl, err
+	return sr.fsSegment.matchAllNotClosedMaybeFinalizedWithRLock()
 }
 
 func (sr *fsSegmentReader) Metadata(id postings.ID) (doc.Metadata, error) {
@@ -1190,10 +1387,7 @@ func (sr *fsSegmentReader) Metadata(id postings.ID) (doc.Metadata, error) {
 	}
 	// NB(r): We are allowed to call match field after Close called on
 	// the segment but not after it is finalized.
-	sr.fsSegment.RLock()
-	pl, err := sr.fsSegment.metadataNotClosedMaybeFinalizedWithRLock(id)
-	sr.fsSegment.RUnlock()
-	return pl, err
+	return sr.fsSegment.metadataNotClosedMaybeFinalizedWithRLock(id)
 }
 
 func (sr *fsSegmentReader) MetadataIterator(pl postings.List) (doc.MetadataIterator, error) {
@@ -1204,10 +1398,7 @@ func (sr *fsSegmentReader) MetadataIterator(pl postings.List) (doc.MetadataItera
 	// the segment but not after it is finalized.
 	// Also make sure the doc retriever is the reader not the segment so that
 	// is closed check is not performed and only the is finalized check.
-	sr.fsSegment.RLock()
-	iter, err := sr.fsSegment.metadataIteratorNotClosedMaybeFinalizedWithRLock(sr, pl)
-	sr.fsSegment.RUnlock()
-	return iter, err
+	return sr.fsSegment.metadataIteratorNotClosedMaybeFinalizedWithRLock(sr, pl)
 }
 
 func (sr *fsSegmentReader) Doc(id postings.ID) (doc.Document, error) {
@@ -1216,10 +1407,7 @@ func (sr *fsSegmentReader) Doc(id postings.ID) (doc.Document, error) {
 	}
 	// NB(r): We are allowed to call match field after Close called on
 	// the segment but not after it is finalized.
-	sr.fsSegment.RLock()
-	pl, err := sr.fsSegment.docNotClosedMaybeFinalizedWithRLock(id)
-	sr.fsSegment.RUnlock()
-	return pl, err
+	return sr.fsSegment.docNotClosedMaybeFinalizedWithRLock(id)
 }
 
 func (sr *fsSegmentReader) NumDocs() (int, error) {
@@ -1228,9 +1416,7 @@ func (sr *fsSegmentReader) NumDocs() (int, error) {
 	}
 	// NB(r): We are allowed to call match field after Close called on
 	// the segment but not after it is finalized.
-	sr.fsSegment.RLock()
 	n := sr.fsSegment.numDocs
-	sr.fsSegment.RUnlock()
 	return int(n), nil
 }
 
@@ -1242,10 +1428,7 @@ func (sr *fsSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
 	// the segment but not after it is finalized.
 	// Also make sure the doc retriever is the reader not the segment so that
 	// is closed check is not performed and only the is finalized check.
-	sr.fsSegment.RLock()
-	iter, err := sr.fsSegment.docsNotClosedMaybeFinalizedWithRLock(sr, pl)
-	sr.fsSegment.RUnlock()
-	return iter, err
+	return sr.fsSegment.docsNotClosedMaybeFinalizedWithRLock(sr, pl)
 }
 
 func (sr *fsSegmentReader) AllDocs() (index.IDDocIterator, error) {
@@ -1256,10 +1439,7 @@ func (sr *fsSegmentReader) AllDocs() (index.IDDocIterator, error) {
 	// the segment but not after it is finalized.
 	// Also make sure the doc retriever is the reader not the segment so that
 	// is closed check is not performed and only the is finalized check.
-	sr.fsSegment.RLock()
-	iter, err := sr.fsSegment.allDocsNotClosedMaybeFinalizedWithRLock(sr)
-	sr.fsSegment.RUnlock()
-	return iter, err
+	return sr.fsSegment.allDocsNotClosedMaybeFinalizedWithRLock(sr)
 }
 
 func (sr *fsSegmentReader) Close() error {

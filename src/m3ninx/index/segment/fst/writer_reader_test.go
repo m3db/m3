@@ -171,18 +171,6 @@ func TestFieldDoesNotExist(t *testing.T) {
 			for _, tc := range newTestCases(t, test.docs) {
 				t.Run(tc.name, func(t *testing.T) {
 					elaborateFieldName := []byte("some-elaborate-field-that-does-not-exist-in-test-docs")
-					terms, err := tc.expected.TermsIterable().Terms(elaborateFieldName)
-					require.NoError(t, err)
-					require.False(t, terms.Next())
-					require.NoError(t, terms.Err())
-					require.NoError(t, terms.Close())
-
-					terms, err = tc.observed.TermsIterable().Terms(elaborateFieldName)
-					require.NoError(t, err)
-					require.False(t, terms.Next())
-					require.NoError(t, terms.Err())
-					require.NoError(t, terms.Close())
-
 					expectedReader, err := tc.expected.Reader()
 					require.NoError(t, err)
 					pl, err := expectedReader.MatchTerm(elaborateFieldName, []byte("."))
@@ -312,6 +300,7 @@ func TestPostingsListEqualForMatchField(t *testing.T) {
 		})
 	}
 }
+
 func TestPostingsListEqualForMatchTerm(t *testing.T) {
 	for _, test := range testDocuments {
 		t.Run(test.name, func(t *testing.T) {
@@ -566,6 +555,80 @@ func TestSegmentReaderValidUntilClose(t *testing.T) {
 	// Make sure reader now starts returning errors.
 	_, err = reader.MatchTerm([]byte("color"), []byte("yellow"))
 	require.Error(t, err)
+}
+
+func TestSegmentPreloadedFSTFields(t *testing.T) {
+	testDocs := []doc.Metadata{
+		{
+			Fields: []doc.Field{
+				{
+					Name:  []byte("__name__"),
+					Value: []byte("requests_foo"),
+				},
+				{
+					Name:  []byte("endpoint"),
+					Value: []byte("/api/v1/foo"),
+				},
+				{
+					Name:  []byte("region"),
+					Value: []byte("us_east1"),
+				},
+			},
+		},
+		{
+			Fields: []doc.Field{
+				{
+					Name:  []byte("__g0__"),
+					Value: []byte("foo"),
+				},
+				{
+					Name:  []byte("__g1__"),
+					Value: []byte("bar"),
+				},
+			},
+		},
+		{
+			Fields: []doc.Field{
+				{
+					Name:  []byte("__name__"),
+					Value: []byte("requests_bar"),
+				},
+				{
+					Name:  []byte("endpoint"),
+					Value: []byte("/api/v1/bar"),
+				},
+				{
+					Name:  []byte("region"),
+					Value: []byte("us_west1"),
+				},
+				{
+					Name:  []byte("_should_not_preload"),
+					Value: []byte("value"),
+				},
+				{
+					Name:  []byte("_should_not_preload2"),
+					Value: []byte("value"),
+				},
+			},
+		},
+	}
+
+	_, fstSeg := newTestSegments(t, testDocs)
+
+	seg := fstSeg.(*fsSegment)
+	preloadedFields := make(map[string]struct{})
+	for _, elem := range seg.termFSTs.fstMap.Iter() {
+		key := elem.Key()
+		preloadedFields[string(key)] = struct{}{}
+	}
+
+	require.Equal(t, map[string]struct{}{
+		"__name__": {},
+		"endpoint": {},
+		"region":   {},
+		"__g0__":   {},
+		"__g1__":   {},
+	}, preloadedFields)
 }
 
 func newTestSegments(t *testing.T, docs []doc.Metadata) (memSeg sgmt.MutableSegment, fstSeg sgmt.Segment) {

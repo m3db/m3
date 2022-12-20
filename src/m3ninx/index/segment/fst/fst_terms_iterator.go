@@ -21,16 +21,50 @@
 package fst
 
 import (
+	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/m3dbx/vellum"
 )
 
+type newFSTTermsIterOptions struct {
+	closeContextOnClose context.Context
+}
+
+func newFSTTermsIter(opts newFSTTermsIterOptions) *fstTermsIter {
+	iter := new(vellum.FSTIterator)
+	i := &fstTermsIter{
+		newFSTTermsIterOptions: opts,
+		iter:                   iter,
+		restoreReusedIter:      iter,
+	}
+	i.clear()
+	return i
+}
+
+var _ sgmt.OrderedBytesIterator = &fstTermsIter{}
+
+type fstTermsIter struct {
+	newFSTTermsIterOptions
+	iter              *vellum.FSTIterator
+	restoreReusedIter *vellum.FSTIterator
+	opts              fstTermsIterOpts
+	err               error
+	done              bool
+	empty             bool
+	firstNext         bool
+	current           []byte
+	currentValue      uint64
+}
+
 type fstTermsIterOpts struct {
 	seg         *fsSegment
 	fst         *vellum.FST
+	fstSearch   *index.CompiledRegex
 	finalizeFST bool
+	fieldsFST   bool
 }
 
 func (o fstTermsIterOpts) Close() error {
@@ -40,28 +74,17 @@ func (o fstTermsIterOpts) Close() error {
 	return nil
 }
 
-func newFSTTermsIter() *fstTermsIter {
-	i := &fstTermsIter{iter: new(vellum.FSTIterator)}
-	i.clear()
-	return i
-}
-
-type fstTermsIter struct {
-	iter         *vellum.FSTIterator
-	opts         fstTermsIterOpts
-	err          error
-	done         bool
-	firstNext    bool
-	current      []byte
-	currentValue uint64
-}
-
-var _ sgmt.OrderedBytesIterator = &fstTermsIter{}
-
 func (f *fstTermsIter) clear() {
+	// NB(rob): If we actually set an explicit iterator
+	// when we reset the FST terms iter to use instead
+	// of the default iterator then make sure to restore
+	// the default re-useable iterator we allocated for
+	// the FST terms iterator.
+	f.iter = f.restoreReusedIter
 	f.opts = fstTermsIterOpts{}
 	f.err = nil
 	f.done = false
+	f.empty = false
 	f.firstNext = true
 	f.current = nil
 	f.currentValue = 0
@@ -70,6 +93,32 @@ func (f *fstTermsIter) clear() {
 func (f *fstTermsIter) reset(opts fstTermsIterOpts) {
 	f.clear()
 	f.opts = opts
+
+	// Consume the first value so we know what to return
+	// for "Empty()" method.
+	// Given that sometimes a search is passed in we made need
+	// to use an iterator that is searching the FST returned from Search()
+	// with a regex. If so the only way to know if there
+	// results at all is to attempt to iterate the first
+	// result.
+	var iterErr error
+	if regexp := f.opts.fstSearch; regexp != nil {
+		// NB(rob): Iterating terms sometimes will use an
+		// explicit iterator to limit the set of terms that
+		// are iterated based on a regexp search of the FST.
+		f.iter, iterErr = f.opts.fst.Search(regexp.FST, regexp.PrefixBegin, regexp.PrefixEnd)
+	} else {
+		iterErr = f.iter.Reset(f.opts.fst, nil, nil, nil)
+	}
+
+	// iterErr will be ErrIteratorDone if no results
+	f.handleIterErr(iterErr)
+
+	if f.done {
+		// The iterator was empty, record as such to answer the
+		// Empty() method call correctly.
+		f.empty = true
+	}
 }
 
 func (f *fstTermsIter) handleIterErr(err error) {
@@ -85,19 +134,9 @@ func (f *fstTermsIter) Next() bool {
 		return false
 	}
 
-	f.opts.seg.RLock()
-	defer f.opts.seg.RUnlock()
-	if f.opts.seg.finalized {
-		f.err = errReaderFinalized
-		return false
-	}
-
 	if f.firstNext {
+		// Already progressed to first element.
 		f.firstNext = false
-		if err := f.iter.Reset(f.opts.fst, nil, nil, nil); err != nil {
-			f.handleIterErr(err)
-			return false
-		}
 	} else {
 		if err := f.iter.Next(); err != nil {
 			f.handleIterErr(err)
@@ -113,6 +152,10 @@ func (f *fstTermsIter) CurrentOffset() uint64 {
 	return f.currentValue
 }
 
+func (f *fstTermsIter) Empty() bool {
+	return f.empty
+}
+
 func (f *fstTermsIter) Current() []byte {
 	return f.current
 }
@@ -121,14 +164,14 @@ func (f *fstTermsIter) Err() error {
 	return f.err
 }
 
-func (f *fstTermsIter) Len() int {
-	return f.opts.fst.Len()
-}
-
 func (f *fstTermsIter) Close() error {
 	var multiErr xerrors.MultiError
 	multiErr = multiErr.Add(f.iter.Close())
 	multiErr = multiErr.Add(f.opts.Close())
+	if f.closeContextOnClose != nil {
+		f.closeContextOnClose.Close()
+		f.closeContextOnClose = nil
+	}
 	f.clear()
 	return multiErr.FinalError()
 }

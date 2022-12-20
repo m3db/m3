@@ -150,4 +150,4 @@ replace github.com/uber-go/atomic => github.com/uber-go/atomic v1.4.0
 replace go.etcd.io/bbolt => go.etcd.io/bbolt v1.3.5
 
 // https://github.com/ory/dockertest/issues/212
-replace golang.org/x/sys => golang.org/x/sys v0.0.0-20200826173525-f9321e4c35a6
+replace golang.org/x/sys => golang.org/x/sys v0.1.0
