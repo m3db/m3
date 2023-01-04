@@ -598,6 +598,43 @@ func TestLimitedReturnedDataMatrix(t *testing.T) {
 	}
 }
 
+func TestExtractMetricName(t *testing.T) {
+	tests := []struct {
+		query                string
+		metricName           string
+	}{
+		{
+			query:      `sum by (namespace) (increase(kube_pod_container_status_restarts_total {namespace!~"test-.+",pod=~"data-plane-router.*"}[10m] ...`,
+			metricName: "kube_pod_container_status_restarts_total",
+		},
+		{
+			query:      `histogram_quantile(0.5, sum by (shardName, kubernetes_namespace, project, client_name, jetty_request_type, status, hmr_role, le) (rate(
+				rpc_client_request_duration_seconds_bucket 
+					[10m])))`,
+			metricName: "rpc_client_request_duration_seconds_bucket",
+		},
+		{
+			query:      "auth_ml_serving:slo_extauthz_errors1m",
+			metricName: "",
+		},
+		{
+			query:      "sum (increase (auth_ml_serving:slo_extauthz_errors1m [10m]))",
+			metricName: "auth_ml_serving:slo_extauthz_errors1m",
+		},
+	}
+
+	handler := &readHandler{
+		logger: zap.NewNop(),
+	}
+
+	for _, test := range tests {
+		t.Run(test.query, func(t *testing.T) {
+			metricName := handler.extractMetricName(test.query)
+			require.Equal(t, test.metricName, metricName)
+		})
+	}
+}
+
 func abs(v time.Duration) time.Duration {
 	if v < 0 {
 		return v * -1
