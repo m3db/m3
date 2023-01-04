@@ -36,6 +36,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	"net/http"
+	"strings"
 	"sync"
 
 	errs "github.com/pkg/errors"
@@ -210,13 +211,15 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// if query return data more than warning limit, logging an as warning
 	if resultMetadata.FetchedSeriesCount > querySeriesWarn {
-		h.logger.Warn("The time series query return more than query limit", zap.Int("limit threshold", querySeriesWarn), zap.Int("time series", resultMetadata.FetchedSeriesCount), zap.String("query", query))
+		metricName := h.extractMetricName(query)
+		h.logger.Warn("The time series query return more than query limit", zap.Int("limit threshold", querySeriesWarn),
+			zap.Int("time series", resultMetadata.FetchedSeriesCount), zap.String("metric", metricName), zap.String("query", query))
 
 		truncatedQuery := h.truncateQuery(query)
-		gauge, exists := h.returnedDataMetrics.OverLimitFetchM3Series[truncatedQuery]
+		gauge, exists := h.returnedDataMetrics.OverLimitFetchM3Series[metricName]
 		if !exists {
 			gauge = h.returnedDataMetrics.Scope.Tagged(
-				map[string]string{"query": truncatedQuery},
+				map[string]string{"query": truncatedQuery, "metric": metricName},
 			).Gauge("fetch.over_limit_m3_series")
 			h.returnedDataMetrics.OverLimitFetchM3Series[truncatedQuery] = gauge
 		}
@@ -247,6 +250,36 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			zap.String("query", params.Query),
 			zap.Bool("instant", h.opts.instant))
 	}
+}
+
+// NB: this is a naive but lightweight method to extra a metric name from a PromQL query.
+// It returns an empty string if it fails to extract a metric name.
+// We don't want to parse the PromQL here because the extraction is not super important.
+func (h *readHandler) extractMetricName(query string) string {
+	// Some example queries:
+	//  sum by (namespace) (increase(kube_pod_container_status_restarts_total{namespace!~"test-.+",pod=~"data-plane-router.*"}[10m] ...
+	//  histogram_quantile(0.5, sum by (shardName, kubernetes_namespace, project, client_name, jetty_request_type, status, hmr_role, le) (rate(rpc_client_request_duration_seconds_bucket[10m])))
+	// We assume the token before '{' or '[' is a metric name.
+	endPos := strings.IndexAny(query, "{[")
+	
+	isMetricNameByte := func(b byte) bool {
+		return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') ||
+		  (b >= '0' && b <= '9') || strings.IndexByte("._:-", b) >= 0
+	}
+
+	// This is to skip any trailing whitespace.
+	for endPos > 0 && !isMetricNameByte(query[endPos - 1]) {
+		endPos--
+	}
+	if endPos <= 0 {
+		return ""
+	}
+	// Invariant: query[startPos] is a metric byte.
+	startPos := endPos - 1
+	for startPos > 0 && isMetricNameByte(query[startPos - 1]) {
+		startPos--
+	}
+	return query[startPos:endPos]
 }
 
 func (h *readHandler) truncateQuery(query string) string {
