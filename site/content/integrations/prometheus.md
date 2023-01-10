@@ -100,7 +100,7 @@ remote_write:
   - url: "{{% apiendpoint %}}prom/remote/write"
 ```
 
-Also, we recommend adding `M3DB` and `M3Coordinator`/`M3Query` to your list of jobs under `scrape_configs` so that you can monitor them using Prometheus. With this scraping setup, you can also use our pre-configured [M3DB Grafana dashboard](https://grafana.com/dashboards/8126).
+Also, we recommend adding `M3DB` and `M3Coordinator`/`M3Query` to your list of jobs under `scrape_configs` so that you can monitor them using Prometheus. With this scraping setup, you can also use our pre-configured [M3DB Grafana dashboard](https://grafana.com/grafana/dashboards/8126-m3db-node-details/).
 
 ```yaml
 - job_name: 'm3db'
