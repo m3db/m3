@@ -58,7 +58,6 @@ type Configuration struct {
 	MaxBatchSize               int                             `yaml:"maxBatchSize"`
 	MaxTimerBatchSize          int                             `yaml:"maxTimerBatchSize"`
 	QueueSize                  int                             `yaml:"queueSize"`
-	QueueSizeBytes             int                             `yaml:"queueSizeBytes"`
 	QueueDropType              *DropType                       `yaml:"queueDropType"`
 	Connection                 ConnectionConfiguration         `yaml:"connection"`
 }
@@ -191,9 +190,6 @@ func (c *Configuration) newClientOptions(
 		}
 		if c.QueueSize != 0 {
 			opts = opts.SetInstanceQueueSize(c.QueueSize)
-		}
-		if c.QueueSizeBytes != 0 {
-			opts = opts.SetInstanceMaxQueueSizeBytes(c.QueueSizeBytes)
 		}
 		if c.QueueDropType != nil {
 			opts = opts.SetQueueDropType(*c.QueueDropType)

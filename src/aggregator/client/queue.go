@@ -37,14 +37,8 @@ import (
 )
 
 const (
-	_queueMinWriteBufSize             = 65536
-	_queueMaxWriteBufSize             = 8 * _queueMinWriteBufSize
-	_queueFlushBytesMetricBuckets     = 16
-	_queueFlushBytesMetricBucketStart = 1024
-	_queueFlushItemsMetricBuckets     = 8
-	_queueFlushItemsMetricBucketStart = 16
-	_queueBufSizesMetricBuckets       = 16
-	_queueBufSizesMetricBucketStart   = 128
+	_queueMinWriteBufSize = 65536
+	_queueMaxWriteBufSize = 8 * _queueMinWriteBufSize
 )
 
 var (
@@ -117,9 +111,6 @@ type instanceQueue interface {
 	// Size returns the number of items in the queue.
 	Size() int
 
-	// SizeBytes returns the total bytes held up in the queue.
-	SizeBytes() int
-
 	// Close closes the queue, it blocks until the queue is drained.
 	Close() error
 
@@ -138,7 +129,7 @@ type queue struct {
 	buf      qbuf
 	dropType DropType
 	closed   atomic.Bool
-	bufMtx   sync.Mutex
+	mtx      sync.Mutex
 }
 
 func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
@@ -149,10 +140,9 @@ func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
 		connOpts           = opts.ConnectionOptions().
 					SetInstrumentOptions(connInstrumentOpts).
 					SetRWOptions(opts.RWOptions())
-		conn              = newConnection(instance.Endpoint(), connOpts)
-		iOpts             = opts.InstrumentOptions()
-		queueSize         = opts.InstanceQueueSize()
-		maxQueueSizeBytes = opts.InstanceMaxQueueSizeBytes()
+		conn      = newConnection(instance.Endpoint(), connOpts)
+		iOpts     = opts.InstrumentOptions()
+		queueSize = opts.InstanceQueueSize()
 	)
 
 	// Round up queue size to power of 2.
@@ -167,8 +157,7 @@ func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
 		instance: instance,
 		conn:     conn,
 		buf: qbuf{
-			b:            make([]protobuf.Buffer, int(qsize)),
-			maxSizeBytes: uint32(maxQueueSizeBytes),
+			b: make([]protobuf.Buffer, int(qsize)),
 		},
 	}
 	q.writeFn = q.conn.Write
@@ -182,15 +171,14 @@ func (q *queue) Enqueue(buf protobuf.Buffer) error {
 		return errInstanceQueueClosed
 	}
 
-	q.bufMtx.Lock()
-	defer q.bufMtx.Unlock()
-
 	if len(buf.Bytes()) == 0 {
 		return nil
 	}
 
-	full := q.buf.full()
-	for full {
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
+
+	if full := q.buf.full(); full {
 		switch q.dropType {
 		case DropCurrent:
 			// Close the current buffer so it's resources are freed.
@@ -205,15 +193,10 @@ func (q *queue) Enqueue(buf protobuf.Buffer) error {
 		default:
 			return errInvalidDropType
 		}
-
-		full = q.buf.full()
 	}
 
-	// NB: The qbuf can still hold a single super huge buffer way bigger
-	// maxSizeBytes.
 	q.buf.push(buf)
 	q.metrics.enqueueSuccesses.Inc(1)
-	q.metrics.queueBufSizes.RecordValue(float64(len(buf.Bytes())))
 	return nil
 }
 
@@ -260,24 +243,15 @@ func (q *queue) Flush() {
 func (q *queue) flush(tmpWriteBuf *[]byte) (int, error) {
 	var n int
 
-	// Some bits and pieces of this logic could be done under
-	// a read lock as opposed to taking a full lock but that
-	// would unnecessarily add complexity for no meaningful gain
-	// in performance. Besides, grabbing and releasing multiple times
-	// could be more expensive than grabbing a full lock once.
-	q.bufMtx.Lock()
+	q.mtx.Lock()
 
-	// Before initiating a flush, record the size of the queue
-	q.metrics.bytesToFlush.RecordValue(float64(q.buf.getSizeBytes()))
-	q.metrics.itemsToFlush.RecordValue(float64(q.buf.sizeItems()))
-
-	if q.buf.sizeItems() == 0 {
-		q.bufMtx.Unlock()
+	if q.buf.size() == 0 {
+		q.mtx.Unlock()
 		return n, io.EOF
 	}
 
 	*tmpWriteBuf = (*tmpWriteBuf)[:0]
-	for q.buf.sizeItems() > 0 {
+	for q.buf.size() > 0 {
 		protoBuffer := q.buf.peek()
 		bytes := protoBuffer.Bytes()
 
@@ -296,8 +270,8 @@ func (q *queue) flush(tmpWriteBuf *[]byte) (int, error) {
 		protoBuffer.Close()
 	}
 
-	q.bufMtx.Unlock()
-	// Perform the write after releasing the bufMtx
+	// mutex is not held while doing IO
+	q.mtx.Unlock()
 
 	if n == 0 {
 		return n, io.EOF
@@ -314,11 +288,7 @@ func (q *queue) flush(tmpWriteBuf *[]byte) (int, error) {
 }
 
 func (q *queue) Size() int {
-	return int(q.buf.sizeItems())
-}
-
-func (q *queue) SizeBytes() int {
-	return int(q.buf.getSizeBytes())
+	return int(q.buf.size())
 }
 
 type queueMetrics struct {
@@ -326,33 +296,13 @@ type queueMetrics struct {
 	enqueueOldestDropped  tally.Counter
 	enqueueCurrentDropped tally.Counter
 	enqueueClosedErrors   tally.Counter
-	bytesToFlush          tally.Histogram
-	itemsToFlush          tally.Histogram
-	queueBufSizes         tally.Histogram
 	connWriteSuccesses    tally.Counter
 	connWriteErrors       tally.Counter
 }
 
 func newQueueMetrics(s tally.Scope) queueMetrics {
-	bucketsItemsToFlush := append(
-		tally.ValueBuckets{0},
-		tally.MustMakeExponentialValueBuckets(_queueFlushItemsMetricBucketStart, 2, _queueFlushItemsMetricBuckets)...,
-	)
-
-	bucketsBytesToFlush := append(
-		tally.ValueBuckets{0},
-		tally.MustMakeExponentialValueBuckets(_queueFlushBytesMetricBucketStart, 2, _queueFlushBytesMetricBuckets)...,
-	)
-
-	bucketsQueueBufSizes := append(
-		tally.ValueBuckets{0},
-		tally.MustMakeExponentialValueBuckets(_queueBufSizesMetricBucketStart, 2, _queueBufSizesMetricBuckets)...,
-	)
-
 	enqueueScope := s.Tagged(map[string]string{"action": "enqueue"})
 	connWriteScope := s.Tagged(map[string]string{"action": "conn-write"})
-	flushScope := s.Tagged(map[string]string{"action": "flush"})
-
 	return queueMetrics{
 		enqueueSuccesses: enqueueScope.Counter("successes"),
 		enqueueOldestDropped: enqueueScope.Tagged(map[string]string{"drop-type": "oldest"}).
@@ -361,10 +311,6 @@ func newQueueMetrics(s tally.Scope) queueMetrics {
 			Counter("dropped"),
 		enqueueClosedErrors: enqueueScope.Tagged(map[string]string{"error-type": "queue-closed"}).
 			Counter("errors"),
-		queueBufSizes: enqueueScope.Histogram("buf-sizes", bucketsQueueBufSizes),
-		bytesToFlush:  flushScope.Histogram("flush-bytes", bucketsBytesToFlush),
-		itemsToFlush:  flushScope.Histogram("flush-items", bucketsItemsToFlush),
-
 		connWriteSuccesses: connWriteScope.Counter("successes"),
 		connWriteErrors:    connWriteScope.Counter("errors"),
 	}
@@ -374,23 +320,16 @@ func newQueueMetrics(s tally.Scope) queueMetrics {
 type qbuf struct {
 	b []protobuf.Buffer
 	// buffer cursors
-	r            uint32
-	w            uint32
-	sizeBytes    uint32
-	maxSizeBytes uint32
+	r uint32
+	w uint32
 }
 
-func (q *qbuf) sizeItems() uint32 {
+func (q *qbuf) size() uint32 {
 	return q.w - q.r
 }
 
-func (q *qbuf) getSizeBytes() uint32 {
-	return q.sizeBytes
-}
-
 func (q *qbuf) full() bool {
-	return q.sizeItems() == uint32(cap(q.b)) ||
-		(q.maxSizeBytes > 0 && q.sizeBytes >= q.maxSizeBytes)
+	return q.size() == uint32(cap(q.b))
 }
 
 func (q *qbuf) mask(idx uint32) uint32 {
@@ -402,7 +341,6 @@ func (q *qbuf) push(buf protobuf.Buffer) {
 	idx := q.mask(q.w)
 	q.b[idx].Close()
 	q.b[idx] = buf
-	q.sizeBytes += uint32(len(buf.Bytes()))
 }
 
 func (q *qbuf) shift() protobuf.Buffer {
@@ -410,7 +348,6 @@ func (q *qbuf) shift() protobuf.Buffer {
 	idx := q.mask(q.r)
 	val := q.b[idx]
 	q.b[idx] = protobuf.Buffer{}
-	q.sizeBytes -= uint32(len(val.Bytes()))
 	return val
 }
 
