@@ -428,21 +428,3 @@ func (e Errors) Error() string {
 	buf.WriteString("]")
 	return buf.String()
 }
-
-// GetErrorsFromMultiError returns all errors in the multierror
-// as an array of type "error". In case err is not of type
-// MultiError then it simply returns an array with err in it.
-// In case err is nil then the function will return nil as well.
-func GetErrorsFromMultiError(err error) []error {
-	if err == nil {
-		return nil
-	}
-
-	merr, ok := GetInnerMultiError(err)
-	if ok {
-		// is a MultiError
-		return merr.Errors()
-	}
-
-	return []error{err}
-}

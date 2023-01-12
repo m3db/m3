@@ -21,7 +21,6 @@
 package integration
 
 import (
-	"errors"
 	"fmt"
 
 	aggclient "github.com/m3db/m3/src/aggregator/client"
@@ -30,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/policy"
-	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 type client struct {
@@ -87,15 +85,7 @@ func (c *client) writePassthroughMetricWithMetadata(
 }
 
 func (c *client) flush() error {
-	if err := c.aggClient.Flush(); err != nil {
-		for _, e := range xerrors.GetErrorsFromMultiError(err) {
-			if !errors.Is(e, aggclient.ErrFlushInProgress) {
-				return e
-			}
-		}
-	}
-
-	return nil
+	return c.aggClient.Flush()
 }
 
 func (c *client) close() error {

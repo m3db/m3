@@ -102,9 +102,9 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 		),
 		metrics: newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
 	}
-
 	c.connectWithLockFn = c.connectWithLock
 	c.writeWithLockFn = c.writeWithLock
+
 	return c
 }
 
