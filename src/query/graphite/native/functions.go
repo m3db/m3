@@ -28,12 +28,17 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/uber-go/tally"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -533,8 +538,9 @@ func (c constFuncArg) CallExpression() (CallASTNode, bool) { return nil, false }
 
 // A functionCall is an actual call to a function, with resolution for arguments
 type functionCall struct {
-	f  *Function
-	in []funcArg
+	f              *Function
+	in             []funcArg
+	instrumentOpts instrument.Options
 }
 
 func (call *functionCall) Name() string {
@@ -559,6 +565,12 @@ func (call *functionCall) CallExpression() (CallASTNode, bool) {
 
 // Evaluate evaluates the function call and returns the result as a reflect.Value
 func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
+	scope := call.instrumentOpts.MetricsScope()
+	scope = scope.SubScope("function-call").Tagged(map[string]string{
+		"function": call.f.name,
+	})
+	scope.Counter("evaluate").Inc(1)
+
 	values := make([]reflect.Value, len(call.in))
 	for i, param := range call.in {
 		// Optimization to skip fetching series for a unary context shift
@@ -602,6 +614,12 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 
 	// Determine if need to adjust the shift based on fetched series
 	// from the context shift.
+	shifts := 0
+	scope.Counter("shifts-count").Inc(1)
+
+	shiftsHistogram := scope.Histogram("shifts-distribution", tally.ValueBuckets{
+		0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 24, 32, 48, 64, 128, 256,
+	})
 MaybeAdjustShiftLoop:
 	for {
 		adjustFn := contextShifter.Field(2)
@@ -622,6 +640,8 @@ MaybeAdjustShiftLoop:
 			break MaybeAdjustShiftLoop
 		}
 
+		shifts++
+
 		// Adjusted again, need to re-bootstrap from the shifted series.
 		adjustedShiftedCtx := reflected[0].Interface().(*common.Context)
 		adjustedShiftedSeries, err := call.in[0].Evaluate(adjustedShiftedCtx)
@@ -632,6 +652,14 @@ MaybeAdjustShiftLoop:
 		// Override previously shifted context and series fetched and re-eval.
 		shiftedCtx = adjustedShiftedCtx
 		shiftedSeries = adjustedShiftedSeries
+	}
+
+	shiftsHistogram.RecordValue(float64(shifts))
+	if shifts > 2 && checkLogRateLimit() {
+		logger := call.instrumentOpts.Logger()
+		logger.Warn("context shift function adjusted high number of times",
+			zap.String("call", call.String()),
+			zap.Int("shifts", shifts))
 	}
 
 	// Execute the unary transformer function with the shifted series.
@@ -680,6 +708,17 @@ func (call *functionCall) String() string {
 
 	buf.WriteByte(')')
 	return buf.String()
+}
+
+var lastLoggedAlignedUnixNanos int64
+
+func checkLogRateLimit() bool {
+	last := atomic.LoadInt64(&lastLoggedAlignedUnixNanos)
+	now := time.Now().Truncate(time.Second).UnixNano()
+	if last == now {
+		return false
+	}
+	return atomic.CompareAndSwapInt64(&lastLoggedAlignedUnixNanos, last, now)
 }
 
 // isTimeSeries checks whether the given value contains a timeseries or

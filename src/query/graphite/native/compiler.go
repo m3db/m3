@@ -29,11 +29,13 @@ import (
 
 	"github.com/m3db/m3/src/query/graphite/lexer"
 	"github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // CompileOptions allows for specifying compile options.
 type CompileOptions struct {
 	EscapeAllNotOnlyQuotes bool
+	InstrumentOptions      instrument.Options
 }
 
 // Compile converts an input stream into the corresponding Expression.
@@ -67,6 +69,8 @@ type compiler struct {
 	input   string
 	tokens  *tokenLookforward
 	fetches []*fetchExpression
+
+	instrumentOpts instrument.Options
 }
 
 func newCompiler(input string, opts CompileOptions) (*compiler, closer) {
@@ -87,10 +91,16 @@ func newCompiler(input string, opts CompileOptions) (*compiler, closer) {
 		}
 	})
 
+	instrumentOpts := opts.InstrumentOptions
+	if instrumentOpts == nil {
+		instrumentOpts = instrument.NewOptions()
+	}
+
 	return &compiler{
-		input:   input,
-		tokens:  newTokenLookforward(tokens),
-		fetches: make([]*fetchExpression, 0, 4),
+		input:          input,
+		tokens:         newTokenLookforward(tokens),
+		fetches:        make([]*fetchExpression, 0, 4),
+		instrumentOpts: instrumentOpts,
 	}, cleanup
 }
 
@@ -269,7 +279,7 @@ func (c *compiler) compileFunctionCall(fname string) (*functionCall, error) {
 			fn.name, variadicComment, len(argTypes), len(args))
 	}
 
-	return &functionCall{f: fn, in: args}, nil
+	return &functionCall{f: fn, in: args, instrumentOpts: c.instrumentOpts}, nil
 }
 
 // compileArg parses and compiles a single argument

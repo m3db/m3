@@ -77,6 +77,7 @@ func NewRenderHandler(opts options.HandlerOptions) http.Handler {
 		opts: opts,
 		engine: native.NewEngine(wrappedStore, native.CompileOptions{
 			EscapeAllNotOnlyQuotes: opts.GraphiteStorageOptions().CompileEscapeAllNotOnlyQuotes,
+			InstrumentOptions:      opts.InstrumentOpts(),
 		}),
 		fetchOptionsBuilder: opts.GraphiteRenderFetchOptionsBuilder(),
 		queryContextOpts:    opts.QueryContextOptions(),
