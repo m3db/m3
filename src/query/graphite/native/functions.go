@@ -603,6 +603,11 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 		return reflect.ValueOf(ts.NewSeriesList()), nil
 	}
 
+	// Determine if need to adjust the shift based on fetched series
+	// from the context shift.
+	shifts := 1
+	scope.Counter("shifts-count").Inc(1)
+
 	contextShifter := result.Elem()
 	ctxShiftingFn := contextShifter.Field(0)
 	reflected := ctxShiftingFn.Call([]reflect.Value{reflect.ValueOf(ctx)})
@@ -611,11 +616,6 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 	if err != nil {
 		return reflect.Value{}, err
 	}
-
-	// Determine if need to adjust the shift based on fetched series
-	// from the context shift.
-	shifts := 0
-	scope.Counter("shifts-count").Inc(1)
 
 	shiftsHistogram := scope.Histogram("shifts-distribution", tally.ValueBuckets{
 		0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 24, 32, 48, 64, 128, 256,
@@ -655,7 +655,7 @@ MaybeAdjustShiftLoop:
 	}
 
 	shiftsHistogram.RecordValue(float64(shifts))
-	if shifts > 2 && checkLogRateLimit() {
+	if shifts >= 2 && checkLogRateLimit() {
 		logger := call.instrumentOpts.Logger()
 		logger.Warn("context shift function adjusted high number of times",
 			zap.String("call", call.String()),
