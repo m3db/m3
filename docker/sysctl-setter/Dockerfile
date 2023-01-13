@@ -1,4 +1,4 @@
-FROM alpine:3.11
+FROM multiarch/alpine:x86_64-v3.11
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 RUN apk add --no-cache procps && echo $'#!/bin/ash\n\
