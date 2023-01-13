@@ -600,6 +600,7 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 
 	// context shifter ptr is nil, nothing to do here, return empty series.
 	if result.IsNil() {
+		scope.Counter("shift-not-needed").Inc(1)
 		return reflect.ValueOf(ts.NewSeriesList()), nil
 	}
 
