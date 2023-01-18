@@ -28,7 +28,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
@@ -36,9 +35,6 @@ import (
 	"github.com/m3db/m3/src/query/graphite/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/uber-go/tally"
-
-	"go.uber.org/zap"
 )
 
 var (
@@ -595,18 +591,15 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 	// if we have errors, or if we succeed and this is not a context-shifting function,
 	// we return immediately
 	if err != nil || call.f.out == seriesListType {
+		//??
 		return result, err
 	}
 
 	// context shifter ptr is nil, nothing to do here, return empty series.
 	if result.IsNil() {
-		scope.Counter("shift-not-needed").Inc(1)
 		return reflect.ValueOf(ts.NewSeriesList()), nil
 	}
 
-	// Determine if need to adjust the shift based on fetched series
-	// from the context shift.
-	shifts := 1
 	scope.Counter("shifts-count").Inc(1)
 
 	contextShifter := result.Elem()
@@ -618,9 +611,8 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 		return reflect.Value{}, err
 	}
 
-	shiftsHistogram := scope.Histogram("shifts-distribution", tally.ValueBuckets{
-		0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 24, 32, 48, 64, 128, 256,
-	})
+	// Determine if need to adjust the shift based on fetched series
+	// from the context shift.
 MaybeAdjustShiftLoop:
 	for {
 		adjustFn := contextShifter.Field(2)
@@ -641,7 +633,7 @@ MaybeAdjustShiftLoop:
 			break MaybeAdjustShiftLoop
 		}
 
-		shifts++
+		scope.Counter("shifts-count").Inc(1)
 
 		// Adjusted again, need to re-bootstrap from the shifted series.
 		adjustedShiftedCtx := reflected[0].Interface().(*common.Context)
@@ -653,14 +645,6 @@ MaybeAdjustShiftLoop:
 		// Override previously shifted context and series fetched and re-eval.
 		shiftedCtx = adjustedShiftedCtx
 		shiftedSeries = adjustedShiftedSeries
-	}
-
-	shiftsHistogram.RecordValue(float64(shifts))
-	if shifts >= 2 && checkLogRateLimit() {
-		logger := call.instrumentOpts.Logger()
-		logger.Warn("context shift function adjusted high number of times",
-			zap.String("call", call.String()),
-			zap.Int("shifts", shifts))
 	}
 
 	// Execute the unary transformer function with the shifted series.
@@ -709,17 +693,6 @@ func (call *functionCall) String() string {
 
 	buf.WriteByte(')')
 	return buf.String()
-}
-
-var lastLoggedAlignedUnixNanos int64
-
-func checkLogRateLimit() bool {
-	last := atomic.LoadInt64(&lastLoggedAlignedUnixNanos)
-	now := time.Now().Truncate(time.Second).UnixNano()
-	if last == now {
-		return false
-	}
-	return atomic.CompareAndSwapInt64(&lastLoggedAlignedUnixNanos, last, now)
 }
 
 // isTimeSeries checks whether the given value contains a timeseries or

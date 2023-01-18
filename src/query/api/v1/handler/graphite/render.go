@@ -25,6 +25,8 @@ import (
 	"net/http"
 	"sort"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -41,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -62,6 +65,23 @@ type renderHandler struct {
 	queryContextOpts    models.QueryContextOptions
 	graphiteOpts        graphite.M3WrappedStorageOptions
 	instrumentOpts      instrument.Options
+
+	lastLoggedAlignedUnixNanos int64
+
+	metrics renderHandlerMetrics
+	logger  *zap.Logger
+}
+
+type renderHandlerMetrics struct {
+	queryShiftsHistogram tally.Histogram
+}
+
+func newRenderHandlerMetrics(scope tally.Scope) renderHandlerMetrics {
+	return renderHandlerMetrics{
+		queryShiftsHistogram: scope.Histogram("query-shifts-total-distribution", tally.ValueBuckets{
+			0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 24, 32, 48, 64, 128, 256,
+		}),
+	}
 }
 
 type respError struct {
@@ -83,6 +103,8 @@ func NewRenderHandler(opts options.HandlerOptions) http.Handler {
 		queryContextOpts:    opts.QueryContextOptions(),
 		graphiteOpts:        opts.GraphiteStorageOptions(),
 		instrumentOpts:      opts.InstrumentOpts(),
+		metrics:             newRenderHandlerMetrics(opts.InstrumentOpts().MetricsScope()),
+		logger:              opts.InstrumentOpts().Logger(),
 	}
 }
 
@@ -222,7 +244,24 @@ func (h *renderHandler) serveHTTP(
 		return err
 	}
 
+	shifts := ctx.TimeRangeAdjustmentsTotal()
+	h.metrics.queryShiftsHistogram.RecordValue(float64(shifts))
+	if shifts >= 2 && h.checkLogTimeShiftsTotalHighLogEvent() {
+		h.logger.Warn("query context time shift adjusted high number of times",
+			zap.Int64("shifts", shifts),
+			zap.Strings("queries", p.Targets))
+	}
+
 	return WriteRenderResponse(w, response, p.Format, renderResultsJSONOptions{
 		renderSeriesAllNaNs: h.graphiteOpts.RenderSeriesAllNaNs,
 	})
+}
+
+func (h *renderHandler) checkLogTimeShiftsTotalHighLogEvent() bool {
+	last := atomic.LoadInt64(&h.lastLoggedAlignedUnixNanos)
+	now := time.Now().Truncate(time.Second).UnixNano()
+	if last == now {
+		return false
+	}
+	return atomic.CompareAndSwapInt64(&h.lastLoggedAlignedUnixNanos, last, now)
 }

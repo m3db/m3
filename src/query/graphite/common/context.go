@@ -64,9 +64,10 @@ type contextBase struct {
 	// FetchOpts are the fetch options to use for the query.
 	FetchOpts *storage.FetchOptions
 
-	parent         *Context
-	reqCtx         ctx.Context
-	storageContext context.Context
+	parent               *Context
+	reqCtx               ctx.Context
+	storageContext       context.Context
+	timeRangeAdjustments int64
 }
 
 // Context is the parameters to a query evaluation.
@@ -176,10 +177,32 @@ func (c *Context) NewChildContext(opts ChildContextOptions) *Context {
 		child.EndTime = origEnd.
 			Add(child.TimeRangeAdjustment.ShiftEnd).
 			Add(child.TimeRangeAdjustment.ExpandEnd)
+
+		topContext := c.topContext()
+		topContext.Lock()
+		topContext.timeRangeAdjustments++
+		topContext.Unlock()
 	}
 
 	child.reqCtx = c.reqCtx
 	return child
+}
+
+func (c *Context) topContext() *Context {
+	c.RLock()
+	parent := c.parent
+	c.RUnlock()
+	if parent == nil {
+		return c
+	}
+	return parent.topContext()
+}
+
+func (c *Context) TimeRangeAdjustmentsTotal() int64 {
+	topContext := c.topContext()
+	topContext.RLock()
+	defer topContext.RUnlock()
+	return topContext.timeRangeAdjustments
 }
 
 // Close closes the context
