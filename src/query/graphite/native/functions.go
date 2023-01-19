@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"runtime"
 	"strings"
@@ -243,7 +244,13 @@ type Function struct {
 	out      reflect.Type
 	variadic bool
 
-	disableUnaryContextShiftFetchOptimization bool
+	optimizedShiftCheck optimizedShiftCheckFunc
+}
+
+type optimizedShiftCheckFunc func(args []funcArg) (optimizedShiftCheckResult, error)
+
+type optimizedShiftCheckResult struct {
+	skipInitialFetch bool
 }
 
 // WithDefaultParams provides default parameters for functions
@@ -266,11 +273,13 @@ func (f *Function) WithDefaultParams(defaultParams map[uint8]interface{}) *Funct
 // that require actually seeing what the step size is sometimes of the series
 // from the first phase of execution to determine how much to look back for the
 // context shift phase.
-func (f *Function) WithoutUnaryContextShifterSkipFetchOptimization() *Function {
+func (f *Function) WithOptimizedShiftCheck(
+	optimizedShiftCheck optimizedShiftCheckFunc,
+) *Function {
 	if f.out != unaryContextShifterPtrType {
 		panic("Skip fetch optimization only available to unary context shifters")
 	}
-	f.disableUnaryContextShiftFetchOptimization = true
+	f.optimizedShiftCheck = optimizedShiftCheck
 	return f
 }
 
@@ -512,6 +521,8 @@ type funcArg interface {
 	CompatibleWith(reflectType reflect.Type) bool
 }
 
+var _ funcArg = constFuncArg{}
+
 // A constFuncArg is a function argument that is a constant value
 type constFuncArg struct {
 	value reflect.Value
@@ -571,14 +582,36 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 	for i, param := range call.in {
 		// Optimization to skip fetching series for a unary context shift
 		// operation since they'll refetch after shifting.
-		// Note: You can call WithoutUnaryContextShifterSkipFetchOptimization()
+		// Note: You can call WithOptimizedShiftCheck(...)
 		// after registering a function if you need a unary context shift
-		// operation to have series for the initial time window fetched.
+		// operation to have series for the initial time window fetched
+		// conditionally based on the arguments to the call.
 		if call.f.out == unaryContextShifterPtrType &&
-			!call.f.disableUnaryContextShiftFetchOptimization &&
 			(call.f.in[i] == singlePathSpecType || call.f.in[i] == multiplePathSpecsType) {
-			values[i] = reflect.ValueOf(singlePathSpec{}) // fake parameter
-			continue
+			// By default assume the function should skip initial fetch
+			// since it only needs the shifted data.
+			shouldOptimizeBySkipInitialFetch := true
+			if checkCall := call.f.optimizedShiftCheck; checkCall != nil {
+				if os.Getenv("M3_GRAPHITE_DISABLE_CONDITIONAL_OPTIMIZED_SHIFT") == "true" {
+					scope.Counter("optimized-shift-disabled-skipped").Inc(1)
+				} else {
+					scope.Counter("optimized-shift-evaluated").Inc(1)
+					result, err := checkCall(call.in)
+					if err != nil {
+						return reflect.Value{}, err
+					}
+					shouldOptimizeBySkipInitialFetch = result.skipInitialFetch
+					if shouldOptimizeBySkipInitialFetch {
+						scope.Counter("optimized-shift-result-optimized").Inc(1)
+					} else {
+						scope.Counter("optimized-shift-result-not-optimized").Inc(1)
+					}
+				}
+			}
+			if shouldOptimizeBySkipInitialFetch {
+				values[i] = reflect.ValueOf(singlePathSpec{}) // fake parameter
+				continue
+			}
 		}
 		value, err := param.Evaluate(ctx)
 		if err != nil {
@@ -591,7 +624,6 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 	// if we have errors, or if we succeed and this is not a context-shifting function,
 	// we return immediately
 	if err != nil || call.f.out == seriesListType {
-		//??
 		return result, err
 	}
 

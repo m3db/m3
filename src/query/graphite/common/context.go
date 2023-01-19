@@ -64,10 +64,10 @@ type contextBase struct {
 	// FetchOpts are the fetch options to use for the query.
 	FetchOpts *storage.FetchOptions
 
-	parent               *Context
-	reqCtx               ctx.Context
-	storageContext       context.Context
-	timeRangeAdjustments int64
+	parent                   *Context
+	reqCtx                   ctx.Context
+	storageContext           context.Context
+	timeRangeAdjustmentStats TimeRangeAdjustmentStats
 }
 
 // Context is the parameters to a query evaluation.
@@ -117,11 +117,12 @@ func (c *Context) TracingEnabled() bool { return c.Trace != nil }
 // ChildContextOptions is a set of options to pass when creating a child context.
 type ChildContextOptions struct {
 	adjustment struct {
-		adjusted    bool
-		shiftStart  time.Duration
-		shiftEnd    time.Duration
-		expandStart time.Duration
-		expandEnd   time.Duration
+		adjusted              bool
+		conditionallyAdjusted bool
+		shiftStart            time.Duration
+		shiftEnd              time.Duration
+		expandStart           time.Duration
+		expandEnd             time.Duration
 	}
 }
 
@@ -143,6 +144,15 @@ func (o *ChildContextOptions) AdjustTimeRange(
 	o.adjustment.shiftEnd = shiftEnd
 	o.adjustment.expandStart = expandStart
 	o.adjustment.expandEnd = expandEnd
+}
+
+func (o *ChildContextOptions) ConditionalAdjustTimeRange(
+	shiftStart, shiftEnd, expandStart, expandEnd time.Duration,
+) {
+	o.AdjustTimeRange(shiftStart, shiftEnd, expandStart, expandEnd)
+	if o.adjustment.adjusted {
+		o.adjustment.conditionallyAdjusted = true
+	}
 }
 
 // NewChildContext creates a child context.  Child contexts can have any of
@@ -180,7 +190,12 @@ func (c *Context) NewChildContext(opts ChildContextOptions) *Context {
 
 		topContext := c.topContext()
 		topContext.Lock()
-		topContext.timeRangeAdjustments++
+		topContext.timeRangeAdjustmentStats.Total++
+		if opts.adjustment.conditionallyAdjusted {
+			topContext.timeRangeAdjustmentStats.ConditionalAdjustments++
+		} else {
+			topContext.timeRangeAdjustmentStats.UnconditionalAdjustments++
+		}
 		topContext.Unlock()
 	}
 
@@ -198,11 +213,17 @@ func (c *Context) topContext() *Context {
 	return parent.topContext()
 }
 
-func (c *Context) TimeRangeAdjustmentsTotal() int64 {
+type TimeRangeAdjustmentStats struct {
+	UnconditionalAdjustments int64
+	ConditionalAdjustments   int64
+	Total                    int64
+}
+
+func (c *Context) TimeRangeAdjustmentStats() TimeRangeAdjustmentStats {
 	topContext := c.topContext()
 	topContext.RLock()
 	defer topContext.RUnlock()
-	return topContext.timeRangeAdjustments
+	return topContext.timeRangeAdjustmentStats
 }
 
 // Close closes the context

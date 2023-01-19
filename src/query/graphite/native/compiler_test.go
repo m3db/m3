@@ -30,16 +30,19 @@ import (
 	"github.com/m3db/m3/src/query/graphite/storage"
 	graphitetest "github.com/m3db/m3/src/query/graphite/testing"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 type testCompile struct {
-	input  string
-	result interface{}
+	input   string
+	result  interface{}
+	asserts func(require.TestingT, tally.TestScope)
 }
 
 func hello(ctx *common.Context) (string, error)         { return "hello", nil }
@@ -64,13 +67,14 @@ func TestCompile1(t *testing.T) {
 	)
 
 	tests := []testCompile{
-		{"", noopExpression{}},
-		{"foobar", newFetchExpression("foobar")},
+		{"", noopExpression{}, nil},
+		{"foobar", newFetchExpression("foobar"), nil},
 		{
 			"foo.bar.{a,b,c}.baz-*.stat[0-9]",
 			newFetchExpression("foo.bar.{a,b,c}.baz-*.stat[0-9]"),
+			nil,
 		},
-		{"noArgs()", &funcExpression{&functionCall{f: noArgs}}},
+		{"noArgs()", &funcExpression{&functionCall{f: noArgs}}, nil},
 		{"sortByName(foo.bar.zed)", &funcExpression{
 			&functionCall{
 				f: sortByName,
@@ -78,7 +82,7 @@ func TestCompile1(t *testing.T) {
 					newFetchExpression("foo.bar.zed"),
 				},
 			},
-		}},
+		}, nil},
 		{"aliasByNode(foo.bar4.*.metrics.written, 2, 4)", &funcExpression{
 			&functionCall{
 				f: aliasByNode,
@@ -88,7 +92,7 @@ func TestCompile1(t *testing.T) {
 					newIntConst(4),
 				},
 			},
-		}},
+		}, nil},
 		{"summarize(foo.bar.baz.quux, \"1h\", \"max\", TRUE)", &funcExpression{
 			&functionCall{
 				f: summarize,
@@ -99,7 +103,7 @@ func TestCompile1(t *testing.T) {
 					newBoolConst(true),
 				},
 			},
-		}},
+		}, nil},
 		{"summarize(foo.bar.baz.quuz, \"1h\")", &funcExpression{
 			&functionCall{
 				f: summarize,
@@ -110,7 +114,7 @@ func TestCompile1(t *testing.T) {
 					newBoolConst(false),
 				},
 			},
-		}},
+		}, nil},
 		{"defaultArgs(true)", &funcExpression{
 			&functionCall{
 				f: defaultArgs,
@@ -121,7 +125,7 @@ func TestCompile1(t *testing.T) {
 					newStringConst("foobar"),    // default value
 				},
 			},
-		}},
+		}, nil},
 		{"sortByName(aliasByNode(foo.bar72.*.metrics.written,2,4,6))", &funcExpression{
 			&functionCall{
 				f: sortByName,
@@ -137,7 +141,7 @@ func TestCompile1(t *testing.T) {
 					},
 				},
 			},
-		}},
+		}, nil},
 		{"sumSeries(foo.bar.baz.quux, foo.bar72.*.metrics.written)", &funcExpression{
 			&functionCall{
 				f: sumSeries,
@@ -146,7 +150,7 @@ func TestCompile1(t *testing.T) {
 					newFetchExpression("foo.bar72.*.metrics.written"),
 				},
 			},
-		}},
+		}, nil},
 		{"asPercent(foo.bar72.*.metrics.written, foo.bar.baz.quux)", &funcExpression{
 			&functionCall{
 				f: asPercent,
@@ -155,7 +159,7 @@ func TestCompile1(t *testing.T) {
 					newFetchExpression("foo.bar.baz.quux"),
 				},
 			},
-		}},
+		}, nil},
 		{"asPercent(foo.bar72.*.metrics.written, sumSeries(foo.bar.baz.quux))", &funcExpression{
 			&functionCall{
 				f: asPercent,
@@ -169,7 +173,7 @@ func TestCompile1(t *testing.T) {
 					},
 				},
 			},
-		}},
+		}, nil},
 		{"asPercent(foo.bar72.*.metrics.written, 100)", &funcExpression{
 			&functionCall{
 				f: asPercent,
@@ -178,7 +182,7 @@ func TestCompile1(t *testing.T) {
 					newIntConst(100),
 				},
 			},
-		}},
+		}, nil},
 		{"asPercent(foo.bar72.*.metrics.written)", &funcExpression{
 			&functionCall{
 				f: asPercent,
@@ -187,7 +191,7 @@ func TestCompile1(t *testing.T) {
 					newConstArg([]*ts.Series(nil)),
 				},
 			},
-		}},
+		}, nil},
 		{"asPercent(foo.bar72.*.metrics.written, total=sumSeries(foo.bar.baz.quux))", &funcExpression{
 			&functionCall{
 				f: asPercent,
@@ -201,7 +205,7 @@ func TestCompile1(t *testing.T) {
 					},
 				},
 			},
-		}},
+		}, nil},
 		{"asPercent(foo.bar72.*.metrics.written, total=100)", &funcExpression{
 			&functionCall{
 				f: asPercent,
@@ -210,7 +214,7 @@ func TestCompile1(t *testing.T) {
 					newIntConst(100),
 				},
 			},
-		}},
+		}, nil},
 		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1e+3)", &funcExpression{
 			&functionCall{
 				f: scale,
@@ -219,7 +223,7 @@ func TestCompile1(t *testing.T) {
 					newFloat64Const(1000),
 				},
 			},
-		}},
+		}, nil},
 		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1e-3)", &funcExpression{
 			&functionCall{
 				f: scale,
@@ -228,7 +232,7 @@ func TestCompile1(t *testing.T) {
 					newFloat64Const(0.001),
 				},
 			},
-		}},
+		}, nil},
 		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1e3)", &funcExpression{
 			&functionCall{
 				f: scale,
@@ -237,7 +241,7 @@ func TestCompile1(t *testing.T) {
 					newFloat64Const(1000),
 				},
 			},
-		}},
+		}, nil},
 		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.1e3)", &funcExpression{
 			&functionCall{
 				f: scale,
@@ -246,7 +250,7 @@ func TestCompile1(t *testing.T) {
 					newFloat64Const(1100),
 				},
 			},
-		}},
+		}, nil},
 		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.1e+3)", &funcExpression{
 			&functionCall{
 				f: scale,
@@ -255,7 +259,7 @@ func TestCompile1(t *testing.T) {
 					newFloat64Const(1100),
 				},
 			},
-		}},
+		}, nil},
 		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 1.2e-3)", &funcExpression{
 			&functionCall{
 				f: scale,
@@ -264,7 +268,7 @@ func TestCompile1(t *testing.T) {
 					newFloat64Const(0.0012),
 				},
 			},
-		}},
+		}, nil},
 		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, .1e+3)", &funcExpression{
 			&functionCall{
 				f: scale,
@@ -273,7 +277,7 @@ func TestCompile1(t *testing.T) {
 					newFloat64Const(100),
 				},
 			},
-		}},
+		}, nil},
 		{"scale(servers.foobar*-qaz.quail.qux-qaz-qab.cpu.*, 2.e+3)", &funcExpression{
 			&functionCall{
 				f: scale,
@@ -282,7 +286,7 @@ func TestCompile1(t *testing.T) {
 					newFloat64Const(2000),
 				},
 			},
-		}},
+		}, nil},
 		{"logarithm(a.b.c)", &funcExpression{
 			&functionCall{
 				f: logarithm,
@@ -291,7 +295,7 @@ func TestCompile1(t *testing.T) {
 					newFloat64Const(10),
 				},
 			},
-		}},
+		}, nil},
 		{"removeEmptySeries(a.b.c)", &funcExpression{
 			&functionCall{
 				f: removeEmptySeries,
@@ -300,7 +304,7 @@ func TestCompile1(t *testing.T) {
 					newFloat64Const(0),
 				},
 			},
-		}},
+		}, nil},
 		{"filterSeries(a.b.c, 'max', '>', 1000)", &funcExpression{
 			&functionCall{
 				f: filterSeries,
@@ -311,6 +315,21 @@ func TestCompile1(t *testing.T) {
 					newFloat64Const(1000),
 				},
 			},
+		}, nil},
+		{"movingAverage(foo.bar.baz, '10min', 0)", &funcExpression{
+			&functionCall{
+				f: findFunction("movingAverage"),
+				in: []funcArg{
+					newFetchExpression("foo.bar.baz"),
+					newStringConst("10min"),
+					newFloat64Const(0),
+				},
+			},
+		}, func(t require.TestingT, s tally.TestScope) {
+			c := s.Snapshot().Counters()
+			v, ok := c["function-call.optimized-shift-result-optimized+function=movingAverage"]
+			require.True(t, ok)
+			assert.Equal(t, int64(1), v.Value())
 		}},
 	}
 
@@ -324,7 +343,11 @@ func TestCompile1(t *testing.T) {
 	ctx.Engine = NewEngine(store, CompileOptions{})
 
 	for _, test := range tests {
-		expr, err := Compile(test.input, CompileOptions{})
+		scope := tally.NewTestScope("", nil)
+
+		expr, err := Compile(test.input, CompileOptions{
+			InstrumentOptions: instrument.NewOptions().SetMetricsScope(scope),
+		})
 		require.NoError(t, err, "error compiling: expression='%s', error='%v'", test.input, err)
 		require.NotNil(t, expr)
 		assertExprTree(t, test.result, expr, fmt.Sprintf("invalid result for %s: %v vs %v",
@@ -333,6 +356,11 @@ func TestCompile1(t *testing.T) {
 		// Ensure that the function can execute.
 		_, err = expr.Execute(ctx)
 		require.NoError(t, err)
+
+		// Run assertions.
+		if test.asserts != nil {
+			test.asserts(t, scope)
+		}
 	}
 }
 

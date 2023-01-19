@@ -144,6 +144,7 @@ func sortByMaxima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, er
 // the response time metric will be plotted only when the maximum value of the
 // corresponding request/s metric is > 10
 // Example: useSeriesAbove(ganglia.metric1.reqs,10,"reqs","time")
+//
 //nolint:govet,gocritic
 func useSeriesAbove(
 	ctx *common.Context,
@@ -529,7 +530,8 @@ func offset(ctx *common.Context, input singlePathSpec, factor float64) (ts.Serie
 
 // transform converts values in a timeseries according to the valueTransformer.
 func transform(ctx *common.Context, input singlePathSpec,
-	fname func(inputName string) string, fn common.TransformFunc) (ts.SeriesList, error) {
+	fname func(inputName string) string, fn common.TransformFunc,
+) (ts.SeriesList, error) {
 	t := common.NewStatelessTransformer(fn)
 	return common.Transform(ctx, ts.SeriesList(input), t, func(in *ts.Series) string {
 		return fname(in.Name())
@@ -686,7 +688,8 @@ func filterSeries(
 	input singlePathSpec,
 	aggregationFn string,
 	comparator string,
-	threshold float64) (ts.SeriesList, error) {
+	threshold float64,
+) (ts.SeriesList, error) {
 	comparatorFn, ok := comparatorFns[comparator]
 	if !ok {
 		return ts.SeriesList{}, xerrors.NewInvalidParamsError(fmt.Errorf("invalid comparator: %s", comparator))
@@ -720,7 +723,8 @@ func filterSeries(
 }
 
 func sustainedCompare(ctx *common.Context, input singlePathSpec, threshold float64, intervalString string,
-	comparisonFunction comparator, zeroValue float64, funcName string) (ts.SeriesList, error) {
+	comparisonFunction comparator, zeroValue float64, funcName string,
+) (ts.SeriesList, error) {
 	output := make([]*ts.Series, 0, len(input.Values))
 	interval, err := common.ParseInterval(intervalString)
 	if err != nil {
@@ -961,9 +965,13 @@ func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (wi
 
 // exponentialMovingAverage takes a series of values and a window size and produces
 // an exponential moving average utilizing the following formula:
-// 		ema(current) = constant * (Current Value) + (1 - constant) * ema(previous)
+//
+//	ema(current) = constant * (Current Value) + (1 - constant) * ema(previous)
+//
 // The `constant` is calculated as:
-// 		constant = 2 / (windowSize + 1)
+//
+//	constant = 2 / (windowSize + 1)
+//
 // the first period EMA uses a simple moving average for its value.
 func exponentialMovingAverage(
 	ctx *common.Context,
@@ -1428,7 +1436,8 @@ func group(_ *common.Context, input multiplePathSpecs) (ts.SeriesList, error) {
 }
 
 func derivativeTemplate(ctx *common.Context, input singlePathSpec, nameTemplate string,
-	fn func(float64, float64) float64) (ts.SeriesList, error) {
+	fn func(float64, float64) float64,
+) (ts.SeriesList, error) {
 	output := make([]*ts.Series, len(input.Values))
 	for i, in := range input.Values {
 		derivativeValues := ts.NewValues(ctx, in.MillisPerStep(), in.Len())
@@ -1455,7 +1464,8 @@ func derivativeTemplate(ctx *common.Context, input singlePathSpec, nameTemplate 
 }
 
 // integral shows the sum over time, sort of like a continuous addition function.
-//  Useful for finding totals or trends in metrics that are collected per minute.
+//
+//	Useful for finding totals or trends in metrics that are collected per minute.
 func integral(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) {
 	results := make([]*ts.Series, 0, len(input.Values))
 	for _, series := range input.Values {
@@ -2461,7 +2471,9 @@ func newMovingBinaryTransform(
 
 		// Create new child context.
 		opts := common.NewChildContextOptions()
-		opts.AdjustTimeRange(0, 0, interval, 0)
+		// Use conditional adjust time range function to record
+		// this was a conditionally adjusted shift (for stats tracking purposes).
+		opts.ConditionalAdjustTimeRange(0, 0, interval, 0)
 		// Be sure to use the original ctx to shift from (since
 		// recalculated the window size and need to shift from the
 		// original start time).
@@ -2828,6 +2840,27 @@ func threshold(ctx *common.Context, value float64, label string, color string) (
 	return ts.NewSeriesListWithSeries(series), nil
 }
 
+// optimizedShiftCheckEnabledIfWindowSizeString checks if the windowSize argument
+// is a duration (string) rather than a multiplier of the underlying metric
+// resolution (float64).
+// If it is a duration, then the function can be optimized to skip the initial
+// fetch of the underlying metric (since it's resolution does not need to be
+// considered to determine the window size).
+func optimizedShiftCheckEnabledIfWindowSizeString(
+	args []funcArg,
+) (optimizedShiftCheckResult, error) {
+	windowSizeArg := args[1]
+	switch windowSizeArg.Type() {
+	case stringType:
+		return optimizedShiftCheckResult{skipInitialFetch: true}, nil
+	case float64Type:
+		return optimizedShiftCheckResult{skipInitialFetch: false}, nil
+	default:
+		return optimizedShiftCheckResult{}, xerrors.NewInvalidParamsError(
+			errors.New("invalid windowSize: must be a string or a number"))
+	}
+}
+
 func init() {
 	// functions - in alpha ordering
 	MustRegisterFunction(absolute)
@@ -2872,7 +2905,7 @@ func init() {
 	MustRegisterFunction(divideSeriesLists)
 	MustRegisterFunction(exclude)
 	MustRegisterFunction(exponentialMovingAverage).
-		WithoutUnaryContextShifterSkipFetchOptimization()
+		WithOptimizedShiftCheck(optimizedShiftCheckEnabledIfWindowSizeString)
 	MustRegisterFunction(fallbackSeries)
 	MustRegisterFunction(filterSeries)
 	MustRegisterFunction(grep)
@@ -2925,33 +2958,33 @@ func init() {
 		WithDefaultParams(map[uint8]interface{}{
 			3: defaultXFilesFactor, // XFilesFactor
 		}).
-		WithoutUnaryContextShifterSkipFetchOptimization()
+		WithOptimizedShiftCheck(optimizedShiftCheckEnabledIfWindowSizeString)
 	MustRegisterFunction(movingMedian).
 		WithDefaultParams(map[uint8]interface{}{
 			3: defaultXFilesFactor, // XFilesFactor
 		}).
-		WithoutUnaryContextShifterSkipFetchOptimization()
+		WithOptimizedShiftCheck(optimizedShiftCheckEnabledIfWindowSizeString)
 	MustRegisterFunction(movingSum).
 		WithDefaultParams(map[uint8]interface{}{
 			3: defaultXFilesFactor, // XFilesFactor
 		}).
-		WithoutUnaryContextShifterSkipFetchOptimization()
+		WithOptimizedShiftCheck(optimizedShiftCheckEnabledIfWindowSizeString)
 	MustRegisterFunction(movingMax).
 		WithDefaultParams(map[uint8]interface{}{
 			3: defaultXFilesFactor, // XFilesFactor
 		}).
-		WithoutUnaryContextShifterSkipFetchOptimization()
+		WithOptimizedShiftCheck(optimizedShiftCheckEnabledIfWindowSizeString)
 	MustRegisterFunction(movingMin).
 		WithDefaultParams(map[uint8]interface{}{
 			3: defaultXFilesFactor, // XFilesFactor
 		}).
-		WithoutUnaryContextShifterSkipFetchOptimization()
+		WithOptimizedShiftCheck(optimizedShiftCheckEnabledIfWindowSizeString)
 	MustRegisterFunction(movingWindow).
 		WithDefaultParams(map[uint8]interface{}{
 			3: "avg",
 			4: defaultXFilesFactor, // XFilesFactor
 		}).
-		WithoutUnaryContextShifterSkipFetchOptimization()
+		WithOptimizedShiftCheck(optimizedShiftCheckEnabledIfWindowSizeString)
 	MustRegisterFunction(multiplySeries)
 	MustRegisterFunction(multiplySeriesWithWildcards).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // positions

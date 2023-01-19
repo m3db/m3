@@ -73,11 +73,15 @@ type renderHandler struct {
 }
 
 type renderHandlerMetrics struct {
-	queryShiftsHistogram tally.Histogram
+	queryShiftsConditional   tally.Counter
+	queryShiftsUnconditional tally.Counter
+	queryShiftsHistogram     tally.Histogram
 }
 
 func newRenderHandlerMetrics(scope tally.Scope) renderHandlerMetrics {
 	return renderHandlerMetrics{
+		queryShiftsConditional:   scope.Counter("query-shifts-conditional"),
+		queryShiftsUnconditional: scope.Counter("query-shifts-unconditional"),
 		queryShiftsHistogram: scope.Histogram("query-shifts-total-distribution", tally.ValueBuckets{
 			0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 24, 32, 48, 64, 128, 256,
 		}),
@@ -244,11 +248,15 @@ func (h *renderHandler) serveHTTP(
 		return err
 	}
 
-	shifts := ctx.TimeRangeAdjustmentsTotal()
-	h.metrics.queryShiftsHistogram.RecordValue(float64(shifts))
-	if shifts >= 2 && h.checkLogTimeShiftsTotalHighLogEvent() {
+	shiftStats := ctx.TimeRangeAdjustmentStats()
+	h.metrics.queryShiftsHistogram.RecordValue(float64(shiftStats.Total))
+	h.metrics.queryShiftsConditional.Inc(shiftStats.ConditionalAdjustments)
+	h.metrics.queryShiftsUnconditional.Inc(shiftStats.UnconditionalAdjustments)
+	if shiftStats.Total >= 2 && h.checkLogTimeShiftsTotalHighLogEvent() {
 		h.logger.Warn("query context time shift adjusted high number of times",
-			zap.Int64("shifts", shifts),
+			zap.Int64("shifts", shiftStats.Total),
+			zap.Int64("unconditionalShifts", shiftStats.UnconditionalAdjustments),
+			zap.Int64("conditionalShifts", shiftStats.ConditionalAdjustments),
 			zap.Strings("queries", p.Targets))
 	}
 
