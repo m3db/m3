@@ -156,6 +156,7 @@ func (t *dynamicTopology) run() {
 		}
 
 		m, err := getMapFromUpdate(t.watch.Get(), t.hashGen)
+		t.logger.Info("dynamic topology received update")
 		if err != nil {
 			t.logger.Warn("dynamic topology received invalid update", zap.Error(err))
 			continue
@@ -201,6 +202,19 @@ func (t *dynamicTopology) MarkShardsAvailable(
 	}
 	_, err = ps.MarkShardsAvailable(instanceID, shardIDs...)
 	return err
+}
+
+func (t *dynamicTopology) getParentHost(
+	instanceID string,
+	shardID uint32,
+) (placement.Instance, error) {
+	opts := placement.NewOptions()
+	ps, err := t.services.PlacementService(t.opts.ServiceID(), opts)
+	if err != nil {
+		return nil, err
+	}
+	instance, err := ps.GetParentHost(instanceID, shardID)
+	return instance, nil
 }
 
 func getMapFromUpdate(data interface{}, hashGen sharding.HashGen) (Map, error) {

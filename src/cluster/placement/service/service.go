@@ -327,6 +327,18 @@ func (ps *placementServiceImpl) MarkShardsAvailable(instanceID string, shardIDs 
 	return ps.store.CheckAndSet(tempPlacement, curPlacement.Version())
 }
 
+func (ps *placementServiceImpl) GetParentHost(instanceID string, shardID uint32) (placement.Instance, error) {
+	curPlacement, err := ps.store.Placement()
+	if err != nil {
+		return nil, err
+	}
+	instance, err := placement.GetParentInstance(curPlacement, instanceID, shardID)
+	if err != nil {
+		return nil, err
+	}
+	return instance, nil
+}
+
 func (ps *placementServiceImpl) MarkInstanceAvailable(instanceID string) (placement.Placement, error) {
 	curPlacement, err := ps.store.Placement()
 	if err != nil {

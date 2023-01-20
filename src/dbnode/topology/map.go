@@ -31,6 +31,7 @@ type staticMap struct {
 	shardSet                 sharding.ShardSet
 	hostShardSets            []HostShardSet
 	hostShardSetsByID        map[string]HostShardSet
+	parentHostMap            map[string]map[ShardID]Host
 	orderedHosts             []Host
 	hostsByShard             [][]Host
 	orderedShardHostsByShard [][]orderedShardHost
@@ -46,6 +47,7 @@ func NewStaticMap(opts StaticOptions) Map {
 		shardSet:                 opts.ShardSet(),
 		hostShardSets:            hostShardSets,
 		hostShardSetsByID:        make(map[string]HostShardSet),
+		parentHostMap:            make(map[string]map[ShardID]Host),
 		orderedHosts:             make([]Host, 0, len(hostShardSets)),
 		hostsByShard:             make([][]Host, totalShards),
 		orderedShardHostsByShard: make([][]orderedShardHost, totalShards),
@@ -90,6 +92,15 @@ func (t *staticMap) HostShardSets() []HostShardSet {
 func (t *staticMap) LookupHostShardSet(id string) (HostShardSet, bool) {
 	value, ok := t.hostShardSetsByID[id]
 	return value, ok
+}
+
+func (t *staticMap) LookupParentHost(hostID string, id ShardID) (Host, bool) {
+	value, ok := t.parentHostMap[hostID]
+	if !ok {
+		return nil, false
+	}
+	parentHost, ok := value[id]
+	return parentHost, ok
 }
 
 func (t *staticMap) HostsLen() int {

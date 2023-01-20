@@ -465,13 +465,13 @@ type Service interface {
 // a local copy of a placement without persisting anything to backing storage. This can be useful
 // to apply multiple placement operations in a row before persisting them, e.g.:
 //
-// func DoMultipleOps(opts placement.Options, store placement.Storage) {
-//    curPlacement := store.Placement()
-//    op := placement.NewOperator(curPlacement, opts)
-//    op.ReplaceInstances(...)
-//    op.MarkAllShardsAvailable()
-//    store.CheckAndSet(op.Placement())
-// }
+//	func DoMultipleOps(opts placement.Options, store placement.Storage) {
+//	   curPlacement := store.Placement()
+//	   op := placement.NewOperator(curPlacement, opts)
+//	   op.ReplaceInstances(...)
+//	   op.MarkAllShardsAvailable()
+//	   store.CheckAndSet(op.Placement())
+//	}
 type Operator interface {
 	operations
 
@@ -503,6 +503,9 @@ type operations interface {
 		usedInstances []Instance,
 		err error,
 	)
+
+	//// GetParentHost returns the parent instance from which this shard in current instance is copying from if this shard is in initializing.
+	GetParentHost(instanceID string, shardID uint32) (Instance, error)
 
 	// MarkShardsAvailable marks given shards as available.
 	MarkShardsAvailable(instanceID string, shardIDs ...uint32) (Placement, error)

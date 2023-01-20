@@ -106,6 +106,9 @@ type Map interface {
 	// LookupHostShardSet returns a HostShardSet for a host in the map
 	LookupHostShardSet(hostID string) (HostShardSet, bool)
 
+	// LookupParentHost returns a parent host for this shard if this shard is in initializing.
+	LookupParentHost(hostID string, id ShardID) (Host, bool)
+
 	// HostsLen returns the length of all hosts in the map
 	HostsLen() int
 

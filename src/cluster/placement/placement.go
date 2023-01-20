@@ -242,6 +242,36 @@ func (p *placement) Clone() Placement {
 		SetVersion(p.Version())
 }
 
+func GetParentInstance(p Placement, instanceID string, shardID uint32) (Instance, error) {
+
+	instance, exist := p.Instance(instanceID)
+	if !exist {
+		return nil, fmt.Errorf("instance %s does not exist in placement", instanceID)
+	}
+	s, exist := instance.Shards().Shard(shardID)
+	if !exist {
+		return nil, fmt.Errorf("shard %s does not exist in instance %s", shardID, instanceID)
+	}
+
+	switch s.State() {
+	case shard.Available:
+		return nil, fmt.Errorf("shard %s is already in Available", shardID)
+	case shard.Initializing:
+		if sourceID := s.SourceID(); sourceID != "" {
+			instance, ok := p.Instance(sourceID)
+			if !ok {
+				return nil, fmt.Errorf("no instance %s found", sourceID)
+			}
+			return instance, nil
+		}
+	case shard.Leaving:
+		return nil, fmt.Errorf("shard %s is in Leaving and can't have parent", shardID)
+	default:
+		return nil, fmt.Errorf("invalid shard state %v for shard %d", s.State(), s.ID())
+	}
+	return nil, nil
+}
+
 // Validate validates a placement to ensure:
 // - The shards on each instance are in valid state.
 // - The total number of shards match rf * num_shards_per_replica.

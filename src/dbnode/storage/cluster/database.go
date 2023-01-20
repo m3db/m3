@@ -167,8 +167,8 @@ func (d *clusterDB) Close() error {
 // it is safe to continue a deploy or performing topology changes. In that case,
 // we only need to determine two things:
 //
-//     1. Is the node bootstrapped?
-//     2. Are all of its shards available?
+//  1. Is the node bootstrapped?
+//  2. Are all of its shards available?
 //
 // If so, then the node has finished bootstrapping and will be able to recover
 // all of its data (assuming the default bootstrapper configuration of
@@ -433,7 +433,7 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 			zap.Uint32s("shards", markAvailable), zap.Error(err))
 		return
 	}
-
+	// Replace-node: clear the entry here
 	d.log.Info("cluster db successfully marked shards as available",
 		zap.Uint32s("shards", markAvailable))
 }
