@@ -88,6 +88,26 @@ func TestEmptyTagsFilterMatches(t *testing.T) {
 	require.True(t, matches)
 }
 
+func TestNonexistTagsFilterMatches(t *testing.T) {
+	filters := map[string]FilterValue{
+		"tagName1": FilterValue{Pattern: "tagValue1"},
+		"tagName2": FilterValue{Pattern: "*"},
+	}
+	f, err := NewTagsFilter(filters, Conjunction, testTagsFilterOptions())
+	inputs := []mockFilterData{
+		{val: "tagName1=tagValue1,tagName2=abc", match: true},
+		{val: "tagName1=tagValue1", match: false},
+		{val: "tagName1=oooo,tagName2=tagValue2", match: false},
+		{val: "tagName0=tagValue0,tagName1=tagValue1,tagName2=tagValue2,tagName3=tagValue3", match: true},
+	}
+	require.NoError(t, err)
+	for _, input := range inputs {
+		matches, err := f.Matches([]byte(input.val), testTagsMatchOptions())
+		require.NoError(t, err)
+		require.Equal(t, input.match, matches)
+	}
+}
+
 func TestTagsFilterMatchesNoNameTag(t *testing.T) {
 	filters := map[string]FilterValue{
 		"tagName1": FilterValue{Pattern: "tagValue1"},
