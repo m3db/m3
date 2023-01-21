@@ -22,6 +22,7 @@ package common
 
 import (
 	ctx "context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -33,6 +34,12 @@ import (
 // can safely copy a context without violating the rules of go vet.
 // nolint
 type contextBase struct {
+	// QueryRaw string.
+	QueryRaw string
+
+	// QueryExpression is the top level query expression.
+	QueryExpression fmt.Stringer
+
 	// TimeRangeAdjusted is a boolean indicating whether the time range has an adjustment.
 	TimeRangeAdjusted bool
 
@@ -116,6 +123,11 @@ func (c *Context) TracingEnabled() bool { return c.Trace != nil }
 
 // ChildContextOptions is a set of options to pass when creating a child context.
 type ChildContextOptions struct {
+	query struct {
+		set        bool
+		raw        string
+		expression fmt.Stringer
+	}
 	adjustment struct {
 		adjusted              bool
 		conditionallyAdjusted bool
@@ -129,6 +141,18 @@ type ChildContextOptions struct {
 // NewChildContextOptions returns an initialized ChildContextOptions struct.
 func NewChildContextOptions() ChildContextOptions {
 	return ChildContextOptions{}
+}
+
+// NewChildContextOptions returns an initialized ChildContextOptions struct.
+func NewChildContextOptionsWithQuery(
+	query string,
+	expr fmt.Stringer,
+) ChildContextOptions {
+	opts := ChildContextOptions{}
+	opts.query.set = true
+	opts.query.raw = query
+	opts.query.expression = expr
+	return opts
 }
 
 // AdjustTimeRange will adjust the child context's time range.
@@ -197,6 +221,11 @@ func (c *Context) NewChildContext(opts ChildContextOptions) *Context {
 			topContext.timeRangeAdjustmentStats.UnconditionalAdjustments++
 		}
 		topContext.Unlock()
+	}
+
+	if opts.query.set {
+		child.QueryRaw = opts.query.raw
+		child.QueryExpression = opts.query.expression
 	}
 
 	child.reqCtx = c.reqCtx

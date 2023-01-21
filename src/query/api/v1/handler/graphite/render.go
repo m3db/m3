@@ -163,7 +163,7 @@ func (h *renderHandler) serveHTTP(
 	for i, target := range p.Targets {
 		i, target := i, target
 		go func() {
-			childCtx := ctx.NewChildContext(common.NewChildContextOptions())
+			var childCtx *common.Context
 			defer func() {
 				if err := recover(); err != nil {
 					// Allow recover from panic.
@@ -176,7 +176,9 @@ func (h *renderHandler) serveHTTP(
 						})))
 					logger.Error("panic captured", zap.Any("stack", err))
 				}
-				_ = childCtx.Close()
+				if childCtx != nil {
+					_ = childCtx.Close()
+				}
 				wg.Done()
 			}()
 
@@ -186,6 +188,9 @@ func (h *renderHandler) serveHTTP(
 					fmt.Errorf("invalid 'target': %s => %s", target, err)))
 				return
 			}
+
+			childCtxOpts := common.NewChildContextOptionsWithQuery(target, exp)
+			childCtx = ctx.NewChildContext(childCtxOpts)
 
 			targetSeries, err := exp.Execute(childCtx)
 			if err != nil {

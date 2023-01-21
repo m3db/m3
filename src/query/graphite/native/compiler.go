@@ -192,7 +192,7 @@ func (c *compiler) compileExpression() (Expression, error) {
 }
 
 func (c *compiler) compileFetchExpression(token string) *fetchExpression {
-	expr := newFetchExpression(token)
+	expr := newFetchExpression(token).withInstrumentOpts(c.instrumentOpts)
 	c.fetches = append(c.fetches, expr)
 	return expr
 }

@@ -24,18 +24,20 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
+
+	"github.com/m3db/m3/src/x/instrument"
+	"github.com/uber-go/tally"
 )
 
-var (
-	errTopLevelFunctionMustReturnTimeSeries = xerrors.NewInvalidParamsError(
-		errors.New("top-level functions must return timeseries data"))
-)
+var errTopLevelFunctionMustReturnTimeSeries = xerrors.NewInvalidParamsError(
+	errors.New("top-level functions must return timeseries data"))
 
 // An Expression is a metric query expression
 type Expression interface {
@@ -51,6 +53,8 @@ type CallASTNode interface {
 	// Arguments describe each argument that the call has, some
 	// arguments that can either be a call or path expression.
 	Arguments() []ASTNode
+	// String is the pretty printed format.
+	String() string
 }
 
 // ASTNode is an interface to help with printing the AST.
@@ -68,7 +72,8 @@ type ASTNode interface {
 // A fetchExpression is an expression that fetches a bunch of data from storage based on a path expression
 type fetchExpression struct {
 	// The path expression to fetch
-	pathArg fetchExpressionPathArg
+	pathArg        fetchExpressionPathArg
+	instrumentOpts instrument.Options
 }
 
 type fetchExpressionPathArg struct {
@@ -90,6 +95,20 @@ func (a fetchExpressionPathArg) String() string {
 // newFetchExpression creates a new fetch expression for a single path
 func newFetchExpression(path string) *fetchExpression {
 	return &fetchExpression{pathArg: fetchExpressionPathArg{path: path}}
+}
+
+func (f *fetchExpression) withInstrumentOpts(
+	opts instrument.Options,
+) *fetchExpression {
+	f.instrumentOpts = opts
+	return f
+}
+
+func (f *fetchExpression) metricsScope() tally.Scope {
+	if f.instrumentOpts == nil {
+		return tally.NoopScope
+	}
+	return f.instrumentOpts.MetricsScope().SubScope("fetch-expression")
 }
 
 func (f *fetchExpression) Name() string {
@@ -119,6 +138,27 @@ func (f *fetchExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 			Timeout: ctx.Timeout,
 		},
 		QueryFetchOpts: ctx.FetchOpts,
+	}
+
+	scope := f.metricsScope()
+	if ctx.QueryRaw == "" || ctx.QueryExpression == nil {
+		scope.Counter("query-missing").Inc(1)
+	} else if strings.Contains(ctx.QueryRaw, "sum") && strings.Contains(ctx.QueryRaw, "divide") {
+		// Use pretty printed canonical version of query since sum and divide have aliased names
+		// so make sure is definitely a sumseries and a divideseries query.
+		queryExpr := ctx.QueryExpression.String()
+		if strings.Contains(ctx.QueryRaw, "sumSeries") && strings.Contains(ctx.QueryRaw, "divideSeries") {
+			scope.Tagged(map[string]string{
+				// Use pretty printend canonical version of query in metric tag
+				// since will be really high cardinality if same versions of the query is sent
+				// but with slightly different formatting.
+				"query_expression": queryExpr,
+			}).Counter("query-with-sumseries-divideseries").Inc(1)
+		} else {
+			scope.Counter("query-without-sumseries-divideseries").Inc(1)
+		}
+	} else {
+		scope.Counter("query-without-sumseries-divideseries").Inc(1)
 	}
 
 	result, err := ctx.Engine.FetchByQuery(ctx, f.pathArg.path, opts)
