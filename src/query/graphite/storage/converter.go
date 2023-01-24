@@ -32,7 +32,7 @@ const (
 func convertMetricPartToMatcher(
 	count int,
 	metric string,
-) (models.Matcher, error) {
+) (models.Matcher, bool, error) {
 	var matchType models.MatchType
 	if metric == wildcard {
 		if count == 0 {
@@ -46,17 +46,17 @@ func convertMetricPartToMatcher(
 				Type:  models.MatchRegexp,
 				Name:  graphite.TagName(count),
 				Value: []byte(".*"),
-			}, nil
+			}, true, nil
 		}
 		return models.Matcher{
 			Type: models.MatchField,
 			Name: graphite.TagName(count),
-		}, nil
+		}, true, nil
 	}
 
 	value, isRegex, err := graphite.GlobToRegexPattern(metric)
 	if err != nil {
-		return models.Matcher{}, err
+		return models.Matcher{}, false, err
 	}
 
 	if isRegex {
@@ -69,7 +69,7 @@ func convertMetricPartToMatcher(
 		Type:  matchType,
 		Name:  graphite.TagName(count),
 		Value: value,
-	}, nil
+	}, isRegex, nil
 }
 
 func matcherTerminator(count int) models.Matcher {

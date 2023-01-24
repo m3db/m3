@@ -39,7 +39,7 @@ func TestConvertMetricPartToMatcher(t *testing.T) {
 			Value: []byte(`foo[^\.]*bar[rz][^\.]*(qux|quail)`),
 		}
 
-		actual, err := convertMetricPartToMatcher(i, globAndRegex)
+		actual, _, err := convertMetricPartToMatcher(i, globAndRegex)
 		require.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	}
@@ -60,7 +60,7 @@ func TestConvertWildcardToMatcher(t *testing.T) {
 			}
 		}
 
-		actual, err := convertMetricPartToMatcher(i, metric)
+		actual, _, err := convertMetricPartToMatcher(i, metric)
 		require.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	}
@@ -74,7 +74,7 @@ func TestConvertAlphanumericMetricPartToMatcher(t *testing.T) {
 		Value: []byte("abcdefg"),
 	}
 
-	actual, err := convertMetricPartToMatcher(0, metric)
+	actual, _, err := convertMetricPartToMatcher(0, metric)
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual)
 }

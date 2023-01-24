@@ -168,12 +168,13 @@ func parseFindParamsToQueries(
 		return terminatedQuery, childQuery, query, nil
 	}
 
-	matchers, queryType, err := graphitestorage.TranslateQueryToMatchersWithTerminator(query)
+	matchers, translateRes, err := graphitestorage.TranslateQueryToMatchersWithTerminator(query)
 	if err != nil {
 		return nil, nil, "",
 			xerrors.NewInvalidParamsError(fmt.Errorf("invalid 'query': %s", query))
 	}
 
+	queryType := translateRes.QueryType
 	switch queryType {
 	case graphitestorage.StarStarUnterminatedTranslatedQuery:
 		// Translated query for "**" has unterminated search for children

@@ -3974,7 +3974,7 @@ func TestMovingMedian(t *testing.T) {
 	stepSize := 60000
 	target := "movingMedian(foo.bar.q.zed, '1min')"
 	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		buildTestSeriesFn(stepSize, "foo.bar.q.zed")).Times(2)
+		buildTestSeriesFn(stepSize, "foo.bar.q.zed"))
 	expr, err := engine.Compile(target)
 	require.NoError(t, err)
 	res, err := expr.Execute(ctx)

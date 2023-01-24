@@ -570,6 +570,19 @@ func (call *functionCall) CallExpression() (CallASTNode, bool) {
 	return call, true
 }
 
+func (call *functionCall) ReplaceArguments(args []ASTNode) error {
+	newArgs := make([]funcArg, 0, len(args))
+	for _, arg := range args {
+		fnArg, ok := arg.(funcArg)
+		if !ok {
+			return fmt.Errorf("invalid argument type: %T", arg)
+		}
+		newArgs = append(newArgs, fnArg)
+	}
+	call.in = newArgs
+	return nil
+}
+
 // Evaluate evaluates the function call and returns the result as a reflect.Value
 func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 	scope := call.instrumentOpts.MetricsScope()

@@ -45,10 +45,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	// alloc once so default pools are created just once
-	testM3DBOpts = m3.NewOptions(encoding.NewOptions())
-)
+// alloc once so default pools are created just once
+var testM3DBOpts = m3.NewOptions(encoding.NewOptions())
 
 func TestTranslateQuery(t *testing.T) {
 	query := `foo.ba[rz].q*x.terminator.will.be.*.back?`
@@ -106,6 +104,41 @@ func TestTranslateQueryStarStar(t *testing.T) {
 	expected := models.Matchers{
 		{Type: models.MatchRegexp, Name: graphite.TagName(0), Value: []byte(".*")},
 		{Type: models.MatchRegexp, Name: doc.IDReservedFieldName, Value: []byte("foo.*bar")},
+	}
+
+	assert.Equal(t, expected, matchers)
+}
+
+func TestTranslateQueryPathConjunction(t *testing.T) {
+	query := `{foo.bar,foo.baz,foo.qux}`
+	end := time.Now()
+	start := end.Add(time.Hour * -2)
+	opts := FetchOptions{
+		StartTime: start,
+		EndTime:   end,
+		DataOptions: DataOptions{
+			Timeout: time.Minute,
+		},
+	}
+
+	translated, err := translateQuery(query, opts, M3WrappedStorageOptions{})
+	assert.NoError(t, err)
+	assert.Equal(t, end, translated.End)
+	assert.Equal(t, start, translated.Start)
+	assert.Equal(t, time.Duration(0), translated.Interval)
+	assert.Equal(t, query, translated.Raw)
+	matchers := translated.TagMatchers
+	expected := models.Matchers{
+		{
+			Type:  models.MatchRegexp,
+			Name:  graphite.TagName(0),
+			Value: []byte(".*"),
+		},
+		{
+			Type:  models.MatchRegexp,
+			Name:  doc.IDReservedFieldName,
+			Value: []byte(`^(foo\.+bar|foo\.+baz|foo\.+qux)$`),
+		},
 	}
 
 	assert.Equal(t, expected, matchers)
@@ -277,8 +310,8 @@ func TestFetchByInvalidQuery(t *testing.T) {
 func TestTruncateBoundsToResolution(t *testing.T) {
 	var (
 		resolution    = 60 * time.Second
-		expectedStart = xtime.ToUnixNano(time.Date(2020, time.October, 8, 30, 51, 00, 0, time.UTC))
-		expectedEnd   = xtime.ToUnixNano(time.Date(2020, time.October, 8, 30, 56, 00, 0, time.UTC))
+		expectedStart = xtime.ToUnixNano(time.Date(2020, time.October, 8, 30, 51, 0o0, 0, time.UTC))
+		expectedEnd   = xtime.ToUnixNano(time.Date(2020, time.October, 8, 30, 56, 0o0, 0, time.UTC))
 		opts          = truncateBoundsToResolutionOptions{
 			shiftStepsStartWhenAtResolutionBoundary:    intRefValue(1),
 			shiftStepsEndWhenAtResolutionBoundary:      intRefValue(1),
@@ -288,22 +321,21 @@ func TestTruncateBoundsToResolution(t *testing.T) {
 			start time.Time
 			end   time.Time
 		}{
-
 			{
-				start: time.Date(2020, time.October, 8, 30, 50, 00, 0, time.UTC),
-				end:   time.Date(2020, time.October, 8, 30, 55, 00, 0, time.UTC),
+				start: time.Date(2020, time.October, 8, 30, 50, 0o0, 0, time.UTC),
+				end:   time.Date(2020, time.October, 8, 30, 55, 0o0, 0, time.UTC),
 			},
 
 			{
-				start: time.Date(2020, time.October, 8, 30, 50, 00, 0, time.UTC),
+				start: time.Date(2020, time.October, 8, 30, 50, 0o0, 0, time.UTC),
 				end:   time.Date(2020, time.October, 8, 30, 55, 39, 0, time.UTC),
 			},
 			{
 				start: time.Date(2020, time.October, 8, 30, 50, 12, 0, time.UTC),
-				end:   time.Date(2020, time.October, 8, 30, 55, 00, 0, time.UTC),
+				end:   time.Date(2020, time.October, 8, 30, 55, 0o0, 0, time.UTC),
 			},
 			{
-				start: time.Date(2020, time.October, 8, 30, 50, 00, 0, time.UTC),
+				start: time.Date(2020, time.October, 8, 30, 50, 0o0, 0, time.UTC),
 				end:   time.Date(2020, time.October, 8, 30, 55, 39, 0, time.UTC),
 			},
 		}
@@ -343,7 +375,7 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 		{
 			name:                  "default behavior",
 			start:                 time.Date(2020, time.October, 8, 15, 0, 12, 0, time.UTC),
-			end:                   time.Date(2020, time.October, 8, 15, 05, 00, 0, time.UTC),
+			end:                   time.Date(2020, time.October, 8, 15, 0o5, 0o0, 0, time.UTC),
 			numDataPointsFetched:  7,
 			numDataPointsExpected: 4,
 			expectedStart:         time.Date(2020, time.October, 8, 15, 1, 0, 0, time.UTC),
@@ -352,7 +384,7 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 		{
 			name:                  "render partial start and end",
 			start:                 time.Date(2020, time.October, 8, 15, 0, 12, 0, time.UTC),
-			end:                   time.Date(2020, time.October, 8, 15, 05, 00, 0, time.UTC),
+			end:                   time.Date(2020, time.October, 8, 15, 0o5, 0o0, 0, time.UTC),
 			renderPartialStart:    true,
 			renderPartialEnd:      true,
 			numDataPointsFetched:  7,
@@ -362,8 +394,8 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 		},
 		{
 			name:                  "render just end",
-			start:                 time.Date(2020, time.October, 8, 15, 0, 00, 0, time.UTC),
-			end:                   time.Date(2020, time.October, 8, 15, 05, 27, 0, time.UTC),
+			start:                 time.Date(2020, time.October, 8, 15, 0, 0o0, 0, time.UTC),
+			end:                   time.Date(2020, time.October, 8, 15, 0o5, 27, 0, time.UTC),
 			renderPartialEnd:      true,
 			numDataPointsFetched:  7,
 			numDataPointsExpected: 6,
@@ -373,7 +405,7 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 		{
 			name:                  "no render partial, not truncated by resolution",
 			start:                 time.Date(2020, time.October, 8, 15, 0, 12, 0, time.UTC),
-			end:                   time.Date(2020, time.October, 8, 15, 05, 27, 0, time.UTC),
+			end:                   time.Date(2020, time.October, 8, 15, 0o5, 27, 0, time.UTC),
 			numDataPointsFetched:  25,
 			numDataPointsExpected: 5,
 			expectedStart:         time.Date(2020, time.October, 8, 15, 1, 0, 0, time.UTC),
@@ -382,7 +414,7 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 		{
 			name:                  "no render partial, truncated start by resolution",
 			start:                 time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
-			end:                   time.Date(2020, time.October, 8, 15, 05, 0, 0, time.UTC),
+			end:                   time.Date(2020, time.October, 8, 15, 0o5, 0, 0, time.UTC),
 			numDataPointsFetched:  25,
 			numDataPointsExpected: 5,
 			expectedStart:         time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
@@ -391,7 +423,7 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 		{
 			name:                  "constant shift start and end",
 			start:                 time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
-			end:                   time.Date(2020, time.October, 8, 15, 05, 5, 0, time.UTC),
+			end:                   time.Date(2020, time.October, 8, 15, 0o5, 5, 0, time.UTC),
 			shiftStepsStart:       1,
 			shiftStepsEnd:         1,
 			numDataPointsFetched:  25,
@@ -402,7 +434,7 @@ func TestTranslateTimeseriesWithTruncateBoundsToResolutionOptions(t *testing.T) 
 		{
 			name:                                    "constant shift start and end + boundary shift start and end with start at boundary",
 			start:                                   time.Date(2020, time.October, 8, 15, 0, 0, 0, time.UTC),
-			end:                                     time.Date(2020, time.October, 8, 15, 05, 05, 0, time.UTC),
+			end:                                     time.Date(2020, time.October, 8, 15, 0o5, 0o5, 0, time.UTC),
 			shiftStepsStart:                         1,
 			shiftStepsEnd:                           1,
 			shiftStepsStartWhenAtResolutionBoundary: intRefValue(2),

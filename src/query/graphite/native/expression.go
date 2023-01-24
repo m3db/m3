@@ -23,6 +23,7 @@ package native
 import (
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -53,6 +54,8 @@ type CallASTNode interface {
 	// Arguments describe each argument that the call has, some
 	// arguments that can either be a call or path expression.
 	Arguments() []ASTNode
+	// ReplaceArguments replaces the call's arguments with the given arguments.
+	ReplaceArguments(args []ASTNode) error
 	// String is the pretty printed format.
 	String() string
 }
@@ -119,6 +122,10 @@ func (f *fetchExpression) Arguments() []ASTNode {
 	return []ASTNode{f.pathArg}
 }
 
+func (f *fetchExpression) ReplaceArguments(args []ASTNode) error {
+	return fmt.Errorf("cannot replace arguments on fetch expression")
+}
+
 func (f *fetchExpression) PathExpression() (string, bool) {
 	return "", false
 }
@@ -141,24 +148,28 @@ func (f *fetchExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 	}
 
 	scope := f.metricsScope()
-	if ctx.QueryRaw == "" || ctx.QueryExpression == nil {
-		scope.Counter("query-missing").Inc(1)
-	} else if strings.Contains(ctx.QueryRaw, "sum") && strings.Contains(ctx.QueryRaw, "divide") {
-		// Use pretty printed canonical version of query since sum and divide have aliased names
-		// so make sure is definitely a sumseries and a divideseries query.
-		queryExpr := ctx.QueryExpression.String()
-		if strings.Contains(ctx.QueryRaw, "sumSeries") && strings.Contains(ctx.QueryRaw, "divideSeries") {
-			scope.Tagged(map[string]string{
-				// Use pretty printend canonical version of query in metric tag
-				// since will be really high cardinality if same versions of the query is sent
-				// but with slightly different formatting.
-				"query_expression": queryExpr,
-			}).Counter("query-with-sumseries-divideseries").Inc(1)
+	scope.Counter("execute-fetch").Inc(1)
+
+	if os.Getenv("M3_GRAPHITE_METRICS_ENABLE_DETAILED_FETCH_BREAKDOWN") == "true" {
+		if ctx.QueryRaw == "" || ctx.QueryExpression == nil {
+			scope.Counter("query-missing").Inc(1)
+		} else if strings.Contains(ctx.QueryRaw, "sum") && strings.Contains(ctx.QueryRaw, "divide") {
+			// Use pretty printed canonical version of query since sum and divide have aliased names
+			// so make sure is definitely a sumseries and a divideseries query.
+			queryExpr := ctx.QueryExpression.String()
+			if strings.Contains(ctx.QueryRaw, "sumSeries") && strings.Contains(ctx.QueryRaw, "divideSeries") {
+				scope.Tagged(map[string]string{
+					// Use pretty printend canonical version of query in metric tag
+					// since will be really high cardinality if same versions of the query is sent
+					// but with slightly different formatting.
+					"query_expression": queryExpr,
+				}).Counter("query-with-sumseries-divideseries").Inc(1)
+			} else {
+				scope.Counter("query-without-sumseries-divideseries").Inc(1)
+			}
 		} else {
 			scope.Counter("query-without-sumseries-divideseries").Inc(1)
 		}
-	} else {
-		scope.Counter("query-without-sumseries-divideseries").Inc(1)
 	}
 
 	result, err := ctx.Engine.FetchByQuery(ctx, f.pathArg.path, opts)
@@ -230,6 +241,10 @@ func (f *funcExpression) Arguments() []ASTNode {
 	return f.call.Arguments()
 }
 
+func (f *funcExpression) ReplaceArguments(args []ASTNode) error {
+	return f.call.ReplaceArguments(args)
+}
+
 // Execute evaluates the function and returns the result as a timeseries
 func (f *funcExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 	out, err := f.call.Evaluate(ctx)
@@ -258,6 +273,10 @@ func (noop noopExpression) Name() string {
 
 func (noop noopExpression) Arguments() []ASTNode {
 	return nil
+}
+
+func (noop noopExpression) ReplaceArguments(args []ASTNode) error {
+	return fmt.Errorf("cannot replace arguments on fetch expression")
 }
 
 func (noop noopExpression) String() string {

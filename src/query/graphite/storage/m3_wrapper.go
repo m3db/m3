@@ -94,6 +94,11 @@ func NewM3WrappedStorage(
 	}
 }
 
+type TranslatedQueryResult struct {
+	QueryType TranslatedQueryType
+	Regexed   bool
+}
+
 // TranslatedQueryType describes a translated query type.
 type TranslatedQueryType uint
 
@@ -105,18 +110,51 @@ const (
 	// an explicit leaf node since it matches indefinite child nodes due to
 	// a "**" in the query which matches indefinited child nodes.
 	StarStarUnterminatedTranslatedQuery
+	// PathConjunctionTranslatedQuery is a query that is a conjunction of
+	// of exact paths (with no regexes contained within each path).
+	PathConjunctionTranslatedQuery
 )
 
 // TranslateQueryToMatchersWithTerminator converts a graphite query to tag
 // matcher pairs, and adds a terminator matcher to the end.
 func TranslateQueryToMatchersWithTerminator(
 	query string,
-) (models.Matchers, TranslatedQueryType, error) {
+) (models.Matchers, TranslatedQueryResult, error) {
+	// Normalize query (so can check for chars at start or end of query).
+	query = strings.TrimSpace(query)
+
+	// Check if doing ID regexp. i.e. {foo.bar,foo.baz,foo.qux}
+	if strings.HasPrefix(query, "{") && strings.HasSuffix(query, "}") {
+		// First add matcher to ensure it's a graphite metric with __g0__ tag.
+		hasFirstPathMatcher, _, err := convertMetricPartToMatcher(0, wildcard)
+		if err != nil {
+			return nil, TranslatedQueryResult{}, err
+		}
+		// Regexp on the ID.
+		idRegexp, _, err := graphite.GlobToRegexPattern(query)
+		if err != nil {
+			return nil, TranslatedQueryResult{}, err
+		}
+		// Make sure to anchor the resulting regexp since it's on entire ID.
+		return models.Matchers{
+				hasFirstPathMatcher,
+				models.Matcher{
+					Type:  models.MatchRegexp,
+					Name:  doc.IDReservedFieldName,
+					Value: []byte(fmt.Sprintf("^%s$", idRegexp)),
+				},
+			}, TranslatedQueryResult{
+				QueryType: PathConjunctionTranslatedQuery,
+				Regexed:   true,
+			}, nil
+	}
+
+	// Check if using star-star.
 	if strings.Contains(query, "**") {
 		// First add matcher to ensure it's a graphite metric with __g0__ tag.
-		hasFirstPathMatcher, err := convertMetricPartToMatcher(0, wildcard)
+		hasFirstPathMatcher, _, err := convertMetricPartToMatcher(0, wildcard)
 		if err != nil {
-			return nil, 0, err
+			return nil, TranslatedQueryResult{}, err
 		}
 		// Need to regexp on the entire ID since ** matches over different
 		// graphite path dimensions.
@@ -125,41 +163,49 @@ func TranslateQueryToMatchersWithTerminator(
 		}
 		idRegexp, _, err := graphite.ExtendedGlobToRegexPattern(query, globOpts)
 		if err != nil {
-			return nil, 0, err
+			return nil, TranslatedQueryResult{}, err
 		}
 		return models.Matchers{
-			hasFirstPathMatcher,
-			models.Matcher{
-				Type:  models.MatchRegexp,
-				Name:  doc.IDReservedFieldName,
-				Value: idRegexp,
-			},
-		}, StarStarUnterminatedTranslatedQuery, nil
+				hasFirstPathMatcher,
+				models.Matcher{
+					Type:  models.MatchRegexp,
+					Name:  doc.IDReservedFieldName,
+					Value: idRegexp,
+				},
+			}, TranslatedQueryResult{
+				QueryType: StarStarUnterminatedTranslatedQuery,
+				Regexed:   true,
+			}, nil
 	}
 
 	metricLength := graphite.CountMetricParts(query)
 	// Add space for a terminator character.
 	matchersLength := metricLength + 1
 	matchers := make(models.Matchers, matchersLength)
+	regexed := false
 	for i := 0; i < metricLength; i++ {
 		metric := graphite.ExtractNthMetricPart(query, i)
 		if len(metric) > 0 {
-			m, err := convertMetricPartToMatcher(i, metric)
+			m, isRegex, err := convertMetricPartToMatcher(i, metric)
 			if err != nil {
-				return nil, 0, err
+				return nil, TranslatedQueryResult{}, err
 			}
 
 			matchers[i] = m
+			regexed = regexed || isRegex
 		} else {
 			err := fmt.Errorf("invalid matcher format: %s", query)
-			return nil, 0, err
+			return nil, TranslatedQueryResult{}, err
 		}
 	}
 
 	// Add a terminator matcher at the end to ensure expansion is terminated at
 	// the last given metric part.
 	matchers[metricLength] = matcherTerminator(metricLength)
-	return matchers, TerminatedTranslatedQuery, nil
+	return matchers, TranslatedQueryResult{
+		QueryType: TerminatedTranslatedQuery,
+		Regexed:   regexed,
+	}, nil
 }
 
 // GetQueryTerminatorTagName will return the name for the terminator matcher in
