@@ -71,10 +71,10 @@ type contextBase struct {
 	// FetchOpts are the fetch options to use for the query.
 	FetchOpts *storage.FetchOptions
 
-	parent                   *Context
-	reqCtx                   ctx.Context
-	storageContext           context.Context
-	timeRangeAdjustmentStats TimeRangeAdjustmentStats
+	parent         *Context
+	reqCtx         ctx.Context
+	storageContext context.Context
+	queryStats     QueryStats
 }
 
 // Context is the parameters to a query evaluation.
@@ -214,11 +214,11 @@ func (c *Context) NewChildContext(opts ChildContextOptions) *Context {
 
 		topContext := c.topContext()
 		topContext.Lock()
-		topContext.timeRangeAdjustmentStats.Total++
+		topContext.queryStats.TimeRangeAdjustment.Total++
 		if opts.adjustment.conditionallyAdjusted {
-			topContext.timeRangeAdjustmentStats.ConditionalAdjustments++
+			topContext.queryStats.TimeRangeAdjustment.ConditionalAdjustments++
 		} else {
-			topContext.timeRangeAdjustmentStats.UnconditionalAdjustments++
+			topContext.queryStats.TimeRangeAdjustment.UnconditionalAdjustments++
 		}
 		topContext.Unlock()
 	}
@@ -242,17 +242,26 @@ func (c *Context) topContext() *Context {
 	return parent.topContext()
 }
 
+type QueryStats struct {
+	Fetch               FetchStats
+	TimeRangeAdjustment TimeRangeAdjustmentStats
+}
+
+type FetchStats struct {
+	Total int64
+}
+
 type TimeRangeAdjustmentStats struct {
 	UnconditionalAdjustments int64
 	ConditionalAdjustments   int64
 	Total                    int64
 }
 
-func (c *Context) TimeRangeAdjustmentStats() TimeRangeAdjustmentStats {
+func (c *Context) QueryStats() QueryStats {
 	topContext := c.topContext()
 	topContext.RLock()
 	defer topContext.RUnlock()
-	return topContext.timeRangeAdjustmentStats
+	return topContext.queryStats
 }
 
 // Close closes the context
@@ -295,6 +304,14 @@ func (c *Context) AddAsyncTasks(count int) {
 // DoneAsyncTask marks a single tracked asynchronous task complete
 func (c *Context) DoneAsyncTask() {
 	c.storageContext.DoneAsyncTask()
+}
+
+// TrackFetch increments the number of fetches performed by the query.
+func (c *Context) TrackFetch() {
+	topContext := c.topContext()
+	topContext.Lock()
+	topContext.queryStats.Fetch.Total++
+	topContext.Unlock()
 }
 
 // A Trace is tracing information about a function or fetch within a query.

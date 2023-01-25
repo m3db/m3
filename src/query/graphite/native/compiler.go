@@ -29,7 +29,6 @@ import (
 	"strings"
 
 	"github.com/m3db/m3/src/query/graphite/lexer"
-	graphitestorage "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -210,13 +209,17 @@ func (c *compiler) optimizeNode(arg ASTNode) error {
 		fetches []*fetchExpression
 		args    = call.Arguments()
 	)
-	// Take the fetch expressions from the end of a set of arguments ().
+	// Take the fetch expressions from the end of a set of arguments.
 	for i := len(args) - 1; i >= 0; i-- {
 		if fetch, ok := args[i].(*fetchExpression); ok {
 			fetches = append(fetches, fetch)
 		} else {
 			break
 		}
+	}
+	// Reverse the fetch expressions so they are in the same order as the arguments.
+	for i, j := 0, len(fetches)-1; i < j; i, j = i+1, j-1 {
+		fetches[i], fetches[j] = fetches[j], fetches[i]
 	}
 
 	if call.FunctionInfo().MultiFetchOptimizationDisabled || len(fetches) <= 1 {
@@ -232,10 +235,6 @@ func (c *compiler) optimizeNode(arg ASTNode) error {
 	switch result {
 	case optimizedMultiFetch:
 		c.metricsScope().Counter("multi-fetch-optimized").Inc(1)
-	case notOptimizeMultiFetchDueToRegexFetches:
-		c.metricsScope().Tagged(map[string]string{
-			"reason": "fetches-with-regex",
-		}).Counter("multi-fetch-not-optimized").Inc(1)
 	default:
 		c.metricsScope().Tagged(map[string]string{
 			"reason": "unknown",
@@ -267,37 +266,25 @@ func (c *compiler) optimizeMultiFetch(
 	args []ASTNode,
 	fetches []*fetchExpression,
 ) (optimizeMultiFetchResult, error) {
-	// Check if all are non-regex fetches (check in reverse so we can
-	// build this list in original order).
-	// Note: We do this check after making sure there are multiple fetch
-	// requests since translating query to matchers is expensive so we
-	// only do it on expressions that have multiple fetch expressions.
-	nonRegexFetches := make([]*fetchExpression, 0, len(fetches))
-	for i := len(fetches) - 1; i >= 0; i-- {
-		fetch := fetches[i]
-		p := fetch.pathArg.path
-		_, res, err := graphitestorage.TranslateQueryToMatchersWithTerminator(p)
-		if err != nil {
+	// Create a conjuncted glob expression with all the fetch expresions.
+	var path strings.Builder
+	if _, err := path.WriteRune('{'); err != nil {
+		return notOptimizeMultiFetchDueToError, err
+	}
+	// Append the path in reverse since we built exprs list in reverse order.
+	for i, fetch := range fetches {
+		if _, err := path.WriteString(fetch.pathArg.path); err != nil {
 			return notOptimizeMultiFetchDueToError, err
 		}
-		if res.Regexed {
-			// Not a non-regex fetch, we can't optimize this node so bail.
-			return notOptimizeMultiFetchDueToRegexFetches, c.optimizeCallNode(call)
-		}
-		nonRegexFetches = append(nonRegexFetches, fetch)
-	}
-
-	// Create a glob expression with all the IDs.
-	var path strings.Builder
-	path.WriteRune('{')
-	// Append the path in reverse since we built exprs list in reverse order.
-	for i, fetch := range nonRegexFetches {
-		path.WriteString(fetch.pathArg.path)
-		if i < len(nonRegexFetches)-1 {
-			path.WriteRune(',')
+		if i < len(fetches)-1 {
+			if _, err := path.WriteRune(','); err != nil {
+				return notOptimizeMultiFetchDueToError, err
+			}
 		}
 	}
-	path.WriteRune('}')
+	if _, err := path.WriteRune('}'); err != nil {
+		return notOptimizeMultiFetchDueToError, err
+	}
 
 	str := path.String()
 
@@ -305,7 +292,7 @@ func (c *compiler) optimizeMultiFetch(
 	multiFetch := newFetchExpression(str).withInstrumentOpts(c.instrumentOpts)
 
 	// Replace the args with the new multi fetch expression.
-	replacedArgs := append([]ASTNode(nil), args[:len(args)-len(nonRegexFetches)]...)
+	replacedArgs := append([]ASTNode(nil), args[:len(args)-len(fetches)]...)
 	replacedArgs = append(replacedArgs, multiFetch)
 	return optimizedMultiFetch, call.ReplaceArguments(replacedArgs)
 }

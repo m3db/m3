@@ -21,7 +21,7 @@
 package native
 
 import (
-	"github.com/m3db/m3/src/query/graphite/context"
+	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/storage"
 )
 
@@ -43,7 +43,7 @@ func NewEngine(store storage.Storage, compileOpts CompileOptions) *Engine {
 
 // FetchByQuery retrieves one or more time series based on a query.
 func (e *Engine) FetchByQuery(
-	ctx context.Context,
+	ctx *common.Context,
 	query string,
 	options storage.FetchOptions,
 ) (*storage.FetchResult, error) {

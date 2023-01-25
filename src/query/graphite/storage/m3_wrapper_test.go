@@ -144,6 +144,41 @@ func TestTranslateQueryPathConjunction(t *testing.T) {
 	assert.Equal(t, expected, matchers)
 }
 
+func TestTranslateQueryPathConjunctionWithRegex(t *testing.T) {
+	query := `{foo.bar.*,foo.[a-f]*,foo.{qux,qaz}}`
+	end := time.Now()
+	start := end.Add(time.Hour * -2)
+	opts := FetchOptions{
+		StartTime: start,
+		EndTime:   end,
+		DataOptions: DataOptions{
+			Timeout: time.Minute,
+		},
+	}
+
+	translated, err := translateQuery(query, opts, M3WrappedStorageOptions{})
+	assert.NoError(t, err)
+	assert.Equal(t, end, translated.End)
+	assert.Equal(t, start, translated.Start)
+	assert.Equal(t, time.Duration(0), translated.Interval)
+	assert.Equal(t, query, translated.Raw)
+	matchers := translated.TagMatchers
+	expected := models.Matchers{
+		{
+			Type:  models.MatchRegexp,
+			Name:  graphite.TagName(0),
+			Value: []byte(".*"),
+		},
+		{
+			Type:  models.MatchRegexp,
+			Name:  doc.IDReservedFieldName,
+			Value: []byte(`^(foo\.+bar|foo\.+baz|foo\.+qux)$`),
+		},
+	}
+
+	assert.Equal(t, expected, matchers)
+}
+
 func TestTranslateQueryTrailingDot(t *testing.T) {
 	query := `foo.`
 	end := time.Now()

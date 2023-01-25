@@ -51,6 +51,8 @@ import (
 const (
 	// ReadURL is the url for the graphite query handler.
 	ReadURL = route.Prefix + "/graphite/render"
+
+	logHighInterval = 30 * time.Second
 )
 
 // ReadHTTPMethods are the HTTP methods used with this resource.
@@ -66,13 +68,21 @@ type renderHandler struct {
 	graphiteOpts        graphite.M3WrappedStorageOptions
 	instrumentOpts      instrument.Options
 
+	logStatsMutex              sync.Mutex
+	logStats                   []renderStats
 	lastLoggedAlignedUnixNanos int64
 
 	metrics renderHandlerMetrics
 	logger  *zap.Logger
 }
 
+type renderStats struct {
+	req   RenderRequest
+	stats common.QueryStats
+}
+
 type renderHandlerMetrics struct {
+	queryFetchesHistogram    tally.Histogram
 	queryShiftsConditional   tally.Counter
 	queryShiftsUnconditional tally.Counter
 	queryShiftsHistogram     tally.Histogram
@@ -80,10 +90,13 @@ type renderHandlerMetrics struct {
 
 func newRenderHandlerMetrics(scope tally.Scope) renderHandlerMetrics {
 	return renderHandlerMetrics{
+		queryFetchesHistogram: scope.Histogram("query-fetches", tally.ValueBuckets{
+			0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 24, 32, 48, 64, 128, 256, 512,
+		}),
 		queryShiftsConditional:   scope.Counter("query-shifts-conditional"),
 		queryShiftsUnconditional: scope.Counter("query-shifts-unconditional"),
 		queryShiftsHistogram: scope.Histogram("query-shifts-total-distribution", tally.ValueBuckets{
-			0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 24, 32, 48, 64, 128, 256,
+			0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 24, 32, 48, 64, 128, 256, 512,
 		}),
 	}
 }
@@ -253,28 +266,54 @@ func (h *renderHandler) serveHTTP(
 		return err
 	}
 
-	shiftStats := ctx.TimeRangeAdjustmentStats()
-	h.metrics.queryShiftsHistogram.RecordValue(float64(shiftStats.Total))
-	h.metrics.queryShiftsConditional.Inc(shiftStats.ConditionalAdjustments)
-	h.metrics.queryShiftsUnconditional.Inc(shiftStats.UnconditionalAdjustments)
-	if shiftStats.Total >= 2 && h.checkLogTimeShiftsTotalHighLogEvent() {
-		h.logger.Warn("query context time shift adjusted high number of times",
-			zap.Int64("shifts", shiftStats.Total),
-			zap.Int64("unconditionalShifts", shiftStats.UnconditionalAdjustments),
-			zap.Int64("conditionalShifts", shiftStats.ConditionalAdjustments),
-			zap.Strings("queries", p.Targets))
-	}
+	stats := ctx.QueryStats()
+	h.collectRenderStats(p, stats)
+	h.metrics.queryFetchesHistogram.RecordValue(float64(stats.Fetch.Total))
+	h.metrics.queryShiftsHistogram.RecordValue(float64(stats.TimeRangeAdjustment.Total))
+	h.metrics.queryShiftsConditional.Inc(stats.TimeRangeAdjustment.ConditionalAdjustments)
+	h.metrics.queryShiftsUnconditional.Inc(stats.TimeRangeAdjustment.UnconditionalAdjustments)
 
 	return WriteRenderResponse(w, response, p.Format, renderResultsJSONOptions{
 		renderSeriesAllNaNs: h.graphiteOpts.RenderSeriesAllNaNs,
 	})
 }
 
-func (h *renderHandler) checkLogTimeShiftsTotalHighLogEvent() bool {
+func (h *renderHandler) collectRenderStats(
+	p RenderRequest,
+	stats common.QueryStats,
+) {
+	h.logStatsMutex.Lock()
+	h.logStats = append(h.logStats, renderStats{req: p, stats: stats})
+	h.logStatsMutex.Unlock()
+
 	last := atomic.LoadInt64(&h.lastLoggedAlignedUnixNanos)
-	now := time.Now().Truncate(time.Second).UnixNano()
+	now := time.Now().Truncate(logHighInterval).UnixNano()
 	if last == now {
-		return false
+		return
 	}
-	return atomic.CompareAndSwapInt64(&h.lastLoggedAlignedUnixNanos, last, now)
+	if !atomic.CompareAndSwapInt64(&h.lastLoggedAlignedUnixNanos, last, now) {
+		return
+	}
+
+	h.logStatsMutex.Lock()
+	sort.Slice(h.logStats, func(i, j int) bool {
+		return h.logStats[i].stats.Fetch.Total < h.logStats[j].stats.Fetch.Total
+	})
+	// Get highest after sorting.
+	highest := h.logStats[len(h.logStats)-1]
+	// Reset.
+	for i := range h.logStats {
+		h.logStats[i] = renderStats{}
+	}
+	h.logStats = h.logStats[:0]
+	// Unlock and emit stats.
+	h.logStatsMutex.Unlock()
+
+	h.logger.Warn(
+		fmt.Sprintf("query with highest fetches in last %s", logHighInterval.String()),
+		zap.Strings("query", highest.req.Targets),
+		zap.Int64("fetches", highest.stats.Fetch.Total),
+		zap.Int64("shifts", highest.stats.TimeRangeAdjustment.Total),
+		zap.Int64("unconditionalShifts", stats.TimeRangeAdjustment.UnconditionalAdjustments),
+		zap.Int64("conditionalShifts", stats.TimeRangeAdjustment.ConditionalAdjustments))
 }

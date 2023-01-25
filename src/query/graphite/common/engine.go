@@ -21,16 +21,14 @@
 package common
 
 import (
-	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
 )
 
 // QueryEngine is the generic engine interface.
 type QueryEngine interface {
-
 	// FetchByQuery retrieves one or more time series based on a query.
 	FetchByQuery(
-		ctx context.Context,
+		ctx *Context,
 		query string,
 		options storage.FetchOptions,
 	) (*storage.FetchResult, error)
@@ -52,10 +50,11 @@ func NewEngine(storage storage.Storage) *Engine {
 }
 
 func (e *Engine) FetchByQuery(
-	ctx context.Context,
+	ctx *Context,
 	query string,
 	options storage.FetchOptions,
 ) (*storage.FetchResult, error) {
+	ctx.TrackFetch()
 	return e.storage.FetchByQuery(ctx, query, options)
 }
 
