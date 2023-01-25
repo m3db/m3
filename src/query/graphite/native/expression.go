@@ -43,6 +43,7 @@ var errTopLevelFunctionMustReturnTimeSeries = xerrors.NewInvalidParamsError(
 // An Expression is a metric query expression
 type Expression interface {
 	CallASTNode
+	ASTNode
 	// Executes the expression against the given context, and returns the resulting time series data
 	Execute(ctx *common.Context) (ts.SeriesList, error)
 }
@@ -56,8 +57,20 @@ type CallASTNode interface {
 	Arguments() []ASTNode
 	// ReplaceArguments replaces the call's arguments with the given arguments.
 	ReplaceArguments(args []ASTNode) error
+	// FunctionInfo returns function info and metadata that the call has.
+	FunctionInfo() FunctionInfo
 	// String is the pretty printed format.
 	String() string
+}
+
+// FunctionInfo is a struct that contains function info and metadata.
+type FunctionInfo struct {
+	// MultiFetchOptimizationDisabled describes whether the function can be
+	// optimized when multiple path specs and fetches are used.
+	// Some functions that rely on order must disable this optimization
+	// since they require the series to be fetched in a specific order
+	// to be used from within the function.
+	MultiFetchOptimizationDisabled bool
 }
 
 // ASTNode is an interface to help with printing the AST.
@@ -132,6 +145,10 @@ func (f *fetchExpression) PathExpression() (string, bool) {
 
 func (f *fetchExpression) CallExpression() (CallASTNode, bool) {
 	return f, true
+}
+
+func (f *fetchExpression) FunctionInfo() FunctionInfo {
+	return FunctionInfo{}
 }
 
 // Execute fetches results from storage
@@ -255,6 +272,18 @@ func (f *funcExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 	return out.Interface().(ts.SeriesList), nil
 }
 
+func (f *funcExpression) PathExpression() (string, bool) {
+	return "", false
+}
+
+func (f *funcExpression) CallExpression() (CallASTNode, bool) {
+	return f, true
+}
+
+func (f *funcExpression) FunctionInfo() FunctionInfo {
+	return f.call.f.info
+}
+
 func (f *funcExpression) String() string { return f.call.String() }
 
 var _ ASTNode = noopExpression{}
@@ -289,6 +318,10 @@ func (noop noopExpression) PathExpression() (string, bool) {
 
 func (noop noopExpression) CallExpression() (CallASTNode, bool) {
 	return noop, true
+}
+
+func (noop noopExpression) FunctionInfo() FunctionInfo {
+	return FunctionInfo{}
 }
 
 var _ ASTNode = rootASTNode{}

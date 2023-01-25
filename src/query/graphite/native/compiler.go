@@ -193,23 +193,14 @@ func (c *compiler) compileExpression() (Expression, error) {
 	}
 
 	// Optimize the expression.
-	if err := c.optimizeCall(expr); err != nil {
+	if err := c.optimizeNode(expr); err != nil {
 		return nil, err
 	}
 
 	return expr, nil
 }
 
-func (c *compiler) optimizeCall(call CallASTNode) error {
-	for _, arg := range call.Arguments() {
-		if err := c.optimizeArg(arg); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (c *compiler) optimizeArg(arg ASTNode) error {
+func (c *compiler) optimizeNode(arg ASTNode) error {
 	call, ok := arg.CallExpression()
 	if !ok {
 		return nil
@@ -228,9 +219,9 @@ func (c *compiler) optimizeArg(arg ASTNode) error {
 		}
 	}
 
-	if len(fetches) <= 1 {
+	if call.FunctionInfo().MultiFetchOptimizationDisabled || len(fetches) <= 1 {
 		// Not a node we can optimize, need to traverse deeper.
-		return c.optimizeCall(call)
+		return c.optimizeCallNode(call)
 	}
 
 	result, err := c.optimizeMultiFetch(call, args, fetches)
@@ -251,6 +242,15 @@ func (c *compiler) optimizeArg(arg ASTNode) error {
 		}).Counter("multi-fetch-not-optimized").Inc(1)
 	}
 
+	return nil
+}
+
+func (c *compiler) optimizeCallNode(call CallASTNode) error {
+	for _, arg := range call.Arguments() {
+		if err := c.optimizeNode(arg); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -282,7 +282,7 @@ func (c *compiler) optimizeMultiFetch(
 		}
 		if res.Regexed {
 			// Not a non-regex fetch, we can't optimize this node so bail.
-			return notOptimizeMultiFetchDueToRegexFetches, c.optimizeCall(call)
+			return notOptimizeMultiFetchDueToRegexFetches, c.optimizeCallNode(call)
 		}
 		nonRegexFetches = append(nonRegexFetches, fetch)
 	}

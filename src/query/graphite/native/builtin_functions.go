@@ -2900,7 +2900,11 @@ func init() {
 	})
 	MustRegisterFunction(delay)
 	MustRegisterFunction(derivative)
-	MustRegisterFunction(diffSeries)
+	// Use WithoutMultiFetchOptimization because diffSeries requires the
+	// matched path specs to return data in order back to diffSeries which
+	// cannot happen if multiple path specs are combined into a single fetch
+	// which returns unsorted sets of series.
+	MustRegisterFunction(diffSeries).WithoutMultiFetchOptimization()
 	MustRegisterFunction(divideSeries)
 	MustRegisterFunction(divideSeriesLists)
 	MustRegisterFunction(exclude)

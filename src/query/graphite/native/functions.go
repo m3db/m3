@@ -238,6 +238,7 @@ var (
 // the function's argument and return type.
 type Function struct {
 	name     string
+	info     FunctionInfo
 	f        reflect.Value
 	in       []reflect.Type
 	defaults map[uint8]interface{}
@@ -261,6 +262,14 @@ func (f *Function) WithDefaultParams(defaultParams map[uint8]interface{}) *Funct
 		}
 	}
 	f.defaults = defaultParams
+	return f
+}
+
+// WithoutMultiFetchOptimization disables the multi-fetch optimization for a function.
+// Functions that have path specs that require passing the matched series in order
+// back to the function should disable this optimization (i.e. diffSeries).
+func (f *Function) WithoutMultiFetchOptimization() *Function {
+	f.info.MultiFetchOptimizationDisabled = true
 	return f
 }
 
@@ -568,6 +577,10 @@ func (call *functionCall) PathExpression() (string, bool) {
 
 func (call *functionCall) CallExpression() (CallASTNode, bool) {
 	return call, true
+}
+
+func (call *functionCall) FunctionInfo() FunctionInfo {
+	return call.f.info
 }
 
 func (call *functionCall) ReplaceArguments(args []ASTNode) error {
