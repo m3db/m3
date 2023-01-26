@@ -29,7 +29,6 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
-	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	xgomock "github.com/m3db/m3/src/x/test"
@@ -244,7 +243,7 @@ func TestAggregateSeriesMedian(t *testing.T) {
 
 type mockEngine struct {
 	fn func(
-		ctx context.Context,
+		ctx *common.Context,
 		query string,
 		options storage.FetchOptions,
 	) (*storage.FetchResult, error)
@@ -253,7 +252,7 @@ type mockEngine struct {
 }
 
 func (e mockEngine) FetchByQuery(
-	ctx context.Context,
+	ctx *common.Context,
 	query string,
 	opts storage.FetchOptions,
 ) (*storage.FetchResult, error) {
@@ -269,7 +268,7 @@ func TestVariadicSumSeries(t *testing.T) {
 	require.NoError(t, err)
 	ctx := common.NewTestContext()
 	ctx.Engine = mockEngine{fn: func(
-		ctx context.Context,
+		ctx *common.Context,
 		query string,
 		options storage.FetchOptions,
 	) (*storage.FetchResult, error) {

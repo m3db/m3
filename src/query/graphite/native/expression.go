@@ -65,6 +65,12 @@ type CallASTNode interface {
 
 // FunctionInfo is a struct that contains function info and metadata.
 type FunctionInfo struct {
+	// ConsolidateFunctionCallTreesOfSameKindOptimizationEnabled describes
+	// whether the function when curried with calls of the same function can be
+	// optimized away by using a single call with all the arguments consolidated
+	// to a top most function call.
+	// e.g. sumSeries(sumSeries(a, b), sumSeries(c, d)) -> sumSeries(a, b, c, d)
+	ConsolidateFunctionCallTreesOfSameKindOptimizationEnabled bool
 	// MultiFetchOptimizationDisabled describes whether the function can be
 	// optimized when multiple path specs and fetches are used.
 	// Some functions that rely on order must disable this optimization

@@ -143,8 +143,7 @@ func TestCompile1(t *testing.T) {
 			&functionCall{
 				f: sumSeries,
 				in: []funcArg{
-					newFetchExpression("foo.bar.baz.quux"),
-					newFetchExpression("foo.bar72.*.metrics.written"),
+					newFetchExpression("{foo.bar.baz.quux,foo.bar72.*.metrics.written}"),
 				},
 			},
 		}},
@@ -364,6 +363,35 @@ func TestCompile1(t *testing.T) {
 		{
 			// Test whether multi-fetch optimization with patterns is working.
 			input: "sumSeries(foo.bar.*, foo.baz.{qux,qaz})",
+			series: func(ctx *common.Context) []*ts.Series {
+				return []*ts.Series{
+					ts.NewSeries(ctx, "foo.bar", ctx.StartTime,
+						ts.NewConstantValues(ctx, 42, 10, 60000)),
+					ts.NewSeries(ctx, "foo.baz", ctx.StartTime,
+						ts.NewConstantValues(ctx, 42, 10, 60000)),
+				}
+			},
+			asserts: func(t require.TestingT, s tally.TestScope, e Expression) {
+				// Following is for debugging, the fetches should be of form:
+				// sumSeries(fetch({foo.bar,foo.baz}))
+				// Not:
+				// sumSeries(fetch(foo.bar),fetch(foo.baz))
+				fmt.Println("parsed", e.String())
+
+				c := s.Snapshot().Counters()
+
+				v, ok := c["graphite-compiler.multi-fetch-optimized+"]
+				require.True(t, ok)
+				assert.Equal(t, int64(1), v.Value())
+
+				v, ok = c["fetch-expression.execute-fetch+"]
+				require.True(t, ok)
+				assert.Equal(t, int64(1), v.Value())
+			},
+		},
+		{
+			// Test whether multi-fetch optimization with subtree calls of same kind patterns is working.
+			input: "sumSeries(foo.bar.*, sumSeries(sumSeries(foo.baz.{qux,qaz}, foo.baz), foo.abc), foo.def)",
 			series: func(ctx *common.Context) []*ts.Series {
 				return []*ts.Series{
 					ts.NewSeries(ctx, "foo.bar", ctx.StartTime,

@@ -2880,7 +2880,7 @@ func init() {
 	})
 	MustRegisterFunction(asPercent).WithDefaultParams(map[uint8]interface{}{
 		2: nil, // total
-	})
+	}).WithoutMultiFetchOptimization()
 	MustRegisterFunction(averageAbove)
 	MustRegisterFunction(averageBelow)
 	MustRegisterFunction(averageSeries)
@@ -2953,9 +2953,9 @@ func init() {
 	})
 	MustRegisterFunction(lowestAverage)
 	MustRegisterFunction(lowestCurrent)
-	MustRegisterFunction(maxSeries)
+	MustRegisterFunction(maxSeries).WithConsolidateFunctionCallTreesOfSameKindOptimization()
 	MustRegisterFunction(maximumAbove)
-	MustRegisterFunction(minSeries)
+	MustRegisterFunction(minSeries).WithConsolidateFunctionCallTreesOfSameKindOptimization()
 	MustRegisterFunction(minimumAbove)
 	MustRegisterFunction(mostDeviant)
 	MustRegisterFunction(movingAverage).
@@ -2989,7 +2989,7 @@ func init() {
 			4: defaultXFilesFactor, // XFilesFactor
 		}).
 		WithOptimizedShiftCheck(optimizedShiftCheckEnabledIfWindowSizeString)
-	MustRegisterFunction(multiplySeries)
+	MustRegisterFunction(multiplySeries).WithConsolidateFunctionCallTreesOfSameKindOptimization()
 	MustRegisterFunction(multiplySeriesWithWildcards).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // positions
 	})
@@ -3006,7 +3006,7 @@ func init() {
 		2: math.NaN(), // maxValue
 	})
 	MustRegisterFunction(pow)
-	MustRegisterFunction(powSeries)
+	MustRegisterFunction(powSeries).WithConsolidateFunctionCallTreesOfSameKindOptimization()
 	MustRegisterFunction(rangeOfSeries)
 	MustRegisterFunction(randomWalkFunction).WithDefaultParams(map[uint8]interface{}{
 		2: 60, // step
@@ -3050,7 +3050,7 @@ func init() {
 	MustRegisterFunction(smartSummarize).WithDefaultParams(map[uint8]interface{}{
 		3: "", // fname
 	})
-	MustRegisterFunction(sumSeries)
+	MustRegisterFunction(sumSeries).WithConsolidateFunctionCallTreesOfSameKindOptimization()
 	MustRegisterFunction(sumSeriesWithWildcards).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // positions
 	})

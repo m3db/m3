@@ -206,28 +206,47 @@ func (c *compiler) optimizeNode(arg ASTNode) error {
 	}
 
 	var (
-		fetches []*fetchExpression
-		args    = call.Arguments()
+		optimizedArgs int
+		fetches       []*fetchExpression
+		fn            = call.FunctionInfo()
+		args          = call.Arguments()
 	)
 	// Take the fetch expressions from the end of a set of arguments.
 	for i := len(args) - 1; i >= 0; i-- {
 		if fetch, ok := args[i].(*fetchExpression); ok {
+			optimizedArgs++
 			fetches = append(fetches, fetch)
-		} else {
-			break
+			// Valid to continue assessing more fetches in reverse order.
+			continue
 		}
+
+		subtreeFetches, optimized, err := c.optimizeFunctionCallTreeOfSameKindMaybe(call, args[i])
+		if err != nil {
+			return err
+		}
+		if optimized {
+			optimizedArgs++
+			fetches = append(fetches, subtreeFetches...)
+			// Valid to continue assessing more fetches in reverse order.
+			continue
+		}
+
+		// Arg that is not optimizeable into a fetch that can be combined so
+		// stop here.
+		break
 	}
 	// Reverse the fetch expressions so they are in the same order as the arguments.
 	for i, j := 0, len(fetches)-1; i < j; i, j = i+1, j-1 {
 		fetches[i], fetches[j] = fetches[j], fetches[i]
 	}
 
-	if call.FunctionInfo().MultiFetchOptimizationDisabled || len(fetches) <= 1 {
+	if fn.MultiFetchOptimizationDisabled || len(fetches) <= 1 {
 		// Not a node we can optimize, need to traverse deeper.
 		return c.optimizeCallNode(call)
 	}
 
-	result, err := c.optimizeMultiFetch(call, args, fetches)
+	unoptimizedArgs := args[:len(args)-optimizedArgs]
+	result, err := c.optimizeMultiFetch(call, unoptimizedArgs, fetches)
 	if err != nil {
 		return err
 	}
@@ -253,6 +272,68 @@ func (c *compiler) optimizeCallNode(call CallASTNode) error {
 	return nil
 }
 
+func (c *compiler) optimizeFunctionCallTreeOfSameKindMaybe(
+	caller CallASTNode,
+	arg ASTNode,
+) ([]*fetchExpression, bool, error) {
+	if !caller.FunctionInfo().ConsolidateFunctionCallTreesOfSameKindOptimizationEnabled {
+		// Cannot consolidate function call trees of same kind.
+		return nil, false, nil
+	}
+
+	callee, ok := arg.CallExpression()
+	if !ok {
+		return nil, false, nil
+	}
+
+	if caller.Name() != callee.Name() {
+		// Not same function.
+		return nil, false, nil
+	}
+
+	var (
+		fetches    []*fetchExpression
+		calleeArgs = callee.Arguments()
+	)
+	for _, arg := range calleeArgs {
+		if fetch, ok := arg.(*fetchExpression); ok {
+			fetches = append(fetches, fetch)
+			continue
+		}
+
+		call, ok := arg.CallExpression()
+		if !ok {
+			// Non-optimizeable if encounter any args that aren't pure fetches
+			// or calls of the same kind.
+			return nil, false, nil
+		}
+
+		subtreeFetches, optimized, err := c.optimizeFunctionCallTreeOfSameKindMaybe(call, arg)
+		if err != nil {
+			return nil, false, err
+		}
+		if optimized {
+			fetches = append(fetches, subtreeFetches...)
+			continue
+		}
+
+		// Non-optimizeable if encounter any args that aren't pure fetches
+		// or calls of the same kind.
+		return nil, false, nil
+	}
+
+	// Reverse the fetch expressions so they are in the same order as the arguments.
+	for i, j := 0, len(fetches)-1; i < j; i, j = i+1, j-1 {
+		fetches[i], fetches[j] = fetches[j], fetches[i]
+	}
+
+	if len(fetches) > 0 {
+		// Only optimizeable if we actually consolidated fetches.
+		return fetches, true, nil
+	}
+	return nil, false, nil
+}
+
 type optimizeMultiFetchResult int
 
 const (
@@ -264,7 +345,7 @@ const (
 func (c *compiler) optimizeMultiFetch(
 	call CallASTNode,
 	args []ASTNode,
-	fetches []*fetchExpression,
+	consolidatedTrailingFetches []*fetchExpression,
 ) (optimizeMultiFetchResult, error) {
 	// Create a conjuncted glob expression with all the fetch expresions.
 	var path strings.Builder
@@ -272,11 +353,11 @@ func (c *compiler) optimizeMultiFetch(
 		return notOptimizeMultiFetchDueToError, err
 	}
 	// Append the path in reverse since we built exprs list in reverse order.
-	for i, fetch := range fetches {
+	for i, fetch := range consolidatedTrailingFetches {
 		if _, err := path.WriteString(fetch.pathArg.path); err != nil {
 			return notOptimizeMultiFetchDueToError, err
 		}
-		if i < len(fetches)-1 {
+		if i < len(consolidatedTrailingFetches)-1 {
 			if _, err := path.WriteRune(','); err != nil {
 				return notOptimizeMultiFetchDueToError, err
 			}
@@ -292,7 +373,7 @@ func (c *compiler) optimizeMultiFetch(
 	multiFetch := newFetchExpression(str).withInstrumentOpts(c.instrumentOpts)
 
 	// Replace the args with the new multi fetch expression.
-	replacedArgs := append([]ASTNode(nil), args[:len(args)-len(fetches)]...)
+	replacedArgs := append([]ASTNode(nil), args...)
 	replacedArgs = append(replacedArgs, multiFetch)
 	return optimizedMultiFetch, call.ReplaceArguments(replacedArgs)
 }

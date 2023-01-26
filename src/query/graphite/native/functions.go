@@ -265,11 +265,22 @@ func (f *Function) WithDefaultParams(defaultParams map[uint8]interface{}) *Funct
 	return f
 }
 
-// WithoutMultiFetchOptimization disables the multi-fetch optimization for a function.
-// Functions that have path specs that require passing the matched series in order
-// back to the function should disable this optimization (i.e. diffSeries).
+// WithoutMultiFetchOptimization disables the multi-fetch optimization for a
+// function.  Functions that have path specs that require passing the matched
+// series in order back to the function should disable this optimization
+// (i.e. diffSeries).
 func (f *Function) WithoutMultiFetchOptimization() *Function {
 	f.info.MultiFetchOptimizationDisabled = true
+	return f
+}
+
+// WithConsolidateFunctionCallTreesOfSameKindOptimization enables optimizing
+// the function when curried with calls of the same kind by optimizing
+// into a single call with all the arguments consolidated to a top most function
+// call.
+// e.g. sumSeries(sumSeries(a, b), sumSeries(c, d)) -> sumSeries(a, b, c, d)
+func (f *Function) WithConsolidateFunctionCallTreesOfSameKindOptimization() *Function {
+	f.info.ConsolidateFunctionCallTreesOfSameKindOptimizationEnabled = true
 	return f
 }
 
