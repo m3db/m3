@@ -471,6 +471,29 @@ func TestCompile1(t *testing.T) {
 				assert.Equal(t, int64(8), v.Value())
 			},
 		},
+		{
+			// Test that divideSeries does not apply multi-fetch optimization.
+			input: "divideSeries(foo.bar, foo.bar)",
+			series: func(ctx *common.Context) []*ts.Series {
+				return []*ts.Series{
+					ts.NewSeries(ctx, "foo.bar", ctx.StartTime,
+						ts.NewConstantValues(ctx, 42, 10, 60000)),
+				}
+			},
+			asserts: func(t require.TestingT, s tally.TestScope, e Expression) {
+				// Following is for debugging, the fetches should be of form:
+				// divideSeries(fetch(foo.bar),fetch(foo.baz))
+				// Not:
+				// divideSeries(fetch({foo.bar,foo.baz}))
+				fmt.Println("parsed", e.String())
+
+				c := s.Snapshot().Counters()
+
+				v, ok := c["fetch-expression.execute-fetch+"]
+				require.True(t, ok)
+				assert.Equal(t, int64(2), v.Value())
+			},
+		},
 	}
 
 	ctrl := xtest.NewController(t)

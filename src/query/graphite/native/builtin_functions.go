@@ -2905,12 +2905,12 @@ func init() {
 	// cannot happen if multiple path specs are combined into a single fetch
 	// which returns unsorted sets of series.
 	MustRegisterFunction(diffSeries).WithoutMultiFetchOptimization()
-	MustRegisterFunction(divideSeries)
-	MustRegisterFunction(divideSeriesLists)
+	MustRegisterFunction(divideSeries).WithConsolidateFunctionCallTreesOfSameKindOptimization()
+	MustRegisterFunction(divideSeriesLists).WithConsolidateFunctionCallTreesOfSameKindOptimization()
 	MustRegisterFunction(exclude)
 	MustRegisterFunction(exponentialMovingAverage).
 		WithOptimizedShiftCheck(optimizedShiftCheckEnabledIfWindowSizeString)
-	MustRegisterFunction(fallbackSeries)
+	MustRegisterFunction(fallbackSeries).WithoutMultiFetchOptimization()
 	MustRegisterFunction(filterSeries)
 	MustRegisterFunction(grep)
 	MustRegisterFunction(group)
