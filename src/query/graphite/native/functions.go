@@ -594,6 +594,10 @@ func (call *functionCall) FunctionInfo() FunctionInfo {
 	return call.f.info
 }
 
+func (call *functionCall) Function() (*Function, bool) {
+	return call.f, true
+}
+
 func (call *functionCall) ReplaceArguments(args []ASTNode) error {
 	newArgs := make([]funcArg, 0, len(args))
 	for _, arg := range args {

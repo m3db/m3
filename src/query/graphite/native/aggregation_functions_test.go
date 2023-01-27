@@ -264,7 +264,7 @@ func (e mockEngine) Storage() storage.Storage {
 }
 
 func TestVariadicSumSeries(t *testing.T) {
-	expr, err := Compile("sumSeries(foo.bar.*, foo.baz.*)", CompileOptions{})
+	expr, err := Compile("sumSeries(scale(foo.bar.*, 1), scale(foo.baz.*, 1))", CompileOptions{})
 	require.NoError(t, err)
 	ctx := common.NewTestContext()
 	ctx.Engine = mockEngine{fn: func(

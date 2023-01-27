@@ -205,12 +205,40 @@ func (c *compiler) optimizeNode(arg ASTNode) error {
 		return nil
 	}
 
+	f, ok := call.Function()
+	if !ok {
+		return nil
+	}
+
 	var (
 		optimizedArgs int
 		fetches       []*fetchExpression
-		fn            = call.FunctionInfo()
+		info          = call.FunctionInfo()
 		args          = call.Arguments()
 	)
+	optimizeable := false
+checkArgsOptimizeableLoop:
+	for _, argType := range f.in {
+		switch argType {
+		case singlePathSpecType:
+			optimizeable = false
+			break checkArgsOptimizeableLoop
+		case multiplePathSpecsType:
+			// Only if multiplePathSpecsType is the last arg is
+			// this optimizeable into a multiple fetch.
+			optimizeable = true
+		default:
+			// Only if multiplePathSpecsType is the last arg is
+			// this optimizeable into a multiple fetch.
+			// So flip this back to false.
+			optimizeable = false
+		}
+	}
+	if !optimizeable || info.MultiFetchOptimizationDisabled {
+		// Not a node we can optimize, need to traverse deeper.
+		return c.optimizeCallNode(call)
+	}
+
 	// Take the fetch expressions from the end of a set of arguments.
 	for i := len(args) - 1; i >= 0; i-- {
 		if fetch, ok := args[i].(*fetchExpression); ok {
@@ -240,7 +268,7 @@ func (c *compiler) optimizeNode(arg ASTNode) error {
 		fetches[i], fetches[j] = fetches[j], fetches[i]
 	}
 
-	if fn.MultiFetchOptimizationDisabled || len(fetches) <= 1 {
+	if len(fetches) <= 1 {
 		// Not a node we can optimize, need to traverse deeper.
 		return c.optimizeCallNode(call)
 	}

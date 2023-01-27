@@ -419,32 +419,6 @@ func TestCompile1(t *testing.T) {
 			},
 		},
 		{
-			// Test that multi-fetch optimization is disabled for diffSeries
-			// which relies on order of metrics returned.
-			input: "diffSeries(foo.bar, foo.baz)",
-			series: func(ctx *common.Context) []*ts.Series {
-				return []*ts.Series{
-					ts.NewSeries(ctx, "foo.bar", ctx.StartTime,
-						ts.NewConstantValues(ctx, 42, 10, 60000)),
-					ts.NewSeries(ctx, "foo.baz", ctx.StartTime,
-						ts.NewConstantValues(ctx, 42, 10, 60000)),
-				}
-			},
-			asserts: func(t require.TestingT, s tally.TestScope, e Expression) {
-				// Following is for debugging, the fetches should be of form:
-				// diffSeries(fetch(foo.bar),fetch(foo.baz))
-				// Not:
-				// diffSeries(fetch({foo.bar,foo.baz}))
-				fmt.Println("parsed", e.String())
-
-				c := s.Snapshot().Counters()
-
-				v, ok := c["fetch-expression.execute-fetch+"]
-				require.True(t, ok)
-				assert.Equal(t, int64(2), v.Value())
-			},
-		},
-		{
 			// Test whether complex deeply nested multi-fetch optimization is working.
 			input: "maxSeries(divideSeries(movingAverage(sumSeries(foo.count.QAZ,foo.count.FOO,foo.count.BAR,foo.count.BAZ,foo.count.QUX,bar.count.QAZ,bar.count.FOO,bar.count.BAR,bar.count.BAZ,bar.count.QUX), 60), movingAverage(sumSeries(baz.count.QAZ,baz.count.FOO,baz.count.BAR,baz.count.BAZ,baz.count.QUX,qux.count.QAZ,qux.count.FOO,qux.count.BAR,qux.count.BAZ,qux.count.QUX), 60)),divideSeries(movingAverage(sumSeries(foo.count.QAZ,foo.count.FOO,foo.count.BAR,foo.count.BAZ,foo.count.QUX,bar.count.QAZ,bar.count.FOO,bar.count.BAR,bar.count.BAZ,bar.count.QUX), 15), movingAverage(sumSeries(baz.count.QAZ,baz.count.FOO,baz.count.BAR,baz.count.BAZ,baz.count.QUX,qux.count.QAZ,qux.count.FOO,qux.count.BAR,qux.count.BAZ,qux.count.QUX), 15)))",
 			series: func(ctx *common.Context) []*ts.Series {
@@ -472,6 +446,28 @@ func TestCompile1(t *testing.T) {
 			},
 		},
 		{
+			// Test that multi-fetch optimization is disabled for diffSeries
+			// which relies on order of metrics returned.
+			input: "diffSeries(foo.bar, foo.baz)",
+			series: func(ctx *common.Context) []*ts.Series {
+				return []*ts.Series{
+					ts.NewSeries(ctx, "foo.bar", ctx.StartTime,
+						ts.NewConstantValues(ctx, 42, 10, 60000)),
+					ts.NewSeries(ctx, "foo.baz", ctx.StartTime,
+						ts.NewConstantValues(ctx, 42, 10, 60000)),
+				}
+			},
+			asserts: func(t require.TestingT, s tally.TestScope, e Expression) {
+				assert.Equal(t, "diffSeries(fetch(foo.bar),fetch(foo.baz))", e.String())
+
+				c := s.Snapshot().Counters()
+
+				v, ok := c["fetch-expression.execute-fetch+"]
+				require.True(t, ok)
+				assert.Equal(t, int64(2), v.Value())
+			},
+		},
+		{
 			// Test that divideSeries does not apply multi-fetch optimization.
 			input: "divideSeries(foo.bar, foo.bar)",
 			series: func(ctx *common.Context) []*ts.Series {
@@ -481,11 +477,28 @@ func TestCompile1(t *testing.T) {
 				}
 			},
 			asserts: func(t require.TestingT, s tally.TestScope, e Expression) {
-				// Following is for debugging, the fetches should be of form:
-				// divideSeries(fetch(foo.bar),fetch(foo.baz))
-				// Not:
-				// divideSeries(fetch({foo.bar,foo.baz}))
-				fmt.Println("parsed", e.String())
+				assert.Equal(t, "divideSeries(fetch(foo.bar),fetch(foo.bar))", e.String())
+
+				c := s.Snapshot().Counters()
+
+				v, ok := c["fetch-expression.execute-fetch+"]
+				require.True(t, ok)
+				assert.Equal(t, int64(2), v.Value())
+			},
+		},
+		{
+			// Test that fallbackSeries does not apply multi-fetch optimization.
+			input: "fallbackSeries(foo.bar, foo.baz)",
+			series: func(ctx *common.Context) []*ts.Series {
+				return []*ts.Series{
+					ts.NewSeries(ctx, "foo.bar", ctx.StartTime,
+						ts.NewConstantValues(ctx, 42, 10, 60000)),
+					ts.NewSeries(ctx, "foo.baz", ctx.StartTime,
+						ts.NewConstantValues(ctx, 42, 10, 60000)),
+				}
+			},
+			asserts: func(t require.TestingT, s tally.TestScope, e Expression) {
+				assert.Equal(t, "fallbackSeries(fetch(foo.bar),fetch(foo.baz))", e.String())
 
 				c := s.Snapshot().Counters()
 

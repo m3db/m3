@@ -2880,7 +2880,7 @@ func init() {
 	})
 	MustRegisterFunction(asPercent).WithDefaultParams(map[uint8]interface{}{
 		2: nil, // total
-	}).WithoutMultiFetchOptimization()
+	})
 	MustRegisterFunction(averageAbove)
 	MustRegisterFunction(averageBelow)
 	MustRegisterFunction(averageSeries)
@@ -2905,12 +2905,12 @@ func init() {
 	// cannot happen if multiple path specs are combined into a single fetch
 	// which returns unsorted sets of series.
 	MustRegisterFunction(diffSeries).WithoutMultiFetchOptimization()
-	MustRegisterFunction(divideSeries).WithConsolidateFunctionCallTreesOfSameKindOptimization()
-	MustRegisterFunction(divideSeriesLists).WithConsolidateFunctionCallTreesOfSameKindOptimization()
+	MustRegisterFunction(divideSeries)
+	MustRegisterFunction(divideSeriesLists)
 	MustRegisterFunction(exclude)
 	MustRegisterFunction(exponentialMovingAverage).
 		WithOptimizedShiftCheck(optimizedShiftCheckEnabledIfWindowSizeString)
-	MustRegisterFunction(fallbackSeries).WithoutMultiFetchOptimization()
+	MustRegisterFunction(fallbackSeries)
 	MustRegisterFunction(filterSeries)
 	MustRegisterFunction(grep)
 	MustRegisterFunction(group)

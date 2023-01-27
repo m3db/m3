@@ -57,8 +57,10 @@ type CallASTNode interface {
 	Arguments() []ASTNode
 	// ReplaceArguments replaces the call's arguments with the given arguments.
 	ReplaceArguments(args []ASTNode) error
-	// FunctionInfo returns function info and metadata that the call has.
+	// FunctionInfo returns function info and metadata that the call is using.
 	FunctionInfo() FunctionInfo
+	// Function returns the function the call is using, returns false if no-op.
+	Function() (*Function, bool)
 	// String is the pretty printed format.
 	String() string
 }
@@ -155,6 +157,10 @@ func (f *fetchExpression) CallExpression() (CallASTNode, bool) {
 
 func (f *fetchExpression) FunctionInfo() FunctionInfo {
 	return FunctionInfo{}
+}
+
+func (f *fetchExpression) Function() (*Function, bool) {
+	return nil, false
 }
 
 // Execute fetches results from storage
@@ -290,6 +296,10 @@ func (f *funcExpression) FunctionInfo() FunctionInfo {
 	return f.call.f.info
 }
 
+func (f *funcExpression) Function() (*Function, bool) {
+	return f.call.f, true
+}
+
 func (f *funcExpression) String() string { return f.call.String() }
 
 var _ ASTNode = noopExpression{}
@@ -328,6 +338,10 @@ func (noop noopExpression) CallExpression() (CallASTNode, bool) {
 
 func (noop noopExpression) FunctionInfo() FunctionInfo {
 	return FunctionInfo{}
+}
+
+func (noop noopExpression) Function() (*Function, bool) {
+	return nil, false
 }
 
 var _ ASTNode = rootASTNode{}
