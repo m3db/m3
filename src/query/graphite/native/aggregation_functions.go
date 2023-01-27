@@ -588,7 +588,15 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 			newTarget := strings.ReplaceAll(templateFunction, "%", prefix)
 			wg.Add(1)
 			go func() {
-				defer wg.Done()
+				defer func() {
+					if err := recover(); err != nil {
+						mu.Lock()
+						multiErr = multiErr.Add(fmt.Errorf("panic in applyByNode: %v", err))
+						mu.Unlock()
+					}
+					wg.Done()
+				}()
+
 				resultSeriesList, err := evaluateTarget(ctx, newTarget)
 				if err != nil {
 					mu.Lock()
