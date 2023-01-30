@@ -324,6 +324,7 @@ func (d *clusterDB) activeTopologyWatch() {
 
 func (d *clusterDB) analyzeAndReportShardStates() {
 	placement := d.watch.Get()
+	d.log.Info("Replace node: got placement for host:" + d.hostID)
 	entry, ok := placement.LookupHostShardSet(d.hostID)
 	if !ok {
 		return
@@ -339,10 +340,13 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 			switch s.State() {
 			case shard.Initializing:
 				initializing++
+				d.log.Info("Replace node: current state: INITIALIZING and shardno. " + fmt.Sprint(s.ID()) + "sourceID: " + s.SourceID())
 			case shard.Leaving:
 				leaving++
+				d.log.Info("Replace node: current state: LEAVING and shardno. " + fmt.Sprint(s.ID()))
 			case shard.Available:
 				available++
+				d.log.Info("Replace node: current state: AVAILABLE and shardno. " + fmt.Sprint(s.ID()))
 			}
 		}
 		d.metrics.initializing.Update(float64(initializing))
