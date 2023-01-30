@@ -54,7 +54,6 @@ func (e *Engine) FetchByQuery(
 	query string,
 	options storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	ctx.TrackFetch()
 	return e.storage.FetchByQuery(ctx, query, options)
 }
 

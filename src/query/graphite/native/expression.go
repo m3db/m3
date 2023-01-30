@@ -201,6 +201,7 @@ func (f *fetchExpression) Execute(ctx *common.Context) (ts.SeriesList, error) {
 		}
 	}
 
+	ctx.TrackFetch()
 	result, err := ctx.Engine.FetchByQuery(ctx, f.pathArg.path, opts)
 	if err != nil {
 		return ts.NewSeriesList(), err
