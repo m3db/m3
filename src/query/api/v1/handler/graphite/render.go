@@ -82,6 +82,7 @@ type renderStats struct {
 }
 
 type renderHandlerMetrics struct {
+	queryFetchesTotal        tally.Counter
 	queryFetchesHistogram    tally.Histogram
 	queryShiftsConditional   tally.Counter
 	queryShiftsUnconditional tally.Counter
@@ -90,6 +91,7 @@ type renderHandlerMetrics struct {
 
 func newRenderHandlerMetrics(scope tally.Scope) renderHandlerMetrics {
 	return renderHandlerMetrics{
+		queryFetchesTotal: scope.Counter("query-fetch-expressions-total"),
 		queryFetchesHistogram: scope.Histogram("query-fetches", tally.ValueBuckets{
 			0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 24, 32, 48, 64, 128, 256, 512,
 		}),
@@ -268,6 +270,7 @@ func (h *renderHandler) serveHTTP(
 
 	stats := ctx.QueryStats()
 	h.collectRenderStats(p, stats)
+	h.metrics.queryFetchesTotal.Inc(stats.Fetch.Total)
 	h.metrics.queryFetchesHistogram.RecordValue(float64(stats.Fetch.Total))
 	h.metrics.queryShiftsHistogram.RecordValue(float64(stats.TimeRangeAdjustment.Total))
 	h.metrics.queryShiftsConditional.Inc(stats.TimeRangeAdjustment.ConditionalAdjustments)
