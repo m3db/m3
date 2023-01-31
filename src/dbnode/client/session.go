@@ -1074,7 +1074,7 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 			}
 		}
 	}()
-
+	s.log.Info("Replace node test: new version of m3db")
 	s.log.Info("successfully updated topology", zap.Int("numHosts", topoMap.HostsLen()))
 }
 
