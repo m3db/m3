@@ -1112,6 +1112,7 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 			}
 		}
 	}()
+	s.log.Info("Replace node test: new m3 version")
 
 	s.log.Info("successfully updated topology",
 		zap.Int("numHosts", topoMap.HostsLen()),
@@ -3346,8 +3347,8 @@ func (s *session) streamBlocksBatchFromPeer(
 		ropts              = namespaceMetadata.Options().RetentionOptions()
 		retention          = ropts.RetentionPeriod()
 		earliestBlockStart = xtime.ToUnixNano(nowFn()).
-					Add(-retention).
-					Truncate(ropts.BlockSize())
+			Add(-retention).
+			Truncate(ropts.BlockSize())
 	)
 	req.NameSpace = namespaceMetadata.ID().Bytes()
 	req.Shard = int32(shard)
