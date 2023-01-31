@@ -70,6 +70,7 @@ type M3WrappedStorageOptions struct {
 	RenderPartialEnd                           bool
 	RenderSeriesAllNaNs                        bool
 	CompileEscapeAllNotOnlyQuotes              bool
+	MaxSubExpressionEvaluations                int
 	FindResultsIncludeBothExpandableAndLeaf    bool
 	FindPathIndexingEnabled                    bool
 }

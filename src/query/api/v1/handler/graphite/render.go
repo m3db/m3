@@ -160,12 +160,13 @@ func (h *renderHandler) serveHTTP(
 	)
 
 	ctx := common.NewContext(common.ContextOptions{
-		Engine:        h.engine,
-		Start:         p.From,
-		End:           p.Until,
-		Timeout:       p.Timeout,
-		MaxDataPoints: p.MaxDataPoints,
-		FetchOpts:     fetchOpts,
+		Engine:                      h.engine,
+		Start:                       p.From,
+		End:                         p.Until,
+		Timeout:                     p.Timeout,
+		MaxDataPoints:               p.MaxDataPoints,
+		MaxSubExpressionEvaluations: int64(h.graphiteOpts.MaxSubExpressionEvaluations),
+		FetchOpts:                   fetchOpts,
 	})
 
 	// Set the request context.

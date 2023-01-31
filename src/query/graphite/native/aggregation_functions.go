@@ -563,8 +563,15 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 		prefixMap[prefix] = struct{}{}
 	}
 
+	if ctx.MaxSubExpressionEvaluations > 0 &&
+		int64(len(prefixMap)) > ctx.MaxSubExpressionEvaluations {
+		err := fmt.Errorf("too many subexpressions to evaluate: actual=%d, limit=%d",
+			len(prefixMap), ctx.MaxSubExpressionEvaluations)
+		return ts.SeriesList{}, xerrors.NewInvalidParamsError(err)
+	}
+
 	// transform to slice
-	var prefixes []string
+	prefixes := make([]string, 0, len(prefixMap))
 	for p := range prefixMap {
 		prefixes = append(prefixes, p)
 	}
@@ -598,14 +605,15 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 				}()
 
 				resultSeriesList, err := evaluateTarget(ctx, newTarget)
+
+				mu.Lock()
+				defer mu.Unlock()
+
 				if err != nil {
-					mu.Lock()
 					multiErr = multiErr.Add(err)
-					mu.Unlock()
 					return
 				}
 
-				mu.Lock()
 				for _, resultSeries := range resultSeriesList.Values {
 					if newName != "" {
 						resultSeries = resultSeries.RenamedTo(strings.ReplaceAll(newName, "%", prefix))
@@ -613,7 +621,6 @@ func applyByNode(ctx *common.Context, seriesList singlePathSpec, nodeNum int, te
 					resultSeries.Specification = prefix
 					output = append(output, resultSeries)
 				}
-				mu.Unlock()
 			}()
 		}
 		wg.Wait()

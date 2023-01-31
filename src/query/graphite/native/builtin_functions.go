@@ -167,13 +167,28 @@ func useSeriesAbove(
 		}
 	}
 
+	if ctx.MaxSubExpressionEvaluations > 0 &&
+		int64(len(newNames)) > ctx.MaxSubExpressionEvaluations {
+		err := fmt.Errorf("too many subexpressions to evaluate: actual=%d, limit=%d",
+			len(newNames), ctx.MaxSubExpressionEvaluations)
+		return ts.SeriesList{}, xerrors.NewInvalidParamsError(err)
+	}
+
 	for _, newNameChunk := range chunkArrayHelper(newNames, maxConcurrency) {
 		var wg sync.WaitGroup
 		for _, newTarget := range newNameChunk {
 			newTarget := newTarget
 			wg.Add(1)
 			go func() {
-				defer wg.Done()
+				defer func() {
+					if err := recover(); err != nil {
+						mu.Lock()
+						multiErr = multiErr.Add(fmt.Errorf("panic in useSeriesAbove: %v", err))
+						mu.Unlock()
+					}
+					wg.Done()
+				}()
+
 				resultSeriesList, err := evaluateTarget(ctx, newTarget)
 
 				mu.Lock()

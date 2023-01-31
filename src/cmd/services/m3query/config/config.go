@@ -564,6 +564,17 @@ type CarbonConfiguration struct {
 	// CompileEscapeAllNotOnlyQuotes will escape all characters when using a backslash
 	// in a quoted string rather than just reserving for escaping quotes.
 	CompileEscapeAllNotOnlyQuotes bool `yaml:"compileEscapeAllNotOnlyQuotes"`
+	// MaxSubExpressionEvaluations is the maximum number of sub expressions
+	// that can be evaluated in a single function. If set to 0, there is no
+	// limit. This may become important to limit the number of total fetches
+	// made to the TSDB for a single query in case of explosions of
+	// sub expression evaluations depending on the funciton.
+	// e.g. for "applyByNode" there is an unlimited number of sub expressions
+	// that could be evaluated if this is not set, otherwise a hard limit
+	// is used and an error is returned if the limit is exceeded. The other
+	// functions that uses this limit is "useSeriesAbove" which can have
+	// similar behavior.
+	MaxSubExpressionEvaluations int `yaml:"maxSubExpressionEvaluations"`
 	// FindResultsIncludeBothExpandableAndLeaf will include both an expandable
 	// node and a leaf node if there is a duplicate path node that is both an
 	// expandable node and a leaf node.

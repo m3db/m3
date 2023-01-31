@@ -621,6 +621,7 @@ func Run(runOpts RunOptions) RunResult {
 			RenderPartialEnd:                           cfg.Carbon.RenderPartialEnd,
 			RenderSeriesAllNaNs:                        cfg.Carbon.RenderSeriesAllNaNs,
 			CompileEscapeAllNotOnlyQuotes:              cfg.Carbon.CompileEscapeAllNotOnlyQuotes,
+			MaxSubExpressionEvaluations:                cfg.Carbon.MaxSubExpressionEvaluations,
 			FindResultsIncludeBothExpandableAndLeaf:    cfg.Carbon.FindResultsIncludeBothExpandableAndLeaf,
 			FindPathIndexingEnabled:                    cfg.Carbon.FindPathIndexingEnabled,
 		}

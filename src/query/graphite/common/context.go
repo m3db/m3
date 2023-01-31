@@ -68,6 +68,13 @@ type contextBase struct {
 	// MaxDataPoints is the max datapoints for the query.
 	MaxDataPoints int64
 
+	// MaxSubExpressionEvaluations is the maximum number of sub expressions
+	// that can be evaluated in a single function. If set to 0, there is no
+	// limit. This may become important to limit the number of total fetches
+	// made to the TSDB for a single query in case of explosions of
+	// sub expression evaluations depending on the funciton.
+	MaxSubExpressionEvaluations int64
+
 	// FetchOpts are the fetch options to use for the query.
 	FetchOpts *storage.FetchOptions
 
@@ -85,12 +92,13 @@ type Context struct {
 
 // ContextOptions provides the options to create the context with
 type ContextOptions struct {
-	Start         time.Time
-	End           time.Time
-	Engine        QueryEngine
-	Timeout       time.Duration
-	MaxDataPoints int64
-	FetchOpts     *storage.FetchOptions
+	Start                       time.Time
+	End                         time.Time
+	Engine                      QueryEngine
+	Timeout                     time.Duration
+	MaxDataPoints               int64
+	MaxSubExpressionEvaluations int64
+	FetchOpts                   *storage.FetchOptions
 }
 
 // TimeRangeAdjustment is an applied time range adjustment.
@@ -107,13 +115,14 @@ type TimeRangeAdjustment struct {
 func NewContext(options ContextOptions) *Context {
 	return &Context{
 		contextBase: contextBase{
-			StartTime:      options.Start,
-			EndTime:        options.End,
-			Engine:         options.Engine,
-			storageContext: context.New(),
-			Timeout:        options.Timeout,
-			MaxDataPoints:  options.MaxDataPoints,
-			FetchOpts:      options.FetchOpts,
+			StartTime:                   options.Start,
+			EndTime:                     options.End,
+			Engine:                      options.Engine,
+			storageContext:              context.New(),
+			Timeout:                     options.Timeout,
+			MaxDataPoints:               options.MaxDataPoints,
+			MaxSubExpressionEvaluations: options.MaxSubExpressionEvaluations,
+			FetchOpts:                   options.FetchOpts,
 		},
 	}
 }

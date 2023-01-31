@@ -42,8 +42,10 @@ import (
 type testCompile struct {
 	input   string
 	result  interface{}
+	hasErr  string
 	series  func(*common.Context) []*ts.Series
 	asserts func(require.TestingT, tally.TestScope, Expression)
+	setup   func(*common.Context)
 }
 
 func hello(ctx *common.Context) (string, error)         { return "hello", nil }
@@ -507,6 +509,24 @@ func TestCompile1(t *testing.T) {
 				assert.Equal(t, int64(2), v.Value())
 			},
 		},
+		{
+			// Test that MaxSubExpressionEvaluations is respected.
+			input: "applyByNode(foo.*.total, 1, 'sumSeries(%.errors)')",
+			setup: func(ctx *common.Context) {
+				ctx.MaxSubExpressionEvaluations = 2
+			},
+			series: func(ctx *common.Context) []*ts.Series {
+				return []*ts.Series{
+					ts.NewSeries(ctx, "foo.bar.total", ctx.StartTime,
+						ts.NewConstantValues(ctx, 42, 10, 60000)),
+					ts.NewSeries(ctx, "foo.baz.total", ctx.StartTime,
+						ts.NewConstantValues(ctx, 42, 10, 60000)),
+					ts.NewSeries(ctx, "foo.qux.total", ctx.StartTime,
+						ts.NewConstantValues(ctx, 42, 10, 60000)),
+				}
+			},
+			hasErr: "too many subexpressions to evaluate: actual=3, limit=2",
+		},
 	}
 
 	ctrl := xtest.NewController(t)
@@ -514,6 +534,10 @@ func TestCompile1(t *testing.T) {
 
 	for _, test := range tests {
 		ctx := common.NewTestContext()
+		if test.setup != nil {
+			test.setup(ctx)
+		}
+
 		store := storage.NewMockStorage(ctrl)
 
 		result := &storage.FetchResult{}
@@ -543,6 +567,12 @@ func TestCompile1(t *testing.T) {
 
 		// Ensure that the function can execute.
 		_, err = expr.Execute(ctx)
+		if test.hasErr != "" {
+			require.Error(t, err)
+			require.Contains(t, err.Error(), test.hasErr)
+			continue
+		}
+
 		require.NoError(t, err)
 
 		// Run assertions.
