@@ -468,6 +468,7 @@ func (d *clusterDB) hostOrEmptyShardSet(m topology.Map) sharding.ShardSet {
 	if hostShardSet, ok := m.LookupHostShardSet(d.hostID); ok {
 		return hostShardSet.ShardSet()
 	}
+	d.log.Info("Picked new version")
 	d.log.Warn("topology has no shard set for host ID", zap.String("hostID", d.hostID))
 	return sharding.NewEmptyShardSet(m.ShardSet().HashFn())
 }
