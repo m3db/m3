@@ -32,10 +32,12 @@ func TestPrefixCompositeR2Filter(t *testing.T) {
 	id1 := "arachne_failures_by_rack"
 	f, err := newMultiCharSequenceFilter([]byte("arachne_failures,arachne_failures_by_rack"), false)
 	require.NoError(t, err)
-	_, matches1 := f.matches([]byte(id0))
+	val1, matches1 := f.matches([]byte(id0))
 	require.True(t, matches1)
-	_, matches2 := f.matches([]byte(id1))
+	require.True(t, len(val1) == 0)
+	val2, matches2 := f.matches([]byte(id1))
 	require.True(t, matches2)
+	require.True(t, len(val2) == 0)
 }
 
 func TestNewFilterFromFilterValueInvalidPattern(t *testing.T) {
