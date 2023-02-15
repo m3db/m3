@@ -27,6 +27,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestPrefixCompositeR2Filter(t *testing.T) {
+	id0 := "arachne_failures"
+	id1 := "arachne_failures_by_rack"
+	f, err := newMultiCharSequenceFilter([]byte("arachne_failures,arachne_failures_by_rack"), false)
+	require.NoError(t, err)
+	_, matches1 := f.matches([]byte(id0))
+	require.True(t, matches1)
+	_, matches2 := f.matches([]byte(id1))
+	require.True(t, matches2)
+
+}
+
 func TestNewFilterFromFilterValueInvalidPattern(t *testing.T) {
 	inputs := []string{"ab]c[sdf", "abc[z-a]", "*con[tT]ains*"}
 	for _, input := range inputs {

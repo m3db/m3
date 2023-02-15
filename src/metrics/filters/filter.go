@@ -585,14 +585,35 @@ func (f *multiCharSequenceFilter) matches(val []byte) ([]byte, bool) {
 		return nil, false
 	}
 
+	var matchIndex int
+	var bestPattern []byte
 	for _, pattern := range f.patterns {
-		if f.backwards && bytes.HasSuffix(val, pattern) {
-			return val[:len(val)-len(pattern)], true
+		if len(pattern) > len(val) {
+			continue
 		}
 
-		if !f.backwards && bytes.HasPrefix(val, pattern) {
-			return val[len(pattern):], true
+		if f.backwards {
+			if bytes.HasSuffix(val, pattern) {
+				if bestPattern == nil || len(pattern) > len(bestPattern) {
+					bestPattern = pattern
+					matchIndex = len(val) - len(pattern)
+				}
+			}
+		} else {
+			if bytes.HasPrefix(val, pattern) {
+				if bestPattern == nil || len(pattern) > len(bestPattern) {
+					bestPattern = pattern
+					matchIndex = len(pattern)
+				}
+			}
 		}
+	}
+
+	if bestPattern != nil {
+		if f.backwards {
+			return val[:matchIndex], true
+		}
+		return val[matchIndex:], true
 	}
 
 	return nil, false
