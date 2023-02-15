@@ -27,19 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPrefixCompositeR2Filter(t *testing.T) {
-	id0 := "arachne_failures"
-	id1 := "arachne_failures_by_rack"
-	f, err := newMultiCharSequenceFilter([]byte("arachne_failures,arachne_failures_by_rack"), false)
-	require.NoError(t, err)
-	val1, matches1 := f.matches([]byte(id0))
-	require.True(t, matches1)
-	require.True(t, len(val1) == 0)
-	val2, matches2 := f.matches([]byte(id1))
-	require.True(t, matches2)
-	require.True(t, len(val2) == 0)
-}
-
 func TestNewFilterFromFilterValueInvalidPattern(t *testing.T) {
 	inputs := []string{"ab]c[sdf", "abc[z-a]", "*con[tT]ains*"}
 	for _, input := range inputs {
@@ -362,6 +349,11 @@ func TestMultiCharSequenceFilter(t *testing.T) {
 	validateLookup(t, f, "12test", true, "12")
 	validateLookup(t, f, "12test2", true, "12")
 	validateLookup(t, f, "123book", true, "123")
+
+	f, err = newMultiCharSequenceFilter([]byte("arachne_failures,arachne_failures_by_rack"), false)
+	require.NoError(t, err)
+	validateLookup(t, f, "arachne_failures", true, "")
+	validateLookup(t, f, "arachne_failures_by_rack", true, "")
 }
 
 func validateLookup(t *testing.T, f chainFilter, val string, expectedMatch bool, expectedRemainder string) {
