@@ -36,7 +36,6 @@ func TestPrefixCompositeR2Filter(t *testing.T) {
 	require.True(t, matches1)
 	_, matches2 := f.matches([]byte(id1))
 	require.True(t, matches2)
-
 }
 
 func TestNewFilterFromFilterValueInvalidPattern(t *testing.T) {
