@@ -594,14 +594,14 @@ func (f *multiCharSequenceFilter) matches(val []byte) ([]byte, bool) {
 
 		if f.backwards {
 			if bytes.HasSuffix(val, pattern) {
-				if bestPattern == nil || len(pattern) > len(bestPattern) {
+				if len(pattern) > len(bestPattern) {
 					bestPattern = pattern
 					matchIndex = len(val) - len(pattern)
 				}
 			}
 		} else {
 			if bytes.HasPrefix(val, pattern) {
-				if bestPattern == nil || len(pattern) > len(bestPattern) {
+				if len(pattern) > len(bestPattern) {
 					bestPattern = pattern
 					matchIndex = len(pattern)
 				}

@@ -354,6 +354,11 @@ func TestMultiCharSequenceFilter(t *testing.T) {
 	require.NoError(t, err)
 	validateLookup(t, f, "arachne_failures", true, "")
 	validateLookup(t, f, "arachne_failures_by_rack", true, "")
+
+	f, err = newMultiCharSequenceFilter([]byte("arachne_failures,test_arachne_failures"), true)
+	require.NoError(t, err)
+	validateLookup(t, f, "arachne_failures", true, "")
+	validateLookup(t, f, "test_arachne_failures", true, "")
 }
 
 func validateLookup(t *testing.T, f chainFilter, val string, expectedMatch bool, expectedRemainder string) {
