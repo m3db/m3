@@ -597,6 +597,10 @@ func (f *multiCharSequenceFilter) matches(val []byte) ([]byte, bool) {
 				if len(pattern) > len(bestPattern) {
 					bestPattern = pattern
 					matchIndex = len(val) - len(pattern)
+					// No need to continue searching through remaining patterns if a complete match is found
+					if len(bestPattern) == len(val) {
+						break
+					}
 				}
 			}
 		} else {
@@ -604,6 +608,10 @@ func (f *multiCharSequenceFilter) matches(val []byte) ([]byte, bool) {
 				if len(pattern) > len(bestPattern) {
 					bestPattern = pattern
 					matchIndex = len(pattern)
+					// No need to continue searching through remaining patterns if a complete match is found
+					if len(bestPattern) == len(val) {
+						break
+					}
 				}
 			}
 		}
