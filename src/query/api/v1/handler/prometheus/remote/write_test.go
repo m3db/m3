@@ -23,6 +23,7 @@ package remote
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -447,6 +448,134 @@ func TestPromWriteLiteralIsTooLongError(t *testing.T) {
 		resp := writer.Result()
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		require.NoError(t, resp.Body.Close())
+	}
+}
+
+func TestPromWriteForwardWithShadowDefaultHash(t *testing.T) {
+	testPromWriteForwardWithShadow(t, testPromWriteForwardWithShadowOptions{
+		numSeries:                    10000,
+		percent:                      0.5,
+		expectedFwded:                5000,
+		expectedFwdedAllowedVariance: 0.05,
+	})
+}
+
+func TestPromWriteForwardWithShadowXXHash(t *testing.T) {
+	testPromWriteForwardWithShadow(t, testPromWriteForwardWithShadowOptions{
+		numSeries:                    10000,
+		percent:                      0.5,
+		hash:                         "xxhash",
+		expectedFwded:                5000,
+		expectedFwdedAllowedVariance: 0.05,
+	})
+}
+
+func TestPromWriteForwardWithShadowMurmur3(t *testing.T) {
+	testPromWriteForwardWithShadow(t, testPromWriteForwardWithShadowOptions{
+		numSeries:                    10000,
+		percent:                      0.5,
+		hash:                         "murmur3",
+		expectedFwded:                5000,
+		expectedFwdedAllowedVariance: 0.05,
+	})
+}
+
+type testPromWriteForwardWithShadowOptions struct {
+	numSeries                    int
+	percent                      float64
+	hash                         string
+	expectedFwded                int64
+	expectedFwdedAllowedVariance float64
+}
+
+func testPromWriteForwardWithShadow(
+	t *testing.T,
+	testOpts testPromWriteForwardWithShadowOptions,
+) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	// Create forwarding receiver.
+	forwardRecvReqCh := make(chan *prompb.WriteRequest, 1)
+	forwardRecvSvr := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			forwardRecvReqCh <- test.ReadPromWriteRequestBody(t, r.Body)
+			w.WriteHeader(http.StatusOK)
+		}))
+	defer forwardRecvSvr.Close()
+
+	target := handleroptions.PromWriteHandlerForwardTargetOptions{
+		URL:     forwardRecvSvr.URL,
+		Method:  http.MethodPost,
+		NoRetry: true,
+		Shadow: &handleroptions.PromWriteHandlerForwardTargetShadowOptions{
+			Percent: testOpts.percent,
+			Hash:    testOpts.hash,
+		},
+	}
+
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	mockDownsamplerAndWriter.
+		EXPECT().
+		WriteBatch(gomock.Any(), gomock.Any(), gomock.Any())
+
+	// Setup opts and modify config.
+	opts := makeOptions(mockDownsamplerAndWriter)
+
+	cfg := opts.Config()
+	cfg.WriteForwarding.PromRemoteWrite.Targets = append(cfg.WriteForwarding.PromRemoteWrite.Targets, target)
+
+	opts = opts.SetConfig(cfg)
+
+	handler, err := NewPromWriteHandler(opts)
+	require.NoError(t, err)
+
+	promReq := &prompb.WriteRequest{}
+	for i := 0; i < testOpts.numSeries; i++ {
+		series := prompb.TimeSeries{
+			Labels: []prompb.Label{
+				{Name: []byte("__name__"), Value: []byte(fmt.Sprintf("name_%d", i))},
+			},
+			Samples: []prompb.Sample{
+				{Timestamp: time.Now().UnixMilli(), Value: 42},
+			},
+		}
+
+		// Add some labels, unsorted.
+		for j := 0; j < 5; j++ {
+			label := prompb.Label{Name: make([]byte, 16), Value: make([]byte, 16)}
+			_, err = rand.Reader.Read(label.Name)
+			require.NoError(t, err)
+			_, err = rand.Reader.Read(label.Value)
+			require.NoError(t, err)
+			// Add to start or end.
+			if j%2 == 0 {
+				series.Labels = append(series.Labels, label)
+			} else {
+				series.Labels = append([]prompb.Label{label}, series.Labels...)
+			}
+		}
+
+		promReq.Timeseries = append(promReq.Timeseries, series)
+	}
+
+	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
+	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
+	writer := httptest.NewRecorder()
+	handler.ServeHTTP(writer, req)
+	resp := writer.Result()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.NoError(t, resp.Body.Close())
+
+	select {
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "timeout waiting for fwd request")
+	case fwdReq := <-forwardRecvReqCh:
+		assert.InEpsilon(t, testOpts.expectedFwded, len(fwdReq.Timeseries),
+			testOpts.expectedFwdedAllowedVariance,
+			fmt.Sprintf("expected=%v, actual=%v, allowed_variance=%v",
+				testOpts.expectedFwded, len(fwdReq.Timeseries),
+				testOpts.expectedFwdedAllowedVariance))
 	}
 }
 
