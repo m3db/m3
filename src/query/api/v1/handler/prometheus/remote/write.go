@@ -636,12 +636,17 @@ func (h *PromWriteHandler) buildForwardShadowRequestBody(
 		return nil, fmt.Errorf("unknown hash function: %s", shadowOpts.Hash)
 	}
 
-	var buffer []byte
-	for i := 0; i < len(res.Request.Timeseries); i++ {
-		ts := res.Request.Timeseries[i]
-
+	var (
+		shadowReq = &prompb.WriteRequest{}
+		labels    []prompb.Label
+		buffer    []byte
+	)
+	for _, ts := range res.Request.Timeseries {
 		// Build an ID of the series to hash.
-		buffer = buildPseudoIDWithLabelsLikelySorted(ts.Labels, buffer[:0])
+		// First take copy of labels so the call to sort doesn't modify the
+		// original slice.
+		labels = append(labels[:0], ts.Labels...)
+		buffer = buildPseudoIDWithLabelsLikelySorted(labels, buffer[:0])
 
 		// Use a range of 10k to allow for setting 0.01% having an effect
 		// when shadow percent is set (i.e. with percent=0.0001)
@@ -655,14 +660,10 @@ func (h *PromWriteHandler) buildForwardShadowRequestBody(
 
 		// Skip forwarding this series, not in shadow volume of shards.
 		// Swap it with the tail and continue.
-		res.Request.Timeseries[i] = res.Request.Timeseries[len(res.Request.Timeseries)-1]
-		res.Request.Timeseries = res.Request.Timeseries[:len(res.Request.Timeseries)-1]
-
-		// Process the series we put at the index again
-		i--
+		shadowReq.Timeseries = append(shadowReq.Timeseries, ts)
 	}
 
-	encoded, err := proto.Marshal(res.Request)
+	encoded, err := proto.Marshal(shadowReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal forwarding shadow request: %w", err)
 	}
