@@ -568,14 +568,14 @@ func testPromWriteForwardWithShadow(
 	require.NoError(t, resp.Body.Close())
 
 	select {
-	case <-time.After(10 * time.Second):
-		require.FailNow(t, "timeout waiting for fwd request")
 	case fwdReq := <-forwardRecvReqCh:
 		assert.InEpsilon(t, testOpts.expectedFwded, len(fwdReq.Timeseries),
 			testOpts.expectedFwdedAllowedVariance,
 			fmt.Sprintf("expected=%v, actual=%v, allowed_variance=%v",
 				testOpts.expectedFwded, len(fwdReq.Timeseries),
 				testOpts.expectedFwdedAllowedVariance))
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "timeout waiting for fwd request")
 	}
 }
 
