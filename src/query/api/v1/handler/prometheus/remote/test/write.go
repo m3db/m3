@@ -23,6 +23,7 @@ package test
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"time"
 
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -37,17 +38,18 @@ import (
 // write request.
 func GeneratePromWriteRequest() *prompb.WriteRequest {
 	req := &prompb.WriteRequest{
-		Timeseries: []prompb.TimeSeries{{
-			Labels: []prompb.Label{
-				{Name: []byte(model.MetricNameLabel), Value: []byte("first")},
-				{Name: []byte("foo"), Value: []byte("bar")},
-				{Name: []byte("biz"), Value: []byte("baz")},
+		Timeseries: []prompb.TimeSeries{
+			{
+				Labels: []prompb.Label{
+					{Name: []byte(model.MetricNameLabel), Value: []byte("first")},
+					{Name: []byte("foo"), Value: []byte("bar")},
+					{Name: []byte("biz"), Value: []byte("baz")},
+				},
+				Samples: []prompb.Sample{
+					{Value: 1.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
+					{Value: 2.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
+				},
 			},
-			Samples: []prompb.Sample{
-				{Value: 1.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
-				{Value: 2.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
-			},
-		},
 			{
 				Labels: []prompb.Label{
 					{Name: []byte(model.MetricNameLabel), Value: []byte("second")},
@@ -58,7 +60,8 @@ func GeneratePromWriteRequest() *prompb.WriteRequest {
 					{Value: 3.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
 					{Value: 4.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
 				},
-			}},
+			},
+		},
 	}
 	return req
 }
@@ -83,4 +86,24 @@ func GeneratePromWriteRequestBodyBytes(
 
 	compressed := snappy.Encode(nil, data)
 	return compressed
+}
+
+// ReadPromWriteRequestBody reads a Prometheus remote
+// write request body.
+func ReadPromWriteRequestBody(
+	t require.TestingT,
+	body io.Reader,
+) *prompb.WriteRequest {
+	require.NotNil(t, body)
+
+	data, err := ioutil.ReadAll(body)
+	require.NoError(t, err)
+
+	decoded, err := snappy.Decode(nil, data)
+	require.NoError(t, err)
+
+	req := &prompb.WriteRequest{}
+	require.NoError(t, proto.Unmarshal(decoded, req))
+
+	return req
 }
