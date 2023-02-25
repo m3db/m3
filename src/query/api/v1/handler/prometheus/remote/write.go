@@ -197,7 +197,8 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 	if len(forwarding.Targets) > 0 {
 		target := forwarding.Targets[0]
 		logger.Info("write forwarding is setup", zap.String("remote-url", target.URL),
-			zap.Any("headers", target.Headers), zap.Duration("timeout", forwardTimeout),
+			zap.Any("headers", target.Headers), zap.String("tenant-header", target.TenantHeader),
+			zap.Duration("timeout", forwardTimeout),
 			zap.Any("retries", forwardRetryConfig))
 	}
 	return &PromWriteHandler{
