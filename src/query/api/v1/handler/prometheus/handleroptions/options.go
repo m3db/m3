@@ -45,4 +45,6 @@ type PromWriteHandlerForwardTargetOptions struct {
 	Method string `yaml:"method"`
 	// Headers to send along with requests to the target.
 	Headers map[string]string `yaml:"headers"`
+	// Transform original remote write header to Thanos Tenant `THANOS-TENANT`
+	TenantHeader string `yaml:"tenantHeader"`
 }
