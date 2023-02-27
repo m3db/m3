@@ -194,7 +194,13 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 	forwardRetryOpts := forwardRetryConfig.NewOptions(
 		scope.SubScope("forwarding-retry"),
 	)
-
+	if len(forwarding.Targets) > 0 {
+		target := forwarding.Targets[0]
+		logger.Info("write forwarding is setup", zap.String("remote-url", target.URL),
+			zap.Any("headers", target.Headers), zap.String("tenant-header", target.TenantHeader),
+			zap.Duration("timeout", forwardTimeout),
+			zap.Any("retries", forwardRetryConfig))
+	}
 	return &PromWriteHandler{
 		downsamplerAndWriter:   downsamplerAndWriter,
 		tagOptions:             tagOptions,
@@ -569,6 +575,9 @@ func (h *PromWriteHandler) forward(
 		for h := range header {
 			if strings.HasPrefix(h, headers.M3HeaderPrefix) {
 				req.Header.Add(h, header.Get(h))
+			}
+			if target.TenantHeader == h {
+				req.Header.Add("THANOS-TENANT", header.Get(h))
 			}
 		}
 	}
