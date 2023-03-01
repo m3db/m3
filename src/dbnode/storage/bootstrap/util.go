@@ -674,6 +674,15 @@ func (nt *NamespacesTester) TestUnfulfilledForNamespace(
 	}
 }
 
+// TestIndexResultForNamespace verifies index result.
+func (nt *NamespacesTester) TestIndexResultForNamespace(
+	md namespace.Metadata,
+	expected result.IndexBootstrapResult,
+) {
+	ns := nt.ResultForNamespace(md.ID())
+	require.Equal(nt.t, expected, ns.IndexResult)
+}
+
 // TestUnfulfilledForNamespaceIsEmpty ensures the given namespace has an empty
 // unfulfilled range.
 func (nt *NamespacesTester) TestUnfulfilledForNamespaceIsEmpty(

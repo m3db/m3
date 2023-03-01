@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -80,6 +81,7 @@ func testResult(
 	withIndex bool,
 	shard uint32,
 	unfulfilledRange xtime.Ranges,
+	indexResult result.IndexBootstrapResult,
 ) bootstrap.NamespaceResults {
 	unfulfilled := result.NewShardTimeRanges()
 	unfulfilled.Set(shard, unfulfilledRange)
@@ -89,7 +91,6 @@ func testResult(
 	dataResult := result.NewDataBootstrapResult()
 	dataResult.SetUnfulfilled(unfulfilled.Copy())
 
-	indexResult := result.NewIndexBootstrapResult()
 	if withIndex {
 		indexResult.SetUnfulfilled(unfulfilled.Copy())
 	}
@@ -134,8 +135,8 @@ func testBaseBootstrapperEmptyRange(t *testing.T, withIndex bool) {
 
 	rngs := result.NewShardTimeRanges()
 	unfulfilled := xtime.NewRanges()
-	nsResults := testResult(testNs, withIndex, testShard, unfulfilled)
-	nextResult := testResult(testNs, withIndex, testShard, xtime.NewRanges())
+	nsResults := testResult(testNs, withIndex, testShard, unfulfilled, result.NewIndexBootstrapResult())
+	nextResult := testResult(testNs, withIndex, testShard, xtime.NewRanges(), result.NewIndexBootstrapResult())
 	shardRangeMatcher := bootstrap.ShardTimeRangesMatcher{Ranges: rngs}
 
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, rngs, testNs)
@@ -185,8 +186,8 @@ func testBaseBootstrapperCurrentNoUnfulfilled(t *testing.T, withIndex bool) {
 	testNs := testNsMetadata(t, withIndex)
 
 	unfulfilled := xtime.NewRanges()
-	nsResults := testResult(testNs, withIndex, testShard, unfulfilled)
-	nextResult := testResult(testNs, withIndex, testShard, xtime.NewRanges())
+	nsResults := testResult(testNs, withIndex, testShard, unfulfilled, result.NewIndexBootstrapResult())
+	nextResult := testResult(testNs, withIndex, testShard, xtime.NewRanges(), result.NewIndexBootstrapResult())
 
 	targetRanges := testShardTimeRanges()
 
@@ -241,8 +242,8 @@ func testBaseBootstrapperCurrentSomeUnfulfilled(t *testing.T, withIndex bool) {
 		End:   testTargetStart.Add(time.Hour * 2),
 	})
 
-	currResult := testResult(testNs, withIndex, testShard, currUnfulfilled)
-	nextResult := testResult(testNs, withIndex, testShard, xtime.NewRanges())
+	currResult := testResult(testNs, withIndex, testShard, currUnfulfilled, result.NewIndexBootstrapResult())
+	nextResult := testResult(testNs, withIndex, testShard, xtime.NewRanges(), result.NewIndexBootstrapResult())
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges,
 		testNs)
 	defer tester.Finish()
@@ -263,7 +264,7 @@ func testBaseBootstrapperCurrentSomeUnfulfilled(t *testing.T, withIndex bool) {
 	tester.TestUnfulfilledForNamespaceIsEmpty(testNs)
 }
 
-func testBasebootstrapperNext(
+func testBaseBootstrapperNext(
 	t *testing.T,
 	nextUnfulfilled xtime.Ranges,
 	withIndex bool,
@@ -289,7 +290,7 @@ func testBasebootstrapperNext(
 	}
 
 	emptyResult := testEmptyResult(testNs)
-	nextResult := testResult(testNs, withIndex, testShard, nextUnfulfilled)
+	nextResult := testResult(testNs, withIndex, testShard, nextUnfulfilled, result.NewIndexBootstrapResult())
 	matcher := bootstrap.NamespaceMatcher{Namespaces: tester.Namespaces}
 	src.EXPECT().Read(gomock.Any(), matcher, cache).Return(emptyResult, nil)
 	next.EXPECT().Bootstrap(gomock.Any(), matcher, cache).Return(nextResult, nil)
@@ -309,13 +310,13 @@ func testBasebootstrapperNext(
 }
 
 func TestBaseBootstrapperNextNoUnfulfilled(t *testing.T) {
-	nextUnfulfilled := testTargetRanges()
-	testBasebootstrapperNext(t, nextUnfulfilled, false)
+	nextUnfulfilled := xtime.NewRanges()
+	testBaseBootstrapperNext(t, nextUnfulfilled, false)
 }
 
 func TestBaseBootstrapperNextNoUnfulfilledWithIndex(t *testing.T) {
-	nextUnfulfilled := testTargetRanges()
-	testBasebootstrapperNext(t, nextUnfulfilled, true)
+	nextUnfulfilled := xtime.NewRanges()
+	testBaseBootstrapperNext(t, nextUnfulfilled, true)
 }
 
 func TestBaseBootstrapperNextSomeUnfulfilled(t *testing.T) {
@@ -324,7 +325,7 @@ func TestBaseBootstrapperNextSomeUnfulfilled(t *testing.T) {
 		End:   testTargetStart.Add(time.Hour),
 	})
 
-	testBasebootstrapperNext(t, nextUnfulfilled, false)
+	testBaseBootstrapperNext(t, nextUnfulfilled, false)
 }
 
 func TestBaseBootstrapperNextSomeUnfulfilledWithIndex(t *testing.T) {
@@ -333,5 +334,46 @@ func TestBaseBootstrapperNextSomeUnfulfilledWithIndex(t *testing.T) {
 		End:   testTargetStart.Add(time.Hour),
 	})
 
-	testBasebootstrapperNext(t, nextUnfulfilled, true)
+	testBaseBootstrapperNext(t, nextUnfulfilled, true)
+}
+
+func TestBaseBootstrapperNextAddIndexResults(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	src, next, base := testBaseBootstrapper(t, ctrl)
+	testNs := testNsMetadata(t, true)
+	targetRanges := testShardTimeRanges()
+
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, testNs)
+	defer tester.Finish()
+
+	cache := tester.Cache
+	src.EXPECT().
+		AvailableData(testNs, targetRanges, cache, testDefaultRunOpts).
+		Return(result.NewShardTimeRanges(), nil)
+	src.EXPECT().
+		AvailableIndex(testNs, targetRanges, cache, testDefaultRunOpts).
+		Return(result.NewShardTimeRanges(), nil)
+
+	var (
+		blockStart = xtime.UnixNano(1)
+
+		nextBlock       = result.NewIndexBlock(nil, result.NewShardTimeRanges())
+		nextBlocks      = result.NewIndexBlockByVolumeType(blockStart)
+		nextIndexResult = result.NewIndexBootstrapResult()
+	)
+
+	nextBlocks.SetBlock(persist.DefaultIndexVolumeType, nextBlock)
+	nextIndexResult.IndexResults().Add(nextBlocks)
+
+	emptyResult := testEmptyResult(testNs)
+	nextResult := testResult(testNs, true, testShard, xtime.NewRanges(), nextIndexResult)
+
+	matcher := bootstrap.NamespaceMatcher{Namespaces: tester.Namespaces}
+	src.EXPECT().Read(gomock.Any(), matcher, cache).Return(emptyResult, nil)
+	next.EXPECT().Bootstrap(gomock.Any(), matcher, cache).Return(nextResult, nil)
+
+	tester.TestBootstrapWith(base)
+
+	tester.TestIndexResultForNamespace(testNs, nextIndexResult)
 }
