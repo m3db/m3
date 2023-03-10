@@ -541,6 +541,63 @@ func Run(runOpts RunOptions) RunResult {
 		if err != nil {
 			logger.Fatal("unable to setup downsampler for prom remote backend", zap.Error(err))
 		}
+	case config.DualStorageType:
+		// setup m3 first
+		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBConfig,
+			clusterNamespacesWatcher, runOpts.DBClient, encodingOpts,
+			runOpts.LocalSessionReadyCh, instrumentOptions,
+			tsdbOpts.CustomAdminOptions())
+		if err != nil {
+			logger.Fatal("unable to init clusters", zap.Error(err))
+		}
+
+		m3Storage, cleanup, err := newM3DBStorage(
+			cfg, m3dbClusters, m3dbPoolWrapper, queryCtxOpts, tsdbOpts, instrumentOptions,
+		)
+		if err != nil {
+			logger.Fatal("unable to setup m3db backend", zap.Error(err))
+		}
+		defer cleanup()
+
+		etcdConfig, err := resolveEtcdForM3DB(cfg)
+		if err != nil {
+			logger.Fatal("unable to resolve etcd config for m3db backend", zap.Error(err))
+		}
+
+		// setup prom-remote next
+		opts, err := promremote.NewOptions(cfg.PrometheusRemoteBackend, scope, instrumentOptions.Logger())
+		if err != nil {
+			logger.Fatal("invalid configuration", zap.Error(err))
+		}
+		promRemoteStorage, err := promremote.NewStorage(opts)
+		if err != nil {
+			logger.Fatal("unable to setup prom remote backend", zap.Error(err))
+		}
+		defer func() {
+			if err := promRemoteStorage.Close(); err != nil {
+				logger.Error("error when closing storage", zap.Error(err))
+			}
+		}()
+
+		// TODO(yi): Implement this composite function
+		backendStorage = compose(m3Storage, promRemoteStorage)
+
+		// setup downsampler
+		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
+			zap.Int("numAggregatedClusterNamespaces", len(m3dbClusters.ClusterNamespaces())))
+
+		downsampler, clusterClient, err = newDownsamplerAsync(cfg.Downsample, etcdConfig, backendStorage,
+			clusterNamespacesWatcher, tsdbOpts.TagOptions(), clockOpts, instrumentOptions, rwOpts, runOpts,
+			interruptOpts,
+		)
+		if err != nil {
+			var interruptErr *xos.InterruptError
+			if errors.As(err, &interruptErr) {
+				logger.Warn("interrupt received. closing server", zap.Error(err))
+				return runResult
+			}
+			logger.Fatal("unable to setup downsampler for m3db backend", zap.Error(err))
+		}
 	default:
 		logger.Fatal("unrecognized backend", zap.String("backend", string(cfg.Backend)))
 	}

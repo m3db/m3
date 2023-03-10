@@ -63,6 +63,9 @@ const (
 	// PromRemoteStorageType is a type of storage that is backed by Prometheus Remote Write compatible API.
 	PromRemoteStorageType BackendStorageType = "prom-remote"
 
+	// DualStorageType is a composite backend type with both m3db+prom-remote
+	DualStorageType BackendStorageType = "dual"
+
 	defaultListenAddress = "0.0.0.0:7201"
 
 	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
