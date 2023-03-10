@@ -232,6 +232,8 @@ type options struct {
 	runtimeOptsMgr                          m3dbruntime.OptionsManager
 	clockOpts                               clock.Options
 	instrumentOpts                          instrument.Options
+	logHostWriteErrorSampleRate             sampler.Rate
+	logHostFetchErrorSampleRate             sampler.Rate
 	logErrorSampleRate                      sampler.Rate
 	topologyInitializer                     topology.Initializer
 	readConsistencyLevel                    topology.ReadConsistencyLevel
@@ -474,6 +476,12 @@ func validate(opts *options) error {
 	); err != nil {
 		return err
 	}
+	if err := opts.logHostWriteErrorSampleRate.Validate(); err != nil {
+		return err
+	}
+	if err := opts.logHostFetchErrorSampleRate.Validate(); err != nil {
+		return err
+	}
 	return opts.logErrorSampleRate.Validate()
 }
 
@@ -542,6 +550,26 @@ func (o *options) SetLogErrorSampleRate(value sampler.Rate) Options {
 
 func (o *options) LogErrorSampleRate() sampler.Rate {
 	return o.logErrorSampleRate
+}
+
+func (o *options) SetLogHostWriteErrorSampleRate(value sampler.Rate) Options {
+	opts := *o
+	opts.logHostWriteErrorSampleRate = value
+	return &opts
+}
+
+func (o *options) LogHostWriteErrorSampleRate() sampler.Rate {
+	return o.logHostWriteErrorSampleRate
+}
+
+func (o *options) SetLogHostFetchErrorSampleRate(value sampler.Rate) Options {
+	opts := *o
+	opts.logHostFetchErrorSampleRate = value
+	return &opts
+}
+
+func (o *options) LogHostFetchErrorSampleRate() sampler.Rate {
+	return o.logHostFetchErrorSampleRate
 }
 
 func (o *options) SetTopologyInitializer(value topology.Initializer) Options {
