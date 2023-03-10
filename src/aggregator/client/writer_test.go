@@ -22,12 +22,10 @@ package client
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
 	"math"
-	"net"
 	"sort"
 	"strings"
 	"sync"
@@ -45,7 +43,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -59,8 +56,8 @@ func TestWriterWriteClosed(t *testing.T) {
 		},
 	}
 	w := newInstanceWriter(testPlacementInstance, testOptions()).(*writer)
-	w.closed.Store(true)
-	require.Equal(t, ErrInstanceWriterClosed, w.Write(0, payload))
+	w.closed = true
+	require.Equal(t, errInstanceWriterClosed, w.Write(0, payload))
 }
 
 func TestWriterWriteUntimedCounterEncodeError(t *testing.T) {
@@ -91,68 +88,6 @@ func TestWriterWriteUntimedCounterEncodeError(t *testing.T) {
 		},
 	}
 	require.Equal(t, errTestEncodeMetric, w.Write(0, payload))
-}
-
-// TestWriterFlushInProgress tests that a writer does not
-// have multiple flushes in progress at the same time. It
-// can only ever have one flush active at any given point in
-// time.
-func TestWriterFlushInProgress(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	blockCh := make(chan bool)
-	ctx := context.Background()
-	ctx, cancelFn := context.WithTimeout(ctx, 2*time.Second)
-	defer cancelFn()
-
-	slowMockConn := NewMockConn(ctrl)
-	slowMockConn.EXPECT().Write(gomock.Any()).DoAndReturn(func(b []byte) (n int, err error) {
-		// notify that the slow writer is about to block
-		blockCh <- true
-		<-ctx.Done()
-		return len(b), nil
-	})
-	slowMockConn.EXPECT().SetWriteDeadline(gomock.Any())
-
-	slowWriterDialerFn := func(c context.Context, network string, address string) (net.Conn, error) {
-		return slowMockConn, nil
-	}
-
-	slowConnOpts := NewConnectionOptions().SetContextDialer(slowWriterDialerFn)
-	opts := testOptions().SetConnectionOptions(slowConnOpts)
-	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
-
-	payload := payloadUnion{
-		payloadType: untimedType,
-		untimed: untimedPayload{
-			metric:    testCounter,
-			metadatas: testStagedMetadatas,
-		},
-	}
-
-	require.Equal(t, nil, w.Write(0, payload))
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		w.Flush() //nolint:errcheck
-	}()
-
-	// wait for previous flush to block
-	<-blockCh
-
-	// now any newly initiated Flush should fail with err "in-progress"
-	// Note that if we didn't wait on blockCh above then this following
-	// Flush() can finish before the previous flush which defeats the
-	// purpose of the test :-)
-	require.EqualError(t, w.Flush(), ErrFlushInProgress.Error())
-
-	// unblock the slow writer
-	cancelFn()
-
-	wg.Wait()
 }
 
 func TestWriterWriteUntimedCounterEncoderExists(t *testing.T) {
@@ -216,89 +151,7 @@ func TestWriterWriteUntimedCounterEncoderDoesNotExist(t *testing.T) {
 	require.NoError(t, w.Write(0, payload))
 }
 
-func TestWriterEncoderSizeLimitItems(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := testOptions().SetMaxBatchSize(1).SetInstanceQueueSize(1)
-	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
-
-	payload := payloadUnion{
-		payloadType: untimedType,
-		untimed: untimedPayload{
-			metric:    testCounter,
-			metadatas: testStagedMetadatas,
-		},
-	}
-
-	// Perform a write which should enqueue the buf
-	require.NoError(t, w.Write(0, payload))
-	sizeBefore := w.QueueSize()
-
-	i := 0
-	numWrites := 10
-	for i < numWrites {
-		require.NoError(t, w.Write(0, payload))
-		i++
-	}
-
-	// All writes must respect the queue size of 1
-	// meaning that after numWrites attempts,
-	// the queueSize should still be 1 and the
-	// enqueued len in the encoders must be 0
-	// since all buffers would have been relinquished
-	// on write since each write exceeded maxBatchSize of 1
-	sizeAfter := w.QueueSize()
-
-	enc, exists := w.encodersByShard[0]
-	require.True(t, exists)
-	require.NotNil(t, enc)
-	require.Equal(t, 1, len(w.encodersByShard))
-	require.Equal(t, sizeBefore, sizeAfter)
-	require.Equal(t, 0, w.encodersByShard[0].Len())
-}
-
-func TestWriterEncoderSizeLimitBytes(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	// The encoded length of the payload below is 155 bytes.
-	// Set the MaxBatchSize to 200 so that it is relinquished
-	// after we write the payload twice.
-	// The queue is configured with a size limit of 300 bytes
-	// Therefore it can hold one such relinquished buffer of total
-	// size (155+155) 310. Any more attempts to write should
-	// respect the size limit and the queue size should remain 310
-	// Whereas the encoders should be fully drained for even number
-	// of writes.
-	opts := testOptions().SetMaxBatchSize(1).SetInstanceMaxQueueSizeBytes(300)
-	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
-
-	payload := payloadUnion{
-		payloadType: untimedType,
-		untimed: untimedPayload{
-			metric:    testCounter,
-			metadatas: testStagedMetadatas,
-		},
-	}
-
-	i := 0
-	numWrites := 10
-	for i < numWrites {
-		require.NoError(t, w.Write(0, payload))
-		i++
-	}
-
-	enc, exists := w.encodersByShard[0]
-	require.True(t, exists)
-	require.NotNil(t, enc)
-	require.Equal(t, 1, len(w.encodersByShard))
-	require.Equal(t, 310, w.QueueSizeBytes())
-	require.Equal(t, 0, w.encodersByShard[0].Len())
-}
-
-//nolint:dupl
-func TestWriterWriteUntimedCounterWithWriteZeroSizeBefore(t *testing.T) {
+func TestWriterWriteUntimedCounterWithFlushingZeroSizeBefore(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -326,7 +179,6 @@ func TestWriterWriteUntimedCounterWithWriteZeroSizeBefore(t *testing.T) {
 			enqueuedBuf = buf
 			return nil
 		})
-
 	w := newInstanceWriter(testPlacementInstance, testOptions().SetMaxBatchSize(3)).(*writer)
 	w.queue = queue
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
@@ -349,8 +201,7 @@ func TestWriterWriteUntimedCounterWithWriteZeroSizeBefore(t *testing.T) {
 	require.Equal(t, []byte{1, 2, 3, 4, 5, 6, 7}, enqueuedBuf.Bytes())
 }
 
-//nolint:dupl
-func TestWriterWriteUntimedCounterWithWritePositiveSizeBefore(t *testing.T) {
+func TestWriterWriteUntimedCounterWithFlushingPositiveSizeBefore(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -379,7 +230,6 @@ func TestWriterWriteUntimedCounterWithWritePositiveSizeBefore(t *testing.T) {
 			return nil
 		})
 	w := newInstanceWriter(testPlacementInstance, testOptions().SetMaxBatchSize(3)).(*writer)
-
 	w.queue = queue
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
@@ -655,7 +505,6 @@ func TestWriterWriteUntimedBatchTimerEnqueueError(t *testing.T) {
 	errTestEnqueue := errors.New("test enqueue error")
 	queue := NewMockinstanceQueue(ctrl)
 	queue.EXPECT().Enqueue(gomock.Any()).Return(errTestEnqueue)
-
 	opts := testOptions().
 		SetMaxTimerBatchSize(1).
 		SetMaxBatchSize(1)
@@ -732,7 +581,6 @@ func TestWriterWriteForwardedWithFlushingZeroSizeBefore(t *testing.T) {
 			return nil
 		})
 	w := newInstanceWriter(testPlacementInstance, testOptions().SetMaxBatchSize(3)).(*writer)
-
 	w.queue = queue
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
@@ -783,7 +631,6 @@ func TestWriterWriteForwardedWithFlushingPositiveSizeBefore(t *testing.T) {
 			return nil
 		})
 	w := newInstanceWriter(testPlacementInstance, testOptions().SetMaxBatchSize(3)).(*writer)
-
 	w.queue = queue
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
@@ -860,8 +707,8 @@ func TestWriterWriteForwardedEnqueueError(t *testing.T) {
 
 func TestWriterFlushClosed(t *testing.T) {
 	w := newInstanceWriter(testPlacementInstance, testOptions()).(*writer)
-	w.closed.Store(true)
-	require.Equal(t, ErrInstanceWriterClosed, w.Flush())
+	w.closed = true
+	require.Equal(t, errInstanceWriterClosed, w.Flush())
 }
 
 func TestWriterFlushPartialError(t *testing.T) {
@@ -918,91 +765,13 @@ func TestWriterFlushPartialError(t *testing.T) {
 
 func TestWriterCloseAlreadyClosed(t *testing.T) {
 	w := newInstanceWriter(testPlacementInstance, testOptions()).(*writer)
-	w.closed.Store(true)
-	require.Equal(t, ErrInstanceWriterClosed, w.Close())
+	w.closed = true
+	require.Equal(t, errInstanceWriterClosed, w.Close())
 }
 
 func TestWriterCloseSuccess(t *testing.T) {
 	w := newInstanceWriter(testPlacementInstance, testOptions()).(*writer)
 	require.NoError(t, w.Close())
-}
-
-//nolint:dupl
-func TestWriterCloseFlushInProgress(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	numWrites := 0
-
-	blockCh := make(chan bool)
-	ctx := context.Background()
-	ctx, cancelFn := context.WithTimeout(ctx, 2*time.Second)
-	defer cancelFn()
-
-	slowMockConn := NewMockConn(ctrl)
-	slowMockConn.EXPECT().Write(gomock.Any()).DoAndReturn(func(b []byte) (n int, err error) {
-		// notify that the slow writer is about to block
-		blockCh <- true
-		<-ctx.Done()
-		numWrites++
-		return len(b), nil
-	}).Times(2)
-	slowMockConn.EXPECT().SetWriteDeadline(gomock.Any()).Times(2)
-
-	slowWriterDialerFn := func(c context.Context, network string, address string) (net.Conn, error) {
-		return slowMockConn, nil
-	}
-
-	slowConnOpts := NewConnectionOptions().SetContextDialer(slowWriterDialerFn)
-	opts := testOptions().SetConnectionOptions(slowConnOpts)
-	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
-
-	payload := payloadUnion{
-		payloadType: untimedType,
-		untimed: untimedPayload{
-			metric:    testCounter,
-			metadatas: testStagedMetadatas,
-		},
-	}
-
-	require.Equal(t, nil, w.Write(0, payload))
-
-	var wg sync.WaitGroup
-
-	// Initiate first flush
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		w.Flush() //nolint:errcheck
-	}()
-
-	// Wait for the first flush to block
-	<-blockCh
-
-	// Now buffer up some additional data
-	require.Equal(t, nil, w.Write(0, payload))
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		w.Close() //nolint:errcheck
-	}()
-
-	// Wait for Close()-flush to busy-loop behind first flush
-	// 200ms is enough time for the Close()-flush to
-	// start busy-looping since the _closeFlushSoakTimeMs is
-	// 100ms
-	time.Sleep(200 * time.Millisecond)
-
-	// Unblock the slow writer
-	cancelFn()
-
-	// Unblock the Close()-flush
-	<-blockCh
-
-	// Wait for first flush and Close() to complete
-	wg.Wait()
-
-	assert.Equal(t, 2, numWrites)
 }
 
 func TestWriterConcurrentWriteStress(t *testing.T) {
@@ -1321,11 +1090,13 @@ func TestRefCountedWriter(t *testing.T) {
 	w := newRefCountedWriter(testPlacementInstance, opts)
 	w.IncRef()
 
-	require.False(t, w.instanceWriter.(*writer).closed.Load())
+	require.False(t, w.instanceWriter.(*writer).closed)
 	w.DecRef()
 	require.True(t, clock.WaitUntil(func() bool {
 		wr := w.instanceWriter.(*writer)
-		return wr.closed.Load()
+		wr.Lock()
+		defer wr.Unlock()
+		return wr.closed
 	}, 3*time.Second))
 }
 

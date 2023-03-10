@@ -58,12 +58,6 @@ const (
 	// before it must wait for an existing batch to be flushed to an instance.
 	defaultInstanceQueueSize = 128
 
-	// defaultInstanceMaxQueueSizeBytes determines how many bytes across all payloads
-	// can be buffered in the queue before the eviction policy kicks in (policy is
-	// specified in DropType)
-	// 0 = no-limit (size-based limiting disabled by default)
-	defaultInstanceMaxQueueSizeBytes = 0
-
 	// By default traffic is cut over to shards 10 minutes before the designated
 	// cutover time in case there are issues with the instances owning the shards.
 	defaultShardCutoverWarmupDuration = 10 * time.Minute
@@ -218,16 +212,6 @@ type Options interface {
 	// InstanceQueueSize returns the instance queue size.
 	InstanceQueueSize() int
 
-	// SetInstanceQueueSize sets the instance max
-	// queue size threshold in bytes across all items in the queue.
-	SetInstanceMaxQueueSizeBytes(value int) Options
-
-	// InstanceMaxQueueSizeBytes returns the instance max
-	// queue size threshold in bytes across all items in the queue
-	// after which the eviction policy (dictated by DropType)
-	// should be triggered.
-	InstanceMaxQueueSizeBytes() int
-
 	// SetQueueDropType sets the strategy for which metrics should metrics should be dropped when
 	// the queue is full.
 	SetQueueDropType(value DropType) Options
@@ -263,7 +247,6 @@ type options struct {
 	forceFlushEvery            time.Duration
 	maxTimerBatchSize          int
 	instanceQueueSize          int
-	instanceMaxQueueSizeBytes  int
 	dropType                   DropType
 	maxBatchSize               int
 	flushWorkerCount           int
@@ -284,7 +267,6 @@ func NewOptions() Options {
 		flushWorkerCount:           defaultFlushWorkerCount,
 		maxTimerBatchSize:          defaultMaxTimerBatchSize,
 		instanceQueueSize:          defaultInstanceQueueSize,
-		instanceMaxQueueSizeBytes:  defaultInstanceMaxQueueSizeBytes,
 		dropType:                   defaultDropType,
 		maxBatchSize:               defaultMaxBatchSize,
 		rwOpts:                     xio.NewOptions(),
@@ -452,16 +434,6 @@ func (o *options) SetInstanceQueueSize(value int) Options {
 
 func (o *options) InstanceQueueSize() int {
 	return o.instanceQueueSize
-}
-
-func (o *options) SetInstanceMaxQueueSizeBytes(value int) Options {
-	opts := *o
-	opts.instanceMaxQueueSizeBytes = value
-	return &opts
-}
-
-func (o *options) InstanceMaxQueueSizeBytes() int {
-	return o.instanceMaxQueueSizeBytes
 }
 
 func (o *options) SetQueueDropType(value DropType) Options {

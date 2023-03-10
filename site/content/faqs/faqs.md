@@ -42,7 +42,7 @@ See this [WIP documentation](https://github.com/m3db/m3/pull/1741/files#diff-0a1
 Not yet, but that functionality is currently being worked on.
 
 - **How can you tell if a node is snapshotting?**
-You can check if your nodes are snapshotting by looking at the `Background tasks` tab in the [M3DB Grafana dashboard](https://grafana.com/dashboards/8126).
+You can check if your nodes are snapshotting by looking at the `Background tasks` tab in the [M3DB Grafana dashboard](https://grafana.com/grafana/dashboards/8126-m3db-node-details/).
 
 - **How do you list all available API endpoints?**
 See [M3DB OpenAPI](https://m3db.io/openapi).
