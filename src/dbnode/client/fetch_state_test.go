@@ -25,9 +25,9 @@ import (
 
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/sampler"
-	"go.uber.org/zap"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestFetchStatePoolInvalidInteraction(t *testing.T) {

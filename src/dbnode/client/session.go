@@ -1093,8 +1093,10 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 			badRequestErrsSubScope := s.scope.Tagged(tags).Tagged(map[string]string{
 				"error_type": "bad_request_error",
 			})
-			s.metrics.writeNodesRespondingErrors = append(s.metrics.writeNodesRespondingErrors, serverErrsSubScope.Counter(name))
-			s.metrics.writeNodesRespondingBadRequestErrors = append(s.metrics.writeNodesRespondingBadRequestErrors, badRequestErrsSubScope.Counter(name))
+			sc := serverErrsSubScope.Counter(name)
+			s.metrics.writeNodesRespondingErrors = append(s.metrics.writeNodesRespondingErrors, sc)
+			cc := badRequestErrsSubScope.Counter(name)
+			s.metrics.writeNodesRespondingBadRequestErrors = append(s.metrics.writeNodesRespondingBadRequestErrors, cc)
 		}
 	}
 	if replicas > len(s.metrics.fetchNodesRespondingErrors) {
@@ -1108,8 +1110,10 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 			badRequestErrsSubScope := s.scope.Tagged(tags).Tagged(map[string]string{
 				"error_type": "bad_request_error",
 			})
-			s.metrics.fetchNodesRespondingErrors = append(s.metrics.fetchNodesRespondingErrors, serverErrsSubScope.Counter(name))
-			s.metrics.fetchNodesRespondingBadRequestErrors = append(s.metrics.fetchNodesRespondingBadRequestErrors, badRequestErrsSubScope.Counter(name))
+			sc := serverErrsSubScope.Counter(name)
+			s.metrics.fetchNodesRespondingErrors = append(s.metrics.fetchNodesRespondingErrors, sc)
+			cc := badRequestErrsSubScope.Counter(name)
+			s.metrics.fetchNodesRespondingBadRequestErrors = append(s.metrics.fetchNodesRespondingBadRequestErrors, cc)
 		}
 	}
 
