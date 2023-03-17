@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -48,10 +49,8 @@ const (
 	maxInt  = int(maxUint >> 1)
 )
 
-var (
-	errFetchStateStillProcessing = errors.New("[invariant violated] fetch " +
-		"state is still processing, unable to create response")
-)
+var errFetchStateStillProcessing = errors.New("[invariant violated] fetch " +
+	"state is still processing, unable to create response")
 
 type fetchState struct {
 	sync.Cond
@@ -71,7 +70,8 @@ type fetchState struct {
 	// is used for - fetchTagged or Aggregate.
 	stateType fetchStateType
 
-	done bool
+	done          bool
+	lastResetTime time.Time
 }
 
 func newFetchState(pool fetchStatePool) *fetchState {
@@ -99,6 +99,7 @@ func (f *fetchState) close() {
 	}
 	f.err = nil
 	f.done = false
+	f.lastResetTime = time.Time{}
 	f.tagResultAccumulator.Clear()
 
 	if f.pool == nil {
@@ -117,6 +118,7 @@ func (f *fetchState) ResetFetchTagged(
 	op.incRef() // take a reference to the provided op
 	f.fetchTaggedOp = op
 	f.stateType = fetchTaggedFetchState
+	f.lastResetTime = time.Now()
 	f.tagResultAccumulator.Reset(startTime, endTime, topoMap, majority, consistencyLevel)
 }
 
@@ -130,6 +132,7 @@ func (f *fetchState) ResetAggregate(
 	op.incRef() // take a reference to the provided op
 	f.aggregateOp = op
 	f.stateType = aggregateFetchState
+	f.lastResetTime = time.Now()
 	f.tagResultAccumulator.Reset(startTime, endTime, topoMap, majority, consistencyLevel)
 }
 
@@ -157,13 +160,19 @@ func (f *fetchState) completionFn(
 	}
 
 	var (
+		took time.Duration
 		done bool
 		err  error
 	)
+	if !f.lastResetTime.IsZero() {
+		took = time.Since(f.lastResetTime)
+	}
 	switch r := result.(type) {
 	case fetchTaggedResultAccumulatorOpts:
+		f.pool.MaybeLogHostError(maybeHostFetchError{err: resultErr, host: r.host, reqRespTime: took})
 		done, err = f.tagResultAccumulator.AddFetchTaggedResponse(r, resultErr)
 	case aggregateResultAccumulatorOpts:
+		f.pool.MaybeLogHostError(maybeHostFetchError{err: resultErr, host: r.host, reqRespTime: took})
 		done, err = f.tagResultAccumulator.AddAggregateResponse(r, resultErr)
 	default:
 		// should never happen
@@ -242,7 +251,8 @@ func (f *fetchState) asEncodingSeriesIterators(
 }
 
 func (f *fetchState) asAggregatedTagsIterator(pools fetchTaggedPools, limit int) (
-	AggregatedTagsIterator, FetchResponseMetadata, error) {
+	AggregatedTagsIterator, FetchResponseMetadata, error,
+) {
 	f.Lock()
 	defer f.Unlock()
 
