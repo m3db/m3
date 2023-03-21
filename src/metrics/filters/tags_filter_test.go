@@ -266,6 +266,56 @@ func TestValidateTagsFilter(t *testing.T) {
 	}
 }
 
+func TestValidateTagsFilterWithSpecialChar(t *testing.T) {
+	inputs := []struct {
+		str      string
+		expected TagFilterValueMap
+	}{
+		{
+			str: "tagName1#tagValue1",
+			expected: TagFilterValueMap{
+				"tagName1": FilterValue{Pattern: "tagValue1", Negate: false},
+			},
+		},
+		{
+			// NB: '#' has a high priority than ':'.
+			str: "tagName1#tagValue1:suffix",
+			expected: TagFilterValueMap{
+				"tagName1": FilterValue{Pattern: "tagValue1:suffix", Negate: false},
+			},
+		},
+		{
+			// NB: '#' has a high priority than ':'.
+			str: "tagName1#tagValue1:suffix:",
+			expected: TagFilterValueMap{
+				"tagName1": FilterValue{Pattern: "tagValue1:suffix:", Negate: false},
+			},
+		},
+		{
+			str: "tagName1#tagValue1:suffix:a:b:: tagName2:tagValue2*tagValue3#a#",
+			expected: TagFilterValueMap{
+				"tagName1": FilterValue{Pattern: "tagValue1:suffix:a:b::", Negate: false},
+				"tagName2": FilterValue{Pattern: "tagValue2*tagValue3#a#", Negate: false},
+			},
+		},
+		{
+			str: "  tagName1#tagValue1?[0-9][!a-z]9    tagName2#a:{tagValue21,tagValue22}*   tagName3:tagValue3  tagName4:tagValue4",
+			expected: TagFilterValueMap{
+				"tagName1": FilterValue{Pattern: "tagValue1?[0-9][!a-z]9", Negate: false},
+				"tagName2": FilterValue{Pattern: "a:{tagValue21,tagValue22}*", Negate: false},
+				"tagName3": FilterValue{Pattern: "tagValue3", Negate: false},
+				"tagName4": FilterValue{Pattern: "tagValue4", Negate: false},
+			},
+		},
+	}
+
+	for _, input := range inputs {
+		res, err := ValidateTagsFilter(input.str)
+		require.NoError(t, err)
+		require.Equal(t, input.expected, res)
+	}
+}
+
 func TestValidateTagsFilterError(t *testing.T) {
 	inputs := []struct {
 		str string
@@ -290,6 +340,10 @@ func TestValidateTagsFilterError(t *testing.T) {
 		{
 			str: "tagName1:abcsdf tagName2:*con[tT]ains*",
 			err: "tags filter tagName1:abcsdf tagName2:*con[tT]ains* contains invalid filter pattern *con[tT]ains* for tag tagName2",
+		},
+		{
+			str: "tagName1:aggr#tagValue1:suffix#",
+			err: "invalid filter tagName1:aggr#tagValue1:suffix#: expecting tag pattern pairs",
 		},
 	}
 

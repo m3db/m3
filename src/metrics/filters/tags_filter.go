@@ -39,11 +39,18 @@ var (
 	unknownFilterSeparator tagFilterSeparator
 
 	// defaultFilterSeparator represents the default filter separator with no negation.
-	defaultFilterSeparator = tagFilterSeparator{str: ":", negate: false}
+	defaultFilterSeparator = tagFilterSeparator{
+		str: ":", negate: false,
+	}
+	databricksFilterSeparator = tagFilterSeparator{
+		str: "#", negate: false,
+	}
 
 	// validFilterSeparators represent a list of valid filter separators.
 	// NB: the separators here are tried in order during parsing.
 	validFilterSeparators = []tagFilterSeparator{
+		// The separators are sorted by priorities here. If one applies successfully, the ones below it are not considered.
+		databricksFilterSeparator,
 		defaultFilterSeparator,
 	}
 )
@@ -81,8 +88,7 @@ func ParseTagFilterValueMap(str string) (TagFilterValueMap, error) {
 }
 
 func parseTagFilter(str string) ([]string, tagFilterSeparator, error) {
-	// TODO(xichen): support negation of glob patterns.
-	for _, separator := range validFilterSeparators {
+	parseByOneSeparator := func(separator tagFilterSeparator) ([]string, tagFilterSeparator, error) {
 		items := strings.Split(str, separator.str)
 		if len(items) == 2 {
 			if items[0] == "" {
@@ -93,8 +99,19 @@ func parseTagFilter(str string) ([]string, tagFilterSeparator, error) {
 			}
 			return items, separator, nil
 		}
+		return nil, unknownFilterSeparator, fmt.Errorf("invalid filter %s: expecting tag pattern pairs", str)
 	}
-	return nil, unknownFilterSeparator, fmt.Errorf("invalid filter %s: expecting tag pattern pairs", str)
+	var returnedErr error
+	// TODO(xichen): support negation of glob patterns.
+	for _, separator := range validFilterSeparators {
+		parts, _, err := parseByOneSeparator(separator)
+		if err == nil {
+			return parts, separator, nil
+		} else {
+			returnedErr = err
+		}
+	}
+	return nil, unknownFilterSeparator, returnedErr
 }
 
 // tagFilter is a filter associated with a given tag.
