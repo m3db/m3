@@ -463,10 +463,11 @@ func TestPromWriteForwardWithShadow(t *testing.T) {
 		{0.75, 10000, 0.05},
 		{1, 10000, 0},
 	} {
-		for _, hash := range []string{"", "murmur3", "xxhash"} {
-			t.Run(fmt.Sprintf("hash='%s', params=%+v", hash, tt), func(t *testing.T) {
+		for _, h := range []string{"", "murmur3", "xxhash"} {
+			h := h
+			t.Run(fmt.Sprintf("hash='%s', params=%+v", h, tt), func(t *testing.T) {
 				testPromWriteForwardWithShadow(t, testPromWriteForwardWithShadowOptions{
-					hash:                         hash,
+					hash:                         h,
 					numSeries:                    tt.numSeries,
 					percent:                      tt.percent,
 					expectedFwded:                int(float64(tt.numSeries) * tt.percent),
