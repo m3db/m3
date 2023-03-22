@@ -451,40 +451,38 @@ func TestPromWriteLiteralIsTooLongError(t *testing.T) {
 	}
 }
 
-func TestPromWriteForwardWithShadowDefaultHash(t *testing.T) {
-	testPromWriteForwardWithShadow(t, testPromWriteForwardWithShadowOptions{
-		numSeries:                    10000,
-		percent:                      0.5,
-		expectedFwded:                5000,
-		expectedFwdedAllowedVariance: 0.05,
-	})
-}
-
-func TestPromWriteForwardWithShadowXXHash(t *testing.T) {
-	testPromWriteForwardWithShadow(t, testPromWriteForwardWithShadowOptions{
-		numSeries:                    10000,
-		percent:                      0.5,
-		hash:                         "xxhash",
-		expectedFwded:                5000,
-		expectedFwdedAllowedVariance: 0.05,
-	})
-}
-
-func TestPromWriteForwardWithShadowMurmur3(t *testing.T) {
-	testPromWriteForwardWithShadow(t, testPromWriteForwardWithShadowOptions{
-		numSeries:                    10000,
-		percent:                      0.5,
-		hash:                         "murmur3",
-		expectedFwded:                5000,
-		expectedFwdedAllowedVariance: 0.05,
-	})
+func TestPromWriteForwardWithShadow(t *testing.T) {
+	for _, tt := range []struct {
+		percent         float64
+		numSeries       int
+		allowedVariance float64
+	}{
+		{0, 10000, 0},
+		{0.25, 10000, 0.05},
+		{0.5, 10000, 0.05},
+		{0.75, 10000, 0.05},
+		{1, 10000, 0},
+	} {
+		for _, h := range []string{"", "murmur3", "xxhash"} {
+			h := h
+			t.Run(fmt.Sprintf("hash='%s', params=%+v", h, tt), func(t *testing.T) {
+				testPromWriteForwardWithShadow(t, testPromWriteForwardWithShadowOptions{
+					hash:                         h,
+					numSeries:                    tt.numSeries,
+					percent:                      tt.percent,
+					expectedFwded:                int(float64(tt.numSeries) * tt.percent),
+					expectedFwdedAllowedVariance: tt.allowedVariance,
+				})
+			})
+		}
+	}
 }
 
 type testPromWriteForwardWithShadowOptions struct {
 	numSeries                    int
 	percent                      float64
 	hash                         string
-	expectedFwded                int64
+	expectedFwded                int
 	expectedFwdedAllowedVariance float64
 }
 
@@ -569,11 +567,17 @@ func testPromWriteForwardWithShadow(
 
 	select {
 	case fwdReq := <-forwardRecvReqCh:
-		assert.InEpsilon(t, testOpts.expectedFwded, len(fwdReq.Timeseries),
-			testOpts.expectedFwdedAllowedVariance,
-			fmt.Sprintf("expected=%v, actual=%v, allowed_variance=%v",
-				testOpts.expectedFwded, len(fwdReq.Timeseries),
-				testOpts.expectedFwdedAllowedVariance))
+		if testOpts.expectedFwdedAllowedVariance > 0 {
+			assert.InEpsilon(t, testOpts.expectedFwded, len(fwdReq.Timeseries),
+				testOpts.expectedFwdedAllowedVariance,
+				fmt.Sprintf("expected=%v, actual=%v, allowed_variance=%v",
+					testOpts.expectedFwded, len(fwdReq.Timeseries),
+					testOpts.expectedFwdedAllowedVariance))
+		} else {
+			assert.Equal(t, testOpts.expectedFwded, len(fwdReq.Timeseries),
+				fmt.Sprintf("expected=%v, actual=%v",
+					testOpts.expectedFwded, len(fwdReq.Timeseries)))
+		}
 	case <-time.After(10 * time.Second):
 		require.FailNow(t, "timeout waiting for fwd request")
 	}

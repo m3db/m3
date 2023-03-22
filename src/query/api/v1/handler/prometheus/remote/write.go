@@ -650,13 +650,15 @@ func (h *PromWriteHandler) buildForwardShadowRequestBody(
 
 		// Use a range of 10k to allow for setting 0.01% having an effect
 		// when shadow percent is set (i.e. with percent=0.0001)
-		if hash(buffer)%10000 <= uint64(shadowOpts.Percent*10000) {
-			// Keep this series, it falls below the volume target of shards.
-			h.metrics.forwardShadowKeep.Inc(1)
+		if hash(buffer)%10000 >= uint64(shadowOpts.Percent*10000) {
+			// Skip forwarding this series, not in shadow volume of shards.
+			// Swap it with the tail and continue.
+			h.metrics.forwardShadowDrop.Inc(1)
 			continue
 		}
 
-		h.metrics.forwardShadowDrop.Inc(1)
+		// Keep this series, it falls below the volume target of shards.
+		h.metrics.forwardShadowKeep.Inc(1)
 
 		// Skip forwarding this series, not in shadow volume of shards.
 		// Swap it with the tail and continue.
