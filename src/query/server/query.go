@@ -57,6 +57,7 @@ import (
 	"github.com/m3db/m3/src/query/promqlengine"
 	tsdbremote "github.com/m3db/m3/src/query/remote"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/composite"
 	"github.com/m3db/m3/src/query/storage/fanout"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -580,7 +581,7 @@ func Run(runOpts RunOptions) RunResult {
 		}()
 
 		// TODO(yi): Implement this composite function
-		backendStorage = compose(m3Storage, promRemoteStorage)
+		backendStorage = composite.Compose(m3Storage, promRemoteStorage)
 
 		// setup downsampler
 		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
