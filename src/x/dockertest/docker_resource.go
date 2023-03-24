@@ -83,6 +83,9 @@ func NewDockerResource(
 	}
 
 	opts := newOptions(containerName)
+	if !resourceOpts.NoNetworkOverlay {
+		opts.NetworkID = networkName
+	}
 	opts, err := exposePorts(opts, portList, resourceOpts.PortMappings)
 	if err != nil {
 		return nil, err
@@ -113,6 +116,7 @@ func NewDockerResource(
 	opts = useImage(opts, image)
 	opts.Mounts = resourceOpts.Mounts
 	opts.Env = resourceOpts.Env
+	opts.Cmd = resourceOpts.Cmd
 
 	imageWithTag := fmt.Sprintf("%v:%v", image.Name, image.Tag)
 	logger.Info("running container with options",
