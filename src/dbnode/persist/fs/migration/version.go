@@ -71,7 +71,7 @@ func ValidateMigrationVersion(m MigrationVersion) error {
 }
 
 // MarshalYAML marshals a MigrationVersion.
-func (m *MigrationVersion) MarshalYAML() (interface{}, error) {
+func (m MigrationVersion) MarshalYAML() (interface{}, error) {
 	return m.String(), nil
 }
 

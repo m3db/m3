@@ -66,7 +66,7 @@ func ValidateMetricsType(v MetricsType) error {
 }
 
 // MarshalYAML marshals an ErrorBehavior.
-func (t *MetricsType) MarshalYAML() (interface{}, error) {
+func (t MetricsType) MarshalYAML() (interface{}, error) {
 	return t.String(), nil
 }
 

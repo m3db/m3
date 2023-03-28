@@ -259,7 +259,7 @@ func (a Type) Proto() (aggregationpb.AggregationType, error) {
 }
 
 // MarshalYAML marshals a Type.
-func (a *Type) MarshalYAML() (interface{}, error) {
+func (a Type) MarshalYAML() (interface{}, error) {
 	return a.String(), nil
 }
 

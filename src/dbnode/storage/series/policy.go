@@ -104,7 +104,7 @@ func ParseCachePolicy(str string) (CachePolicy, error) {
 }
 
 // MarshalYAML marshals a CachePolicy.
-func (p *CachePolicy) MarshalYAML() (interface{}, error) {
+func (p CachePolicy) MarshalYAML() (interface{}, error) {
 	return p.String(), nil
 }
 

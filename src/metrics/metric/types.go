@@ -143,7 +143,7 @@ func MustParseType(typeStr string) Type {
 }
 
 // MarshalYAML marshals a Type.
-func (t *Type) MarshalYAML() (interface{}, error) {
+func (t Type) MarshalYAML() (interface{}, error) {
 	return t.String(), nil
 }
 

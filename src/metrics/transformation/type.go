@@ -189,7 +189,7 @@ func (t *Type) UnmarshalText(text []byte) error {
 }
 
 // MarshalYAML marshals a Type.
-func (t *Type) MarshalYAML() (interface{}, error) {
+func (t Type) MarshalYAML() (interface{}, error) {
 	return t.String(), nil
 }
 
