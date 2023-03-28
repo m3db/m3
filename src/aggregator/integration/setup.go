@@ -92,6 +92,7 @@ type testServerSetup struct {
 	// Signals.
 	doneCh   chan struct{}
 	closedCh chan struct{}
+	stopped  bool
 }
 
 func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
@@ -452,6 +453,10 @@ func (ts *testServerSetup) sortedResults() []aggregated.MetricWithStoragePolicy 
 }
 
 func (ts *testServerSetup) stopServer() error {
+	if ts.stopped {
+		return nil
+	}
+	ts.stopped = true
 	if err := ts.aggregator.Close(); err != nil {
 		return err
 	}
@@ -464,6 +469,9 @@ func (ts *testServerSetup) stopServer() error {
 
 func (ts *testServerSetup) close() {
 	ts.electionCluster.Close()
+	if err := ts.stopServer(); err != nil {
+		panic(err.Error())
+	}
 }
 
 func (tss testServerSetups) newClient(t *testing.T) *client {

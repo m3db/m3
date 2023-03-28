@@ -181,3 +181,10 @@ func TestDefaultConfig(t *testing.T) {
 	require.Equal(t, defaultDialTimeout, cluster.DialTimeout())
 	require.Equal(t, defaultAutoSyncInterval, cluster.AutoSyncInterval())
 }
+
+func TestConfig_negativeAutosync(t *testing.T) {
+	cluster := ClusterConfig{
+		AutoSyncInterval: -5,
+	}.NewCluster()
+	require.Equal(t, time.Duration(-5), cluster.AutoSyncInterval())
+}
