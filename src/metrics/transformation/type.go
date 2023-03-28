@@ -188,6 +188,11 @@ func (t *Type) UnmarshalText(text []byte) error {
 	return nil
 }
 
+// MarshalYAML marshals a Type.
+func (t *Type) MarshalYAML() (interface{}, error) {
+	return t.String(), nil
+}
+
 // UnmarshalYAML unmarshals text-encoded data into an transformation type.
 func (t *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string

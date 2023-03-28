@@ -97,6 +97,11 @@ func (t ExtendedMetricsType) String() string {
 	return "unknown"
 }
 
+// MarshalYAML marshals an ExtendedMetricsType.
+func (t *ExtendedMetricsType) MarshalYAML() (interface{}, error) {
+	return t.String(), nil
+}
+
 // UnmarshalYAML unmarshals an ExtendedMetricsType into a valid type from string.
 func (t *ExtendedMetricsType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
