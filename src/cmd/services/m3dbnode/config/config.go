@@ -495,6 +495,16 @@ type TickConfiguration struct {
 
 	// Tick minimum interval controls the minimum tick interval for the node.
 	MinimumInterval time.Duration `yaml:"minimumInterval"`
+
+	// Track top N metrics in terms of cardinality and export gauge metrics for top metrics.
+	// <= 0 means no tracking.
+	TopMetricsToTrack       int `yaml:"topMetricsToTrack"`
+	// Only track metrics with cardinality >= minCardinality.
+	MinCardinalityToTrack   int `yaml:"minCardinalityToTrack" validate:"min=10"`
+	// Cap the size of the map of metric names to cardinality to maxMapLen to avoid unbounded memory usage.
+	MaxMapLenForTracking    int `yaml:"maxMapLenForTracking" validate:"min=10"`
+	// How often to report the top metrics? Once in every N ticks.
+	TopMetricsTrackingTicks int `yaml:"topMetricsTrackingTicks" validate:"min=1"`
 }
 
 // BlockRetrievePolicy is the block retrieve policy.
