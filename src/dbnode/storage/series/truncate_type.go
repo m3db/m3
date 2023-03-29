@@ -63,6 +63,11 @@ func (t TruncateType) String() string {
 	}
 }
 
+// MarshalYAML marshals a TruncateType.
+func (t TruncateType) MarshalYAML() (interface{}, error) {
+	return t.String(), nil
+}
+
 // UnmarshalYAML unmarshals a stored truncation type.
 func (t *TruncateType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string

@@ -258,6 +258,11 @@ func (a Type) Proto() (aggregationpb.AggregationType, error) {
 	return s, nil
 }
 
+// MarshalYAML marshals a Type.
+func (a Type) MarshalYAML() (interface{}, error) {
+	return a.String(), nil
+}
+
 // UnmarshalYAML unmarshals text-encoded data into an aggregation type.
 func (a *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string

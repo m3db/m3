@@ -142,6 +142,11 @@ func MustParseType(typeStr string) Type {
 	return t
 }
 
+// MarshalYAML marshals a Type.
+func (t Type) MarshalYAML() (interface{}, error) {
+	return t.String(), nil
+}
+
 // UnmarshalYAML unmarshals YAML object into a metric type.
 func (t *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string

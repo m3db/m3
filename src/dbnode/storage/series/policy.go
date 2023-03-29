@@ -103,6 +103,11 @@ func ParseCachePolicy(str string) (CachePolicy, error) {
 		str, ValidCachePolicies())
 }
 
+// MarshalYAML marshals a CachePolicy.
+func (p CachePolicy) MarshalYAML() (interface{}, error) {
+	return p.String(), nil
+}
+
 // UnmarshalYAML unmarshals an CachePolicy into a valid type from string.
 func (p *CachePolicy) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
