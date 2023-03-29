@@ -82,7 +82,7 @@ func testShardTickReadFnRace(t *testing.T, ids []ident.ID, tickBatchSize int, fn
 
 	wg.Add(2)
 	go func() {
-		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{}, TickOptions{})
 		require.NoError(t, err)
 		wg.Done()
 	}()
@@ -205,7 +205,7 @@ func testShardTickWriteRace(t *testing.T, tickBatchSize, numSeries int) {
 	go func() {
 		defer doneFn()
 		<-barrier
-		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{}, TickOptions{})
 		assert.NoError(t, err)
 	}()
 
@@ -303,7 +303,7 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 	go func() {
 		defer doneFn()
 		<-barrier
-		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{})
+		_, err := shard.Tick(context.NewNoOpCanncellable(), xtime.Now(), namespace.Context{}, TickOptions{})
 		assert.NoError(t, err)
 	}()
 
