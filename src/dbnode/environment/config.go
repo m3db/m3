@@ -267,11 +267,11 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 		return emptyConfig, err
 	}
 
-	if c.Services != nil {
+	if len(c.Services) > 0 {
 		return c.configureDynamic(cfgParams)
 	}
 
-	if c.Statics != nil {
+	if len(c.Statics) > 0 {
 		return c.configureStatic(cfgParams)
 	}
 
