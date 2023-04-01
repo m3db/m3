@@ -10,34 +10,49 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
+	"go.uber.org/zap"
 )
 
 type compositeStorage struct {
 	name   string
+	m3     storage.Storage
 	stores []storage.Storage
+	logger *zap.Logger
 }
 
-func Compose(stores ...storage.Storage) storage.Storage {
+func Compose(logger *zap.Logger, m3 storage.Storage, stores ...storage.Storage) storage.Storage {
 	var name strings.Builder
+	name.WriteString(m3.Name())
+	name.WriteByte('-')
 	for _, s := range stores {
 		name.WriteString(s.Name())
 		name.WriteByte('-')
 	}
 	name.WriteString("compositedStorage")
+	logger.Info("construct a composite storage",
+		zap.String("name", name.String()),
+		zap.Int("store_size", len(stores)+1))
 	return &compositeStorage{
 		name:   name.String(),
+		m3:     m3,
 		stores: stores,
+		logger: logger,
 	}
 }
 
 func (s *compositeStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
-	var finalError error
+	if err := s.m3.Write(ctx, query); err != nil {
+		// we only report error for m3 storage
+		return err
+	}
 	for _, store := range s.stores {
 		if err := store.Write(ctx, query); err != nil {
-			finalError = err
+			s.logger.Error("composite storage write error",
+				zap.String("store", store.Name()),
+				zap.Error(err))
 		}
 	}
-	return finalError
+	return nil
 }
 
 func (s *compositeStorage) ErrorBehavior() storage.ErrorBehavior {
@@ -53,9 +68,15 @@ func (s *compositeStorage) Name() string {
 }
 
 func (s *compositeStorage) Close() error {
+	if err := s.m3.Close(); err != nil {
+		// we only report error for m3 storage
+		return err
+	}
 	for _, store := range s.stores {
 		if err := store.Close(); err != nil {
-			return err
+			s.logger.Error("composite storage close error",
+				zap.String("store", store.Name()),
+				zap.Error(err))
 		}
 	}
 	return nil

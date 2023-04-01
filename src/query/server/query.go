@@ -543,6 +543,7 @@ func Run(runOpts RunOptions) RunResult {
 			logger.Fatal("unable to setup downsampler for prom remote backend", zap.Error(err))
 		}
 	case config.DualStorageType:
+		logger.Info("----------Enable DualStorageType------")
 		// setup m3 first
 		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBConfig,
 			clusterNamespacesWatcher, runOpts.DBClient, encodingOpts,
@@ -580,8 +581,8 @@ func Run(runOpts RunOptions) RunResult {
 			}
 		}()
 
-		// TODO(yi): Implement this composite function
-		backendStorage = composite.Compose(m3Storage, promRemoteStorage)
+		// Compose the two backends together
+		backendStorage = composite.Compose(logger, m3Storage, promRemoteStorage)
 
 		// setup downsampler
 		logger.Info("configuring downsampler to use with aggregated cluster namespaces",

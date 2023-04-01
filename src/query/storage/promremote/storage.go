@@ -95,7 +95,7 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := p.writeSingle(ctx, metrics, endpoint.address, bytes.NewReader(encoded))
+			err := p.writeSingle(ctx, metrics, endpoint, query.Options().KeptHeaders, bytes.NewReader(encoded))
 			if err != nil {
 				errLock.Lock()
 				multiErr = multiErr.Add(err)
@@ -139,15 +139,27 @@ func (p *promStorage) Name() string {
 func (p *promStorage) writeSingle(
 	ctx context.Context,
 	metrics instrument.MethodMetrics,
-	address string,
+	endpoint EndpointOptions,
+	headers map[string]string,
 	encoded io.Reader,
 ) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, address, encoded)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.address, encoded)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("content-encoding", "snappy")
 	req.Header.Set(xhttp.HeaderContentType, xhttp.ContentTypeProtobuf)
+	if endpoint.headers != nil && len(endpoint.headers) > 0 {
+		for k, v := range endpoint.headers {
+			// set headers defined in remote endpoint options
+			req.Header.Set(k, v)
+		}
+	} else {
+		for k, v := range headers {
+			// set headers from upstream remote write request
+			req.Header.Set(k, v)
+		}
+	}
 
 	start := time.Now()
 	resp, err := p.client.Do(req)
@@ -166,7 +178,7 @@ func (p *promStorage) writeSingle(
 		}
 		genericError := fmt.Errorf(
 			"expected status code 2XX: actual=%v, address=%v, resp=%s",
-			resp.StatusCode, address, response,
+			resp.StatusCode, endpoint.address, response,
 		)
 		if resp.StatusCode < 500 && resp.StatusCode != http.StatusTooManyRequests {
 			return xerrors.NewInvalidParamsError(genericError)

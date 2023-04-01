@@ -64,10 +64,18 @@ func NewOptions(
 				}
 			}
 		}
+		var headers map[string]string
+		if len(endpoint.Headers) != 0 {
+			headers = make(map[string]string, len(endpoint.Headers))
+			for _, header := range endpoint.Headers {
+				headers[header.Name] = header.Value
+			}
+		}
 		endpoints = append(endpoints, EndpointOptions{
 			name:              endpoint.Name,
 			address:           endpoint.Address,
 			attributes:        attr,
+			headers:           headers,
 			downsampleOptions: downsampleOptions,
 		})
 	}
