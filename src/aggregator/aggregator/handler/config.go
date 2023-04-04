@@ -156,7 +156,7 @@ type DynamicBackendConfiguration struct {
 	Producer config.ProducerConfiguration `yaml:"producer"`
 
 	// Filters configs the filter for consumer services.
-	Filters []consumerServiceFilterConfiguration `yaml:"filters"`
+	Filters []ConsumerServiceFilterConfiguration `yaml:"filters"`
 
 	// Filters configs the filter for consumer services.
 	StoragePolicyFilters []storagePolicyFilterConfiguration `yaml:"storagePolicyFilters"`
@@ -209,12 +209,12 @@ func (c storagePolicyFilterConfiguration) NewConsumerServiceFilter() (services.S
 	return c.ServiceID.NewServiceID(), writer.NewStoragePolicyFilter(c.StoragePolicies)
 }
 
-type consumerServiceFilterConfiguration struct {
+type ConsumerServiceFilterConfiguration struct {
 	ServiceID services.ServiceIDConfiguration `yaml:"serviceID" validate:"nonzero"`
 	ShardSet  sharding.ShardSet               `yaml:"shardSet" validate:"nonzero"`
 }
 
-func (c consumerServiceFilterConfiguration) NewConsumerServiceFilter() (services.ServiceID, producer.FilterFunc) {
+func (c ConsumerServiceFilterConfiguration) NewConsumerServiceFilter() (services.ServiceID, producer.FilterFunc) {
 	return c.ServiceID.NewServiceID(), filter.NewShardSetFilter(c.ShardSet)
 }
 

@@ -69,7 +69,7 @@ func serviceKey(s ServiceID) string {
 	return fmt.Sprintf(keyFormat, s.Environment(), s.Name())
 }
 
-func validateServiceID(sid ServiceID) error {
+func ValidateServiceID(sid ServiceID) error {
 	if sid.Name() == "" {
 		return errNoServiceName
 	}
