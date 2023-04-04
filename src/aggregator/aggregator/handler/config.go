@@ -215,6 +215,7 @@ type ConsumerServiceFilterConfiguration struct {
 	ShardSet  sharding.ShardSet               `yaml:"shardSet" validate:"nonzero"`
 }
 
+// NewConsumerServiceFilter - exported to be able to write unit tests
 func (c ConsumerServiceFilterConfiguration) NewConsumerServiceFilter() (services.ServiceID, producer.FilterFunc) {
 	return c.ServiceID.NewServiceID(), filter.NewShardSetFilter(c.ShardSet)
 }
