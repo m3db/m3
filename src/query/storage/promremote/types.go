@@ -38,6 +38,8 @@ type Options struct {
 	httpOptions xhttp.HTTPClientOptions
 	scope       tally.Scope
 	logger      *zap.Logger
+	queueSize   int
+	poolSize    int
 }
 
 // Namespaces returns M3 namespaces from endpoint opts.

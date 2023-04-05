@@ -27,6 +27,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/pkg/errors"
 	"github.com/uber-go/tally"
@@ -59,7 +61,11 @@ func NewStorage(opts Options) (storage.Storage, error) {
 		endpointMetrics: initEndpointMetrics(opts.endpoints, scope),
 		droppedWrites:   scope.Counter("dropped_writes"),
 		logger:          opts.logger,
+		queryQueue:      make(chan *storage.WriteQuery, opts.queueSize),
+		workerPool:      xsync.NewWorkerPool(opts.poolSize),
+		pendingQuery:    make(map[queryOpts][]*storage.WriteQuery),
 	}
+	s.StartAsync()
 	return s, nil
 }
 
@@ -70,10 +76,70 @@ type promStorage struct {
 	endpointMetrics map[string]instrument.MethodMetrics
 	droppedWrites   tally.Counter
 	logger          *zap.Logger
+	queryQueue      chan *storage.WriteQuery
+	workerPool      xsync.WorkerPool
+	pendingQuery    map[queryOpts][]*storage.WriteQuery
+}
+
+type queryOpts struct {
+	attributes storagemetadata.Attributes
+	headers    string
+}
+
+func buildQueryOpts(query *storage.WriteQuery) queryOpts {
+	b := new(bytes.Buffer)
+	for k, v := range query.Options().KeptHeaders {
+		fmt.Fprintf(b, "%s=%s,", k, v)
+	}
+	if b.Len() > 0 {
+		b.Truncate(b.Len() - 1)
+	}
+	return queryOpts{
+		attributes: query.Attributes(),
+		headers:    b.String(),
+	}
+}
+
+func (p *promStorage) StartAsync() {
+	p.logger.Info("Start prometheus remote write storage async job",
+		zap.Int("poolSize", p.opts.poolSize))
+	p.workerPool.Init()
+	go func() {
+		for {
+			ctx := context.Background()
+			select {
+			case query := <-p.queryQueue:
+				qOpts := buildQueryOpts(query)
+				if _, ok := p.pendingQuery[qOpts]; !ok {
+					p.pendingQuery[qOpts] = make([]*storage.WriteQuery, 0, p.opts.queueSize)
+				}
+				p.pendingQuery[qOpts] = append(p.pendingQuery[qOpts], query)
+				if len(p.pendingQuery[qOpts]) >= p.opts.queueSize {
+					retain := p.pendingQuery[qOpts]
+					p.pendingQuery[qOpts] = nil
+					p.workerPool.Go(func() {
+						p.writeBatch(ctx, &qOpts, retain)
+					})
+				}
+				// TODO: add a timer to flush pending queries periodically
+			}
+		}
+	}()
 }
 
 func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
-	encoded, err := convertAndEncodeWriteQuery(query)
+	if query != nil {
+		p.queryQueue <- query
+	}
+	return nil
+}
+
+func (p *promStorage) writeBatch(ctx context.Context, qOpts *queryOpts, queries []*storage.WriteQuery) error {
+	p.logger.Debug("async write batch",
+		zap.String("attributes", qOpts.attributes.String()),
+		zap.String("headers", qOpts.headers),
+		zap.Int("size", len(queries)))
+	encoded, err := convertAndEncodeWriteQuery(queries)
 	if err != nil {
 		return err
 	}
@@ -84,8 +150,8 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 	atLeastOneEndpointMatched := false
 	for _, endpoint := range p.opts.endpoints {
 		endpoint := endpoint
-		if endpoint.attributes.Resolution != query.Attributes().Resolution ||
-			endpoint.attributes.Retention != query.Attributes().Retention {
+		if endpoint.attributes.Resolution != qOpts.attributes.Resolution ||
+			endpoint.attributes.Retention != qOpts.attributes.Retention {
 			continue
 		}
 
@@ -95,7 +161,7 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := p.writeSingle(ctx, metrics, endpoint, query.Options().KeptHeaders, bytes.NewReader(encoded))
+			err := p.writeSingle(ctx, metrics, endpoint, qOpts.headers, bytes.NewReader(encoded))
 			if err != nil {
 				errLock.Lock()
 				multiErr = multiErr.Add(err)
@@ -112,8 +178,8 @@ func (p *promStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 		multiErr = multiErr.Add(errNoEndpoints)
 		p.logger.Warn(
 			"write did not match any of known endpoints",
-			zap.Duration("retention", query.Attributes().Retention),
-			zap.Duration("resolution", query.Attributes().Resolution),
+			zap.Duration("retention", qOpts.attributes.Retention),
+			zap.Duration("resolution", qOpts.attributes.Resolution),
 		)
 	}
 	return multiErr.FinalError()
@@ -124,6 +190,17 @@ func (p *promStorage) Type() storage.Type {
 }
 
 func (p *promStorage) Close() error {
+	close(p.queryQueue)
+	ctx := context.Background()
+	var wg sync.WaitGroup
+	for qOpts, queries := range p.pendingQuery {
+		wg.Add(1)
+		p.workerPool.Go(func() {
+			p.writeBatch(ctx, &qOpts, queries)
+			wg.Done()
+		})
+	}
+	wg.Wait()
 	p.client.CloseIdleConnections()
 	return nil
 }
@@ -140,7 +217,7 @@ func (p *promStorage) writeSingle(
 	ctx context.Context,
 	metrics instrument.MethodMetrics,
 	endpoint EndpointOptions,
-	headers map[string]string,
+	headers string,
 	encoded io.Reader,
 ) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.address, encoded)
@@ -154,10 +231,11 @@ func (p *promStorage) writeSingle(
 			// set headers defined in remote endpoint options
 			req.Header.Set(k, v)
 		}
-	} else {
-		for k, v := range headers {
+	} else if len(headers) > 0 {
+		for _, header := range strings.Split(headers, ",") {
 			// set headers from upstream remote write request
-			req.Header.Set(k, v)
+			kv := strings.Split(header, "=")
+			req.Header.Set(kv[0], kv[1])
 		}
 	}
 

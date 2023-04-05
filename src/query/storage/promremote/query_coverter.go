@@ -32,11 +32,11 @@ import (
 
 var errNilQuery = errors.New("received nil query")
 
-func convertAndEncodeWriteQuery(query *storage.WriteQuery) ([]byte, error) {
-	if query == nil {
+func convertAndEncodeWriteQuery(queries []*storage.WriteQuery) ([]byte, error) {
+	promQuery := convertWriteQuery(queries)
+	if len(promQuery.Timeseries) == 0 {
 		return []byte{}, errNilQuery
 	}
-	promQuery := convertWriteQuery(query)
 	data, err := promQuery.Marshal()
 	if err != nil {
 		return nil, err
@@ -44,34 +44,35 @@ func convertAndEncodeWriteQuery(query *storage.WriteQuery) ([]byte, error) {
 	return snappy.Encode(nil, data), nil
 }
 
-func convertWriteQuery(query *storage.WriteQuery) *prompb.WriteRequest {
-	if query == nil {
-		return nil
-	}
+func convertWriteQuery(queries []*storage.WriteQuery) *prompb.WriteRequest {
+	ts := make([]prompb.TimeSeries, 0, len(queries))
+	for _, query := range queries {
+		if query == nil {
+			continue
+		}
+		ourLabels := storage.TagsToPromLabels(query.Tags())
+		labels := make([]prompb.Label, 0, len(ourLabels))
+		for _, tag := range ourLabels {
+			labels = append(labels, prompb.Label{
+				Name:  string(tag.Name),
+				Value: string(tag.Value),
+			})
+		}
 
-	ourLabels := storage.TagsToPromLabels(query.Tags())
-	labels := make([]prompb.Label, 0, len(ourLabels))
-	for _, tag := range ourLabels {
-		labels = append(labels, prompb.Label{
-			Name:  string(tag.Name),
-			Value: string(tag.Value),
-		})
-	}
-
-	samples := make([]prompb.Sample, 0, len(query.Datapoints()))
-	for _, dp := range query.Datapoints() {
-		samples = append(samples, prompb.Sample{
-			Value:     dp.Value,
-			Timestamp: dp.Timestamp.ToNormalizedTime(time.Millisecond),
+		samples := make([]prompb.Sample, 0, len(query.Datapoints()))
+		for _, dp := range query.Datapoints() {
+			samples = append(samples, prompb.Sample{
+				Value:     dp.Value,
+				Timestamp: dp.Timestamp.ToNormalizedTime(time.Millisecond),
+			})
+		}
+		ts = append(ts, prompb.TimeSeries{
+			Labels:  labels,
+			Samples: samples,
 		})
 	}
 
 	return &prompb.WriteRequest{
-		Timeseries: []prompb.TimeSeries{
-			{
-				Labels:  labels,
-				Samples: samples,
-			},
-		},
+		Timeseries: ts,
 	}
 }

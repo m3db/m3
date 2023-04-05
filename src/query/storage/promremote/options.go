@@ -103,6 +103,8 @@ func NewOptions(
 		httpOptions: clientOpts,
 		scope:       scope,
 		logger:      logger,
+		queueSize:   *cfg.QueueSize,
+		poolSize:    *cfg.PoolSize,
 	}, nil
 }
 
