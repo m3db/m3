@@ -63,6 +63,9 @@ const (
 	// PromRemoteStorageType is a type of storage that is backed by Prometheus Remote Write compatible API.
 	PromRemoteStorageType BackendStorageType = "prom-remote"
 
+	// DualStorageType is a composite backend type with both m3db+prom-remote
+	DualStorageType BackendStorageType = "dual"
+
 	defaultListenAddress = "0.0.0.0:7201"
 
 	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
@@ -821,17 +824,27 @@ type RPCConfiguration struct {
 // PrometheusRemoteBackendConfiguration configures prometheus remote write backend.
 type PrometheusRemoteBackendConfiguration struct {
 	Endpoints       []PrometheusRemoteBackendEndpointConfiguration `yaml:"endpoints"`
+	RenamedHeaders  []PrometheusRemoteBackendEndpointHeader        `yaml:"renamedHeaders"`
 	RequestTimeout  *time.Duration                                 `yaml:"requestTimeout"`
 	ConnectTimeout  *time.Duration                                 `yaml:"connectTimeout"`
 	KeepAlive       *time.Duration                                 `yaml:"keepAlive"`
 	IdleConnTimeout *time.Duration                                 `yaml:"idleConnTimeout"`
 	MaxIdleConns    *int                                           `yaml:"maxIdleConns"`
+	QueueSize       *int                                           `yaml:"queueSize"`
+	PoolSize        *int                                           `yaml:"poolSize"`
+}
+
+type PrometheusRemoteBackendEndpointHeader struct {
+	Name  string `yaml:"name"`
+	Value string `yaml:"value"`
 }
 
 // PrometheusRemoteBackendEndpointConfiguration configures single endpoint.
 type PrometheusRemoteBackendEndpointConfiguration struct {
 	Name    string `yaml:"name"`
 	Address string `yaml:"address"`
+	// Headers to be added to each remote write request.
+	Headers []PrometheusRemoteBackendEndpointHeader `yaml:"headers"`
 	// When nil all unaggregated data will be sent to this endpoint.
 	StoragePolicy *PrometheusRemoteBackendStoragePolicyConfiguration `yaml:"storagePolicy"`
 }

@@ -293,6 +293,8 @@ type WriteQueryOptions struct {
 	Unit       xtime.Unit
 	Annotation []byte
 	Attributes storagemetadata.Attributes
+	// this is used to pass through the original request headers to remote storage
+	KeptHeaders map[string]string
 }
 
 // CompleteTagsQuery represents a query that returns an autocompleted

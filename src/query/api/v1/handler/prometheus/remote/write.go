@@ -128,6 +128,7 @@ type PromWriteHandler struct {
 	instrumentOpts         instrument.Options
 	metrics                promWriteMetrics
 	attributions           []*promAttributionMetrics
+	renamedHeaders         map[string]string
 
 	// Counting the number of times of "literal is too long" error for log sampling purposes.
 	numLiteralIsTooLong uint32
@@ -142,6 +143,7 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 		forwarding           = options.Config().WriteForwarding.PromRemoteWrite
 		instrumentOpts       = options.InstrumentOpts()
 		logger               = instrumentOpts.Logger()
+		renamedHeaders       = make(map[string]string)
 	)
 
 	if downsamplerAndWriter == nil {
@@ -168,6 +170,15 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 	for i, attributionOpts := range options.Config().Metrics.Attributions {
 		attribution, _ := newPromAttributionMetrics(scope, attributionOpts, logger)
 		attributions[i] = attribution
+	}
+
+	if options.Config().PrometheusRemoteBackend != nil {
+		for _, renamedHeader := range options.Config().PrometheusRemoteBackend.RenamedHeaders {
+			logger.Info("rename remote write request header",
+				zap.String("origin", renamedHeader.Name),
+				zap.String("renamed", renamedHeader.Value))
+			renamedHeaders[renamedHeader.Name] = renamedHeader.Value
+		}
 	}
 
 	// Only use a forwarding worker pool if concurrency is bound, otherwise
@@ -215,6 +226,7 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 		metrics:                metrics,
 		attributions:           attributions,
 		instrumentOpts:         instrumentOpts,
+		renamedHeaders:         renamedHeaders,
 	}, nil
 }
 
@@ -440,6 +452,15 @@ func (h *PromWriteHandler) parseRequest(
 	r *http.Request,
 ) (parseRequestResult, error) {
 	var opts ingest.WriteOptions
+	// fetch headers that will be renamed and sent to prom remote backend
+	for origin, renamed := range h.renamedHeaders {
+		if v := strings.TrimSpace(r.Header.Get(origin)); v != "" {
+			if opts.KeptHeaders == nil {
+				opts.KeptHeaders = make(map[string]string)
+			}
+			opts.KeptHeaders[renamed] = v
+		}
+	}
 	if v := strings.TrimSpace(r.Header.Get(headers.MetricsTypeHeader)); v != "" {
 		// Allow the metrics type and storage policies to override
 		// the default rules and policies if specified.
