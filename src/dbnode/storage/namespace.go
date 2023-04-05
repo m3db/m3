@@ -216,9 +216,6 @@ type databaseNamespaceTickMetrics struct {
 	errors                 tally.Counter
 	index                  databaseNamespaceIndexTickMetrics
 	evictedBuckets         tally.Counter
-    // How many nanoseconds for running a metric tracking tick.
-	tickDuration     tally.Timer
-	tickRuns         tally.Counter
 }
 
 type databaseNamespaceIndexTickMetrics struct {
@@ -302,8 +299,6 @@ func newDatabaseNamespaceMetrics(
 				numBlocksEvicted: indexTickScope.Counter("num-blocks-evicted"),
 			},
 			evictedBuckets: tickScope.Counter("evicted-buckets"),
-			tickDuration:    tickScope.Timer("namespace-duration"),
-			tickRuns:        tickScope.Counter("runs"),
 		},
 		status: databaseNamespaceStatusMetrics{
 			activeSeries: statusScope.Gauge("active-series"),
@@ -646,7 +641,6 @@ func (n *dbNamespace) Tick(c context.Cancellable, startTime xtime.UnixNano) erro
 		tickOptions = TickOptions{TopMetricsToTrack: 0}
 	)
 	n.tickSeqNo++
-	tickStartTimeNano := xtime.Now()
 	if n.shouldTrackTopMetrics && (n.tickSeqNo%int64(n.tickOptions.TopMetricsTrackingTicks) == 0) {
 		tickOptions = n.tickOptions
 		r.trackTopMetrics()
@@ -720,7 +714,6 @@ func (n *dbNamespace) Tick(c context.Cancellable, startTime xtime.UnixNano) erro
 	n.metrics.tick.index.numBlocksEvicted.Inc(indexTickResults.NumBlocksEvicted)
 	n.metrics.tick.index.numBlocksSealed.Inc(indexTickResults.NumBlocksSealed)
 	n.metrics.tick.errors.Inc(int64(r.errors))
-	n.metrics.tick.tickRuns.Inc(1)
 
 	for _, metric := range r.metricToCardinality {
 		if metric.cardinality >= tickOptions.MinCardinalityToTrack {
@@ -728,7 +721,6 @@ func (n *dbNamespace) Tick(c context.Cancellable, startTime xtime.UnixNano) erro
 			n.metrics.tick.metricCardinality.Gauge(string(metric.name)).Update(float64(metric.cardinality))
 		}
 	}
-	n.metrics.tick.tickDuration.Record(xtime.Since(tickStartTimeNano))
 
 	return nil
 }
