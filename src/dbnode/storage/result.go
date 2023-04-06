@@ -20,6 +20,27 @@
 
 package storage
 
+import (
+	"hash/fnv"
+	"sort"
+)
+
+func getHash(b []byte) uint64 {
+	hash := fnv.New64a()
+	hash.Write(b)
+	return hash.Sum64()
+}
+
+type metricCardinality struct {
+	name []byte
+	cardinality int
+}
+func newMetricCardinality(name []byte, cardinality int) (uint64, *metricCardinality) {
+	return getHash(name), &metricCardinality{
+		name: name,
+		cardinality: cardinality,
+	}
+}
 type tickResult struct {
 	activeSeries           int
 	expiredSeries          int
@@ -32,20 +53,78 @@ type tickResult struct {
 	mergedOutOfOrderBlocks int
 	errors                 int
 	evictedBuckets         int
+	// The key is the hash value of the metric name.
+	metricToCardinality    map[uint64]*metricCardinality
 }
 
-func (r tickResult) merge(other tickResult) tickResult {
-	return tickResult{
-		activeSeries:           r.activeSeries + other.activeSeries,
-		expiredSeries:          r.expiredSeries + other.expiredSeries,
-		activeBlocks:           r.activeBlocks + other.activeBlocks,
-		wiredBlocks:            r.wiredBlocks + other.wiredBlocks,
-		pendingMergeBlocks:     r.pendingMergeBlocks + other.pendingMergeBlocks,
-		unwiredBlocks:          r.unwiredBlocks + other.unwiredBlocks,
-		madeExpiredBlocks:      r.madeExpiredBlocks + other.madeExpiredBlocks,
-		madeUnwiredBlocks:      r.madeUnwiredBlocks + other.madeUnwiredBlocks,
-		mergedOutOfOrderBlocks: r.mergedOutOfOrderBlocks + other.mergedOutOfOrderBlocks,
-		errors:                 r.errors + other.errors,
-		evictedBuckets:         r.evictedBuckets + other.evictedBuckets,
+func (r *tickResult) trackTopMetrics() {
+	r.metricToCardinality = make(map[uint64]*metricCardinality)
+}
+
+func (r *tickResult) truncateTopMetrics(topN int) {
+	if topN <= 0 {
+		return
 	}
+	if r.metricToCardinality == nil || len(r.metricToCardinality) <= topN {
+		return
+	}
+	// TODO: use a heap to optimize this.
+	cardinalities := make([]int, 0, len(r.metricToCardinality))
+	for _, metric := range r.metricToCardinality {
+		cardinalities = append(cardinalities, metric.cardinality)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(cardinalities)))
+	cutoffValue := cardinalities[topN-1]
+	cutoffValueQuota := 1
+	for i := topN - 2; i >= 0; i-- {
+		if cardinalities[i] == cutoffValue {
+			cutoffValueQuota++
+		} else {
+			break
+		}
+	}
+	for hash, metric := range r.metricToCardinality {
+		if metric.cardinality < cutoffValue {
+			delete(r.metricToCardinality, hash)
+		} else if metric.cardinality == cutoffValue {
+			if cutoffValueQuota > 0 {
+				cutoffValueQuota--
+			} else {
+				delete(r.metricToCardinality, hash)
+			}
+		}
+	}
+}
+
+// NB: this method modifies the receiver in-place.
+func (r *tickResult) merge(other tickResult, topN int) {
+	r.activeSeries += other.activeSeries
+	r.expiredSeries += other.expiredSeries
+	r.activeBlocks += other.activeBlocks
+	r.wiredBlocks += other.wiredBlocks
+	r.pendingMergeBlocks += other.pendingMergeBlocks
+	r.unwiredBlocks += other.unwiredBlocks
+	r.madeExpiredBlocks += other.madeExpiredBlocks
+	r.madeUnwiredBlocks += other.madeUnwiredBlocks
+	r.mergedOutOfOrderBlocks += other.mergedOutOfOrderBlocks
+	r.errors += other.errors
+	r.evictedBuckets += other.evictedBuckets
+
+	if other.metricToCardinality == nil {
+		return
+	}
+	if r.metricToCardinality == nil {
+		r.metricToCardinality = other.metricToCardinality
+		return
+	}
+
+	for hash, otherMetric := range other.metricToCardinality {
+		if currentMetric, ok := r.metricToCardinality[hash]; ok {
+			currentMetric.cardinality += otherMetric.cardinality
+		} else {
+			r.metricToCardinality[hash] = otherMetric
+		}
+	}
+
+	r.truncateTopMetrics(topN)
 }

@@ -145,7 +145,10 @@ type dbNamespace struct {
 	tickWorkersConcurrency int
 	statsLastTick          databaseNamespaceStatsLastTick
 
-	metrics databaseNamespaceMetrics
+	metrics               databaseNamespaceMetrics
+	tickOptions           TickOptions
+	tickSeqNo             int64 // The sequence number of the current tick.
+	shouldTrackTopMetrics bool
 }
 
 type databaseNamespaceStatsLastTick struct {
@@ -201,6 +204,7 @@ type databaseNamespaceShardMetrics struct {
 
 type databaseNamespaceTickMetrics struct {
 	activeSeries           tally.Gauge
+	metricCardinality      tally.Scope // holds multiple gauges.
 	expiredSeries          tally.Counter
 	activeBlocks           tally.Gauge
 	wiredBlocks            tally.Gauge
@@ -277,6 +281,7 @@ func newDatabaseNamespaceMetrics(
 		},
 		tick: databaseNamespaceTickMetrics{
 			activeSeries:           tickScope.Gauge("active-series"),
+			metricCardinality:      tickScope.SubScope("top_metric_"), // "top_metric__xyz" for metric "xyz"
 			expiredSeries:          tickScope.Counter("expired-series"),
 			activeBlocks:           tickScope.Gauge("active-blocks"),
 			wiredBlocks:            tickScope.Gauge("wired-blocks"),
@@ -385,6 +390,9 @@ func newDatabaseNamespace(
 		tickWorkers:            tickWorkers,
 		tickWorkersConcurrency: tickWorkersConcurrency,
 		metrics:                newDatabaseNamespaceMetrics(scope, iops.TimerOptions()),
+		tickOptions:            opts.TickOptions(),
+		tickSeqNo:              0,
+		shouldTrackTopMetrics:  opts.TickOptions().TopMetricsToTrack > 0 && opts.TickOptions().MaxMapLenForTracking > 0 && opts.TickOptions().TopMetricsTrackingTicks > 0,
 	}
 
 	n.createEmptyWarmIndexIfNotExistsFn = n.createEmptyWarmIndexIfNotExists
@@ -626,11 +634,21 @@ func (n *dbNamespace) Tick(c context.Cancellable, startTime xtime.UnixNano) erro
 
 	// Tick through the shards at a capped level of concurrency.
 	var (
-		r        tickResult
-		multiErr xerrors.MultiError
-		l        sync.Mutex
-		wg       sync.WaitGroup
+		r           tickResult
+		multiErr    xerrors.MultiError
+		l           sync.Mutex
+		wg          sync.WaitGroup
+		tickOptions = TickOptions{TopMetricsToTrack: 0}
 	)
+	n.tickSeqNo++
+	if n.shouldTrackTopMetrics && (n.tickSeqNo%int64(n.tickOptions.TopMetricsTrackingTicks) == 0) {
+		tickOptions = n.tickOptions
+		r.trackTopMetrics()
+		n.log.Info("Will track top metrics for this tick.",
+			zap.Int("TopMetricsTrackingTicks", n.tickOptions.TopMetricsTrackingTicks),
+			zap.Int64("tickSeqNo", n.tickSeqNo),
+		)
+	}
 	for _, shard := range shards {
 		shard := shard
 		wg.Add(1)
@@ -640,11 +658,10 @@ func (n *dbNamespace) Tick(c context.Cancellable, startTime xtime.UnixNano) erro
 			if c.IsCancelled() {
 				return
 			}
-
-			shardResult, err := shard.Tick(c, startTime, nsCtx)
+			shardResult, err := shard.Tick(c, startTime, nsCtx, tickOptions)
 
 			l.Lock()
-			r = r.merge(shardResult)
+			r.merge(shardResult, tickOptions.TopMetricsToTrack)
 			multiErr = multiErr.Add(err)
 			l.Unlock()
 		})
@@ -667,6 +684,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, startTime xtime.UnixNano) erro
 	// NB: we early terminate here to ensure we are not reporting metrics
 	// based on in-accurate/partial tick results.
 	if err := multiErr.FinalError(); err != nil || c.IsCancelled() {
+		n.log.Debug("tick cancelled", zap.Error(err))
 		return err
 	}
 
@@ -696,6 +714,13 @@ func (n *dbNamespace) Tick(c context.Cancellable, startTime xtime.UnixNano) erro
 	n.metrics.tick.index.numBlocksEvicted.Inc(indexTickResults.NumBlocksEvicted)
 	n.metrics.tick.index.numBlocksSealed.Inc(indexTickResults.NumBlocksSealed)
 	n.metrics.tick.errors.Inc(int64(r.errors))
+
+	for _, metric := range r.metricToCardinality {
+		if metric.cardinality >= tickOptions.MinCardinalityToTrack {
+			// If the gauge does not exist, it will be created on the fly.
+			n.metrics.tick.metricCardinality.Gauge(string(metric.name)).Update(float64(metric.cardinality))
+		}
+	}
 
 	return nil
 }

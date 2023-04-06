@@ -80,7 +80,7 @@ import (
 
 var (
 	id                  = flag.String("id", "", "Node host ID")
-	httpClusterAddr     = flag.String("clusterhttpaddr", "127.0.0.1:9000", "Cluster HTTP server address")
+	httpClusterAddr     = flag.String("clusterhttpaddr", "127.0.0.1:9005", "Cluster HTTP server address")
 	tchannelClusterAddr = flag.String("clustertchanneladdr", "127.0.0.1:9001", "Cluster TChannel server address")
 	httpNodeAddr        = flag.String("nodehttpaddr", "127.0.0.1:9002", "Node HTTP server address")
 	tchannelNodeAddr    = flag.String("nodetchanneladdr", "127.0.0.1:9003", "Node TChannel server address")
