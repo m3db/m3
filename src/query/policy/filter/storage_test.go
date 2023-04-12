@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 
+	"github.com/m3db/m3/src/query/models"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -62,4 +63,33 @@ func TestAllowNone(t *testing.T) {
 	assert.False(t, AllowNone(q, local))
 	assert.False(t, AllowNone(q, remote))
 	assert.False(t, AllowNone(q, multi))
+}
+
+func TestReadOptimizedFilter(t *testing.T) {
+	fetchQueryToOregionDev := storage.FetchQuery{
+		TagMatchers: models.Matchers{
+			models.Matcher{
+				Type:  models.MatchEqual,
+				Name:  []byte(storageNameLabelKey),
+				Value: []byte("oregon-dev"),
+			},
+			models.Matcher{
+				Type:  models.MatchRegexp,
+				Name:  []byte(storageNameLabelKey),
+				Value: []byte("something-else"),
+			},
+		},
+	}
+	{
+		store := mock.NewMockStorageWithName(localStorageName)
+		assert.True(t, ReadOptimizedFilter(&fetchQueryToOregionDev, store))
+	}
+	{
+		store := mock.NewMockStorageWithName("query-endpoint-aws-oregon-dev")
+		assert.True(t, ReadOptimizedFilter(&fetchQueryToOregionDev, store))
+	}
+	{
+		store := mock.NewMockStorageWithName("query-endpoint-aws-us-east-1-dev")
+		assert.False(t, ReadOptimizedFilter(&fetchQueryToOregionDev, store))
+	}
 }

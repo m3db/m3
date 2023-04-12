@@ -1177,6 +1177,9 @@ func newStorages(
 		readFilter = filter.AllowAll
 	case config.FilterAllowNone:
 		readFilter = filter.AllowNone
+	case config.FilterReadOptimized:
+		readFilter = filter.ReadOptimizedFilter
+		logger.Info("Using read optimzied filter for the remote storages", zap.String("Filter.Read", string(config.FilterReadOptimized)))
 	}
 
 	switch cfg.Filter.Write {
