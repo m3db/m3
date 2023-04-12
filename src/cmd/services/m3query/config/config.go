@@ -264,7 +264,7 @@ const (
 	FilterAllowAll Filter = "allow_all"
 	// FilterAllowNone is a filter that specifies no storages should be used.
 	FilterAllowNone Filter = "allow_none"
-	// This fitler requires a read request be sent to the specific storages if there is any targeted fitler in the query of the request.
+	// This filter requires a read request be sent to specific storages if there is any targeted fitler in the query of the request.
 	FilterReadOptimized Filter = "read_optimized"
 )
 

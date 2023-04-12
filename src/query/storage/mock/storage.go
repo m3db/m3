@@ -86,11 +86,16 @@ type mockStorage struct {
 		err   error
 	}
 	writes []*storage.WriteQuery
+	name string
 }
 
 // NewMockStorage creates a new mock Storage instance.
 func NewMockStorage() Storage {
-	return &mockStorage{}
+	return &mockStorage{name: "mock"}
+}
+
+func NewMockStorageWithName(name string) Storage {
+	return &mockStorage{name: name}
 }
 
 func (s *mockStorage) FetchCompressed(ctx context.Context,
@@ -264,7 +269,8 @@ func (s *mockStorage) Type() storage.Type {
 }
 
 func (s *mockStorage) Name() string {
-	return "mock"
+	// NB: no need to lock here as name is immutable.
+	return s.name
 }
 
 func (s *mockStorage) ErrorBehavior() storage.ErrorBehavior {
