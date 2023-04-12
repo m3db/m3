@@ -67,6 +67,16 @@ func NewStorage(
 	opts m3.Options,
 	instrumentOpts instrument.Options,
 ) storage.Storage {
+	instrumentOpts.Logger().Info("Created fanout storage with underlying storages",
+		zap.Int("num_stores", len(stores)),
+	)
+	for _, store := range stores {
+		instrumentOpts.Logger().Info("The underlying stores: ",
+			zap.String("store_name", store.Name()),
+			zap.String("store_error_behavior", store.ErrorBehavior().String()),
+			zap.Int("store_type", int(store.Type())),
+		)
+	}
 	return &fanoutStorage{
 		stores:             stores,
 		fetchFilter:        fetchFilter,
@@ -107,12 +117,22 @@ func (s *fanoutStorage) QueryStorageMetadataAttributes(
 	return attrs, nil
 }
 
+func (s *fanoutStorage) logFilteredStorages(storesAfterFilter []storage.Storage) {
+	if len(storesAfterFilter) < len(s.stores) {
+		s.instrumentOpts.Logger().Info("filtered out some storages",
+			zap.Int("num_stores_before_filter", len(s.stores)),
+			zap.Int("num_stores_after_filter", len(storesAfterFilter)),
+		)
+	}
+}
+
 func (s *fanoutStorage) FetchProm(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (storage.PromResult, error) {
 	stores := filterStores(s.stores, s.fetchFilter, query)
+	s.logFilteredStorages(stores)
 	// Optimization for the single store case
 	if len(stores) == 1 {
 		return stores[0].FetchProm(ctx, query, options)
@@ -220,6 +240,7 @@ func (s *fanoutStorage) FetchCompressed(
 	options *storage.FetchOptions,
 ) (consolidators.MultiFetchResult, error) {
 	stores := filterStores(s.stores, s.fetchFilter, query)
+	s.logFilteredStorages(stores)
 	// Optimization for the single store case
 	if len(stores) == 1 {
 		return stores[0].FetchCompressed(ctx, query, options)
@@ -288,6 +309,7 @@ func (s *fanoutStorage) FetchBlocks(
 	options *storage.FetchOptions,
 ) (block.Result, error) {
 	stores := filterStores(s.stores, s.fetchFilter, query)
+	s.logFilteredStorages(stores)
 	// Optimization for the single store case
 	if len(stores) == 1 {
 		return stores[0].FetchBlocks(ctx, query, options)
@@ -416,6 +438,7 @@ func (s *fanoutStorage) SearchSeries(
 	// behind an accumulator.
 	metricMap := make(map[string]models.Metric, initMetricMapSize)
 	stores := filterStores(s.stores, s.fetchFilter, query)
+	s.logFilteredStorages(stores)
 	metadata := block.NewResultMetadata()
 	for _, store := range stores {
 		results, err := store.SearchSeries(ctx, query, options)

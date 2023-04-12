@@ -20,8 +20,17 @@
 
 package filter
 
-import "github.com/m3db/m3/src/query/storage"
+import (
+	"strings"
 
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
+)
+const (
+	// NB: This is specific to Databricks!
+	storageNameLabelKey = "shardName"
+	localStorageName = "local_store"
+)
 // Storage determines whether storage can fulfil the query
 type Storage func(query storage.Query, store storage.Storage) bool
 
@@ -43,6 +52,30 @@ func AllowAll(_ storage.Query, _ storage.Storage) bool {
 // AllowNone filters all storages
 func AllowNone(_ storage.Query, _ storage.Storage) bool {
 	return false
+}
+
+// Allow only storages which meet the relevant filters in the query.
+func ReadOptimizedFilter(query storage.Query, store storage.Storage) bool {
+	if store.Name() == localStorageName {
+		return true
+	}
+	fetchQuery, ok := query.(*storage.FetchQuery)
+	if !ok {
+		// This filter only applies to fetch queries. The configration is wrong!
+		return true
+	}	
+	for _, tagMatcher := range fetchQuery.TagMatchers {
+		if string(tagMatcher.Name) == storageNameLabelKey {
+			switch tagMatcher.Type {
+			// NB: This is a bit hacky. The storage name is like "remote_store_prod-aws-nvirginia-prod", while the tag matcher is like "shardName=nvirginia-prod".
+			case models.MatchEqual:
+				if !strings.HasSuffix(store.Name(), string(tagMatcher.Value)) {
+					return false
+				}
+			}
+		}
+	}
+	return true
 }
 
 // StorageCompleteTags determines whether storage can fulfil the complete tag query
