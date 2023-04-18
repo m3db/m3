@@ -44,6 +44,7 @@ func newMetricCardinality(name []byte, cardinality int) (uint64, *metricCardinal
 type tickResult struct {
 	activeSeries           int
 	expiredSeries          int
+	purgedSeries		   int
 	activeBlocks           int
 	wiredBlocks            int
 	unwiredBlocks          int
@@ -100,6 +101,7 @@ func (r *tickResult) truncateTopMetrics(topN int) {
 func (r *tickResult) merge(other tickResult, topN int) {
 	r.activeSeries += other.activeSeries
 	r.expiredSeries += other.expiredSeries
+	r.purgedSeries += other.purgedSeries
 	r.activeBlocks += other.activeBlocks
 	r.wiredBlocks += other.wiredBlocks
 	r.pendingMergeBlocks += other.pendingMergeBlocks

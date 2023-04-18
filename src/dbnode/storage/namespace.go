@@ -206,6 +206,7 @@ type databaseNamespaceTickMetrics struct {
 	activeSeries           tally.Gauge
 	metricCardinality      tally.Scope // holds multiple gauges.
 	expiredSeries          tally.Counter
+	purgedSeries           tally.Counter
 	activeBlocks           tally.Gauge
 	wiredBlocks            tally.Gauge
 	unwiredBlocks          tally.Gauge
@@ -283,6 +284,7 @@ func newDatabaseNamespaceMetrics(
 			activeSeries:           tickScope.Gauge("active-series"),
 			metricCardinality:      tickScope.SubScope("top_metric_"), // "top_metric__xyz" for metric "xyz"
 			expiredSeries:          tickScope.Counter("expired-series"),
+			purgedSeries:           tickScope.Counter("purged-series"),
 			activeBlocks:           tickScope.Gauge("active-blocks"),
 			wiredBlocks:            tickScope.Gauge("wired-blocks"),
 			unwiredBlocks:          tickScope.Gauge("unwired-blocks"),
@@ -700,6 +702,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, startTime xtime.UnixNano) erro
 
 	n.metrics.tick.activeSeries.Update(float64(r.activeSeries))
 	n.metrics.tick.expiredSeries.Inc(int64(r.expiredSeries))
+	n.metrics.tick.purgedSeries.Inc(int64(r.purgedSeries))
 	n.metrics.tick.activeBlocks.Update(float64(r.activeBlocks))
 	n.metrics.tick.wiredBlocks.Update(float64(r.wiredBlocks))
 	n.metrics.tick.unwiredBlocks.Update(float64(r.unwiredBlocks))

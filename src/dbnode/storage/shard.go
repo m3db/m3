@@ -819,7 +819,7 @@ func (s *dbShard) tickAndExpire(
 
 		// Purge any series requiring purging.
 		if len(expired) > 0 {
-			s.purgeExpiredSeries(expired)
+			r.purgedSeries += s.purgeExpiredSeries(expired)
 			for i := range expired {
 				expired[i] = nil
 			}
@@ -842,7 +842,8 @@ func (s *dbShard) tickAndExpire(
 // Currently, this function is only called by the lambda inside `tickAndExpire`'s `forEachShardEntryBatch`
 // call. This satisfies the contract of all entries it operating upon being guaranteed to have a
 // readerWriterEntryCount of at least 1, by virtue of the implementation of `forEachShardEntryBatch`.
-func (s *dbShard) purgeExpiredSeries(expiredEntries []*Entry) {
+func (s *dbShard) purgeExpiredSeries(expiredEntries []*Entry) int {
+	var closedSeries int = 0
 	// Remove all expired series from lookup and list.
 	s.Lock()
 	for _, entry := range expiredEntries {
@@ -890,8 +891,10 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*Entry) {
 		series.Close()
 		s.list.Remove(elem)
 		s.lookup.Delete(id)
+		closedSeries++
 	}
 	s.Unlock()
+	return closedSeries
 }
 
 func (s *dbShard) WriteTagged(
