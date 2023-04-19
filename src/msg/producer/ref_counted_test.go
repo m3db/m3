@@ -133,10 +133,10 @@ func TestRefCountedMessageFilter(t *testing.T) {
 	rm := NewRefCountedMessage(mm, nil)
 
 	mm.EXPECT().Shard().Return(uint32(0))
-	require.True(t, rm.Accept(filter))
+	require.True(t, rm.Accept([]FilterFunc{filter}))
 
 	mm.EXPECT().Shard().Return(uint32(1))
-	require.False(t, rm.Accept(filter))
+	require.False(t, rm.Accept([]FilterFunc{filter}))
 }
 
 func TestRefCountedMessageOnDropFn(t *testing.T) {
