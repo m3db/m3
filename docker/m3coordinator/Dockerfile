@@ -12,10 +12,10 @@ ADD . /go/src/github.com/m3db/m3
 # Build m3coordinator binary
 RUN cd /go/src/github.com/m3db/m3/ && \
     git submodule update --init      && \
-    make m3coordinator-linux-amd64
+    make m3coordinator
 
 # stage 2: lightweight "release"
-FROM alpine:3.14
+FROM alpine:3.15
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 # Provide timezone data to allow TZ environment variable to be set
