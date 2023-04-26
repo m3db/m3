@@ -144,35 +144,36 @@ func (s *sessionState) readConsistencyLevelWithRLock(
 }
 
 type session struct {
-	state                                sessionState
-	opts                                 Options
-	runtimeOptsListenerCloser            xresource.SimpleCloser
-	scope                                tally.Scope
-	nowFn                                clock.NowFn
-	log                                  *zap.Logger
-	logWriteErrorSampler                 *sampler.Sampler
-	logFetchErrorSampler                 *sampler.Sampler
-	logHostWriteErrorSampler             *sampler.Sampler
-	logHostFetchErrorSampler             *sampler.Sampler
-	newHostQueueFn                       newHostQueueFn
-	writeRetrier                         xretry.Retrier
-	fetchRetrier                         xretry.Retrier
-	streamBlocksRetrier                  xretry.Retrier
-	pools                                sessionPools
-	fetchBatchSize                       int
-	newPeerBlocksQueueFn                 newPeerBlocksQueueFn
-	reattemptStreamBlocksFromPeersFn     reattemptStreamBlocksFromPeersFn
-	pickBestPeerFn                       pickBestPeerFn
-	healthCheckNewConnFn                 healthCheckFn
-	origin                               topology.Host
-	streamBlocksMaxBlockRetries          int
-	streamBlocksWorkers                  xsync.WorkerPool
-	streamBlocksBatchSize                int
-	streamBlocksMetadataBatchTimeout     time.Duration
-	streamBlocksBatchTimeout             time.Duration
-	writeShardsInitializing              bool
-	shardsLeavingCountTowardsConsistency bool
-	metrics                              sessionMetrics
+	state                                               sessionState
+	opts                                                Options
+	runtimeOptsListenerCloser                           xresource.SimpleCloser
+	scope                                               tally.Scope
+	nowFn                                               clock.NowFn
+	log                                                 *zap.Logger
+	logWriteErrorSampler                                *sampler.Sampler
+	logFetchErrorSampler                                *sampler.Sampler
+	logHostWriteErrorSampler                            *sampler.Sampler
+	logHostFetchErrorSampler                            *sampler.Sampler
+	newHostQueueFn                                      newHostQueueFn
+	writeRetrier                                        xretry.Retrier
+	fetchRetrier                                        xretry.Retrier
+	streamBlocksRetrier                                 xretry.Retrier
+	pools                                               sessionPools
+	fetchBatchSize                                      int
+	newPeerBlocksQueueFn                                newPeerBlocksQueueFn
+	reattemptStreamBlocksFromPeersFn                    reattemptStreamBlocksFromPeersFn
+	pickBestPeerFn                                      pickBestPeerFn
+	healthCheckNewConnFn                                healthCheckFn
+	origin                                              topology.Host
+	streamBlocksMaxBlockRetries                         int
+	streamBlocksWorkers                                 xsync.WorkerPool
+	streamBlocksBatchSize                               int
+	streamBlocksMetadataBatchTimeout                    time.Duration
+	streamBlocksBatchTimeout                            time.Duration
+	writeShardsInitializing                             bool
+	shardsLeavingCountTowardsConsistency                bool
+	shardsLeavingAndInitializingCountTowardsConsistency bool
+	metrics                                             sessionMetrics
 }
 
 type shardMetricsKey struct {
@@ -315,9 +316,10 @@ func newSession(opts Options) (clientSession, error) {
 			checkedBytes: opts.CheckedBytesPool(),
 			id:           opts.IdentifierPool(),
 		},
-		writeShardsInitializing:              opts.WriteShardsInitializing(),
-		shardsLeavingCountTowardsConsistency: opts.ShardsLeavingCountTowardsConsistency(),
-		metrics:                              newSessionMetrics(scope),
+		writeShardsInitializing:                             opts.WriteShardsInitializing(),
+		shardsLeavingCountTowardsConsistency:                opts.ShardsLeavingCountTowardsConsistency(),
+		shardsLeavingAndInitializingCountTowardsConsistency: opts.ShardsLeavingAndInitializingCountTowardsConsistency(),
+		metrics: newSessionMetrics(scope),
 	}
 	s.reattemptStreamBlocksFromPeersFn = s.streamBlocksReattemptFromPeers
 	s.pickBestPeerFn = s.streamBlocksPickBestPeer
@@ -1404,10 +1406,10 @@ func (s *session) writeAttemptWithRLock(
 	state := s.pools.writeState.Get()
 	state.consistencyLevel = s.state.writeLevel
 	state.shardsLeavingCountTowardsConsistency = s.shardsLeavingCountTowardsConsistency
+	state.shardsLeavingAndInitializingCountTowardsConsistency = s.shardsLeavingAndInitializingCountTowardsConsistency
 	state.topoMap = s.state.topoMap
 	state.lastResetTime = time.Now()
 	state.incRef()
-
 	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
 	state.op, state.majority = op, majority
 	state.nsID, state.tsID, state.tagEncoder, state.annotation = nsID, tsID, tagEncoder, clonedAnnotation

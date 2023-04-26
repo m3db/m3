@@ -37,6 +37,18 @@ import (
 	"go.uber.org/zap"
 )
 
+type countTowardsConsistency int64
+
+const (
+	undefined countTowardsConsistency = iota
+	available
+	leaving
+	initializing
+	shardLeavingAndLeavingCountsIndividually
+	shardLeavingAndLeavingCountsAsPair
+	shardInitializingAndInitializingCountsAsPair
+)
+
 // writeOp represents a generic write operation
 type writeOp interface {
 	op
@@ -53,31 +65,35 @@ type writeState struct {
 	sync.Mutex
 	refCounter
 
-	consistencyLevel                     topology.ConsistencyLevel
-	shardsLeavingCountTowardsConsistency bool
-	topoMap                              topology.Map
-	op                                   writeOp
-	nsID                                 ident.ID
-	tsID                                 ident.ID
-	tagEncoder                           serialize.TagEncoder
-	annotation                           checked.Bytes
-	majority, pending                    int32
-	success                              int32
-	errors                               []error
-	lastResetTime                        time.Time
-
-	queues         []hostQueue
-	tagEncoderPool serialize.TagEncoderPool
-	pool           *writeStatePool
+	consistencyLevel                                    topology.ConsistencyLevel
+	shardsLeavingCountTowardsConsistency                bool
+	shardsLeavingAndInitializingCountTowardsConsistency bool
+	topoMap                                             topology.Map
+	reusableByteID                                      *ident.ReusableBytesID
+	hostSuccessList                                     []ident.ID
+	op                                                  writeOp
+	nsID                                                ident.ID
+	tsID                                                ident.ID
+	tagEncoder                                          serialize.TagEncoder
+	annotation                                          checked.Bytes
+	majority, pending                                   int32
+	success                                             int32
+	errors                                              []error
+	lastResetTime                                       time.Time
+	queues                                              []hostQueue
+	tagEncoderPool                                      serialize.TagEncoderPool
+	pool                                                *writeStatePool
 }
 
 func newWriteState(
 	encoderPool serialize.TagEncoderPool,
 	pool *writeStatePool,
+	reusableByteID *ident.ReusableBytesID,
 ) *writeState {
 	w := &writeState{
 		pool:           pool,
 		tagEncoderPool: encoderPool,
+		reusableByteID: reusableByteID,
 	}
 	w.destructorFn = w.close
 	w.L = w
@@ -89,6 +105,7 @@ func (w *writeState) close() {
 
 	w.nsID.Finalize()
 	w.tsID.Finalize()
+	w.hostSuccessList = nil
 
 	if w.annotation != nil {
 		w.annotation.DecRef()
@@ -152,27 +169,47 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		errStr := "missing shard %d in host %s"
 		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 	} else {
-		available := shardState == shard.Available
-		leaving := shardState == shard.Leaving
-		leavingAndShardsLeavingCountTowardsConsistency := leaving &&
-			w.shardsLeavingCountTowardsConsistency
 		// NB(bl): Only count writes to available shards towards success.
 		// NB(r): If shard is leaving and configured to allow writes to leaving
 		// shards to count towards consistency then allow that to count
-		// to success.
-		if !available && !leavingAndShardsLeavingCountTowardsConsistency {
-			var errStr string
-			switch shardState {
-			case shard.Initializing:
-				errStr = "shard %d in host %s is not available (initializing)"
-			case shard.Leaving:
-				errStr = "shard %d in host %s not available (leaving)"
-			default:
-				errStr = "shard %d in host %s not available (unknown state)"
-			}
-			wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
-		} else {
+		// to success
+		// If shardsLeavingAndInitializingCountTowardsConsistency is true then write to both leaving and initializing
+		switch newCountTowardsConsistency(shardState,
+			w.shardsLeavingCountTowardsConsistency,
+			w.shardsLeavingAndInitializingCountTowardsConsistency) {
+		case available:
 			w.success++
+		case shardLeavingAndLeavingCountsIndividually:
+			w.success++
+		case shardLeavingAndLeavingCountsAsPair:
+			shard, err := hostShardSet.ShardSet().LookupShard(w.op.ShardID())
+			if err != nil {
+				errStr := "no shard id %d in host %s"
+				wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
+			} else {
+				// get the initializing host corresponding to the leaving host.
+				initializingHostID := shard.DestinationID()
+				w.setHostSuccessList(hostID, initializingHostID)
+			}
+		case shardInitializingAndInitializingCountsAsPair:
+			shard, err := hostShardSet.ShardSet().LookupShard(w.op.ShardID())
+			if err != nil {
+				errStr := "no shard id %d in host %s"
+				wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
+			} else {
+				// get the leaving host corresponding to the initializing host.
+				leavingHostID := shard.SourceID()
+				w.setHostSuccessList(hostID, leavingHostID)
+			}
+		case leaving:
+			errStr := "shard %d in host %s not available (leaving)"
+			wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
+		case initializing:
+			errStr := "shard %d in host %s is not available (initializing)"
+			wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
+		default:
+			errStr := "shard %d in host %s not available (unknown state)"
+			wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 		}
 	}
 
@@ -199,8 +236,19 @@ func (w *writeState) completionFn(result interface{}, err error) {
 	w.decRef()
 }
 
+func (w *writeState) setHostSuccessList(hostID, pairedHostID string) {
+	w.reusableByteID.Reset(ident.StringID(pairedHostID).Bytes())
+	if findHost(w.hostSuccessList, w.reusableByteID) {
+		w.success++
+	}
+	w.reusableByteID.Reset(ident.StringID(hostID).Bytes())
+	w.hostSuccessList = append(w.hostSuccessList, w.reusableByteID)
+}
+
 type writeStatePool struct {
+	hostSuccessList     []ident.ID
 	pool                pool.ObjectPool
+	reusableByteID      *ident.ReusableBytesID
 	tagEncoderPool      serialize.TagEncoderPool
 	logger              *zap.Logger
 	logHostErrorSampler *sampler.Sampler
@@ -215,6 +263,7 @@ func newWriteStatePool(
 	p := pool.NewObjectPool(opts)
 	return &writeStatePool{
 		pool:                p,
+		reusableByteID:      ident.NewReusableBytesID(),
 		tagEncoderPool:      tagEncoderPool,
 		logger:              logger,
 		logHostErrorSampler: logHostErrorSampler,
@@ -223,7 +272,7 @@ func newWriteStatePool(
 
 func (p *writeStatePool) Init() {
 	p.pool.Init(func() interface{} {
-		return newWriteState(p.tagEncoderPool, p)
+		return newWriteState(p.tagEncoderPool, p, p.reusableByteID)
 	})
 }
 
@@ -259,4 +308,41 @@ type maybeHostWriteError struct {
 
 	// Error field is optionally set when there is actually an error.
 	err error
+}
+
+func newCountTowardsConsistency(shardState shard.State,
+	leavingCountsIndividually bool,
+	leavingAndInitializingCountsAsPair bool) countTowardsConsistency {
+	isAvailable := shardState == shard.Available
+	isLeaving := shardState == shard.Leaving
+	isInitializing := shardState == shard.Initializing
+
+	if isAvailable {
+		return available
+	}
+	if isLeaving && leavingCountsIndividually {
+		return shardLeavingAndLeavingCountsIndividually
+	}
+	if isLeaving && leavingAndInitializingCountsAsPair {
+		return shardLeavingAndLeavingCountsAsPair
+	}
+	if isInitializing && leavingAndInitializingCountsAsPair {
+		return shardInitializingAndInitializingCountsAsPair
+	}
+	if isLeaving {
+		return leaving
+	}
+	if isInitializing {
+		return initializing
+	}
+	return undefined
+}
+
+func findHost(hostSuccessList []ident.ID, hostID ident.ID) bool {
+	for _, val := range hostSuccessList {
+		if val == hostID {
+			return true
+		}
+	}
+	return false
 }

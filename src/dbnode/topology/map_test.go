@@ -103,7 +103,8 @@ func TestStaticMap(t *testing.T) {
 		SetReplicas(2).
 		SetHostShardSets(hostShardSets)
 
-	m := NewStaticMap(opts)
+	m, err := NewStaticMap(opts)
+	require.NoError(t, err)
 
 	require.Equal(t, 4, len(m.Hosts()))
 	require.Equal(t, 4, m.HostsLen())
