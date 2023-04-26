@@ -26,6 +26,6 @@ the operator will aim to not conflict with such operations a human may have to t
 Generally speaking, the operator's philosophy is if **it would be unclear to a human what action to take, we will not
 try to guess.**
 
-[operators]: https://kubernetes.io/docs/concepts/extend-kubernetes/operator/
+[operators]: https://coreos.com/operators/
 [m3db]: https://m3db.io/docs/
 [keynote]: https://kccna18.sched.com/event/Gsxn/keynote-smooth-operator-large-scale-automated-storage-with-kubernetes-celina-ward-software-engineer-matt-schallert-site-reliability-engineer-uber

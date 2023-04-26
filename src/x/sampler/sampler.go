@@ -97,12 +97,3 @@ func (t *Sampler) Sample() bool {
 func (t *Sampler) SampleRate() Rate {
 	return t.sampleRate
 }
-
-// MustNewSampler returns a sampler that must be valid or otherwise panics.
-func MustNewSampler(sampleRate Rate) *Sampler {
-	s, err := NewSampler(sampleRate)
-	if err != nil {
-		panic(err)
-	}
-	return s
-}

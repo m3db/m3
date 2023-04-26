@@ -47,7 +47,25 @@ timeout: 1s
 	require.Equal(t, time.Second, opts.KeepAliveTimeout())
 }
 
+func TestAuthConfig(t *testing.T) {
+	const cfgStr = `
+enabled: true
+username: "test"
+password: "test"
+`
+
+	var cfg AuthConfig
+	require.NoError(t, yaml.Unmarshal([]byte(cfgStr), &cfg))
+
+	opts := cfg.NewOptions()
+	require.Equal(t, true, opts.AuthenticationEnabled())
+	require.Equal(t, "test", opts.UserName())
+	require.Equal(t, "test", opts.Password())
+}
+
 func TestConfig(t *testing.T) {
+	const testUserName = "test"
+	const testPassword = "test"
 	const testConfig = `
 env: env1
 zone: z1
@@ -64,6 +82,10 @@ etcdClusters:
       period: 10s
       jitter: 5s
       timeout: 1s
+	auth:
+	  enabled: true
+      username: test
+      password: test
     autoSyncInterval: 160s
     dialTimeout: 42s
   - zone: z2
@@ -105,6 +127,11 @@ m3sd:
 			},
 			AutoSyncInterval: 160 * time.Second,
 			DialTimeout:      42 * time.Second,
+			Auth: &AuthConfig{
+				Enabled: true,
+				UserName: testUserName,
+				Password: testPassword,
+			},
 		},
 		{
 			Zone:      "z2",
@@ -112,6 +139,11 @@ m3sd:
 			TLS: &TLSConfig{
 				CrtPath: "foo.crt.pem",
 				KeyPath: "foo.key.pem",
+			},
+			Auth: &AuthConfig{
+				Enabled: false,
+				UserName: defaultUsername,
+				Password: defaultPassword,
 			},
 		},
 		{
@@ -137,6 +169,11 @@ m3sd:
 	require.Equal(t, 160*time.Second, cluster1.AutoSyncInterval())
 	require.Equal(t, 42*time.Second, cluster1.DialTimeout())
 
+	authOpts := cluster1.AuthOptions()
+	require.Equal(t, testUserName, authOpts.UserName())
+	require.Equal(t, testPassword, authOpts.Password())
+	require.Equal(t, true, authOpts.AuthenticationEnabled())
+
 	cluster2, exists := opts.ClusterForZone("z2")
 	require.True(t, exists)
 	keepAliveOpts = cluster2.KeepAliveOptions()
@@ -144,6 +181,11 @@ m3sd:
 	require.Equal(t, 20*time.Second, keepAliveOpts.KeepAlivePeriod())
 	require.Equal(t, 10*time.Second, keepAliveOpts.KeepAlivePeriodMaxJitter())
 	require.Equal(t, 10*time.Second, keepAliveOpts.KeepAliveTimeout())
+
+	authOpts = cluster2.AuthOptions()
+	require.Equal(t, defaultUsername, authOpts.UserName())
+	require.Equal(t, defaultPassword, authOpts.Password())
+	require.Equal(t, false, authOpts.AuthenticationEnabled())
 
 	t.Run("TestOptionsNewDirectoryMode", func(t *testing.T) {
 		opts := cfg.NewOptions()
@@ -180,6 +222,9 @@ func TestDefaultConfig(t *testing.T) {
 	cluster := ClusterConfig{}.NewCluster()
 	require.Equal(t, defaultDialTimeout, cluster.DialTimeout())
 	require.Equal(t, defaultAutoSyncInterval, cluster.AutoSyncInterval())
+	require.Equal(t, defaultAuthEnabled , cluster.AuthOptions().AuthenticationEnabled())
+	require.Equal(t, defaultPassword , cluster.AuthOptions().Password())
+	require.Equal(t, defaultUsername , cluster.AuthOptions().UserName())
 }
 
 func TestConfig_negativeAutosync(t *testing.T) {

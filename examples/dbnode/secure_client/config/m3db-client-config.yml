@@ -1,0 +1,16 @@
+client:
+  config:
+    service:
+      env: default_env
+      zone: embedded
+      service: m3db
+      etcdClusters:
+        - zone: embedded
+          endpoints:
+            - etcd:2379
+          auth:
+            enabled: true
+            username: test
+            password: pqrs
+  writeConsistencyLevel: majority
+  readConsistencyLevel: unstrict_majority

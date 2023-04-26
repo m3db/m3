@@ -35,6 +35,10 @@ type Options struct {
 	// node and a coordinator.
 	Configuration config.Configuration
 
+	// SecretsConfig is the top level config that includes secrets of inbound and
+	// outbound of a dbnode.
+	SecretsConfig config.AuthConfig
+
 	// InterruptCh is a programmatic interrupt channel to supply to
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
@@ -49,6 +53,7 @@ type Options struct {
 func RunComponents(opts Options) {
 	var (
 		cfg         = opts.Configuration
+		secrets     = opts.SecretsConfig
 		interruptCh = opts.InterruptCh
 		shutdownCh  = opts.ShutdownCh
 
@@ -80,6 +85,7 @@ func RunComponents(opts Options) {
 	if cfg.DB != nil {
 		dbserver.Run(dbserver.RunOptions{
 			Config:          *cfg.DB,
+			Secrets:         secrets,
 			ClientCh:        dbClientCh,
 			ClusterClientCh: clusterClientCh,
 			InterruptCh:     interruptCh,

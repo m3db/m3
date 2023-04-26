@@ -46,8 +46,21 @@ func main() {
 		log.Fatalf("error validating config: %v", err)
 	}
 
+	var secrets config.AuthConfig
+	isSecretConfigPresent, err := cfgOpts.CredentialLoad(&secrets, xconfig.Options{})
+	if err != nil {
+		log.Fatalf("error loading secrets config: %v", err)
+	}
+
+	if isSecretConfigPresent {
+		if err := secrets.Validate(); err != nil {
+			log.Fatalf("error validating config: %v", err)
+		}
+	}
+
 	server.RunComponents(server.Options{
 		Configuration: cfg,
+		SecretsConfig: secrets,
 		InterruptCh:   xos.NewInterruptChannel(cfg.Components()),
 	})
 }

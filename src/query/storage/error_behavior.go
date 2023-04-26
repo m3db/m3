@@ -57,11 +57,6 @@ func ParseErrorBehavior(str string) (ErrorBehavior, error) {
 	return 0, fmt.Errorf("unrecognized error behavior: %v", str)
 }
 
-// MarshalYAML marshals an ErrorBehavior.
-func (e *ErrorBehavior) MarshalYAML() (interface{}, error) {
-	return e.String(), nil
-}
-
 // UnmarshalYAML unmarshals an error behavior.
 func (e *ErrorBehavior) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string

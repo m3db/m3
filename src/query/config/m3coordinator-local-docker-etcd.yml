@@ -1,0 +1,16 @@
+clusters:
+  - namespaces:
+      - namespace: default
+        type: unaggregated
+        retention: 48h
+    client:
+      config:
+        service:
+          env: default_env
+          zone: embedded
+          service: m3db
+          cacheDir: /var/lib/m3kv
+          etcdClusters:
+            - zone: embedded
+              endpoints:
+                - http://etcd:2379

@@ -105,16 +105,16 @@ func (mr *MockconsumerServiceWriterMockRecorder) SetMessageTTLNanos(value interf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMessageTTLNanos", reflect.TypeOf((*MockconsumerServiceWriter)(nil).SetMessageTTLNanos), value)
 }
 
-// UnregisterFilters mocks base method.
-func (m *MockconsumerServiceWriter) UnregisterFilters() {
+// UnregisterFilter mocks base method.
+func (m *MockconsumerServiceWriter) UnregisterFilter() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UnregisterFilters")
+	m.ctrl.Call(m, "UnregisterFilter")
 }
 
-// UnregisterFilters indicates an expected call of UnregisterFilters.
-func (mr *MockconsumerServiceWriterMockRecorder) UnregisterFilters() *gomock.Call {
+// UnregisterFilter indicates an expected call of UnregisterFilter.
+func (mr *MockconsumerServiceWriterMockRecorder) UnregisterFilter() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnregisterFilters", reflect.TypeOf((*MockconsumerServiceWriter)(nil).UnregisterFilters))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnregisterFilter", reflect.TypeOf((*MockconsumerServiceWriter)(nil).UnregisterFilter))
 }
 
 // Write mocks base method.

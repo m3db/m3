@@ -45,20 +45,4 @@ type PromWriteHandlerForwardTargetOptions struct {
 	Method string `yaml:"method"`
 	// Headers to send along with requests to the target.
 	Headers map[string]string `yaml:"headers"`
-	// NoRetry disables retries for a forwarding target (useful for say
-	// when shadowing data to a shadow cluster, but could be useful outside
-	// of that use case too potentially).
-	NoRetry bool `yaml:"noRetry"`
-	// Shadow defines options that are specific only to shadowing data.
-	Shadow *PromWriteHandlerForwardTargetShadowOptions `yaml:"shadow"`
-}
-
-// PromWriteHandlerForwardTargetShadowOptions is a prometheus write
-// handler forwarder target shadow options.
-type PromWriteHandlerForwardTargetShadowOptions struct {
-	// Percent of requests to shadow to the target, between [0,1].
-	Percent float64 `yaml:"percent"`
-	// Hash is the hash algorithm to use for determining which series to shadow.
-	// Accepted values are: "xxhash" and "murmur3"
-	Hash string `yaml:"hash"`
 }

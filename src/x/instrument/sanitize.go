@@ -66,11 +66,6 @@ func (t MetricSanitizationType) String() string {
 	return "unknown"
 }
 
-// MarshalYAML marshals a MetricSanitizationType.
-func (t *MetricSanitizationType) MarshalYAML() (interface{}, error) {
-	return t.String(), nil
-}
-
 // UnmarshalYAML unmarshals a MetricSanitizationType into a valid type from string.
 func (t *MetricSanitizationType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string

@@ -51,16 +51,8 @@ func NewRefCountedMessage(m Message, fn OnFinalizeFn) *RefCountedMessage {
 }
 
 // Accept returns true if the message can be accepted by the filter.
-func (rm *RefCountedMessage) Accept(fn []FilterFunc) bool {
-	if len(fn) == 0 {
-		return false
-	}
-	for _, f := range fn {
-		if !f(rm.Message) {
-			return false
-		}
-	}
-	return true
+func (rm *RefCountedMessage) Accept(fn FilterFunc) bool {
+	return fn(rm.Message)
 }
 
 // IncRef increments the ref count.

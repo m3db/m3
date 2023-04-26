@@ -54,8 +54,6 @@ db:
           cacheRegexp: false
           cacheTerms: false
           cacheSearch: null
-      series:
-          policy: lru
 
   metrics:
       prometheus:
@@ -346,7 +344,7 @@ func TestConfiguration(t *testing.T) {
     forwardIndexProbability: 0
     forwardIndexThreshold: 0
   transforms:
-    truncateBy: none
+    truncateBy: 0
     forceValue: null
   logging:
     file: /var/log/m3dbnode.log
@@ -363,8 +361,8 @@ func TestConfiguration(t *testing.T) {
       defaultSummaryObjectives: []
       onError: ""
     samplingRate: 1
-    extended: detailed
-    sanitization: prometheus
+    extended: 3
+    sanitization: 2
   listenAddress: 0.0.0.0:9000
   clusterListenAddress: 0.0.0.0:9001
   httpNodeListenAddress: 0.0.0.0:9002
@@ -378,9 +376,9 @@ func TestConfiguration(t *testing.T) {
     hostname: null
   client:
     config: null
-    writeConsistencyLevel: majority
-    readConsistencyLevel: unstrict_majority
-    connectConsistencyLevel: any
+    writeConsistencyLevel: 2
+    readConsistencyLevel: 2
+    connectConsistencyLevel: 0
     writeTimeout: 10s
     fetchTimeout: 15s
     connectTimeout: 20s
@@ -399,8 +397,6 @@ func TestConfiguration(t *testing.T) {
       forever: null
       jitter: true
     logErrorSampleRate: 0
-    logHostWriteErrorSampleRate: 0
-    logHostFetchErrorSampleRate: 0
     backgroundHealthCheckFailLimit: 4
     backgroundHealthCheckFailThrottleFactor: 0.5
     hashing:
@@ -430,9 +426,7 @@ func TestConfiguration(t *testing.T) {
     verify: null
   blockRetrieve: null
   cache:
-    series:
-      policy: lru
-      lru: null
+    series: null
     postingsList:
       size: 100
       cacheRegexp: false
@@ -913,28 +907,6 @@ func TestGetHostAndEndpointFromID(t *testing.T) {
 		assert.Equal(t, test.expSeedNode, node)
 		assert.Equal(t, test.expEndpoint, ep)
 	}
-}
-
-func TestNewEtcdEmbedConfig(t *testing.T) {
-	fd, err := ioutil.TempFile("", "config2.yaml")
-	require.NoError(t, err)
-	defer func() {
-		assert.NoError(t, fd.Close())
-		assert.NoError(t, os.Remove(fd.Name()))
-	}()
-
-	_, err = fd.Write([]byte(testBaseConfig))
-	require.NoError(t, err)
-
-	// Verify is valid
-	var cfg Configuration
-	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
-	require.NoError(t, err)
-
-	embedCfg, err := NewEtcdEmbedConfig(*cfg.DB)
-	require.NoError(t, err)
-
-	assert.Equal(t, "existing", embedCfg.ClusterState)
 }
 
 func TestNewJaegerTracer(t *testing.T) {

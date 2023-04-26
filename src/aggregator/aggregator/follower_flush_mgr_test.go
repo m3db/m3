@@ -76,6 +76,18 @@ func TestFollowerFlushManagerCanNotLeadNotCampaigning(t *testing.T) {
 	require.False(t, mgr.CanLead())
 }
 
+func TestFollowerFlushManagerCanNotLeadProtoNotUpdated(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	doneCh := make(chan struct{})
+	electionManager := NewMockElectionManager(ctrl)
+	electionManager.EXPECT().IsCampaigning().Return(true)
+	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
+	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
+	require.False(t, mgr.CanLead())
+}
+
 func TestFollowerFlushManagerCanNotLeadStandardFlushWindowsNotEnded(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -83,11 +95,7 @@ func TestFollowerFlushManagerCanNotLeadStandardFlushWindowsNotEnded(t *testing.T
 	doneCh := make(chan struct{})
 	electionManager := NewMockElectionManager(ctrl)
 	electionManager.EXPECT().IsCampaigning().Return(true)
-	flushTimesMgr := NewMockFlushTimesManager(ctrl)
-	flushTimesMgr.EXPECT().Get().Return(testFlushTimes, nil)
-	opts := NewFlushManagerOptions().
-		SetElectionManager(electionManager).
-		SetFlushTimesManager(flushTimesMgr)
+	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	mgr.processed = testFlushTimes
 	mgr.openedAt = time.Unix(3624, 0)
@@ -100,11 +108,7 @@ func TestFollowerFlushManagerCanNotLeadTimedFlushWindowsNotEnded(t *testing.T) {
 
 	doneCh := make(chan struct{})
 	electionManager := NewMockElectionManager(ctrl)
-	flushTimesMgr := NewMockFlushTimesManager(ctrl)
-	flushTimesMgr.EXPECT().Get().Return(testFlushTimes, nil).AnyTimes()
-	opts := NewFlushManagerOptions().
-		SetElectionManager(electionManager).
-		SetFlushTimesManager(flushTimesMgr)
+	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	mgr.processed = testFlushTimes2
 	electionManager.EXPECT().IsCampaigning().Return(true)
@@ -123,11 +127,7 @@ func TestFollowerFlushManagerCanNotLeadForwardedFlushWindowsNotEnded(t *testing.
 	doneCh := make(chan struct{})
 	electionManager := NewMockElectionManager(ctrl)
 	electionManager.EXPECT().IsCampaigning().Return(true)
-	flushTimesMgr := NewMockFlushTimesManager(ctrl)
-	flushTimesMgr.EXPECT().Get().Return(testFlushTimes, nil)
-	opts := NewFlushManagerOptions().
-		SetElectionManager(electionManager).
-		SetFlushTimesManager(flushTimesMgr)
+	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	mgr.processed = testFlushTimes
 	mgr.openedAt = time.Unix(3640, 0)
@@ -263,12 +263,9 @@ func testCanLeadNotFlushed(
 	clockOpts := clock.NewOptions().SetNowFn(func() time.Time {
 		return now
 	})
-	flushTimesMgr := NewMockFlushTimesManager(ctrl)
-	flushTimesMgr.EXPECT().Get().Return(flushTimes, nil)
 	opts := NewFlushManagerOptions().
 		SetElectionManager(electionManager).
-		SetClockOptions(clockOpts).
-		SetFlushTimesManager(flushTimesMgr)
+		SetClockOptions(clockOpts)
 
 	if bufferPast > 0 {
 		opts = opts.SetBufferForPastTimedMetric(bufferPast)
@@ -281,28 +278,6 @@ func testCanLeadNotFlushed(
 	require.Equal(t, expectedCanLead, mgr.CanLead())
 }
 
-func TestFollowerFlushManagerCanLeadNoFlushTimes(t *testing.T) {
-	// Note: most tests here already test whether the follower CanLead when flush
-	// times are present, e.g. TestFollowerFlushManagerCanLeadNotFlushed.
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	doneCh := make(chan struct{})
-	electionManager := NewMockElectionManager(ctrl)
-	electionManager.EXPECT().IsCampaigning().Return(true).AnyTimes()
-	flushTimesMgr := NewMockFlushTimesManager(ctrl)
-	// Return no flush times - this is true when the cluster is just brought up
-	// and the leader hasn't flushed yet.
-	flushTimesMgr.EXPECT().Get().Return(nil, nil)
-	opts := NewFlushManagerOptions().
-		SetElectionManager(electionManager).
-		SetFlushTimesManager(flushTimesMgr)
-
-	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
-
-	require.True(t, mgr.CanLead())
-}
-
 func TestFollowerFlushManagerCanLeadNoTombstonedShards(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -310,11 +285,7 @@ func TestFollowerFlushManagerCanLeadNoTombstonedShards(t *testing.T) {
 	doneCh := make(chan struct{})
 	electionManager := NewMockElectionManager(ctrl)
 	electionManager.EXPECT().IsCampaigning().Return(true)
-	flushTimesMgr := NewMockFlushTimesManager(ctrl)
-	flushTimesMgr.EXPECT().Get().Return(testFlushTimes, nil)
-	opts := NewFlushManagerOptions().
-		SetElectionManager(electionManager).
-		SetFlushTimesManager(flushTimesMgr)
+	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	mgr.flushTimesState = flushTimesProcessed
 	mgr.processed = testFlushTimes
@@ -329,11 +300,7 @@ func TestFollowerFlushManagerCanLeadWithTombstonedShards(t *testing.T) {
 	doneCh := make(chan struct{})
 	electionManager := NewMockElectionManager(ctrl)
 	electionManager.EXPECT().IsCampaigning().Return(true)
-	flushTimesMgr := NewMockFlushTimesManager(ctrl)
-	flushTimesMgr.EXPECT().Get().Return(testFlushTimes2, nil)
-	opts := NewFlushManagerOptions().
-		SetElectionManager(electionManager).
-		SetFlushTimesManager(flushTimesMgr)
+	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	mgr.flushTimesState = flushTimesProcessed
 	mgr.processed = testFlushTimes2

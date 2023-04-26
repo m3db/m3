@@ -191,7 +191,7 @@ func (n *Node) start(ctx context.Context) error {
 	defer cancel()
 
 	if err := n.resource.Setup(ctx); err != nil {
-		return fmt.Errorf("starting etcd container: %w", err)
+		return err
 	}
 
 	address := n.resource.Address()

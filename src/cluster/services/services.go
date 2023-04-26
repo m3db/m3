@@ -89,7 +89,7 @@ type client struct {
 }
 
 func (c *client) Metadata(sid ServiceID) (Metadata, error) {
-	if err := ValidateServiceID(sid); err != nil {
+	if err := validateServiceID(sid); err != nil {
 		return nil, err
 	}
 
@@ -112,7 +112,7 @@ func (c *client) Metadata(sid ServiceID) (Metadata, error) {
 }
 
 func (c *client) SetMetadata(sid ServiceID, meta Metadata) error {
-	if err := ValidateServiceID(sid); err != nil {
+	if err := validateServiceID(sid); err != nil {
 		return err
 	}
 
@@ -130,7 +130,7 @@ func (c *client) SetMetadata(sid ServiceID, meta Metadata) error {
 }
 
 func (c *client) DeleteMetadata(sid ServiceID) error {
-	if err := ValidateServiceID(sid); err != nil {
+	if err := validateServiceID(sid); err != nil {
 		return err
 	}
 
@@ -144,7 +144,7 @@ func (c *client) DeleteMetadata(sid ServiceID) error {
 }
 
 func (c *client) PlacementService(sid ServiceID, opts placement.Options) (placement.Service, error) {
-	if err := ValidateServiceID(sid); err != nil {
+	if err := validateServiceID(sid); err != nil {
 		return nil, err
 	}
 
@@ -245,7 +245,7 @@ func (c *client) Unadvertise(sid ServiceID, id string) error {
 }
 
 func (c *client) Query(sid ServiceID, opts QueryOptions) (Service, error) {
-	if err := ValidateServiceID(sid); err != nil {
+	if err := validateServiceID(sid); err != nil {
 		return nil, err
 	}
 
@@ -277,7 +277,7 @@ func (c *client) Query(sid ServiceID, opts QueryOptions) (Service, error) {
 }
 
 func (c *client) Watch(sid ServiceID, opts QueryOptions) (Watch, error) {
-	if err := ValidateServiceID(sid); err != nil {
+	if err := validateServiceID(sid); err != nil {
 		return nil, err
 	}
 
@@ -359,7 +359,7 @@ func (c *client) Watch(sid ServiceID, opts QueryOptions) (Watch, error) {
 }
 
 func (c *client) HeartbeatService(sid ServiceID) (HeartbeatService, error) {
-	if err := ValidateServiceID(sid); err != nil {
+	if err := validateServiceID(sid); err != nil {
 		return nil, err
 	}
 

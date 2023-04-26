@@ -41,7 +41,6 @@ import (
 	xerror "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xretry "github.com/m3db/m3/src/x/retry"
-	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -64,19 +63,17 @@ const (
 
 type testEnqueueFn func(idx int, op op)
 
-// NB: allocating once to speedup tests.
-var _testSessionOpts = NewOptions().
-	SetCheckedBytesWrapperPoolSize(1).
-	SetFetchBatchOpPoolSize(1).
-	SetHostQueueOpsArrayPoolSize(1).
-	SetTagEncoderPoolSize(1).
-	SetWriteOpPoolSize(1).
-	SetWriteTaggedOpPoolSize(1).
-	SetSeriesIteratorPoolSize(1).
-	// Set 100% sample rate to test the code path that logs errors.
-	SetLogErrorSampleRate(sampler.Rate(1)).
-	SetLogHostFetchErrorSampleRate(sampler.Rate(1)).
-	SetLogHostWriteErrorSampleRate(sampler.Rate(1))
+var (
+	// NB: allocating once to speedup tests.
+	_testSessionOpts = NewOptions().
+		SetCheckedBytesWrapperPoolSize(1).
+		SetFetchBatchOpPoolSize(1).
+		SetHostQueueOpsArrayPoolSize(1).
+		SetTagEncoderPoolSize(1).
+		SetWriteOpPoolSize(1).
+		SetWriteTaggedOpPoolSize(1).
+		SetSeriesIteratorPoolSize(1)
+)
 
 func testContext() context.Context {
 	// nolint: govet

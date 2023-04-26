@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -55,10 +54,7 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/golang/protobuf/proto"
-	"github.com/golang/snappy"
-	murmur3 "github.com/m3db/stackmurmur3/v2"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -219,8 +215,6 @@ type promWriteMetrics struct {
 	forwardErrors            tally.Counter
 	forwardDropped           tally.Counter
 	forwardLatency           tally.Histogram
-	forwardShadowKeep        tally.Counter
-	forwardShadowDrop        tally.Counter
 }
 
 func (m *promWriteMetrics) incError(err error) {
@@ -248,8 +242,6 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 		forwardErrors:            scope.SubScope("forward").Counter("errors"),
 		forwardDropped:           scope.SubScope("forward").Counter("dropped"),
 		forwardLatency:           scope.SubScope("forward").Histogram("latency", buckets.WriteLatencyBuckets),
-		forwardShadowKeep:        scope.SubScope("forward").SubScope("shadow").Counter("keep"),
-		forwardShadowDrop:        scope.SubScope("forward").SubScope("shadow").Counter("drop"),
 	}, nil
 }
 
@@ -265,8 +257,9 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		req  = checkedReq.Request
-		opts = checkedReq.Options
+		req    = checkedReq.Request
+		opts   = checkedReq.Options
+		result = checkedReq.CompressResult
 	)
 	// Begin async forwarding.
 	// NB(r): Be careful about not returning buffers to pool
@@ -277,22 +270,13 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			target := target // Capture for lambda.
 			forward := func() {
 				now := h.nowFn()
-
-				var (
-					attempt = func() error {
-						// Consider propagating baggage without tying
-						// context to request context in future.
-						ctx, cancel := context.WithTimeout(h.forwardContext, h.forwardTimeout)
-						defer cancel()
-						return h.forward(ctx, checkedReq, r.Header, target)
-					}
-					err error
-				)
-				if target.NoRetry {
-					err = attempt()
-				} else {
-					err = h.forwardRetrier.Attempt(attempt)
-				}
+				err := h.forwardRetrier.Attempt(func() error {
+					// Consider propagating baggage without tying
+					// context to request context in future.
+					ctx, cancel := context.WithTimeout(h.forwardContext, h.forwardTimeout)
+					defer cancel()
+					return h.forward(ctx, result, r.Header, target)
+				})
 
 				// Record forward ingestion delay.
 				// NB: this includes any time for retries.
@@ -551,27 +535,16 @@ func (h *PromWriteHandler) write(
 
 func (h *PromWriteHandler) forward(
 	ctx context.Context,
-	res parseRequestResult,
+	request prometheus.ParsePromCompressedRequestResult,
 	header http.Header,
 	target handleroptions.PromWriteHandlerForwardTargetOptions,
 ) error {
-	body := bytes.NewReader(res.CompressResult.CompressedBody)
-	if shadowOpts := target.Shadow; shadowOpts != nil {
-		// Need to send a subset of the original series to the shadow target.
-		buffer, err := h.buildForwardShadowRequestBody(res, shadowOpts)
-		if err != nil {
-			return err
-		}
-		// Read the body from the shadow request body just built.
-		body.Reset(buffer)
-	}
-
 	method := target.Method
 	if method == "" {
 		method = http.MethodPost
 	}
 	url := target.URL
-	req, err := http.NewRequest(method, url, body)
+	req, err := http.NewRequest(method, url, bytes.NewReader(request.CompressedBody))
 	if err != nil {
 		return err
 	}
@@ -612,91 +585,6 @@ func (h *PromWriteHandler) forward(
 	}
 
 	return nil
-}
-
-func (h *PromWriteHandler) buildForwardShadowRequestBody(
-	res parseRequestResult,
-	shadowOpts *handleroptions.PromWriteHandlerForwardTargetShadowOptions,
-) ([]byte, error) {
-	if shadowOpts.Percent < 0 || shadowOpts.Percent > 1 {
-		return nil, fmt.Errorf("forwarding shadow percent out of range [0,1]: %f",
-			shadowOpts.Percent)
-	}
-
-	// Need to apply shadow percent.
-	var hash func([]byte) uint64
-	switch shadowOpts.Hash {
-	case "":
-		fallthrough
-	case "xxhash":
-		hash = xxhash.Sum64
-	case "murmur3":
-		hash = murmur3.Sum64
-	default:
-		return nil, fmt.Errorf("unknown hash function: %s", shadowOpts.Hash)
-	}
-
-	var (
-		shadowReq = &prompb.WriteRequest{}
-		labels    []prompb.Label
-		buffer    []byte
-	)
-	for _, ts := range res.Request.Timeseries {
-		// Build an ID of the series to hash.
-		// First take copy of labels so the call to sort doesn't modify the
-		// original slice.
-		labels = append(labels[:0], ts.Labels...)
-		buffer = buildPseudoIDWithLabelsLikelySorted(labels, buffer[:0])
-
-		// Use a range of 10k to allow for setting 0.01% having an effect
-		// when shadow percent is set (i.e. with percent=0.0001)
-		if hash(buffer)%10000 >= uint64(shadowOpts.Percent*10000) {
-			// Skip forwarding this series, not in shadow volume of shards.
-			// Swap it with the tail and continue.
-			h.metrics.forwardShadowDrop.Inc(1)
-			continue
-		}
-
-		// Keep this series, it falls below the volume target of shards.
-		h.metrics.forwardShadowKeep.Inc(1)
-
-		// Skip forwarding this series, not in shadow volume of shards.
-		// Swap it with the tail and continue.
-		shadowReq.Timeseries = append(shadowReq.Timeseries, ts)
-	}
-
-	encoded, err := proto.Marshal(shadowReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal forwarding shadow request: %w", err)
-	}
-
-	return snappy.Encode(buffer[:0], encoded), nil
-}
-
-// buildPseudoIDWithLabelsLikelySorted will build a pseudo ID that can be
-// hashed/etc (but not used as primary key since not escaped), it expects the
-// input labels to be likely sorted (so can avoid invoking sort in the regular
-// case where series have labels already sorted when sent to remote write
-// endpoint, which is commonly the case).
-func buildPseudoIDWithLabelsLikelySorted(
-	labels []prompb.Label,
-	buffer []byte,
-) []byte {
-	for i, l := range labels {
-		if i > 0 && bytes.Compare(l.Name, labels[i-1].Name) < 0 {
-			// Sort.
-			sort.Sort(sortableLabels(labels))
-			// Rebuild.
-			return buildPseudoIDWithLabelsLikelySorted(labels, buffer[:0])
-		}
-		buffer = append(buffer, l.Name...)
-		buffer = append(buffer, '=')
-		buffer = append(buffer, l.Value...)
-		if i < len(labels)-1 {
-			buffer = append(buffer, ',')
-		}
-	}
-	return buffer
 }
 
 func (h *PromWriteHandler) maybeLogLabelsWithTooLongLiterals(logger *zap.Logger, label prompb.Label) {
@@ -842,12 +730,4 @@ func (i *promTSIter) SetCurrentMetadata(metadata ts.Metadata) {
 		return
 	}
 	i.metadatas[i.idx] = metadata
-}
-
-type sortableLabels []prompb.Label
-
-func (t sortableLabels) Len() int      { return len(t) }
-func (t sortableLabels) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
-func (t sortableLabels) Less(i, j int) bool {
-	return bytes.Compare(t[i].Name, t[j].Name) == -1
 }

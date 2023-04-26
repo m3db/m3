@@ -71,7 +71,7 @@ type writer struct {
 	initType               initType
 	numShards              uint32
 	consumerServiceWriters map[string]consumerServiceWriter
-	filterRegistry         map[string][]producer.FilterFunc
+	filterRegistry         map[string]producer.FilterFunc
 	isClosed               bool
 	m                      writerMetrics
 
@@ -87,7 +87,7 @@ func NewWriter(opts Options) producer.Writer {
 		logger:                 opts.InstrumentOptions().Logger(),
 		initType:               failOnError,
 		consumerServiceWriters: make(map[string]consumerServiceWriter),
-		filterRegistry:         make(map[string][]producer.FilterFunc),
+		filterRegistry:         make(map[string]producer.FilterFunc),
 		isClosed:               false,
 		m:                      newWriterMetrics(opts.InstrumentOptions().MetricsScope()),
 	}
@@ -221,10 +221,8 @@ func (w *writer) process(update interface{}) error {
 	// Apply the new consumer service writers.
 	w.Lock()
 	for key, csw := range newConsumerServiceWriters {
-		if filters, ok := w.filterRegistry[key]; ok {
-			for _, filter := range filters {
-				csw.RegisterFilter(filter)
-			}
+		if filter, ok := w.filterRegistry[key]; ok {
+			csw.RegisterFilter(filter)
 		}
 	}
 	w.consumerServiceWriters = newConsumerServiceWriters
@@ -266,19 +264,14 @@ func (w *writer) RegisterFilter(sid services.ServiceID, filter producer.FilterFu
 	defer w.Unlock()
 
 	key := sid.String()
-	if _, ok := w.filterRegistry[key]; ok {
-		w.filterRegistry[key] = append(w.filterRegistry[key], filter)
-	} else {
-		w.filterRegistry[key] = []producer.FilterFunc{filter}
-	}
-
+	w.filterRegistry[key] = filter
 	csw, ok := w.consumerServiceWriters[key]
 	if ok {
 		csw.RegisterFilter(filter)
 	}
 }
 
-func (w *writer) UnregisterFilters(sid services.ServiceID) {
+func (w *writer) UnregisterFilter(sid services.ServiceID) {
 	w.Lock()
 	defer w.Unlock()
 
@@ -286,6 +279,6 @@ func (w *writer) UnregisterFilters(sid services.ServiceID) {
 	delete(w.filterRegistry, key)
 	csw, ok := w.consumerServiceWriters[key]
 	if ok {
-		csw.UnregisterFilters()
+		csw.UnregisterFilter()
 	}
 }

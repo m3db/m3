@@ -48,4 +48,4 @@ Heap
 
 ### M3DB Grafana Dashboard Screenshots
 
-If the service experiencing performance issues is M3DB and you're monitoring it using Prometheus, any screenshots you could provide using [this](https://grafana.com/grafana/dashboards/8126-m3db-node-details/) dashboard would be helpful.
+If the service experiencing performance issues is M3DB and you're monitoring it using Prometheus, any screenshots you could provide using [this](https://grafana.com/dashboards/8126) dashboard would be helpful.

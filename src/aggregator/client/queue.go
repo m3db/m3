@@ -80,11 +80,6 @@ func (t DropType) String() string {
 	return "unknown"
 }
 
-// MarshalYAML marshals a DropType.
-func (t *DropType) MarshalYAML() (interface{}, error) {
-	return t.String(), nil
-}
-
 // UnmarshalYAML unmarshals a DropType into a valid type from string.
 func (t *DropType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string

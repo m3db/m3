@@ -70,11 +70,6 @@ func ValidateMigrationVersion(m MigrationVersion) error {
 		m, validMigrationVersions)
 }
 
-// MarshalYAML marshals a MigrationVersion.
-func (m MigrationVersion) MarshalYAML() (interface{}, error) {
-	return m.String(), nil
-}
-
 // UnmarshalYAML unmarshals a migrate version.
 func (m *MigrationVersion) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string

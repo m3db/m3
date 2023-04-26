@@ -385,18 +385,6 @@ type Options interface {
 	// LogErrorSampleRate returns the log error sample rate between [0,1.0].
 	LogErrorSampleRate() sampler.Rate
 
-	// SetLogHostWriteErrorSampleRate sets the log error per host sample rate between [0,1.0].
-	SetLogHostWriteErrorSampleRate(value sampler.Rate) Options
-
-	// LogHostWriteErrorSampleRate returns the log error per host sample rate between [0,1.0].
-	LogHostWriteErrorSampleRate() sampler.Rate
-
-	// SetLogHostFetchErrorSampleRate sets the log error per host sample rate between [0,1.0].
-	SetLogHostFetchErrorSampleRate(value sampler.Rate) Options
-
-	// LogHostFetchErrorSampleRate returns the log error per host sample rate between [0,1.0].
-	LogHostFetchErrorSampleRate() sampler.Rate
-
 	// SetTopologyInitializer sets the TopologyInitializer.
 	SetTopologyInitializer(value topology.Initializer) Options
 
@@ -886,10 +874,8 @@ type op interface {
 	CompletionFn() completionFn
 }
 
-type (
-	enqueueDelayedFn     func(peersMetadata []receivedBlockMetadata)
-	enqueueDelayedDoneFn func()
-)
+type enqueueDelayedFn func(peersMetadata []receivedBlockMetadata)
+type enqueueDelayedDoneFn func()
 
 type enqueueChannel interface {
 	enqueue(peersMetadata []receivedBlockMetadata) error

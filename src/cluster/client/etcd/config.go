@@ -52,6 +52,8 @@ type ClusterConfig struct {
 	AutoSyncInterval time.Duration `yaml:"autoSyncInterval"`
 	DialTimeout      time.Duration `yaml:"dialTimeout"`
 
+	Auth *AuthConfig `yaml:"auth"`
+
 	DialOptions []grpc.DialOption `yaml:"-"` // nonserializable
 }
 
@@ -62,12 +64,18 @@ func (c ClusterConfig) NewCluster() Cluster {
 		keepAliveOpts = c.KeepAlive.NewOptions()
 	}
 
+	authOptions := NewAuthOptions()
+	if c.Auth != nil {
+		authOptions = c.Auth.NewOptions()
+	}
+
 	cluster := NewCluster().
 		SetZone(c.Zone).
 		SetEndpoints(c.Endpoints).
 		SetDialOptions(c.DialOptions).
 		SetKeepAliveOptions(keepAliveOpts).
-		SetTLSOptions(c.TLS.newOptions())
+		SetTLSOptions(c.TLS.newOptions()).
+		SetAuthOptions(authOptions)
 
 	// Autosync should *always* be on, unless the user very explicitly requests it to be off. They can do this via a
 	// negative value (in which case we can assume they know what they're doing).
@@ -117,6 +125,21 @@ func (c *KeepAliveConfig) NewOptions() KeepAliveOptions {
 		SetKeepAlivePeriod(c.Period).
 		SetKeepAlivePeriodMaxJitter(c.Jitter).
 		SetKeepAliveTimeout(c.Timeout)
+}
+
+// AuthConfig configures authentication behavior.
+type AuthConfig struct {
+	Enabled bool          `yaml:"enabled"`
+	UserName  string `yaml:"username"`
+	Password  string `yaml:"password"`
+}
+
+// NewOptions constructs options based on the config.
+func (a *AuthConfig) NewOptions() AuthOptions {
+	return NewAuthOptions().
+		SetAuthenticationEnabled(a.Enabled).
+		SetUserName(a.UserName).
+		SetPassword(a.Password)
 }
 
 // Configuration is for config service client.

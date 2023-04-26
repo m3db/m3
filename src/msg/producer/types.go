@@ -69,8 +69,8 @@ type Producer interface {
 	// RegisterFilter registers a filter to a consumer service.
 	RegisterFilter(sid services.ServiceID, fn FilterFunc)
 
-	// UnregisterFilters unregisters the filter of a consumer service.
-	UnregisterFilters(sid services.ServiceID)
+	// UnregisterFilter unregisters the filter of a consumer service.
+	UnregisterFilter(sid services.ServiceID)
 
 	// NumShards returns the total number of shards of the topic the producer is
 	// producing to.
@@ -125,8 +125,8 @@ type Writer interface {
 	// RegisterFilter registers a filter to a consumer service.
 	RegisterFilter(sid services.ServiceID, fn FilterFunc)
 
-	// UnregisterFilters unregisters the filters of a consumer service.
-	UnregisterFilters(sid services.ServiceID)
+	// UnregisterFilter unregisters the filter of a consumer service.
+	UnregisterFilter(sid services.ServiceID)
 
 	// NumShards returns the total number of shards of the topic the writer is
 	// writing to.

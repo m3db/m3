@@ -380,7 +380,7 @@ func Test_newConfigFromCluster(t *testing.T) {
 		return 10, nil
 	}
 
-	newFullConfig := func() ClusterConfig {
+	newConfigWithoutAuth := func() ClusterConfig {
 		// Go all the way from config; might as well.
 		return ClusterConfig{
 			Zone:      "foo",
@@ -397,8 +397,18 @@ func Test_newConfigFromCluster(t *testing.T) {
 		}
 	}
 
+	newConfigWithAuth := func() ClusterConfig {
+		configWithoutAuth := newConfigWithoutAuth()
+		configWithoutAuth.Auth = &AuthConfig {
+			Enabled: true,
+			UserName: "test",
+			Password: "test",
+		}
+		return configWithoutAuth
+	}
+
 	t.Run("translates config options", func(t *testing.T) {
-		cfg, err := newConfigFromCluster(testRnd, newFullConfig().NewCluster())
+		cfg, err := newConfigFromCluster(testRnd, newConfigWithoutAuth().NewCluster())
 		require.NoError(t, err)
 
 		assert.Equal(t,
@@ -420,7 +430,7 @@ func Test_newConfigFromCluster(t *testing.T) {
 	})
 
 	t.Run("negative autosync on M3 disables autosync for etcd", func(t *testing.T) {
-		inputCfg := newFullConfig()
+		inputCfg := newConfigWithoutAuth()
 		inputCfg.AutoSyncInterval = -1
 		etcdCfg, err := newConfigFromCluster(testRnd, inputCfg.NewCluster())
 		require.NoError(t, err)
@@ -430,13 +440,23 @@ func Test_newConfigFromCluster(t *testing.T) {
 
 	// Separate test just because the assert.Equal won't work for functions.
 	t.Run("passes through dial options", func(t *testing.T) {
-		clusterCfg := newFullConfig()
+		clusterCfg := newConfigWithoutAuth()
 		clusterCfg.DialOptions = []grpc.DialOption{grpc.WithNoProxy()}
 		etcdCfg, err := newConfigFromCluster(testRnd, clusterCfg.NewCluster())
 		require.NoError(t, err)
 
 		assert.Len(t, etcdCfg.DialOptions, 1)
 	})
+
+	t.Run("passes through auth options", func(t *testing.T) {
+		clusterCfg := newConfigWithAuth()
+		etcdCfg, err := newConfigFromCluster(testRnd, clusterCfg.NewCluster())
+		require.NoError(t, err)
+
+		assert.Equal(t, etcdCfg.Username, "test")
+		assert.Equal(t, etcdCfg.Password, "test")
+	})
+
 }
 
 func Test_cryptoRandInt63n(t *testing.T) {

@@ -75,12 +75,6 @@ type Configuration struct {
 	// LogErrorSampleRate is the log error sample rate.
 	LogErrorSampleRate sampler.Rate `yaml:"logErrorSampleRate"`
 
-	// LogHostWriteErrorSampleRate is the log write error per host sample rate.
-	LogHostWriteErrorSampleRate sampler.Rate `yaml:"logHostWriteErrorSampleRate"`
-
-	// LogHostFetchErrorSampleRate is the log fetch error per host sample rate.
-	LogHostFetchErrorSampleRate sampler.Rate `yaml:"logHostFetchErrorSampleRate"`
-
 	// BackgroundHealthCheckFailLimit is the amount of times a background check
 	// must fail before a connection is taken out of consideration.
 	BackgroundHealthCheckFailLimit *int `yaml:"backgroundHealthCheckFailLimit"`
@@ -336,9 +330,7 @@ func (c Configuration) NewAdminClient(
 		SetNamespaceInitializer(syncNsInit).
 		SetAsyncTopologyInitializers(asyncTopoInits).
 		SetInstrumentOptions(iopts).
-		SetLogErrorSampleRate(c.LogErrorSampleRate).
-		SetLogHostWriteErrorSampleRate(c.LogHostWriteErrorSampleRate).
-		SetLogHostFetchErrorSampleRate(c.LogHostFetchErrorSampleRate)
+		SetLogErrorSampleRate(c.LogErrorSampleRate)
 
 	if params.ClockOptions != nil {
 		v = v.SetClockOptions(params.ClockOptions)

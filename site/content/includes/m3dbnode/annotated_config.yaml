@@ -327,10 +327,6 @@ db:
           jitter: <bool>
         # Log error sample rate
         logErrorSampleRate: <float>
-        # Log host write error sample rate
-        logHostWriteErrorSampleRate: <float>
-        # Log host fetch error sample rate
-        logHostFetchErrorSampleRate: <float>
         # The amount of times a background check fails before a connection is taken out of consideration
         backgroundHealthCheckFailLimit: <int>
         # The factor of the host connect time when sleeping between a failed health check and the next check

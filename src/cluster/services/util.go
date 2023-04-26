@@ -69,8 +69,7 @@ func serviceKey(s ServiceID) string {
 	return fmt.Sprintf(keyFormat, s.Environment(), s.Name())
 }
 
-// ValidateServiceID - exported to be able to validate service ID in unit tests
-func ValidateServiceID(sid ServiceID) error {
+func validateServiceID(sid ServiceID) error {
 	if sid.Name() == "" {
 		return errNoServiceName
 	}

@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/cluster/placementhandler"
 	"github.com/m3db/m3/src/cluster/placementhandler/handleroptions"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
+	"github.com/m3db/m3/src/dbnode/auth"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -100,7 +101,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go"
-	"go.etcd.io/etcd/server/v3/embed"
 	"go.uber.org/zap"
 )
 
@@ -128,6 +128,9 @@ type RunOptions struct {
 	// Config is an alternate way to provide configuration and will be used
 	// instead of parsing ConfigFile if ConfigFile is not specified.
 	Config config.DBConfiguration
+
+	// Secrets encapsulates auth config for dbnode inbounds and outbounds.
+	Secrets config.AuthConfig
 
 	// BootstrapCh is a channel to listen on to be notified of bootstrap.
 	BootstrapCh chan<- struct{}
@@ -190,6 +193,15 @@ func Run(runOpts RunOptions) {
 		// sending stdlib "log" to black hole. Don't remove unless with good reason.
 		fmt.Fprintf(os.Stderr, "error initializing config defaults and validating config: %v", err)
 		os.Exit(1)
+	}
+
+	secretsValidateErr := runOpts.Secrets.Validate()
+	if secretsValidateErr == nil {
+		// Passing valid parsed AuthConfig to populate inbound and outbound credentials.
+		auth.PopulateOutboundAuthConfig(runOpts.Secrets)
+		auth.PopulateInboundAuthConfig(runOpts.Secrets)
+	} else {
+		auth.PopulateDefaultAuthConfig()
 	}
 
 	logger, err := cfg.LoggingOrDefault().BuildLogger()
@@ -355,24 +367,7 @@ func Run(runOpts RunOptions) {
 		if !config.IsSeedNode(seedNodes, hostID) {
 			logger.Info("not a seed node, using cluster seed nodes")
 		} else {
-			logger.Info("seed node, starting etcd server")
-
-			etcdCfg, err := config.NewEtcdEmbedConfig(cfg)
-			if err != nil {
-				logger.Fatal("unable to create etcd config", zap.Error(err))
-			}
-
-			e, err := embed.StartEtcd(etcdCfg)
-			if err != nil {
-				logger.Fatal("could not start embedded etcd", zap.Error(err))
-			}
-
-			if runOpts.EmbeddedKVCh != nil {
-				// Notify on embedded KV bootstrap chan if specified
-				runOpts.EmbeddedKVCh <- struct{}{}
-			}
-
-			defer e.Close()
+			logger.Warn("seed node with embedded etcd no longer supported; skipping etcd setup.")
 		}
 	}
 

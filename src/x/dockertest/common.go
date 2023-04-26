@@ -62,8 +62,6 @@ type ResourceOptions struct {
 	// NoNetworkOverlay if set, disables use of the default integration testing network we create (networkName).
 	NoNetworkOverlay bool
 
-	Cmd []string
-
 	// Env is the environment for the docker container; it corresponds 1:1 with dockertest.RunOptions.
 	// Format should be: VAR=value
 	Env []string

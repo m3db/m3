@@ -116,7 +116,6 @@ func NewDockerResource(
 	opts = useImage(opts, image)
 	opts.Mounts = resourceOpts.Mounts
 	opts.Env = resourceOpts.Env
-	opts.Cmd = resourceOpts.Cmd
 
 	imageWithTag := fmt.Sprintf("%v:%v", image.Name, image.Tag)
 	logger.Info("running container with options",

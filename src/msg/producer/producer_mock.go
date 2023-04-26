@@ -198,14 +198,14 @@ func (mr *MockProducerMockRecorder) RegisterFilter(arg0, arg1 interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterFilter", reflect.TypeOf((*MockProducer)(nil).RegisterFilter), arg0, arg1)
 }
 
-// UnregisterFilters mocks base method.
-func (m *MockProducer) UnregisterFilters(arg0 services.ServiceID) {
+// UnregisterFilter mocks base method.
+func (m *MockProducer) UnregisterFilter(arg0 services.ServiceID) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UnregisterFilters", arg0)
+	m.ctrl.Call(m, "UnregisterFilter", arg0)
 }
 
-// UnregisterFilters indicates an expected call of UnregisterFilters.
-func (mr *MockProducerMockRecorder) UnregisterFilters(arg0 interface{}) *gomock.Call {
+// UnregisterFilter indicates an expected call of UnregisterFilter.
+func (mr *MockProducerMockRecorder) UnregisterFilter(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnregisterFilters", reflect.TypeOf((*MockProducer)(nil).UnregisterFilters), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnregisterFilter", reflect.TypeOf((*MockProducer)(nil).UnregisterFilter), arg0)
 }

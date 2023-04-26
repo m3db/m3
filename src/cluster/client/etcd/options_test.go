@@ -50,6 +50,25 @@ func TestKeepAliveOptions(t *testing.T) {
 	require.Equal(t, time.Hour, opts.KeepAliveTimeout())
 }
 
+func TestAuthOptions(t *testing.T) {
+	const password = "test"
+	const userName = "test"
+
+	opts := NewAuthOptions()
+	require.Equal(t, defaultAuthEnabled, opts.AuthenticationEnabled())
+	require.Equal(t, defaultUsername, opts.UserName())
+	require.Equal(t, defaultPassword, opts.Password())
+
+	opts = NewAuthOptions().
+		SetAuthenticationEnabled(true).
+		SetUserName(userName).
+		SetPassword(password)
+
+	require.Equal(t, true, opts.AuthenticationEnabled())
+	require.Equal(t, userName, opts.UserName())
+	require.Equal(t, password, opts.Password())
+}
+
 func TestCluster(t *testing.T) {
 	c := NewCluster()
 	assert.Equal(t, "", c.Zone())

@@ -1,0 +1,81 @@
+version: "3.5"
+services:
+  etcd:
+    networks:
+      - backend
+    image: bitnami/etcd:latest
+    environment:
+      - M3DB_HOST_ID=etcd
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+    expose:
+      - "2379"
+      - "2380"
+    ports:
+      - "0.0.0.0:2379:2379"
+      - "0.0.0.0:2380:2380"
+    cap_add:
+      - SYS_RESOURCE
+  m3_coordinator:
+    networks:
+        - backend
+    image: m3coordinator:dev
+    environment:
+      - M3DB_HOST_ID=m3coordinator
+    expose:
+      - "7201"
+      - "7203"
+    ports:
+      - "0.0.0.0:7201:7201"
+      - "0.0.0.0:7203:7203"
+    cap_add:
+      - SYS_RESOURCE
+    volumes:
+    - "./config/m3coordinator.yml:/etc/m3coordinator/m3coordinator.yml"
+  m3db_data01:
+    networks:
+      - backend
+    image: m3dbnode:dev
+    environment:
+      - M3DB_HOST_ID=m3db_data01
+    cap_add:
+      - SYS_RESOURCE
+    volumes:
+      - "./config/m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
+
+  m3db_data02:
+    networks:
+      - backend
+    image: m3dbnode:dev
+    environment:
+      - M3DB_HOST_ID=m3db_data02
+    cap_add:
+      - SYS_RESOURCE
+    volumes:
+      - "./config/m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
+
+  m3db_data03:
+    networks:
+      - backend
+    image: m3dbnode:dev
+    environment:
+      - M3DB_HOST_ID=m3db_data03
+    cap_add:
+      - SYS_RESOURCE
+    volumes:
+      - "./config/m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
+
+  m3db_client:
+    networks:
+      - backend
+    image: m3dbclient:dev
+    environment:
+      - M3DB_HOST_ID=m3db_client
+    cap_add:
+      - SYS_RESOURCE
+    volumes:
+      - "./config/m3db-client-config.yml:/etc/m3db-client-config.yml"
+    command: ["/bin/sleep", "1d"]
+
+networks:
+  backend:

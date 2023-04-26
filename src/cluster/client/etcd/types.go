@@ -95,6 +95,27 @@ type Options interface {
 	Validate() error
 }
 
+// AuthOptions provides a set of authentication options.
+type AuthOptions interface {
+	// AuthenticationEnabled determines whether authentication is enabled.
+	AuthenticationEnabled() bool
+
+	// SetAuthenticationEnabled sets whether authentication is enabled.
+	SetAuthenticationEnabled(enabled bool) AuthOptions
+
+	// SetUserName sets the username if the authentication is enabled.
+	SetUserName(userName string) AuthOptions
+
+	// SetPassword sets the password if the authentication is enabled.
+	SetPassword(password string) AuthOptions
+
+	// UserName is the username that we use to authenticate with etcd.
+	UserName() string
+
+	// Password is the username that we use to authenticate with etcd.
+	Password() string
+}
+
 // KeepAliveOptions provide a set of client-side keepAlive options.
 type KeepAliveOptions interface {
 	// KeepAliveEnabled determines whether keepAlives are enabled.
@@ -173,6 +194,11 @@ type Cluster interface {
 	// the low level networking behavior of the client (e.g. to forward connections over a proxy).
 	DialOptions() []grpc.DialOption
 	SetDialOptions(opts []grpc.DialOption) Cluster
+
+	// AuthOptions are required to enable authentication in etcd. The username and password configured in options will be
+	// used to connect to etcd.
+	AuthOptions() AuthOptions
+	SetAuthOptions(authOptions AuthOptions) Cluster
 }
 
 // Client is an etcd-backed m3cluster client.

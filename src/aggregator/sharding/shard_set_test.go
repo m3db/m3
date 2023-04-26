@@ -68,7 +68,7 @@ func TestShardSetParseShardSet(t *testing.T) {
 
 		err := yaml.Unmarshal([]byte(test.yaml), &cfg)
 		require.NoError(t, err, "received error for test %d", i)
-		ValidateShardSet(t, test.expected, cfg.Shards)
+		validateShardSet(t, test.expected, cfg.Shards)
 	}
 }
 
@@ -85,7 +85,7 @@ func TestParseShardSet(t *testing.T) {
 	for _, test := range tests {
 		parsed, err := ParseShardSet(test.str)
 		require.NoError(t, err)
-		ValidateShardSet(t, test.expected, parsed)
+		validateShardSet(t, test.expected, parsed)
 	}
 }
 
@@ -114,7 +114,7 @@ func TestMustParseShardSet(t *testing.T) {
 
 	for _, test := range tests {
 		parsed := MustParseShardSet(test.str)
-		ValidateShardSet(t, test.expected, parsed)
+		validateShardSet(t, test.expected, parsed)
 	}
 }
 
@@ -127,5 +127,16 @@ func TestMustParseShardSetPanics(t *testing.T) {
 
 	for _, test := range tests {
 		require.Panics(t, func() { MustParseShardSet(test) })
+	}
+}
+
+func validateShardSet(t *testing.T, expectedShards []uint32, actual ShardSet) {
+	expectedSet := make(ShardSet)
+	for _, s := range expectedShards {
+		expectedSet.Add(s)
+	}
+	require.Equal(t, expectedSet, actual)
+	for _, shard := range expectedShards {
+		require.True(t, actual.Contains(shard))
 	}
 }

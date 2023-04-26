@@ -84,8 +84,10 @@ const (
 	resultTypeRaw                      = "raw"
 )
 
-var errUnknownWriteAttemptType = errors.New(
-	"unknown write attempt type specified, internal error")
+var (
+	errUnknownWriteAttemptType = errors.New(
+		"unknown write attempt type specified, internal error")
+)
 
 var (
 	// ErrClusterConnectTimeout is raised when connecting to the cluster and
@@ -152,8 +154,6 @@ type session struct {
 	log                                  *zap.Logger
 	logWriteErrorSampler                 *sampler.Sampler
 	logFetchErrorSampler                 *sampler.Sampler
-	logHostWriteErrorSampler             *sampler.Sampler
-	logHostFetchErrorSampler             *sampler.Sampler
 	newHostQueueFn                       newHostQueueFn
 	writeRetrier                         xretry.Retrier
 	fetchRetrier                         xretry.Retrier
@@ -277,16 +277,6 @@ func newSession(opts Options) (clientSession, error) {
 		return nil, err
 	}
 
-	logHostWriteErrorSampler, err := sampler.NewSampler(opts.LogHostWriteErrorSampleRate())
-	if err != nil {
-		return nil, err
-	}
-
-	logHostFetchErrorSampler, err := sampler.NewSampler(opts.LogHostFetchErrorSampleRate())
-	if err != nil {
-		return nil, err
-	}
-
 	scope := opts.InstrumentOptions().MetricsScope()
 
 	s := &session{
@@ -296,20 +286,18 @@ func newSession(opts Options) (clientSession, error) {
 			queuesByHostID: make(map[string]hostQueue),
 			topo:           topo,
 		},
-		opts:                     opts,
-		scope:                    scope,
-		nowFn:                    opts.ClockOptions().NowFn(),
-		log:                      opts.InstrumentOptions().Logger(),
-		logWriteErrorSampler:     logWriteErrorSampler,
-		logFetchErrorSampler:     logFetchErrorSampler,
-		logHostWriteErrorSampler: logHostWriteErrorSampler,
-		logHostFetchErrorSampler: logHostFetchErrorSampler,
-		newHostQueueFn:           newHostQueue,
-		fetchBatchSize:           opts.FetchBatchSize(),
-		newPeerBlocksQueueFn:     newPeerBlocksQueue,
-		healthCheckNewConnFn:     healthCheck,
-		writeRetrier:             opts.WriteRetrier(),
-		fetchRetrier:             opts.FetchRetrier(),
+		opts:                 opts,
+		scope:                scope,
+		nowFn:                opts.ClockOptions().NowFn(),
+		log:                  opts.InstrumentOptions().Logger(),
+		logWriteErrorSampler: logWriteErrorSampler,
+		logFetchErrorSampler: logFetchErrorSampler,
+		newHostQueueFn:       newHostQueue,
+		fetchBatchSize:       opts.FetchBatchSize(),
+		newPeerBlocksQueueFn: newPeerBlocksQueue,
+		healthCheckNewConnFn: healthCheck,
+		writeRetrier:         opts.WriteRetrier(),
+		fetchRetrier:         opts.FetchRetrier(),
 		pools: sessionPools{
 			context:      opts.ContextPool(),
 			checkedBytes: opts.CheckedBytesPool(),
@@ -597,8 +585,7 @@ func (s *session) Open() error {
 		}
 		writeStatePoolOpts = writeStatePoolOpts.SetSize(int(writeStatePoolSize))
 	}
-	s.pools.writeState = newWriteStatePool(s.pools.tagEncoder, writeStatePoolOpts, s.log,
-		s.logHostWriteErrorSampler)
+	s.pools.writeState = newWriteStatePool(s.pools.tagEncoder, writeStatePoolOpts)
 	s.pools.writeState.Init()
 
 	fetchBatchOpPoolOpts := pool.NewObjectPoolOptions().
@@ -634,8 +621,7 @@ func (s *session) Open() error {
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("fetch-tagged-state-pool"),
 		))
-	s.pools.fetchState = newFetchStatePool(fetchStatePoolOpts, s.log,
-		s.logHostFetchErrorSampler)
+	s.pools.fetchState = newFetchStatePool(fetchStatePoolOpts)
 	s.pools.fetchState.Init()
 
 	seriesIteratorPoolOpts := pool.NewObjectPoolOptions().
@@ -1093,10 +1079,10 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 			badRequestErrsSubScope := s.scope.Tagged(tags).Tagged(map[string]string{
 				"error_type": "bad_request_error",
 			})
-			sc := serverErrsSubScope.Counter(name)
-			s.metrics.writeNodesRespondingErrors = append(s.metrics.writeNodesRespondingErrors, sc)
-			cc := badRequestErrsSubScope.Counter(name)
-			s.metrics.writeNodesRespondingBadRequestErrors = append(s.metrics.writeNodesRespondingBadRequestErrors, cc)
+			s.metrics.writeNodesRespondingErrors =
+				append(s.metrics.writeNodesRespondingErrors, serverErrsSubScope.Counter(name))
+			s.metrics.writeNodesRespondingBadRequestErrors =
+				append(s.metrics.writeNodesRespondingBadRequestErrors, badRequestErrsSubScope.Counter(name))
 		}
 	}
 	if replicas > len(s.metrics.fetchNodesRespondingErrors) {
@@ -1110,10 +1096,10 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 			badRequestErrsSubScope := s.scope.Tagged(tags).Tagged(map[string]string{
 				"error_type": "bad_request_error",
 			})
-			sc := serverErrsSubScope.Counter(name)
-			s.metrics.fetchNodesRespondingErrors = append(s.metrics.fetchNodesRespondingErrors, sc)
-			cc := badRequestErrsSubScope.Counter(name)
-			s.metrics.fetchNodesRespondingBadRequestErrors = append(s.metrics.fetchNodesRespondingBadRequestErrors, cc)
+			s.metrics.fetchNodesRespondingErrors =
+				append(s.metrics.fetchNodesRespondingErrors, serverErrsSubScope.Counter(name))
+			s.metrics.fetchNodesRespondingBadRequestErrors =
+				append(s.metrics.fetchNodesRespondingBadRequestErrors, badRequestErrsSubScope.Counter(name))
 		}
 	}
 
@@ -1405,7 +1391,6 @@ func (s *session) writeAttemptWithRLock(
 	state.consistencyLevel = s.state.writeLevel
 	state.shardsLeavingCountTowardsConsistency = s.shardsLeavingCountTowardsConsistency
 	state.topoMap = s.state.topoMap
-	state.lastResetTime = time.Now()
 	state.incRef()
 
 	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
@@ -3303,7 +3288,8 @@ func (s *session) selectPeersFromPerPeerBlockMetadatas(
 		// Set the reattempt metadata
 		selected := currEligible[idx]
 		selected.block.reattempt.attempt++
-		selected.block.reattempt.attempted = append(selected.block.reattempt.attempted, selected.peer)
+		selected.block.reattempt.attempted =
+			append(selected.block.reattempt.attempted, selected.peer)
 		selected.block.reattempt.fanoutFetchState = nil
 		selected.block.reattempt.retryPeersMetadata = perPeerBlocksMetadata
 		selected.block.reattempt.fetchedPeersMetadata = perPeerBlocksMetadata
@@ -3328,7 +3314,8 @@ func (s *session) selectPeersFromPerPeerBlockMetadatas(
 				}
 			}
 			currEligible[i].block.reattempt.attempt++
-			currEligible[i].block.reattempt.attempted = append(currEligible[i].block.reattempt.attempted, currEligible[i].peer)
+			currEligible[i].block.reattempt.attempted =
+				append(currEligible[i].block.reattempt.attempted, currEligible[i].peer)
 			currEligible[i].block.reattempt.fanoutFetchState = fanoutFetchState
 			currEligible[i].block.reattempt.retryPeersMetadata = retryFrom
 			currEligible[i].block.reattempt.fetchedPeersMetadata = perPeerBlocksMetadata
@@ -4012,6 +3999,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 		blockSize := currReader.BlockSize
 
 		encoder, err := r.mergeReaders(start, blockSize, readers)
+
 		if err != nil {
 			return err
 		}
@@ -4325,11 +4313,9 @@ type receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc []receivedBlockMetad
 func (arr receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc) Len() int {
 	return len(arr)
 }
-
 func (arr receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc) Swap(i, j int) {
 	arr[i], arr[j] = arr[j], arr[i]
 }
-
 func (arr receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc) Less(i, j int) bool {
 	peerI := arr[i].queue.peer
 	peerJ := arr[j].queue.peer
@@ -4339,10 +4325,12 @@ func (arr receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc) Less(i, j int)
 		return attemptsI < attemptsJ
 	}
 
-	outstandingI := atomic.LoadUint64(&arr[i].queue.assigned) -
-		atomic.LoadUint64(&arr[i].queue.completed)
-	outstandingJ := atomic.LoadUint64(&arr[j].queue.assigned) -
-		atomic.LoadUint64(&arr[j].queue.completed)
+	outstandingI :=
+		atomic.LoadUint64(&arr[i].queue.assigned) -
+			atomic.LoadUint64(&arr[i].queue.completed)
+	outstandingJ :=
+		atomic.LoadUint64(&arr[j].queue.assigned) -
+			atomic.LoadUint64(&arr[j].queue.completed)
 	return outstandingI < outstandingJ
 }
 

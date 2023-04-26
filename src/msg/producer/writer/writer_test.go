@@ -212,26 +212,21 @@ func TestWriterRegisterFilter(t *testing.T) {
 
 	sid2 := services.NewServiceID().SetName("s2")
 	filter := func(producer.Message) bool { return false }
-	filter2 := func(producer.Message) bool { return true }
 
 	w := NewWriter(opts).(*writer)
 	w.consumerServiceWriters[cs1.ServiceID().String()] = csw1
 
-	csw1.EXPECT().UnregisterFilters()
-	w.UnregisterFilters(sid1)
-	_, ok := w.filterRegistry[sid1.String()]
-	require.True(t, !ok)
+	csw1.EXPECT().UnregisterFilter()
+	w.UnregisterFilter(sid1)
 
 	// Wrong service id triggers nothing.
 	w.RegisterFilter(sid2, filter)
-	_, ok = w.filterRegistry[sid2.String()]
-	require.True(t, ok)
 
 	csw1.EXPECT().RegisterFilter(gomock.Any())
 	w.RegisterFilter(sid1, filter)
 
-	csw1.EXPECT().UnregisterFilters()
-	w.UnregisterFilters(sid1)
+	csw1.EXPECT().UnregisterFilter()
+	w.UnregisterFilter(sid1)
 
 	csw1.EXPECT().RegisterFilter(gomock.Any())
 	w.RegisterFilter(sid1, filter)
@@ -243,12 +238,6 @@ func TestWriterRegisterFilter(t *testing.T) {
 		SetNumberOfShards(6).
 		SetConsumerServices([]topic.ConsumerService{cs1})
 	w.process(testTopic)
-
-	csw1.EXPECT().RegisterFilter(gomock.Any())
-	w.RegisterFilter(sid1, filter2)
-	require.True(t, len(w.filterRegistry[sid1.String()]) == 2)
-	csw1.EXPECT().UnregisterFilters()
-	w.UnregisterFilters(sid1)
 }
 
 func TestWriterTopicUpdate(t *testing.T) {

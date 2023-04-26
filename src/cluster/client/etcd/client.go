@@ -369,6 +369,11 @@ func newConfigFromCluster(rnd randInt63N, cluster Cluster) (clientv3.Config, err
 		cfg.PermitWithoutStream = true
 	}
 
+	if opts := cluster.AuthOptions(); opts.AuthenticationEnabled() {
+		cfg.Username = opts.UserName()
+		cfg.Password = opts.Password()
+	}
+
 	return cfg, nil
 }
 

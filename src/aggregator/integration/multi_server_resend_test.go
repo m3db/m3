@@ -1,5 +1,4 @@
 //go:build integration
-// +build integration
 
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
@@ -32,6 +31,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregation"
+	aggclient "github.com/m3db/m3/src/aggregator/client"
+	"github.com/m3db/m3/src/cluster/kv"
+	memcluster "github.com/m3db/m3/src/cluster/mem"
+	"github.com/m3db/m3/src/cluster/placement"
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
@@ -40,11 +43,13 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 //nolint:dupl
@@ -53,10 +58,135 @@ func TestMultiServerResendAggregatedValues(t *testing.T) {
 		t.SkipNow()
 	}
 
-	testParams := newTestServerSetups(t)
-	servers := testParams.servers
-	clock := testParams.clock
-	topicService := testParams.topicService
+	aggregatorClientType, err := getAggregatorClientTypeFromEnv()
+	require.NoError(t, err)
+
+	// Clock setup.
+	clock := newTestClock(time.Now().Truncate(time.Hour))
+
+	// Placement setup.
+	var (
+		numTotalShards = 1024
+		placementKey   = "/placement"
+	)
+	multiServerSetup := []struct {
+		rawTCPAddr     string
+		httpAddr       string
+		m3MsgAddr      string
+		instanceConfig placementInstanceConfig
+	}{
+		{
+			rawTCPAddr: "localhost:6000",
+			httpAddr:   "localhost:16000",
+			m3MsgAddr:  "localhost:26000",
+			instanceConfig: placementInstanceConfig{
+				instanceID:          "localhost:6000",
+				shardSetID:          1,
+				shardStartInclusive: 0,
+				shardEndExclusive:   512,
+			},
+		},
+		{
+			rawTCPAddr: "localhost:6001",
+			httpAddr:   "localhost:16001",
+			m3MsgAddr:  "localhost:26001",
+			instanceConfig: placementInstanceConfig{
+				instanceID:          "localhost:6001",
+				shardSetID:          1,
+				shardStartInclusive: 0,
+				shardEndExclusive:   512,
+			},
+		},
+		{
+			rawTCPAddr: "localhost:6002",
+			httpAddr:   "localhost:16002",
+			m3MsgAddr:  "localhost:26002",
+			instanceConfig: placementInstanceConfig{
+				instanceID:          "localhost:6002",
+				shardSetID:          2,
+				shardStartInclusive: 512,
+				shardEndExclusive:   1024,
+			},
+		},
+		{
+			rawTCPAddr: "localhost:6003",
+			httpAddr:   "localhost:16003",
+			m3MsgAddr:  "localhost:26003",
+			instanceConfig: placementInstanceConfig{
+				instanceID:          "localhost:6003",
+				shardSetID:          2,
+				shardStartInclusive: 512,
+				shardEndExclusive:   1024,
+			},
+		},
+	}
+
+	for i, mss := range multiServerSetup {
+		multiServerSetup[i].instanceConfig.instanceID = mss.rawTCPAddr
+		if aggregatorClientType == aggclient.M3MsgAggregatorClient {
+			multiServerSetup[i].instanceConfig.instanceID = mss.m3MsgAddr
+		}
+	}
+
+	clusterClient := memcluster.New(kv.NewOverrideOptions())
+	instances := make([]placement.Instance, 0, len(multiServerSetup))
+	for _, mss := range multiServerSetup {
+		instance := mss.instanceConfig.newPlacementInstance()
+		instances = append(instances, instance)
+	}
+	initPlacement := newPlacement(numTotalShards, instances).SetReplicaFactor(2)
+	setPlacement(t, placementKey, clusterClient, initPlacement)
+	topicService, err := initializeTopic(defaultTopicName, clusterClient, numTotalShards)
+	require.NoError(t, err)
+
+	// Election cluster setup.
+	electionCluster := newTestCluster(t)
+	defer electionCluster.Close()
+
+	// Sharding function maps all metrics to shard 0 except for the rollup metric,
+	// which gets mapped to the last shard.
+	pipelineRollupID := "pipelineRollup"
+	shardFn := func(id []byte, numShards uint32) uint32 {
+		if pipelineRollupID == string(id) {
+			return numShards - 1
+		}
+		return 0
+	}
+
+	// Admin client connection options setup.
+	connectionOpts := aggclient.NewConnectionOptions().
+		SetInitReconnectThreshold(1).
+		SetMaxReconnectThreshold(1).
+		SetMaxReconnectDuration(2 * time.Second).
+		SetWriteTimeout(time.Second)
+
+	// Create servers.
+	servers := make(testServerSetups, 0, len(multiServerSetup))
+	for _, mss := range multiServerSetup {
+		instrumentOpts := instrument.NewOptions()
+		logger := instrumentOpts.Logger().With(
+			zap.String("serverAddr", mss.rawTCPAddr),
+		)
+		instrumentOpts = instrumentOpts.SetLogger(logger)
+		serverOpts := newTestServerOptions(t).
+			SetBufferForPastTimedMetric(time.Minute).
+			SetClockOptions(clock.Options()).
+			SetInstrumentOptions(instrumentOpts).
+			SetElectionCluster(electionCluster).
+			SetHTTPAddr(mss.httpAddr).
+			SetRawTCPAddr(mss.rawTCPAddr).
+			SetM3MsgAddr(mss.m3MsgAddr).
+			SetInstanceID(mss.instanceConfig.instanceID).
+			SetClusterClient(clusterClient).
+			SetTopicService(topicService).
+			SetTopicName(defaultTopicName).
+			SetShardFn(shardFn).
+			SetShardSetID(mss.instanceConfig.shardSetID).
+			SetClientConnectionOptions(connectionOpts).
+			SetDiscardNaNAggregatedValues(false)
+		server := newTestServerSetup(t, serverOpts)
+		servers = append(servers, server)
+	}
 
 	// Start the servers.
 	log := xtest.NewLogger(t)

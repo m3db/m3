@@ -46,6 +46,10 @@ const (
 	defaultKeepAlivePeriodMaxJitter = 10 * time.Second
 	defaultKeepAliveTimeout         = 10 * time.Second
 
+	defaultAuthEnabled         = false
+	defaultUsername            = ""
+	defaultPassword            = ""
+
 	defaultRequestTimeout         = 10 * time.Second
 	defaultWatchChanCheckInterval = 10 * time.Second
 	defaultWatchChanResetInterval = 10 * time.Second
@@ -173,6 +177,48 @@ func (o tlsOptions) Config() (*tls.Config, error) {
 		Certificates:       []tls.Certificate{cert},
 		RootCAs:            caPool,
 	}, nil
+}
+
+type authOptions struct {
+	authEnabled bool
+	userName string
+	password string
+}
+
+// NewAuthOptions provide a set of authentication options.
+func NewAuthOptions() AuthOptions {
+	return &authOptions{
+		authEnabled:         defaultAuthEnabled,
+		userName:          defaultUsername,
+		password: defaultPassword,
+	}
+}
+
+func (a authOptions) UserName() string {
+	return a.userName
+}
+
+func (a authOptions) Password() string {
+	return a.password
+}
+
+func (a authOptions) AuthenticationEnabled() bool {
+	return a.authEnabled
+}
+
+func (a authOptions) SetAuthenticationEnabled(enabled bool) AuthOptions {
+	a.authEnabled = enabled
+	return a
+}
+
+func (a authOptions) SetUserName(userName string) AuthOptions {
+	a.userName = userName
+	return a
+}
+
+func (a authOptions) SetPassword(password string) AuthOptions {
+	a.password = password
+	return a
 }
 
 // NewOptions creates a set of Options.
@@ -406,6 +452,7 @@ func (o options) SetEnableFastGets(enabled bool) Options {
 // NewCluster creates a Cluster.
 func NewCluster() Cluster {
 	return cluster{
+		authOpts: 		  NewAuthOptions(),
 		autoSyncInterval: defaultAutoSyncInterval,
 		dialTimeout:      defaultDialTimeout,
 		keepAliveOpts:    NewKeepAliveOptions(),
@@ -421,6 +468,7 @@ type cluster struct {
 	autoSyncInterval time.Duration
 	dialTimeout      time.Duration
 	dialOptions      []grpc.DialOption
+	authOpts      AuthOptions
 }
 
 func (c cluster) Zone() string {
@@ -461,6 +509,15 @@ func (c cluster) SetTLSOptions(opts TLSOptions) Cluster {
 
 func (c cluster) AutoSyncInterval() time.Duration {
 	return c.autoSyncInterval
+}
+
+func (c cluster) AuthOptions() AuthOptions {
+	return c.authOpts
+}
+
+func (c cluster) SetAuthOptions(authOptions AuthOptions) Cluster {
+	c.authOpts = authOptions
+	return c
 }
 
 func (c cluster) SetAutoSyncInterval(autoSyncInterval time.Duration) Cluster {

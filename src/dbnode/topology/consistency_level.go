@@ -92,11 +92,6 @@ func ValidateConsistencyLevel(v ConsistencyLevel) error {
 	return errConsistencyLevelInvalid
 }
 
-// MarshalYAML marshals a ConsistencyLevel.
-func (l *ConsistencyLevel) MarshalYAML() (interface{}, error) {
-	return l.String(), nil
-}
-
 // UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
 func (l *ConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
@@ -186,11 +181,6 @@ func ValidateConnectConsistencyLevel(v ConnectConsistencyLevel) error {
 		}
 	}
 	return errClusterConnectConsistencyLevelInvalid
-}
-
-// MarshalYAML marshals a ConnectConsistencyLevel.
-func (l *ConnectConsistencyLevel) MarshalYAML() (interface{}, error) {
-	return l.String(), nil
 }
 
 // UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
@@ -308,11 +298,6 @@ func ValidateReadConsistencyLevel(v ReadConsistencyLevel) error {
 		}
 	}
 	return errReadConsistencyLevelInvalid
-}
-
-// MarshalYAML marshals a ReadConsistencyLevel.
-func (l *ReadConsistencyLevel) MarshalYAML() (interface{}, error) {
-	return l.String(), nil
 }
 
 // UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.

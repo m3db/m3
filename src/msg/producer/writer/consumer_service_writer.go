@@ -75,8 +75,8 @@ type consumerServiceWriter interface {
 	// RegisterFilter registers a filter for the consumer service.
 	RegisterFilter(fn producer.FilterFunc)
 
-	// UnregisterFilters unregisters the filters for the consumer service.
-	UnregisterFilters()
+	// UnregisterFilter unregisters the filter for the consumer service.
+	UnregisterFilter()
 }
 
 type consumerServiceWriterMetrics struct {
@@ -107,7 +107,7 @@ type consumerServiceWriterImpl struct {
 	logger       *zap.Logger
 
 	value           watch.Value
-	dataFilters     []producer.FilterFunc
+	dataFilter      producer.FilterFunc
 	router          ackRouter
 	consumerWriters map[string]consumerWriter
 	closed          bool
@@ -140,7 +140,7 @@ func newConsumerServiceWriter(
 		shardWriters:    initShardWriters(router, ct, numShards, opts),
 		opts:            opts,
 		logger:          opts.InstrumentOptions().Logger(),
-		dataFilters:     []producer.FilterFunc{acceptAllFilter},
+		dataFilter:      acceptAllFilter,
 		router:          router,
 		consumerWriters: make(map[string]consumerWriter),
 		closed:          false,
@@ -179,7 +179,7 @@ func initShardWriters(
 }
 
 func (w *consumerServiceWriterImpl) Write(rm *producer.RefCountedMessage) {
-	if rm.Accept(w.dataFilters) {
+	if rm.Accept(w.dataFilter) {
 		w.shardWriters[rm.Shard()].Write(rm)
 		w.m.filterAccepted.Inc(1)
 		return
@@ -328,14 +328,13 @@ func (w *consumerServiceWriterImpl) SetMessageTTLNanos(value int64) {
 
 func (w *consumerServiceWriterImpl) RegisterFilter(filter producer.FilterFunc) {
 	w.Lock()
-	w.dataFilters = append(w.dataFilters, filter)
+	w.dataFilter = filter
 	w.Unlock()
 }
 
-func (w *consumerServiceWriterImpl) UnregisterFilters() {
+func (w *consumerServiceWriterImpl) UnregisterFilter() {
 	w.Lock()
-	w.dataFilters[0] = acceptAllFilter
-	w.dataFilters = w.dataFilters[:1]
+	w.dataFilter = acceptAllFilter
 	w.Unlock()
 }
 

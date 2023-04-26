@@ -108,11 +108,6 @@ func ParseIterateEqualTimestampStrategy(
 		str, ValidIterateEqualTimestampStrategies())
 }
 
-// MarshalYAML marshals an IterateEqualTimestampStrategy.
-func (s *IterateEqualTimestampStrategy) MarshalYAML() (interface{}, error) {
-	return s.String(), nil
-}
-
 // UnmarshalYAML unmarshals an IterateEqualTimestampStrategy into a
 // valid type from string.
 func (s *IterateEqualTimestampStrategy) UnmarshalYAML(unmarshal func(interface{}) error) error {

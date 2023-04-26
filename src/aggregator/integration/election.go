@@ -51,6 +51,7 @@ func newTestCluster(t *testing.T) *testCluster {
 		t: t,
 		cluster: integration.NewCluster(t, &integration.ClusterConfig{
 			Size: testClusterSize,
+			//	UseBridge: true,
 		}),
 	}
 	return cluster
@@ -69,8 +70,7 @@ func (tc *testCluster) LeaderService() services.LeaderService {
 
 func (tc *testCluster) Close() {
 	if tc.leaderService != nil {
-		// amainsd: check error here!
-		_ = tc.leaderService.Close()
+		require.NoError(tc.t, tc.leaderService.Close())
 	}
 	tc.cluster.Terminate(tc.t)
 }

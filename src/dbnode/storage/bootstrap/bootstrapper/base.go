@@ -189,7 +189,6 @@ func (b baseBootstrapper) Bootstrap(
 			finalResult.DataResult.SetUnfulfilled(currNamespace.DataResult.Unfulfilled().Copy())
 			if currNamespace.Metadata.Options().IndexOptions().Enabled() {
 				finalResult.IndexResult.SetUnfulfilled(currNamespace.IndexResult.Unfulfilled().Copy())
-				finalResult.IndexResult.IndexResults().AddResults(currNamespace.IndexResult.IndexResults())
 			}
 
 			// Map is by value, set the result altered struct.

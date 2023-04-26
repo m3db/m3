@@ -1605,34 +1605,6 @@ func (mr *MockOptionsMockRecorder) LogErrorSampleRate() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LogErrorSampleRate", reflect.TypeOf((*MockOptions)(nil).LogErrorSampleRate))
 }
 
-// LogHostFetchErrorSampleRate mocks base method.
-func (m *MockOptions) LogHostFetchErrorSampleRate() sampler.Rate {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LogHostFetchErrorSampleRate")
-	ret0, _ := ret[0].(sampler.Rate)
-	return ret0
-}
-
-// LogHostFetchErrorSampleRate indicates an expected call of LogHostFetchErrorSampleRate.
-func (mr *MockOptionsMockRecorder) LogHostFetchErrorSampleRate() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LogHostFetchErrorSampleRate", reflect.TypeOf((*MockOptions)(nil).LogHostFetchErrorSampleRate))
-}
-
-// LogHostWriteErrorSampleRate mocks base method.
-func (m *MockOptions) LogHostWriteErrorSampleRate() sampler.Rate {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LogHostWriteErrorSampleRate")
-	ret0, _ := ret[0].(sampler.Rate)
-	return ret0
-}
-
-// LogHostWriteErrorSampleRate indicates an expected call of LogHostWriteErrorSampleRate.
-func (mr *MockOptionsMockRecorder) LogHostWriteErrorSampleRate() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LogHostWriteErrorSampleRate", reflect.TypeOf((*MockOptions)(nil).LogHostWriteErrorSampleRate))
-}
-
 // MaxConnectionCount mocks base method.
 func (m *MockOptions) MaxConnectionCount() int {
 	m.ctrl.T.Helper()
@@ -2205,34 +2177,6 @@ func (m *MockOptions) SetLogErrorSampleRate(value sampler.Rate) Options {
 func (mr *MockOptionsMockRecorder) SetLogErrorSampleRate(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLogErrorSampleRate", reflect.TypeOf((*MockOptions)(nil).SetLogErrorSampleRate), value)
-}
-
-// SetLogHostFetchErrorSampleRate mocks base method.
-func (m *MockOptions) SetLogHostFetchErrorSampleRate(value sampler.Rate) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetLogHostFetchErrorSampleRate", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetLogHostFetchErrorSampleRate indicates an expected call of SetLogHostFetchErrorSampleRate.
-func (mr *MockOptionsMockRecorder) SetLogHostFetchErrorSampleRate(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLogHostFetchErrorSampleRate", reflect.TypeOf((*MockOptions)(nil).SetLogHostFetchErrorSampleRate), value)
-}
-
-// SetLogHostWriteErrorSampleRate mocks base method.
-func (m *MockOptions) SetLogHostWriteErrorSampleRate(value sampler.Rate) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetLogHostWriteErrorSampleRate", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetLogHostWriteErrorSampleRate indicates an expected call of SetLogHostWriteErrorSampleRate.
-func (mr *MockOptionsMockRecorder) SetLogHostWriteErrorSampleRate(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLogHostWriteErrorSampleRate", reflect.TypeOf((*MockOptions)(nil).SetLogHostWriteErrorSampleRate), value)
 }
 
 // SetMaxConnectionCount mocks base method.
@@ -3392,34 +3336,6 @@ func (mr *MockAdminOptionsMockRecorder) LogErrorSampleRate() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LogErrorSampleRate", reflect.TypeOf((*MockAdminOptions)(nil).LogErrorSampleRate))
 }
 
-// LogHostFetchErrorSampleRate mocks base method.
-func (m *MockAdminOptions) LogHostFetchErrorSampleRate() sampler.Rate {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LogHostFetchErrorSampleRate")
-	ret0, _ := ret[0].(sampler.Rate)
-	return ret0
-}
-
-// LogHostFetchErrorSampleRate indicates an expected call of LogHostFetchErrorSampleRate.
-func (mr *MockAdminOptionsMockRecorder) LogHostFetchErrorSampleRate() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LogHostFetchErrorSampleRate", reflect.TypeOf((*MockAdminOptions)(nil).LogHostFetchErrorSampleRate))
-}
-
-// LogHostWriteErrorSampleRate mocks base method.
-func (m *MockAdminOptions) LogHostWriteErrorSampleRate() sampler.Rate {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LogHostWriteErrorSampleRate")
-	ret0, _ := ret[0].(sampler.Rate)
-	return ret0
-}
-
-// LogHostWriteErrorSampleRate indicates an expected call of LogHostWriteErrorSampleRate.
-func (mr *MockAdminOptionsMockRecorder) LogHostWriteErrorSampleRate() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LogHostWriteErrorSampleRate", reflect.TypeOf((*MockAdminOptions)(nil).LogHostWriteErrorSampleRate))
-}
-
 // MaxConnectionCount mocks base method.
 func (m *MockAdminOptions) MaxConnectionCount() int {
 	m.ctrl.T.Helper()
@@ -4090,34 +4006,6 @@ func (m *MockAdminOptions) SetLogErrorSampleRate(value sampler.Rate) Options {
 func (mr *MockAdminOptionsMockRecorder) SetLogErrorSampleRate(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLogErrorSampleRate", reflect.TypeOf((*MockAdminOptions)(nil).SetLogErrorSampleRate), value)
-}
-
-// SetLogHostFetchErrorSampleRate mocks base method.
-func (m *MockAdminOptions) SetLogHostFetchErrorSampleRate(value sampler.Rate) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetLogHostFetchErrorSampleRate", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetLogHostFetchErrorSampleRate indicates an expected call of SetLogHostFetchErrorSampleRate.
-func (mr *MockAdminOptionsMockRecorder) SetLogHostFetchErrorSampleRate(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLogHostFetchErrorSampleRate", reflect.TypeOf((*MockAdminOptions)(nil).SetLogHostFetchErrorSampleRate), value)
-}
-
-// SetLogHostWriteErrorSampleRate mocks base method.
-func (m *MockAdminOptions) SetLogHostWriteErrorSampleRate(value sampler.Rate) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetLogHostWriteErrorSampleRate", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetLogHostWriteErrorSampleRate indicates an expected call of SetLogHostWriteErrorSampleRate.
-func (mr *MockAdminOptionsMockRecorder) SetLogHostWriteErrorSampleRate(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLogHostWriteErrorSampleRate", reflect.TypeOf((*MockAdminOptions)(nil).SetLogHostWriteErrorSampleRate), value)
 }
 
 // SetMaxConnectionCount mocks base method.

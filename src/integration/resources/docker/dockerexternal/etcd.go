@@ -44,8 +44,8 @@ import (
 
 var (
 	etcdImage = xdockertest.Image{
-		Name: "quay.io/coreos/etcd",
-		Tag:  "v3.5.7",
+		Name: "bitnami/etcd",
+		Tag:  "3.5.4",
 	}
 )
 
@@ -117,26 +117,12 @@ func (c *EtcdNode) Setup(ctx context.Context) (closeErr error) {
 	}
 
 	// Roughly, runs:
-
-	// Instructions from: https: //etcd.io/docs/v3.3/op-guide/container/
-	//
-	// docker run --rm \
-	//  --name Etcd \
-	//  quay.io/coreos/etcd:v3.5.7 \
-	//	--env ALLOW_NONE_AUTHENTICATION=yes \
-	// 	--name node1 \
-	//	--listen-peer-urls http://0.0.0.0:2380 \
-	//	--initial-advertise-peer-urls http://127.0.0.1:2380 \
-	//	--listen-client-urls http://0.0.0.0:2379 \
-	//	--advertise-client-urls http://127.0.0.1:2379 \
-	//	--initial-cluster node1=http://127.0.0.1:2380"
-	//
+	// docker run --rm --env ALLOW_NONE_AUTHENTICATION=yes -it --name Etcd bitnami/etcd
 	// Port 2379 on the container is bound to a free port on the host
 	resource, err := xdockertest.NewDockerResource(c.pool, xdockertest.ResourceOptions{
 		OverrideDefaults: false,
 		// TODO: what even is this?
-		Source: "etcd",
-
+		Source:         "etcd",
 		ContainerName:  fmt.Sprintf("%s%d", namePrefix, id),
 		Image:          etcdImage,
 		Env:            []string{"ALLOW_NONE_AUTHENTICATION=yes"},
@@ -146,16 +132,6 @@ func (c *EtcdNode) Setup(ctx context.Context) (closeErr error) {
 				HostIP:   "0.0.0.0",
 				HostPort: strconv.Itoa(c.opts.port),
 			}},
-		},
-		Cmd: []string{
-			"/usr/local/bin/etcd",
-			"--name", "node1",
-			"--listen-peer-urls", "http://0.0.0.0:2380",
-			"--initial-advertise-peer-urls", "http://127.0.0.1:2380",
-
-			"--listen-client-urls", "http://0.0.0.0:2379",
-			"--advertise-client-urls", "http://127.0.0.1:2379",
-			"--initial-cluster", "node1=http://127.0.0.1:2380",
 		},
 		NoNetworkOverlay: true,
 	})
@@ -169,7 +145,7 @@ func (c *EtcdNode) Setup(ctx context.Context) (closeErr error) {
 		zap.String("containerID", container.ID),
 		zap.Any("ports", container.NetworkSettings.Ports),
 		// Uncomment if you need gory details about the container printed; equivalent of `docker inspect <id>
-		zap.Any("container", container),
+		// zap.Any("container", container),
 	)
 	// Extract the port on which we are listening.
 	// This is coming from the equivalent of docker inspect <container_id>
@@ -195,7 +171,7 @@ func (c *EtcdNode) Setup(ctx context.Context) (closeErr error) {
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("constructing etcd client to test for cluster health: %w", err)
+		return fmt.Errorf("constructing etcd client: %w", err)
 	}
 
 	defer func() {
