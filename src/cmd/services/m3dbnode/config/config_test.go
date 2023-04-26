@@ -54,6 +54,8 @@ db:
           cacheRegexp: false
           cacheTerms: false
           cacheSearch: null
+      series:
+          policy: lru
 
   metrics:
       prometheus:
@@ -344,7 +346,7 @@ func TestConfiguration(t *testing.T) {
     forwardIndexProbability: 0
     forwardIndexThreshold: 0
   transforms:
-    truncateBy: 0
+    truncateBy: none
     forceValue: null
   logging:
     file: /var/log/m3dbnode.log
@@ -361,8 +363,8 @@ func TestConfiguration(t *testing.T) {
       defaultSummaryObjectives: []
       onError: ""
     samplingRate: 1
-    extended: 3
-    sanitization: 2
+    extended: detailed
+    sanitization: prometheus
   listenAddress: 0.0.0.0:9000
   clusterListenAddress: 0.0.0.0:9001
   httpNodeListenAddress: 0.0.0.0:9002
@@ -376,9 +378,9 @@ func TestConfiguration(t *testing.T) {
     hostname: null
   client:
     config: null
-    writeConsistencyLevel: 2
-    readConsistencyLevel: 2
-    connectConsistencyLevel: 0
+    writeConsistencyLevel: majority
+    readConsistencyLevel: unstrict_majority
+    connectConsistencyLevel: any
     writeTimeout: 10s
     fetchTimeout: 15s
     connectTimeout: 20s
@@ -397,6 +399,8 @@ func TestConfiguration(t *testing.T) {
       forever: null
       jitter: true
     logErrorSampleRate: 0
+    logHostWriteErrorSampleRate: 0
+    logHostFetchErrorSampleRate: 0
     backgroundHealthCheckFailLimit: 4
     backgroundHealthCheckFailThrottleFactor: 0.5
     hashing:
@@ -426,7 +430,9 @@ func TestConfiguration(t *testing.T) {
     verify: null
   blockRetrieve: null
   cache:
-    series: null
+    series:
+      policy: lru
+      lru: null
     postingsList:
       size: 100
       cacheRegexp: false
@@ -638,6 +644,7 @@ func TestConfiguration(t *testing.T) {
             keepAlive: null
             tls: null
             autoSyncInterval: 0s
+            dialTimeout: 0s
           m3sd:
             initTimeout: null
           watchWithRevision: 0

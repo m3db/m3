@@ -1,4 +1,4 @@
-// Copyright (c) 2021  Uber Technologies, Inc.
+// Copyright (c) 2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package docker
+package dockerexternal
 
 import (
 	"context"
@@ -29,9 +29,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/m3db/m3/src/integration/resources"
+	xdockertest "github.com/m3db/m3/src/x/dockertest"
 	"github.com/m3db/m3/src/x/instrument"
 
+	"github.com/cenkalti/backoff/v3"
 	"github.com/ory/dockertest/v3"
 	"github.com/prometheus/common/model"
 )
@@ -42,7 +43,7 @@ type Prometheus struct {
 	pathToCfg string
 	iOpts     instrument.Options
 
-	resource *Resource
+	resource *xdockertest.Resource
 }
 
 // PrometheusOptions contains the options for
@@ -60,7 +61,7 @@ type PrometheusOptions struct {
 
 // NewPrometheus creates a new docker-backed Prometheus
 // that implements the resources.ExternalResources interface.
-func NewPrometheus(opts PrometheusOptions) resources.ExternalResources {
+func NewPrometheus(opts PrometheusOptions) *Prometheus {
 	if opts.InstrumentOptions == nil {
 		opts.InstrumentOptions = instrument.NewOptions()
 	}
@@ -72,19 +73,19 @@ func NewPrometheus(opts PrometheusOptions) resources.ExternalResources {
 }
 
 // Setup is a method that setups up the prometheus instance.
-func (p *Prometheus) Setup() error {
+func (p *Prometheus) Setup(ctx context.Context) error {
 	if p.resource != nil {
 		return errors.New("prometheus already setup. must close resource " +
 			"before attempting to setup again")
 	}
 
-	if err := SetupNetwork(p.pool); err != nil {
+	if err := xdockertest.SetupNetwork(p.pool, true); err != nil {
 		return err
 	}
 
-	res, err := NewDockerResource(p.pool, ResourceOptions{
+	res, err := xdockertest.NewDockerResource(p.pool, xdockertest.ResourceOptions{
 		ContainerName: "prometheus",
-		Image: Image{
+		Image: xdockertest.Image{
 			Name: "prom/prometheus",
 			Tag:  "latest",
 		},
@@ -100,11 +101,12 @@ func (p *Prometheus) Setup() error {
 
 	p.resource = res
 
-	return p.waitForHealthy()
+	return p.waitForHealthy(ctx)
 }
 
-func (p *Prometheus) waitForHealthy() error {
-	return resources.Retry(func() error {
+func (p *Prometheus) waitForHealthy(ctx context.Context) error {
+	retrier := backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
+	return backoff.Retry(func() error {
 		req, err := http.NewRequestWithContext(
 			context.Background(),
 			http.MethodGet,
@@ -126,7 +128,7 @@ func (p *Prometheus) waitForHealthy() error {
 		}
 
 		return errors.New("prometheus not ready")
-	})
+	}, retrier)
 }
 
 // PrometheusQueryRequest contains the parameters for making a query request.
@@ -152,7 +154,7 @@ func (p *PrometheusQueryRequest) String() string {
 // Query executes a query request against the prometheus resource.
 func (p *Prometheus) Query(req PrometheusQueryRequest) (model.Vector, error) {
 	if p.resource.Closed() {
-		return nil, errClosed
+		return nil, xdockertest.ErrClosed
 	}
 
 	r, err := http.NewRequestWithContext(
@@ -201,9 +203,9 @@ type vectorResult struct {
 }
 
 // Close cleans up the prometheus instance.
-func (p *Prometheus) Close() error {
+func (p *Prometheus) Close(context.Context) error {
 	if p.resource.Closed() {
-		return errClosed
+		return xdockertest.ErrClosed
 	}
 
 	if err := p.resource.Close(); err != nil {

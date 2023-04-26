@@ -21,11 +21,12 @@
 package inprocess
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"net"
-	"strconv"
+	"time"
 
+	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	aggcfg "github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	dbcfg "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -34,13 +35,15 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/integration/resources"
-	nettest "github.com/m3db/m3/src/integration/resources/net"
+	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal"
 	"github.com/m3db/m3/src/query/storage/m3"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/hostid"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/google/uuid"
+	"github.com/ory/dockertest/v3"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 )
@@ -122,17 +125,51 @@ func NewClusterConfigsFromConfigFile(
 // NewClusterConfigsFromYAML creates a new ClusterConfigs object from YAML strings
 // representing component configs.
 func NewClusterConfigsFromYAML(dbnodeYaml string, coordYaml string, aggYaml string) (ClusterConfigs, error) {
-	var dbCfg dbcfg.Configuration
+	// "db":
+	//  discovery:
+	//    "config":
+	//      "service":
+	//        "etcdClusters":
+	//          - "endpoints": ["http://127.0.0.1:2379"]
+	//            "zone": "embedded"
+	//        "service": "m3db"
+	//        "zone": "embedded"
+	//        "env": "default_env"
+	etcdClientCfg := &etcdclient.Configuration{
+		Zone:    "embedded",
+		Env:     "default_env",
+		Service: "m3db",
+		ETCDClusters: []etcdclient.ClusterConfig{{
+			Zone:      "embedded",
+			Endpoints: []string{"http://127.0.0.1:2379"},
+		}},
+	}
+	var dbCfg = dbcfg.Configuration{
+		DB: &dbcfg.DBConfiguration{
+			Discovery: &discovery.Configuration{
+				Config: &environment.Configuration{
+					Services: environment.DynamicConfiguration{{
+						Service: etcdClientCfg,
+					}},
+				},
+			},
+		},
+	}
 	if err := yaml.Unmarshal([]byte(dbnodeYaml), &dbCfg); err != nil {
 		return ClusterConfigs{}, err
 	}
 
-	var coordCfg coordinatorcfg.Configuration
+	var coordCfg = coordinatorcfg.Configuration{
+		ClusterManagement: coordinatorcfg.ClusterManagementConfiguration{
+			Etcd: etcdClientCfg,
+		},
+	}
 	if err := yaml.Unmarshal([]byte(coordYaml), &coordCfg); err != nil {
 		return ClusterConfigs{}, err
 	}
 
-	var aggCfg aggcfg.Configuration
+	var aggCfg = aggcfg.Configuration{}
+
 	if aggYaml != "" {
 		if err := yaml.Unmarshal([]byte(aggYaml), &aggCfg); err != nil {
 			return ClusterConfigs{}, err
@@ -164,7 +201,7 @@ func NewCluster(
 func NewClusterFromSpecification(
 	specs ClusterSpecification,
 	opts resources.ClusterOptions,
-) (resources.M3Resources, error) {
+) (_ resources.M3Resources, finalErr error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -175,6 +212,7 @@ func NewClusterFromSpecification(
 	}
 
 	var (
+		etcd  *dockerexternal.EtcdNode
 		coord resources.Coordinator
 		nodes = make(resources.Nodes, 0, len(specs.Configs.DBNodes))
 		aggs  = make(resources.Aggregators, 0, len(specs.Configs.Aggregators))
@@ -185,13 +223,38 @@ func NewClusterFromSpecification(
 	// Ensure that once we start creating resources, they all get cleaned up even if the function
 	// fails half way.
 	defer func() {
-		if err != nil {
-			cleanup(logger, nodes, coord, aggs)
+		if finalErr != nil {
+			cleanup(logger, etcd, nodes, coord, aggs)
 		}
 	}()
 
+	etcdEndpoints := opts.EtcdEndpoints
+	if len(opts.EtcdEndpoints) == 0 {
+		// TODO: amainsd: maybe not the cleanest place to do this.
+		pool, err := dockertest.NewPool("")
+		if err != nil {
+			return nil, err
+		}
+		etcd, err = dockerexternal.NewEtcd(pool, instrument.NewOptions())
+		if err != nil {
+			return nil, err
+		}
+
+		// TODO(amains): etcd *needs* to be setup before the coordinator, because ConfigurePlacementsForAggregation spins
+		// up a dedicated coordinator for some reason. Either clean this up or just accept it.
+		if err := etcd.Setup(context.TODO()); err != nil {
+			return nil, err
+		}
+		etcdEndpoints = []string{fmt.Sprintf(etcd.Address())}
+	}
+
+	updateEtcdEndpoints := func(etcdCfg *etcdclient.Configuration) {
+		etcdCfg.ETCDClusters[0].Endpoints = etcdEndpoints
+		etcdCfg.ETCDClusters[0].AutoSyncInterval = -1
+	}
 	for i := 0; i < len(specs.Configs.DBNodes); i++ {
 		var node resources.Node
+		updateEtcdEndpoints(specs.Configs.DBNodes[i].DB.Discovery.Config.Services[0].Service)
 		node, err = NewDBNode(specs.Configs.DBNodes[i], specs.Options.DBNode[i])
 		if err != nil {
 			return nil, err
@@ -204,6 +267,7 @@ func NewClusterFromSpecification(
 		agg, err = NewAggregator(aggCfg, AggregatorOptions{
 			GeneratePorts:  true,
 			GenerateHostID: false,
+			EtcdEndpoints:  etcdEndpoints,
 		})
 		if err != nil {
 			return nil, err
@@ -211,6 +275,7 @@ func NewClusterFromSpecification(
 		aggs = append(aggs, agg)
 	}
 
+	updateEtcdEndpoints(specs.Configs.Coordinator.ClusterManagement.Etcd)
 	coord, err = NewCoordinator(
 		specs.Configs.Coordinator,
 		CoordinatorOptions{GeneratePorts: opts.Coordinator.GeneratePorts},
@@ -220,7 +285,7 @@ func NewClusterFromSpecification(
 	}
 
 	if err = ConfigurePlacementsForAggregation(nodes, coord, aggs, specs, opts); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to setup placements for aggregation: %w", err)
 	}
 
 	// Start all the configured resources.
@@ -228,6 +293,7 @@ func NewClusterFromSpecification(
 		Coordinator: coord,
 		DBNodes:     nodes,
 		Aggregators: aggs,
+		Etcd:        etcd,
 	})
 	m3.Start()
 
@@ -371,13 +437,13 @@ func GenerateDBNodeConfigsForCluster(
 	// the etcd server (i.e. seed node).
 	hostID := uuid.NewString()
 	defaultDBNodesCfg := configs.DBNode
-	discoveryCfg, envConfig, err := generateDefaultDiscoveryConfig(
-		defaultDBNodesCfg,
-		hostID,
-		generatePortsAndIDs)
-	if err != nil {
-		return nil, nil, environment.Configuration{}, err
+
+	if configs.DBNode.DB.Discovery == nil {
+		return nil, nil, environment.Configuration{}, errors.New(
+			"configuration must specify at least `discovery`" +
+				" in order to construct an etcd client")
 	}
+	discoveryCfg, envConfig := configs.DBNode.DB.Discovery, configs.DBNode.DB.Discovery.Config
 
 	var (
 		defaultDBNodeOpts = DBNodeOptions{
@@ -389,8 +455,7 @@ func GenerateDBNodeConfigsForCluster(
 		nodeOpts = make([]DBNodeOptions, 0, numNodes)
 	)
 	for i := 0; i < int(numNodes); i++ {
-		var cfg dbcfg.Configuration
-		cfg, err = defaultDBNodesCfg.DeepCopy()
+		cfg, err := defaultDBNodesCfg.DeepCopy()
 		if err != nil {
 			return nil, nil, environment.Configuration{}, err
 		}
@@ -404,68 +469,31 @@ func GenerateDBNodeConfigsForCluster(
 				Value:    &hostID,
 			}
 		}
-		cfg.DB.Discovery = &discoveryCfg
+		cfg.DB.Discovery = discoveryCfg
 
 		cfgs = append(cfgs, cfg)
 		nodeOpts = append(nodeOpts, dbnodeOpts)
 	}
 
-	return cfgs, nodeOpts, envConfig, nil
+	return cfgs, nodeOpts, *envConfig, nil
 }
 
-// generateDefaultDiscoveryConfig handles creating the correct config
-// for having an embedded ETCD server with the correct server and
-// client configuration.
-func generateDefaultDiscoveryConfig(
-	cfg dbcfg.Configuration,
-	hostID string,
-	generateETCDPorts bool,
-) (discovery.Configuration, environment.Configuration, error) {
-	discoveryConfig := cfg.DB.DiscoveryOrDefault()
-	envConfig, err := discoveryConfig.EnvironmentConfig(hostID)
-	if err != nil {
-		return discovery.Configuration{}, environment.Configuration{}, err
-	}
-
-	var (
-		etcdClientPort = dbcfg.DefaultEtcdClientPort
-		etcdServerPort = dbcfg.DefaultEtcdServerPort
-	)
-	if generateETCDPorts {
-		etcdClientPort, err = nettest.GetAvailablePort()
-		if err != nil {
-			return discovery.Configuration{}, environment.Configuration{}, err
-		}
-
-		etcdServerPort, err = nettest.GetAvailablePort()
-		if err != nil {
-			return discovery.Configuration{}, environment.Configuration{}, err
-		}
-	}
-
-	etcdServerURL := fmt.Sprintf("http://0.0.0.0:%d", etcdServerPort)
-	etcdClientAddr := net.JoinHostPort("0.0.0.0", strconv.Itoa(etcdClientPort))
-	etcdClientURL := fmt.Sprintf("http://0.0.0.0:%d", etcdClientPort)
-
-	envConfig.SeedNodes.InitialCluster[0].Endpoint = etcdServerURL
-	envConfig.SeedNodes.InitialCluster[0].HostID = hostID
-	envConfig.Services[0].Service.ETCDClusters[0].Endpoints = []string{etcdClientAddr}
-	if generateETCDPorts {
-		envConfig.SeedNodes.ListenPeerUrls = []string{etcdServerURL}
-		envConfig.SeedNodes.ListenClientUrls = []string{etcdClientURL}
-		envConfig.SeedNodes.InitialAdvertisePeerUrls = []string{etcdServerURL}
-		envConfig.SeedNodes.AdvertiseClientUrls = []string{etcdClientURL}
-	}
-
-	configType := discovery.ConfigType
-	return discovery.Configuration{
-		Type:   &configType,
-		Config: &envConfig,
-	}, envConfig, nil
-}
-
-func cleanup(logger *zap.Logger, nodes resources.Nodes, coord resources.Coordinator, aggs resources.Aggregators) {
+func cleanup(
+	logger *zap.Logger,
+	etcd *dockerexternal.EtcdNode,
+	nodes resources.Nodes,
+	coord resources.Coordinator,
+	aggs resources.Aggregators,
+) {
 	var multiErr xerrors.MultiError
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if etcd != nil {
+		multiErr = multiErr.Add(etcd.Close(ctx))
+	}
+
 	for _, n := range nodes {
 		multiErr = multiErr.Add(n.Close())
 	}

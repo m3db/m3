@@ -96,6 +96,11 @@ const (
 	ExcludeCommitLogBootstrapMode
 )
 
+// MarshalYAML marshals a BootstrapMode.
+func (m *BootstrapMode) MarshalYAML() (interface{}, error) {
+	return m.String(), nil
+}
+
 // UnmarshalYAML unmarshals an BootstrapMode into a valid type from string.
 func (m *BootstrapMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string

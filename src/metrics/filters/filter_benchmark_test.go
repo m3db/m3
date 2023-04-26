@@ -125,6 +125,16 @@ func BenchmarkRangeFilterRangeMatchNegation(b *testing.B) {
 	benchRangeFilterRange(b, []byte("!a-z"), []byte("p"), false)
 }
 
+func BenchmarkMultiRangeFilterPrefixCollision(b *testing.B) {
+	benchMultiRangeFilter(b, []byte("test_1,test_1_suffix,extra_unused_pattern"),
+		false, [][]byte{[]byte("test_1"), []byte("test_1_suffix")})
+}
+
+func BenchmarkMultiRangeFilterSuffixCollision(b *testing.B) {
+	benchMultiRangeFilter(b, []byte("test_1,prefix_test_1,extra_unused_pattern"),
+		true, [][]byte{[]byte("test_1"), []byte("prefix_test_1")})
+}
+
 func BenchmarkMultiRangeFilterTwo(b *testing.B) {
 	benchMultiRangeFilter(b, []byte("test_1,test_2"), false, [][]byte{[]byte("test_1"), []byte("fake_1")})
 }

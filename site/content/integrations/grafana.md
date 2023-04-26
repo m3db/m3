@@ -14,7 +14,7 @@ M3Coordinator can function as a datasource for Prometheus as well as Graphite. S
 
 All M3 applications expose Prometheus metrics on port `7203` by default as described in the [Prometheus integration guide](/docs/integrations/prometheus), so if you're already monitoring your M3 stack with Prometheus and Grafana you can use our pre-configured dashboards.
 
-[M3DB Prometheus / Grafana dashboard](https://grafana.com/dashboards/8126)
+[M3DB Prometheus / Grafana dashboard](https://grafana.com/grafana/dashboards/8126-m3db-node-details/)
 
 M3Coordinator Prometheus / Grafana dashboard: TODO
 

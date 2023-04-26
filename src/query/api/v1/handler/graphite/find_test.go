@@ -26,8 +26,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -189,12 +187,6 @@ type result struct {
 }
 
 type results []result
-
-func (r results) Len() int      { return len(r) }
-func (r results) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
-func (r results) Less(i, j int) bool {
-	return strings.Compare(r[i].ID, r[j].ID) == -1
-}
 
 func makeNoChildrenResult(id, text string) result {
 	return result{
@@ -482,7 +474,6 @@ func testFind(t *testing.T, opts testFindOptions) {
 				r := make(results, 0)
 				decoder := json.NewDecoder(bytes.NewBufferString((w.results[0])))
 				require.NoError(t, decoder.Decode(&r))
-				sort.Sort(r)
 
 				require.Equal(t, expectedResults, r)
 				actual := w.Header().Get(headers.LimitHeader)

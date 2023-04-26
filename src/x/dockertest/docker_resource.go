@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package docker
+package dockertest
 
 import (
 	"bytes"
@@ -32,22 +32,22 @@ import (
 	dc "github.com/ory/dockertest/v3/docker"
 	"github.com/ory/dockertest/v3/docker/types/mount"
 	"go.uber.org/zap"
-
-	"github.com/m3db/m3/src/integration/resources"
 )
 
 // Resource is an object that provides a handle
 // to a service being spun up via docker.
 type Resource struct {
-	closed bool
+	resource *dockertest.Resource
+	closed   bool
 
 	logger *zap.Logger
 
-	resource *dockertest.Resource
-	pool     *dockertest.Pool
+	pool *dockertest.Pool
 }
 
 // NewDockerResource creates a new DockerResource.
+// If resourceOpts.Image is empty, it will attempt to connect to an existing container.
+// Otherwise, it will start the container with the specified image.
 func NewDockerResource(
 	pool *dockertest.Pool,
 	resourceOpts ResourceOptions,
@@ -65,11 +65,36 @@ func NewDockerResource(
 		)
 	)
 
-	opts := exposePorts(newOptions(containerName), portList)
+	// TODO: this seems hard to use; a different method might be more appropriate.
+	if image.Name == "" {
+		logger.Info("connecting to existing container", zap.String("container", containerName))
+		var ok bool
+		resource, ok := pool.ContainerByName(containerName)
+		if !ok {
+			logger.Error("could not find container")
+			return nil, fmt.Errorf("could not find container %v", containerName)
+		}
+
+		return &Resource{
+			logger:   logger,
+			resource: resource,
+			pool:     nil,
+		}, nil
+	}
+
+	opts := newOptions(containerName)
+	if !resourceOpts.NoNetworkOverlay {
+		opts.NetworkID = networkName
+	}
+	opts, err := exposePorts(opts, portList, resourceOpts.PortMappings)
+	if err != nil {
+		return nil, err
+	}
 
 	hostConfigOpts := func(c *dc.HostConfig) {
-		c.AutoRemove = true
-		c.NetworkMode = networkName
+		if !resourceOpts.NoNetworkOverlay {
+			c.NetworkMode = networkName
+		}
 		// Allow the docker container to call services on the host machine.
 		// Docker for OS X and Windows support the host.docker.internal hostname
 		// natively, but Docker for Linux requires us to register host.docker.internal
@@ -88,24 +113,15 @@ func NewDockerResource(
 		c.Mounts = mounts
 	}
 
-	var resource *dockertest.Resource
-	var err error
-	if image.Name == "" {
-		logger.Info("connecting to existing container", zap.String("container", containerName))
-		var ok bool
-		resource, ok = pool.ContainerByName(containerName)
-		if !ok {
-			logger.Error("could not find container", zap.Error(err))
-			return nil, fmt.Errorf("could not find container %v", containerName)
-		}
-	} else {
-		opts = useImage(opts, image)
-		opts.Mounts = resourceOpts.Mounts
-		imageWithTag := fmt.Sprintf("%v:%v", image.Name, image.Tag)
-		logger.Info("running container with options",
-			zap.String("image", imageWithTag), zap.Any("options", opts))
-		resource, err = pool.RunWithOptions(opts, hostConfigOpts)
-	}
+	opts = useImage(opts, image)
+	opts.Mounts = resourceOpts.Mounts
+	opts.Env = resourceOpts.Env
+	opts.Cmd = resourceOpts.Cmd
+
+	imageWithTag := fmt.Sprintf("%v:%v", image.Name, image.Tag)
+	logger.Info("running container with options",
+		zap.String("image", imageWithTag), zap.Any("options", opts))
+	resource, err := pool.RunWithOptions(opts, hostConfigOpts)
 
 	if err != nil {
 		logger.Error("could not run container", zap.Error(err))
@@ -135,12 +151,12 @@ func (c *Resource) GetURL(port int, path string) string {
 // Exec runs commands within a docker container.
 func (c *Resource) Exec(commands ...string) (string, error) {
 	if c.closed {
-		return "", errClosed
+		return "", ErrClosed
 	}
 
 	// NB: this is prefixed with a `/` that should be trimmed off.
 	name := strings.TrimLeft(c.resource.Container.Name, "/")
-	logger := c.logger.With(resources.ZapMethod("exec"))
+	logger := c.logger.With(zap.String("method", "exec"))
 	client := c.pool.Client
 	exec, err := client.CreateExec(dc.CreateExecOptions{
 		AttachStdout: true,
@@ -185,14 +201,14 @@ func (c *Resource) Exec(commands ...string) (string, error) {
 // GoalStateExec runs commands within a container until
 // a specified goal state is met.
 func (c *Resource) GoalStateExec(
-	verifier resources.GoalStateVerifier,
+	verifier GoalStateVerifier,
 	commands ...string,
 ) error {
 	if c.closed {
-		return errClosed
+		return ErrClosed
 	}
 
-	logger := c.logger.With(resources.ZapMethod("GoalStateExec"))
+	logger := c.logger.With(zap.String("method", "GoalStateExec"))
 	return c.pool.Retry(func() error {
 		err := verifier(c.Exec(commands...))
 		if err != nil {
@@ -208,16 +224,22 @@ func (c *Resource) GoalStateExec(
 // Close closes and cleans up the resource.
 func (c *Resource) Close() error {
 	if c.closed {
-		c.logger.Error("closing closed resource", zap.Error(errClosed))
-		return errClosed
+		c.logger.Error("closing closed resource", zap.Error(ErrClosed))
+		return ErrClosed
 	}
 
 	c.closed = true
 	c.logger.Info("closing resource")
-	return c.pool.Purge(c.resource)
+	return c.pool.Purge(c.Resource())
 }
 
 // Closed returns true if the resource has been closed.
 func (c *Resource) Closed() bool {
 	return c.closed
+}
+
+// Resource is the underlying dockertest resource used by this Resource. It can be used to perform more advanced
+// operations not exposed by this class.
+func (c *Resource) Resource() *dockertest.Resource {
+	return c.resource
 }

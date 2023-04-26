@@ -1,5 +1,4 @@
 //go:build integration
-// +build integration
 
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
@@ -98,7 +97,6 @@ func TestResendAggregatedValueStress(t *testing.T) {
 
 	// Sharding function maps all metrics to shard 0 except for the rollup metric,
 	// which gets mapped to the last shard.
-	pipelineRollupID := "pipelineRollup"
 	shardFn := func(id []byte, numShards uint32) uint32 {
 		if pipelineRollupID == string(id) {
 			return numShards - 1

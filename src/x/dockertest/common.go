@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package docker
+package dockertest
 
 import (
 	"errors"
@@ -34,17 +34,39 @@ var (
 	networkName = "d-test"
 	volumeName  = "d-test"
 
-	errClosed = errors.New("container has been closed")
+	// ErrClosed is a common error for use when a container has been closed.
+	ErrClosed = errors.New("container has been closed")
 )
+
+// Image represents a docker image.
+type Image struct {
+	Name string
+	Tag  string
+}
+
+// GoalStateVerifier asserts that a resource is in a particular state.
+// TODO: more info here; this interface is unclear from usage
+type GoalStateVerifier func(output string, err error) error
 
 // ResourceOptions returns options for creating
 // a Resource.
+//nolint:maligned
 type ResourceOptions struct {
 	OverrideDefaults bool
 	Source           string
 	ContainerName    string
 	Image            Image
 	PortList         []int
+	PortMappings     map[dc.Port][]dc.PortBinding
+
+	// NoNetworkOverlay if set, disables use of the default integration testing network we create (networkName).
+	NoNetworkOverlay bool
+
+	Cmd []string
+
+	// Env is the environment for the docker container; it corresponds 1:1 with dockertest.RunOptions.
+	// Format should be: VAR=value
+	Env []string
 	// Mounts creates mounts in the container that map back to a resource
 	// on the host system.
 	Mounts []string
@@ -54,7 +76,7 @@ type ResourceOptions struct {
 }
 
 // NB: this will fill unset fields with given default values.
-func (o ResourceOptions) withDefaults(
+func (o ResourceOptions) WithDefaults(
 	defaultOpts ResourceOptions) ResourceOptions {
 	if o.OverrideDefaults {
 		return o
@@ -93,8 +115,7 @@ func (o ResourceOptions) withDefaults(
 
 func newOptions(name string) *dockertest.RunOptions {
 	return &dockertest.RunOptions{
-		Name:      name,
-		NetworkID: networkName,
+		Name: name,
 	}
 }
 
@@ -105,7 +126,7 @@ func useImage(opts *dockertest.RunOptions, image Image) *dockertest.RunOptions {
 }
 
 // SetupNetwork sets up a network within docker.
-func SetupNetwork(pool *dockertest.Pool) error {
+func SetupNetwork(pool *dockertest.Pool, cleanIfExists bool) error {
 	networks, err := pool.Client.ListNetworks()
 	if err != nil {
 		return err
@@ -113,6 +134,9 @@ func SetupNetwork(pool *dockertest.Pool) error {
 
 	for _, n := range networks {
 		if n.Name == networkName {
+			if !cleanIfExists {
+				return nil
+			}
 			if err := pool.Client.RemoveNetwork(networkName); err != nil {
 				return err
 			}
@@ -125,7 +149,8 @@ func SetupNetwork(pool *dockertest.Pool) error {
 	return err
 }
 
-func setupVolume(pool *dockertest.Pool) error {
+// SetupVolume creates a default docker volume, with name volumeName (in this package)
+func SetupVolume(pool *dockertest.Pool) error {
 	volumes, err := pool.Client.ListVolumes(dc.ListVolumesOptions{})
 	if err != nil {
 		return err
@@ -151,7 +176,8 @@ func setupVolume(pool *dockertest.Pool) error {
 func exposePorts(
 	opts *dockertest.RunOptions,
 	portList []int,
-) *dockertest.RunOptions {
+	mappings map[dc.Port][]dc.PortBinding,
+) (*dockertest.RunOptions, error) {
 	ports := make(map[dc.Port][]dc.PortBinding, len(portList))
 	for _, p := range portList {
 		port := fmt.Sprintf("%d", p)
@@ -168,6 +194,16 @@ func exposePorts(
 		ports[portRepresentation] = entry
 	}
 
+	for k, v := range mappings {
+		if _, ok := ports[k]; ok {
+			return nil, fmt.Errorf("mapping %s already specified by PortList; "+
+				"mappings should be in PortList or PortMappings but not both",
+				k,
+			)
+		}
+		ports[k] = v
+	}
+
 	opts.PortBindings = ports
-	return opts
+	return opts, nil
 }

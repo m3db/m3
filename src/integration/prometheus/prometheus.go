@@ -37,7 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/integration/resources"
-	"github.com/m3db/m3/src/integration/resources/docker"
+	"github.com/m3db/m3/src/integration/resources/docker/dockerexternal"
 	"github.com/m3db/m3/src/query/api/v1/handler/database"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -89,7 +89,7 @@ func RunTest(t *testing.T, m3 resources.M3Resources, prom resources.ExternalReso
 
 	logger.Info("running prometheus tests")
 
-	p := prom.(*docker.Prometheus)
+	p := prom.(*dockerexternal.Prometheus)
 
 	testPrometheusRemoteRead(t, p, logger)
 	testPrometheusRemoteWriteMultiNamespaces(t, p, logger)
@@ -118,7 +118,7 @@ func RunTest(t *testing.T, m3 resources.M3Resources, prom resources.ExternalReso
 	testDebugPromReturnsDuplicates(t, m3, logger)
 }
 
-func testPrometheusRemoteRead(t *testing.T, p *docker.Prometheus, logger *zap.Logger) {
+func testPrometheusRemoteRead(t *testing.T, p *dockerexternal.Prometheus, logger *zap.Logger) {
 	// Ensure Prometheus can proxy a Prometheus query
 	logger.Info("testing prometheus remote read")
 	verifyPrometheusQuery(t, p, "prometheus_remote_storage_samples_total", 100)
@@ -126,7 +126,7 @@ func testPrometheusRemoteRead(t *testing.T, p *docker.Prometheus, logger *zap.Lo
 
 func testPrometheusRemoteWriteMultiNamespaces(
 	t *testing.T,
-	p *docker.Prometheus,
+	p *dockerexternal.Prometheus,
 	logger *zap.Logger,
 ) {
 	logger.Info("testing remote write to multiple namespaces")
@@ -1839,9 +1839,9 @@ func requireSeriesSuccess(
 	}))
 }
 
-func verifyPrometheusQuery(t *testing.T, p *docker.Prometheus, query string, threshold float64) {
+func verifyPrometheusQuery(t *testing.T, p *dockerexternal.Prometheus, query string, threshold float64) {
 	require.NoError(t, resources.Retry(func() error {
-		res, err := p.Query(docker.PrometheusQueryRequest{
+		res, err := p.Query(dockerexternal.PrometheusQueryRequest{
 			Query: query,
 		})
 		if err != nil {

@@ -35,11 +35,22 @@ import (
 
 // ClusterConfig is the config for a zoned etcd cluster.
 type ClusterConfig struct {
-	Zone             string           `yaml:"zone"`
-	Endpoints        []string         `yaml:"endpoints"`
-	KeepAlive        *KeepAliveConfig `yaml:"keepAlive"`
-	TLS              *TLSConfig       `yaml:"tls"`
-	AutoSyncInterval time.Duration    `yaml:"autoSyncInterval"`
+	Zone      string           `yaml:"zone"`
+	Endpoints []string         `yaml:"endpoints"`
+	KeepAlive *KeepAliveConfig `yaml:"keepAlive"`
+	TLS       *TLSConfig       `yaml:"tls"`
+	// AutoSyncInterval configures the etcd client's AutoSyncInterval
+	// (go.etcd.io/etcd/client/v3@v3.6.0-alpha.0/config.go:32).
+	// By default, it is 1m.
+	//
+	// Advanced:
+	//
+	// One important difference from the etcd config: we have autosync *on* by default (unlike etcd), meaning that
+	// the zero value here doesn't indicate autosync off.
+	// Instead, users should pass in a negative value to indicate "disable autosync"
+	// Only do this if you truly have a good reason for it! Most production use cases want autosync on.
+	AutoSyncInterval time.Duration `yaml:"autoSyncInterval"`
+	DialTimeout      time.Duration `yaml:"dialTimeout"`
 
 	DialOptions []grpc.DialOption `yaml:"-"` // nonserializable
 }
@@ -50,13 +61,26 @@ func (c ClusterConfig) NewCluster() Cluster {
 	if c.KeepAlive != nil {
 		keepAliveOpts = c.KeepAlive.NewOptions()
 	}
-	return NewCluster().
+
+	cluster := NewCluster().
 		SetZone(c.Zone).
 		SetEndpoints(c.Endpoints).
 		SetDialOptions(c.DialOptions).
 		SetKeepAliveOptions(keepAliveOpts).
-		SetTLSOptions(c.TLS.newOptions()).
-		SetAutoSyncInterval(c.AutoSyncInterval)
+		SetTLSOptions(c.TLS.newOptions())
+
+	// Autosync should *always* be on, unless the user very explicitly requests it to be off. They can do this via a
+	// negative value (in which case we can assume they know what they're doing).
+	// Therefore, only update if it's nonzero, on the assumption that zero is just the empty value.
+	if c.AutoSyncInterval != 0 {
+		cluster = cluster.SetAutoSyncInterval(c.AutoSyncInterval)
+	}
+
+	if c.DialTimeout > 0 {
+		cluster = cluster.SetDialTimeout(c.DialTimeout)
+	}
+
+	return cluster
 }
 
 // TLSConfig is the config for TLS.
