@@ -79,8 +79,14 @@ type Shard interface {
 	// SourceID returns the source of the shard.
 	SourceID() string
 
+	// DestinationID returns the destination of the shard.
+	DestinationID() string
+
 	// SetSourceID sets the source of the shard.
 	SetSourceID(sourceID string) Shard
+
+	// SetDestinationID sets the destination of the shard.
+	SetDestinationID(destinationID string) Shard
 
 	// RedirectToShardID returns optional shard to redirect incoming writes to.
 	RedirectToShardID() *uint32

@@ -104,7 +104,7 @@ func (v TopologyView) Map() (topology.Map, error) {
 		SetReplicas(v.Replicas).
 		SetShardSet(shardSet)
 
-	return topology.NewStaticMap(opts), nil
+	return topology.NewStaticMap(opts)
 }
 
 // HostShardStates is a human-readable way of describing an initial state topology

@@ -97,17 +97,23 @@ type shard struct {
 	id                uint32
 	redirectToShardID *uint32
 
-	state        State
-	sourceID     string
-	cutoverNanos int64
-	cutoffNanos  int64
+	state         State
+	sourceID      string
+	destinationID string
+	cutoverNanos  int64
+	cutoffNanos   int64
 }
 
 func (s *shard) ID() uint32                        { return s.id }
 func (s *shard) State() State                      { return s.state }
 func (s *shard) SetState(state State) Shard        { s.state = state; return s }
 func (s *shard) SourceID() string                  { return s.sourceID }
+func (s *shard) DestinationID() string             { return s.destinationID }
 func (s *shard) SetSourceID(sourceID string) Shard { s.sourceID = sourceID; return s }
+func (s *shard) SetDestinationID(destinationID string) Shard {
+	s.destinationID = destinationID
+	return s
+}
 func (s *shard) CutoverNanos() int64 {
 	if s.cutoverNanos != UnInitializedValue {
 		return s.cutoverNanos

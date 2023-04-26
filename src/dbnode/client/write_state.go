@@ -88,10 +88,12 @@ type writeState struct {
 func newWriteState(
 	encoderPool serialize.TagEncoderPool,
 	pool *writeStatePool,
+	reusableByteID *ident.ReusableBytesID,
 ) *writeState {
 	w := &writeState{
 		pool:           pool,
 		tagEncoderPool: encoderPool,
+		reusableByteID: reusableByteID,
 	}
 	w.destructorFn = w.close
 	w.L = w
@@ -252,7 +254,9 @@ func (w *writeState) setHostSuccessListWithLock(hostID, pairedHostID string) {
 }
 
 type writeStatePool struct {
+	hostSuccessList     []ident.ID
 	pool                pool.ObjectPool
+	reusableByteID      *ident.ReusableBytesID
 	tagEncoderPool      serialize.TagEncoderPool
 	logger              *zap.Logger
 	logHostErrorSampler *sampler.Sampler
@@ -267,6 +271,7 @@ func newWriteStatePool(
 	p := pool.NewObjectPool(opts)
 	return &writeStatePool{
 		pool:                p,
+		reusableByteID:      ident.NewReusableBytesID(),
 		tagEncoderPool:      tagEncoderPool,
 		logger:              logger,
 		logHostErrorSampler: logHostErrorSampler,
@@ -275,7 +280,7 @@ func newWriteStatePool(
 
 func (p *writeStatePool) Init() {
 	p.pool.Init(func() interface{} {
-		return newWriteState(p.tagEncoderPool, p)
+		return newWriteState(p.tagEncoderPool, p, p.reusableByteID)
 	})
 }
 
