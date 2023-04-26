@@ -43,7 +43,7 @@ func (i staticInitializer) Init() (Topology, error) {
 	if err := i.opts.Validate(); err != nil {
 		return nil, err
 	}
-	return NewStaticTopology(i.opts), nil
+	return NewStaticTopology(i.opts)
 }
 
 func (i staticInitializer) TopologyIsSet() (bool, error) {
@@ -56,10 +56,16 @@ type staticTopology struct {
 }
 
 // NewStaticTopology creates a static topology.
-func NewStaticTopology(opts StaticOptions) Topology {
+func NewStaticTopology(opts StaticOptions) (Topology, error) {
 	w := xwatch.NewWatchable()
-	w.Update(NewStaticMap(opts))
-	return &staticTopology{w: w}
+	m, err := NewStaticMap(opts)
+	if err != nil {
+		return nil, err
+	}
+	if err = w.Update(m); err != nil {
+		return nil, err
+	}
+	return &staticTopology{w: w}, nil
 }
 
 func (t *staticTopology) Get() Map {

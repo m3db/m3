@@ -21,6 +21,7 @@
 package topology
 
 import (
+	"fmt"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/x/ident"
@@ -40,7 +41,7 @@ type staticMap struct {
 }
 
 // NewStaticMap creates a new static topology map
-func NewStaticMap(opts StaticOptions) Map {
+func NewStaticMap(opts StaticOptions) (Map, error) {
 	totalShards := len(opts.ShardSet().AllIDs())
 	hostShardSets := opts.HostShardSets()
 	topoMap := staticMap{

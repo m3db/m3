@@ -83,10 +83,10 @@ db:
   # Default = "0.0.0.0:9001"
   clusterListenAddress: <url>
   # Host and port to listen for the node json/http APIs (Primarily used for debugging)
-  # Default = "0.0.0.0:9002"  
+  # Default = "0.0.0.0:9002"
   httpNodeListenAddress: <url>
   # Host and port to listen for the cluster json/http APIs (Primarily used for debugging)
-  # Default = "0.0.0.0:9003"  
+  # Default = "0.0.0.0:9003"
   httpClusterListenAddress: <url>
   # Address to listen on for debug APIs (pprof, etc).
   # Default = "0.0.0.0:9004"
@@ -122,7 +122,7 @@ db:
     # The fetch timeout for any given query
     # Range =  30s to 5m
     fetchTimeout: <duration>
-    # The cluster connect timeout    
+    # The cluster connect timeout
     connectTimeout: <duration>
     # Configuration for retrying write operations
     writeRetry:
@@ -180,7 +180,7 @@ db:
         targetMigrationVersion: <int>
         # Number of concurrent workers performing migration
         concurrency: <int>
-    # Configuration for commitlog bootstrapper 
+    # Configuration for commitlog bootstrapper
     commitlog:
       # Return unfulfilled when encountering corrupt ommit log files
       returnUnfulfilledForCorruptCommitLogFiles: <bool>
@@ -209,7 +209,7 @@ db:
     fetchConcurrency: <int>
     # Globally enables/disables callbacks used to cache blocks fetched from disk
     cacheBlocksOnRetrieve: <bool>
-    
+
   # Caching policy for database blocks
   cache:
     # Series cache policy
@@ -301,7 +301,7 @@ db:
         # The fetch timeout for any given query
         # Range =  30s to 5m
         fetchTimeout: <duration>
-        # The cluster connect timeout    
+        # The cluster connect timeout
         connectTimeout: <duration>
         # Configuration for retrying write operations
         writeRetry:
@@ -560,7 +560,7 @@ db:
     # See https://tip.golang.org/pkg/runtime/#SetMutexProfileFraction for more details about the value
     mutexProfileFraction: <int>
     # Sets runtime.BlockProfileRate to report blocking events
-    # See https://golang.org/pkg/runtime/#SetBlockProfileRate for more details about the value.    
+    # See https://golang.org/pkg/runtime/#SetBlockProfileRate for more details about the value.
     blockProfileRate: <int>
   # Enable cold writes for all namespaces
   forceColdWritesEnabled: <bool>
