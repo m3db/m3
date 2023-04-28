@@ -96,7 +96,7 @@ const (
 
 	// defaultShardsLeavingAndInitializingCountTowardsConsistency is the default shard in leaving and initializing
 	// as pair count towards consistency
-	defaultShardsLeavingAndInitializingCountTowardsConsistency = false
+	defaultShardsLeavingAndInitializingCountTowardsConsistency = true
 
 	// defaultWriteOpPoolSize is the default write op pool size
 	defaultWriteOpPoolSize = 65536
