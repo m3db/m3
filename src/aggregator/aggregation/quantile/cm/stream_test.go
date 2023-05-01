@@ -25,6 +25,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -232,4 +233,18 @@ func testStreamWithSkewedDistribution(t *testing.T, opts Options) {
 	for _, q := range testQuantiles {
 		require.Equal(t, 1.0, s.Quantile(q))
 	}
+}
+
+func TestStreamUnsortedQuantiles(t *testing.T) {
+	opts := testStreamOptions()
+	s := NewStream(opts)
+	s.ResetSetData([]float64{0.9, 0.75})
+
+	for i := 1; i <= 20; i++ {
+		s.Add(float64(i))
+	}
+
+	s.Flush()
+	assert.Equal(t, float64(15), s.Quantile(0.75))
+	assert.Equal(t, float64(18), s.Quantile(0.90))
 }

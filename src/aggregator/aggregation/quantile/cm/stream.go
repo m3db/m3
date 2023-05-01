@@ -22,6 +22,7 @@ package cm
 
 import (
 	"math"
+	"sort"
 )
 
 const (
@@ -174,6 +175,10 @@ func (s *Stream) Quantile(q float64) float64 {
 
 // ResetSetData resets the stream and sets data.
 func (s *Stream) ResetSetData(quantiles []float64) {
+	// Ensure that the quantiles list is sorted in ascending order because the `Quantile`
+	// function depends on that being the case because it linearly scans the quantile list
+	// to find the first quantile that is greater than or equal to the one that is requested.
+	sort.Float64s(quantiles)
 	s.quantiles = quantiles
 
 	if len(quantiles) > cap(s.computedQuantiles) {
