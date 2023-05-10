@@ -428,7 +428,7 @@ func (r shardRepairer) recordDifferences(
 	checksumDiffScope.Counter("blocks").Inc(diffRes.ChecksumDifferences.NumBlocks())
 }
 
-// computeMaximumBlockSizeDifferenceAsPercentage returns a metric which represents maximum divergence of a shard with
+// computeMaximumBlockSizeDifference returns a metric which represents maximum divergence of a shard with
 // any of its peers. A positive divergence means that origin shard has more data than its peer and a negative
 // divergence means that origin shard has lesser data than its peer.  Since sizes for all the blocks in rentention
 // window are not readily available, exact divergence of a shard from its peer cannot be calculated. So this method

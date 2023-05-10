@@ -73,7 +73,7 @@ func newRollupTargetFromV1Proto(pb *rulepb.RollupTarget) (rollupTarget, error) {
 	}, nil
 }
 
-// newRollupTargetFromProto creates a new rollup target from v2 proto.
+// newRollupTargetFromV2Proto creates a new rollup target from v2 proto.
 func newRollupTargetFromV2Proto(pb *rulepb.RollupTargetV2) (rollupTarget, error) {
 	if pb == nil {
 		return emptyRollupTarget, errNilRollupTargetV2Proto

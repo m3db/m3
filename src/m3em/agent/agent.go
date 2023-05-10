@@ -496,7 +496,7 @@ func (o *opAgent) markFileDone(
 	return nil
 }
 
-// PullFile receives a file from the caller to be stored locally on the agent
+// PushFile receives a file from the caller to be stored locally on the agent
 func (o *opAgent) PushFile(stream m3em.Operator_PushFileServer) error {
 	o.logger.Info("received PushFile()")
 	var (
