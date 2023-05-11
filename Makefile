@@ -287,37 +287,37 @@ define SUBDIR_RULES
 mock-gen-$(SUBDIR): install-tools
 	@echo "--- Generating mocks $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(mocks_rules_dir) ] || \
-		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
+		PATH="$(combined_bin_paths):$(PATH)" PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
 
 .PHONY: thrift-gen-$(SUBDIR)
 thrift-gen-$(SUBDIR): install-tools
 	@echo "--- Generating thrift files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(thrift_rules_dir) ] || \
-		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(thrift_output_dir) src/$(SUBDIR)/$(thrift_rules_dir)
+		PATH="$(combined_bin_paths):$(PATH)" PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(thrift_output_dir) src/$(SUBDIR)/$(thrift_rules_dir)
 
 .PHONY: proto-gen-$(SUBDIR)
 proto-gen-$(SUBDIR): install-tools
 	@echo "--- Generating protobuf files $(SUBDIR)"
-	@[ ! -d src/$(SUBDIR)/$(proto_rules_dir) ] || \
-		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(proto_output_dir) src/$(SUBDIR)/$(proto_rules_dir)
+	[ ! -d src/$(SUBDIR)/$(proto_rules_dir) ] || \
+		PATH="$(combined_bin_paths):$(PATH)" PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(proto_output_dir) src/$(SUBDIR)/$(proto_rules_dir)
 
 .PHONY: asset-gen-$(SUBDIR)
 asset-gen-$(SUBDIR): install-tools
 	@echo "--- Generating asset files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(assets_rules_dir) ] || \
-		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
+		PATH="$(combined_bin_paths):$(PATH)" PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
 
 .PHONY: genny-gen-$(SUBDIR)
 genny-gen-$(SUBDIR): install-tools
 	@echo "--- Generating genny files $(SUBDIR)"
 	@[ ! -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk ] || \
-		PATH=$(combined_bin_paths):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk $(genny_target)
-	@PATH=$(combined_bin_paths):$(PATH) bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
+		PATH="$(combined_bin_paths):$(PATH)" make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk $(genny_target)
+	@PATH="$(combined_bin_paths):$(PATH)" bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
 
 .PHONY: license-gen-$(SUBDIR)
 license-gen-$(SUBDIR): install-tools
 	@echo "--- Updating license in files $(SUBDIR)"
-	@find $(SELF_DIR)/src/$(SUBDIR) -name '*.go' | PATH=$(combined_bin_paths):$(PATH) xargs -I{} update-license {}
+	@find $(SELF_DIR)/src/$(SUBDIR) -name '*.go' | PATH="$(combined_bin_paths):$(PATH)" xargs -I{} update-license {}
 
 .PHONY: all-gen-$(SUBDIR)
 # NB(prateek): order matters here, mock-gen needs to be after proto/thrift because we sometimes
@@ -404,7 +404,7 @@ $(foreach SUBDIR_TARGET, $(SUBDIR_TARGETS), $(eval $(SUBDIR_TARGET_RULE)))
 kube-gen-all: install-tools
 	@echo "--- Generating kube bundle"
 	@./kube/scripts/build_bundle.sh
-	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0
+	find kube -name '*.yaml' -print0 | PATH="$(combined_bin_paths):$(PATH)" xargs -0 kubeval -v=1.12.0
 
 .PHONY: go-mod-tidy
 go-mod-tidy:
@@ -474,12 +474,12 @@ test-all-gen: all-gen
 # Runs a fossa license report
 .PHONY: fossa
 fossa: install-tools
-	PATH=$(combined_bin_paths):$(PATH) fossa analyze --verbose --no-ansi
+	PATH="$(combined_bin_paths):$(PATH)" fossa analyze --verbose --no-ansi
 
 # Waits for the result of a fossa test and exits success if pass or fail if fails
 .PHONY: fossa-test
 fossa-test: fossa
-	PATH=$(combined_bin_paths):$(PATH) fossa test
+	PATH="$(combined_bin_paths):$(PATH)" fossa test
 
 .PHONY: clean-build
 clean-build:
