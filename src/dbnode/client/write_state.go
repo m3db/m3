@@ -65,24 +65,25 @@ type writeState struct {
 	sync.Mutex
 	refCounter
 
-	consistencyLevel                                    topology.ConsistencyLevel
-	shardsLeavingCountTowardsConsistency                bool
-	shardsLeavingAndInitializingCountTowardsConsistency bool
-	topoMap                                             topology.Map
-	reusableByteID                                      *ident.ReusableBytesID
-	hostSuccessList                                     []ident.ID
-	op                                                  writeOp
-	nsID                                                ident.ID
-	tsID                                                ident.ID
-	tagEncoder                                          serialize.TagEncoder
-	annotation                                          checked.Bytes
-	majority, pending                                   int32
-	success                                             int32
-	errors                                              []error
-	lastResetTime                                       time.Time
-	queues                                              []hostQueue
-	tagEncoderPool                                      serialize.TagEncoderPool
-	pool                                                *writeStatePool
+	consistencyLevel                                       topology.ConsistencyLevel
+	shardsLeavingCountTowardsConsistency                   bool
+	shardsLeavingAndInitializingCountTowardsConsistency    bool
+	successAsLeavingAndInitializingCountTowardsConsistency bool
+	topoMap                                                topology.Map
+	reusableByteID                                         *ident.ReusableBytesID
+	hostSuccessList                                        []ident.ID
+	op                                                     writeOp
+	nsID                                                   ident.ID
+	tsID                                                   ident.ID
+	tagEncoder                                             serialize.TagEncoder
+	annotation                                             checked.Bytes
+	majority, pending                                      int32
+	success                                                int32
+	errors                                                 []error
+	lastResetTime                                          time.Time
+	queues                                                 []hostQueue
+	tagEncoderPool                                         serialize.TagEncoderPool
+	pool                                                   *writeStatePool
 }
 
 func newWriteState(
@@ -106,7 +107,6 @@ func (w *writeState) close() {
 	w.nsID.Finalize()
 	w.tsID.Finalize()
 	w.hostSuccessList = nil
-
 	if w.annotation != nil {
 		w.annotation.DecRef()
 		w.annotation.Finalize()
@@ -240,6 +240,7 @@ func (w *writeState) setHostSuccessList(hostID, pairedHostID string) {
 	w.reusableByteID.Reset(ident.StringID(pairedHostID).Bytes())
 	if findHost(w.hostSuccessList, w.reusableByteID) {
 		w.success++
+		w.successAsLeavingAndInitializingCountTowardsConsistency = true
 	}
 	w.reusableByteID.Reset(ident.StringID(hostID).Bytes())
 	w.hostSuccessList = append(w.hostSuccessList, w.reusableByteID)
