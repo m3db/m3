@@ -174,7 +174,7 @@ func (e *GaugeElem) AddValue(timestamp time.Time, value float64, annotation []by
 // AddUnique adds a metric value from a given source at a given timestamp.
 // If previous values from the same source have already been added to the
 // same aggregation, the incoming value is discarded.
-// nolint: dupl
+//nolint: dupl
 func (e *GaugeElem) AddUnique(
 	timestamp time.Time,
 	metric aggregated.ForwardedMetric,
@@ -619,7 +619,7 @@ func (e *GaugeElem) insertDirty(alignedStart xtime.UnixNano) {
 }
 
 // find finds the aggregation for a given time, or returns nil.
-// nolint: dupl
+//nolint: dupl
 func (e *GaugeElem) find(alignedStartNanos xtime.UnixNano) (timedGauge, error) {
 	e.RLock()
 	if e.closed {
@@ -637,7 +637,7 @@ func (e *GaugeElem) find(alignedStartNanos xtime.UnixNano) (timedGauge, error) {
 
 // findOrCreate finds the aggregation for a given time, or creates one
 // if it doesn't exist.
-// nolint: dupl
+//nolint: dupl
 func (e *GaugeElem) findOrCreate(
 	alignedStartNanos int64,
 	createOpts createAggregationOptions,

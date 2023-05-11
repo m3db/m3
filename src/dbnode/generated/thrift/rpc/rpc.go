@@ -425,9 +425,9 @@ func (p *EqualTimestampStrategy) Value() (driver.Value, error) {
 }
 
 // Attributes:
-//   - Type
-//   - Message
-//   - Flags
+//  - Type
+//  - Message
+//  - Flags
 type Error struct {
 	Type    ErrorType `thrift:"type,1,required" db:"type" json:"type"`
 	Message string    `thrift:"message,2,required" db:"message" json:"message"`
@@ -614,7 +614,7 @@ func (p *Error) Error() string {
 }
 
 // Attributes:
-//   - Errors
+//  - Errors
 type WriteBatchRawErrors struct {
 	Errors []*WriteBatchRawError `thrift:"errors,1,required" db:"errors" json:"errors"`
 }
@@ -736,13 +736,13 @@ func (p *WriteBatchRawErrors) Error() string {
 }
 
 // Attributes:
-//   - RangeStart
-//   - RangeEnd
-//   - NameSpace
-//   - ID
-//   - RangeType
-//   - ResultTimeType
-//   - Source
+//  - RangeStart
+//  - RangeEnd
+//  - NameSpace
+//  - ID
+//  - RangeType
+//  - ResultTimeType
+//  - Source
 type FetchRequest struct {
 	RangeStart     int64    `thrift:"rangeStart,1,required" db:"rangeStart" json:"rangeStart"`
 	RangeEnd       int64    `thrift:"rangeEnd,2,required" db:"rangeEnd" json:"rangeEnd"`
@@ -1090,7 +1090,7 @@ func (p *FetchRequest) String() string {
 }
 
 // Attributes:
-//   - Datapoints
+//  - Datapoints
 type FetchResult_ struct {
 	Datapoints []*Datapoint `thrift:"datapoints,1,required" db:"datapoints" json:"datapoints"`
 }
@@ -1210,10 +1210,10 @@ func (p *FetchResult_) String() string {
 }
 
 // Attributes:
-//   - Timestamp
-//   - Value
-//   - Annotation
-//   - TimestampTimeType
+//  - Timestamp
+//  - Value
+//  - Annotation
+//  - TimestampTimeType
 type Datapoint struct {
 	Timestamp         int64    `thrift:"timestamp,1,required" db:"timestamp" json:"timestamp"`
 	Value             float64  `thrift:"value,2,required" db:"value" json:"value"`
@@ -1438,9 +1438,9 @@ func (p *Datapoint) String() string {
 }
 
 // Attributes:
-//   - NameSpace
-//   - ID
-//   - Datapoint
+//  - NameSpace
+//  - ID
+//  - Datapoint
 type WriteRequest struct {
 	NameSpace string     `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
 	ID        string     `thrift:"id,2,required" db:"id" json:"id"`
@@ -1627,10 +1627,10 @@ func (p *WriteRequest) String() string {
 }
 
 // Attributes:
-//   - NameSpace
-//   - ID
-//   - Tags
-//   - Datapoint
+//  - NameSpace
+//  - ID
+//  - Tags
+//  - Datapoint
 type WriteTaggedRequest struct {
 	NameSpace string     `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
 	ID        string     `thrift:"id,2,required" db:"id" json:"id"`
@@ -1875,12 +1875,12 @@ func (p *WriteTaggedRequest) String() string {
 }
 
 // Attributes:
-//   - RangeStart
-//   - RangeEnd
-//   - NameSpace
-//   - Ids
-//   - RangeTimeType
-//   - Source
+//  - RangeStart
+//  - RangeEnd
+//  - NameSpace
+//  - Ids
+//  - RangeTimeType
+//  - Source
 type FetchBatchRawRequest struct {
 	RangeStart    int64    `thrift:"rangeStart,1,required" db:"rangeStart" json:"rangeStart"`
 	RangeEnd      int64    `thrift:"rangeEnd,2,required" db:"rangeEnd" json:"rangeEnd"`
@@ -2204,9 +2204,9 @@ func (p *FetchBatchRawRequest) String() string {
 }
 
 // Attributes:
-//   - NameSpaces
-//   - Elements
-//   - Source
+//  - NameSpaces
+//  - Elements
+//  - Source
 type FetchBatchRawV2Request struct {
 	NameSpaces [][]byte                         `thrift:"nameSpaces,1,required" db:"nameSpaces" json:"nameSpaces"`
 	Elements   []*FetchBatchRawV2RequestElement `thrift:"elements,2,required" db:"elements" json:"elements"`
@@ -2428,11 +2428,11 @@ func (p *FetchBatchRawV2Request) String() string {
 }
 
 // Attributes:
-//   - NameSpace
-//   - RangeStart
-//   - RangeEnd
-//   - ID
-//   - RangeTimeType
+//  - NameSpace
+//  - RangeStart
+//  - RangeEnd
+//  - ID
+//  - RangeTimeType
 type FetchBatchRawV2RequestElement struct {
 	NameSpace     int64    `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
 	RangeStart    int64    `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
@@ -2693,7 +2693,7 @@ func (p *FetchBatchRawV2RequestElement) String() string {
 }
 
 // Attributes:
-//   - Elements
+//  - Elements
 type FetchBatchRawResult_ struct {
 	Elements []*FetchRawResult_ `thrift:"elements,1,required" db:"elements" json:"elements"`
 }
@@ -2811,8 +2811,8 @@ func (p *FetchBatchRawResult_) String() string {
 }
 
 // Attributes:
-//   - Segments
-//   - Err
+//  - Segments
+//  - Err
 type FetchRawResult_ struct {
 	Segments []*Segments `thrift:"segments,1,required" db:"segments" json:"segments"`
 	Err      *Error      `thrift:"err,2" db:"err" json:"err,omitempty"`
@@ -2976,8 +2976,8 @@ func (p *FetchRawResult_) String() string {
 }
 
 // Attributes:
-//   - Merged
-//   - Unmerged
+//  - Merged
+//  - Unmerged
 type Segments struct {
 	Merged   *Segment   `thrift:"merged,1" db:"merged" json:"merged,omitempty"`
 	Unmerged []*Segment `thrift:"unmerged,2" db:"unmerged" json:"unmerged,omitempty"`
@@ -3141,11 +3141,11 @@ func (p *Segments) String() string {
 }
 
 // Attributes:
-//   - Head
-//   - Tail
-//   - StartTime
-//   - BlockSize
-//   - Checksum
+//  - Head
+//  - Tail
+//  - StartTime
+//  - BlockSize
+//  - Checksum
 type Segment struct {
 	Head      []byte `thrift:"head,1,required" db:"head" json:"head"`
 	Tail      []byte `thrift:"tail,2,required" db:"tail" json:"tail"`
@@ -3418,17 +3418,17 @@ func (p *Segment) String() string {
 }
 
 // Attributes:
-//   - NameSpace
-//   - Query
-//   - RangeStart
-//   - RangeEnd
-//   - FetchData
-//   - SeriesLimit
-//   - RangeTimeType
-//   - RequireExhaustive
-//   - DocsLimit
-//   - Source
-//   - RequireNoWait
+//  - NameSpace
+//  - Query
+//  - RangeStart
+//  - RangeEnd
+//  - FetchData
+//  - SeriesLimit
+//  - RangeTimeType
+//  - RequireExhaustive
+//  - DocsLimit
+//  - Source
+//  - RequireNoWait
 type FetchTaggedRequest struct {
 	NameSpace         []byte   `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
 	Query             []byte   `thrift:"query,2,required" db:"query" json:"query"`
@@ -3946,10 +3946,10 @@ func (p *FetchTaggedRequest) String() string {
 }
 
 // Attributes:
-//   - Elements
-//   - Exhaustive
-//   - WaitedIndex
-//   - WaitedSeriesRead
+//  - Elements
+//  - Exhaustive
+//  - WaitedIndex
+//  - WaitedSeriesRead
 type FetchTaggedResult_ struct {
 	Elements         []*FetchTaggedIDResult_ `thrift:"elements,1,required" db:"elements" json:"elements"`
 	Exhaustive       bool                    `thrift:"exhaustive,2,required" db:"exhaustive" json:"exhaustive"`
@@ -4196,11 +4196,11 @@ func (p *FetchTaggedResult_) String() string {
 }
 
 // Attributes:
-//   - ID
-//   - NameSpace
-//   - EncodedTags
-//   - Segments
-//   - Err
+//  - ID
+//  - NameSpace
+//  - EncodedTags
+//  - Segments
+//  - Err
 type FetchTaggedIDResult_ struct {
 	ID          []byte      `thrift:"id,1,required" db:"id" json:"id"`
 	NameSpace   []byte      `thrift:"nameSpace,2,required" db:"nameSpace" json:"nameSpace"`
@@ -4484,10 +4484,10 @@ func (p *FetchTaggedIDResult_) String() string {
 }
 
 // Attributes:
-//   - NameSpace
-//   - Shard
-//   - Elements
-//   - Source
+//  - NameSpace
+//  - Shard
+//  - Elements
+//  - Source
 type FetchBlocksRawRequest struct {
 	NameSpace []byte                          `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
 	Shard     int32                           `thrift:"shard,2,required" db:"shard" json:"shard"`
@@ -4725,8 +4725,8 @@ func (p *FetchBlocksRawRequest) String() string {
 }
 
 // Attributes:
-//   - ID
-//   - Starts
+//  - ID
+//  - Starts
 type FetchBlocksRawRequestElement struct {
 	ID     []byte  `thrift:"id,1,required" db:"id" json:"id"`
 	Starts []int64 `thrift:"starts,2,required" db:"starts" json:"starts"`
@@ -4885,7 +4885,7 @@ func (p *FetchBlocksRawRequestElement) String() string {
 }
 
 // Attributes:
-//   - Elements
+//  - Elements
 type FetchBlocksRawResult_ struct {
 	Elements []*Blocks `thrift:"elements,1,required" db:"elements" json:"elements"`
 }
@@ -5003,8 +5003,8 @@ func (p *FetchBlocksRawResult_) String() string {
 }
 
 // Attributes:
-//   - ID
-//   - Blocks
+//  - ID
+//  - Blocks
 type Blocks struct {
 	ID     []byte   `thrift:"id,1,required" db:"id" json:"id"`
 	Blocks []*Block `thrift:"blocks,2,required" db:"blocks" json:"blocks"`
@@ -5161,10 +5161,10 @@ func (p *Blocks) String() string {
 }
 
 // Attributes:
-//   - Start
-//   - Segments
-//   - Err
-//   - Checksum
+//  - Start
+//  - Segments
+//  - Err
+//  - Checksum
 type Block struct {
 	Start    int64     `thrift:"start,1,required" db:"start" json:"start"`
 	Segments *Segments `thrift:"segments,2" db:"segments" json:"segments,omitempty"`
@@ -5398,8 +5398,8 @@ func (p *Block) String() string {
 }
 
 // Attributes:
-//   - Name
-//   - Value
+//  - Name
+//  - Value
 type Tag struct {
 	Name  string `thrift:"name,1,required" db:"name" json:"name"`
 	Value string `thrift:"value,2,required" db:"value" json:"value"`
@@ -5537,15 +5537,15 @@ func (p *Tag) String() string {
 }
 
 // Attributes:
-//   - NameSpace
-//   - Shard
-//   - RangeStart
-//   - RangeEnd
-//   - Limit
-//   - PageToken
-//   - IncludeSizes
-//   - IncludeChecksums
-//   - IncludeLastRead
+//  - NameSpace
+//  - Shard
+//  - RangeStart
+//  - RangeEnd
+//  - Limit
+//  - PageToken
+//  - IncludeSizes
+//  - IncludeChecksums
+//  - IncludeLastRead
 type FetchBlocksMetadataRawV2Request struct {
 	NameSpace        []byte `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
 	Shard            int32  `thrift:"shard,2,required" db:"shard" json:"shard"`
@@ -5977,8 +5977,8 @@ func (p *FetchBlocksMetadataRawV2Request) String() string {
 }
 
 // Attributes:
-//   - Elements
-//   - NextPageToken
+//  - Elements
+//  - NextPageToken
 type FetchBlocksMetadataRawV2Result_ struct {
 	Elements      []*BlockMetadataV2 `thrift:"elements,1,required" db:"elements" json:"elements"`
 	NextPageToken []byte             `thrift:"nextPageToken,2" db:"nextPageToken" json:"nextPageToken,omitempty"`
@@ -6140,14 +6140,14 @@ func (p *FetchBlocksMetadataRawV2Result_) String() string {
 }
 
 // Attributes:
-//   - ID
-//   - Start
-//   - Err
-//   - Size
-//   - Checksum
-//   - LastRead
-//   - LastReadTimeType
-//   - EncodedTags
+//  - ID
+//  - Start
+//  - Err
+//  - Size
+//  - Checksum
+//  - LastRead
+//  - LastReadTimeType
+//  - EncodedTags
 type BlockMetadataV2 struct {
 	ID               []byte   `thrift:"id,1,required" db:"id" json:"id"`
 	Start            int64    `thrift:"start,2,required" db:"start" json:"start"`
@@ -6553,8 +6553,8 @@ func (p *BlockMetadataV2) String() string {
 }
 
 // Attributes:
-//   - NameSpace
-//   - Elements
+//  - NameSpace
+//  - Elements
 type WriteBatchRawRequest struct {
 	NameSpace []byte                         `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
 	Elements  []*WriteBatchRawRequestElement `thrift:"elements,2,required" db:"elements" json:"elements"`
@@ -6711,8 +6711,8 @@ func (p *WriteBatchRawRequest) String() string {
 }
 
 // Attributes:
-//   - NameSpaces
-//   - Elements
+//  - NameSpaces
+//  - Elements
 type WriteBatchRawV2Request struct {
 	NameSpaces [][]byte                         `thrift:"nameSpaces,1,required" db:"nameSpaces" json:"nameSpaces"`
 	Elements   []*WriteBatchRawV2RequestElement `thrift:"elements,2,required" db:"elements" json:"elements"`
@@ -6890,8 +6890,8 @@ func (p *WriteBatchRawV2Request) String() string {
 }
 
 // Attributes:
-//   - ID
-//   - Datapoint
+//  - ID
+//  - Datapoint
 type WriteBatchRawRequestElement struct {
 	ID        []byte     `thrift:"id,1,required" db:"id" json:"id"`
 	Datapoint *Datapoint `thrift:"datapoint,2,required" db:"datapoint" json:"datapoint"`
@@ -7039,9 +7039,9 @@ func (p *WriteBatchRawRequestElement) String() string {
 }
 
 // Attributes:
-//   - ID
-//   - Datapoint
-//   - NameSpace
+//  - ID
+//  - Datapoint
+//  - NameSpace
 type WriteBatchRawV2RequestElement struct {
 	ID        []byte     `thrift:"id,1,required" db:"id" json:"id"`
 	Datapoint *Datapoint `thrift:"datapoint,2,required" db:"datapoint" json:"datapoint"`
@@ -7228,8 +7228,8 @@ func (p *WriteBatchRawV2RequestElement) String() string {
 }
 
 // Attributes:
-//   - NameSpace
-//   - Elements
+//  - NameSpace
+//  - Elements
 type WriteTaggedBatchRawRequest struct {
 	NameSpace []byte                               `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
 	Elements  []*WriteTaggedBatchRawRequestElement `thrift:"elements,2,required" db:"elements" json:"elements"`
@@ -7386,8 +7386,8 @@ func (p *WriteTaggedBatchRawRequest) String() string {
 }
 
 // Attributes:
-//   - NameSpaces
-//   - Elements
+//  - NameSpaces
+//  - Elements
 type WriteTaggedBatchRawV2Request struct {
 	NameSpaces [][]byte                               `thrift:"nameSpaces,1,required" db:"nameSpaces" json:"nameSpaces"`
 	Elements   []*WriteTaggedBatchRawV2RequestElement `thrift:"elements,2,required" db:"elements" json:"elements"`
@@ -7565,9 +7565,9 @@ func (p *WriteTaggedBatchRawV2Request) String() string {
 }
 
 // Attributes:
-//   - ID
-//   - EncodedTags
-//   - Datapoint
+//  - ID
+//  - EncodedTags
+//  - Datapoint
 type WriteTaggedBatchRawRequestElement struct {
 	ID          []byte     `thrift:"id,1,required" db:"id" json:"id"`
 	EncodedTags []byte     `thrift:"encodedTags,2,required" db:"encodedTags" json:"encodedTags"`
@@ -7754,10 +7754,10 @@ func (p *WriteTaggedBatchRawRequestElement) String() string {
 }
 
 // Attributes:
-//   - ID
-//   - EncodedTags
-//   - Datapoint
-//   - NameSpace
+//  - ID
+//  - EncodedTags
+//  - Datapoint
+//  - NameSpace
 type WriteTaggedBatchRawV2RequestElement struct {
 	ID          []byte     `thrift:"id,1,required" db:"id" json:"id"`
 	EncodedTags []byte     `thrift:"encodedTags,2,required" db:"encodedTags" json:"encodedTags"`
@@ -7983,8 +7983,8 @@ func (p *WriteTaggedBatchRawV2RequestElement) String() string {
 }
 
 // Attributes:
-//   - Index
-//   - Err
+//  - Index
+//  - Err
 type WriteBatchRawError struct {
 	Index int64  `thrift:"index,1,required" db:"index" json:"index"`
 	Err   *Error `thrift:"err,2,required" db:"err" json:"err"`
@@ -8132,7 +8132,7 @@ func (p *WriteBatchRawError) String() string {
 }
 
 // Attributes:
-//   - NameSpace
+//  - NameSpace
 type TruncateRequest struct {
 	NameSpace []byte `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
 }
@@ -8231,7 +8231,7 @@ func (p *TruncateRequest) String() string {
 }
 
 // Attributes:
-//   - NumSeries
+//  - NumSeries
 type TruncateResult_ struct {
 	NumSeries int64 `thrift:"numSeries,1,required" db:"numSeries" json:"numSeries"`
 }
@@ -8330,10 +8330,10 @@ func (p *TruncateResult_) String() string {
 }
 
 // Attributes:
-//   - Ok
-//   - Status
-//   - Bootstrapped
-//   - Metadata
+//  - Ok
+//  - Status
+//  - Bootstrapped
+//  - Metadata
 type NodeHealthResult_ struct {
 	Ok           bool              `thrift:"ok,1,required" db:"ok" json:"ok"`
 	Status       string            `thrift:"status,2,required" db:"status" json:"status"`
@@ -8692,9 +8692,9 @@ func (p *NodeBootstrappedInPlacementOrNoPlacementResult_) String() string {
 }
 
 // Attributes:
-//   - LimitEnabled
-//   - LimitMbps
-//   - LimitCheckEvery
+//  - LimitEnabled
+//  - LimitMbps
+//  - LimitCheckEvery
 type NodePersistRateLimitResult_ struct {
 	LimitEnabled    bool    `thrift:"limitEnabled,1,required" db:"limitEnabled" json:"limitEnabled"`
 	LimitMbps       float64 `thrift:"limitMbps,2,required" db:"limitMbps" json:"limitMbps"`
@@ -8871,9 +8871,9 @@ func (p *NodePersistRateLimitResult_) String() string {
 }
 
 // Attributes:
-//   - LimitEnabled
-//   - LimitMbps
-//   - LimitCheckEvery
+//  - LimitEnabled
+//  - LimitMbps
+//  - LimitCheckEvery
 type NodeSetPersistRateLimitRequest struct {
 	LimitEnabled    *bool    `thrift:"limitEnabled,1" db:"limitEnabled" json:"limitEnabled,omitempty"`
 	LimitMbps       *float64 `thrift:"limitMbps,2" db:"limitMbps" json:"limitMbps,omitempty"`
@@ -9067,7 +9067,7 @@ func (p *NodeSetPersistRateLimitRequest) String() string {
 }
 
 // Attributes:
-//   - WriteNewSeriesAsync
+//  - WriteNewSeriesAsync
 type NodeWriteNewSeriesAsyncResult_ struct {
 	WriteNewSeriesAsync bool `thrift:"writeNewSeriesAsync,1,required" db:"writeNewSeriesAsync" json:"writeNewSeriesAsync"`
 }
@@ -9166,7 +9166,7 @@ func (p *NodeWriteNewSeriesAsyncResult_) String() string {
 }
 
 // Attributes:
-//   - WriteNewSeriesAsync
+//  - WriteNewSeriesAsync
 type NodeSetWriteNewSeriesAsyncRequest struct {
 	WriteNewSeriesAsync bool `thrift:"writeNewSeriesAsync,1,required" db:"writeNewSeriesAsync" json:"writeNewSeriesAsync"`
 }
@@ -9265,8 +9265,8 @@ func (p *NodeSetWriteNewSeriesAsyncRequest) String() string {
 }
 
 // Attributes:
-//   - WriteNewSeriesBackoffDuration
-//   - DurationType
+//  - WriteNewSeriesBackoffDuration
+//  - DurationType
 type NodeWriteNewSeriesBackoffDurationResult_ struct {
 	WriteNewSeriesBackoffDuration int64    `thrift:"writeNewSeriesBackoffDuration,1,required" db:"writeNewSeriesBackoffDuration" json:"writeNewSeriesBackoffDuration"`
 	DurationType                  TimeType `thrift:"durationType,2,required" db:"durationType" json:"durationType"`
@@ -9405,8 +9405,8 @@ func (p *NodeWriteNewSeriesBackoffDurationResult_) String() string {
 }
 
 // Attributes:
-//   - WriteNewSeriesBackoffDuration
-//   - DurationType
+//  - WriteNewSeriesBackoffDuration
+//  - DurationType
 type NodeSetWriteNewSeriesBackoffDurationRequest struct {
 	WriteNewSeriesBackoffDuration int64    `thrift:"writeNewSeriesBackoffDuration,1,required" db:"writeNewSeriesBackoffDuration" json:"writeNewSeriesBackoffDuration"`
 	DurationType                  TimeType `thrift:"durationType,2" db:"durationType" json:"durationType,omitempty"`
@@ -9550,7 +9550,7 @@ func (p *NodeSetWriteNewSeriesBackoffDurationRequest) String() string {
 }
 
 // Attributes:
-//   - WriteNewSeriesLimitPerShardPerSecond
+//  - WriteNewSeriesLimitPerShardPerSecond
 type NodeWriteNewSeriesLimitPerShardPerSecondResult_ struct {
 	WriteNewSeriesLimitPerShardPerSecond int64 `thrift:"writeNewSeriesLimitPerShardPerSecond,1,required" db:"writeNewSeriesLimitPerShardPerSecond" json:"writeNewSeriesLimitPerShardPerSecond"`
 }
@@ -9649,7 +9649,7 @@ func (p *NodeWriteNewSeriesLimitPerShardPerSecondResult_) String() string {
 }
 
 // Attributes:
-//   - WriteNewSeriesLimitPerShardPerSecond
+//  - WriteNewSeriesLimitPerShardPerSecond
 type NodeSetWriteNewSeriesLimitPerShardPerSecondRequest struct {
 	WriteNewSeriesLimitPerShardPerSecond int64 `thrift:"writeNewSeriesLimitPerShardPerSecond,1,required" db:"writeNewSeriesLimitPerShardPerSecond" json:"writeNewSeriesLimitPerShardPerSecond"`
 }
@@ -9748,8 +9748,8 @@ func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) String() string {
 }
 
 // Attributes:
-//   - Ok
-//   - Status
+//  - Ok
+//  - Status
 type HealthResult_ struct {
 	Ok     bool   `thrift:"ok,1,required" db:"ok" json:"ok"`
 	Status string `thrift:"status,2,required" db:"status" json:"status"`
@@ -9887,18 +9887,18 @@ func (p *HealthResult_) String() string {
 }
 
 // Attributes:
-//   - Query
-//   - RangeStart
-//   - RangeEnd
-//   - NameSpace
-//   - SeriesLimit
-//   - TagNameFilter
-//   - AggregateQueryType
-//   - RangeType
-//   - Source
-//   - DocsLimit
-//   - RequireExhaustive
-//   - RequireNoWait
+//  - Query
+//  - RangeStart
+//  - RangeEnd
+//  - NameSpace
+//  - SeriesLimit
+//  - TagNameFilter
+//  - AggregateQueryType
+//  - RangeType
+//  - Source
+//  - DocsLimit
+//  - RequireExhaustive
+//  - RequireNoWait
 type AggregateQueryRawRequest struct {
 	Query              []byte             `thrift:"query,1,required" db:"query" json:"query"`
 	RangeStart         int64              `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
@@ -10489,9 +10489,9 @@ func (p *AggregateQueryRawRequest) String() string {
 }
 
 // Attributes:
-//   - Results
-//   - Exhaustive
-//   - WaitedIndex
+//  - Results
+//  - Exhaustive
+//  - WaitedIndex
 type AggregateQueryRawResult_ struct {
 	Results     []*AggregateQueryRawResultTagNameElement `thrift:"results,1,required" db:"results" json:"results"`
 	Exhaustive  bool                                     `thrift:"exhaustive,2,required" db:"exhaustive" json:"exhaustive"`
@@ -10693,8 +10693,8 @@ func (p *AggregateQueryRawResult_) String() string {
 }
 
 // Attributes:
-//   - TagName
-//   - TagValues
+//  - TagName
+//  - TagValues
 type AggregateQueryRawResultTagNameElement struct {
 	TagName   []byte                                    `thrift:"tagName,1,required" db:"tagName" json:"tagName"`
 	TagValues []*AggregateQueryRawResultTagValueElement `thrift:"tagValues,2" db:"tagValues" json:"tagValues,omitempty"`
@@ -10854,7 +10854,7 @@ func (p *AggregateQueryRawResultTagNameElement) String() string {
 }
 
 // Attributes:
-//   - TagValue
+//  - TagValue
 type AggregateQueryRawResultTagValueElement struct {
 	TagValue []byte `thrift:"tagValue,1,required" db:"tagValue" json:"tagValue"`
 }
@@ -10953,18 +10953,18 @@ func (p *AggregateQueryRawResultTagValueElement) String() string {
 }
 
 // Attributes:
-//   - Query
-//   - RangeStart
-//   - RangeEnd
-//   - NameSpace
-//   - SeriesLimit
-//   - TagNameFilter
-//   - AggregateQueryType
-//   - RangeType
-//   - Source
-//   - DocsLimit
-//   - RequireExhaustive
-//   - RequireNoWait
+//  - Query
+//  - RangeStart
+//  - RangeEnd
+//  - NameSpace
+//  - SeriesLimit
+//  - TagNameFilter
+//  - AggregateQueryType
+//  - RangeType
+//  - Source
+//  - DocsLimit
+//  - RequireExhaustive
+//  - RequireNoWait
 type AggregateQueryRequest struct {
 	Query              *Query             `thrift:"query,1" db:"query" json:"query,omitempty"`
 	RangeStart         int64              `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
@@ -11560,8 +11560,8 @@ func (p *AggregateQueryRequest) String() string {
 }
 
 // Attributes:
-//   - Results
-//   - Exhaustive
+//  - Results
+//  - Exhaustive
 type AggregateQueryResult_ struct {
 	Results    []*AggregateQueryResultTagNameElement `thrift:"results,1,required" db:"results" json:"results"`
 	Exhaustive bool                                  `thrift:"exhaustive,2,required" db:"exhaustive" json:"exhaustive"`
@@ -11718,8 +11718,8 @@ func (p *AggregateQueryResult_) String() string {
 }
 
 // Attributes:
-//   - TagName
-//   - TagValues
+//  - TagName
+//  - TagValues
 type AggregateQueryResultTagNameElement struct {
 	TagName   string                                 `thrift:"tagName,1,required" db:"tagName" json:"tagName"`
 	TagValues []*AggregateQueryResultTagValueElement `thrift:"tagValues,2" db:"tagValues" json:"tagValues,omitempty"`
@@ -11879,7 +11879,7 @@ func (p *AggregateQueryResultTagNameElement) String() string {
 }
 
 // Attributes:
-//   - TagValue
+//  - TagValue
 type AggregateQueryResultTagValueElement struct {
 	TagValue string `thrift:"tagValue,1,required" db:"tagValue" json:"tagValue"`
 }
@@ -11978,16 +11978,16 @@ func (p *AggregateQueryResultTagValueElement) String() string {
 }
 
 // Attributes:
-//   - Query
-//   - RangeStart
-//   - RangeEnd
-//   - NameSpace
-//   - Limit
-//   - NoData
-//   - RangeType
-//   - ResultTimeType
-//   - Source
-//   - ClusterOptions
+//  - Query
+//  - RangeStart
+//  - RangeEnd
+//  - NameSpace
+//  - Limit
+//  - NoData
+//  - RangeType
+//  - ResultTimeType
+//  - Source
+//  - ClusterOptions
 type QueryRequest struct {
 	Query          *Query               `thrift:"query,1,required" db:"query" json:"query"`
 	RangeStart     int64                `thrift:"rangeStart,2,required" db:"rangeStart" json:"rangeStart"`
@@ -12477,8 +12477,8 @@ func (p *QueryRequest) String() string {
 }
 
 // Attributes:
-//   - ReadConsistency
-//   - ConflictResolutionStrategy
+//  - ReadConsistency
+//  - ConflictResolutionStrategy
 type ClusterQueryOptions struct {
 	ReadConsistency            *ReadConsistency        `thrift:"readConsistency,1" db:"readConsistency" json:"readConsistency,omitempty"`
 	ConflictResolutionStrategy *EqualTimestampStrategy `thrift:"conflictResolutionStrategy,2" db:"conflictResolutionStrategy" json:"conflictResolutionStrategy,omitempty"`
@@ -12629,8 +12629,8 @@ func (p *ClusterQueryOptions) String() string {
 }
 
 // Attributes:
-//   - Results
-//   - Exhaustive
+//  - Results
+//  - Exhaustive
 type QueryResult_ struct {
 	Results    []*QueryResultElement `thrift:"results,1,required" db:"results" json:"results"`
 	Exhaustive bool                  `thrift:"exhaustive,2,required" db:"exhaustive" json:"exhaustive"`
@@ -12787,9 +12787,9 @@ func (p *QueryResult_) String() string {
 }
 
 // Attributes:
-//   - ID
-//   - Tags
-//   - Datapoints
+//  - ID
+//  - Tags
+//  - Datapoints
 type QueryResultElement struct {
 	ID         string       `thrift:"id,1,required" db:"id" json:"id"`
 	Tags       []*Tag       `thrift:"tags,2,required" db:"tags" json:"tags"`
@@ -13006,8 +13006,8 @@ func (p *QueryResultElement) String() string {
 }
 
 // Attributes:
-//   - Field
-//   - Term
+//  - Field
+//  - Term
 type TermQuery struct {
 	Field string `thrift:"field,1,required" db:"field" json:"field"`
 	Term  string `thrift:"term,2,required" db:"term" json:"term"`
@@ -13145,8 +13145,8 @@ func (p *TermQuery) String() string {
 }
 
 // Attributes:
-//   - Field
-//   - Regexp
+//  - Field
+//  - Regexp
 type RegexpQuery struct {
 	Field  string `thrift:"field,1,required" db:"field" json:"field"`
 	Regexp string `thrift:"regexp,2,required" db:"regexp" json:"regexp"`
@@ -13284,7 +13284,7 @@ func (p *RegexpQuery) String() string {
 }
 
 // Attributes:
-//   - Query
+//  - Query
 type NegationQuery struct {
 	Query *Query `thrift:"query,1,required" db:"query" json:"query"`
 }
@@ -13391,7 +13391,7 @@ func (p *NegationQuery) String() string {
 }
 
 // Attributes:
-//   - Queries
+//  - Queries
 type ConjunctionQuery struct {
 	Queries []*Query `thrift:"queries,1,required" db:"queries" json:"queries"`
 }
@@ -13509,7 +13509,7 @@ func (p *ConjunctionQuery) String() string {
 }
 
 // Attributes:
-//   - Queries
+//  - Queries
 type DisjunctionQuery struct {
 	Queries []*Query `thrift:"queries,1,required" db:"queries" json:"queries"`
 }
@@ -13682,7 +13682,7 @@ func (p *AllQuery) String() string {
 }
 
 // Attributes:
-//   - Field
+//  - Field
 type FieldQuery struct {
 	Field string `thrift:"field,1,required" db:"field" json:"field"`
 }
@@ -13781,13 +13781,13 @@ func (p *FieldQuery) String() string {
 }
 
 // Attributes:
-//   - Term
-//   - Regexp
-//   - Negation
-//   - Conjunction
-//   - Disjunction
-//   - All
-//   - Field
+//  - Term
+//  - Regexp
+//  - Negation
+//  - Conjunction
+//  - Disjunction
+//  - All
+//  - Field
 type Query struct {
 	Term        *TermQuery        `thrift:"term,1" db:"term" json:"term,omitempty"`
 	Regexp      *RegexpQuery      `thrift:"regexp,2" db:"regexp" json:"regexp,omitempty"`
@@ -14154,12 +14154,12 @@ func (p *Query) String() string {
 }
 
 // Attributes:
-//   - SourceNamespace
-//   - TargetNamespace
-//   - RangeStart
-//   - RangeEnd
-//   - Step
-//   - RangeType
+//  - SourceNamespace
+//  - TargetNamespace
+//  - RangeStart
+//  - RangeEnd
+//  - Step
+//  - RangeType
 type AggregateTilesRequest struct {
 	SourceNamespace string   `thrift:"sourceNamespace,1,required" db:"sourceNamespace" json:"sourceNamespace"`
 	TargetNamespace string   `thrift:"targetNamespace,2,required" db:"targetNamespace" json:"targetNamespace"`
@@ -14459,7 +14459,7 @@ func (p *AggregateTilesRequest) String() string {
 }
 
 // Attributes:
-//   - ProcessedTileCount
+//  - ProcessedTileCount
 type AggregateTilesResult_ struct {
 	ProcessedTileCount int64 `thrift:"processedTileCount,1,required" db:"processedTileCount" json:"processedTileCount"`
 }
@@ -14558,14 +14558,14 @@ func (p *AggregateTilesResult_) String() string {
 }
 
 // Attributes:
-//   - Name
-//   - FilePathTemplate
-//   - Interval
-//   - Duration
-//   - Debug
-//   - ConditionalNumGoroutinesGreaterThan
-//   - ConditionalNumGoroutinesLessThan
-//   - ConditionalIsOverloaded
+//  - Name
+//  - FilePathTemplate
+//  - Interval
+//  - Duration
+//  - Debug
+//  - ConditionalNumGoroutinesGreaterThan
+//  - ConditionalNumGoroutinesLessThan
+//  - ConditionalIsOverloaded
 type DebugProfileStartRequest struct {
 	Name                                string  `thrift:"name,1,required" db:"name" json:"name"`
 	FilePathTemplate                    string  `thrift:"filePathTemplate,2,required" db:"filePathTemplate" json:"filePathTemplate"`
@@ -15028,7 +15028,7 @@ func (p *DebugProfileStartResult_) String() string {
 }
 
 // Attributes:
-//   - Name
+//  - Name
 type DebugProfileStopRequest struct {
 	Name string `thrift:"name,1,required" db:"name" json:"name"`
 }
@@ -15182,7 +15182,7 @@ func (p *DebugProfileStopResult_) String() string {
 }
 
 // Attributes:
-//   - Directory
+//  - Directory
 type DebugIndexMemorySegmentsRequest struct {
 	Directory string `thrift:"directory,1,required" db:"directory" json:"directory"`
 }
@@ -15445,7 +15445,7 @@ func NewNodeClientProtocol(t thrift.TTransport, iprot thrift.TProtocol, oprot th
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) Query(req *QueryRequest) (r *QueryResult_, err error) {
 	if err = p.sendQuery(req); err != nil {
 		return
@@ -15526,7 +15526,7 @@ func (p *NodeClient) recvQuery() (value *QueryResult_, err error) {
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) Aggregate(req *AggregateQueryRequest) (r *AggregateQueryResult_, err error) {
 	if err = p.sendAggregate(req); err != nil {
 		return
@@ -15607,7 +15607,7 @@ func (p *NodeClient) recvAggregate() (value *AggregateQueryResult_, err error) {
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) Fetch(req *FetchRequest) (r *FetchResult_, err error) {
 	if err = p.sendFetch(req); err != nil {
 		return
@@ -15688,7 +15688,7 @@ func (p *NodeClient) recvFetch() (value *FetchResult_, err error) {
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) Write(req *WriteRequest) (err error) {
 	if err = p.sendWrite(req); err != nil {
 		return
@@ -15768,7 +15768,7 @@ func (p *NodeClient) recvWrite() (err error) {
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) WriteTagged(req *WriteTaggedRequest) (err error) {
 	if err = p.sendWriteTagged(req); err != nil {
 		return
@@ -15848,7 +15848,7 @@ func (p *NodeClient) recvWriteTagged() (err error) {
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) AggregateRaw(req *AggregateQueryRawRequest) (r *AggregateQueryRawResult_, err error) {
 	if err = p.sendAggregateRaw(req); err != nil {
 		return
@@ -15929,7 +15929,7 @@ func (p *NodeClient) recvAggregateRaw() (value *AggregateQueryRawResult_, err er
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) FetchBatchRaw(req *FetchBatchRawRequest) (r *FetchBatchRawResult_, err error) {
 	if err = p.sendFetchBatchRaw(req); err != nil {
 		return
@@ -16010,7 +16010,7 @@ func (p *NodeClient) recvFetchBatchRaw() (value *FetchBatchRawResult_, err error
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) FetchBatchRawV2(req *FetchBatchRawV2Request) (r *FetchBatchRawResult_, err error) {
 	if err = p.sendFetchBatchRawV2(req); err != nil {
 		return
@@ -16091,7 +16091,7 @@ func (p *NodeClient) recvFetchBatchRawV2() (value *FetchBatchRawResult_, err err
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) FetchBlocksRaw(req *FetchBlocksRawRequest) (r *FetchBlocksRawResult_, err error) {
 	if err = p.sendFetchBlocksRaw(req); err != nil {
 		return
@@ -16172,7 +16172,7 @@ func (p *NodeClient) recvFetchBlocksRaw() (value *FetchBlocksRawResult_, err err
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) FetchTagged(req *FetchTaggedRequest) (r *FetchTaggedResult_, err error) {
 	if err = p.sendFetchTagged(req); err != nil {
 		return
@@ -16253,7 +16253,7 @@ func (p *NodeClient) recvFetchTagged() (value *FetchTaggedResult_, err error) {
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) FetchBlocksMetadataRawV2(req *FetchBlocksMetadataRawV2Request) (r *FetchBlocksMetadataRawV2Result_, err error) {
 	if err = p.sendFetchBlocksMetadataRawV2(req); err != nil {
 		return
@@ -16334,7 +16334,7 @@ func (p *NodeClient) recvFetchBlocksMetadataRawV2() (value *FetchBlocksMetadataR
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) WriteBatchRaw(req *WriteBatchRawRequest) (err error) {
 	if err = p.sendWriteBatchRaw(req); err != nil {
 		return
@@ -16414,7 +16414,7 @@ func (p *NodeClient) recvWriteBatchRaw() (err error) {
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) WriteBatchRawV2(req *WriteBatchRawV2Request) (err error) {
 	if err = p.sendWriteBatchRawV2(req); err != nil {
 		return
@@ -16494,7 +16494,7 @@ func (p *NodeClient) recvWriteBatchRawV2() (err error) {
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) WriteTaggedBatchRaw(req *WriteTaggedBatchRawRequest) (err error) {
 	if err = p.sendWriteTaggedBatchRaw(req); err != nil {
 		return
@@ -16574,7 +16574,7 @@ func (p *NodeClient) recvWriteTaggedBatchRaw() (err error) {
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) WriteTaggedBatchRawV2(req *WriteTaggedBatchRawV2Request) (err error) {
 	if err = p.sendWriteTaggedBatchRawV2(req); err != nil {
 		return
@@ -16730,7 +16730,7 @@ func (p *NodeClient) recvRepair() (err error) {
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) Truncate(req *TruncateRequest) (r *TruncateResult_, err error) {
 	if err = p.sendTruncate(req); err != nil {
 		return
@@ -16811,7 +16811,7 @@ func (p *NodeClient) recvTruncate() (value *TruncateResult_, err error) {
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) AggregateTiles(req *AggregateTilesRequest) (r *AggregateTilesResult_, err error) {
 	if err = p.sendAggregateTiles(req); err != nil {
 		return
@@ -17200,7 +17200,7 @@ func (p *NodeClient) recvGetPersistRateLimit() (value *NodePersistRateLimitResul
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) SetPersistRateLimit(req *NodeSetPersistRateLimitRequest) (r *NodePersistRateLimitResult_, err error) {
 	if err = p.sendSetPersistRateLimit(req); err != nil {
 		return
@@ -17358,7 +17358,7 @@ func (p *NodeClient) recvGetWriteNewSeriesAsync() (value *NodeWriteNewSeriesAsyn
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) SetWriteNewSeriesAsync(req *NodeSetWriteNewSeriesAsyncRequest) (r *NodeWriteNewSeriesAsyncResult_, err error) {
 	if err = p.sendSetWriteNewSeriesAsync(req); err != nil {
 		return
@@ -17516,7 +17516,7 @@ func (p *NodeClient) recvGetWriteNewSeriesBackoffDuration() (value *NodeWriteNew
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) SetWriteNewSeriesBackoffDuration(req *NodeSetWriteNewSeriesBackoffDurationRequest) (r *NodeWriteNewSeriesBackoffDurationResult_, err error) {
 	if err = p.sendSetWriteNewSeriesBackoffDuration(req); err != nil {
 		return
@@ -17674,7 +17674,7 @@ func (p *NodeClient) recvGetWriteNewSeriesLimitPerShardPerSecond() (value *NodeW
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) SetWriteNewSeriesLimitPerShardPerSecond(req *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) (r *NodeWriteNewSeriesLimitPerShardPerSecondResult_, err error) {
 	if err = p.sendSetWriteNewSeriesLimitPerShardPerSecond(req); err != nil {
 		return
@@ -17755,7 +17755,7 @@ func (p *NodeClient) recvSetWriteNewSeriesLimitPerShardPerSecond() (value *NodeW
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) DebugProfileStart(req *DebugProfileStartRequest) (r *DebugProfileStartResult_, err error) {
 	if err = p.sendDebugProfileStart(req); err != nil {
 		return
@@ -17836,7 +17836,7 @@ func (p *NodeClient) recvDebugProfileStart() (value *DebugProfileStartResult_, e
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) DebugProfileStop(req *DebugProfileStopRequest) (r *DebugProfileStopResult_, err error) {
 	if err = p.sendDebugProfileStop(req); err != nil {
 		return
@@ -17917,7 +17917,7 @@ func (p *NodeClient) recvDebugProfileStop() (value *DebugProfileStopResult_, err
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *NodeClient) DebugIndexMemorySegments(req *DebugIndexMemorySegmentsRequest) (r *DebugIndexMemorySegmentsResult_, err error) {
 	if err = p.sendDebugIndexMemorySegments(req); err != nil {
 		return
@@ -19750,7 +19750,7 @@ func (p *nodeProcessorDebugIndexMemorySegments) Process(seqId int32, iprot, opro
 // HELPER FUNCTIONS AND STRUCTURES
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeQueryArgs struct {
 	Req *QueryRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -19855,8 +19855,8 @@ func (p *NodeQueryArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeQueryResult struct {
 	Success *QueryResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error        `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -20005,7 +20005,7 @@ func (p *NodeQueryResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeAggregateArgs struct {
 	Req *AggregateQueryRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -20110,8 +20110,8 @@ func (p *NodeAggregateArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeAggregateResult struct {
 	Success *AggregateQueryResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                 `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -20260,7 +20260,7 @@ func (p *NodeAggregateResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeFetchArgs struct {
 	Req *FetchRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -20365,8 +20365,8 @@ func (p *NodeFetchArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeFetchResult struct {
 	Success *FetchResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error        `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -20515,7 +20515,7 @@ func (p *NodeFetchResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeWriteArgs struct {
 	Req *WriteRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -20616,7 +20616,7 @@ func (p *NodeWriteArgs) String() string {
 }
 
 // Attributes:
-//   - Err
+//  - Err
 type NodeWriteResult struct {
 	Err *Error `thrift:"err,1" db:"err" json:"err,omitempty"`
 }
@@ -20721,7 +20721,7 @@ func (p *NodeWriteResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeWriteTaggedArgs struct {
 	Req *WriteTaggedRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -20822,7 +20822,7 @@ func (p *NodeWriteTaggedArgs) String() string {
 }
 
 // Attributes:
-//   - Err
+//  - Err
 type NodeWriteTaggedResult struct {
 	Err *Error `thrift:"err,1" db:"err" json:"err,omitempty"`
 }
@@ -20927,7 +20927,7 @@ func (p *NodeWriteTaggedResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeAggregateRawArgs struct {
 	Req *AggregateQueryRawRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -21032,8 +21032,8 @@ func (p *NodeAggregateRawArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeAggregateRawResult struct {
 	Success *AggregateQueryRawResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                    `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -21182,7 +21182,7 @@ func (p *NodeAggregateRawResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeFetchBatchRawArgs struct {
 	Req *FetchBatchRawRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -21285,8 +21285,8 @@ func (p *NodeFetchBatchRawArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeFetchBatchRawResult struct {
 	Success *FetchBatchRawResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -21435,7 +21435,7 @@ func (p *NodeFetchBatchRawResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeFetchBatchRawV2Args struct {
 	Req *FetchBatchRawV2Request `thrift:"req,1" db:"req" json:"req"`
 }
@@ -21536,8 +21536,8 @@ func (p *NodeFetchBatchRawV2Args) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeFetchBatchRawV2Result struct {
 	Success *FetchBatchRawResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -21686,7 +21686,7 @@ func (p *NodeFetchBatchRawV2Result) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeFetchBlocksRawArgs struct {
 	Req *FetchBlocksRawRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -21787,8 +21787,8 @@ func (p *NodeFetchBlocksRawArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeFetchBlocksRawResult struct {
 	Success *FetchBlocksRawResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                 `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -21937,7 +21937,7 @@ func (p *NodeFetchBlocksRawResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeFetchTaggedArgs struct {
 	Req *FetchTaggedRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -22042,8 +22042,8 @@ func (p *NodeFetchTaggedArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeFetchTaggedResult struct {
 	Success *FetchTaggedResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error              `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -22192,7 +22192,7 @@ func (p *NodeFetchTaggedResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeFetchBlocksMetadataRawV2Args struct {
 	Req *FetchBlocksMetadataRawV2Request `thrift:"req,1" db:"req" json:"req"`
 }
@@ -22293,8 +22293,8 @@ func (p *NodeFetchBlocksMetadataRawV2Args) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeFetchBlocksMetadataRawV2Result struct {
 	Success *FetchBlocksMetadataRawV2Result_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                           `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -22443,7 +22443,7 @@ func (p *NodeFetchBlocksMetadataRawV2Result) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeWriteBatchRawArgs struct {
 	Req *WriteBatchRawRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -22544,7 +22544,7 @@ func (p *NodeWriteBatchRawArgs) String() string {
 }
 
 // Attributes:
-//   - Err
+//  - Err
 type NodeWriteBatchRawResult struct {
 	Err *WriteBatchRawErrors `thrift:"err,1" db:"err" json:"err,omitempty"`
 }
@@ -22647,7 +22647,7 @@ func (p *NodeWriteBatchRawResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeWriteBatchRawV2Args struct {
 	Req *WriteBatchRawV2Request `thrift:"req,1" db:"req" json:"req"`
 }
@@ -22748,7 +22748,7 @@ func (p *NodeWriteBatchRawV2Args) String() string {
 }
 
 // Attributes:
-//   - Err
+//  - Err
 type NodeWriteBatchRawV2Result struct {
 	Err *WriteBatchRawErrors `thrift:"err,1" db:"err" json:"err,omitempty"`
 }
@@ -22851,7 +22851,7 @@ func (p *NodeWriteBatchRawV2Result) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeWriteTaggedBatchRawArgs struct {
 	Req *WriteTaggedBatchRawRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -22952,7 +22952,7 @@ func (p *NodeWriteTaggedBatchRawArgs) String() string {
 }
 
 // Attributes:
-//   - Err
+//  - Err
 type NodeWriteTaggedBatchRawResult struct {
 	Err *WriteBatchRawErrors `thrift:"err,1" db:"err" json:"err,omitempty"`
 }
@@ -23055,7 +23055,7 @@ func (p *NodeWriteTaggedBatchRawResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeWriteTaggedBatchRawV2Args struct {
 	Req *WriteTaggedBatchRawV2Request `thrift:"req,1" db:"req" json:"req"`
 }
@@ -23156,7 +23156,7 @@ func (p *NodeWriteTaggedBatchRawV2Args) String() string {
 }
 
 // Attributes:
-//   - Err
+//  - Err
 type NodeWriteTaggedBatchRawV2Result struct {
 	Err *WriteBatchRawErrors `thrift:"err,1" db:"err" json:"err,omitempty"`
 }
@@ -23314,7 +23314,7 @@ func (p *NodeRepairArgs) String() string {
 }
 
 // Attributes:
-//   - Err
+//  - Err
 type NodeRepairResult struct {
 	Err *Error `thrift:"err,1" db:"err" json:"err,omitempty"`
 }
@@ -23419,7 +23419,7 @@ func (p *NodeRepairResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeTruncateArgs struct {
 	Req *TruncateRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -23520,8 +23520,8 @@ func (p *NodeTruncateArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeTruncateResult struct {
 	Success *TruncateResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error           `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -23670,7 +23670,7 @@ func (p *NodeTruncateResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeAggregateTilesArgs struct {
 	Req *AggregateTilesRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -23773,8 +23773,8 @@ func (p *NodeAggregateTilesArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeAggregateTilesResult struct {
 	Success *AggregateTilesResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                 `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -23978,8 +23978,8 @@ func (p *NodeHealthArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeHealthResult struct {
 	Success *NodeHealthResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error             `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -24183,8 +24183,8 @@ func (p *NodeBootstrappedArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeBootstrappedResult struct {
 	Success *NodeBootstrappedResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                   `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -24388,8 +24388,8 @@ func (p *NodeBootstrappedInPlacementOrNoPlacementArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeBootstrappedInPlacementOrNoPlacementResult struct {
 	Success *NodeBootstrappedInPlacementOrNoPlacementResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                                           `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -24593,8 +24593,8 @@ func (p *NodeGetPersistRateLimitArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeGetPersistRateLimitResult struct {
 	Success *NodePersistRateLimitResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                       `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -24743,7 +24743,7 @@ func (p *NodeGetPersistRateLimitResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeSetPersistRateLimitArgs struct {
 	Req *NodeSetPersistRateLimitRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -24844,8 +24844,8 @@ func (p *NodeSetPersistRateLimitArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeSetPersistRateLimitResult struct {
 	Success *NodePersistRateLimitResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                       `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -25049,8 +25049,8 @@ func (p *NodeGetWriteNewSeriesAsyncArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeGetWriteNewSeriesAsyncResult struct {
 	Success *NodeWriteNewSeriesAsyncResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                          `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -25199,7 +25199,7 @@ func (p *NodeGetWriteNewSeriesAsyncResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeSetWriteNewSeriesAsyncArgs struct {
 	Req *NodeSetWriteNewSeriesAsyncRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -25300,8 +25300,8 @@ func (p *NodeSetWriteNewSeriesAsyncArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeSetWriteNewSeriesAsyncResult struct {
 	Success *NodeWriteNewSeriesAsyncResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                          `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -25505,8 +25505,8 @@ func (p *NodeGetWriteNewSeriesBackoffDurationArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeGetWriteNewSeriesBackoffDurationResult struct {
 	Success *NodeWriteNewSeriesBackoffDurationResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                                    `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -25655,7 +25655,7 @@ func (p *NodeGetWriteNewSeriesBackoffDurationResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeSetWriteNewSeriesBackoffDurationArgs struct {
 	Req *NodeSetWriteNewSeriesBackoffDurationRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -25758,8 +25758,8 @@ func (p *NodeSetWriteNewSeriesBackoffDurationArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeSetWriteNewSeriesBackoffDurationResult struct {
 	Success *NodeWriteNewSeriesBackoffDurationResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                                    `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -25963,8 +25963,8 @@ func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeGetWriteNewSeriesLimitPerShardPerSecondResult struct {
 	Success *NodeWriteNewSeriesLimitPerShardPerSecondResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                                           `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -26113,7 +26113,7 @@ func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeSetWriteNewSeriesLimitPerShardPerSecondArgs struct {
 	Req *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -26214,8 +26214,8 @@ func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeSetWriteNewSeriesLimitPerShardPerSecondResult struct {
 	Success *NodeWriteNewSeriesLimitPerShardPerSecondResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                                           `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -26364,7 +26364,7 @@ func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeDebugProfileStartArgs struct {
 	Req *DebugProfileStartRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -26465,8 +26465,8 @@ func (p *NodeDebugProfileStartArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeDebugProfileStartResult struct {
 	Success *DebugProfileStartResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                    `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -26615,7 +26615,7 @@ func (p *NodeDebugProfileStartResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeDebugProfileStopArgs struct {
 	Req *DebugProfileStopRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -26716,8 +26716,8 @@ func (p *NodeDebugProfileStopArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeDebugProfileStopResult struct {
 	Success *DebugProfileStopResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                   `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -26866,7 +26866,7 @@ func (p *NodeDebugProfileStopResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type NodeDebugIndexMemorySegmentsArgs struct {
 	Req *DebugIndexMemorySegmentsRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -26967,8 +26967,8 @@ func (p *NodeDebugIndexMemorySegmentsArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type NodeDebugIndexMemorySegmentsResult struct {
 	Success *DebugIndexMemorySegmentsResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                           `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -27242,7 +27242,7 @@ func (p *ClusterClient) recvHealth() (value *HealthResult_, err error) {
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *ClusterClient) Write(req *WriteRequest) (err error) {
 	if err = p.sendWrite(req); err != nil {
 		return
@@ -27322,7 +27322,7 @@ func (p *ClusterClient) recvWrite() (err error) {
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *ClusterClient) WriteTagged(req *WriteTaggedRequest) (err error) {
 	if err = p.sendWriteTagged(req); err != nil {
 		return
@@ -27402,7 +27402,7 @@ func (p *ClusterClient) recvWriteTagged() (err error) {
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *ClusterClient) Query(req *QueryRequest) (r *QueryResult_, err error) {
 	if err = p.sendQuery(req); err != nil {
 		return
@@ -27483,7 +27483,7 @@ func (p *ClusterClient) recvQuery() (value *QueryResult_, err error) {
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *ClusterClient) Aggregate(req *AggregateQueryRequest) (r *AggregateQueryResult_, err error) {
 	if err = p.sendAggregate(req); err != nil {
 		return
@@ -27564,7 +27564,7 @@ func (p *ClusterClient) recvAggregate() (value *AggregateQueryResult_, err error
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *ClusterClient) Fetch(req *FetchRequest) (r *FetchResult_, err error) {
 	if err = p.sendFetch(req); err != nil {
 		return
@@ -27645,7 +27645,7 @@ func (p *ClusterClient) recvFetch() (value *FetchResult_, err error) {
 }
 
 // Parameters:
-//   - Req
+//  - Req
 func (p *ClusterClient) Truncate(req *TruncateRequest) (r *TruncateResult_, err error) {
 	if err = p.sendTruncate(req); err != nil {
 		return
@@ -28198,8 +28198,8 @@ func (p *ClusterHealthArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type ClusterHealthResult struct {
 	Success *HealthResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error         `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -28348,7 +28348,7 @@ func (p *ClusterHealthResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type ClusterWriteArgs struct {
 	Req *WriteRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -28449,7 +28449,7 @@ func (p *ClusterWriteArgs) String() string {
 }
 
 // Attributes:
-//   - Err
+//  - Err
 type ClusterWriteResult struct {
 	Err *Error `thrift:"err,1" db:"err" json:"err,omitempty"`
 }
@@ -28554,7 +28554,7 @@ func (p *ClusterWriteResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type ClusterWriteTaggedArgs struct {
 	Req *WriteTaggedRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -28655,7 +28655,7 @@ func (p *ClusterWriteTaggedArgs) String() string {
 }
 
 // Attributes:
-//   - Err
+//  - Err
 type ClusterWriteTaggedResult struct {
 	Err *Error `thrift:"err,1" db:"err" json:"err,omitempty"`
 }
@@ -28760,7 +28760,7 @@ func (p *ClusterWriteTaggedResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type ClusterQueryArgs struct {
 	Req *QueryRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -28865,8 +28865,8 @@ func (p *ClusterQueryArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type ClusterQueryResult struct {
 	Success *QueryResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error        `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -29015,7 +29015,7 @@ func (p *ClusterQueryResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type ClusterAggregateArgs struct {
 	Req *AggregateQueryRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -29120,8 +29120,8 @@ func (p *ClusterAggregateArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type ClusterAggregateResult struct {
 	Success *AggregateQueryResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                 `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -29270,7 +29270,7 @@ func (p *ClusterAggregateResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type ClusterFetchArgs struct {
 	Req *FetchRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -29375,8 +29375,8 @@ func (p *ClusterFetchArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type ClusterFetchResult struct {
 	Success *FetchResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error        `thrift:"err,1" db:"err" json:"err,omitempty"`
@@ -29525,7 +29525,7 @@ func (p *ClusterFetchResult) String() string {
 }
 
 // Attributes:
-//   - Req
+//  - Req
 type ClusterTruncateArgs struct {
 	Req *TruncateRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -29626,8 +29626,8 @@ func (p *ClusterTruncateArgs) String() string {
 }
 
 // Attributes:
-//   - Success
-//   - Err
+//  - Success
+//  - Err
 type ClusterTruncateResult struct {
 	Success *TruncateResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error           `thrift:"err,1" db:"err" json:"err,omitempty"`
