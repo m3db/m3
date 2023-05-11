@@ -1,7 +1,7 @@
 # Development Guide
 
 M3 is a large, active codebase. This guide is for all potential code
-contributors, designed to make it easier to get started with contributing to M3.
+contributors, designed to make it easier to get started with contributing to M3
 
 ## Setup Development Environment
 
