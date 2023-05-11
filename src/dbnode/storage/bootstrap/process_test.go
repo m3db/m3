@@ -115,8 +115,8 @@ func TestBootstrapProcessRunActiveBlockAdvanced(t *testing.T) {
 				SetReplicas(1).
 				SetShardSet(shardSet).
 				SetHostShardSets([]topology.HostShardSet{hostShardSet})
-			topoMap := topology.NewStaticMap(topoMapOpts)
-
+			topoMap, err := topology.NewStaticMap(topoMapOpts)
+			require.NoError(t, err)
 			topoState, err := newInitialTopologyState(origin, topoMap)
 			require.NoError(t, err)
 

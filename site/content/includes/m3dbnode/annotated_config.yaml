@@ -363,6 +363,9 @@ db:
         # Whether or not writes to leaving shards count towards consistency
         # Default = false
         shardsLeavingCountTowardsConsistency: <bool>
+        # Whether or not writes to both leaving and initializing shards as pair counts toward consistency
+        # Default = false
+        shardsLeavingAndInitializingCountTowardsConsistency: <bool>
   # Specifies the pooling policy
   pooling:
     # Initial alloc size for a block
