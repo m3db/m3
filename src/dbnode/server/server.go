@@ -198,8 +198,8 @@ func Run(runOpts RunOptions) {
 	secretsValidateErr := runOpts.Secrets.Validate()
 	if secretsValidateErr == nil {
 		// Passing valid parsed AuthConfig to populate inbound and outbound credentials.
-		auth.PopulateOutboundAuthConfig(runOpts.Secrets)
-		auth.PopulateInboundAuthConfig(runOpts.Secrets)
+		PopulateOutboundAuthConfig(runOpts.Secrets)
+		PopulateInboundAuthConfig(runOpts.Secrets)
 	} else {
 		auth.PopulateDefaultAuthConfig()
 	}

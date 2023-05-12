@@ -21,6 +21,7 @@
 package etcd
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -129,9 +130,18 @@ func (c *KeepAliveConfig) NewOptions() KeepAliveOptions {
 
 // AuthConfig configures authentication behavior.
 type AuthConfig struct {
-	Enabled bool          `yaml:"enabled"`
-	UserName  string `yaml:"username"`
-	Password  string `yaml:"password"`
+	Enabled  bool   `yaml:"enabled"`
+	UserName string `yaml:"username"`
+	Password string `yaml:"password"`
+}
+
+func (a *AuthConfig) Validate() error {
+	if a.Enabled {
+		if a.UserName == "" || a.Password == "" {
+			return fmt.Errorf("credentials must be set for client's outbound")
+		}
+	}
+	return nil
 }
 
 // NewOptions constructs options based on the config.
@@ -152,6 +162,7 @@ type Configuration struct {
 	SDConfig          services.Configuration `yaml:"m3sd"`
 	WatchWithRevision int64                  `yaml:"watchWithRevision"`
 	NewDirectoryMode  *os.FileMode           `yaml:"newDirectoryMode"`
+	Auth              *AuthConfig            `yaml:"auth"`
 
 	Retry                  retry.Configuration `yaml:"retry"`
 	RequestTimeout         time.Duration       `yaml:"requestTimeout"`

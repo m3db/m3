@@ -26,7 +26,9 @@ import (
 	"testing"
 	"time"
 
+	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/retry"
@@ -128,6 +130,200 @@ proto:
 				"ns2":    {SchemaDeployID: "deployID-345", MessageName: "ns2_msg_name"},
 			},
 		},
+	}
+
+	assert.Equal(t, expected, cfg)
+}
+
+func TestConfigurationWithAuth(t *testing.T) {
+	clientCfg := `
+  config:
+    service:
+      env: default_env
+      zone: embedded
+      service: m3db
+      auth:
+          enabled: true
+          username: user_db
+          password: pass_db
+      etcdClusters:
+        - zone: embedded
+          endpoints:
+            - etcd:2379
+            - etcd:456
+          auth:
+            enabled: true
+            username: user_etcd
+            password: pass_etcd
+  writeConsistencyLevel: majority
+  readConsistencyLevel: unstrict_majority
+`
+	fd, err := os.CreateTemp("", "config.yaml")
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, fd.Close())
+		assert.NoError(t, os.Remove(fd.Name()))
+	}()
+
+	_, err = fd.Write([]byte(clientCfg))
+	require.NoError(t, err)
+
+	var cfg Configuration
+	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+	require.NoError(t, err)
+
+	var (
+		levelMajority        = topology.ConsistencyLevelMajority
+		readUnstrictMajority = topology.ReadConsistencyLevelUnstrictMajority
+	)
+
+	expected := Configuration{
+		EnvironmentConfig: &environment.Configuration{
+			Services: []*environment.DynamicCluster{
+				{
+					Service: &etcdclient.Configuration{
+						Env:     "default_env",
+						Zone:    "embedded",
+						Service: "m3db",
+						Auth: &etcdclient.AuthConfig{
+							Enabled:  true,
+							UserName: "user_db",
+							Password: "pass_db",
+						},
+						ETCDClusters: []etcdclient.ClusterConfig{
+							{
+								Zone:      "embedded",
+								Endpoints: []string{"etcd:2379", "etcd:456"},
+								Auth: &etcdclient.AuthConfig{
+									Enabled:  true,
+									UserName: "user_etcd",
+									Password: "pass_etcd",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		WriteConsistencyLevel: &levelMajority,
+		ReadConsistencyLevel:  &readUnstrictMajority,
+	}
+
+	assert.Equal(t, expected, cfg)
+}
+
+func TestConfigurationWithAuthMultiple(t *testing.T) {
+	clientCfg := `
+  config:
+    services:
+       - service:
+          env: default_env1
+          zone: embedded1
+          service: m3db
+          auth:
+              enabled: true
+              username: user_db1
+              password: pass_db1
+          etcdClusters:
+            - zone: embedded1
+              endpoints:
+                - etcd:2379
+                - etcd:7756
+              auth:
+                enabled: true
+                username: user_etcd1
+                password: pass_etcd1
+       - service:
+          env: default_env2
+          zone: embedded2
+          service: m3db
+          auth:
+              enabled: true
+              username: user_db2
+              password: pass_db2
+          etcdClusters:
+            - zone: embedded2
+              endpoints:
+                - etcd:2379
+                - etcd:7756
+              auth:
+                enabled: true
+                username: user_etcd2
+                password: pass_etcd2      
+  writeConsistencyLevel: majority
+  readConsistencyLevel: unstrict_majority
+`
+	fd, err := os.CreateTemp("", "config.yaml")
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, fd.Close())
+		assert.NoError(t, os.Remove(fd.Name()))
+	}()
+
+	_, err = fd.Write([]byte(clientCfg))
+	require.NoError(t, err)
+
+	var cfg Configuration
+	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
+	require.NoError(t, err)
+
+	var (
+		levelMajority        = topology.ConsistencyLevelMajority
+		readUnstrictMajority = topology.ReadConsistencyLevelUnstrictMajority
+	)
+
+	expected := Configuration{
+		EnvironmentConfig: &environment.Configuration{
+			Services: []*environment.DynamicCluster{
+				{
+					Service: &etcdclient.Configuration{
+						Env:     "default_env1",
+						Zone:    "embedded1",
+						Service: "m3db",
+						Auth: &etcdclient.AuthConfig{
+							Enabled:  true,
+							UserName: "user_db1",
+							Password: "pass_db1",
+						},
+						ETCDClusters: []etcdclient.ClusterConfig{
+							{
+								Zone:      "embedded1",
+								Endpoints: []string{"etcd:2379", "etcd:7756"},
+								Auth: &etcdclient.AuthConfig{
+									Enabled:  true,
+									UserName: "user_etcd1",
+									Password: "pass_etcd1",
+								},
+							},
+						},
+					},
+				}, {
+					Service: &etcdclient.Configuration{
+						Env:     "default_env2",
+						Zone:    "embedded2",
+						Service: "m3db",
+						Auth: &etcdclient.AuthConfig{
+							Enabled:  true,
+							UserName: "user_db2",
+							Password: "pass_db2",
+						},
+						ETCDClusters: []etcdclient.ClusterConfig{
+							{
+								Zone:      "embedded2",
+								Endpoints: []string{"etcd:2379", "etcd:7756"},
+								Auth: &etcdclient.AuthConfig{
+									Enabled:  true,
+									UserName: "user_etcd2",
+									Password: "pass_etcd2",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		WriteConsistencyLevel: &levelMajority,
+		ReadConsistencyLevel:  &readUnstrictMajority,
 	}
 
 	assert.Equal(t, expected, cfg)

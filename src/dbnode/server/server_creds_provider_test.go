@@ -1,6 +1,7 @@
-package auth
+package server
 
 import (
+	"github.com/m3db/m3/src/dbnode/auth"
 	"github.com/m3db/m3/src/dbnode/auth/integration"
 	"github.com/stretchr/testify/assert"
 	"github.com/uber/tchannel-go/thrift"
@@ -15,12 +16,10 @@ func TestInboundCfgPopulate(t *testing.T) {
 	PopulateInboundAuthConfig(*authCfg)
 
 	for _, nodeCfg := range authCfg.Inbound.M3DB.Credentials {
-		err := InboundAuth.ValidateCredentials(Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: *nodeCfg.Username,
-				Digest:   *nodeCfg.Digest,
-				Type:     ClientCredential,
-			},
+		err := auth.InboundAuth.ValidateCredentials(auth.InboundCredentials{
+			Username: *nodeCfg.Username,
+			Digest:   *nodeCfg.Digest,
+			Type:     auth.ClientCredential,
 		})
 		assert.NoError(t, err)
 	}
@@ -33,12 +32,10 @@ func TestInboundCfgPopulateWithRefresh(t *testing.T) {
 	PopulateInboundAuthConfig(*authCfg)
 
 	for _, nodeCfg := range authCfg.Inbound.M3DB.Credentials {
-		err := InboundAuth.ValidateCredentials(Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: *nodeCfg.Username,
-				Digest:   *nodeCfg.Digest,
-				Type:     ClientCredential,
-			},
+		err := auth.InboundAuth.ValidateCredentials(auth.InboundCredentials{
+			Username: *nodeCfg.Username,
+			Digest:   *nodeCfg.Digest,
+			Type:     auth.ClientCredential,
 		})
 		assert.NoError(t, err)
 	}
@@ -47,12 +44,10 @@ func TestInboundCfgPopulateWithRefresh(t *testing.T) {
 	RefreshInboundAuthConfig(*refreshAuthCfg)
 
 	for _, nodeCfg := range refreshAuthCfg.Inbound.M3DB.Credentials {
-		err := InboundAuth.ValidateCredentials(Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: *nodeCfg.Username,
-				Digest:   *nodeCfg.Digest,
-				Type:     ClientCredential,
-			},
+		err := auth.InboundAuth.ValidateCredentials(auth.InboundCredentials{
+			Username: *nodeCfg.Username,
+			Digest:   *nodeCfg.Digest,
+			Type:     auth.ClientCredential,
 		})
 		assert.NoError(t, err)
 	}
@@ -64,12 +59,10 @@ func TestInboundCfgPopulateWithIncorrectCredsAuthDisabled(t *testing.T) {
 	PopulateInboundAuthConfig(*authCfg)
 
 	for _, nodeCfg := range authCfg.Inbound.M3DB.Credentials {
-		err := InboundAuth.ValidateCredentials(Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: "some_random_u",
-				Digest:   *nodeCfg.Digest,
-				Type:     ClientCredential,
-			},
+		err := auth.InboundAuth.ValidateCredentials(auth.InboundCredentials{
+			Username: "some_random_u",
+			Digest:   *nodeCfg.Digest,
+			Type:     auth.ClientCredential,
 		})
 		assert.NoError(t, err)
 	}
@@ -78,12 +71,10 @@ func TestInboundCfgPopulateWithIncorrectCredsAuthDisabled(t *testing.T) {
 	RefreshInboundAuthConfig(*refreshAuthCfg)
 
 	for _, nodeCfg := range authCfg.Inbound.M3DB.Credentials {
-		err := InboundAuth.ValidateCredentials(Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: *nodeCfg.Username,
-				Digest:   "some_random_p",
-				Type:     ClientCredential,
-			},
+		err := auth.InboundAuth.ValidateCredentials(auth.InboundCredentials{
+			Username: *nodeCfg.Username,
+			Digest:   "some_random_p",
+			Type:     auth.ClientCredential,
 		})
 		assert.Error(t, err)
 	}
@@ -95,12 +86,10 @@ func TestInboundCfgPopulateWithCorrectCredsAuthDisabledRefreshAuthEnabled(t *tes
 	PopulateInboundAuthConfig(*authCfg)
 
 	for _, nodeCfg := range authCfg.Inbound.M3DB.Credentials {
-		err := InboundAuth.ValidateCredentials(Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: "some_random_u",
-				Digest:   *nodeCfg.Digest,
-				Type:     ClientCredential,
-			},
+		err := auth.InboundAuth.ValidateCredentials(auth.InboundCredentials{
+			Username: "some_random_u",
+			Digest:   *nodeCfg.Digest,
+			Type:     auth.ClientCredential,
 		})
 		assert.NoError(t, err)
 	}
@@ -109,12 +98,10 @@ func TestInboundCfgPopulateWithCorrectCredsAuthDisabledRefreshAuthEnabled(t *tes
 	RefreshInboundAuthConfig(*refreshAuthCfg)
 
 	for _, nodeCfg := range refreshAuthCfg.Inbound.M3DB.Credentials {
-		err := InboundAuth.ValidateCredentials(Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: *nodeCfg.Username,
-				Digest:   *nodeCfg.Digest,
-				Type:     ClientCredential,
-			},
+		err := auth.InboundAuth.ValidateCredentials(auth.InboundCredentials{
+			Username: *nodeCfg.Username,
+			Digest:   *nodeCfg.Digest,
+			Type:     auth.ClientCredential,
 		})
 		assert.NoError(t, err)
 	}
@@ -128,7 +115,7 @@ func TestPeerOutboundCfgPopulate(t *testing.T) {
 	tCtx, _ := thrift.NewContext(time.Minute)
 
 	for _, nodeCfg := range authCfg.Outbound.M3DB.NodeConfig {
-		newTctx := OutboundAuth.WrapThriftContextWithPeerCreds(tCtx, nodeCfg.Service.Zone)
+		newTctx := auth.OutboundAuth.WrapThriftContextWithPeerCreds(tCtx, nodeCfg.Service.Zone)
 		assert.Equal(t, *nodeCfg.Service.Username, newTctx.Headers()["username"])
 		assert.Equal(t, *nodeCfg.Service.Password, newTctx.Headers()["password"])
 	}
@@ -141,7 +128,7 @@ func TestEtcdOutboundCfgPopulate(t *testing.T) {
 	PopulateOutboundAuthConfig(*authCfg)
 
 	for _, nodeCfg := range authCfg.Outbound.Etcd.NodeConfig {
-		newTctx := OutboundAuth.FetchOutboundEtcdCredentials(nodeCfg.Service.Zone)
+		newTctx := auth.OutboundAuth.FetchOutboundEtcdCredentials(nodeCfg.Service.Zone)
 		assert.Equal(t, *nodeCfg.Service.Username, newTctx.Username)
 		assert.Equal(t, *nodeCfg.Service.Password, newTctx.Password)
 		assert.Equal(t, nodeCfg.Service.Zone, newTctx.Zone)
@@ -149,9 +136,9 @@ func TestEtcdOutboundCfgPopulate(t *testing.T) {
 }
 
 func inboundAuthCleanup() {
-	InboundAuth = &Inbound{}
+	auth.InboundAuth = &auth.Inbound{}
 }
 
 func outboundAuthCleanup() {
-	OutboundAuth = &Outbound{}
+	auth.OutboundAuth = &auth.Outbound{}
 }

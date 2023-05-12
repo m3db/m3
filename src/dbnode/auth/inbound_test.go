@@ -10,96 +10,80 @@ import (
 func TestInbound_ValidateCredentials(t *testing.T) {
 	t.Run("valid credentials no auth mode", func(t *testing.T) {
 		inboundAuth := inboundAuthSetupNoAuthMode()
-		err := inboundAuth.ValidateCredentials(Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: "abc",
-				Digest:   "bcd",
-				Type:     ClientCredential,
-			},
+		err := inboundAuth.ValidateCredentials(InboundCredentials{
+			Username: "abc",
+			Digest:   "bcd",
+			Type:     ClientCredential,
 		})
 		assert.NoError(t, err)
 	})
 
 	t.Run("invalid credentials no auth mode", func(t *testing.T) {
 		inboundAuth := inboundAuthSetupNoAuthMode()
-		err := inboundAuth.ValidateCredentials(Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: "abc1",
-				Digest:   "bcd1",
-				Type:     ClientCredential,
-			},
+		err := inboundAuth.ValidateCredentials(InboundCredentials{
+			Username: "abc1",
+			Digest:   "bcd1",
+			Type:     ClientCredential,
 		})
 		assert.NoError(t, err)
 	})
 
 	t.Run("valid credentials shadow mode", func(t *testing.T) {
 		inboundAuth := inboundAuthSetupShadowMode()
-		err := inboundAuth.ValidateCredentials(Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: "abc",
-				Digest:   "bcd",
-				Type:     ClientCredential,
-			},
+		err := inboundAuth.ValidateCredentials(InboundCredentials{
+			Username: "abc",
+			Digest:   "bcd",
+			Type:     ClientCredential,
 		})
 		assert.NoError(t, err)
 	})
 
 	t.Run("invalid credentials shadow mode", func(t *testing.T) {
 		inboundAuth := inboundAuthSetupShadowMode()
-		err := inboundAuth.ValidateCredentials(Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: "abc1",
-				Digest:   "bcd1",
-				Type:     ClientCredential,
-			},
+		err := inboundAuth.ValidateCredentials(InboundCredentials{
+			Username: "abc1",
+			Digest:   "bcd1",
+			Type:     ClientCredential,
 		})
 		assert.NoError(t, err)
 	})
 
 	t.Run("valid credentials enforced mode", func(t *testing.T) {
 		inboundAuth := inboundAuthSetupEnabledMode()
-		err := inboundAuth.ValidateCredentials(Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: "foo",
-				Digest:   "zoo",
-				Type:     ClientCredential,
-			},
+		err := inboundAuth.ValidateCredentials(InboundCredentials{
+			Username: "foo",
+			Digest:   "zoo",
+			Type:     ClientCredential,
 		})
 		assert.NoError(t, err)
 	})
 
 	t.Run("invalid credentials enforced mode", func(t *testing.T) {
 		inboundAuth := inboundAuthSetupEnabledMode()
-		err := inboundAuth.ValidateCredentials(Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: "abc1",
-				Digest:   "bcd1",
-				Type:     ClientCredential,
-			},
+		err := inboundAuth.ValidateCredentials(InboundCredentials{
+			Username: "abc1",
+			Digest:   "bcd1",
+			Type:     ClientCredential,
 		})
 		assert.Error(t, err)
 	})
 
 	t.Run("unknown credential type for inbound", func(t *testing.T) {
 		inboundAuth := inboundAuthSetupEnabledMode()
-		err := inboundAuth.ValidateCredentials(Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: "abc1",
-				Digest:   "bcd1",
-				Type:     Unknown,
-			},
+		err := inboundAuth.ValidateCredentials(InboundCredentials{
+			Username: "abc1",
+			Digest:   "bcd1",
+			Type:     Unknown,
 		})
 		assert.Error(t, err)
 	})
 
 	t.Run("non client credential type for inbound", func(t *testing.T) {
 		inboundAuth := inboundAuthSetupEnabledMode()
-		err := inboundAuth.ValidateCredentials(Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: "abc1",
-				Digest:   "bcd1",
-				Type:     PeerCredential,
-			},
+		err := inboundAuth.ValidateCredentials(InboundCredentials{
+			Username: "abc1",
+			Digest:   "bcd1",
+			Type:     PeerCredential,
 		})
 		assert.Error(t, err)
 	})
@@ -173,20 +157,16 @@ func TestInbound_ValidateCredentialsFromThriftContext(t *testing.T) {
 func TestInbound_MatchCredentials(t *testing.T) {
 	t.Run("matching credentials", func(t *testing.T) {
 		inboundAuth := inboundAuthSetupEnabledMode()
-		c1 := &Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: "abc",
-				Digest:   "bcd",
-				Type:     ClientCredential,
-			},
+		c1 := &InboundCredentials{
+			Username: "abc",
+			Digest:   "bcd",
+			Type:     ClientCredential,
 		}
 
-		c2 := &Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: "abc",
-				Digest:   "bcd",
-				Type:     ClientCredential,
-			},
+		c2 := &InboundCredentials{
+			Username: "abc",
+			Digest:   "bcd",
+			Type:     ClientCredential,
 		}
 
 		ok := inboundAuth.MatchCredentials(*c1, *c2)
@@ -195,20 +175,16 @@ func TestInbound_MatchCredentials(t *testing.T) {
 
 	t.Run("non matching credentials", func(t *testing.T) {
 		inboundAuth := inboundAuthSetupEnabledMode()
-		c1 := &Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: "abc",
-				Digest:   "bcd",
-				Type:     ClientCredential,
-			},
+		c1 := &InboundCredentials{
+			Username: "abc",
+			Digest:   "bcd",
+			Type:     ClientCredential,
 		}
 
-		c2 := &Credentials{
-			InboundCredentials: InboundCredentials{
-				Username: "abc1",
-				Digest:   "bcd",
-				Type:     ClientCredential,
-			},
+		c2 := &InboundCredentials{
+			Username: "abc1",
+			Digest:   "bcd",
+			Type:     ClientCredential,
 		}
 
 		ok := inboundAuth.MatchCredentials(*c1, *c2)
@@ -218,19 +194,17 @@ func TestInbound_MatchCredentials(t *testing.T) {
 
 func inboundAuthSetupNoAuthMode() *Inbound {
 	return &Inbound{
-		clientCredentials: []Credentials{
+		clientCredentials: []InboundCredentials{
 			{
-				InboundCredentials: InboundCredentials{
-					Username: "abc",
-					Digest:   "bcd",
-					Type:     ClientCredential,
-				},
+
+				Username: "abc",
+				Digest:   "bcd",
+				Type:     ClientCredential,
 			}, {
-				InboundCredentials: InboundCredentials{
-					Username: "foo",
-					Digest:   "zoo",
-					Type:     ClientCredential,
-				},
+
+				Username: "foo",
+				Digest:   "zoo",
+				Type:     ClientCredential,
 			},
 		},
 		authMode: AuthModeNoAuth,
@@ -239,19 +213,16 @@ func inboundAuthSetupNoAuthMode() *Inbound {
 
 func inboundAuthSetupShadowMode() *Inbound {
 	return &Inbound{
-		clientCredentials: []Credentials{
+		clientCredentials: []InboundCredentials{
 			{
-				InboundCredentials: InboundCredentials{
-					Username: "abc",
-					Digest:   "bcd",
-					Type:     ClientCredential,
-				},
+				Username: "abc",
+				Digest:   "bcd",
+				Type:     ClientCredential,
 			}, {
-				InboundCredentials: InboundCredentials{
-					Username: "foo",
-					Digest:   "zoo",
-					Type:     ClientCredential,
-				},
+
+				Username: "foo",
+				Digest:   "zoo",
+				Type:     ClientCredential,
 			},
 		},
 		authMode: AuthModeShadow,
@@ -260,19 +231,17 @@ func inboundAuthSetupShadowMode() *Inbound {
 
 func inboundAuthSetupEnabledMode() *Inbound {
 	return &Inbound{
-		clientCredentials: []Credentials{
+		clientCredentials: []InboundCredentials{
 			{
-				InboundCredentials: InboundCredentials{
-					Username: "abc",
-					Digest:   "bcd",
-					Type:     ClientCredential,
-				},
+
+				Username: "abc",
+				Digest:   "bcd",
+				Type:     ClientCredential,
 			}, {
-				InboundCredentials: InboundCredentials{
-					Username: "foo",
-					Digest:   "zoo",
-					Type:     ClientCredential,
-				},
+
+				Username: "foo",
+				Digest:   "zoo",
+				Type:     ClientCredential,
 			},
 		},
 		authMode: AuthModeEnforced,

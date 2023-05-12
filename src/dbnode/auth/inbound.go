@@ -7,12 +7,12 @@ import (
 
 // Inbound encapsulates client credentials.
 type Inbound struct {
-	clientCredentials []Credentials
+	clientCredentials []InboundCredentials
 	authMode          AuthMode
 }
 
 // ValidateCredentials validates the inbound credential and return error accordingly.
-func (i *Inbound) ValidateCredentials(creds Credentials) error {
+func (i *Inbound) ValidateCredentials(creds InboundCredentials) error {
 	if i.authMode == AuthModeNoAuth {
 		return nil
 	}
@@ -33,15 +33,15 @@ func (i *Inbound) ValidateCredentials(creds Credentials) error {
 		}()
 		return nil
 	}
-	if creds.InboundCredentials.Type == Unknown {
+	if creds.Type == Unknown {
 		return fmt.Errorf("unknown credential type for dbnode inbound")
 	}
 
-	if creds.InboundCredentials.Type != ClientCredential {
+	if creds.Type != ClientCredential {
 		return fmt.Errorf("incorrect credential type for dbnode inbound")
 	}
 
-	if err := creds.InboundCredentials.Validate(); err != nil {
+	if err := creds.Validate(); err != nil {
 		return err
 	}
 	for _, p := range i.clientCredentials {
@@ -66,18 +66,18 @@ func (i *Inbound) ValidateCredentialsFromThriftContext(tctx thrift.Context, cred
 		password = ""
 	}
 	// todo create digest from the password and pass to handler.
-	return i.ValidateCredentials(Credentials{
-		InboundCredentials: InboundCredentials{
+	return i.ValidateCredentials(
+		InboundCredentials{
 			Username: userName,
 			Digest:   password,
 			Type:     credtype,
 		},
-	})
+	)
 }
 
 // MatchCredentials compares two inbound credentials and error out accordingly.
-func (i *Inbound) MatchCredentials(c1, c2 Credentials) bool {
-	if c1.InboundCredentials.Username == c2.InboundCredentials.Username && c1.InboundCredentials.Digest == c2.InboundCredentials.Digest {
+func (i *Inbound) MatchCredentials(c1, c2 InboundCredentials) bool {
+	if c1.Username == c2.Username && c1.Digest == c2.Digest {
 		return true
 	}
 	return false

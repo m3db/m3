@@ -4,12 +4,6 @@ import (
 	"errors"
 )
 
-// Credentials encapsulates inbound and outbound credentials.
-type Credentials struct {
-	InboundCredentials
-	OutboundCredentials
-}
-
 // InboundCredentials encapsulates credentials for inbound RPC to dbnode.
 type InboundCredentials struct {
 	Username string

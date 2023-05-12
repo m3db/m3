@@ -9,13 +9,11 @@ import (
 
 func TestWrapThriftContextWithCreds(t *testing.T) {
 	outbound := &Outbound{
-		peerCredentials: []Credentials{
+		peerCredentials: []OutboundCredentials{
 			{
-				OutboundCredentials: OutboundCredentials{
-					Username: "test",
-					Password: "password",
-					Zone:     "test-zone",
-				},
+				Username: "test",
+				Password: "password",
+				Zone:     "test-zone",
 			},
 		},
 	}
@@ -51,18 +49,16 @@ func TestWrapThriftContextWithOutboundPeerCredsNil(t *testing.T) {
 
 func TestFetchOutboundEtcdCredentials(t *testing.T) {
 	outbound := &Outbound{
-		etcdCredentials: []Credentials{
+		etcdCredentials: []OutboundCredentials{
 			{
-				OutboundCredentials: OutboundCredentials{
-					Username: "test",
-					Password: "password",
-					Zone:     "test-zone",
-				},
+				Username: "test",
+				Password: "password",
+				Zone:     "test-zone",
 			},
 		},
 	}
 	creds := outbound.FetchOutboundEtcdCredentials("test-zone")
-	assert.Equal(t, &outbound.etcdCredentials[0].OutboundCredentials, creds, "Expected no error with matching zone creds")
+	assert.Equal(t, &outbound.etcdCredentials[0], creds, "Expected no error with matching zone creds")
 }
 
 func TestWrapThriftContextWithOutboundEtcdCredsNil(t *testing.T) {
@@ -73,13 +69,11 @@ func TestWrapThriftContextWithOutboundEtcdCredsNil(t *testing.T) {
 
 func TestFetchOutboundEtcdCredentialsIncorrectZone(t *testing.T) {
 	outbound := &Outbound{
-		etcdCredentials: []Credentials{
+		etcdCredentials: []OutboundCredentials{
 			{
-				OutboundCredentials: OutboundCredentials{
-					Username: "test",
-					Password: "password",
-					Zone:     "test-zone",
-				},
+				Username: "test",
+				Password: "password",
+				Zone:     "test-zone",
 			},
 		},
 	}
