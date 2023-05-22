@@ -177,6 +177,7 @@ type ConfigureResult struct {
 	KVStore              kv.Store
 	Async                bool
 	ClientOverrides      ClientOverrides
+	Zone                 string
 }
 
 // ConfigureResults stores initializers and kv store for dynamic and static configs
@@ -334,6 +335,7 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 			KVStore:              kv,
 			Async:                cluster.Async,
 			ClientOverrides:      cluster.ClientOverrides,
+			Zone:                 cluster.Service.Zone,
 		}
 		cfgResults = append(cfgResults, result)
 	}

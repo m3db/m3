@@ -67,6 +67,8 @@ func TestCommandLineOptions(t *testing.T) {
 	expectedConfig := testConfig{Foo: 1, Bar: "bar"}
 	configFileOpts := []string{"-f", "./testdata/config1.yaml", "-f", "./testdata/config2.yaml"}
 
+	configSecretFileOpts := []string{"-c", "./testdata/config1.yaml", "-c", "./testdata/config2.yaml"}
+
 	t.Run("loads config from files", func(t *testing.T) {
 		tctx, teardown := setup(t)
 		defer teardown()
@@ -109,6 +111,30 @@ func TestCommandLineOptions(t *testing.T) {
 			"-f is required (no config files provided)")
 		assert.True(t, tctx.UsageCalled)
 	})
+	t.Run("loads yaml files from -c flag", func(t *testing.T) {
+		tctx, teardown := setup(t)
+		defer teardown()
+
+		require.NoError(t, tctx.Flags.Parse(configSecretFileOpts))
+
+		var cfg testConfig
+		_, err := tctx.Opts.CredentialLoad(&cfg, config.Options{})
+		require.NoError(t, err)
+		assert.Equal(t, expectedConfig, cfg)
+	})
+
+	t.Run("loads yaml files from -c flag", func(t *testing.T) {
+		tctx, teardown := setup(t)
+		defer teardown()
+
+		require.NoError(t, tctx.Flags.Parse([]string{}))
+
+		var cfg testConfig
+		isPresent, err := tctx.Opts.CredentialLoad(&cfg, config.Options{})
+		require.NoError(t, err)
+		require.False(t, isPresent)
+	})
+
 }
 
 func TestFlagArray(t *testing.T) {

@@ -25,6 +25,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/m3db/m3/src/dbnode/auth"
 	"io"
 	"math"
 	"net/http"
@@ -129,6 +130,9 @@ type RunOptions struct {
 	// instead of parsing ConfigFile if ConfigFile is not specified.
 	Config config.DBConfiguration
 
+	// Secrets encapsulates auth config for dbnode inbounds and outbounds.
+	Secrets config.AuthConfig
+
 	// BootstrapCh is a channel to listen on to be notified of bootstrap.
 	BootstrapCh chan<- struct{}
 
@@ -190,6 +194,15 @@ func Run(runOpts RunOptions) {
 		// sending stdlib "log" to black hole. Don't remove unless with good reason.
 		fmt.Fprintf(os.Stderr, "error initializing config defaults and validating config: %v", err)
 		os.Exit(1)
+	}
+
+	secretsValidateErr := runOpts.Secrets.Validate()
+	if secretsValidateErr == nil {
+		// Passing valid parsed AuthConfig to populate inbound and outbound credentials.
+		PopulateOutboundAuthConfig(runOpts.Secrets)
+		PopulateInboundAuthConfig(runOpts.Secrets)
+	} else {
+		auth.PopulateDefaultAuthConfig()
 	}
 
 	logger, err := cfg.LoggingOrDefault().BuildLogger()

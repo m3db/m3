@@ -46,6 +46,7 @@ type dynamicInitializer struct {
 	sync.Mutex
 	opts DynamicOptions
 	topo Topology
+	zone string
 }
 
 // NewDynamicInitializer returns a dynamic topology initializer
@@ -91,6 +92,10 @@ func (i *dynamicInitializer) TopologyIsSet() (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (i *dynamicInitializer) FetchZone() string {
+	return i.zone
 }
 
 type dynamicTopology struct {
