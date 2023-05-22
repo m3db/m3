@@ -386,8 +386,12 @@ func (c Configuration) configureStatic(cfgParams ConfigurationParameters) (Confi
 			}
 			staticOptions = staticOptions.SetReplicas(1)
 		default:
-			if numHosts != numReplicas {
-				err := fmt.Errorf("number of hosts (%d) not equal to number of replicas (%d)", numHosts, numReplicas)
+			if numHosts < numReplicas {
+				err := fmt.Errorf(
+					"number of hosts (%d) must be at least the number of replicas (%d)",
+					numHosts,
+					numReplicas,
+				)
 				return emptyConfig, err
 			}
 			staticOptions = staticOptions.SetReplicas(cluster.TopologyConfig.Replicas)

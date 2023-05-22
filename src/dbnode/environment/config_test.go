@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
@@ -38,42 +39,175 @@ import (
 var initTimeout = time.Minute
 
 func TestConfigureStatic(t *testing.T) {
-	config := Configuration{
-		Statics: StaticConfiguration{
-			&StaticCluster{
-				Namespaces: []namespace.MetadataConfiguration{
-					namespace.MetadataConfiguration{
-						ID: "metrics",
-						Retention: retention.Configuration{
-							RetentionPeriod: 24 * time.Hour,
-							BlockSize:       time.Hour,
-						},
-					},
-					namespace.MetadataConfiguration{
-						ID: "other-metrics",
-						Retention: retention.Configuration{
-							RetentionPeriod: 24 * time.Hour,
-							BlockSize:       time.Hour,
-						},
+	tests := []struct {
+		name       string
+		staticTopo *topology.StaticConfiguration
+		expectErr  bool
+	}{
+		{
+			name: "0 replicas; 1 host",
+			staticTopo: &topology.StaticConfiguration{
+				Shards:   2,
+				Replicas: 0,
+				Hosts: []topology.HostShardConfig{
+					{
+						HostID:        "localhost",
+						ListenAddress: "0.0.0.0:1234",
 					},
 				},
-				TopologyConfig: &topology.StaticConfiguration{
-					Shards: 2,
-					Hosts: []topology.HostShardConfig{
-						topology.HostShardConfig{
-							HostID:        "localhost",
-							ListenAddress: "0.0.0.0:1234",
-						},
-					},
-				},
-				ListenAddress: "0.0.0.0:9000",
 			},
+			expectErr: false,
+		},
+		{
+			name: "1 replica; 1 host",
+			staticTopo: &topology.StaticConfiguration{
+				Shards:   2,
+				Replicas: 1,
+				Hosts: []topology.HostShardConfig{
+					{
+						HostID:        "localhost",
+						ListenAddress: "0.0.0.0:1234",
+					},
+				},
+			},
+			expectErr: false,
+		},
+		{
+			name: "1 replica; 3 hosts",
+			staticTopo: &topology.StaticConfiguration{
+				Shards:   2,
+				Replicas: 1,
+				Hosts: []topology.HostShardConfig{
+					{
+						HostID:        "host0",
+						ListenAddress: "0.0.0.0:1000",
+					},
+					{
+						HostID:        "host1",
+						ListenAddress: "0.0.0.0:1001",
+					},
+					{
+						HostID:        "host2",
+						ListenAddress: "0.0.0.0:1002",
+					},
+				},
+			},
+			expectErr: false,
+		},
+		{
+			name: "3 replicas; 3 hosts",
+			staticTopo: &topology.StaticConfiguration{
+				Shards:   2,
+				Replicas: 3,
+				Hosts: []topology.HostShardConfig{
+					{
+						HostID:        "host0",
+						ListenAddress: "0.0.0.0:1000",
+					},
+					{
+						HostID:        "host1",
+						ListenAddress: "0.0.0.0:1001",
+					},
+					{
+						HostID:        "host2",
+						ListenAddress: "0.0.0.0:1002",
+					},
+				},
+			},
+			expectErr: false,
+		},
+		{
+			name: "3 replicas; 1 host",
+			staticTopo: &topology.StaticConfiguration{
+				Shards:   2,
+				Replicas: 3,
+				Hosts: []topology.HostShardConfig{
+					{
+						HostID:        "host0",
+						ListenAddress: "0.0.0.0:1000",
+					},
+					{
+						HostID:        "host1",
+						ListenAddress: "0.0.0.0:1001",
+					},
+					{
+						HostID:        "host2",
+						ListenAddress: "0.0.0.0:1002",
+					},
+				},
+			},
+			expectErr: true,
+		},
+		{
+			name: "3 replicas; 5 hosts",
+			staticTopo: &topology.StaticConfiguration{
+				Shards:   2,
+				Replicas: 3,
+				Hosts: []topology.HostShardConfig{
+					{
+						HostID:        "host0",
+						ListenAddress: "0.0.0.0:1000",
+					},
+					{
+						HostID:        "host1",
+						ListenAddress: "0.0.0.0:1001",
+					},
+					{
+						HostID:        "host2",
+						ListenAddress: "0.0.0.0:1002",
+					},
+					{
+						HostID:        "host3",
+						ListenAddress: "0.0.0.0:1003",
+					},
+					{
+						HostID:        "host4",
+						ListenAddress: "0.0.0.0:1004",
+					},
+				},
+			},
+			expectErr: false,
 		},
 	}
 
-	configRes, err := config.Configure(ConfigurationParameters{})
-	assert.NotNil(t, configRes)
-	assert.NoError(t, err)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := Configuration{
+				Statics: StaticConfiguration{
+					&StaticCluster{
+						Namespaces: []namespace.MetadataConfiguration{
+							{
+								ID: "metrics",
+								Retention: retention.Configuration{
+									RetentionPeriod: 24 * time.Hour,
+									BlockSize:       time.Hour,
+								},
+							},
+							{
+								ID: "other-metrics",
+								Retention: retention.Configuration{
+									RetentionPeriod: 24 * time.Hour,
+									BlockSize:       time.Hour,
+								},
+							},
+						},
+						ListenAddress:  "0.0.0.0:9000",
+						TopologyConfig: test.staticTopo,
+					},
+				},
+			}
+
+			configRes, err := config.Configure(ConfigurationParameters{})
+			if test.expectErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, configRes)
+		})
+	}
+
 }
 
 func TestConfigureDynamic(t *testing.T) {
