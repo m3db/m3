@@ -45,8 +45,11 @@ yarn-error.log*
 
 # Site ignores
 site/public
-site/v1.0
+site/v*
+site/.hugo_build.lock
+
 tmp
+
 # Automatically copied over from generated assets
 site/static/openapi
 # Used to serve swagger documentation
