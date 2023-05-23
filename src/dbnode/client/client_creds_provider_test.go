@@ -1,10 +1,10 @@
 package client
 
 import (
-	"github.com/m3db/m3/src/dbnode/auth"
 	"os"
 	"testing"
 
+	"github.com/m3db/m3/src/dbnode/auth"
 	xconfig "github.com/m3db/m3/src/x/config"
 
 	"github.com/stretchr/testify/assert"
@@ -34,22 +34,7 @@ func TestConfigurationWithAuthClientProvider(t *testing.T) {
   writeConsistencyLevel: majority
   readConsistencyLevel: unstrict_majority
 `
-	fd, err := os.CreateTemp("", "config.yaml")
-	require.NoError(t, err)
-	defer func() {
-		assert.NoError(t, fd.Close())
-		assert.NoError(t, os.Remove(fd.Name()))
-	}()
-
-	_, err = fd.Write([]byte(clientCfg))
-	require.NoError(t, err)
-
-	var cfg Configuration
-	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
-	require.NoError(t, err)
-
-	defer outboundAuthCleanup()
-	outboundErr := PopulateClientOutboundAuthConfig(cfg.EnvironmentConfig.Services)
+	outboundErr := setupAndLoadCfg(t, clientCfg)
 	require.NoError(t, outboundErr)
 }
 
@@ -75,22 +60,7 @@ func TestConfigurationWithIncorrectDbAuth(t *testing.T) {
   writeConsistencyLevel: majority
   readConsistencyLevel: unstrict_majority
 `
-	fd, err := os.CreateTemp("", "config.yaml")
-	require.NoError(t, err)
-	defer func() {
-		assert.NoError(t, fd.Close())
-		assert.NoError(t, os.Remove(fd.Name()))
-	}()
-
-	_, err = fd.Write([]byte(clientCfg))
-	require.NoError(t, err)
-
-	var cfg Configuration
-	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
-	require.NoError(t, err)
-
-	defer outboundAuthCleanup()
-	outboundErr := PopulateClientOutboundAuthConfig(cfg.EnvironmentConfig.Services)
+	outboundErr := setupAndLoadCfg(t, clientCfg)
 	require.Error(t, outboundErr)
 }
 
@@ -116,22 +86,7 @@ func TestConfigurationWithIncorrectEtcdAuth(t *testing.T) {
   writeConsistencyLevel: majority
   readConsistencyLevel: unstrict_majority
 `
-	fd, err := os.CreateTemp("", "config.yaml")
-	require.NoError(t, err)
-	defer func() {
-		assert.NoError(t, fd.Close())
-		assert.NoError(t, os.Remove(fd.Name()))
-	}()
-
-	_, err = fd.Write([]byte(clientCfg))
-	require.NoError(t, err)
-
-	var cfg Configuration
-	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
-	require.NoError(t, err)
-
-	defer outboundAuthCleanup()
-	outboundErr := PopulateClientOutboundAuthConfig(cfg.EnvironmentConfig.Services)
+	outboundErr := setupAndLoadCfg(t, clientCfg)
 	require.Error(t, outboundErr)
 }
 
@@ -157,6 +112,11 @@ func TestConfigurationNoAuth(t *testing.T) {
   writeConsistencyLevel: majority
   readConsistencyLevel: unstrict_majority
 `
+	outboundErr := setupAndLoadCfg(t, clientCfg)
+	require.NoError(t, outboundErr)
+}
+
+func setupAndLoadCfg(t *testing.T, config string) error {
 	fd, err := os.CreateTemp("", "config.yaml")
 	require.NoError(t, err)
 	defer func() {
@@ -164,7 +124,7 @@ func TestConfigurationNoAuth(t *testing.T) {
 		assert.NoError(t, os.Remove(fd.Name()))
 	}()
 
-	_, err = fd.Write([]byte(clientCfg))
+	_, err = fd.WriteString(config)
 	require.NoError(t, err)
 
 	var cfg Configuration
@@ -172,14 +132,8 @@ func TestConfigurationNoAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	defer outboundAuthCleanup()
-	outboundErr := PopulateClientOutboundAuthConfig(cfg.EnvironmentConfig.Services)
-	require.NoError(t, outboundErr)
+	return PopulateClientOutboundAuthConfig(cfg.EnvironmentConfig.Services)
 }
-
-func inboundAuthCleanup() {
-	auth.InboundAuth = &auth.Inbound{}
-}
-
 func outboundAuthCleanup() {
 	auth.OutboundAuth = &auth.Outbound{}
 }
