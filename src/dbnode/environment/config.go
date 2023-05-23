@@ -30,6 +30,8 @@ import (
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/kv"
 	m3clusterkvmem "github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/cluster/placement"
+	placementsvc "github.com/m3db/m3/src/cluster/placement/service"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
@@ -366,36 +368,24 @@ func (c Configuration) configureStatic(cfgParams ConfigurationParameters) (Confi
 
 		nsInitStatic := namespace.NewStaticInitializer(nsList)
 
-		shardSet, hostShardSets, err := newStaticShardSet(cluster.TopologyConfig.Shards, cluster.TopologyConfig.Hosts)
+		numReplicas := cluster.TopologyConfig.Replicas
+		if numReplicas == 0 {
+			numReplicas = 1
+		}
+
+		shardSet, hostShardSets, err := newStaticShardSet(
+			cluster.TopologyConfig.Shards,
+			numReplicas,
+			cluster.TopologyConfig.Hosts,
+		)
 		if err != nil {
 			err = fmt.Errorf("unable to create shard set for static config: %v", err)
 			return emptyConfig, err
 		}
 		staticOptions := topology.NewStaticOptions().
 			SetHostShardSets(hostShardSets).
-			SetShardSet(shardSet)
-
-		numHosts := len(cluster.TopologyConfig.Hosts)
-		numReplicas := cluster.TopologyConfig.Replicas
-
-		switch numReplicas {
-		case 0:
-			if numHosts != 1 {
-				err := fmt.Errorf("number of hosts (%d) must be 1 if replicas is not set", numHosts)
-				return emptyConfig, err
-			}
-			staticOptions = staticOptions.SetReplicas(1)
-		default:
-			if numHosts < numReplicas {
-				err := fmt.Errorf(
-					"number of hosts (%d) must be at least the number of replicas (%d)",
-					numHosts,
-					numReplicas,
-				)
-				return emptyConfig, err
-			}
-			staticOptions = staticOptions.SetReplicas(cluster.TopologyConfig.Replicas)
-		}
+			SetShardSet(shardSet).
+			SetReplicas(numReplicas)
 
 		topoInit := topology.NewStaticInitializer(staticOptions)
 		result := ConfigureResult{
@@ -411,12 +401,15 @@ func (c Configuration) configureStatic(cfgParams ConfigurationParameters) (Confi
 	return cfgResults, nil
 }
 
-func newStaticShardSet(numShards int, hosts []topology.HostShardConfig) (sharding.ShardSet, []topology.HostShardSet, error) {
+func newStaticShardSet(
+	numShards int,
+	rf int,
+	hosts []topology.HostShardConfig,
+) (sharding.ShardSet, []topology.HostShardSet, error) {
 	var (
-		shardSet      sharding.ShardSet
-		hostShardSets []topology.HostShardSet
-		shardIDs      []uint32
-		err           error
+		shardSet sharding.ShardSet
+		shardIDs []uint32
+		err      error
 	)
 
 	for i := uint32(0); i < uint32(numShards); i++ {
@@ -424,16 +417,57 @@ func newStaticShardSet(numShards int, hosts []topology.HostShardConfig) (shardin
 	}
 
 	shards := sharding.NewShards(shardIDs, shard.Available)
-	shardSet, err = sharding.NewShardSet(shards, sharding.DefaultHashFn(len(shards)))
+	shardSet, err = sharding.NewShardSet(shards, sharding.DefaultHashFn(numShards))
 	if err != nil {
 		return nil, nil, err
 	}
 
-	for _, i := range hosts {
-		host := topology.NewHost(i.HostID, i.ListenAddress)
+	hostShardSets, err := generatePlacement(hosts, numShards, rf)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return shardSet, hostShardSets, nil
+}
+
+func generatePlacement(hosts []topology.HostShardConfig, numShards int, rf int) ([]topology.HostShardSet, error) {
+	var instances []placement.Instance
+	for _, host := range hosts {
+		instance := placement.NewInstance().
+			SetID(host.HostID).
+			SetHostname(host.HostID).
+			SetIsolationGroup(host.HostID).
+			SetEndpoint(host.ListenAddress).
+			SetWeight(1)
+		instances = append(instances, instance)
+	}
+
+	operator := placementsvc.NewPlacementOperator(
+		nil,
+		placementsvc.WithPlacementOptions(placement.NewOptions().SetAllowAllZones(true)),
+	)
+
+	_, err := operator.BuildInitialPlacement(instances, numShards, rf)
+	if err != nil {
+		return nil, fmt.Errorf("error building initial placement: %w", err)
+	}
+	pl, err := operator.MarkAllShardsAvailable()
+	if err != nil {
+		return nil, fmt.Errorf("error marking shards available: %w", err)
+	}
+
+	var hostShardSets []topology.HostShardSet
+	for _, instance := range pl.Instances() {
+		shards := instance.Shards().All()
+		shardSet, err := sharding.NewShardSet(shards, sharding.DefaultHashFn(len(shards)))
+		if err != nil {
+			return nil, fmt.Errorf("error constructing new ShardSet: %w", err)
+		}
+
+		host := topology.NewHost(instance.ID(), instance.Endpoint())
 		hostShardSet := topology.NewHostShardSet(host, shardSet)
 		hostShardSets = append(hostShardSets, hostShardSet)
 	}
 
-	return shardSet, hostShardSets, nil
+	return hostShardSets, nil
 }

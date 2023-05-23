@@ -21,6 +21,7 @@
 package environment
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -205,6 +206,121 @@ func TestConfigureStatic(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, configRes)
+		})
+	}
+}
+
+func TestGeneratePlacement(t *testing.T) {
+	tests := []struct {
+		name      string
+		numHosts  int
+		numShards int
+		rf        int
+		expectErr bool
+	}{
+		{
+			numHosts:  1,
+			numShards: 16,
+			rf:        1,
+			expectErr: false,
+		},
+		{
+			numHosts:  3,
+			numShards: 16,
+			rf:        1,
+			expectErr: false,
+		},
+		{
+			numHosts:  3,
+			numShards: 32,
+			rf:        1,
+			expectErr: false,
+		},
+		{
+			numHosts:  3,
+			numShards: 16,
+			rf:        3,
+			expectErr: false,
+		},
+		{
+			numHosts:  10,
+			numShards: 16,
+			rf:        3,
+			expectErr: false,
+		},
+		{
+			numHosts:  100,
+			numShards: 4096,
+			rf:        3,
+			expectErr: false,
+		},
+		{
+			numHosts:  2,
+			numShards: 16,
+			rf:        3,
+			expectErr: true,
+		},
+		{
+			numHosts:  0,
+			numShards: 16,
+			rf:        3,
+			expectErr: true,
+		},
+		{
+			numHosts:  10,
+			numShards: 16,
+			rf:        0,
+			expectErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		validity := "valid"
+		if test.expectErr {
+			validity = "invalid"
+		}
+		testName := fmt.Sprintf("%s:%dhosts;%drf;%dshards", validity, test.numHosts, test.rf, test.numShards)
+		t.Run(testName, func(t *testing.T) {
+			var hosts []topology.HostShardConfig
+			for i := 0; i < test.numHosts; i++ {
+				hosts = append(hosts, topology.HostShardConfig{
+					HostID:        fmt.Sprintf("id%d", i),
+					ListenAddress: fmt.Sprintf("id%d", i),
+				})
+			}
+
+			hostShardSets, err := generatePlacement(hosts, test.numShards, test.rf)
+			if test.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			var (
+				minShardCount = test.numShards + 1
+				maxShardCount = 0
+				shardCounts   = make([]int, test.numShards)
+			)
+			for _, hostShardSet := range hostShardSets {
+				ids := hostShardSet.ShardSet().AllIDs()
+				if len(ids) < minShardCount {
+					minShardCount = len(ids)
+				}
+				if len(ids) > maxShardCount {
+					maxShardCount = len(ids)
+				}
+
+				for _, id := range ids {
+					shardCounts[id]++
+				}
+			}
+
+			// Assert balanced shard distribution
+			assert.True(t, maxShardCount-minShardCount < 2)
+			// Assert each shard has `rf` replicas
+			for _, shardCount := range shardCounts {
+				assert.Equal(t, test.rf, shardCount)
+			}
 		})
 	}
 
