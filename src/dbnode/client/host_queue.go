@@ -25,6 +25,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/m3db/m3/src/dbnode/auth"
 	"math"
 	"sync"
 	"time"
@@ -549,7 +550,8 @@ func (q *queue) asyncTaggedWrite(
 		}
 
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
-		err = client.WriteTaggedBatchRaw(ctx, req)
+		authWrappedCtx := auth.OutboundAuth.WrapThriftContextWithPeerCreds(ctx, q.opts.FetchTopologyInitializerZone())
+		err = client.WriteTaggedBatchRaw(authWrappedCtx, req)
 		if err == nil {
 			// All succeeded
 			callAllCompletionFns(ops, q.host, nil)
@@ -609,7 +611,8 @@ func (q *queue) asyncTaggedWriteV2(
 		}
 
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
-		err = client.WriteTaggedBatchRawV2(ctx, req)
+		authWrappedCtx := auth.OutboundAuth.WrapThriftContextWithPeerCreds(ctx, q.opts.FetchTopologyInitializerZone())
+		err = client.WriteTaggedBatchRawV2(authWrappedCtx, req)
 		if err == nil {
 			// All succeeded
 			callAllCompletionFns(ops, q.host, nil)
@@ -674,7 +677,8 @@ func (q *queue) asyncWrite(
 		}
 
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
-		err = client.WriteBatchRaw(ctx, req)
+		authWrappedCtx := auth.OutboundAuth.WrapThriftContextWithPeerCreds(ctx, q.opts.FetchTopologyInitializerZone())
+		err = client.WriteBatchRaw(authWrappedCtx, req)
 		if err == nil {
 			// All succeeded
 			callAllCompletionFns(ops, q.host, nil)
@@ -733,7 +737,8 @@ func (q *queue) asyncWriteV2(
 		}
 
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
-		err = client.WriteBatchRawV2(ctx, req)
+		authWrappedCtx := auth.OutboundAuth.WrapThriftContextWithPeerCreds(ctx, q.opts.FetchTopologyInitializerZone())
+		err = client.WriteBatchRawV2(authWrappedCtx, req)
 		if err == nil {
 			// All succeeded.
 			callAllCompletionFns(ops, q.host, nil)
@@ -786,7 +791,8 @@ func (q *queue) asyncFetch(op *fetchBatchOp) {
 		}
 
 		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
-		result, err := client.FetchBatchRaw(ctx, &op.request)
+		authWrappedCtx := auth.OutboundAuth.WrapThriftContextWithPeerCreds(ctx, q.opts.FetchTopologyInitializerZone())
+		result, err := client.FetchBatchRaw(authWrappedCtx, &op.request)
 		if err != nil {
 			op.completeAll(nil, err)
 			cleanup()
@@ -837,9 +843,9 @@ func (q *queue) asyncFetchV2(
 			cleanup()
 			return
 		}
-
 		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
-		result, err := client.FetchBatchRawV2(ctx, currV2FetchBatchRawReq)
+		authWrappedCtx := auth.OutboundAuth.WrapThriftContextWithPeerCreds(ctx, q.opts.FetchTopologyInitializerZone())
+		result, err := client.FetchBatchRawV2(authWrappedCtx, currV2FetchBatchRawReq)
 		if err != nil {
 			callAllCompletionFns(ops, nil, err)
 			cleanup()
@@ -900,7 +906,8 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 			return
 		}
 
-		result, err := client.FetchTagged(ctx, &op.request)
+		authWrappedCtx := auth.OutboundAuth.WrapThriftContextWithPeerCreds(ctx, q.opts.FetchTopologyInitializerZone())
+		result, err := client.FetchTagged(authWrappedCtx, &op.request)
 		if err != nil {
 			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
 			return
@@ -945,7 +952,8 @@ func (q *queue) asyncAggregate(op *aggregateOp) {
 			return
 		}
 
-		result, err := client.AggregateRaw(ctx, &op.request)
+		authWrappedCtx := auth.OutboundAuth.WrapThriftContextWithPeerCreds(ctx, q.opts.FetchTopologyInitializerZone())
+		result, err := client.AggregateRaw(authWrappedCtx, &op.request)
 		if err != nil {
 			op.CompletionFn()(aggregateResultAccumulatorOpts{host: q.host}, err)
 			return

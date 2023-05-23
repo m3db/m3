@@ -92,10 +92,10 @@ func main() {
 			total     int
 			pageToken []byte
 			retrier   = xretry.NewRetrier(xretry.NewOptions().
-					SetBackoffFactor(2).
-					SetMaxRetries(3).
-					SetInitialBackoff(time.Second).
-					SetJitter(true))
+				SetBackoffFactor(2).
+				SetMaxRetries(3).
+				SetInitialBackoff(time.Second).
+				SetJitter(true))
 			optionIncludeSizes     = true
 			optionIncludeChecksums = true
 			moreResults            = true
