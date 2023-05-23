@@ -9,7 +9,7 @@ import (
 // Inbound encapsulates client credentials.
 type Inbound struct {
 	clientCredentials []InboundCredentials
-	authMode          AuthMode
+	authMode          Mode
 }
 
 // ValidateCredentials validates the inbound credential and return error accordingly.
@@ -56,12 +56,12 @@ func (i *Inbound) ValidateCredentials(creds InboundCredentials) error {
 // ValidateCredentialsFromThriftContext validates inbound credential from thrift context.
 func (i *Inbound) ValidateCredentialsFromThriftContext(tctx thrift.Context, credtype CredentialType) error {
 	ctxHeaders := tctx.Headers()
-	userName, ok := ctxHeaders[AUTH_USERNAME]
+	userName, ok := ctxHeaders[AuthUsername]
 	if !ok {
 		userName = ""
 	}
 
-	password, ok := ctxHeaders[AUTH_PASSWORD]
+	password, ok := ctxHeaders[AuthPassword]
 	if !ok {
 		password = ""
 	}

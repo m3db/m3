@@ -128,6 +128,7 @@ type AuthConfig struct {
 	Password string `yaml:"password"`
 }
 
+// Validate validates the AuthConfig.
 func (a *AuthConfig) Validate() error {
 	if a.Enabled {
 		if a.UserName == "" || a.Password == "" {

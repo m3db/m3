@@ -1,13 +1,14 @@
 package server
 
 import (
+	"strings"
+
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/dbnode/auth"
-	"strings"
 )
 
 var (
-	authModeMap = map[string]auth.AuthMode{
+	authModeMap = map[string]auth.Mode{
 		"none":    auth.AuthModeNoAuth,
 		"shadow":  auth.AuthModeShadow,
 		"enabled": auth.AuthModeEnforced,
@@ -16,8 +17,8 @@ var (
 
 // PopulateInboundAuthConfig populates inbound auth modules with the provided auth config.
 func PopulateInboundAuthConfig(cfg config.AuthConfig) {
-	var inboundAuth []auth.InboundCredentials
 	nodeInbound := cfg.Inbound.M3DB
+	inboundAuth := make([]auth.InboundCredentials, 0, len(nodeInbound.Credentials))
 	for _, nodeCfg := range nodeInbound.Credentials {
 		inboundAuth = append(inboundAuth, auth.InboundCredentials{
 			Username: *nodeCfg.Username,
@@ -38,9 +39,8 @@ func RefreshInboundAuthConfig(credentialsConfig config.AuthConfig) {
 
 // PopulateOutboundAuthConfig populates outbound auth modules with the provided auth config.
 func PopulateOutboundAuthConfig(cfg config.AuthConfig) {
-	var outboundPeerAuth []auth.OutboundCredentials
 	nodeOutboundPeer := cfg.Outbound.M3DB
-
+	outboundPeerAuth := make([]auth.OutboundCredentials, 0, len(nodeOutboundPeer.NodeConfig))
 	for _, nodeCfg := range nodeOutboundPeer.NodeConfig {
 		outboundPeerAuth = append(outboundPeerAuth, auth.OutboundCredentials{
 			Username: *nodeCfg.Service.Username,
@@ -50,9 +50,8 @@ func PopulateOutboundAuthConfig(cfg config.AuthConfig) {
 		})
 	}
 
-	var outboundEtcdAuth []auth.OutboundCredentials
 	nodeOutboundEtcd := cfg.Outbound.Etcd
-
+	outboundEtcdAuth := make([]auth.OutboundCredentials, 0, len(nodeOutboundEtcd.NodeConfig))
 	for _, nodeCfg := range nodeOutboundEtcd.NodeConfig {
 		outboundEtcdAuth = append(outboundEtcdAuth, auth.OutboundCredentials{
 			Username: *nodeCfg.Service.Username,
@@ -64,7 +63,7 @@ func PopulateOutboundAuthConfig(cfg config.AuthConfig) {
 	auth.PopulateOutbound(outboundPeerAuth, outboundEtcdAuth)
 }
 
-func parseAuthMode(str string) auth.AuthMode {
+func parseAuthMode(str string) auth.Mode {
 	c, ok := authModeMap[strings.ToLower(str)]
 	if !ok {
 		return auth.AuthModeUnknown

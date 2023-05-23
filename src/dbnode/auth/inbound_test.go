@@ -95,7 +95,7 @@ func TestInbound_ValidateCredentialsFromThriftContext(t *testing.T) {
 		inboundAuth := inboundAuthSetupNoAuthMode()
 		thriftCtx := createThriftContextWithHeaders(
 			context.Background(),
-			map[string]string{AUTH_USERNAME: "abc", AUTH_PASSWORD: "bcd"},
+			map[string]string{AuthUsername: "abc", AuthPassword: "bcd"},
 		)
 		err := inboundAuth.ValidateCredentialsFromThriftContext(thriftCtx, ClientCredential)
 		assert.NoError(t, err)
@@ -105,7 +105,7 @@ func TestInbound_ValidateCredentialsFromThriftContext(t *testing.T) {
 		inboundAuth := inboundAuthSetupNoAuthMode()
 		thriftCtx := createThriftContextWithHeaders(
 			context.Background(),
-			map[string]string{AUTH_USERNAME: "abc1", AUTH_PASSWORD: "bcd1"})
+			map[string]string{AuthUsername: "abc1", AuthPassword: "bcd1"})
 		err := inboundAuth.ValidateCredentialsFromThriftContext(thriftCtx, ClientCredential)
 		assert.NoError(t, err)
 	})
@@ -114,7 +114,7 @@ func TestInbound_ValidateCredentialsFromThriftContext(t *testing.T) {
 		inboundAuth := inboundAuthSetupShadowMode()
 		thriftCtx := createThriftContextWithHeaders(
 			context.Background(),
-			map[string]string{AUTH_USERNAME: "abc", AUTH_PASSWORD: "bcd"})
+			map[string]string{AuthUsername: "abc", AuthPassword: "bcd"})
 		err := inboundAuth.ValidateCredentialsFromThriftContext(thriftCtx, ClientCredential)
 		assert.NoError(t, err)
 	})
@@ -123,7 +123,7 @@ func TestInbound_ValidateCredentialsFromThriftContext(t *testing.T) {
 		inboundAuth := inboundAuthSetupShadowMode()
 		thriftCtx := createThriftContextWithHeaders(
 			context.Background(),
-			map[string]string{AUTH_USERNAME: "abc1", AUTH_PASSWORD: "bcd1"})
+			map[string]string{AuthUsername: "abc1", AuthPassword: "bcd1"})
 		err := inboundAuth.ValidateCredentialsFromThriftContext(thriftCtx, ClientCredential)
 		assert.NoError(t, err)
 	})
@@ -132,7 +132,7 @@ func TestInbound_ValidateCredentialsFromThriftContext(t *testing.T) {
 		inboundAuth := inboundAuthSetupEnabledMode()
 		thriftCtx := createThriftContextWithHeaders(
 			context.Background(),
-			map[string]string{AUTH_USERNAME: "abc", AUTH_PASSWORD: "bcd"})
+			map[string]string{AuthUsername: "abc", AuthPassword: "bcd"})
 		err := inboundAuth.ValidateCredentialsFromThriftContext(thriftCtx, ClientCredential)
 		assert.NoError(t, err)
 	})
@@ -141,7 +141,7 @@ func TestInbound_ValidateCredentialsFromThriftContext(t *testing.T) {
 		inboundAuth := inboundAuthSetupEnabledMode()
 		thriftCtx := createThriftContextWithHeaders(
 			context.Background(),
-			map[string]string{AUTH_USERNAME: "abc1", AUTH_PASSWORD: "bcd1"})
+			map[string]string{AuthUsername: "abc1", AuthPassword: "bcd1"})
 		err := inboundAuth.ValidateCredentialsFromThriftContext(thriftCtx, ClientCredential)
 		assert.Error(t, err)
 	})
@@ -150,7 +150,7 @@ func TestInbound_ValidateCredentialsFromThriftContext(t *testing.T) {
 		inboundAuth := inboundAuthSetupEnabledMode()
 		thriftCtx := createThriftContextWithHeaders(
 			context.Background(),
-			map[string]string{AUTH_USERNAME: "abc", AUTH_PASSWORD: "bcd"})
+			map[string]string{AuthUsername: "abc", AuthPassword: "bcd"})
 		err := inboundAuth.ValidateCredentialsFromThriftContext(thriftCtx, Unknown)
 		assert.Error(t, err)
 	})
@@ -159,7 +159,7 @@ func TestInbound_ValidateCredentialsFromThriftContext(t *testing.T) {
 		inboundAuth := inboundAuthSetupEnabledMode()
 		thriftCtx := createThriftContextWithHeaders(
 			context.Background(),
-			map[string]string{AUTH_USERNAME: "abc", AUTH_PASSWORD: "bcd"})
+			map[string]string{AuthUsername: "abc", AuthPassword: "bcd"})
 		err := inboundAuth.ValidateCredentialsFromThriftContext(thriftCtx, PeerCredential)
 		assert.Error(t, err)
 	})

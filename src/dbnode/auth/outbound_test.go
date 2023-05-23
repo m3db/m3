@@ -1,10 +1,11 @@
 package auth
 
 import (
-	"github.com/stretchr/testify/assert"
-	"github.com/uber/tchannel-go/thrift"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/uber/tchannel-go/thrift"
 )
 
 func TestWrapThriftContextWithCreds(t *testing.T) {

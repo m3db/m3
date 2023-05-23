@@ -2,12 +2,13 @@ package config
 
 import (
 	"errors"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
 	"io"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 )
 
 const testBaseAuthConfig = `
@@ -140,7 +141,7 @@ func TestAuthConfiguration(t *testing.T) {
 				assert.NoError(t, os.Remove(fd.Name()))
 			}()
 
-			_, wrtErr := fd.Write([]byte(tt.cfg))
+			_, wrtErr := fd.WriteString(tt.cfg)
 			require.NoError(t, wrtErr)
 
 			f, opnErr := os.Open(fd.Name())

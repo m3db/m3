@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"crypto/md5"
+	"crypto/md5" // #nosec
 	"encoding/hex"
 	"fmt"
 	"hash"
@@ -9,7 +9,7 @@ import (
 
 var (
 	credentialCache = map[string]string{}
-	hashFunc        = md5.New()
+	hashFunc        = md5.New() // #nosec
 )
 
 func generateHashWithCacheLookup(data string, h hash.Hash) (string, error) {

@@ -17,12 +17,12 @@ const (
 	EtcdCredential
 )
 
-// AuthMode designates a type of authentication.
-type AuthMode int
+// Mode designates a type of authentication.
+type Mode int
 
 const (
 	// AuthModeUnknown is unknown authentication type case.
-	AuthModeUnknown AuthMode = iota
+	AuthModeUnknown Mode = iota
 
 	// AuthModeNoAuth is no authentication type case.
 	AuthModeNoAuth

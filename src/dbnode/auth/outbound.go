@@ -23,8 +23,8 @@ func (o *Outbound) WrapThriftContextWithPeerCreds(tctx thrift.Context, zone stri
 
 func wrapTctxWithCredentials(tCtx thrift.Context, creds OutboundCredentials) thrift.Context {
 	return thrift.WithHeaders(tCtx, map[string]string{
-		AUTH_USERNAME: creds.Username,
-		AUTH_PASSWORD: creds.Password},
+		AuthUsername: creds.Username,
+		AuthPassword: creds.Password},
 	)
 }
 

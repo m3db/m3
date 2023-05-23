@@ -5,19 +5,20 @@ import (
 )
 
 const (
-	// AUTH_PASSWORD defines password key in thrift ctx.
-	AUTH_PASSWORD = "password"
+	// AuthPassword defines password key in thrift ctx.
+	AuthPassword = "password"
 
-	// AUTH_USERNAME defines username key in thrift ctx.
-	AUTH_USERNAME = "username"
+	// AuthUsername defines username key in thrift ctx.
+	AuthUsername = "username"
 
-	// AUTH_ZONE defines zone key in thrift ctx.
-	AUTH_ZONE = "zone"
+	// AuthZone defines zone key in thrift ctx.
+	AuthZone = "zone"
 )
 
 var (
 	// InboundAuth encapsulates inbound credentials for the dbnode.
 	InboundAuth *Inbound
+	// InboundLock encapsulates mutual exclusion lock, used while refreshing creds.
 	InboundLock = &sync.Mutex{}
 
 	// OutboundAuth encapsulates outbound credentials for dbnode and client.
@@ -31,7 +32,7 @@ func PopulateDefaultAuthConfig() {
 }
 
 // PopulateInbound populates inbound credentials for dbnode.
-func PopulateInbound(clientCredentials []InboundCredentials, authMode AuthMode) {
+func PopulateInbound(clientCredentials []InboundCredentials, authMode Mode) {
 	InboundAuth = &Inbound{
 		clientCredentials: clientCredentials,
 		authMode:          authMode,

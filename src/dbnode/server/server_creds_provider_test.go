@@ -6,6 +6,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/auth"
 	"github.com/m3db/m3/src/dbnode/auth/integration"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/uber/tchannel-go/thrift"
 )

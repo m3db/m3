@@ -1,9 +1,9 @@
 package integration
 
 import (
-	yaml "gopkg.in/yaml.v2"
-
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
+
+	"gopkg.in/yaml.v2"
 )
 
 // BaseConfigWithAuthEnabled encapsulate auth enabled config.

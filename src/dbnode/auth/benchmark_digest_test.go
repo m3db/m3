@@ -29,7 +29,7 @@ func BenchmarkGetMD5DigestMap(b *testing.B) {
 func RandomString(length int) string {
 	b := make([]byte, length)
 	for i := range b {
-		b[i] = charset[mrand.Intn(len(charset))]
+		b[i] = charset[mrand.Intn(len(charset))] // #nosec
 	}
 	return string(b)
 }
