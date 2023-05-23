@@ -106,7 +106,7 @@ func (opts *Options) CredentialLoad(target interface{}, loadOpts config.Options)
 	}
 
 	if err := config.LoadFiles(target, opts.CredentialsFile.Value, loadOpts); err != nil {
-		return false, fmt.Errorf("unable to load secrets from %s: %v", opts.CredentialsFile.Value, err)
+		return false, fmt.Errorf("unable to load secrets from %s: %w", opts.CredentialsFile.Value, err)
 	}
 	return true, nil
 }

@@ -21,6 +21,7 @@
 package etcd
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -51,6 +52,8 @@ type ClusterConfig struct {
 	// Only do this if you truly have a good reason for it! Most production use cases want autosync on.
 	AutoSyncInterval time.Duration `yaml:"autoSyncInterval"`
 	DialTimeout      time.Duration `yaml:"dialTimeout"`
+
+	Auth *AuthConfig `yaml:"auth"`
 
 	DialOptions []grpc.DialOption `yaml:"-"` // nonserializable
 }
@@ -118,6 +121,22 @@ func (c *KeepAliveConfig) NewOptions() KeepAliveOptions {
 		SetKeepAliveTimeout(c.Timeout)
 }
 
+// AuthConfig configures authentication behavior.
+type AuthConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	UserName string `yaml:"username"`
+	Password string `yaml:"password"`
+}
+
+func (a *AuthConfig) Validate() error {
+	if a.Enabled {
+		if a.UserName == "" || a.Password == "" {
+			return fmt.Errorf("credentials must be set for client's outbound")
+		}
+	}
+	return nil
+}
+
 // Configuration is for config service client.
 type Configuration struct {
 	Zone              string                 `yaml:"zone"`
@@ -128,6 +147,7 @@ type Configuration struct {
 	SDConfig          services.Configuration `yaml:"m3sd"`
 	WatchWithRevision int64                  `yaml:"watchWithRevision"`
 	NewDirectoryMode  *os.FileMode           `yaml:"newDirectoryMode"`
+	Auth              *AuthConfig            `yaml:"auth"`
 
 	Retry                  retry.Configuration `yaml:"retry"`
 	RequestTimeout         time.Duration       `yaml:"requestTimeout"`
