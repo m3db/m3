@@ -475,8 +475,9 @@ func (c Configuration) NewAdminClient(
 		opts = opt(opts)
 	}
 
-	PopulateClientOutboundAuthConfig(c.EnvironmentConfig.Services)
-
+	if authErr := PopulateClientOutboundAuthConfig(c.EnvironmentConfig.Services); authErr != nil {
+		return nil, authErr
+	}
 	asyncClusterOpts := NewOptionsForAsyncClusters(opts, asyncTopoInits, asyncClientOverrides)
 	return NewAdminClient(opts, asyncClusterOpts...)
 }
