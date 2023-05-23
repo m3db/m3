@@ -43,6 +43,9 @@ type ShardSet interface {
 	// Lookup will return a shard for a given identifier.
 	Lookup(id ident.ID) uint32
 
+	// LookupShard will return a shard for a given shard id.
+	LookupShard(id uint32) (shard.Shard, error)
+
 	// LookupStateByID returns the state of the shard with a given ID.
 	LookupStateByID(shardID uint32) (shard.State, error)
 

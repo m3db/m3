@@ -21,6 +21,7 @@
 package client
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -131,4 +132,19 @@ proto:
 	}
 
 	assert.Equal(t, expected, cfg)
+}
+
+func TestValidateConfig(t *testing.T) {
+	var (
+		boolTrue = true
+	)
+
+	config := Configuration{
+		ShardsLeavingCountTowardsConsistency:                &boolTrue,
+		ShardsLeavingAndInitializingCountTowardsConsistency: &boolTrue,
+	}
+	err := config.Validate()
+	require.Error(t, err)
+	require.Equal(t, err, fmt.Errorf("m3db client cannot have both shardsLeavingCountTowardsConsistency and "+
+		"shardsLeavingAndInitializingCountTowardsConsistency as true"))
 }

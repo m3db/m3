@@ -827,7 +827,6 @@ func markShardsAvailable(p placement.Placement, instanceID string, shardIDs []ui
 				return nil, err
 			}
 		}
-
 		sourceShards.Remove(shardID)
 		if sourceShards.NumShards() == 0 {
 			p = p.SetInstances(removeInstanceFromList(p.Instances(), sourceInstance.ID()))
