@@ -173,7 +173,7 @@ func (e *CounterElem) AddValue(timestamp time.Time, value float64, annotation []
 
 // AddUnique adds a metric value from a given source at a given timestamp.
 // If previous values from the same source have already been added to the
-// same aggregation, the incoming value is discarded.
+// same aggregation, the incoming value is discarded
 //nolint: dupl
 func (e *CounterElem) AddUnique(
 	timestamp time.Time,
