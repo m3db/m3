@@ -332,7 +332,6 @@ func TestGeneratePlacement(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestConfigureDynamic(t *testing.T) {
