@@ -24,14 +24,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/kv"
 	m3clusterkvmem "github.com/m3db/m3/src/cluster/kv/mem"
-	"github.com/m3db/m3/src/cluster/placement"
-	placementsvc "github.com/m3db/m3/src/cluster/placement/service"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
@@ -431,40 +430,36 @@ func newStaticShardSet(
 }
 
 func generatePlacement(hosts []topology.HostShardConfig, numShards int, rf int) ([]topology.HostShardSet, error) {
-	instances := make([]placement.Instance, 0, len(hosts))
-	for _, host := range hosts {
-		instance := placement.NewInstance().
-			SetID(host.HostID).
-			SetHostname(host.HostID).
-			SetIsolationGroup(host.HostID).
-			SetEndpoint(host.ListenAddress).
-			SetWeight(1)
-		instances = append(instances, instance)
+	numHosts := len(hosts)
+	if numHosts == 0 || numShards < 1 || rf < 1 {
+		return nil, errors.New("number of hosts, shards, and RF must be positive")
+	}
+	if rf > numHosts {
+		return nil, errors.New("number of hosts must be >=RF")
 	}
 
-	operator := placementsvc.NewPlacementOperator(
-		nil,
-		placementsvc.WithPlacementOptions(placement.NewOptions().SetAllowAllZones(true)),
-	)
-
-	_, err := operator.BuildInitialPlacement(instances, numShards, rf)
-	if err != nil {
-		return nil, fmt.Errorf("error building initial placement: %w", err)
-	}
-	pl, err := operator.MarkAllShardsAvailable()
-	if err != nil {
-		return nil, fmt.Errorf("error marking shards available: %w", err)
+	hostShards := make([][]shard.Shard, numHosts)
+	hostIdx := 0
+	// Round robin assign shard replicas to hosts.
+	for shardInt := uint32(0); shardInt < uint32(numShards); shardInt++ {
+		for replica := 0; replica < rf; replica++ {
+			newShard := shard.NewShard(shardInt).SetState(shard.Available)
+			hostShards[hostIdx] = append(hostShards[hostIdx], newShard)
+			hostIdx = (hostIdx + 1) % numHosts
+		}
 	}
 
-	hostShardSets := make([]topology.HostShardSet, 0, pl.NumInstances())
-	for _, instance := range pl.Instances() {
-		shards := instance.Shards().All()
-		shardSet, err := sharding.NewShardSet(shards, sharding.DefaultHashFn(len(shards)))
+	hostShardSets := make([]topology.HostShardSet, 0, numHosts)
+	sortedHosts := make([]topology.HostShardConfig, numHosts)
+	// Plain copy is okay because struct just contains strings.
+	copy(sortedHosts, hosts)
+	sort.Slice(sortedHosts, func(i, j int) bool { return sortedHosts[i].HostID < sortedHosts[j].HostID })
+	for i, host := range sortedHosts {
+		host := topology.NewHost(host.HostID, host.ListenAddress)
+		shardSet, err := sharding.NewShardSet(hostShards[i], sharding.DefaultHashFn(len(hostShards[i])))
 		if err != nil {
 			return nil, fmt.Errorf("error constructing new ShardSet: %w", err)
 		}
-
-		host := topology.NewHost(instance.ID(), instance.Endpoint())
 		hostShardSet := topology.NewHostShardSet(host, shardSet)
 		hostShardSets = append(hostShardSets, hostShardSet)
 	}
