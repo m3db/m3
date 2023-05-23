@@ -431,7 +431,7 @@ func newStaticShardSet(
 }
 
 func generatePlacement(hosts []topology.HostShardConfig, numShards int, rf int) ([]topology.HostShardSet, error) {
-	var instances []placement.Instance
+	instances := make([]placement.Instance, 0, len(hosts))
 	for _, host := range hosts {
 		instance := placement.NewInstance().
 			SetID(host.HostID).
@@ -456,7 +456,7 @@ func generatePlacement(hosts []topology.HostShardConfig, numShards int, rf int) 
 		return nil, fmt.Errorf("error marking shards available: %w", err)
 	}
 
-	var hostShardSets []topology.HostShardSet
+	hostShardSets := make([]topology.HostShardSet, 0, pl.NumInstances())
 	for _, instance := range pl.Instances() {
 		shards := instance.Shards().All()
 		shardSet, err := sharding.NewShardSet(shards, sharding.DefaultHashFn(len(shards)))

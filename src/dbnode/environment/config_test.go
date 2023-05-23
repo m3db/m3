@@ -31,9 +31,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/stretchr/testify/require"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
 
@@ -41,14 +40,12 @@ var initTimeout = time.Minute
 
 func TestConfigureStatic(t *testing.T) {
 	tests := []struct {
-		name       string
 		staticTopo *topology.StaticConfiguration
 		expectErr  bool
 	}{
 		{
-			name: "0 replicas; 1 host",
 			staticTopo: &topology.StaticConfiguration{
-				Shards:   2,
+				Shards:   32,
 				Replicas: 0,
 				Hosts: []topology.HostShardConfig{
 					{
@@ -60,9 +57,8 @@ func TestConfigureStatic(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name: "1 replica; 1 host",
 			staticTopo: &topology.StaticConfiguration{
-				Shards:   2,
+				Shards:   32,
 				Replicas: 1,
 				Hosts: []topology.HostShardConfig{
 					{
@@ -74,9 +70,8 @@ func TestConfigureStatic(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name: "1 replica; 3 hosts",
 			staticTopo: &topology.StaticConfiguration{
-				Shards:   2,
+				Shards:   32,
 				Replicas: 1,
 				Hosts: []topology.HostShardConfig{
 					{
@@ -96,9 +91,8 @@ func TestConfigureStatic(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name: "3 replicas; 3 hosts",
 			staticTopo: &topology.StaticConfiguration{
-				Shards:   2,
+				Shards:   32,
 				Replicas: 3,
 				Hosts: []topology.HostShardConfig{
 					{
@@ -118,9 +112,8 @@ func TestConfigureStatic(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name: "3 replicas; 1 host",
 			staticTopo: &topology.StaticConfiguration{
-				Shards:   2,
+				Shards:   32,
 				Replicas: 3,
 				Hosts: []topology.HostShardConfig{
 					{
@@ -137,12 +130,11 @@ func TestConfigureStatic(t *testing.T) {
 					},
 				},
 			},
-			expectErr: true,
+			expectErr: false,
 		},
 		{
-			name: "3 replicas; 5 hosts",
 			staticTopo: &topology.StaticConfiguration{
-				Shards:   2,
+				Shards:   32,
 				Replicas: 3,
 				Hosts: []topology.HostShardConfig{
 					{
@@ -169,10 +161,28 @@ func TestConfigureStatic(t *testing.T) {
 			},
 			expectErr: false,
 		},
+		{
+			staticTopo: &topology.StaticConfiguration{
+				Shards:   32,
+				Replicas: 3,
+				Hosts: []topology.HostShardConfig{
+					{
+						HostID:        "host0",
+						ListenAddress: "0.0.0.0:1000",
+					},
+				},
+			},
+			expectErr: true,
+		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		validity := "valid"
+		if test.expectErr {
+			validity = "invalid"
+		}
+		testName := fmt.Sprintf("%s:%dhosts;%drf", validity, len(test.staticTopo.Hosts), test.staticTopo.Replicas)
+		t.Run(testName, func(t *testing.T) {
 			config := Configuration{
 				Statics: StaticConfiguration{
 					&StaticCluster{
@@ -212,7 +222,6 @@ func TestConfigureStatic(t *testing.T) {
 
 func TestGeneratePlacement(t *testing.T) {
 	tests := []struct {
-		name      string
 		numHosts  int
 		numShards int
 		rf        int
