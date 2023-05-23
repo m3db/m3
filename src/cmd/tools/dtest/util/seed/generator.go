@@ -156,6 +156,10 @@ type fakeShardSet struct {
 	shardID uint32
 }
 
+func (f *fakeShardSet) LookupShard(id uint32) (shard.Shard, error) {
+	return nil, nil
+}
+
 func (f *fakeShardSet) All() []shard.Shard {
 	sh := shard.NewShard(f.shardID)
 	return []shard.Shard{sh}
