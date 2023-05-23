@@ -21,7 +21,6 @@
 package etcd
 
 import (
-	"fmt"
 	"os"
 	"time"
 
@@ -53,8 +52,6 @@ type ClusterConfig struct {
 	AutoSyncInterval time.Duration `yaml:"autoSyncInterval"`
 	DialTimeout      time.Duration `yaml:"dialTimeout"`
 
-	Auth *AuthConfig `yaml:"auth"`
-
 	DialOptions []grpc.DialOption `yaml:"-"` // nonserializable
 }
 
@@ -71,7 +68,6 @@ func (c ClusterConfig) NewCluster() Cluster {
 		SetDialOptions(c.DialOptions).
 		SetKeepAliveOptions(keepAliveOpts).
 		SetTLSOptions(c.TLS.newOptions())
-
 	// Autosync should *always* be on, unless the user very explicitly requests it to be off. They can do this via a
 	// negative value (in which case we can assume they know what they're doing).
 	// Therefore, only update if it's nonzero, on the assumption that zero is just the empty value.
@@ -122,22 +118,6 @@ func (c *KeepAliveConfig) NewOptions() KeepAliveOptions {
 		SetKeepAliveTimeout(c.Timeout)
 }
 
-// AuthConfig configures authentication behavior.
-type AuthConfig struct {
-	Enabled  bool   `yaml:"enabled"`
-	UserName string `yaml:"username"`
-	Password string `yaml:"password"`
-}
-
-func (a *AuthConfig) Validate() error {
-	if a.Enabled {
-		if a.UserName == "" || a.Password == "" {
-			return fmt.Errorf("credentials must be set for client's outbound")
-		}
-	}
-	return nil
-}
-
 // Configuration is for config service client.
 type Configuration struct {
 	Zone              string                 `yaml:"zone"`
@@ -148,7 +128,6 @@ type Configuration struct {
 	SDConfig          services.Configuration `yaml:"m3sd"`
 	WatchWithRevision int64                  `yaml:"watchWithRevision"`
 	NewDirectoryMode  *os.FileMode           `yaml:"newDirectoryMode"`
-	Auth              *AuthConfig            `yaml:"auth"`
 
 	Retry                  retry.Configuration `yaml:"retry"`
 	RequestTimeout         time.Duration       `yaml:"requestTimeout"`

@@ -10,7 +10,8 @@ type Outbound struct {
 	etcdCredentials []OutboundCredentials
 }
 
-// WrapThriftContextWithPeerCreds wraps thrift context with outbound peer credential depending on CredentialType and zone.
+// WrapThriftContextWithPeerCreds wraps thrift context with outbound peer credential
+// depending on CredentialType and zone.
 func (o *Outbound) WrapThriftContextWithPeerCreds(tctx thrift.Context, zone string) thrift.Context {
 	for _, peerCred := range o.peerCredentials {
 		if peerCred.Zone == zone {

@@ -100,11 +100,6 @@ func (opts *Options) MainLoad(target interface{}, loadOpts config.Options) error
 // CredentialLoad is a method used in main(), which handles secrets commandline options. It loads the secrets yaml
 // file if present with -c flag.
 func (opts *Options) CredentialLoad(target interface{}, loadOpts config.Options) (bool, error) {
-	osFns := opts.osFns
-	if osFns == nil {
-		osFns = realOS{}
-	}
-
 	if len(opts.CredentialsFile.Value) == 0 {
 		opts.cmd.Usage()
 		return false, nil

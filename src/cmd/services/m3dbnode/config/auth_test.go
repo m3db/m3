@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
@@ -101,161 +102,61 @@ inbounds:
         digest: digest2
 `
 
-const incompleteCreds = `
-outbounds:
-  m3db:
-    services:
-      - service:
-          zone: m3_abc
-          username: m3_bcd
-      - service:
-          zone: m3_abc1
-          username: m3_bcd1
-          password: m3_xyz1
-
-  etcd:
-    services:
-      - service:
-          zone: etcd_abc
-          username: etcd_bcd
-          password: etcd_xyz
-      - service:
-          zone: etcd_abc1
-          username: etcd_bcd1
-          password: etcd_xyz1
-
-inbounds:
-  m3db:
-    mode: NONE
-    credentials:
-      - username: user
-      - username: user2
-        digest: digest2
-`
-
 func TestAuthConfiguration(t *testing.T) {
-	t.Run("correct secrets file", func(t *testing.T) {
-		fd, crtErr := os.CreateTemp("", "secrets.yaml")
-		require.NoError(t, crtErr)
-		defer func() {
-			assert.NoError(t, fd.Close())
-			assert.NoError(t, os.Remove(fd.Name()))
-		}()
+	tests := []struct {
+		name string
+		cfg  string
+		err  error
+	}{
+		{
+			name: "correct secrets file",
+			cfg:  testBaseAuthConfig,
+			err:  nil,
+		}, {
+			name: "secrets file missing outbounds",
+			cfg:  missingOutbounds,
+			err:  errors.New("outbound creds are not present"),
+		}, {
+			name: "secrets file missing m3db outbounds",
+			cfg:  missingM3dbConfigOutbounds,
+			err:  errors.New("incomplete outbound creds, m3db node creds not provided"),
+		}, {
+			name: "secrets file missing etcd outbounds",
+			cfg:  missingETCDConfigOutbounds,
+			err:  errors.New("incomplete outbound creds, etcd node creds not provided"),
+		}, {
+			name: "secrets file contains incomplete creds",
+			cfg:  missingETCDConfigOutbounds,
+			err:  errors.New("incomplete creds, password not provided"),
+		},
+	}
 
-		_, wrtErr := fd.Write([]byte(testBaseAuthConfig))
-		require.NoError(t, wrtErr)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fd, crtErr := os.CreateTemp("", "secrets.yaml")
+			require.NoError(t, crtErr)
+			defer func() {
+				assert.NoError(t, fd.Close())
+				assert.NoError(t, os.Remove(fd.Name()))
+			}()
 
-		f, opnErr := os.Open(fd.Name())
-		require.NoError(t, opnErr)
+			_, wrtErr := fd.Write([]byte(tt.cfg))
+			require.NoError(t, wrtErr)
 
-		all, rdErr := io.ReadAll(f)
-		require.NoError(t, rdErr)
+			f, opnErr := os.Open(fd.Name())
+			require.NoError(t, opnErr)
 
-		newSecrets := &AuthConfig{}
-		unmarErr := yaml.Unmarshal(all, newSecrets)
-		require.NoError(t, unmarErr)
+			all, rdErr := io.ReadAll(f)
+			require.NoError(t, rdErr)
 
-		err := newSecrets.Validate()
-		require.NoError(t, err)
-	})
+			newSecrets := &AuthConfig{}
+			unmarErr := yaml.Unmarshal(all, newSecrets)
+			require.NoError(t, unmarErr)
 
-	t.Run("secrets file missing outbounds", func(t *testing.T) {
-		fd, crtErr := os.CreateTemp("", "secrets.yaml")
-		require.NoError(t, crtErr)
-		defer func() {
-			assert.NoError(t, fd.Close())
-			assert.NoError(t, os.Remove(fd.Name()))
-		}()
-
-		_, wrtErr := fd.Write([]byte(missingOutbounds))
-		require.NoError(t, wrtErr)
-
-		f, opnErr := os.Open(fd.Name())
-		require.NoError(t, opnErr)
-
-		all, rdErr := io.ReadAll(f)
-		require.NoError(t, rdErr)
-
-		newSecrets := &AuthConfig{}
-		unmarErr := yaml.Unmarshal(all, newSecrets)
-		require.NoError(t, unmarErr)
-
-		err := newSecrets.Validate()
-		require.Error(t, err, "outbound creds are not present")
-	})
-
-	t.Run("secrets file missing m3db outbounds", func(t *testing.T) {
-		fd, crtErr := os.CreateTemp("", "secrets.yaml")
-		require.NoError(t, crtErr)
-		defer func() {
-			assert.NoError(t, fd.Close())
-			assert.NoError(t, os.Remove(fd.Name()))
-		}()
-
-		_, wrtErr := fd.Write([]byte(missingM3dbConfigOutbounds))
-		require.NoError(t, wrtErr)
-
-		f, opnErr := os.Open(fd.Name())
-		require.NoError(t, opnErr)
-
-		all, rdErr := io.ReadAll(f)
-		require.NoError(t, rdErr)
-
-		newSecrets := &AuthConfig{}
-		unmarErr := yaml.Unmarshal(all, newSecrets)
-		require.NoError(t, unmarErr)
-
-		err := newSecrets.Validate()
-		require.Error(t, err, "incomplete outbound creds, m3db node creds not provided")
-	})
-
-	t.Run("secrets file missing etcd outbounds", func(t *testing.T) {
-		fd, crtErr := os.CreateTemp("", "secrets.yaml")
-		require.NoError(t, crtErr)
-		defer func() {
-			assert.NoError(t, fd.Close())
-			assert.NoError(t, os.Remove(fd.Name()))
-		}()
-
-		_, wrtErr := fd.Write([]byte(missingETCDConfigOutbounds))
-		require.NoError(t, wrtErr)
-
-		f, opnErr := os.Open(fd.Name())
-		require.NoError(t, opnErr)
-
-		all, rdErr := io.ReadAll(f)
-		require.NoError(t, rdErr)
-
-		newSecrets := &AuthConfig{}
-		unmarErr := yaml.Unmarshal(all, newSecrets)
-		require.NoError(t, unmarErr)
-
-		err := newSecrets.Validate()
-		require.Error(t, err, "incomplete outbound creds, etcd node creds not provided")
-	})
-
-	t.Run("secrets file contains incomplete creds", func(t *testing.T) {
-		fd, crtErr := os.CreateTemp("", "secrets.yaml")
-		require.NoError(t, crtErr)
-		defer func() {
-			assert.NoError(t, fd.Close())
-			assert.NoError(t, os.Remove(fd.Name()))
-		}()
-
-		_, wrtErr := fd.Write([]byte(incompleteCreds))
-		require.NoError(t, wrtErr)
-
-		f, opnErr := os.Open(fd.Name())
-		require.NoError(t, opnErr)
-
-		all, rdErr := io.ReadAll(f)
-		require.NoError(t, rdErr)
-
-		newSecrets := &AuthConfig{}
-		unmarErr := yaml.Unmarshal(all, newSecrets)
-		require.NoError(t, unmarErr)
-
-		err := newSecrets.Validate()
-		require.Error(t, err, "incomplete creds, password not provided")
-	})
+			err := newSecrets.Validate()
+			if tt.err != nil {
+				assert.Error(t, err)
+			}
+		})
+	}
 }

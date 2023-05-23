@@ -134,7 +134,6 @@ func TestCommandLineOptions(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, isPresent)
 	})
-
 }
 
 func TestFlagArray(t *testing.T) {

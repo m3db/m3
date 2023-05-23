@@ -1,10 +1,12 @@
 package integration
 
 import (
-	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 )
 
+// BaseConfigWithAuthEnabled encapsulate auth enabled config.
 const BaseConfigWithAuthEnabled = `
 outbounds:
   m3db:
@@ -39,6 +41,7 @@ inbounds:
         digest: digest21
 `
 
+// BaseConfigWithAuthEnabledRefresh encapsulate auth enabled config refreshed.
 const BaseConfigWithAuthEnabledRefresh = `
 outbounds:
   m3db:
@@ -72,6 +75,8 @@ inbounds:
       - username: user22
         digest: digest22
 `
+
+// BaseConfigWithAuthDisabled encapsulate auth disabled config.
 const BaseConfigWithAuthDisabled = `
 outbounds:
   m3db:
@@ -106,6 +111,7 @@ inbounds:
         digest: digest21
 `
 
+// BaseConfigWithOutbounds encapsulate auth config with valid outbounds.
 const BaseConfigWithOutbounds = `
 outbounds:
   m3db:
@@ -132,6 +138,7 @@ outbounds:
 
 `
 
+// BaseConfigWithOutboundsrefreshed encapsulate auth config with valid outbounds refresh.
 const BaseConfigWithOutboundsrefreshed = `
 outbounds:
   m3db:
@@ -158,8 +165,12 @@ outbounds:
 
 `
 
+// CreateTestConfigYaml returns authconfig.
 func CreateTestConfigYaml(cfg string) *config.AuthConfig {
 	newSecrets := &config.AuthConfig{}
-	yaml.Unmarshal([]byte(cfg), newSecrets)
+	err := yaml.Unmarshal([]byte(cfg), newSecrets)
+	if err != nil {
+		return nil
+	}
 	return newSecrets
 }

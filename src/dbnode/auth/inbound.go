@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+
 	"github.com/uber/tchannel-go/thrift"
 )
 
@@ -52,8 +53,7 @@ func (i *Inbound) ValidateCredentials(creds InboundCredentials) error {
 	return fmt.Errorf("credential not matched for dbnode inbound")
 }
 
-// ValidateCredentialsFromThriftContext validates inbound credential from thrift context. ValidateCredsFromTCtxHeaders checks for
-// call's request headers .
+// ValidateCredentialsFromThriftContext validates inbound credential from thrift context.
 func (i *Inbound) ValidateCredentialsFromThriftContext(tctx thrift.Context, credtype CredentialType) error {
 	ctxHeaders := tctx.Headers()
 	userName, ok := ctxHeaders[AUTH_USERNAME]
