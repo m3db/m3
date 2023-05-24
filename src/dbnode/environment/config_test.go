@@ -41,10 +41,12 @@ var initTimeout = time.Minute
 
 func TestConfigureStatic(t *testing.T) {
 	tests := []struct {
+		name       string
 		staticTopo *topology.StaticConfiguration
 		expectErr  bool
 	}{
 		{
+			name: "0 replicas get defaulted to 1",
 			staticTopo: &topology.StaticConfiguration{
 				Shards:   32,
 				Replicas: 0,
@@ -58,6 +60,7 @@ func TestConfigureStatic(t *testing.T) {
 			expectErr: false,
 		},
 		{
+			name: "1 replica, 1 host",
 			staticTopo: &topology.StaticConfiguration{
 				Shards:   32,
 				Replicas: 1,
@@ -71,6 +74,7 @@ func TestConfigureStatic(t *testing.T) {
 			expectErr: false,
 		},
 		{
+			name: "1 replica, 3 hosts",
 			staticTopo: &topology.StaticConfiguration{
 				Shards:   32,
 				Replicas: 1,
@@ -92,6 +96,7 @@ func TestConfigureStatic(t *testing.T) {
 			expectErr: false,
 		},
 		{
+			name: "3 replicas, 3 hosts",
 			staticTopo: &topology.StaticConfiguration{
 				Shards:   32,
 				Replicas: 3,
@@ -113,27 +118,7 @@ func TestConfigureStatic(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			staticTopo: &topology.StaticConfiguration{
-				Shards:   32,
-				Replicas: 3,
-				Hosts: []topology.HostShardConfig{
-					{
-						HostID:        "host0",
-						ListenAddress: "0.0.0.0:1000",
-					},
-					{
-						HostID:        "host1",
-						ListenAddress: "0.0.0.0:1001",
-					},
-					{
-						HostID:        "host2",
-						ListenAddress: "0.0.0.0:1002",
-					},
-				},
-			},
-			expectErr: false,
-		},
-		{
+			name: "3 replicas, 5 hosts",
 			staticTopo: &topology.StaticConfiguration{
 				Shards:   32,
 				Replicas: 3,
@@ -163,6 +148,7 @@ func TestConfigureStatic(t *testing.T) {
 			expectErr: false,
 		},
 		{
+			name: "invalid: replicas > hosts",
 			staticTopo: &topology.StaticConfiguration{
 				Shards:   32,
 				Replicas: 3,
@@ -178,12 +164,7 @@ func TestConfigureStatic(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		validity := "valid"
-		if test.expectErr {
-			validity = "invalid"
-		}
-		testName := fmt.Sprintf("%s:%dhosts;%drf", validity, len(test.staticTopo.Hosts), test.staticTopo.Replicas)
-		t.Run(testName, func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			config := Configuration{
 				Statics: StaticConfiguration{
 					&StaticCluster{
@@ -223,86 +204,93 @@ func TestConfigureStatic(t *testing.T) {
 
 func TestGeneratePlacement(t *testing.T) {
 	tests := []struct {
+		name      string
 		numHosts  int
 		numShards int
 		rf        int
 		expectErr bool
 	}{
 		{
+			name:      "1 host, 1 rf",
 			numHosts:  1,
 			numShards: 16,
 			rf:        1,
 			expectErr: false,
 		},
 		{
+			name:      "3 hosts, 1 rf",
 			numHosts:  3,
 			numShards: 16,
 			rf:        1,
 			expectErr: false,
 		},
 		{
+			name:      "3 hosts, 1 rf with more shards",
 			numHosts:  3,
 			numShards: 32,
 			rf:        1,
 			expectErr: false,
 		},
 		{
+			name:      "3 hosts, 3 rf",
 			numHosts:  3,
 			numShards: 16,
 			rf:        3,
 			expectErr: false,
 		},
 		{
+			name:      "5 hosts, 3 rf",
 			numHosts:  5,
 			numShards: 16,
 			rf:        3,
 			expectErr: false,
 		},
 		{
+			name:      "prod-like cluster",
 			numHosts:  100,
 			numShards: 4096,
 			rf:        3,
 			expectErr: false,
 		},
 		{
+			name:      "invalid: hosts < rf",
 			numHosts:  2,
 			numShards: 16,
 			rf:        3,
 			expectErr: true,
 		},
 		{
+			name:      "invalid: hosts < rf 2",
+			numHosts:  10,
+			numShards: 16,
+			rf:        11,
+			expectErr: true,
+		},
+		{
+			name:      "invalid: no hosts",
 			numHosts:  0,
 			numShards: 16,
 			rf:        3,
 			expectErr: true,
 		},
 		{
+			name:      "invalid: 0 rf",
 			numHosts:  10,
 			numShards: 16,
 			rf:        0,
 			expectErr: true,
 		},
 		{
+			name:      "invalid: no shards",
 			numHosts:  10,
 			numShards: 0,
 			rf:        3,
 			expectErr: true,
 		},
-		{
-			numHosts:  10,
-			numShards: 16,
-			rf:        11,
-			expectErr: true,
-		},
 	}
 
 	for _, test := range tests {
-		validity := "valid"
-		if test.expectErr {
-			validity = "invalid"
-		}
-		testName := fmt.Sprintf("%s:%dhosts;%drf;%dshards", validity, test.numHosts, test.rf, test.numShards)
-		t.Run(testName, func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			var hosts []topology.HostShardConfig
 			for i := 0; i < test.numHosts; i++ {
 				hosts = append(hosts, topology.HostShardConfig{
@@ -378,22 +366,27 @@ func TestGeneratePlacementConsistency(t *testing.T) {
 		if i == 0 {
 			pl = hostShardSets
 		} else {
-			assertHostShardSetsEqualish(t, pl, hostShardSets)
+			assertHostShardSetsEqual(t, pl, hostShardSets)
 		}
 	}
 }
 
-func assertHostShardSetsEqualish(t *testing.T, one, two []topology.HostShardSet) {
+// assertHostShardSetsEqual asserts that two HostShardSets are semantically
+// equal. Mandates that the two HostShardSets are in the same order too.
+func assertHostShardSetsEqual(t *testing.T, one, two []topology.HostShardSet) {
 	require.Equal(t, len(one), len(two))
 
 	for i := range one {
-		assert.Equal(t, one[i].Host().String(), two[i].Host().String())
+		oneHost := one[i].Host()
+		twoHost := two[i].Host()
+		assert.Equal(t, oneHost.ID(), twoHost.ID())
+		assert.Equal(t, oneHost.Address(), twoHost.Address())
 
-		oneIDs := one[i].ShardSet().AllIDs()
-		twoIDs := two[i].ShardSet().AllIDs()
+		oneIDs := one[i].ShardSet().All()
+		twoIDs := two[i].ShardSet().All()
 		require.Equal(t, len(oneIDs), len(twoIDs))
 		for j := range oneIDs {
-			assert.Equal(t, oneIDs[j], twoIDs[j])
+			assert.True(t, oneIDs[j].Equals(twoIDs[j]))
 		}
 	}
 }
