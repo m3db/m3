@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	// ErrDuplicateShards returned when shard set is empty
+	// ErrDuplicateShards returned when shard set contains duplicate shards
 	ErrDuplicateShards = errors.New("duplicate shards")
 
 	// ErrInvalidShardID is returned on an invalid shard ID
