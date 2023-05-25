@@ -34,7 +34,7 @@ type Inbound struct {
 
 // ValidateCredentials validates the inbound credential and return error accordingly.
 func (i *Inbound) ValidateCredentials(creds InboundCredentials) error {
-	if i.authMode == AuthModeNoAuth {
+	if i == nil || i.authMode == AuthModeNoAuth {
 		return nil
 	}
 
