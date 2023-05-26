@@ -1,5 +1,7 @@
 # M3
 
+Some comment
+
 [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![FOSSA Status][fossa-img]][fossa]
 
 <p align="center"><img src="site/static/images/logo-square.png" alt="M3 Logo" width="256" height="270"></p>
