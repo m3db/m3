@@ -29,7 +29,7 @@ import (
 )
 
 func TestInbound_ValidateCredentials(t *testing.T) {
-	t.Run("valid credentials no auth mode", func(t *testing.T) {
+	t.Run("valid credentials no auth mode.", func(t *testing.T) {
 		inboundAuth := inboundAuthSetupNoAuthMode()
 		err := inboundAuth.ValidateCredentials(InboundCredentials{
 			Username: "abc",
