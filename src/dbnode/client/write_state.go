@@ -44,9 +44,9 @@ const (
 	available
 	leaving
 	initializing
-	shardLeavingAndLeavingCountsIndividually
-	shardLeavingAndLeavingCountsAsPair
-	shardInitializingAndInitializingCountsAsPair
+	shardLeavingCountsIndividually
+	shardLeavingCountsAsPair
+	shardInitializingCountsAsPair
 )
 
 // writeOp represents a generic write operation
@@ -172,15 +172,16 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		// NB(r): If shard is leaving and configured to allow writes to leaving
 		// shards to count towards consistency then allow that to count
 		// to success
-		// If shardsLeavingAndInitializingCountTowardsConsistency is true then write to both leaving and initializing
+		// If shardsLeavingAndInitializingCountTowardsConsistency flag is true then count the success on writing to both
+		// leaving and initializing as pair
 		switch newCountTowardsConsistency(shardState,
 			w.shardsLeavingCountTowardsConsistency,
 			w.shardsLeavingAndInitializingCountTowardsConsistency) {
 		case available:
 			w.success++
-		case shardLeavingAndLeavingCountsIndividually:
+		case shardLeavingCountsIndividually:
 			w.success++
-		case shardLeavingAndLeavingCountsAsPair:
+		case shardLeavingCountsAsPair:
 			shard, err := hostShardSet.ShardSet().LookupShard(w.op.ShardID())
 			if err != nil {
 				errStr := "no shard id %d in host %s"
@@ -190,7 +191,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 				initializingHostID := shard.DestinationID()
 				w.setHostSuccessList(hostID, initializingHostID)
 			}
-		case shardInitializingAndInitializingCountsAsPair:
+		case shardInitializingCountsAsPair:
 			shard, err := hostShardSet.ShardSet().LookupShard(w.op.ShardID())
 			if err != nil {
 				errStr := "no shard id %d in host %s"
@@ -310,9 +311,12 @@ type maybeHostWriteError struct {
 	err error
 }
 
-func newCountTowardsConsistency(shardState shard.State,
+func newCountTowardsConsistency(
+	shardState shard.State,
 	leavingCountsIndividually bool,
-	leavingAndInitializingCountsAsPair bool) countTowardsConsistency {
+	leavingAndInitializingCountsAsPair bool,
+) countTowardsConsistency {
+
 	isAvailable := shardState == shard.Available
 	isLeaving := shardState == shard.Leaving
 	isInitializing := shardState == shard.Initializing
@@ -321,13 +325,13 @@ func newCountTowardsConsistency(shardState shard.State,
 		return available
 	}
 	if isLeaving && leavingCountsIndividually {
-		return shardLeavingAndLeavingCountsIndividually
+		return shardLeavingCountsIndividually
 	}
 	if isLeaving && leavingAndInitializingCountsAsPair {
-		return shardLeavingAndLeavingCountsAsPair
+		return shardLeavingCountsAsPair
 	}
 	if isInitializing && leavingAndInitializingCountsAsPair {
-		return shardInitializingAndInitializingCountsAsPair
+		return shardInitializingCountsAsPair
 	}
 	if isLeaving {
 		return leaving
@@ -340,7 +344,7 @@ func newCountTowardsConsistency(shardState shard.State,
 
 func findHost(hostSuccessList []ident.ID, hostID ident.ID) bool {
 	for _, val := range hostSuccessList {
-		if val == hostID {
+		if val.Equal(hostID) {
 			return true
 		}
 	}
