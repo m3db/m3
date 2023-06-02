@@ -139,12 +139,12 @@ func TestShardLeavingWithShardsLeavingCountTowardsConsistency(t *testing.T) {
 func TestShardLeavingAndInitializingCountTowardsConsistencyWithTrueFlag(t *testing.T) {
 	var writeWg sync.WaitGroup
 
-	wState, s, _ := writeTestSetup(t, &writeWg)
+	wState, s, hosts := writeTestSetup(t, &writeWg)
 
 	setupShardLeavingAndInitializingCountTowardsConsistency(t, wState, s, true)
-	wState.completionFn(s.state.topoMap.Hosts()[1], nil)
+	wState.completionFn(hosts[1], nil)
 	wState.incRef()
-	wState.completionFn(s.state.topoMap.Hosts()[0], nil)
+	wState.completionFn(hosts[0], nil)
 	assert.Equal(t, int32(1), wState.success)
 	writeTestTeardown(wState, &writeWg)
 }
@@ -152,12 +152,12 @@ func TestShardLeavingAndInitializingCountTowardsConsistencyWithTrueFlag(t *testi
 func TestShardLeavingAndInitializingCountTowardsConsistencyWithFalseFlag(t *testing.T) {
 	var writeWg sync.WaitGroup
 
-	wState, s, _ := writeTestSetup(t, &writeWg)
+	wState, s, hosts := writeTestSetup(t, &writeWg)
 
 	setupShardLeavingAndInitializingCountTowardsConsistency(t, wState, s, false)
-	wState.completionFn(s.state.topoMap.Hosts()[1], nil)
+	wState.completionFn(hosts[1], nil)
 	wState.incRef()
-	wState.completionFn(s.state.topoMap.Hosts()[0], nil)
+	wState.completionFn(hosts[0], nil)
 	assert.Equal(t, int32(0), wState.success)
 	writeTestTeardown(wState, &writeWg)
 }
