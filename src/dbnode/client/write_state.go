@@ -351,7 +351,7 @@ func findHost(hostSuccessList []string, hostID string) bool {
 	// The reason for iterating over list(hostSuccessList) instead of taking map here is the slice performs better over
 	// the map for less than 10 datasets.
 	for _, val := range hostSuccessList {
-		if val == hostID {
+		if val.Equal(hostID) {
 			return true
 		}
 	}

@@ -541,8 +541,8 @@ type Options interface {
 	// that are leaving or not towards consistency level calculations.
 	SetShardsLeavingCountTowardsConsistency(value bool) Options
 
-	// SetShardsLeavingAndInitializingCountTowardsConsistency sets ShardsLeavingAndInitializingCountTowardsConsistency
-	// to true if we count the writes to the shards that are leaving and initializing towards consistency.
+	// SetShardsLeavingAndInitializingCountTowardsConsistency sets whether to count
+	// the writes to the shards that are leaving and initializing as pair towards consistency.
 	SetShardsLeavingAndInitializingCountTowardsConsistency(value bool) Options
 
 	// ShardsLeavingCountTowardsConsistency returns whether to count shards
