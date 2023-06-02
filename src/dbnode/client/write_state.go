@@ -79,7 +79,6 @@ type writeState struct {
 	annotation                                             checked.Bytes
 	majority, pending                                      int32
 	success                                                int32
-	successAsPair                                          int32
 	errors                                                 []error
 	lastResetTime                                          time.Time
 	queues                                                 []hostQueue
@@ -90,12 +89,11 @@ type writeState struct {
 func newWriteState(
 	encoderPool serialize.TagEncoderPool,
 	pool *writeStatePool,
-	reusableByteID *ident.ReusableBytesID,
 ) *writeState {
 	w := &writeState{
 		pool:           pool,
 		tagEncoderPool: encoderPool,
-		reusableByteID: reusableByteID,
+		reusableByteID: ident.NewReusableBytesID(),
 	}
 	w.destructorFn = w.close
 	w.L = w
@@ -252,8 +250,6 @@ type writeStatePool struct {
 	tagEncoderPool      serialize.TagEncoderPool
 	logger              *zap.Logger
 	logHostErrorSampler *sampler.Sampler
-	hostSuccessList     []ident.ID
-	reusableByteID      *ident.ReusableBytesID
 }
 
 func newWriteStatePool(
@@ -268,13 +264,12 @@ func newWriteStatePool(
 		tagEncoderPool:      tagEncoderPool,
 		logger:              logger,
 		logHostErrorSampler: logHostErrorSampler,
-		reusableByteID:      ident.NewReusableBytesID(),
 	}
 }
 
 func (p *writeStatePool) Init() {
 	p.pool.Init(func() interface{} {
-		return newWriteState(p.tagEncoderPool, p, p.reusableByteID)
+		return newWriteState(p.tagEncoderPool, p)
 	})
 }
 
