@@ -168,12 +168,13 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		errStr := "missing shard %d in host %s"
 		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 	} else {
-		// NB(bl): Only count writes to available shards towards success.
-		// NB(r): If shard is leaving and configured to allow writes to leaving
+		// in below conditions we consider the write success
+		// 1. writes to available shards towards success.
+		// 2. If shard is leaving and configured to allow writes to leaving
 		// shards to count towards consistency then allow that to count
 		// to success
-		// If shardsLeavingAndInitializingCountTowardsConsistency flag is true then count the success on writing to both
-		// leaving and initializing as pair
+		// 3. If shardsLeavingAndInitializingCountTowardsConsistency flag is true then count the success on writing to both
+		// leaving and initializing as pair.
 		switch newCountTowardsConsistency(shardState,
 			w.shardsLeavingCountTowardsConsistency,
 			w.shardsLeavingAndInitializingCountTowardsConsistency) {

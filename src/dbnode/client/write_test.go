@@ -162,7 +162,8 @@ func TestShardLeavingAndInitializingCountTowardsConsistencyWithFalseFlag(t *test
 	writeTestTeardown(wState, &writeWg)
 }
 
-func setupShardLeavingAndInitializingCountTowardsConsistency(t *testing.T,
+func setupShardLeavingAndInitializingCountTowardsConsistency(
+	t *testing.T,
 	wState *writeState,
 	s *session,
 	leavingAndInitializingFlag bool) {
