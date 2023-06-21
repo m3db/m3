@@ -456,7 +456,7 @@ func generatePlacement(hosts []topology.HostShardConfig, numShards int, rf int) 
 	sort.Slice(sortedHosts, func(i, j int) bool { return sortedHosts[i].HostID < sortedHosts[j].HostID })
 	for i, host := range sortedHosts {
 		host := topology.NewHost(host.HostID, host.ListenAddress)
-		shardSet, err := sharding.NewShardSet(hostShards[i], sharding.DefaultHashFn(len(hostShards[i])))
+		shardSet, err := sharding.NewShardSet(hostShards[i], sharding.DefaultHashFn(numShards))
 		if err != nil {
 			return nil, fmt.Errorf("error constructing new ShardSet: %w", err)
 		}
