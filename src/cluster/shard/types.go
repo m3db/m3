@@ -80,6 +80,8 @@ type Shard interface {
 	SourceID() string
 
 	// DestinationID returns the destination of the shard.
+	// NOTE: destinationID is not part of proto in etcd, this field is populated during replace, remove operations
+	// use this with caution.
 	DestinationID() string
 
 	// SetSourceID sets the source of the shard.

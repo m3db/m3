@@ -362,9 +362,13 @@ db:
         writeShardsInitializing: <bool>
         # Whether or not writes to leaving shards count towards consistency
         # Default = false
+        # NOTE: shardsLeavingCountTowardsConsistency and shardsLeavingAndInitializingCountTowardsConsistency both
+        # cannot be true
         shardsLeavingCountTowardsConsistency: <bool>
         # Whether or not writes to both leaving and initializing shards as pair counts toward consistency
         # Default = false
+        # NOTE: shardsLeavingCountTowardsConsistency and shardsLeavingAndInitializingCountTowardsConsistency both
+        # cannot be true
         shardsLeavingAndInitializingCountTowardsConsistency: <bool>
   # Specifies the pooling policy
   pooling:

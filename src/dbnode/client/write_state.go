@@ -40,13 +40,13 @@ import (
 type countTowardsConsistency int64
 
 const (
-	undefined countTowardsConsistency = iota
-	available
-	leaving
-	initializing
-	shardLeavingCountsIndividually
-	shardLeavingCountsAsPair
-	shardInitializingCountsAsPair
+	undefinedCountTowardsConsistency countTowardsConsistency = iota
+	availableCountTowardsConsistency
+	leavingCountTowardsConsistency
+	initializingCountTowardsConsistency
+	shardLeavingIndividuallyCountTowardsConsistency
+	shardLeavingAsPairCountTowardsConsistency
+	shardInitializingAsPairCountTowardsConsistency
 )
 
 // writeOp represents a generic write operation
@@ -178,11 +178,11 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		switch newCountTowardsConsistency(shardState,
 			w.shardsLeavingCountTowardsConsistency,
 			w.shardsLeavingAndInitializingCountTowardsConsistency) {
-		case available:
+		case availableCountTowardsConsistency:
 			w.success++
-		case shardLeavingCountsIndividually:
+		case shardLeavingIndividuallyCountTowardsConsistency:
 			w.success++
-		case shardLeavingCountsAsPair:
+		case shardLeavingAsPairCountTowardsConsistency:
 			shard, err := hostShardSet.ShardSet().LookupShard(w.op.ShardID())
 			if err != nil {
 				errStr := "no shard id %d in host %s"
@@ -190,9 +190,9 @@ func (w *writeState) completionFn(result interface{}, err error) {
 			} else {
 				// get the initializing host corresponding to the leaving host.
 				initializingHostID := shard.DestinationID()
-				w.setHostSuccessList(hostID, initializingHostID)
+				w.setHostSuccessListWithLock(hostID, initializingHostID)
 			}
-		case shardInitializingCountsAsPair:
+		case shardInitializingAsPairCountTowardsConsistency:
 			shard, err := hostShardSet.ShardSet().LookupShard(w.op.ShardID())
 			if err != nil {
 				errStr := "no shard id %d in host %s"
@@ -200,12 +200,12 @@ func (w *writeState) completionFn(result interface{}, err error) {
 			} else {
 				// get the leaving host corresponding to the initializing host.
 				leavingHostID := shard.SourceID()
-				w.setHostSuccessList(hostID, leavingHostID)
+				w.setHostSuccessListWithLock(hostID, leavingHostID)
 			}
-		case leaving:
+		case leavingCountTowardsConsistency:
 			errStr := "shard %d in host %s not available (leaving)"
 			wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
-		case initializing:
+		case initializingCountTowardsConsistency:
 			errStr := "shard %d in host %s is not available (initializing)"
 			wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 		default:
@@ -237,7 +237,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 	w.decRef()
 }
 
-func (w *writeState) setHostSuccessList(hostID, pairedHostID string) {
+func (w *writeState) setHostSuccessListWithLock(hostID, pairedHostID string) {
 	w.reusableByteID.Reset(ident.StringID(pairedHostID).Bytes())
 	if findHost(w.hostSuccessList, w.reusableByteID) {
 		w.success++
@@ -320,27 +320,29 @@ func newCountTowardsConsistency(
 	isInitializing := shardState == shard.Initializing
 
 	if isAvailable {
-		return available
+		return availableCountTowardsConsistency
 	}
 	if isLeaving && leavingCountsIndividually {
-		return shardLeavingCountsIndividually
+		return shardLeavingIndividuallyCountTowardsConsistency
 	}
 	if isLeaving && leavingAndInitializingCountsAsPair {
-		return shardLeavingCountsAsPair
+		return shardLeavingAsPairCountTowardsConsistency
 	}
 	if isInitializing && leavingAndInitializingCountsAsPair {
-		return shardInitializingCountsAsPair
+		return shardInitializingAsPairCountTowardsConsistency
 	}
 	if isLeaving {
-		return leaving
+		return leavingCountTowardsConsistency
 	}
 	if isInitializing {
-		return initializing
+		return initializingCountTowardsConsistency
 	}
-	return undefined
+	return undefinedCountTowardsConsistency
 }
 
 func findHost(hostSuccessList []ident.ID, hostID ident.ID) bool {
+	// The reason for iterating over list(hostSuccessList) instead of taking map here is the slice performs better over
+	// the map for less than 10 datasets.
 	for _, val := range hostSuccessList {
 		if val.Equal(hostID) {
 			return true

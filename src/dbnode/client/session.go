@@ -204,7 +204,9 @@ type sessionMetrics struct {
 func newSessionMetrics(scope tally.Scope) sessionMetrics {
 	return sessionMetrics{
 		writeSuccess: scope.Counter("write.success"),
-		writeSuccessForCountLeavingAndInitializingAsPair: scope.Counter("write.success.leaving_and_initializing_as_pair"),
+		writeSuccessForCountLeavingAndInitializingAsPair: scope.Tagged(map[string]string{
+			"success_type": "leaving_initializing_as_pair",
+		}).Counter("write.success"),
 		writeErrorsBadRequest: scope.Tagged(map[string]string{
 			"error_type": "bad_request",
 		}).Counter("write.errors"),
