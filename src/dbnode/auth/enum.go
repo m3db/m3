@@ -41,17 +41,17 @@ const (
 type Mode int
 
 const (
-	// AuthModeUnknown is unknown authentication type case.
-	AuthModeUnknown Mode = iota
+	// ModeUnknown is unknown authentication type case.
+	ModeUnknown Mode = iota
 
-	// AuthModeNoAuth is no authentication type case.
-	AuthModeNoAuth
+	// ModeNoAuth is no authentication type case.
+	ModeNoAuth
 
-	// AuthModeShadow mode runs authentication in shadow mode. Credentials will be passed
+	// ModeShadow mode runs authentication in shadow mode. Credentials will be passed
 	// by respective peers/clients but will not be used to reject RPCs in case of auth failure.
-	AuthModeShadow
+	ModeShadow
 
-	// AuthModeEnforced mode runs dbnode in enforced authentication mode. RPCs to dbnode will be rejected
+	// ModeEnforced mode runs dbnode in enforced authentication mode. RPCs to dbnode will be rejected
 	// if auth fails.
-	AuthModeEnforced
+	ModeEnforced
 )

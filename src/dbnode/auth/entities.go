@@ -66,7 +66,7 @@ func (c *OutboundCredentials) Validate() error {
 		return errors.New("password field is empty for outbound")
 	}
 
-	if c.Type == Unknown || c.Type == ClientCredential {
+	if c.Type == Unknown {
 		return errors.New("incorrect cred type field for outbound")
 	}
 

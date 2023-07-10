@@ -118,13 +118,6 @@ func TestOutboundCredentials_Validate(t *testing.T) {
 			password: "xyz",
 			zone:     "foo",
 			err:      "incorrect cred type field for outbound",
-		}, {
-			name:     "incorrect cred type ",
-			userName: "abc",
-			password: "xyz",
-			zone:     "foo",
-			credtype: ClientCredential,
-			err:      "incorrect cred type field for outbound",
 		},
 	}
 	for _, tt := range tests {
