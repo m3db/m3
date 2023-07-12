@@ -22,6 +22,7 @@ package topology
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/cluster/kv"
@@ -234,6 +235,7 @@ func getStaticOptions(service services.Service, hashGen sharding.HashGen) (Stati
 	allShards := make([]shard.Shard, len(allShardIDs))
 	for i, id := range allShardIDs {
 		allShards[i] = shard.NewShard(id).SetState(shard.Available)
+		fmt.Println("marking shard available 2")
 	}
 
 	fn := hashGen(numShards)

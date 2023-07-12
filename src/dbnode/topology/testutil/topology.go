@@ -89,6 +89,7 @@ func (v TopologyView) Map() (topology.Map, error) {
 			if _, ok := unique[s.ID()]; !ok {
 				unique[s.ID()] = struct{}{}
 				uniqueShard := shard.NewShard(s.ID()).SetState(shard.Available)
+				fmt.Println("marking shard available 3")
 				allShards = append(allShards, uniqueShard)
 			}
 		}

@@ -341,6 +341,7 @@ func (ph *helper) moveShard(candidateShard shard.Shard, from, to placement.Insta
 		// NB(cw): if the instance already owns the shard in Leaving state,
 		// simply mark it as Available
 		newShard = shard.NewShard(shardID).SetState(shard.Available)
+		ph.log.Info("marking shard available 1")
 		// NB(cw): Break the link between new owner of this shard with this Leaving instance
 		instances := ph.shardToInstanceMap[shardID]
 		for instance := range instances {
@@ -800,7 +801,7 @@ func markShardsAvailable(p placement.Placement, instanceID string, shardIDs []ui
 
 		p = p.SetCutoverNanos(opts.PlacementCutoverNanosFn()())
 		sourceID := s.SourceID()
-		fmt.Println("marking shard available")
+		fmt.Println("marking shard available 0")
 		fmt.Printf("marking shard available: shardID: %d and instanceID: %s \n", shardID, instanceID)
 		shards.Add(shard.NewShard(shardID).SetState(shard.Available))
 
