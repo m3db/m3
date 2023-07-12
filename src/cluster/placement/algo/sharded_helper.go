@@ -800,6 +800,8 @@ func markShardsAvailable(p placement.Placement, instanceID string, shardIDs []ui
 
 		p = p.SetCutoverNanos(opts.PlacementCutoverNanosFn()())
 		sourceID := s.SourceID()
+		fmt.Println("marking shard available")
+		fmt.Printf("marking shard available: shardID: %d and instanceID: %s \n", shardID, instanceID)
 		shards.Add(shard.NewShard(shardID).SetState(shard.Available))
 
 		// There could be no source for cases like initial placement.
