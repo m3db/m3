@@ -348,6 +348,7 @@ func (ph *helper) moveShard(candidateShard shard.Shard, from, to placement.Insta
 			initShard, ok := shards.Shard(shardID)
 			if ok && initShard.SourceID() == to.ID() {
 				initShard.SetSourceID("")
+				ph.log.Info("Replace logging: SetSourceID called")
 			}
 		}
 
