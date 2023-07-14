@@ -24,17 +24,17 @@ package auth
 type CredentialType int
 
 const (
-	// Unknown defines unknown connection edge.
-	Unknown CredentialType = iota
+	// CredentialUnknown defines unknown connection edge.
+	CredentialUnknown CredentialType = iota
 
-	// ClientCredential defines m3db client to dbnode connection credentials.
-	ClientCredential
+	// CredentialClient defines m3db client to dbnode connection credentials.
+	CredentialClient
 
-	// PeerCredential defines dbnode to dbnode connections credentials.
-	PeerCredential
+	// CredentialPeer defines dbnode to dbnode connections credentials.
+	CredentialPeer
 
-	// EtcdCredential defines dbnode to etcd connections credentials.
-	EtcdCredential
+	// CredentialEtcd defines dbnode to etcd connections credentials.
+	CredentialEtcd
 )
 
 // Mode designates a type of authentication.

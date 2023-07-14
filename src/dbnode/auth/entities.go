@@ -41,7 +41,7 @@ func (c *InboundCredentials) Validate() error {
 		return errors.New("digest field is empty for inbound")
 	}
 
-	if c.Type != ClientCredential {
+	if c.Type != CredentialClient {
 		return errors.New("incorrect cred type field for inbound")
 	}
 
@@ -66,7 +66,7 @@ func (c *OutboundCredentials) Validate() error {
 		return errors.New("password field is empty for outbound")
 	}
 
-	if c.Type == Unknown {
+	if c.Type == CredentialUnknown {
 		return errors.New("incorrect cred type field for outbound")
 	}
 
