@@ -178,17 +178,18 @@ func (w *writeState) completionFn(result interface{}, err error) {
 			w.shardsLeavingCountTowardsConsistency,
 			w.shardsLeavingAndInitializingCountTowardsConsistency) {
 		case available:
+			fmt.Println("node in available state")
 			w.success++
 		case shardLeavingAndLeavingCountsIndividually:
 			w.success++
 		case shardLeavingAndLeavingCountsAsPair:
-			shard, err := hostShardSet.ShardSet().LookupShard(w.op.ShardID())
-			if err != nil {
-				errStr := "no shard id %d in host %s"
+			// get the initializing host corresponding to the leaving host.
+			initializingHostID, ok := w.topoMap.LookupInitializingHost(hostID, w.op.ShardID())
+			fmt.Printf("hostID: %s and initializingHostID %s\n", hostID, initializingHostID)
+			if !ok || initializingHostID == "" {
+				errStr := "no initializing host for shard id %d in host %s"
 				wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 			} else {
-				// get the initializing host corresponding to the leaving host.
-				initializingHostID := shard.DestinationID()
 				w.setHostSuccessList(hostID, initializingHostID)
 			}
 		case shardInitializingAndInitializingCountsAsPair:
@@ -199,7 +200,13 @@ func (w *writeState) completionFn(result interface{}, err error) {
 			} else {
 				// get the leaving host corresponding to the initializing host.
 				leavingHostID := shard.SourceID()
-				w.setHostSuccessList(hostID, leavingHostID)
+				fmt.Printf("hostID: %s and leavingHostID %s\n", hostID, leavingHostID)
+				if leavingHostID == "" {
+					errStr := "no leaving host for shard id %d in host %s"
+					wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
+				} else {
+					w.setHostSuccessList(hostID, leavingHostID)
+				}
 			}
 		case leaving:
 			errStr := "shard %d in host %s not available (leaving)"
@@ -224,6 +231,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		}
 	case topology.ConsistencyLevelMajority:
 		if w.success >= w.majority || w.pending == 0 {
+			fmt.Println("success due to client ack")
 			w.Signal()
 		}
 	case topology.ConsistencyLevelAll:

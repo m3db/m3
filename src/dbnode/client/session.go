@@ -1320,7 +1320,6 @@ func (s *session) writeAttempt(
 
 	err = s.writeConsistencyResult(state.consistencyLevel, majority, enqueued,
 		enqueued-state.pending, int32(len(state.errors)), state.errors)
-
 	s.recordWriteMetrics(err, int32(len(state.errors)), startWriteAttempt)
 
 	// must Unlock before decRef'ing, as the latter releases the writeState back into a
@@ -1347,7 +1346,6 @@ func (s *session) writeAttemptWithRLock(
 		majority = int32(s.state.majority)
 		enqueued int32
 	)
-
 	// NB(prateek): We retain an individual copy of the namespace, ID per
 	// writeState, as each writeState tracks the lifecycle of it's resources in
 	// use in the various queues. Tracking per writeAttempt isn't sufficient as
@@ -1435,6 +1433,7 @@ func (s *session) writeAttemptWithRLock(
 			// and writing to intialized shards is not enabled (also
 			// depending on your config initializing shards won't count
 			// towards quorum, current defaults, so this is ok consistency wise).
+			fmt.Println("writeShardsInitializing is false")
 			return
 		}
 

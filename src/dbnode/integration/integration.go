@@ -106,8 +106,7 @@ func newMultiAddrAdminClient(
 		SetOrigin(origin).
 		SetInstrumentOptions(instrumentOpts).
 		SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelAny).
-		SetTopologyInitializer(topologyInitializer).
-		SetClusterConnectTimeout(time.Second).(client.AdminOptions)
+		SetTopologyInitializer(topologyInitializer).(client.AdminOptions)
 
 	for _, o := range customOpts {
 		adminOpts = o(adminOpts)
@@ -121,19 +120,20 @@ func newMultiAddrAdminClient(
 
 // BootstrappableTestSetupOptions defines options for test setups.
 type BootstrappableTestSetupOptions struct {
-	FinalBootstrapper            string
-	BootstrapBlocksBatchSize     int
-	BootstrapBlocksConcurrency   int
-	BootstrapConsistencyLevel    topology.ReadConsistencyLevel
-	TopologyInitializer          topology.Initializer
-	TestStatsReporter            xmetrics.TestStatsReporter
-	DisableCommitLogBootstrapper bool
-	DisablePeersBootstrapper     bool
-	UseTChannelClientForWriting  bool
-	EnableRepairs                bool
-	ForceRepairs                 bool
-	RepairType                   repair.Type
-	AdminClientCustomOpts        []client.CustomAdminOption
+	FinalBootstrapper                                   string
+	BootstrapBlocksBatchSize                            int
+	BootstrapBlocksConcurrency                          int
+	BootstrapConsistencyLevel                           topology.ReadConsistencyLevel
+	TopologyInitializer                                 topology.Initializer
+	TestStatsReporter                                   xmetrics.TestStatsReporter
+	DisableCommitLogBootstrapper                        bool
+	DisablePeersBootstrapper                            bool
+	UseTChannelClientForWriting                         bool
+	EnableRepairs                                       bool
+	ForceRepairs                                        bool
+	RepairType                                          repair.Type
+	AdminClientCustomOpts                               []client.CustomAdminOption
+	ShardsLeavingAndInitializingCountTowardsConsistency bool
 }
 
 type closeFn func()
@@ -171,22 +171,23 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 	require.NoError(t, err)
 	for i := 0; i < replicas; i++ {
 		var (
-			instance                    = i
-			usingCommitLogBootstrapper  = !setupOpts[i].DisableCommitLogBootstrapper
-			usingPeersBootstrapper      = !setupOpts[i].DisablePeersBootstrapper
-			finalBootstrapperToUse      = setupOpts[i].FinalBootstrapper
-			useTChannelClientForWriting = setupOpts[i].UseTChannelClientForWriting
-			bootstrapBlocksBatchSize    = setupOpts[i].BootstrapBlocksBatchSize
-			bootstrapBlocksConcurrency  = setupOpts[i].BootstrapBlocksConcurrency
-			bootstrapConsistencyLevel   = setupOpts[i].BootstrapConsistencyLevel
-			topologyInitializer         = setupOpts[i].TopologyInitializer
-			testStatsReporter           = setupOpts[i].TestStatsReporter
-			enableRepairs               = setupOpts[i].EnableRepairs
-			forceRepairs                = setupOpts[i].ForceRepairs
-			repairType                  = setupOpts[i].RepairType
-			origin                      topology.Host
-			instanceOpts                = newMultiAddrTestOptions(opts, instance)
-			adminClientCustomOpts       = setupOpts[i].AdminClientCustomOpts
+			instance                                            = i
+			usingCommitLogBootstrapper                          = !setupOpts[i].DisableCommitLogBootstrapper
+			usingPeersBootstrapper                              = !setupOpts[i].DisablePeersBootstrapper
+			finalBootstrapperToUse                              = setupOpts[i].FinalBootstrapper
+			useTChannelClientForWriting                         = setupOpts[i].UseTChannelClientForWriting
+			bootstrapBlocksBatchSize                            = setupOpts[i].BootstrapBlocksBatchSize
+			bootstrapBlocksConcurrency                          = setupOpts[i].BootstrapBlocksConcurrency
+			bootstrapConsistencyLevel                           = setupOpts[i].BootstrapConsistencyLevel
+			topologyInitializer                                 = setupOpts[i].TopologyInitializer
+			testStatsReporter                                   = setupOpts[i].TestStatsReporter
+			enableRepairs                                       = setupOpts[i].EnableRepairs
+			forceRepairs                                        = setupOpts[i].ForceRepairs
+			repairType                                          = setupOpts[i].RepairType
+			origin                                              topology.Host
+			instanceOpts                                        = newMultiAddrTestOptions(opts, instance)
+			adminClientCustomOpts                               = setupOpts[i].AdminClientCustomOpts
+			ShardsLeavingAndInitializingCountTowardsConsistency = setupOpts[i].ShardsLeavingAndInitializingCountTowardsConsistency
 		)
 
 		if finalBootstrapperToUse == "" {
@@ -220,7 +221,8 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 
 		instanceOpts = instanceOpts.
 			SetClusterDatabaseTopologyInitializer(topologyInitializer).
-			SetUseTChannelClientForWriting(useTChannelClientForWriting)
+			SetUseTChannelClientForWriting(useTChannelClientForWriting).
+			SetShardsLeavingAndInitializingCountTowardsConsistency(ShardsLeavingAndInitializingCountTowardsConsistency)
 
 		if i > 0 {
 			// NB(bodu): Need to reset the global counter of number of index
@@ -240,14 +242,12 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			instrumentOpts = instrumentOpts.SetMetricsScope(scope)
 		}
 		setup.SetStorageOpts(setup.StorageOpts().SetInstrumentOptions(instrumentOpts))
-
 		var (
 			bsOpts            = newDefaulTestResultOptions(setup.StorageOpts())
 			finalBootstrapper bootstrap.BootstrapperProvider
 
 			adminOpts = client.NewAdminOptions().
-					SetTopologyInitializer(topologyInitializer).(client.AdminOptions).
-					SetOrigin(origin)
+					SetTopologyInitializer(topologyInitializer).(client.AdminOptions).SetOrigin(origin)
 
 			// Prevent integration tests from timing out when a node is down
 			retryOpts = xretry.NewOptions().
@@ -278,6 +278,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 			adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
 		}
 		adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
+		adminOpts.SetShardsLeavingAndInitializingCountTowardsConsistency(ShardsLeavingAndInitializingCountTowardsConsistency)
 
 		adminClient := newMultiAddrAdminClient(
 			t, adminOpts, topologyInitializer, origin, instrumentOpts, adminClientCustomOpts...)
@@ -344,6 +345,7 @@ func NewDefaultBootstrappableTestSetups( // nolint:gocyclo
 		setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(provider))
 
 		if enableRepairs {
+			fmt.Println("replace node: inside enable repair")
 			setup.SetStorageOpts(setup.StorageOpts().
 				SetRepairEnabled(true).
 				SetRepairOptions(

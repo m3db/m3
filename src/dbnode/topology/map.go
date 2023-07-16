@@ -35,6 +35,7 @@ type staticMap struct {
 	orderedHosts             []Host
 	hostsByShard             [][]Host
 	orderedShardHostsByShard [][]orderedShardHost
+	InitializingHostMap      map[string]map[uint32]string
 	replicas                 int
 	majority                 int
 }
@@ -53,7 +54,6 @@ func NewStaticMap(opts StaticOptions) (Map, error) {
 		replicas:                 opts.Replicas(),
 		majority:                 Majority(opts.Replicas()),
 	}
-
 	for idx, hostShardSet := range hostShardSets {
 		host := hostShardSet.Host()
 		topoMap.hostShardSetsByID[host.ID()] = hostShardSet
@@ -73,13 +73,22 @@ func NewStaticMap(opts StaticOptions) (Map, error) {
 	}
 	for _, hostShardSet := range hostShardSets {
 		host := hostShardSet.Host()
-
+		var shardToInitializingHost map[uint32]string
 		for _, shard := range hostShardSet.ShardSet().All() {
+
 			if shard.SourceID() != "" {
 				hostShard, ok := topoMap.LookupHostShardSet(shard.SourceID())
 				if !ok {
 					return nil, fmt.Errorf("could not find the shards of host %s", shard.SourceID())
 				}
+				if topoMap.InitializingHostMap == nil {
+					topoMap.InitializingHostMap = make(map[string]map[uint32]string)
+				}
+				if shardToInitializingHost == nil {
+					shardToInitializingHost = make(map[uint32]string)
+				}
+				shardToInitializingHost[shard.ID()] = host.ID()
+				topoMap.InitializingHostMap[shard.SourceID()] = shardToInitializingHost
 				leavingShard, err := hostShard.ShardSet().LookupShard(shard.ID())
 				if err != nil {
 					return nil, fmt.Errorf("could not find the shard %d for the host %s", shard.ID(), host.ID())
@@ -108,6 +117,15 @@ func (t *staticMap) HostShardSets() []HostShardSet {
 func (t *staticMap) LookupHostShardSet(id string) (HostShardSet, bool) {
 	value, ok := t.hostShardSetsByID[id]
 	return value, ok
+}
+
+func (t *staticMap) LookupInitializingHost(hostID string, id uint32) (string, bool) {
+	value, ok := t.InitializingHostMap[hostID]
+	if !ok {
+		return "", false
+	}
+	InitializingHost, ok := value[id]
+	return InitializingHost, ok
 }
 
 func (t *staticMap) HostsLen() int {

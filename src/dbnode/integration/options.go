@@ -261,6 +261,14 @@ type TestOptions interface {
 	// SetWriteConsistencyLevel sets the consistency level for writing with the m3db client.
 	SetWriteConsistencyLevel(value topology.ConsistencyLevel) TestOptions
 
+	// SetShardsLeavingAndInitializingCountTowardsConsistency sets ShardsLeavingAndInitializingCountTowardsConsistency
+	// to true if we count the writes to the shards that are leaving and initializing towards consistency.
+	SetShardsLeavingAndInitializingCountTowardsConsistency(value bool) TestOptions
+
+	// ShardsLeavingAndInitializingCountTowardsConsistency returns whether to count the writes to the shards
+	// that are leaving and initializing towards consistency level calculations.
+	ShardsLeavingAndInitializingCountTowardsConsistency() bool
+
 	// NumShards returns the number of shards to use.
 	NumShards() int
 
@@ -330,42 +338,43 @@ type TestOptions interface {
 }
 
 type options struct {
-	namespaces                         []namespace.Metadata
-	nsInitializer                      namespace.Initializer
-	id                                 string
-	tickMinimumInterval                time.Duration
-	tickCancellationCheckInterval      time.Duration
-	httpClusterAddr                    string
-	tchannelClusterAddr                string
-	httpNodeAddr                       string
-	tchannelNodeAddr                   string
-	httpDebugAddr                      string
-	filePathPrefix                     string
-	serverStateChangeTimeout           time.Duration
-	clusterConnectionTimeout           time.Duration
-	readRequestTimeout                 time.Duration
-	writeRequestTimeout                time.Duration
-	truncateRequestTimeout             time.Duration
-	fetchRequestTimeout                time.Duration
-	workerPoolSize                     int
-	clusterDatabaseTopologyInitializer topology.Initializer
-	blockRetrieverManager              block.DatabaseBlockRetrieverManager
-	verifySeriesDebugFilePathPrefix    string
-	writeConsistencyLevel              topology.ConsistencyLevel
-	numShards                          int
-	shardSetOptions                    *TestShardSetOptions
-	maxWiredBlocks                     uint
-	customClientAdminOptions           []client.CustomAdminOption
-	useTChannelClientForReading        bool
-	useTChannelClientForWriting        bool
-	useTChannelClientForTruncation     bool
-	writeNewSeriesAsync                bool
-	protoEncoding                      bool
-	assertEqual                        assertTestDataEqual
-	nowFn                              func() time.Time
-	reportInterval                     time.Duration
-	storageOptsFn                      StorageOption
-	customAdminOpts                    []client.CustomAdminOption
+	namespaces                                         []namespace.Metadata
+	nsInitializer                                      namespace.Initializer
+	id                                                 string
+	tickMinimumInterval                                time.Duration
+	tickCancellationCheckInterval                      time.Duration
+	httpClusterAddr                                    string
+	tchannelClusterAddr                                string
+	httpNodeAddr                                       string
+	tchannelNodeAddr                                   string
+	httpDebugAddr                                      string
+	filePathPrefix                                     string
+	serverStateChangeTimeout                           time.Duration
+	clusterConnectionTimeout                           time.Duration
+	readRequestTimeout                                 time.Duration
+	writeRequestTimeout                                time.Duration
+	truncateRequestTimeout                             time.Duration
+	fetchRequestTimeout                                time.Duration
+	workerPoolSize                                     int
+	clusterDatabaseTopologyInitializer                 topology.Initializer
+	blockRetrieverManager                              block.DatabaseBlockRetrieverManager
+	verifySeriesDebugFilePathPrefix                    string
+	writeConsistencyLevel                              topology.ConsistencyLevel
+	numShards                                          int
+	shardSetOptions                                    *TestShardSetOptions
+	maxWiredBlocks                                     uint
+	customClientAdminOptions                           []client.CustomAdminOption
+	useTChannelClientForReading                        bool
+	useTChannelClientForWriting                        bool
+	useTChannelClientForTruncation                     bool
+	writeNewSeriesAsync                                bool
+	protoEncoding                                      bool
+	shardLeavingAndInitializingCountsTowardConsistency bool
+	assertEqual                                        assertTestDataEqual
+	nowFn                                              func() time.Time
+	reportInterval                                     time.Duration
+	storageOptsFn                                      StorageOption
+	customAdminOpts                                    []client.CustomAdminOption
 }
 
 // NewTestOptions returns a new set of integration test options.
@@ -655,6 +664,16 @@ func (o *options) SetWriteConsistencyLevel(cLevel topology.ConsistencyLevel) Tes
 	opts := *o
 	opts.writeConsistencyLevel = cLevel
 	return &opts
+}
+
+func (o *options) SetShardsLeavingAndInitializingCountTowardsConsistency(value bool) TestOptions {
+	opts := *o
+	opts.shardLeavingAndInitializingCountsTowardConsistency = value
+	return &opts
+}
+
+func (o *options) ShardsLeavingAndInitializingCountTowardsConsistency() bool {
+	return o.shardLeavingAndInitializingCountsTowardConsistency
 }
 
 func (o *options) NumShards() int {
