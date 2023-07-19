@@ -178,7 +178,6 @@ func (w *writeState) completionFn(result interface{}, err error) {
 			w.shardsLeavingCountTowardsConsistency,
 			w.shardsLeavingAndInitializingCountTowardsConsistency) {
 		case available:
-			fmt.Println("node in available state")
 			w.success++
 		case shardLeavingAndLeavingCountsIndividually:
 			w.success++
@@ -231,7 +230,6 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		}
 	case topology.ConsistencyLevelMajority:
 		if w.success >= w.majority || w.pending == 0 {
-			fmt.Println("success due to client ack")
 			w.Signal()
 		}
 	case topology.ConsistencyLevelAll:
@@ -248,6 +246,7 @@ func (w *writeState) setHostSuccessList(hostID, pairedHostID string) {
 	w.reusableByteID.Reset(ident.StringID(pairedHostID).Bytes())
 	if findHost(w.hostSuccessList, w.reusableByteID) {
 		w.success++
+		fmt.Println("success due to client ack")
 		w.successAsLeavingAndInitializingCountTowardsConsistency = true
 	}
 	w.reusableByteID.Reset(ident.StringID(hostID).Bytes())
