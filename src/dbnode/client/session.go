@@ -494,11 +494,6 @@ func (s *session) recordWriteMetrics(consistencyResultErr error, respErrs int32,
 	}
 	if consistencyResultErr == nil {
 		s.metrics.writeSuccess.Inc(1)
-		s.log.Info("writeSuccessForCountLeavingAndInitializingAsPair: before", zap.Bool("flag", s.successAsLeavingAndInitializingCountTowardsConsistency))
-		if s.successAsLeavingAndInitializingCountTowardsConsistency {
-			s.metrics.writeSuccessForCountLeavingAndInitializingAsPair.Inc(1)
-			s.log.Info("writeSuccessForCountLeavingAndInitializingAsPair: occurred")
-		}
 	} else if IsBadRequestError(consistencyResultErr) {
 		s.metrics.writeErrorsBadRequest.Inc(1)
 	} else {
