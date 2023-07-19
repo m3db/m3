@@ -182,6 +182,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		case shardLeavingAndLeavingCountsIndividually:
 			w.success++
 		case shardLeavingAndLeavingCountsAsPair:
+			fmt.Println("shardLeavingAndLeavingCountsAsPair")
 			// get the initializing host corresponding to the leaving host.
 			initializingHostID, ok := w.topoMap.LookupInitializingHost(hostID, w.op.ShardID())
 			fmt.Printf("hostID: %s and initializingHostID %s\n", hostID, initializingHostID)
@@ -192,6 +193,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 				w.setHostSuccessList(hostID, initializingHostID)
 			}
 		case shardInitializingAndInitializingCountsAsPair:
+			fmt.Println("shardInitializingAndInitializingCountsAsPair")
 			shard, err := hostShardSet.ShardSet().LookupShard(w.op.ShardID())
 			if err != nil {
 				errStr := "no shard id %d in host %s"
