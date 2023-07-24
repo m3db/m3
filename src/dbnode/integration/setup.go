@@ -1138,7 +1138,8 @@ func newClients(
 			SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
 			SetTopologyInitializer(topoInit).
 			SetUseV2BatchAPIs(true).
-			SetInstrumentOptions(instrumentOpts).SetShardsLeavingAndInitializingCountTowardsConsistency(opts.ShardsLeavingAndInitializingCountTowardsConsistency())
+			SetInstrumentOptions(instrumentOpts).
+			SetShardsLeavingAndInitializingCountTowardsConsistency(opts.ShardsLeavingAndInitializingCountTowardsConsistency())
 
 		origin             = newOrigin(id, tchannelNodeAddr)
 		verificationOrigin = newOrigin(id+"-verification", tchannelNodeAddr)
