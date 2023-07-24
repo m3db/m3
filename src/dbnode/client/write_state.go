@@ -183,13 +183,12 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		case shardLeavingIndividuallyCountTowardsConsistency:
 			w.success++
 		case shardLeavingAsPairCountTowardsConsistency:
-			shard, err := hostShardSet.ShardSet().LookupShard(w.op.ShardID())
-			if err != nil {
-				errStr := "no shard id %d in host %s"
+			// get the initializing host corresponding to the leaving host.
+			initializingHostID, ok := w.topoMap.LookupInitializingHost(hostID, w.op.ShardID())
+			if !ok || initializingHostID == "" {
+				errStr := "no initializing host for shard id %d in host %s"
 				wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 			} else {
-				// get the initializing host corresponding to the leaving host.
-				initializingHostID := shard.DestinationID()
 				w.setHostSuccessListWithLock(hostID, initializingHostID)
 			}
 		case shardInitializingAsPairCountTowardsConsistency:
@@ -200,7 +199,12 @@ func (w *writeState) completionFn(result interface{}, err error) {
 			} else {
 				// get the leaving host corresponding to the initializing host.
 				leavingHostID := shard.SourceID()
-				w.setHostSuccessListWithLock(hostID, leavingHostID)
+				if leavingHostID == "" {
+					errStr := "no leaving host for shard id %d in host %s"
+					wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
+				} else {
+					w.setHostSuccessListWithLock(hostID, leavingHostID)
+				}
 			}
 		case leavingCountTowardsConsistency:
 			errStr := "shard %d in host %s not available (leaving)"
