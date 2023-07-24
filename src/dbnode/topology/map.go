@@ -115,8 +115,8 @@ func (t *staticMap) LookupInitializingHost(hostID string, id uint32) (string, bo
 	if !ok {
 		return "", false
 	}
-	InitializingHost, ok := value[id]
-	return InitializingHost, ok
+	initializingHost, ok := value[id]
+	return initializingHost, ok
 }
 
 func (t *staticMap) HostsLen() int {
