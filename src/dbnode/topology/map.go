@@ -21,8 +21,6 @@
 package topology
 
 import (
-	"fmt"
-
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/x/ident"
@@ -42,7 +40,7 @@ type staticMap struct {
 }
 
 // NewStaticMap creates a new static topology map
-func NewStaticMap(opts StaticOptions) (Map, error) {
+func NewStaticMap(opts StaticOptions) Map {
 	totalShards := len(opts.ShardSet().AllIDs())
 	hostShardSets := opts.HostShardSets()
 	topoMap := staticMap{
@@ -79,10 +77,6 @@ func NewStaticMap(opts StaticOptions) (Map, error) {
 		for _, shard := range hostShardSet.ShardSet().All() {
 
 			if shard.SourceID() != "" {
-				hostShard, ok := topoMap.LookupHostShardSet(shard.SourceID())
-				if !ok {
-					return nil, fmt.Errorf("could not find the shards of host %s", shard.SourceID())
-				}
 				if topoMap.initializingHostMap == nil {
 					topoMap.initializingHostMap = make(map[string]map[uint32]string)
 				}
@@ -91,15 +85,10 @@ func NewStaticMap(opts StaticOptions) (Map, error) {
 				}
 				shardToInitializingHost[shard.ID()] = host.ID()
 				topoMap.initializingHostMap[shard.SourceID()] = shardToInitializingHost
-				leavingShard, err := hostShard.ShardSet().LookupShard(shard.ID())
-				if err != nil {
-					return nil, fmt.Errorf("could not find the shard %d for the host %s", shard.ID(), host.ID())
-				}
-				leavingShard.SetDestinationID(host.ID())
 			}
 		}
 	}
-	return &topoMap, nil
+	return &topoMap
 }
 
 type orderedShardHost struct {
