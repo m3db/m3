@@ -180,8 +180,7 @@ func setupShardLeavingAndInitializingCountTowardsConsistency(
 		SetShardSet(s.state.topoMap.ShardSet()).
 		SetReplicas(3).
 		SetHostShardSets(hostShardSets)
-	m, err := topology.NewStaticMap(opts)
-	require.NoError(t, err)
+	m := topology.NewStaticMap(opts)
 	s.state.topoMap = m
 	wState.topoMap = m // update topology with hostshards options
 
@@ -192,8 +191,7 @@ func setupShardLeavingAndInitializingCountTowardsConsistency(
 		SetShardSet(s.state.topoMap.ShardSet()).
 		SetReplicas(3).
 		SetHostShardSets(hostShardSets)
-	m, err = topology.NewStaticMap(opts)
-	require.NoError(t, err)
+	m = topology.NewStaticMap(opts)
 	wState.topoMap = m
 	s.state.topoMap = m // update the topology manually after replace node.
 
@@ -244,7 +242,6 @@ func replaceHost(t *testing.T, s *session, leavingHost topology.Host, initializi
 
 	for _, leavinghostShard := range leavingHostShardSet.ShardSet().All() {
 		leavinghostShard.SetState(shard.Leaving)
-		leavinghostShard.SetDestinationID(initializingHost.ID())
 	}
 	for _, initializinghostShard := range initializingHostShardSet.ShardSet().All() {
 		initializinghostShard.SetState(shard.Initializing)
