@@ -144,6 +144,7 @@ func TestShardLeavingAndInitializingCountTowardsConsistencyWithTrueFlag(t *testi
 	setupShardLeavingAndInitializingCountTowardsConsistency(t, wState, s, true)
 	wState.completionFn(hosts[1], nil)
 	wState.incRef()
+	assert.Equal(t, int32(0), wState.success)
 	wState.completionFn(hosts[0], nil)
 	assert.Equal(t, int32(1), wState.success)
 	writeTestTeardown(wState, &writeWg)
