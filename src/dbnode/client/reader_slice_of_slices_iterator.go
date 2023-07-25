@@ -40,7 +40,8 @@ type readerSliceOfSlicesIterator struct {
 	pool         *readerSliceOfSlicesIteratorPool
 }
 
-func newReaderSliceOfSlicesIterator(
+// NewReaderSliceOfSlicesIterator returns new reader slice of slices iterator.
+func NewReaderSliceOfSlicesIterator(
 	segments []*rpc.Segments,
 	pool *readerSliceOfSlicesIteratorPool,
 ) *readerSliceOfSlicesIterator {

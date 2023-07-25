@@ -81,6 +81,7 @@ TOOLS :=               \
 	clone_fileset        \
 	dtest                \
 	verify_data_files    \
+	verify_ids           \
 	verify_index_files   \
 	carbon_load          \
 	m3ctl                \
