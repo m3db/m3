@@ -25,3 +25,4 @@ IgnoreURLs:
 - "github.com/m3db/m3/tree/master/site/content/docs"
 - "github.com/m3db/m3/blob/master/site/content"
 - "vldb.org"
+- "www.uber.com"
