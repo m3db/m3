@@ -64,14 +64,12 @@ func main() {
 		tchannelNodeAddrsArg = flag.String("nodes", "127.0.0.1:9000", "Node TChannel server addresses, comma separated")
 		namespaceArg         = flag.String("namespace", "default", "Namespace to read from")
 		shardsArg            = flag.String("shards", "0", "Shards to pull IDs from, comma separated")
+		rangeStartArg        = flag.String("start", "", "Query time range start")
+		rangeEndArg          = flag.String("end", "", "Query time range end")
 		limitArg             = flag.Int64("num", 8, "Number of IDs to fetch per shard")
 		fromStdInArg         = flag.Bool("stdin", false, "Read IDs from stdin instead")
 		dumpRawArg           = flag.Bool("raw", false, "Dump data as json to stdout only")
-		rangeStartArg        time.Time
-		rangeEndArg          time.Time
 	)
-	flag.TextVar(&rangeEndArg, "end", time.Now().Add(-1*time.Minute).Truncate(time.Minute), "Query time range end")
-	flag.TextVar(&rangeStartArg, "start", time.Now().Add(-30*time.Minute).Truncate(time.Minute), "Query time range start")
 	flag.Parse()
 
 	if *tchannelNodeAddrsArg == "" ||
@@ -84,6 +82,23 @@ func main() {
 
 	if *limitArg > maxIDs {
 		log.Fatalf("requested number of IDs is too high")
+	}
+
+	var (
+		rangeStart time.Time
+		rangeEnd   time.Time
+	)
+
+	if *rangeStartArg == "" {
+		rangeStart = time.Now().Add(-30 * time.Minute).Truncate(time.Minute)
+	} else if err := rangeEnd.UnmarshalText([]byte(*rangeStartArg)); err != nil {
+		log.Fatalf("failed to parse start time: %v", *rangeStartArg)
+	}
+
+	if *rangeEndArg == "" {
+		rangeEnd = time.Now().Add(-1 * time.Minute).Truncate(time.Minute)
+	} else if err := rangeEnd.UnmarshalText([]byte(*rangeEndArg)); err != nil {
+		log.Fatalf("failed to parse end time: %v", *rangeEndArg)
 	}
 
 	dumpRaw := *dumpRawArg
@@ -113,7 +128,7 @@ func main() {
 		})
 	}
 
-	qr := queryRange{start: rangeStartArg, end: rangeEndArg}
+	qr := queryRange{start: rangeStart, end: rangeEnd}
 
 	var ids [][]byte
 
