@@ -24,6 +24,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -105,7 +106,7 @@ func main() {
 	readInputFromStdin := *fromStdInArg
 	namespace := []byte(*namespaceArg)
 
-	var shards []uint32
+	var shards []uint32 //nolint:prealloc
 	for _, str := range strings.Split(*shardsArg, ",") {
 		value, err := strconv.Atoi(str)
 		if err != nil {
@@ -187,7 +188,7 @@ func dumpJSON(results map[string]map[string][]ts.Datapoint) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s", b)
+	fmt.Printf("%s", b) //nolint:forbidigo
 	return nil
 }
 
@@ -336,7 +337,7 @@ func (d *dbnode) getIDs(shard uint32, r queryRange, num int) ([][]byte, error) {
 		}
 	}
 
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return results, nil
 	}
 	return results, err
@@ -355,7 +356,7 @@ func (d *dbnode) query(ids [][]byte, r queryRange) (*rpc.FetchTaggedResult_, err
 	}
 
 	var (
-		termQueries []idx.Query
+		termQueries = make([]idx.Query, 0, len(ids))
 		err         error
 	)
 	for _, id := range ids {
