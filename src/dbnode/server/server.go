@@ -853,10 +853,10 @@ func Run(runOpts RunOptions) {
 			logger.Warn("could not create handler options for debug writer", zap.Error(err))
 		} else {
 			envCfgCluster, err := envConfig.Services.SyncCluster()
-			if err != nil || envCfgCluster.Service == nil {
+			if err != nil {
 				logger.Warn("could not get cluster config for debug writer",
 					zap.Error(err),
-					zap.Bool("envCfgClusterServiceIsNil", envCfgCluster.Service == nil))
+				)
 			} else {
 				debugWriter, err = extdebug.NewPlacementAndNamespaceZipWriterWithDefaultSources(
 					cpuProfileDuration,
