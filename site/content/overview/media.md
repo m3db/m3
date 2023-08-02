@@ -6,9 +6,9 @@ weight: 3
 
 ## Blogs
 
-- [M3: Uber’s Open Source, Large-scale Metrics Platform for Prometheus](https://eng.uber.com/m3) By Rob Skillington - Aug 7, 2018.
+- [M3: Uber’s Open Source, Large-scale Metrics Platform for Prometheus](https://www.uber.com/blog/m3/) By Rob Skillington - Aug 7, 2018.
 
-- [Building a Query Engine for High Cardinality Time Series Data](https://eng.uber.com/billion-data-point-challenge) By Nikunj Aggarwal and Ben Raskin - Dec 10, 2018.
+- [Building a Query Engine for High Cardinality Time Series Data](https://www.uber.com/blog/billion-data-point-challenge/) By Nikunj Aggarwal and Ben Raskin - Dec 10, 2018.
 
 ## M3 Community Meetups
 
