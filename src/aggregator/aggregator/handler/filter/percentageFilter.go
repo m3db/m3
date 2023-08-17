@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2023 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,7 @@ package filter
 
 import (
 	"math/rand"
+	"time"
 
 	"github.com/m3db/m3/src/msg/producer"
 )
@@ -32,6 +33,7 @@ type percentageFilter struct {
 
 // NewPercentageFilter creates a filter based on percentage.
 func NewPercentageFilter(percentage float64) producer.FilterFunc {
+	rand.Seed(time.Now().UnixNano())
 	f := percentageFilter{percentage: percentage}
 	return f.Filter
 }
