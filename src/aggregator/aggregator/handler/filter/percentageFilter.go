@@ -21,23 +21,27 @@
 package filter
 
 import (
-	"math/rand"
-	"time"
-
 	"github.com/m3db/m3/src/msg/producer"
+	"github.com/m3db/m3/src/x/unsafe"
 )
 
+const _maxRate = 1 << 24
+
 type percentageFilter struct {
-	percentage float64
+	rate uint32
 }
 
 // NewPercentageFilter creates a filter based on percentage.
 func NewPercentageFilter(percentage float64) producer.FilterFunc {
-	rand.Seed(time.Now().UnixNano())
-	f := percentageFilter{percentage: percentage}
+	rate := uint32(_maxRate)
+	if percentage < 1 {
+		rate = uint32(percentage * _maxRate)
+	}
+
+	f := percentageFilter{rate: rate}
 	return f.Filter
 }
 
 func (f percentageFilter) Filter(_ producer.Message) bool {
-	return f.percentage > rand.Float64()
+	return f.rate > unsafe.Fastrandn(_maxRate)
 }
