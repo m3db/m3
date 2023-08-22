@@ -494,9 +494,11 @@ func (s *session) recordWriteMetrics(consistencyResultErr error, state *writeSta
 		}
 	}
 	if consistencyResultErr == nil {
-		s.metrics.writeSuccess.Inc(1)
-		if state.successAsLeavingAndInitializingCountTowardsConsistency {
+
+		if state.leavingAndInitializingPairCounted {
 			s.metrics.writeSuccessForCountLeavingAndInitializingAsPair.Inc(1)
+		} else {
+			s.metrics.writeSuccess.Inc(1)
 		}
 	} else if IsBadRequestError(consistencyResultErr) {
 		s.metrics.writeErrorsBadRequest.Inc(1)
@@ -1414,7 +1416,7 @@ func (s *session) writeAttemptWithRLock(
 	state.consistencyLevel = s.state.writeLevel
 	state.shardsLeavingCountTowardsConsistency = s.shardsLeavingCountTowardsConsistency
 	state.shardsLeavingAndInitializingCountTowardsConsistency = s.shardsLeavingAndInitializingCountTowardsConsistency
-	state.successAsLeavingAndInitializingCountTowardsConsistency = false
+	state.leavingAndInitializingPairCounted = false
 	state.topoMap = s.state.topoMap
 	state.lastResetTime = time.Now()
 	state.incRef()

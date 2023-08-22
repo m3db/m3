@@ -110,7 +110,7 @@ func (t *staticMap) LookupHostShardSet(id string) (HostShardSet, bool) {
 	return value, ok
 }
 
-func (t *staticMap) LookupInitializingHost(hostID string, id uint32) (string, bool) {
+func (t *staticMap) LookupInitializingHostPair(hostID string, id uint32) (string, bool) {
 	value, ok := t.initializingHostMap[hostID]
 	if !ok {
 		return "", false
