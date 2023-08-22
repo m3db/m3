@@ -65,25 +65,24 @@ type writeState struct {
 	sync.Mutex
 	refCounter
 
-	consistencyLevel                                       topology.ConsistencyLevel
-	shardsLeavingCountTowardsConsistency                   bool
-	shardsLeavingAndInitializingCountTowardsConsistency    bool
-	successAsLeavingAndInitializingCountTowardsConsistency bool
-	topoMap                                                topology.Map
-	reusableByteID                                         *ident.ReusableBytesID
-	hostSuccessList                                        []ident.ID
-	op                                                     writeOp
-	nsID                                                   ident.ID
-	tsID                                                   ident.ID
-	tagEncoder                                             serialize.TagEncoder
-	annotation                                             checked.Bytes
-	majority, pending                                      int32
-	success                                                int32
-	errors                                                 []error
-	lastResetTime                                          time.Time
-	queues                                                 []hostQueue
-	tagEncoderPool                                         serialize.TagEncoderPool
-	pool                                                   *writeStatePool
+	consistencyLevel                                    topology.ConsistencyLevel
+	shardsLeavingCountTowardsConsistency                bool
+	shardsLeavingAndInitializingCountTowardsConsistency bool
+	leavingAndInitializingPairCounted                   bool
+	topoMap                                             topology.Map
+	hostSuccessList                                     []string
+	op                                                  writeOp
+	nsID                                                ident.ID
+	tsID                                                ident.ID
+	tagEncoder                                          serialize.TagEncoder
+	annotation                                          checked.Bytes
+	majority, pending                                   int32
+	success                                             int32
+	errors                                              []error
+	lastResetTime                                       time.Time
+	queues                                              []hostQueue
+	tagEncoderPool                                      serialize.TagEncoderPool
+	pool                                                *writeStatePool
 }
 
 func newWriteState(
@@ -93,7 +92,6 @@ func newWriteState(
 	w := &writeState{
 		pool:           pool,
 		tagEncoderPool: encoderPool,
-		reusableByteID: ident.NewReusableBytesID(),
 	}
 	w.destructorFn = w.close
 	w.L = w
@@ -105,7 +103,11 @@ func (w *writeState) close() {
 
 	w.nsID.Finalize()
 	w.tsID.Finalize()
-	w.hostSuccessList = nil
+	var emptyString string
+	for i := range w.hostSuccessList {
+		w.hostSuccessList[i] = emptyString
+	}
+	w.hostSuccessList = w.hostSuccessList[:0]
 	if w.annotation != nil {
 		w.annotation.DecRef()
 		w.annotation.Finalize()
@@ -184,7 +186,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 			w.success++
 		case shardLeavingAsPairCountTowardsConsistency:
 			// get the initializing host corresponding to the leaving host.
-			initializingHostID, ok := w.topoMap.LookupInitializingHost(hostID, w.op.ShardID())
+			initializingHostID, ok := w.topoMap.LookupInitializingHostPair(hostID, w.op.ShardID())
 			if !ok || initializingHostID == "" {
 				errStr := "no initializing host for shard id %d in host %s"
 				wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
@@ -242,13 +244,11 @@ func (w *writeState) completionFn(result interface{}, err error) {
 }
 
 func (w *writeState) setHostSuccessListWithLock(hostID, pairedHostID string) {
-	w.reusableByteID.Reset(ident.StringID(pairedHostID).Bytes())
-	if findHost(w.hostSuccessList, w.reusableByteID) {
+	if findHost(w.hostSuccessList, pairedHostID) {
 		w.success++
-		w.successAsLeavingAndInitializingCountTowardsConsistency = true
+		w.leavingAndInitializingPairCounted = true
 	}
-	w.reusableByteID.Reset(ident.StringID(hostID).Bytes())
-	w.hostSuccessList = append(w.hostSuccessList, w.reusableByteID)
+	w.hostSuccessList = append(w.hostSuccessList, hostID)
 }
 
 type writeStatePool struct {
@@ -344,11 +344,11 @@ func newCountTowardsConsistency(
 	return undefinedCountTowardsConsistency
 }
 
-func findHost(hostSuccessList []ident.ID, hostID ident.ID) bool {
+func findHost(hostSuccessList []string, hostID string) bool {
 	// The reason for iterating over list(hostSuccessList) instead of taking map here is the slice performs better over
 	// the map for less than 10 datasets.
 	for _, val := range hostSuccessList {
-		if val.Equal(hostID) {
+		if val == hostID {
 			return true
 		}
 	}

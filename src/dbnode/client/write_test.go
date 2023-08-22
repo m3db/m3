@@ -25,6 +25,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/cluster/shard"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -33,8 +34,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/golang/mock/gomock"
 )
 
 // shard state tests
@@ -186,7 +185,7 @@ func setupShardLeavingAndInitializingCountTowardsConsistency(
 	wState.topoMap = m // update topology with hostshards options
 
 	// mark leaving shards in host0 and init in host1
-	replaceHost(t, s, s.state.topoMap.Hosts()[0], s.state.topoMap.Hosts()[1])
+	markHostReplacement(t, s, s.state.topoMap.Hosts()[0], s.state.topoMap.Hosts()[1])
 
 	opts = topology.NewStaticOptions().
 		SetShardSet(s.state.topoMap.ShardSet()).
@@ -233,7 +232,7 @@ func setShardStates(t *testing.T, s *session, host topology.Host, state shard.St
 	}
 }
 
-func replaceHost(t *testing.T, s *session, leavingHost topology.Host, initializingHost topology.Host) {
+func markHostReplacement(t *testing.T, s *session, leavingHost topology.Host, initializingHost topology.Host) {
 	s.state.RLock()
 	leavingHostShardSet, ok := s.state.topoMap.LookupHostShardSet(leavingHost.ID())
 	require.True(t, ok)
