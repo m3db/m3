@@ -533,6 +533,14 @@ type Options interface {
 	// that are leaving or not towards consistency level calculations.
 	ShardsLeavingCountTowardsConsistency() bool
 
+	// SetShardsLeavingAndInitializingCountTowardsConsistency sets whether to count
+	// the writes to the shards that are leaving and initializing as pair towards consistency.
+	SetShardsLeavingAndInitializingCountTowardsConsistency(value bool) Options
+	
+	// ShardsLeavingAndInitializingCountTowardsConsistency returns whether to count the writes to the shards
+	// that are leaving and initializing towards consistency level calculations.
+	ShardsLeavingAndInitializingCountTowardsConsistency() bool
+
 	// SetTagEncoderOptions sets the TagEncoderOptions.
 	SetTagEncoderOptions(value serialize.TagEncoderOptions) Options
 

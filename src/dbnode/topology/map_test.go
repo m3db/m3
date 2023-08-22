@@ -104,7 +104,6 @@ func TestStaticMap(t *testing.T) {
 		SetHostShardSets(hostShardSets)
 
 	m := NewStaticMap(opts)
-
 	require.Equal(t, 4, len(m.Hosts()))
 	require.Equal(t, 4, m.HostsLen())
 	for i, h := range hosts {
