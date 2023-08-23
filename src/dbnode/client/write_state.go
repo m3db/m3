@@ -23,6 +23,7 @@ package client
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/topology"
