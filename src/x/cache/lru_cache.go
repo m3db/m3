@@ -238,6 +238,10 @@ func (c *LRU) PutWithTTL(key string, value interface{}, ttl time.Duration) {
 // making it a property of the cache to support access specific
 // loading arguments which might not be bundled into the key.
 func (c *LRU) Get(ctx context.Context, key string, loader LoaderFunc) (interface{}, error) {
+	if loader == nil {
+		return c.GetWithTTL(ctx, key, nil)
+	}
+
 	return c.GetWithTTL(ctx, key, func(ctx context.Context, key string) (interface{}, time.Time, error) {
 		val, err := loader(ctx, key)
 		return val, time.Time{}, err
@@ -443,7 +447,7 @@ func (c *LRU) updateCacheEntryWithLock(
 		c.entries[key] = entry
 	}
 
-	entry.value, entry.err = value, err
+	entry.key, entry.value, entry.err = key, value, err
 
 	// Re-adjust expiration and mark as both most recently access and most recently used
 	if expiresAt.IsZero() {
