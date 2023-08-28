@@ -38,7 +38,7 @@ func TestInboundCredentials_Validate(t *testing.T) {
 			name:     "no error",
 			userName: "abc",
 			digest:   "xyz",
-			credtype: ClientCredential,
+			credtype: CredentialClient,
 		}, {
 			name:   "username missing",
 			digest: "xyz",
@@ -46,7 +46,7 @@ func TestInboundCredentials_Validate(t *testing.T) {
 		}, {
 			name:     "digest missing",
 			userName: "xyz",
-			credtype: ClientCredential,
+			credtype: CredentialClient,
 			err:      "digest field is empty for inbound",
 		}, {
 			name:     "cred type missing",
@@ -57,7 +57,7 @@ func TestInboundCredentials_Validate(t *testing.T) {
 			name:     "incorrect cred type",
 			userName: "abc",
 			digest:   "xyz",
-			credtype: EtcdCredential,
+			credtype: CredentialEtcd,
 			err:      "incorrect cred type field for inbound",
 		},
 	}
@@ -88,7 +88,7 @@ func TestOutboundCredentials_Validate(t *testing.T) {
 			userName: "abc",
 			password: "xyz",
 			zone:     "foo",
-			credtype: EtcdCredential,
+			credtype: CredentialEtcd,
 		}, {
 			name:     "username missing",
 			password: "xyz",
@@ -98,19 +98,19 @@ func TestOutboundCredentials_Validate(t *testing.T) {
 			name:     "password missing",
 			userName: "xyz",
 			zone:     "foo",
-			credtype: EtcdCredential,
+			credtype: CredentialEtcd,
 			err:      "password field is empty",
 		}, {
 			name:     "zone missing",
 			userName: "abc",
 			password: "xyz",
-			credtype: PeerCredential,
+			credtype: CredentialPeer,
 			err:      "zone field is not set",
 		}, {
 			name:     "zone missing for dbnode - etcd",
 			userName: "abc",
 			password: "xyz",
-			credtype: EtcdCredential,
+			credtype: CredentialEtcd,
 			err:      "zone field is not set",
 		}, {
 			name:     "cred type missing",
