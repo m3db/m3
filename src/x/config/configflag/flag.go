@@ -38,6 +38,9 @@ type Options struct {
 	// ConfigFiles (-f) is a list of config files to load
 	ConfigFiles FlagStringSlice
 
+	// CredentialsFile (-c) loads secrets yaml files.
+	CredentialsFile FlagStringSlice
+
 	// ShouldDumpConfigAndExit (-d) causes MainLoad to print config to stdout,
 	// and then exit.
 	ShouldDumpConfigAndExit bool
@@ -59,13 +62,15 @@ func (opts *Options) RegisterFlagSet(cmd *flag.FlagSet) {
 	opts.cmd = cmd
 
 	cmd.Var(&opts.ConfigFiles, "f", "Configuration files to load")
+	cmd.Var(&opts.CredentialsFile, "c", "Credential files")
 	cmd.BoolVar(&opts.ShouldDumpConfigAndExit, "d", false, "Dump configuration and exit")
 }
 
 // MainLoad is a convenience method, intended for use in main(), which handles all
 // config commandline options. It:
-//  - Dumps config and exits if -d was passed.
-//  - Loads configuration otherwise.
+//   - Dumps config and exits if -d was passed.
+//   - Loads configuration otherwise.
+//
 // Users who want a subset of this behavior should call individual methods.
 func (opts *Options) MainLoad(target interface{}, loadOpts config.Options) error {
 	osFns := opts.osFns
@@ -92,12 +97,30 @@ func (opts *Options) MainLoad(target interface{}, loadOpts config.Options) error
 	return nil
 }
 
+// CredentialLoad is a method used in main(), which handles secrets commandline options. It loads the secrets yaml
+// file if present with -c flag.
+func (opts *Options) CredentialLoad(target interface{}, loadOpts config.Options) (bool, error) {
+	if len(opts.CredentialsFile.Value) == 0 {
+		opts.cmd.Usage()
+		return false, nil
+	}
+
+	if err := config.LoadFiles(target, opts.CredentialsFile.Value, loadOpts); err != nil {
+		return false, fmt.Errorf("unable to load secrets from %s: %w", opts.CredentialsFile.Value, err)
+	}
+	return true, nil
+}
+
 // FlagStringSlice represents a slice of strings. When used as a flag variable,
 // it allows for multiple string values. For example, it can be used like this:
-// 	var configFiles FlagStringSlice
-// 	flag.Var(&configFiles, "f", "configuration file(s)")
+//
+//	var configFiles FlagStringSlice
+//	flag.Var(&configFiles, "f", "configuration file(s)")
+//
 // Then it can be invoked like this:
-// 	./app -f file1.yaml -f file2.yaml -f valueN.yaml
+//
+//	./app -f file1.yaml -f file2.yaml -f valueN.yaml
+//
 // Finally, when the flags are parsed, the variable contains all the values.
 type FlagStringSlice struct {
 	Value []string

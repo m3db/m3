@@ -65,6 +65,7 @@ type connPool struct {
 	sleepHealthRetry   sleepFn
 	status             status
 	healthStatus       tally.Gauge
+	zone               string
 }
 
 type conn struct {
@@ -103,6 +104,7 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 		sleepHealth:        time.Sleep,
 		sleepHealthRetry:   time.Sleep,
 		healthStatus:       scope.Gauge("health-status"),
+		zone:               opts.FetchTopologyInitializerZone(),
 	}
 
 	return p
@@ -162,6 +164,10 @@ func (p *connPool) Close() {
 	for i := range p.pool {
 		p.pool[i].channel.Close()
 	}
+}
+
+func (p *connPool) GetZone() string {
+	return p.zone
 }
 
 func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {

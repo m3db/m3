@@ -25,6 +25,7 @@ import (
 	gocontext "context"
 	"errors"
 	"fmt"
+	"github.com/m3db/m3/src/dbnode/auth"
 	"math"
 	"sort"
 	"strings"
@@ -2770,7 +2771,8 @@ func (s *session) streamBlocksMetadataFromPeer(
 		req.IncludeLastRead = &optionIncludeLastRead
 
 		progress.metadataFetchBatchCall.Inc(1)
-		result, err := client.FetchBlocksMetadataRawV2(tctx, req)
+		authWrappedCtx := auth.OutboundAuth.WrapThriftContextWithPeerCreds(tctx, s.opts.FetchTopologyInitializerZone())
+		result, err := client.FetchBlocksMetadataRawV2(authWrappedCtx, req)
 		if err != nil {
 			progress.metadataFetchBatchError.Inc(1)
 			return err
@@ -3386,7 +3388,8 @@ func (s *session) streamBlocksBatchFromPeer(
 		var attemptErr error
 		borrowErr := peer.BorrowConnection(func(client rpc.TChanNode, _ Channel) {
 			tctx, _ := thrift.NewContext(s.streamBlocksBatchTimeout)
-			result, attemptErr = client.FetchBlocksRaw(tctx, req)
+			authWrappedCtx := auth.OutboundAuth.WrapThriftContextWithPeerCreds(tctx, s.opts.FetchTopologyInitializerZone())
+			result, attemptErr = client.FetchBlocksRaw(authWrappedCtx, req)
 		})
 		err := xerrors.FirstError(borrowErr, attemptErr)
 		return err

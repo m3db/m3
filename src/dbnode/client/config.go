@@ -338,7 +338,8 @@ func (c Configuration) NewAdminClient(
 		SetInstrumentOptions(iopts).
 		SetLogErrorSampleRate(c.LogErrorSampleRate).
 		SetLogHostWriteErrorSampleRate(c.LogHostWriteErrorSampleRate).
-		SetLogHostFetchErrorSampleRate(c.LogHostFetchErrorSampleRate)
+		SetLogHostFetchErrorSampleRate(c.LogHostFetchErrorSampleRate).
+		SetTopologyInitializerZone(syncTopoInit.FetchZone())
 
 	if params.ClockOptions != nil {
 		v = v.SetClockOptions(params.ClockOptions)
@@ -474,6 +475,9 @@ func (c Configuration) NewAdminClient(
 		opts = opt(opts)
 	}
 
+	if authErr := PopulateClientOutboundAuthConfig(c.EnvironmentConfig.Services); authErr != nil {
+		return nil, authErr
+	}
 	asyncClusterOpts := NewOptionsForAsyncClusters(opts, asyncTopoInits, asyncClientOverrides)
 	return NewAdminClient(opts, asyncClusterOpts...)
 }

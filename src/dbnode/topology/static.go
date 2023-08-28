@@ -51,6 +51,10 @@ func (i staticInitializer) TopologyIsSet() (bool, error) {
 	return true, nil
 }
 
+func (i staticInitializer) FetchZone() string {
+	return ""
+}
+
 type staticTopology struct {
 	w xwatch.Watchable
 }

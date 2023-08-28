@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2023 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,49 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package auth
 
 import (
-	"flag"
-	"log"
-
-	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
-	"github.com/m3db/m3/src/cmd/services/m3dbnode/server"
-	xconfig "github.com/m3db/m3/src/x/config"
-	"github.com/m3db/m3/src/x/config/configflag"
-	xos "github.com/m3db/m3/src/x/os"
+	"crypto/md5" // #nosec
+	"encoding/hex"
+	"fmt"
+	"hash"
 )
 
-func main() {
-	var cfgOpts configflag.Options
-	cfgOpts.Register()
+var (
+	credentialCache = map[string]string{}
+	hashFunc        = md5.New() // #nosec
+)
 
-	flag.Parse()
-
-	var cfg config.Configuration
-	if err := cfgOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
-		log.Fatalf("error loading config: %v", err)
+func generateHashWithCacheLookup(data string, h hash.Hash) (string, error) {
+	if val, ok := credentialCache[data]; ok {
+		return val, nil
 	}
-
-	if err := cfg.Validate(); err != nil {
-		log.Fatalf("error validating config: %v", err)
-	}
-
-	var secrets config.AuthConfig
-	isSecretsConfigPresent, err := cfgOpts.CredentialLoad(&secrets, xconfig.Options{})
+	_, err := h.Write([]byte(data))
 	if err != nil {
-		log.Fatalf("error loading secrets config: %v", err)
+		return "", fmt.Errorf("error generating hash")
 	}
+	generatedHash := hex.EncodeToString(h.Sum(nil))
+	credentialCache[data] = generatedHash
+	return generatedHash, nil
+}
 
-	if isSecretsConfigPresent {
-		if err := secrets.Validate(); err != nil {
-			log.Fatalf("error validating config: %v", err)
-		}
-	}
+// GenerateHash takes data as input param and returns md5 hash either from cache or creating md5 hash on runtime.
+func GenerateHash(data string) (string, error) {
+	defer hashFunc.Reset()
+	return generateHashWithCacheLookup(data, hashFunc)
+}
 
-	server.RunComponents(server.Options{
-		Configuration: cfg,
-		SecretsConfig: secrets,
-		InterruptCh:   xos.NewInterruptChannel(cfg.Components()),
-	})
+func invalidateCache() {
+	credentialCache = map[string]string{}
 }

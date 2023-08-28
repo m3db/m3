@@ -731,6 +731,10 @@ type Options interface {
 
 	// ThriftContextFn returns the retrier for streaming blocks.
 	ThriftContextFn() ThriftContextFn
+
+	SetTopologyInitializerZone(value string) Options
+
+	FetchTopologyInitializerZone() string
 }
 
 // ThriftContextFn turns a context into a thrift context for a thrift call.
@@ -848,6 +852,8 @@ type connectionPool interface {
 
 	// Close the connection pool.
 	Close()
+
+	GetZone() string
 }
 
 type peerSource interface {

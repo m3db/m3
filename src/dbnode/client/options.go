@@ -296,6 +296,7 @@ type options struct {
 	writeTimestampOffset                    time.Duration
 	namespaceInitializer                    namespace.Initializer
 	thriftContextFn                         ThriftContextFn
+	zone                                    string
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -319,6 +320,9 @@ func NewOptionsForAsyncClusters(opts Options, topoInits []topology.Initializer, 
 		}
 		if overrides[i].TargetHostQueueFlushSize != nil {
 			options = options.SetHostQueueOpsFlushSize(*overrides[i].TargetHostQueueFlushSize)
+		}
+		if topoInit.FetchZone() != "" {
+			options = options.SetTopologyInitializerZone(topoInit.FetchZone())
 		}
 		result = append(result, options)
 	}
@@ -1170,4 +1174,14 @@ func (o *options) SetThriftContextFn(value ThriftContextFn) Options {
 
 func (o *options) ThriftContextFn() ThriftContextFn {
 	return o.thriftContextFn
+}
+
+func (o *options) SetTopologyInitializerZone(value string) Options {
+	opts := *o
+	opts.zone = value
+	return &opts
+}
+
+func (o *options) FetchTopologyInitializerZone() string {
+	return o.zone
 }

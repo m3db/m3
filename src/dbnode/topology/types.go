@@ -59,6 +59,8 @@ type Initializer interface {
 	// initialized immediately or if instead it will blockingly
 	// wait to be set on initialization
 	TopologyIsSet() (bool, error)
+
+	FetchZone() string
 }
 
 // Topology is a container of a topology map and disseminates topology map changes

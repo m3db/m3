@@ -24,6 +24,7 @@ import (
 	goctx "context"
 	"errors"
 	"fmt"
+	"github.com/m3db/m3/src/dbnode/auth"
 	"runtime"
 	"sort"
 	"sync"
@@ -440,9 +441,10 @@ func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_
 // BootstrappedInPlacementOrNoPlacement is designed to be used with cluster
 // management tools like k8s that expected an endpoint that will return
 // success if the node either:
-// 1) Has no cluster placement set yet.
-// 2) Is bootstrapped and durable, meaning it is bootstrapped and is able
-//    to bootstrap the shards it owns from it's own local disk.
+//  1. Has no cluster placement set yet.
+//  2. Is bootstrapped and durable, meaning it is bootstrapped and is able
+//     to bootstrap the shards it owns from it's own local disk.
+//
 // This is useful in addition to the Bootstrapped RPC method as it helps
 // progress node addition/removal/modifications when no placement is set
 // at all and therefore the node has not been able to bootstrap yet.
@@ -1159,6 +1161,9 @@ func (i *idResult) WriteSegments(ctx context.Context, dst []*rpc.Segments) ([]*r
 }
 
 func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest) (*rpc.AggregateQueryResult_, error) {
+	if authErr := auth.InboundAuth.ValidateCredentialsFromThriftContext(tctx, auth.ClientCredential); authErr != nil {
+		return nil, authErr
+	}
 	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
@@ -1203,6 +1208,9 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 }
 
 func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRequest) (*rpc.AggregateQueryRawResult_, error) {
+	if authErr := auth.InboundAuth.ValidateCredentialsFromThriftContext(tctx, auth.ClientCredential); authErr != nil {
+		return nil, authErr
+	}
 	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err

@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2023 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,49 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package auth
 
 import (
-	"flag"
-	"log"
-
-	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
-	"github.com/m3db/m3/src/cmd/services/m3dbnode/server"
-	xconfig "github.com/m3db/m3/src/x/config"
-	"github.com/m3db/m3/src/x/config/configflag"
-	xos "github.com/m3db/m3/src/x/os"
+	mrand "math/rand"
+	"testing"
 )
 
-func main() {
-	var cfgOpts configflag.Options
-	cfgOpts.Register()
+const (
+	charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+)
 
-	flag.Parse()
+var (
+	inputStr = 10
+)
 
-	var cfg config.Configuration
-	if err := cfgOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
-		log.Fatalf("error loading config: %v", err)
+func BenchmarkGetMD5DigestMap(b *testing.B) {
+	testInput := []string{}
+	for i := 0; i < inputStr; i++ {
+		testInput = append(testInput, RandomString(10))
 	}
-
-	if err := cfg.Validate(); err != nil {
-		log.Fatalf("error validating config: %v", err)
-	}
-
-	var secrets config.AuthConfig
-	isSecretsConfigPresent, err := cfgOpts.CredentialLoad(&secrets, xconfig.Options{})
-	if err != nil {
-		log.Fatalf("error loading secrets config: %v", err)
-	}
-
-	if isSecretsConfigPresent {
-		if err := secrets.Validate(); err != nil {
-			log.Fatalf("error validating config: %v", err)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if _, err := GenerateHash(testInput[i%inputStr]); err != nil {
+			b.Fatalf("error generating MD5 digest: %v", err)
 		}
 	}
+}
 
-	server.RunComponents(server.Options{
-		Configuration: cfg,
-		SecretsConfig: secrets,
-		InterruptCh:   xos.NewInterruptChannel(cfg.Components()),
-	})
+func RandomString(length int) string {
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[mrand.Intn(len(charset))] // #nosec
+	}
+	return string(b)
 }
