@@ -34,7 +34,9 @@ type percentageFilter struct {
 // NewPercentageFilter creates a filter based on percentage.
 func NewPercentageFilter(percentage float64) producer.FilterFunc {
 	rate := uint32(_maxRate)
-	if percentage < 1 {
+	if percentage <= 0 {
+		rate = 0
+	} else if percentage < 1 {
 		rate = uint32(percentage * _maxRate)
 	}
 

@@ -39,3 +39,14 @@ func TestPercentageFilter(t *testing.T) {
 	f1 := NewPercentageFilter(1)
 	require.True(t, f1(mm))
 }
+
+var filterResult bool
+
+func BenchmarkPercentageFilter(b *testing.B) {
+	f := NewPercentageFilter(0.5)
+	var r bool
+	for i := 0; i < b.N; i++ {
+		r = f(nil)
+	}
+	filterResult = r
+}
