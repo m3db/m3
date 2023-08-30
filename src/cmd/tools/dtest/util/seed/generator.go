@@ -157,7 +157,7 @@ type fakeShardSet struct {
 }
 
 func (f *fakeShardSet) LookupShard(id uint32) (shard.Shard, error) {
-	return nil, nil
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (f *fakeShardSet) All() []shard.Shard {
