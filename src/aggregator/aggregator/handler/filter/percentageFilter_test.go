@@ -42,6 +42,17 @@ func TestPercentageFilter(t *testing.T) {
 
 var filterResult bool
 
+/*
+benchmark baseline:
+
+goos: darwin
+goarch: amd64
+pkg: github.com/m3db/m3/src/aggregator/aggregator/handler/filter
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkPercentageFilter
+BenchmarkPercentageFilter-12    	280085259	         4.232 ns/op
+PASS
+*/
 func BenchmarkPercentageFilter(b *testing.B) {
 	f := NewPercentageFilter(0.5)
 	var r bool
