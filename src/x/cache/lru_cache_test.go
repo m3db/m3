@@ -650,6 +650,24 @@ func TestLRU_EnforceMaxEntries(t *testing.T) {
 	assert.Len(t, lru.entries, maxEntries)
 }
 
+func TestLRU_PutAboveLimit(t *testing.T) {
+	var (
+		maxEntries = 2
+		lru        = NewLRU(&LRUOptions{MaxEntries: maxEntries, TTL: time.Second, Now: time.Now})
+	)
+
+	for i := 0; i < 3*maxEntries; i++ {
+		key, value := strconv.Itoa(i), fmt.Sprintf("value for %d", i)
+		lru.Put(key, value)
+
+		res, ok := lru.TryGet(key)
+		require.True(t, ok)
+		require.Equal(t, value, res.(string))
+	}
+
+	assert.Len(t, lru.entries, maxEntries)
+}
+
 var defaultKeys = []string{
 	"key-0", "key-1", "key-2", "key-3", "key-4", "key-5", "key-6", "key-7", "key-8", "key-9", "key10",
 }
